@@ -30,15 +30,15 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 	}
 
 	var req struct {
-		ModelConfigID    uint    `json:"model_config_id" binding:"required"`
-		JobType          string  `json:"job_type"`           // image | image_edit | video | video_i2v | video_v2v
-		Prompt           string  `json:"prompt"`
-		ExtraParams      string  `json:"extra_params"`
-		AspectRatio      string  `json:"aspect_ratio"`
-		Duration         int     `json:"duration"`
-		InputResourceID  *uint   `json:"input_resource_id"` // legacy single resource
-		InputResourceIDs []uint  `json:"input_resource_ids"`
-		ProjectID        *uint   `json:"project_id"`
+		ModelConfigID    uint   `json:"model_config_id" binding:"required"`
+		JobType          string `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v
+		Prompt           string `json:"prompt"`
+		ExtraParams      string `json:"extra_params"`
+		AspectRatio      string `json:"aspect_ratio"`
+		Duration         int    `json:"duration"`
+		InputResourceID  *uint  `json:"input_resource_id"` // legacy single resource
+		InputResourceIDs []uint `json:"input_resource_ids"`
+		ProjectID        *uint  `json:"project_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -80,10 +80,10 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 	}
 	def := ai.ResolveModelDef(mcfg.ModelDefID, cred.AdapterType, mcfg.CustomDisplayName, mcfg.CustomCapabilities, mcfg.CustomBillingMode, mcfg.CustomAcceptsImage, mcfg.CustomMaxInputImages, mcfg.CustomMaxInputVideos, mcfg.CustomImageEditField, mcfg.CustomSupportedParams)
 	if valErr := ai.ValidateGenRequest(def, ai.GenRequest{
-		ModelConfigID:   req.ModelConfigID,
-		OutputType:      jobType,
-		ImageCount:      imageCount,
-		VideoCount:      videoCount,
+		ModelConfigID: req.ModelConfigID,
+		OutputType:    jobType,
+		ImageCount:    imageCount,
+		VideoCount:    videoCount,
 	}); valErr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": valErr.Error()})
 		return
@@ -180,19 +180,26 @@ func (h *GenJobHandler) List(c *gin.Context) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
+	if offset < 0 {
+		offset = 0
+	}
 
-	q := h.db.Where("user_id = ?", user.ID)
+	q := h.db.Model(&model.GenJob{}).Where("user_id = ?", user.ID)
 	if status := c.Query("status"); status != "" {
 		q = q.Where("status = ?", status)
 	}
 	if jobType := c.Query("type"); jobType != "" {
 		// "image" also includes "image_edit" jobs since they're the same from the user's perspective.
-		if jobType == "image" {
+		// Callers that need exact category tabs can pass exact_type=1.
+		if jobType == "image" && c.Query("exact_type") != "1" {
 			q = q.Where("job_type IN ?", []string{"image", "image_edit"})
 		} else {
 			q = q.Where("job_type = ?", jobType)
 		}
 	}
+
+	var total int64
+	q.Count(&total)
 
 	var jobs []model.GenJob
 	q.Preload("OutputResource").Order("id desc").Limit(limit).Offset(offset).Find(&jobs)
@@ -202,6 +209,7 @@ func (h *GenJobHandler) List(c *gin.Context) {
 			jobs[i].OutputResource.URL = resourceURL(c, jobs[i].OutputResource.ID)
 		}
 	}
+	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
 	c.JSON(http.StatusOK, jobs)
 }
 
@@ -255,4 +263,3 @@ func (h *GenJobHandler) Delete(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
-

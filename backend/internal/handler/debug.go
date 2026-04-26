@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -142,22 +143,30 @@ func maskHeader(v string) string {
 	return "***"
 }
 
-// ListJobs returns recent GenJobs with full debug info for the job monitor.
-// GET /admin/debug/jobs?status=&limit=
+// ListJobs returns GenJobs with full debug info for the job monitor.
+// GET /admin/debug/jobs?status=&limit=&offset=
 func (h *DebugHandler) ListJobs(c *gin.Context) {
 	status := c.Query("status") // optional filter
-	limit := 50
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	q := h.db.Model(&model.GenJob{}).
-		Preload("OutputResource").
-		Order("id DESC").
-		Limit(limit)
+		Preload("OutputResource")
 	if status != "" {
 		q = q.Where("status = ?", status)
 	}
 
+	var total int64
+	q.Count(&total)
+
 	var jobs []model.GenJob
-	q.Find(&jobs)
+	q.Order("id DESC").Limit(limit).Offset(offset).Find(&jobs)
 
 	type jobDetail struct {
 		model.GenJob
@@ -175,6 +184,7 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 		}
 		out = append(out, d)
 	}
+	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
 	c.JSON(http.StatusOK, out)
 }
 
@@ -185,12 +195,12 @@ func (h *DebugHandler) ProviderCall(c *gin.Context) {
 	var req struct {
 		AdapterType string         `json:"adapter_type" binding:"required"`
 		BaseURL     string         `json:"base_url"`
-		APIKey      string         `json:"api_key"`                       // plain-text; never persisted
-		EndpointURL string         `json:"endpoint_url"`                  // full URL; capability inferred from path
-		Capability  string         `json:"capability"`                    // text|image|video; ignored when endpoint_url is set
+		APIKey      string         `json:"api_key"`      // plain-text; never persisted
+		EndpointURL string         `json:"endpoint_url"` // full URL; capability inferred from path
+		Capability  string         `json:"capability"`   // text|image|video; ignored when endpoint_url is set
 		Model       string         `json:"model"`
 		Prompt      string         `json:"prompt"`
-		Params      map[string]any `json:"params"` // capability-specific extra params
+		Params      map[string]any `json:"params"`  // capability-specific extra params
 		DryRun      bool           `json:"dry_run"` // if true, build request but do not send
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {

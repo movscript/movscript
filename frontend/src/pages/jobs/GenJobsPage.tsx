@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { GenJob, RawResource } from '@/types'
@@ -6,6 +6,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, Clock,
   Image as ImageIcon, Video, Download, Wand2,
   LayoutGrid, List, ChevronDown, ChevronRight,
+  ChevronLeft,
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
@@ -13,6 +14,7 @@ import { PromptText } from '@/components/shared/GenResultCard'
 import { cn } from '@/lib/utils'
 
 const API_BASE = 'http://localhost:8765'
+const PAGE_SIZE = 24
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,13 @@ type Category = {
   key: string
   label: string
   icon: React.ReactNode
+}
+
+type StatusFilter = 'all' | 'succeeded'
+
+type GenJobsQueryResult = {
+  jobs: GenJob[]
+  total: number
 }
 
 const CATEGORIES: Category[] = [
@@ -234,20 +243,46 @@ function CategorySection({
 export default function GenJobsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [activeCategory, setActiveCategory] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [page, setPage] = useState(1)
 
   const hasActiveJobs = (jobs: GenJob[]) =>
     jobs.some((j) => j.status === 'pending' || j.status === 'running')
 
-  const { data: jobs = [], isLoading } = useQuery<GenJob[]>({
-    queryKey: ['gen-jobs'],
-    queryFn: () => api.get('/gen-jobs?limit=200').then((r) => r.data),
+  const { data, isLoading } = useQuery<GenJobsQueryResult>({
+    queryKey: ['gen-jobs', { category: activeCategory, status: statusFilter, page }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String((page - 1) * PAGE_SIZE),
+      })
+      if (activeCategory !== 'all') {
+        params.set('type', activeCategory)
+        params.set('exact_type', '1')
+      }
+      if (statusFilter === 'succeeded') params.set('status', 'succeeded')
+
+      const res = await api.get<GenJob[]>(`/gen-jobs?${params.toString()}`)
+      const total = Number(res.headers['x-total-count'] ?? res.data.length)
+      return { jobs: res.data, total }
+    },
     refetchInterval: (query) => {
-      const data = query.state.data as GenJob[] | undefined
-      return data && hasActiveJobs(data) ? 3000 : 30000
+      const data = query.state.data as GenJobsQueryResult | undefined
+      return data && hasActiveJobs(data.jobs) ? 3000 : 30000
     },
   })
 
-  const filtered = filterJobs(jobs, activeCategory)
+  const jobs = data?.jobs ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  useEffect(() => {
+    setPage(1)
+  }, [activeCategory, statusFilter])
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
 
   // Group by category for "all" view
   const grouped: { key: string; label: string; jobs: GenJob[] }[] =
@@ -264,7 +299,7 @@ export default function GenJobsPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-background shrink-0">
         <h1 className="text-sm font-semibold text-foreground">生成记录</h1>
-        <span className="text-xs text-muted-foreground">{jobs.length} 条</span>
+        <span className="text-xs text-muted-foreground">{total} 条</span>
         {hasActiveJobs(jobs) && (
           <span className="flex items-center gap-1 text-xs text-blue-600">
             <Loader2 size={11} className="animate-spin" /> 生成中…
@@ -301,10 +336,26 @@ export default function GenJobsPage() {
       </div>
 
       {/* Category tabs */}
-      <div className="flex items-center gap-1 px-5 py-2 border-b border-border bg-background shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-background shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1 shrink-0">
+          {(['all', 'succeeded'] as StatusFilter[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors',
+                statusFilter === s
+                  ? 'bg-foreground text-background'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {s === 'all' ? '全部状态' : '只看成功'}
+            </button>
+          ))}
+        </div>
+        <div className="h-5 w-px bg-border shrink-0" />
         {CATEGORIES.map((cat) => {
-          const count = cat.key === 'all' ? jobs.length : filterJobs(jobs, cat.key).length
-          if (cat.key !== 'all' && count === 0) return null
+          const showCount = cat.key === activeCategory
           return (
             <button
               key={cat.key}
@@ -318,12 +369,9 @@ export default function GenJobsPage() {
             >
               {cat.icon}
               {cat.label}
-              <span className={cn(
-                'text-[10px] font-semibold tabular-nums',
-                activeCategory === cat.key ? 'text-background/70' : 'text-muted-foreground/60'
-              )}>
-                {count}
-              </span>
+              {showCount && (
+                <span className="text-[10px] font-semibold tabular-nums opacity-70">{total}</span>
+              )}
             </button>
           )
         })}
@@ -333,7 +381,7 @@ export default function GenJobsPage() {
       <div className="flex-1 overflow-y-auto px-5 py-5">
         {isLoading ? (
           <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">加载中…</div>
-        ) : jobs.length === 0 ? (
+        ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
             <Wand2 size={32} className="mb-3 opacity-30" />
             <p className="text-sm">还没有生成记录</p>
@@ -353,14 +401,38 @@ export default function GenJobsPage() {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {filtered.map((job) => <JobGridThumb key={job.ID} job={job} />)}
+            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} />)}
           </div>
         ) : (
           <div className="space-y-4">
-            {filtered.map((job) => <JobListCard key={job.ID} job={job} />)}
+            {jobs.map((job) => <JobListCard key={job.ID} job={job} />)}
           </div>
         )}
       </div>
+
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-background shrink-0">
+          <span className="text-xs text-muted-foreground">
+            第 {page} / {pageCount} 页
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+            >
+              <ChevronLeft size={12} /> 上一页
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              disabled={page === pageCount}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+            >
+              下一页 <ChevronRight size={12} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

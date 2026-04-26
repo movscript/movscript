@@ -392,23 +392,46 @@ function RawCallSection() {
 
 // ── Section 2: Job Monitor ────────────────────────────────────────────────────
 
+const JOB_MONITOR_PAGE_SIZE = 25
+
 function JobMonitorSection() {
   const [statusFilter, setStatusFilter] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [page, setPage] = useState(1)
 
-  const { data: jobs = [], refetch, isFetching } = useQuery<GenJobDetail[]>({
-    queryKey: ['admin', 'debug', 'jobs', statusFilter],
-    queryFn: () => api.get(`/admin/debug/jobs${statusFilter ? `?status=${statusFilter}` : ''}`).then((r) => r.data),
+  const { data, refetch, isFetching } = useQuery<{ jobs: GenJobDetail[]; total: number }>({
+    queryKey: ['admin', 'debug', 'jobs', statusFilter, page],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        limit: String(JOB_MONITOR_PAGE_SIZE),
+        offset: String((page - 1) * JOB_MONITOR_PAGE_SIZE),
+      })
+      if (statusFilter) params.set('status', statusFilter)
+      const res = await api.get<GenJobDetail[]>(`/admin/debug/jobs?${params.toString()}`)
+      const total = Number(res.headers['x-total-count'] ?? res.data.length)
+      return { jobs: res.data, total }
+    },
     refetchInterval: autoRefresh ? 3000 : false,
   })
+  const jobs = data?.jobs ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / JOB_MONITOR_PAGE_SIZE))
+
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter])
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-foreground">任务监控</p>
-          <p className="text-xs text-muted-foreground mt-0.5">查看最近 50 条生成任务的状态和完整 HTTP 交换记录。</p>
+          <p className="text-xs text-muted-foreground mt-0.5">按页查看生成任务的状态和完整 HTTP 交换记录，共 {total} 条。</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
@@ -432,6 +455,20 @@ function JobMonitorSection() {
           </button>
         ))}
       </div>
+
+      {total > JOB_MONITOR_PAGE_SIZE && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">第 {page} / {pageCount} 页</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              上一页
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
+              下一页
+            </Button>
+          </div>
+        </div>
+      )}
 
       {jobs.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">暂无任务记录</p>
