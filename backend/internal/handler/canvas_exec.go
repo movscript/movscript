@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +22,14 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/model"
 )
+
+type canvasRunSnapshot struct {
+	Version    int                `json:"version"`
+	CanvasID   uint               `json:"canvas_id"`
+	CapturedAt time.Time          `json:"captured_at"`
+	Nodes      []model.CanvasNode `json:"nodes"`
+	Edges      []model.CanvasEdge `json:"edges"`
+}
 
 // nodeData mirrors the JSON stored in CanvasNode.Data.
 type nodeData struct {
@@ -32,6 +44,8 @@ type nodeData struct {
 	Status             string `json:"status,omitempty"`
 	TaskID             *uint  `json:"taskId,omitempty"`
 	Error              string `json:"error,omitempty"`
+	TextContent        string `json:"textContent,omitempty"`
+	InputValue         string `json:"inputValue,omitempty"`
 }
 
 // RunNode executes a single AI node and returns a pending CanvasTask.
@@ -99,6 +113,7 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cycle detected in canvas"})
 		return
 	}
+	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := buildCanvasRunSnapshot(cv)
 
 	inputValues := "{}"
 	if req.InputValues != nil {
@@ -108,10 +123,14 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	}
 	now := time.Now()
 	run := model.CanvasRun{
-		CanvasID:    cv.ID,
-		Status:      "running",
-		InputValues: inputValues,
-		StartedAt:   &now,
+		CanvasID:          cv.ID,
+		Status:            "running",
+		InputValues:       inputValues,
+		GraphSnapshot:     snapshot,
+		SnapshotHash:      snapshotHash,
+		SnapshotNodeCount: snapshotNodeCount,
+		SnapshotEdgeCount: snapshotEdgeCount,
+		StartedAt:         &now,
 	}
 	h.db.Create(&run)
 
@@ -128,7 +147,14 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		if nd.Source != "ai" && node.Type != "output" {
 			continue
 		}
-		task := model.CanvasTask{CanvasNodeID: node.ID, CanvasRunID: &run.ID, Status: "pending"}
+		task := model.CanvasTask{
+			CanvasNodeID: node.ID,
+			CanvasRunID:  &run.ID,
+			NodeID:       node.NodeID,
+			NodeLabel:    node.Label,
+			NodeType:     node.Type,
+			Status:       "pending",
+		}
 		h.db.Create(&task)
 		tasks = append(tasks, task)
 	}
@@ -146,15 +172,28 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 }
 
 func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runID uint, order []string) {
-	var cv model.Canvas
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
+	var run model.CanvasRun
+	if err := h.db.First(&run, runID).Error; err != nil {
 		finishedAt := time.Now()
 		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
 			"status":      "failed",
-			"error":       "canvas not found",
+			"error":       "run not found",
 			"finished_at": &finishedAt,
 		})
 		return
+	}
+
+	cv, snapshotErr := canvasFromRunSnapshot(canvasID, run.GraphSnapshot)
+	if snapshotErr != nil {
+		if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
+			finishedAt := time.Now()
+			h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
+				"status":      "failed",
+				"error":       "canvas not found",
+				"finished_at": &finishedAt,
+			})
+			return
+		}
 	}
 
 	upstream := map[string][]string{}
@@ -168,6 +207,10 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 	taskMap := map[string]*model.CanvasTask{}
 	var runTasks []model.CanvasTask
 	h.db.Where("canvas_run_id = ?", runID).Order("id asc").Find(&runTasks)
+	inputValues := map[string]string{}
+	if run.InputValues != "" {
+		_ = json.Unmarshal([]byte(run.InputValues), &inputValues)
+	}
 	taskIndex := 0
 	for _, nid := range order {
 		node := nodeMap[nid]
@@ -194,6 +237,17 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		}
 		var nd nodeData
 		json.Unmarshal([]byte(node.Data), &nd)
+		if node.Type == "input" {
+			text, ok := inputValues[nid]
+			if !ok {
+				text = nd.InputValue
+			}
+			if r, err := h.createCanvasTextResource(context.Background(), user.ID, fmt.Sprintf("input_%s_%d.txt", nid, runID), text); err == nil {
+				rid := r.ID
+				produced[nid] = &rid
+			}
+			continue
+		}
 		if node.Type == "output" {
 			task := taskMap[nid]
 			var outputResource *uint
@@ -217,6 +271,11 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		if nd.Source != "ai" {
 			if nd.ResourceID != nil {
 				produced[nid] = nd.ResourceID
+			} else if node.Type == "text" {
+				if r, err := h.createCanvasTextResource(context.Background(), user.ID, fmt.Sprintf("text_%s_%d.txt", nid, runID), nd.TextContent); err == nil {
+					rid := r.ID
+					produced[nid] = &rid
+				}
 			}
 			continue
 		}
@@ -249,6 +308,35 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 	h.updateRunStatus(&runID)
 }
 
+func buildCanvasRunSnapshot(cv model.Canvas) (string, string, int, int) {
+	snapshot := canvasRunSnapshot{
+		Version:    1,
+		CanvasID:   cv.ID,
+		CapturedAt: time.Now(),
+		Nodes:      cv.Nodes,
+		Edges:      cv.Edges,
+	}
+	b, err := json.Marshal(snapshot)
+	if err != nil {
+		return "", "", len(cv.Nodes), len(cv.Edges)
+	}
+	sum := sha256.Sum256(b)
+	return string(b), hex.EncodeToString(sum[:]), len(cv.Nodes), len(cv.Edges)
+}
+
+func canvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
+	if strings.TrimSpace(raw) == "" {
+		return model.Canvas{}, fmt.Errorf("empty snapshot")
+	}
+	var snapshot canvasRunSnapshot
+	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
+		return model.Canvas{}, err
+	}
+	cv := model.Canvas{Nodes: snapshot.Nodes, Edges: snapshot.Edges}
+	cv.ID = canvasID
+	return cv, nil
+}
+
 // ListRuns returns workflow runs for a canvas, newest first.
 func (h *CanvasHandler) ListRuns(c *gin.Context) {
 	user := currentUser(c)
@@ -266,7 +354,30 @@ func (h *CanvasHandler) ListRuns(c *gin.Context) {
 		return
 	}
 	var runs []model.CanvasRun
-	h.db.Where("canvas_id = ?", cv.ID).Order("id desc").Limit(20).Find(&runs)
+	q := h.db.Model(&model.CanvasRun{}).Where("canvas_id = ?", cv.ID)
+	if status := strings.TrimSpace(c.Query("status")); status != "" && status != "all" {
+		q = q.Where("status = ?", status)
+	}
+
+	pageMode := c.Query("page") != "" || c.Query("page_size") != ""
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	var total int64
+	q.Count(&total)
+	q.Omit("graph_snapshot").Order("id desc")
+	if pageMode {
+		q.Limit(pageSize).Offset((page - 1) * pageSize).Find(&runs)
+		c.JSON(http.StatusOK, gin.H{"total": total, "items": runs, "page": page, "page_size": pageSize})
+		return
+	}
+	q.Limit(20).Find(&runs)
 	c.JSON(http.StatusOK, runs)
 }
 
@@ -452,6 +563,7 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 			return
 		}
 		filename := fmt.Sprintf("%d_text_%d.txt", user.ID, task.ID)
+		_ = os.MkdirAll(h.uploadDir, 0755)
 		path := filepath.Join(h.uploadDir, filename)
 		os.WriteFile(path, []byte(resp.Content), 0644)
 		resultURL, mimeType, resType = path, "text/plain", "text"
@@ -508,14 +620,11 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 		return
 	}
 
-	r := model.RawResource{
-		OwnerID:  user.ID,
-		Type:     resType,
-		Name:     fmt.Sprintf("generated_%s_%d", resType, task.ID),
-		FilePath: resultURL,
-		MimeType: mimeType,
+	r, err := h.createCanvasResourceFromSource(ctx, user.ID, fmt.Sprintf("generated_%s_%d.%s", resType, task.ID, canvasExtFromMime(mimeType)), resultURL, mimeType)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
 	}
-	h.db.Create(&r)
 
 	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
 	nd.Status = "done"
@@ -525,6 +634,108 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 		h.updateNodeData(node, nd)
 	}
 	h.updateRunStatus(task.CanvasRunID)
+}
+
+func (h *CanvasHandler) createCanvasTextResource(ctx context.Context, ownerID uint, name string, text string) (*model.RawResource, error) {
+	return h.createCanvasResourceFromBytes(ctx, ownerID, name, []byte(text), "text/plain")
+}
+
+func (h *CanvasHandler) createCanvasResourceFromSource(ctx context.Context, ownerID uint, name string, source string, mimeType string) (*model.RawResource, error) {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return nil, fmt.Errorf("generated result is empty")
+	}
+	var data []byte
+	if strings.HasPrefix(source, "data:") {
+		semi := strings.Index(source, ";")
+		comma := strings.Index(source, ",")
+		if semi < 0 || comma < 0 || comma <= semi {
+			return nil, fmt.Errorf("malformed data URI")
+		}
+		mimeType = strings.TrimPrefix(source[:semi], "data:")
+		decoded, err := base64.StdEncoding.DecodeString(source[comma+1:])
+		if err != nil {
+			return nil, fmt.Errorf("decode generated data: %w", err)
+		}
+		data = decoded
+	} else if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
+		if err != nil {
+			return nil, fmt.Errorf("build generated result request: %w", err)
+		}
+		resp, err := (&http.Client{Timeout: 2 * time.Minute}).Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("download generated result: %w", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("download generated result returned %d", resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			mimeType = ct
+		}
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read generated result: %w", err)
+		}
+	} else {
+		var err error
+		data, err = os.ReadFile(source)
+		if err != nil {
+			return nil, fmt.Errorf("read generated result file: %w", err)
+		}
+	}
+	return h.createCanvasResourceFromBytes(ctx, ownerID, name, data, mimeType)
+}
+
+func (h *CanvasHandler) createCanvasResourceFromBytes(ctx context.Context, ownerID uint, name string, data []byte, mimeType string) (*model.RawResource, error) {
+	if h.store == nil {
+		return nil, fmt.Errorf("resource storage is not configured")
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	resType := mimeToType(mimeType, name)
+	key := fmt.Sprintf("canvas/%d/%d_%s", ownerID, time.Now().UnixNano(), filepath.Base(name))
+	r := model.RawResource{
+		OwnerID:        ownerID,
+		Type:           resType,
+		Name:           name,
+		MimeType:       mimeType,
+		Size:           int64(len(data)),
+		FilePath:       "pending",
+		StorageBackend: h.store.Backend(),
+		StorageKey:     key,
+	}
+	if err := h.db.Create(&r).Error; err != nil {
+		return nil, fmt.Errorf("create resource record: %w", err)
+	}
+	if err := h.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
+		h.db.Delete(&r)
+		return nil, fmt.Errorf("store resource: %w", err)
+	}
+	h.db.Model(&r).Update("file_path", "stored:"+key)
+	r.FilePath = "stored:" + key
+	return &r, nil
+}
+
+func canvasExtFromMime(mimeType string) string {
+	base := strings.TrimSpace(strings.Split(mimeType, ";")[0])
+	if exts, err := mime.ExtensionsByType(base); err == nil && len(exts) > 0 {
+		return strings.TrimPrefix(exts[0], ".")
+	}
+	switch mimeToType(base, "") {
+	case "image":
+		return "png"
+	case "video":
+		return "mp4"
+	case "audio":
+		return "mp3"
+	case "text":
+		return "txt"
+	default:
+		return "bin"
+	}
 }
 
 func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User) {

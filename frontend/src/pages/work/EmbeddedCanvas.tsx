@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { api } from '@/lib/api'
-import type { Canvas, CanvasNodeData, CanvasTask, CanvasType, NodeType, RawResource } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasRun, CanvasTask, CanvasType, NodeType, RawResource } from '@/types'
 import { type EntityKind, KIND_CONFIG } from './config'
 import {
   TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
@@ -25,7 +25,7 @@ import { ContextMenu } from '@/pages/canvas/components/ContextMenu'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Save, Play, X, Zap, Lightbulb, ChevronDown, Loader2, Plus, Layers } from 'lucide-react'
+import { Save, Play, X, Zap, Lightbulb, ChevronDown, Loader2, Plus, Layers, CheckCircle2, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 
@@ -67,6 +67,13 @@ const NODE_LABELS: Record<NodeType, string> = {
   multi_angle: '图像多角度', style_transfer: '风格迁移', motion_imitation: '动作模仿',
   input: '输入', output: '输出', approval: '人工确认', text_gen: 'AI 文本生成',
   ai_gen: 'AI 生成', group: '分组',
+}
+
+function resourceToNodeType(resource: RawResource): NodeType {
+  if (resource.type === 'image' || resource.type === 'video' || resource.type === 'audio' || resource.type === 'text') {
+    return resource.type
+  }
+  return 'text'
 }
 
 // Entity node dropped from the entity strip
@@ -126,6 +133,7 @@ function EmbeddedCanvasInner({
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [taskList, setTaskList] = useState<WorkflowTask[]>([])
+  const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [pushDialog, setPushDialog] = useState<{
     nodeId: string
     resourceId: number
@@ -140,6 +148,41 @@ function EmbeddedCanvasInner({
     queryFn: () => api.get(`/canvases/${canvasId}`).then((r) => r.data),
     enabled: !!canvasId,
   })
+
+  const { data: activeRunTasks = [] } = useQuery<CanvasTask[]>({
+    queryKey: ['canvas-run-tasks', canvasId, activeRunId],
+    queryFn: () => api.get(`/canvases/${canvasId}/runs/${activeRunId}/tasks`).then((r) => r.data),
+    enabled: !!canvasId && !!activeRunId,
+    refetchInterval: activeRunId ? 2000 : false,
+  })
+
+  useEffect(() => {
+    if (!canvas || activeRunTasks.length === 0) return
+    const nodeIdByDbId = new Map((canvas.nodes ?? []).map((n) => [n.ID, n.node_id]))
+    setNodes((prev) => prev.map((node) => {
+      const task = activeRunTasks.find((t) => nodeIdByDbId.get(t.canvas_node_id) === node.id)
+      if (!task) return node
+      const d = node.data as unknown as CanvasNodeData
+      return {
+        ...node,
+        data: {
+          ...d,
+          status: task.status,
+          resourceId: task.resource_id ?? d.resourceId,
+          resource: task.resource ?? d.resource,
+          error: task.error,
+        },
+      }
+    }))
+    const finished = activeRunTasks.every((t) => t.status === 'done' || t.status === 'failed')
+    if (finished) {
+      const failed = activeRunTasks.some((t) => t.status === 'failed')
+      setTaskList((prev) => prev.map((task, index) => (
+        index === 0 ? { ...task, status: failed ? 'failed' : 'done' } : task
+      )))
+      setActiveRunId(null)
+    }
+  }, [activeRunTasks, canvas, setNodes])
 
   useEffect(() => {
     if (!canvas) return
@@ -222,10 +265,12 @@ function EmbeddedCanvasInner({
   // Run all
   const runAll = useMutation({
     mutationFn: (values?: Record<string, string>) => api.post(`/canvases/${canvasId}/run`, { input_values: values ?? {} }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const runId = data?.run?.ID
+      if (runId) setActiveRunId(runId)
       setNodes((prev) => prev.map((n) => {
         const d = n.data as unknown as CanvasNodeData
-        if (d.source === 'ai') return { ...n, data: { ...d, status: 'pending' } }
+        if (d.source === 'ai' || n.type === 'output') return { ...n, data: { ...d, status: 'pending', error: undefined } }
         return n
       }))
       const task: WorkflowTask = {
@@ -395,6 +440,31 @@ function EmbeddedCanvasInner({
   // Drop entity pill onto canvas
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+    const resourcePayload = e.dataTransfer.getData('application/canvas-resource')
+    if (resourcePayload) {
+      try {
+        const resource = JSON.parse(resourcePayload) as RawResource
+        const type = resourceToNodeType(resource)
+        const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        const baseData = DEFAULT_DATA[type] ?? { source: 'upload', label: NODE_LABELS[type] }
+        setNodes((prev) => [...prev, {
+          id: genId(),
+          type,
+          position,
+          data: {
+            ...baseData,
+            label: resource.name,
+            source: 'upload',
+            resourceId: resource.ID,
+            resource,
+            status: 'done',
+          },
+        }])
+      } catch {
+        // Ignore malformed drag data from outside the app.
+      }
+      return
+    }
     const raw = e.dataTransfer.getData('application/entity-node')
     if (!raw) return
     const item: EntityDragItem = JSON.parse(raw)
@@ -410,11 +480,13 @@ function EmbeddedCanvasInner({
       },
     }
     setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition])
+  }, [screenToFlowPosition, setNodes])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
+    if (e.dataTransfer.types.includes('application/entity-node') || e.dataTransfer.types.includes('application/canvas-resource')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
   }, [])
 
   const updateNodeData = useCallback((nodeId: string, patch: Partial<CanvasNodeData & { label: string }>) => {
@@ -469,7 +541,7 @@ function EmbeddedCanvasInner({
           onPush: () => setPushDialog({
             nodeId: n.id,
             resourceId: d.resourceId!,
-            resourceType: n.type === 'video' ? 'video' : 'image',
+            resourceType: d.resource?.type === 'video' || n.type === 'video' ? 'video' : 'image',
           }),
         }),
       },
@@ -661,6 +733,83 @@ const CANVAS_TYPE_LABELS: Record<string, string> = {
   workflow: '工作流',
 }
 
+function CanvasListItem({
+  canvas,
+  active,
+  onSelect,
+}: {
+  canvas: Canvas
+  active: boolean
+  onSelect: () => void
+}) {
+  const qc = useQueryClient()
+  const { data: runs = [] } = useQuery<CanvasRun[]>({
+    queryKey: ['canvas-runs', canvas.ID],
+    queryFn: () => api.get(`/canvases/${canvas.ID}/runs`).then((r) => r.data),
+    enabled: canvas.canvas_type === 'workflow',
+    refetchInterval: canvas.canvas_type === 'workflow' ? 2500 : false,
+  })
+  const latestRun = runs[0]
+  const isRunning = latestRun?.status === 'running' || latestRun?.status === 'pending'
+  const run = useMutation({
+    mutationFn: () => api.post(`/canvases/${canvas.ID}/run`, { input_values: {} }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas-runs', canvas.ID] }),
+  })
+
+  const statusIcon = latestRun?.status === 'done'
+    ? <CheckCircle2 size={10} className="text-emerald-500" />
+    : latestRun?.status === 'failed'
+    ? <XCircle size={10} className="text-destructive" />
+    : isRunning
+    ? <Loader2 size={10} className="animate-spin text-amber-500" />
+    : null
+  const statusText = latestRun?.status === 'done' ? '已完成'
+    : latestRun?.status === 'failed' ? '失败'
+    : isRunning ? '运行中'
+    : canvas.canvas_type === 'workflow' ? '未运行' : '灵感画布'
+
+  return (
+    <button
+      onClick={onSelect}
+      className={cn(
+        'w-full text-left px-2.5 py-2 border-b border-border/50 transition-colors',
+        active
+          ? 'bg-background border-l-2 border-l-primary'
+          : 'hover:bg-background/60'
+      )}
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-foreground truncate">{canvas.name}</p>
+          <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+            {statusIcon}
+            <span>{statusText}</span>
+          </p>
+        </div>
+        {canvas.canvas_type === 'workflow' && (
+          <span
+            role="button"
+            title="运行画布"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!isRunning && !run.isPending) run.mutate()
+            }}
+            className={cn(
+              'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border text-muted-foreground transition-colors',
+              isRunning || run.isPending ? 'opacity-50' : 'hover:bg-muted hover:text-foreground'
+            )}
+          >
+            {run.isPending ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+          </span>
+        )}
+      </div>
+      <p className="mt-1 text-[10px] text-muted-foreground">
+        {CANVAS_TYPE_LABELS[canvas.canvas_type ?? 'inspiration'] ?? canvas.canvas_type}
+      </p>
+    </button>
+  )
+}
+
 export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -687,7 +836,7 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
 
   const createCanvas = useMutation({
     mutationFn: () =>
-      api.post('/canvases', { name: '新画布', canvas_type: 'inspiration', project_id: projectId }).then((r) => r.data),
+      api.post('/canvases', { name: '新画布', canvas_type: 'workflow', project_id: projectId }).then((r) => r.data),
     onSuccess: (data: Canvas) => {
       qc.invalidateQueries({ queryKey: ['canvases-project', projectId] })
       setActiveCanvasId(data.ID)
@@ -734,21 +883,12 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
             </div>
           ) : (
             canvases.map((c) => (
-              <button
+              <CanvasListItem
                 key={c.ID}
-                onClick={() => selectCanvas(c)}
-                className={cn(
-                  'w-full text-left px-2.5 py-2 border-b border-border/50 transition-colors',
-                  activeCanvasId === c.ID
-                    ? 'bg-background border-l-2 border-l-primary'
-                    : 'hover:bg-background/60'
-                )}
-              >
-                <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {CANVAS_TYPE_LABELS[c.canvas_type ?? 'inspiration'] ?? c.canvas_type}
-                </p>
-              </button>
+                canvas={c}
+                active={activeCanvasId === c.ID}
+                onSelect={() => selectCanvas(c)}
+              />
             ))
           )}
         </div>

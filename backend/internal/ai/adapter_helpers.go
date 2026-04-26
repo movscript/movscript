@@ -61,3 +61,73 @@ func imageExtFromMime(mimeType string) string {
 		return "png"
 	}
 }
+
+func normalizeVideoStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "succeeded", "succeed", "success", "completed", "complete", "done", "finish", "finished":
+		return VideoStatusSucceeded
+	case "failed", "failure", "error", "cancelled", "canceled":
+		return VideoStatusFailed
+	case "queued", "pending", "submitted", "created", "waiting":
+		return VideoStatusQueued
+	default:
+		if strings.TrimSpace(status) == "" {
+			return VideoStatusProcessing
+		}
+		return VideoStatusProcessing
+	}
+}
+
+func videoTaskErrorMessage(raw map[string]any) string {
+	for _, key := range []string{"error", "message", "fail_reason", "task_status_msg"} {
+		if v, ok := raw[key]; ok {
+			switch t := v.(type) {
+			case string:
+				if t != "" {
+					return t
+				}
+			case map[string]any:
+				if msg := stringField(t, "message", "msg", "code"); msg != "" {
+					return msg
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func deepStringField(v any, keys ...string) string {
+	keySet := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		keySet[key] = true
+	}
+	var walk func(any) string
+	walk = func(x any) string {
+		switch t := x.(type) {
+		case map[string]any:
+			for _, key := range keys {
+				if v, ok := t[key]; ok {
+					if s, ok := v.(string); ok && s != "" {
+						return s
+					}
+				}
+			}
+			for key, v := range t {
+				if keySet[key] {
+					continue
+				}
+				if s := walk(v); s != "" {
+					return s
+				}
+			}
+		case []any:
+			for _, v := range t {
+				if s := walk(v); s != "" {
+					return s
+				}
+			}
+		}
+		return ""
+	}
+	return walk(v)
+}

@@ -52,6 +52,10 @@ func (a *KlingAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Ima
 }
 
 func (a *KlingAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	return a.VideoStart(ctx, req)
+}
+
+func (a *KlingAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	// Resolve image input: prefer presigned URL, fall back to base64-encoded bytes.
 	if len(req.InputImageDataList) > 0 && req.Image == "" {
 		img := req.InputImageDataList[0]
@@ -66,6 +70,31 @@ func (a *KlingAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vid
 		return a.imageToVideo(ctx, req)
 	}
 	return a.textToVideo(ctx, req)
+}
+
+func (a *KlingAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
+	taskKind := req.TaskKind
+	if taskKind == "" {
+		taskKind = "text2video"
+	}
+	paths := []string{fmt.Sprintf("/v1/videos/%s/%s", taskKind, req.TaskID)}
+	// Some OpenAI-compatible gateways expose a flat task endpoint.
+	if taskKind != "" {
+		paths = append(paths, "/v1/videos/"+req.TaskID)
+	}
+
+	var lastErr error
+	for _, path := range paths {
+		resp, err := a.pollVideoPath(ctx, req, path)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if !strings.Contains(err.Error(), "API error 404") {
+			break
+		}
+	}
+	return VideoResponse{TaskID: req.TaskID, TaskKind: taskKind}, lastErr
 }
 
 func (a *KlingAdapter) textToVideo(ctx context.Context, req VideoRequest) (VideoResponse, error) {
@@ -87,7 +116,7 @@ func (a *KlingAdapter) textToVideo(ctx context.Context, req VideoRequest) (Video
 	if err := a.post(ctx, "/v1/videos/text2video", body, &result); err != nil {
 		return VideoResponse{}, err
 	}
-	return VideoResponse{TaskID: result.Data.TaskID, Debug: takeDebug(ctx)}, nil
+	return VideoResponse{TaskID: result.Data.TaskID, TaskKind: "text2video", Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
 }
 
 func (a *KlingAdapter) imageToVideo(ctx context.Context, req VideoRequest) (VideoResponse, error) {
@@ -115,7 +144,38 @@ func (a *KlingAdapter) imageToVideo(ctx context.Context, req VideoRequest) (Vide
 	if err := a.post(ctx, "/v1/videos/image2video", body, &result); err != nil {
 		return VideoResponse{}, err
 	}
-	return VideoResponse{TaskID: result.Data.TaskID, Debug: takeDebug(ctx)}, nil
+	return VideoResponse{TaskID: result.Data.TaskID, TaskKind: "image2video", Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
+}
+
+func (a *KlingAdapter) pollVideoPath(ctx context.Context, req VideoPollRequest, path string) (VideoResponse, error) {
+	var result map[string]any
+	if err := a.get(ctx, path, req.TaskID, &result); err != nil {
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind}, err
+	}
+
+	data := result
+	if nested, ok := result["data"].(map[string]any); ok {
+		data = nested
+	}
+	status := stringField(data, "task_status", "status")
+	normalized := normalizeVideoStatus(status)
+	videoURL := deepStringField(data, "url", "video_url", "output_url", "result_url", "download_url")
+
+	switch normalized {
+	case VideoStatusSucceeded:
+		if videoURL == "" {
+			return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusFailed, Message: "task succeeded but no video URL in response", Debug: takeDebug(ctx)}, fmt.Errorf("task succeeded but no video URL in response")
+		}
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusSucceeded, URL: videoURL, Debug: takeDebug(ctx)}, nil
+	case VideoStatusFailed:
+		msg := videoTaskErrorMessage(data)
+		if msg == "" {
+			msg = "video generation failed"
+		}
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusFailed, Message: msg, Debug: takeDebug(ctx)}, fmt.Errorf("video task %s failed: %s", req.TaskID, msg)
+	default:
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: normalized, Debug: takeDebug(ctx)}, nil
+	}
 }
 
 // BuildJWT creates a short-lived HMAC-SHA256 JWT for Kling API auth.
@@ -197,6 +257,47 @@ func (a *KlingAdapter) post(ctx context.Context, path string, body any, out any)
 		Success: resp.StatusCode < 400, ModelID: modelID,
 		Endpoint: endpoint, Method: "POST",
 		RequestHeaders: headers, RequestBody: string(b),
+		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
+		LatencyMs: latency,
+	})
+	if resp.StatusCode >= 400 {
+		var errBody map[string]any
+		json.Unmarshal(respBody, &errBody)
+		return fmt.Errorf("API error %d: %v", resp.StatusCode, errBody)
+	}
+	return json.Unmarshal(respBody, out)
+}
+
+func (a *KlingAdapter) get(ctx context.Context, path string, modelID string, out any) error {
+	endpoint := a.BaseURL + path
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	token := a.BuildJWT()
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	headers := map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer " + maskKey(token),
+	}
+	start := time.Now()
+	resp, err := a.client.Do(req)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			ModelID: modelID, Endpoint: endpoint, Method: "GET",
+			RequestHeaders: headers,
+			LatencyMs:      latency, Error: err.Error(),
+		})
+		return err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: modelID,
+		Endpoint: endpoint, Method: "GET",
+		RequestHeaders: headers,
 		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
 		LatencyMs: latency,
 	})

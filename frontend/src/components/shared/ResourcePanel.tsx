@@ -71,6 +71,7 @@ export function ResourceListItem({
 
   function handleDragStart(e: React.DragEvent) {
     e.dataTransfer.setData('application/resource-id', String(r.ID))
+    e.dataTransfer.setData('application/canvas-resource', JSON.stringify(r))
     e.dataTransfer.effectAllowed = 'copy'
   }
 
@@ -149,6 +150,7 @@ export function AssetListItem({
 
   function handleDragStart(e: React.DragEvent, res: RawResource) {
     e.dataTransfer.setData('application/resource-id', String(res.ID))
+    e.dataTransfer.setData('application/canvas-resource', JSON.stringify(res))
     e.dataTransfer.effectAllowed = 'copy'
   }
 

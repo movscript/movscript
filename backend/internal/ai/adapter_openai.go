@@ -406,6 +406,42 @@ func openAIImageResult(rawURL, b64JSON, outputFormat string) string {
 }
 
 func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	startResp, err := a.VideoStart(ctx, req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	if startResp.URL != "" || len(startResp.ContentBytes) > 0 || startResp.TaskID == "" {
+		return startResp, nil
+	}
+	for i := 0; i < 60; i++ {
+		select {
+		case <-ctx.Done():
+			return VideoResponse{}, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+		pollResp, err := a.VideoPoll(ctx, VideoPollRequest{
+			Model:    req.Model,
+			TaskID:   startResp.TaskID,
+			TaskKind: startResp.TaskKind,
+		})
+		if err != nil {
+			return pollResp, err
+		}
+		if pollResp.Status == VideoStatusSucceeded {
+			return pollResp, nil
+		}
+		if pollResp.Status == VideoStatusFailed {
+			msg := pollResp.Message
+			if msg == "" {
+				msg = "video generation failed"
+			}
+			return pollResp, fmt.Errorf("video task %s failed: %s", startResp.TaskID, msg)
+		}
+	}
+	return VideoResponse{}, fmt.Errorf("video generation timed out (task %s)", startResp.TaskID)
+}
+
+func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	_ = w.WriteField("model", req.Model)
@@ -504,80 +540,77 @@ func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 		return VideoResponse{}, fmt.Errorf("unexpected response format (got: %.120s): %w", string(respBody), err)
 	}
 	if result.URL != "" {
-		return VideoResponse{TaskID: result.ID, URL: result.URL, Debug: takeDebug(ctx)}, nil
+		return VideoResponse{TaskID: result.ID, Status: VideoStatusSucceeded, URL: result.URL, Debug: takeDebug(ctx)}, nil
 	}
 	if result.ID == "" {
 		return VideoResponse{}, fmt.Errorf("no video URL or task ID returned by provider")
 	}
-	return a.pollVideoTask(ctx, result.ID)
+	return VideoResponse{TaskID: result.ID, Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
 }
 
-func (a *OpenAIAdapter) pollVideoTask(ctx context.Context, taskID string) (VideoResponse, error) {
+func (a *OpenAIAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
+	taskID := req.TaskID
 	pollURL := a.BaseURL + "/videos/" + taskID
-	for i := 0; i < 60; i++ {
-		select {
-		case <-ctx.Done():
-			return VideoResponse{}, ctx.Err()
-		case <-time.After(5 * time.Second):
-		}
-
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
-		if err != nil {
-			return VideoResponse{}, err
-		}
-		httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
-
-		reqHeaders := map[string]string{
-			"Authorization": "Bearer " + maskKey(a.APIKey),
-		}
-		start := time.Now()
-		resp, err := a.rawHTTP.Do(httpReq)
-		latency := time.Since(start).Milliseconds()
-		if err != nil {
-			recordDebug(ctx, DebugCallResult{
-				ModelID: taskID, Endpoint: pollURL, Method: "GET",
-				RequestHeaders: reqHeaders,
-				LatencyMs:      latency, Error: err.Error(),
-			})
-			return VideoResponse{}, fmt.Errorf("poll video task: %w", err)
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		recordDebug(ctx, DebugCallResult{
-			Success: resp.StatusCode < 400, ModelID: taskID,
-			Endpoint: pollURL, Method: "GET",
-			RequestHeaders: reqHeaders,
-			ResponseStatus: resp.StatusCode, ResponseBody: string(body),
-			LatencyMs: latency,
-		})
-
-		if resp.StatusCode >= 400 {
-			return VideoResponse{}, fmt.Errorf("poll video task API error %d: %s", resp.StatusCode, string(body))
-		}
-
-		var raw map[string]any
-		if err := jsonUnmarshal(body, &raw); err != nil {
-			return VideoResponse{}, fmt.Errorf("poll video task: parse response: %w", err)
-		}
-
-		status, _ := raw["status"].(string)
-		videoURL := stringField(raw, "url", "video_url", "output_url", "result_url", "download_url")
-
-		switch status {
-		case "succeeded", "completed", "done":
-			if videoURL != "" {
-				return VideoResponse{TaskID: taskID, URL: videoURL, Debug: takeDebug(ctx)}, nil
-			}
-			return a.downloadVideoContent(ctx, taskID)
-		case "failed", "error":
-			msg, _ := raw["error"].(string)
-			if msg == "" {
-				msg = "video generation failed"
-			}
-			return VideoResponse{}, fmt.Errorf("video task %s failed: %s", taskID, msg)
-		}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
+	if err != nil {
+		return VideoResponse{}, err
 	}
-	return VideoResponse{}, fmt.Errorf("video generation timed out (task %s)", taskID)
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+
+	reqHeaders := map[string]string{
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+	}
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			ModelID: taskID, Endpoint: pollURL, Method: "GET",
+			RequestHeaders: reqHeaders,
+			LatencyMs:      latency, Error: err.Error(),
+		})
+		return VideoResponse{TaskID: taskID}, fmt.Errorf("poll video task: %w", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	recordDebug(ctx, DebugCallResult{
+		Success: resp.StatusCode < 400, ModelID: taskID,
+		Endpoint: pollURL, Method: "GET",
+		RequestHeaders: reqHeaders,
+		ResponseStatus: resp.StatusCode, ResponseBody: string(body),
+		LatencyMs: latency,
+	})
+
+	if resp.StatusCode >= 400 {
+		return VideoResponse{TaskID: taskID}, fmt.Errorf("poll video task API error %d: %s", resp.StatusCode, string(body))
+	}
+
+	var raw map[string]any
+	if err := jsonUnmarshal(body, &raw); err != nil {
+		return VideoResponse{TaskID: taskID}, fmt.Errorf("poll video task: parse response: %w", err)
+	}
+
+	status, _ := raw["status"].(string)
+	normalized := normalizeVideoStatus(status)
+	videoURL := stringField(raw, "url", "video_url", "output_url", "result_url", "download_url")
+
+	switch normalized {
+	case VideoStatusSucceeded:
+		if videoURL != "" {
+			return VideoResponse{TaskID: taskID, Status: VideoStatusSucceeded, URL: videoURL, Debug: takeDebug(ctx)}, nil
+		}
+		resp, err := a.downloadVideoContent(ctx, taskID)
+		resp.Status = VideoStatusSucceeded
+		return resp, err
+	case VideoStatusFailed:
+		msg := videoTaskErrorMessage(raw)
+		if msg == "" {
+			msg = "video generation failed"
+		}
+		return VideoResponse{TaskID: taskID, Status: VideoStatusFailed, Message: msg, Debug: takeDebug(ctx)}, fmt.Errorf("video task %s failed: %s", taskID, msg)
+	default:
+		return VideoResponse{TaskID: taskID, Status: normalized, Debug: takeDebug(ctx)}, nil
+	}
 }
 
 func (a *OpenAIAdapter) downloadVideoContent(ctx context.Context, taskID string) (VideoResponse, error) {

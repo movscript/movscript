@@ -31,7 +31,6 @@ export default function CanvasListPage() {
   const currentProject = useProjectStore((s) => s.current)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState<CanvasType>('inspiration')
 
   const { data: canvases = [], isLoading } = useQuery<Canvas[]>({
     queryKey: ['canvases', currentProject?.ID],
@@ -49,7 +48,6 @@ export default function CanvasListPage() {
       qc.invalidateQueries({ queryKey: ['canvases'] })
       setShowCreate(false)
       setNewName('')
-      setNewType('inspiration')
       navigate(`/canvases/${cv.ID}`)
     },
   })
@@ -61,7 +59,7 @@ export default function CanvasListPage() {
 
   function handleCreate() {
     if (!newName.trim()) return
-    create.mutate({ name: newName.trim(), canvas_type: newType, project_id: currentProject?.ID })
+    create.mutate({ name: newName.trim(), canvas_type: 'workflow', project_id: currentProject?.ID })
   }
 
   return (
@@ -134,7 +132,7 @@ export default function CanvasListPage() {
       {/* Create dialog */}
       <CreateDialog
         open={showCreate}
-        onClose={() => { setShowCreate(false); setNewName(''); setNewType('inspiration') }}
+        onClose={() => { setShowCreate(false); setNewName('') }}
         title="新建画布"
       >
         <div className="space-y-4">
@@ -149,26 +147,8 @@ export default function CanvasListPage() {
             />
           </div>
 
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-2">画布类型</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.entries(TYPE_META) as [CanvasType, typeof TYPE_META[CanvasType]][]).map(([type, meta]) => (
-                <button
-                  key={type}
-                  onClick={() => setNewType(type)}
-                  className={`flex flex-col items-start gap-1 p-3 rounded-lg border-2 text-left transition-colors ${
-                    newType === type
-                      ? 'border-foreground bg-card'
-                      : 'border-border hover:border-border/80'
-                  }`}
-                >
-                  <span className={`flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full border ${meta.color}`}>
-                    {meta.icon}{meta.label}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">{meta.desc}</span>
-                </button>
-              ))}
-            </div>
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            新画布会以工作流创建，包含默认输入、输出节点。
           </div>
 
           <div className="flex gap-2 pt-1">
@@ -181,7 +161,7 @@ export default function CanvasListPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => { setShowCreate(false); setNewName(''); setNewType('inspiration') }}
+              onClick={() => { setShowCreate(false); setNewName('') }}
             >
               取消
             </Button>

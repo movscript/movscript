@@ -62,6 +62,11 @@ import {
   Music,
   File,
   Package,
+  History,
+  ListFilter,
+  Clock3,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8765'
@@ -214,6 +219,156 @@ function CanvasResourceShelf({
   )
 }
 
+const RUN_STATUS_LABELS: Record<CanvasRun['status'], string> = {
+  pending: '排队中',
+  running: '运行中',
+  done: '已完成',
+  failed: '失败',
+}
+
+function formatRunTime(value?: string) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatRunDuration(run: CanvasRun) {
+  if (!run.started_at) return '-'
+  const end = run.finished_at ? new Date(run.finished_at).getTime() : Date.now()
+  const seconds = Math.max(0, Math.round((end - new Date(run.started_at).getTime()) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
+function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
+  if (status === 'running' || status === 'pending') {
+    return (
+      <Badge variant="secondary" className="gap-1 border-transparent">
+        <Loader2 size={11} className="animate-spin" />
+        {RUN_STATUS_LABELS[status]}
+      </Badge>
+    )
+  }
+  if (status === 'done') {
+    return (
+      <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600">
+        <CheckCircle2 size={11} />
+        已完成
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="destructive" className="gap-1">
+      <XCircle size={11} />
+      失败
+    </Badge>
+  )
+}
+
+function WorkflowRunHistory({
+  runs,
+  total,
+  page,
+  pageCount,
+  statusFilter,
+  activeRunId,
+  isLoading,
+  onStatusFilterChange,
+  onPageChange,
+  onSelectRun,
+}: {
+  runs: CanvasRun[]
+  total: number
+  page: number
+  pageCount: number
+  statusFilter: 'all' | CanvasRun['status']
+  activeRunId: number | null
+  isLoading: boolean
+  onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
+  onPageChange: (page: number) => void
+  onSelectRun: (runId: number) => void
+}) {
+  return (
+    <section className="h-52 shrink-0 border-t border-border bg-background">
+      <div className="flex h-11 items-center gap-3 border-b border-border px-4">
+        <History size={15} className="text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-foreground">工作流运行历史</p>
+          <p className="text-[10px] text-muted-foreground">按运行时快照记录，用于回看输入、结果和当次画布结构</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ListFilter size={13} className="text-muted-foreground" />
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
+            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none"
+          >
+            <option value="all">全部状态</option>
+            <option value="running">运行中</option>
+            <option value="pending">排队中</option>
+            <option value="done">已完成</option>
+            <option value="failed">失败</option>
+          </select>
+          <span className="hidden text-[11px] text-muted-foreground sm:inline">{total} 次运行</span>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
+            <ChevronLeft size={12} />
+          </Button>
+          <span className="w-12 text-center text-[11px] text-muted-foreground">{page}/{pageCount}</span>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
+            <ChevronRight size={12} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="h-[calc(100%-2.75rem)] overflow-auto">
+        <div className="grid grid-cols-[96px_104px_112px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+          <span>运行</span>
+          <span>状态</span>
+          <span>耗时</span>
+          <span>快照</span>
+          <span className="text-right">开始时间</span>
+        </div>
+        {isLoading && (
+          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
+            <Loader2 size={14} className="mr-2 animate-spin" />
+            加载运行记录
+          </div>
+        )}
+        {!isLoading && runs.length === 0 && (
+          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">暂无匹配的运行记录</div>
+        )}
+        {!isLoading && runs.map((run) => (
+          <button
+            key={run.ID}
+            onClick={() => onSelectRun(run.ID)}
+            className={cn(
+              'grid w-full grid-cols-[96px_104px_112px_1fr_120px] items-center border-b border-border px-4 py-2 text-left text-xs transition-colors hover:bg-muted/40',
+              activeRunId === run.ID && 'bg-primary/5'
+            )}
+          >
+            <span className="font-medium text-foreground">#{run.ID}</span>
+            <RunStatusBadge status={run.status} />
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Clock3 size={11} />
+              {formatRunDuration(run)}
+            </span>
+            <span className="min-w-0 truncate text-muted-foreground">
+              {run.snapshot_node_count ?? 0} 节点 / {run.snapshot_edge_count ?? 0} 连接
+              {run.snapshot_hash && <span className="ml-2 font-mono text-[10px] text-muted-foreground/70">{run.snapshot_hash.slice(0, 8)}</span>}
+              {run.error && <span className="ml-2 text-destructive">{run.error}</span>}
+            </span>
+            <span className="text-right text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt)}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function CanvasEditorInner() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -235,9 +390,12 @@ function CanvasEditorInner() {
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
+  const [runHistoryPage, setRunHistoryPage] = useState(1)
+  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
 
   const fitViewCalledRef = useRef(false)
   const canvasPaneRef = useRef<HTMLDivElement>(null)
+  const runHistoryPageSize = 8
 
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
@@ -246,12 +404,55 @@ function CanvasEditorInner() {
     enabled: !!id
   })
 
-  const { data: workflowRuns = [] } = useQuery<CanvasRun[]>({
-    queryKey: ['canvas-runs', id],
-    queryFn: () => api.get(`/canvases/${id}/runs`).then((r) => r.data),
+  const { data: workflowRunsPage, isLoading: workflowRunsLoading } = useQuery<PaginatedResponse<CanvasRun>>({
+    queryKey: ['canvas-runs', id, runHistoryPage, runStatusFilter],
+    queryFn: () => api.get(`/canvases/${id}/runs`, {
+      params: {
+        page: runHistoryPage,
+        page_size: runHistoryPageSize,
+        ...(runStatusFilter !== 'all' ? { status: runStatusFilter } : {}),
+      },
+    }).then((r) => r.data),
     enabled: !!id && canvasType === 'workflow',
     refetchInterval: canvasType === 'workflow' ? 2000 : false,
   })
+  const workflowRuns = workflowRunsPage?.items ?? []
+  const workflowRunTotal = workflowRunsPage?.total ?? 0
+  const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
+
+  const { data: activeRunTasks = [] } = useQuery<CanvasTask[]>({
+    queryKey: ['canvas-run-tasks', id, activeRunId],
+    queryFn: () => api.get(`/canvases/${id}/runs/${activeRunId}/tasks`).then((r) => r.data),
+    enabled: !!id && !!activeRunId,
+    refetchInterval: activeRunId ? 2000 : false,
+  })
+
+  useEffect(() => {
+    setRunHistoryPage(1)
+  }, [runStatusFilter])
+
+  useEffect(() => {
+    if (!canvas || activeRunTasks.length === 0) return
+    const nodeIdByDbId = new Map((canvas.nodes ?? []).map((n) => [n.ID, n.node_id]))
+    setNodes((prev) => prev.map((node) => {
+      const task = activeRunTasks.find((t) => (t.node_id && t.node_id === node.id) || nodeIdByDbId.get(t.canvas_node_id) === node.id)
+      if (!task) return node
+      const d = node.data as unknown as CanvasNodeData
+      return {
+        ...node,
+        data: {
+          ...d,
+          status: task.status,
+          resourceId: task.resource_id ?? d.resourceId,
+          resource: task.resource ?? d.resource,
+          error: task.error,
+        },
+      }
+    }))
+    if (activeRunTasks.every((t) => t.status === 'done' || t.status === 'failed')) {
+      qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
+    }
+  }, [activeRunTasks, canvas, id, qc, setNodes])
 
   useEffect(() => {
     if (!canvas) return
@@ -360,10 +561,12 @@ function CanvasEditorInner() {
     onSuccess: (data) => {
       const runId = data?.run?.ID
       if (runId) setActiveRunId(runId)
+      setRunStatusFilter('all')
+      setRunHistoryPage(1)
       qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
       setNodes((prev) => prev.map((n) => {
         const d = n.data as unknown as CanvasNodeData
-        if (d.source === 'ai') return { ...n, data: { ...d, status: 'pending' } }
+        if (d.source === 'ai' || n.type === 'output') return { ...n, data: { ...d, status: 'pending', error: undefined } }
         return n
       }))
     }
@@ -824,50 +1027,51 @@ function CanvasEditorInner() {
           </div>
         </aside>
 
-        <div
-          ref={canvasPaneRef}
-          className={cn(
-            'relative min-w-0 flex-1 bg-background',
-            dropActive && 'ring-2 ring-inset ring-primary/35'
-          )}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-        >
-          <ReactFlow
-            className="canvas-flow"
-            nodes={nodesWithHandlers}
-            edges={edges}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={onNodeClick}
-            onNodeContextMenu={onNodeContextMenu}
-            onSelectionContextMenu={onSelectionContextMenu}
-            onNodeDragStart={onNodeDragStart}
-            onNodeDragStop={handleNodeDragStop}
-            onPaneClick={() => setMenu(null)}
-            onPaneContextMenu={onPaneContextMenu}
-            nodeTypes={nodeTypes}
-            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-            minZoom={0.1}
-            maxZoom={4}
-            deleteKeyCode={['Delete', 'Backspace']}
-            selectionOnDrag={true}
-            panOnDrag={[1, 2]}
-            selectionMode={SelectionMode.Partial}
-            connectionMode={ConnectionMode.Loose}
-            connectionRadius={40}
-            defaultEdgeOptions={{
-              type: 'smoothstep',
-              markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-              style: { strokeWidth: 1.6 },
-            }}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            ref={canvasPaneRef}
+            className={cn(
+              'relative min-h-0 flex-1 bg-background',
+              dropActive && 'ring-2 ring-inset ring-primary/35'
+            )}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
           >
-            <Background gap={18} size={1} color="hsl(var(--border))" />
-            <Controls position="bottom-left" />
-            <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />
-          </ReactFlow>
+            <ReactFlow
+              className="canvas-flow"
+              nodes={nodesWithHandlers}
+              edges={edges}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={onNodeClick}
+              onNodeContextMenu={onNodeContextMenu}
+              onSelectionContextMenu={onSelectionContextMenu}
+              onNodeDragStart={onNodeDragStart}
+              onNodeDragStop={handleNodeDragStop}
+              onPaneClick={() => setMenu(null)}
+              onPaneContextMenu={onPaneContextMenu}
+              nodeTypes={nodeTypes}
+              defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+              minZoom={0.1}
+              maxZoom={4}
+              deleteKeyCode={['Delete', 'Backspace']}
+              selectionOnDrag={true}
+              panOnDrag={[1, 2]}
+              selectionMode={SelectionMode.Partial}
+              connectionMode={ConnectionMode.Loose}
+              connectionRadius={40}
+              defaultEdgeOptions={{
+                type: 'smoothstep',
+                markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+                style: { strokeWidth: 1.6 },
+              }}
+            >
+              <Background gap={18} size={1} color="hsl(var(--border))" />
+              <Controls position="bottom-left" />
+              <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />
+            </ReactFlow>
 
           {nodes.length === 0 && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
@@ -890,7 +1094,23 @@ function CanvasEditorInner() {
             {draggingNodeId ? '正在移动节点，松开后会保留位置' : selectedNode ? `已选中 ${selectedNodeData?.label || selectedNodeMeta?.label || selectedNode.type}` : '拖动画布平移，框选可批量操作'}
           </div>
 
-          <CanvasResourceShelf projectId={canvas?.project_id} />
+            {canvasType !== 'workflow' && <CanvasResourceShelf projectId={canvas?.project_id} />}
+          </div>
+
+          {canvasType === 'workflow' && (
+            <WorkflowRunHistory
+              runs={workflowRuns}
+              total={workflowRunTotal}
+              page={runHistoryPage}
+              pageCount={workflowRunPageCount}
+              statusFilter={runStatusFilter}
+              activeRunId={activeRunId}
+              isLoading={workflowRunsLoading}
+              onStatusFilterChange={setRunStatusFilter}
+              onPageChange={setRunHistoryPage}
+              onSelectRun={setActiveRunId}
+            />
+          )}
         </div>
 
         <aside className={cn(

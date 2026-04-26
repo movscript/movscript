@@ -293,15 +293,18 @@ func (h *GenJobHandler) Retry(c *gin.Context) {
 		maxAttempts = genjob.DefaultMaxAttempts
 	}
 	if err := h.db.Model(&job).Updates(map[string]any{
-		"status":             genjob.StatusPending,
-		"attempt_count":      0,
-		"max_attempts":       maxAttempts,
-		"error_msg":          "",
-		"next_run_at":        &now,
-		"finished_at":        nil,
-		"last_heartbeat_at":  nil,
-		"output_resource_id": nil,
-		"provider_task_id":   "",
+		"status":                genjob.StatusPending,
+		"attempt_count":         0,
+		"max_attempts":          maxAttempts,
+		"error_msg":             "",
+		"next_run_at":           &now,
+		"finished_at":           nil,
+		"last_heartbeat_at":     nil,
+		"output_resource_id":    nil,
+		"provider_task_id":      "",
+		"provider_task_kind":    "",
+		"provider_task_status":  "",
+		"provider_task_history": "",
 	}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

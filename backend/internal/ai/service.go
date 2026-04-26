@@ -12,16 +12,16 @@ import (
 
 // PublicModel is the user-facing model representation.
 type PublicModel struct {
-	ID               uint       `json:"id"`                          // AIModelConfig primary key
-	CredentialID     uint       `json:"credential_id"`               // parent AICredential ID (for admin edit)
-	DisplayName      string     `json:"display_name"`
-	ProviderName     string     `json:"provider_name"`               // credential display_name (e.g. "我的 OpenAI")
-	Capabilities     []string   `json:"capabilities"`                // e.g. ["text"], ["image"], ["video_i2v"]
-	AcceptsImageInput bool      `json:"accepts_image_input"`         // true for image_edit and i2v models
-	IsDefault        bool       `json:"is_default,omitempty"`        // true when this is the admin-pinned default for a feature
-	ModelDefID       string     `json:"model_def_id"`
-	ModelIDOverride  string     `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
-	SupportedParams  []ParamDef `json:"supported_params,omitempty"`
+	ID                uint       `json:"id"`            // AIModelConfig primary key
+	CredentialID      uint       `json:"credential_id"` // parent AICredential ID (for admin edit)
+	DisplayName       string     `json:"display_name"`
+	ProviderName      string     `json:"provider_name"`        // credential display_name (e.g. "我的 OpenAI")
+	Capabilities      []string   `json:"capabilities"`         // e.g. ["text"], ["image"], ["video_i2v"]
+	AcceptsImageInput bool       `json:"accepts_image_input"`  // true for image_edit and i2v models
+	IsDefault         bool       `json:"is_default,omitempty"` // true when this is the admin-pinned default for a feature
+	ModelDefID        string     `json:"model_def_id"`
+	ModelIDOverride   string     `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
+	SupportedParams   []ParamDef `json:"supported_params,omitempty"`
 }
 
 // AIService is the unified entry point for all AI calls.
@@ -65,16 +65,16 @@ func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, err
 			continue
 		}
 		result = append(result, PublicModel{
-				ID:                row.ID,
-				CredentialID:      row.CredentialID,
-				DisplayName:       def.DisplayName,
-				ProviderName:      row.ProviderName,
-				Capabilities:      def.Capabilities,
-				AcceptsImageInput: def.AcceptsImageInput,
-				ModelDefID:        def.ID,
-				ModelIDOverride:   row.ModelIDOverride,
-				SupportedParams:   def.SupportedParams,
-			})
+			ID:                row.ID,
+			CredentialID:      row.CredentialID,
+			DisplayName:       def.DisplayName,
+			ProviderName:      row.ProviderName,
+			Capabilities:      def.Capabilities,
+			AcceptsImageInput: def.AcceptsImageInput,
+			ModelDefID:        def.ID,
+			ModelIDOverride:   row.ModelIDOverride,
+			SupportedParams:   def.SupportedParams,
+		})
 	}
 	return result, nil
 }
@@ -376,6 +376,78 @@ func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, r
 // CallVideo calls a video generation model by AIModelConfig DB ID.
 // It accepts models with any video capability: "video", "video_i2v", or "video_v2v".
 func (s *AIService) CallVideo(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
+	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	prepareVideoRequest(&req, cfg, def)
+	resp, err := provider.VideoGenerate(ctx, req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	s.logVideoUsage(userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec)
+	return resp, nil
+}
+
+// SupportsVideoTasks reports whether this model config can submit and poll
+// provider-side async video tasks separately.
+func (s *AIService) SupportsVideoTasks(modelConfigID uint) bool {
+	_, provider, _, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return false
+	}
+	_, ok := provider.(VideoTaskProvider)
+	return ok
+}
+
+// CallVideoStart submits an async provider video task exactly once.
+func (s *AIService) CallVideoStart(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
+	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	taskProvider, ok := provider.(VideoTaskProvider)
+	if !ok {
+		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task polling", modelConfigID)
+	}
+	prepareVideoRequest(&req, cfg, def)
+	resp, err := taskProvider.VideoStart(ctx, req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	if resp.URL != "" || len(resp.ContentBytes) > 0 {
+		s.logVideoUsage(userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec)
+	}
+	return resp, nil
+}
+
+// CallVideoPoll queries an existing async provider video task without creating a
+// new provider task. Usage is logged only when the poll returns a finished video.
+func (s *AIService) CallVideoPoll(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int) (VideoResponse, error) {
+	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	taskProvider, ok := provider.(VideoTaskProvider)
+	if !ok {
+		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task polling", modelConfigID)
+	}
+	req := VideoPollRequest{
+		Model:    resolveModelID(cfg, def),
+		TaskID:   taskID,
+		TaskKind: taskKind,
+	}
+	resp, err := taskProvider.VideoPoll(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Status == VideoStatusSucceeded && (resp.URL != "" || len(resp.ContentBytes) > 0) {
+		s.logVideoUsage(userID, modelConfigID, cfg, def, requestedDuration, resp.DurationSec)
+	}
+	return resp, nil
+}
+
+func (s *AIService) loadVideoConfig(modelConfigID uint) (model.AIModelConfig, Provider, *ModelDef, error) {
 	// Try all video capability variants — any one makes the model eligible.
 	videoCaps := []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}
 	var cfg model.AIModelConfig
@@ -386,32 +458,30 @@ func (s *AIService) CallVideo(ctx context.Context, userID, modelConfigID uint, r
 		var err error
 		cfg, provider, def, err = s.loadConfig(modelConfigID, cap)
 		if err == nil {
-			lastErr = nil
-			break
+			return cfg, provider, def, nil
 		}
 		lastErr = err
 	}
-	if lastErr != nil {
-		return VideoResponse{}, lastErr
-	}
+	return cfg, provider, def, lastErr
+}
+
+func prepareVideoRequest(req *VideoRequest, cfg model.AIModelConfig, def *ModelDef) {
 	req.Model = resolveModelID(cfg, def)
 	if req.Duration <= 0 && def.DefaultDurSec > 0 {
 		req.Duration = def.DefaultDurSec
 	}
-	resp, err := provider.VideoGenerate(ctx, req)
-	if err != nil {
-		return VideoResponse{}, err
-	}
-	durSec := resp.DurationSec
+}
+
+func (s *AIService) logVideoUsage(userID, modelConfigID uint, cfg model.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int) {
+	durSec := actualDuration
 	if durSec <= 0 {
-		durSec = req.Duration
+		durSec = requestedDuration
 	}
 	if durSec <= 0 && def.DefaultDurSec > 0 {
 		durSec = def.DefaultDurSec
 	}
 	cost := calcCost(cfg, def, 0, 0, durSec, 1)
 	s.logUsage(userID, modelConfigID, "video", 0, 0, durSec, 1, cost)
-	return resp, nil
 }
 
 func (s *AIService) loadConfig(modelConfigID uint, requiredCap string) (model.AIModelConfig, Provider, *ModelDef, error) {

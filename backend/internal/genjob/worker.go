@@ -34,6 +34,8 @@ type Worker struct {
 const (
 	jobExecutionTimeout = 10 * time.Minute
 	providerCallTimeout = 8 * time.Minute
+	providerPollTimeout = 90 * time.Second
+	videoPollInterval   = 30 * time.Second
 	heartbeatInterval   = 15 * time.Second
 	staleRunningTimeout = 12 * time.Minute
 )
@@ -93,7 +95,7 @@ func (w *Worker) processOne(ctx context.Context) {
 			started_at=NOW(),
 			finished_at=NULL,
 			next_run_at=NULL,
-			attempt_count=attempt_count+1,
+			attempt_count=attempt_count + CASE WHEN COALESCE(provider_task_id, '') = '' THEN 1 ELSE 0 END,
 			last_heartbeat_at=NOW(),
 			error_msg='',
 			updated_at=NOW()
@@ -102,7 +104,7 @@ func (w *Worker) processOne(ctx context.Context) {
 			WHERE status='pending'
 				AND deleted_at IS NULL
 				AND (next_run_at IS NULL OR next_run_at <= NOW())
-				AND (max_attempts <= 0 OR attempt_count < max_attempts)
+				AND ((max_attempts <= 0 OR attempt_count < max_attempts) OR COALESCE(provider_task_id, '') <> '')
 			ORDER BY COALESCE(next_run_at, created_at), created_at
 			LIMIT 1
 			FOR UPDATE SKIP LOCKED
@@ -177,6 +179,23 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 	now := time.Now()
 	for i := range jobs {
 		job := &jobs[i]
+		if job.ProviderTaskID != "" {
+			nextRun := now.Add(videoPollInterval)
+			msg := fmt.Sprintf("worker heartbeat stale for %s; provider task will be polled again", staleRunningTimeout)
+			if err := w.db.Model(job).Updates(map[string]any{
+				"status":      StatusPending,
+				"error_msg":   msg,
+				"next_run_at": &nextRun,
+				"finished_at": nil,
+			}).Error; err != nil {
+				log.Printf("[genjob] stale provider task job #%d requeue failed: %v", job.ID, err)
+				continue
+			}
+			newJobStateMachine(w, job).finish(StateWaitingProviderTask, msg)
+			log.Printf("[genjob] stale provider task job #%d scheduled for polling", job.ID)
+			continue
+		}
+
 		maxAttempts := effectiveMaxAttempts(job)
 		if job.AttemptCount < maxAttempts {
 			msg := fmt.Sprintf("worker heartbeat stale for %s; requeued", staleRunningTimeout)
@@ -458,6 +477,64 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		if len(videoData) > 0 {
 			req.InputVideoData = &videoData[0]
 		}
+		if job.ProviderTaskID != "" {
+			sm.enter(StatePollingProviderTask, fmt.Sprintf("poll provider task %s", job.ProviderTaskID))
+			resp, err := callProviderWithTimeout(debugCtx, providerPollTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
+				return w.aiService.CallVideoPoll(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, dur)
+			})
+			w.saveDebugInfo(job, debugResult)
+			w.appendProviderTaskEvent(job, "poll", resp, err)
+			if err != nil {
+				if resp.Status == ai.VideoStatusFailed {
+					w.markProviderTaskFailed(job, resp, err)
+					sm.fail(fmt.Errorf("%s", firstNonEmpty(resp.Message, err.Error())))
+					return nil
+				}
+				sm.succeed("provider poll deferred")
+				w.scheduleProviderPoll(job, firstNonEmpty(resp.Message, err.Error()), sm)
+				return nil
+			}
+			sm.succeed(firstNonEmpty(resp.Status, "provider task polled"))
+			switch resp.Status {
+			case ai.VideoStatusSucceeded:
+				if err := w.completeVideoSuccess(callCtx, job, resp, sm, debugResult); err != nil {
+					return err
+				}
+				return nil
+			case ai.VideoStatusFailed:
+				w.markProviderTaskFailed(job, resp, fmt.Errorf("%s", firstNonEmpty(resp.Message, "video generation failed")))
+				sm.fail(fmt.Errorf("%s", firstNonEmpty(resp.Message, "video generation failed")))
+				return nil
+			default:
+				w.scheduleProviderPoll(job, firstNonEmpty(resp.Status, "provider task still running"), sm)
+				return nil
+			}
+		}
+
+		if w.aiService.SupportsVideoTasks(job.ModelConfigID) {
+			sm.enter(StateSubmittingProviderTask, "submit async video provider task")
+			resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
+				return w.aiService.CallVideoStart(ctx, job.UserID, job.ModelConfigID, req)
+			})
+			w.saveDebugInfo(job, debugResult)
+			w.appendProviderTaskEvent(job, "submit", resp, err)
+			if err != nil {
+				return fmt.Errorf("video task submission: %w", err)
+			}
+			sm.succeed("video provider accepted task")
+			if resp.URL != "" || len(resp.ContentBytes) > 0 {
+				if err := w.completeVideoSuccess(callCtx, job, resp, sm, debugResult); err != nil {
+					return err
+				}
+				return nil
+			}
+			if resp.TaskID == "" {
+				return fmt.Errorf("video provider accepted task but returned no task ID")
+			}
+			w.scheduleSubmittedProviderTask(job, resp, sm)
+			return nil
+		}
+
 		sm.enter(StateCallingProvider, "call video provider")
 		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
 			return w.aiService.CallVideo(ctx, job.UserID, job.ModelConfigID, req)
@@ -467,40 +544,10 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			return fmt.Errorf("video generation: %w", err)
 		}
 		sm.succeed("video provider returned")
-		// If the adapter downloaded bytes directly (auth-gated content), save them now.
-		if len(resp.ContentBytes) > 0 {
-			sm.enter(StateSavingResult, "store provider bytes")
-			resourceID, err := w.saveBytes(callCtx, job, resp.ContentBytes, "video/mp4")
-			if err != nil {
-				return fmt.Errorf("save result: %w", err)
-			}
-			sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
-			sm.enter(StatePersistingSuccess, "mark job succeeded")
-			now := time.Now()
-			updates := map[string]any{
-				"status":             StatusSucceeded,
-				"output_resource_id": resourceID,
-				"finished_at":        &now,
-			}
-			if debugResult != nil {
-				if b, err := json.Marshal(debugResult); err == nil {
-					updates["debug_info"] = string(b)
-				}
-			}
-			w.db.Model(job).Updates(updates)
-			sm.succeed("job marked succeeded")
-			sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
-			log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
-			return nil
+		if err := w.completeVideoSuccess(callCtx, job, resp, sm, debugResult); err != nil {
+			return err
 		}
-		resultURL = resp.URL
-		if resultURL == "" {
-			resultURL = resp.TaskID
-		}
-		if resultURL == "" {
-			return fmt.Errorf("no video URL returned by provider")
-		}
-		mimeType = "video/mp4"
+		return nil
 
 	default:
 		return fmt.Errorf("unsupported output type %q", outputType)
@@ -526,6 +573,163 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		"status":             StatusSucceeded,
 		"output_resource_id": resourceID,
 		"finished_at":        &now,
+	}
+	if debugResult != nil {
+		if b, err := json.Marshal(debugResult); err == nil {
+			updates["debug_info"] = string(b)
+		}
+	}
+	w.db.Model(job).Updates(updates)
+	sm.succeed("job marked succeeded")
+	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
+	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
+	return nil
+}
+
+type providerTaskEvent struct {
+	Action    string    `json:"action"`
+	TaskID    string    `json:"task_id,omitempty"`
+	TaskKind  string    `json:"task_kind,omitempty"`
+	Status    string    `json:"status,omitempty"`
+	Message   string    `json:"message,omitempty"`
+	ResultURL string    `json:"result_url,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	At        time.Time `json:"at"`
+}
+
+func (w *Worker) appendProviderTaskEvent(job *model.GenJob, action string, resp ai.VideoResponse, err error) {
+	var history []providerTaskEvent
+	if job.ProviderTaskHistory != "" {
+		_ = json.Unmarshal([]byte(job.ProviderTaskHistory), &history)
+	}
+	event := providerTaskEvent{
+		Action:    action,
+		TaskID:    firstNonEmpty(resp.TaskID, job.ProviderTaskID),
+		TaskKind:  firstNonEmpty(resp.TaskKind, job.ProviderTaskKind),
+		Status:    resp.Status,
+		Message:   resp.Message,
+		ResultURL: resp.URL,
+		At:        time.Now(),
+	}
+	if err != nil {
+		event.Error = err.Error()
+	}
+	history = append(history, event)
+	if len(history) > 200 {
+		history = history[len(history)-200:]
+	}
+	if b, marshalErr := json.Marshal(history); marshalErr == nil {
+		job.ProviderTaskHistory = string(b)
+		updates := map[string]any{
+			"provider_task_history": job.ProviderTaskHistory,
+		}
+		if event.TaskID != "" {
+			job.ProviderTaskID = event.TaskID
+			updates["provider_task_id"] = event.TaskID
+		}
+		if event.TaskKind != "" {
+			job.ProviderTaskKind = event.TaskKind
+			updates["provider_task_kind"] = event.TaskKind
+		}
+		if event.Status != "" {
+			job.ProviderTaskStatus = event.Status
+			updates["provider_task_status"] = event.Status
+		}
+		w.db.Model(job).Updates(updates)
+	}
+}
+
+func (w *Worker) scheduleSubmittedProviderTask(job *model.GenJob, resp ai.VideoResponse, sm *jobStateMachine) {
+	nextRun := time.Now().Add(videoPollInterval)
+	status := firstNonEmpty(resp.Status, ai.VideoStatusSubmitted)
+	updates := map[string]any{
+		"status":               StatusPending,
+		"provider_task_id":     resp.TaskID,
+		"provider_task_kind":   resp.TaskKind,
+		"provider_task_status": status,
+		"next_run_at":          &nextRun,
+		"finished_at":          nil,
+		"error_msg":            "",
+	}
+	w.db.Model(job).Updates(updates)
+	job.ProviderTaskID = resp.TaskID
+	job.ProviderTaskKind = resp.TaskKind
+	job.ProviderTaskStatus = status
+	sm.finish(StateWaitingProviderTask, fmt.Sprintf("provider task %s accepted; next poll at %s", resp.TaskID, nextRun.Format(time.RFC3339)))
+	log.Printf("[genjob] job #%d submitted provider task %s; poll at %s", job.ID, resp.TaskID, nextRun.Format(time.RFC3339))
+}
+
+func (w *Worker) scheduleProviderPoll(job *model.GenJob, message string, sm *jobStateMachine) {
+	nextRun := time.Now().Add(videoPollInterval)
+	updates := map[string]any{
+		"status":      StatusPending,
+		"error_msg":   message,
+		"next_run_at": &nextRun,
+		"finished_at": nil,
+	}
+	w.db.Model(job).Updates(updates)
+	sm.finish(StateWaitingProviderTask, fmt.Sprintf("%s; next poll at %s", firstNonEmpty(message, "provider task still running"), nextRun.Format(time.RFC3339)))
+	log.Printf("[genjob] job #%d provider task %s pending; next poll at %s", job.ID, job.ProviderTaskID, nextRun.Format(time.RFC3339))
+}
+
+func (w *Worker) markProviderTaskFailed(job *model.GenJob, resp ai.VideoResponse, err error) {
+	now := time.Now()
+	msg := firstNonEmpty(resp.Message)
+	if msg == "" && err != nil {
+		msg = err.Error()
+	}
+	if msg == "" {
+		msg = "video generation failed"
+	}
+	w.db.Model(job).Updates(map[string]any{
+		"status":               StatusFailed,
+		"provider_task_status": ai.VideoStatusFailed,
+		"error_msg":            msg,
+		"finished_at":          &now,
+		"next_run_at":          nil,
+		"last_heartbeat_at":    &now,
+	})
+	log.Printf("[genjob] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
+}
+
+func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, resp ai.VideoResponse, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+	var resourceID uint
+	var err error
+	if len(resp.ContentBytes) > 0 {
+		sm.enter(StateSavingResult, "store provider bytes")
+		resourceID, err = w.saveBytes(ctx, job, resp.ContentBytes, "video/mp4")
+	} else {
+		resultURL := strings.TrimSpace(resp.URL)
+		if resultURL == "" {
+			return fmt.Errorf("no video URL returned by provider")
+		}
+		sm.enter(StateValidatingProviderData, "validate provider result URL")
+		if err := validateProviderResultURL(resultURL); err != nil {
+			return err
+		}
+		sm.succeed("provider returned downloadable result")
+		sm.enter(StateSavingResult, "download and store provider result")
+		resourceID, err = w.saveResult(ctx, job, resultURL, "video/mp4")
+	}
+	if err != nil {
+		return fmt.Errorf("save result: %w", err)
+	}
+	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
+
+	sm.enter(StatePersistingSuccess, "mark job succeeded")
+	now := time.Now()
+	updates := map[string]any{
+		"status":               StatusSucceeded,
+		"provider_task_status": firstNonEmpty(resp.Status, ai.VideoStatusSucceeded),
+		"output_resource_id":   resourceID,
+		"finished_at":          &now,
+		"next_run_at":          nil,
+	}
+	if resp.TaskID != "" {
+		updates["provider_task_id"] = resp.TaskID
+	}
+	if resp.TaskKind != "" {
+		updates["provider_task_kind"] = resp.TaskKind
 	}
 	if debugResult != nil {
 		if b, err := json.Marshal(debugResult); err == nil {

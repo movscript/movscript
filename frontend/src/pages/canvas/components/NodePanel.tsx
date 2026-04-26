@@ -306,7 +306,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           <select
             className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
             value={data.referencedCanvasId ?? ''}
-            onChange={(e) => onUpdate({ referencedCanvasId: Number(e.target.value) || undefined, source: 'ai' })}
+            onChange={(e) => onUpdate(nodeId, { referencedCanvasId: Number(e.target.value) || undefined, source: 'ai' })}
           >
             <option value="">选择可复用工作流…</option>
             {workflowCanvases.map((canvas) => (

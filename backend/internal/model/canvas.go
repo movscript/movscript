@@ -47,13 +47,17 @@ type CanvasEdge struct {
 
 type CanvasRun struct {
 	gorm.Model
-	CanvasID    uint         `gorm:"not null" json:"canvas_id"`
-	Status      string       `gorm:"default:'pending'" json:"status"` // pending | running | done | failed
-	InputValues string       `json:"input_values,omitempty"`          // JSON object keyed by input node_id
-	Error       string       `json:"error,omitempty"`
-	StartedAt   *time.Time   `json:"started_at,omitempty"`
-	FinishedAt  *time.Time   `json:"finished_at,omitempty"`
-	Tasks       []CanvasTask `gorm:"foreignKey:CanvasRunID" json:"tasks,omitempty"`
+	CanvasID          uint         `gorm:"not null" json:"canvas_id"`
+	Status            string       `gorm:"default:'pending';index" json:"status"` // pending | running | done | failed
+	InputValues       string       `json:"input_values,omitempty"`                // JSON object keyed by input node_id
+	Error             string       `json:"error,omitempty"`
+	GraphSnapshot     string       `gorm:"type:text" json:"graph_snapshot,omitempty"`
+	SnapshotHash      string       `gorm:"size:64;index" json:"snapshot_hash,omitempty"`
+	SnapshotNodeCount int          `json:"snapshot_node_count"`
+	SnapshotEdgeCount int          `json:"snapshot_edge_count"`
+	StartedAt         *time.Time   `json:"started_at,omitempty"`
+	FinishedAt        *time.Time   `json:"finished_at,omitempty"`
+	Tasks             []CanvasTask `gorm:"foreignKey:CanvasRunID" json:"tasks,omitempty"`
 }
 
 type CanvasTask struct {
@@ -61,6 +65,9 @@ type CanvasTask struct {
 	CanvasNodeID   uint         `gorm:"not null" json:"canvas_node_id"`
 	CanvasRunID    *uint        `json:"canvas_run_id,omitempty"`
 	CanvasRun      *CanvasRun   `gorm:"foreignKey:CanvasRunID" json:"canvas_run,omitempty"`
+	NodeID         string       `gorm:"index" json:"node_id,omitempty"`
+	NodeLabel      string       `json:"node_label,omitempty"`
+	NodeType       string       `json:"node_type,omitempty"`
 	Status         string       `gorm:"default:'pending'" json:"status"` // pending | running | done | failed
 	ProviderTaskID string       `json:"provider_task_id,omitempty"`
 	Error          string       `json:"error,omitempty"`

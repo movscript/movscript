@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Script, Asset, Episode, Scene, Storyboard, Shot } from '@/types'
+import type { Script, Asset, Episode, Scene, Storyboard, Shot, RawResource } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Plus, LayoutTemplate, ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
@@ -89,10 +89,10 @@ export default function CreationPage() {
   const activeTab = openTabs.find((t) => t.key === activeTabKey) ?? null
 
   /* ── Item strip ── */
-  function getItems(): { id: number; label: string; sub?: string }[] {
+  function getItems(): { id: number; label: string; sub?: string; resource?: RawResource }[] {
     switch (activeKind) {
       case 'script':     return scripts.map((s) => ({ id: s.ID, label: s.title, sub: s.script_type === 'main' ? '总剧本' : s.script_type === 'episode' ? '分集' : '分场' }))
-      case 'asset':      return assets.map((a) => ({ id: a.ID, label: a.name, sub: a.type }))
+      case 'asset':      return assets.map((a) => ({ id: a.ID, label: a.name, sub: a.type, resource: a.views?.find((v) => v.resource)?.resource }))
       case 'episode':    return episodes.map((e) => ({ id: e.ID, label: e.title, sub: `EP${String(e.number).padStart(2, '0')}` }))
       case 'scene':      return scenes.map((s) => ({ id: s.ID, label: s.title, sub: `场${s.number}` }))
       case 'storyboard': return storyboards.map((b) => ({ id: b.ID, label: b.title || `分镜 #${b.order}`, sub: b.description?.slice(0, 20) }))
@@ -341,7 +341,7 @@ export default function CreationPage() {
 // ── Entity card (middle strip) ────────────────────────────────────────────────
 
 interface EntityCardProps {
-  item: { id: number; label: string; sub?: string }
+  item: { id: number; label: string; sub?: string; resource?: RawResource }
   kind: EntityKind
   selected: boolean
   hasTab: boolean
@@ -354,6 +354,9 @@ function EntityCard({ item, kind, selected, hasTab, onClick }: EntityCardProps) 
   function onDragStart(e: React.DragEvent) {
     const drag: EntityDragItem = { kind, id: item.id, label: item.label }
     e.dataTransfer.setData('application/entity-node', JSON.stringify(drag))
+    if (item.resource) {
+      e.dataTransfer.setData('application/canvas-resource', JSON.stringify(item.resource))
+    }
     e.dataTransfer.effectAllowed = 'copy'
   }
 

@@ -548,6 +548,9 @@ export interface GenJob {
   output_resource_id?: number
   output_resource?: RawResource
   provider_task_id?: string
+  provider_task_kind?: string
+  provider_task_status?: string
+  provider_task_history?: string
   error_msg?: string
   debug_info?: string  // JSON-encoded DebugCallResult
   execution_state?: string
@@ -640,6 +643,9 @@ export interface CanvasTask {
   ID: number
   canvas_node_id: number
   canvas_run_id?: number
+  node_id?: string
+  node_label?: string
+  node_type?: string
   status: CanvasTaskStatus
   provider_task_id?: string
   error?: string
@@ -654,6 +660,10 @@ export interface CanvasRun {
   status: CanvasRunStatus
   input_values?: string
   error?: string
+  graph_snapshot?: string
+  snapshot_hash?: string
+  snapshot_node_count?: number
+  snapshot_edge_count?: number
   started_at?: string
   finished_at?: string
   tasks?: CanvasTask[]

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 
@@ -79,6 +80,25 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		RefID:      req.RefID,
 	}
 	h.db.Create(&cv)
+	if cv.CanvasType == "workflow" {
+		inputData, _ := json.Marshal(map[string]any{
+			"source":     "manual",
+			"inputValue": "",
+			"paramName":  "input",
+			"paramType":  "text",
+		})
+		outputData, _ := json.Marshal(map[string]any{
+			"source":    "upload",
+			"paramName": "output",
+			"paramType": "resource",
+		})
+		h.db.Create(&[]model.CanvasNode{
+			{CanvasID: cv.ID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
+			{CanvasID: cv.ID, NodeID: "output", Type: "output", Label: "输出", PosX: 460, PosY: 160, Data: string(outputData)},
+		})
+		h.db.Create(&model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "output"})
+		h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID)
+	}
 	c.JSON(http.StatusCreated, cv)
 }
 

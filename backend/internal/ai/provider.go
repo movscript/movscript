@@ -87,10 +87,27 @@ type MediaData struct {
 
 type VideoResponse struct {
 	TaskID       string
+	TaskKind     string
+	Status       string
+	Message      string
 	URL          string
 	DurationSec  int    // actual billed duration in seconds
 	ContentBytes []byte // raw bytes if downloaded directly (auth-gated content)
 	Debug        *DebugCallResult
+}
+
+const (
+	VideoStatusSubmitted  = "submitted"
+	VideoStatusQueued     = "queued"
+	VideoStatusProcessing = "processing"
+	VideoStatusSucceeded  = "succeeded"
+	VideoStatusFailed     = "failed"
+)
+
+type VideoPollRequest struct {
+	Model    string
+	TaskID   string
+	TaskKind string
 }
 
 // DebugHTTPExchange captures one HTTP request/response made to a provider.
@@ -113,6 +130,14 @@ type Provider interface {
 	VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error)
 	// Ping tests connectivity without generating content (used for admin key validation).
 	Ping(ctx context.Context) error
+}
+
+// VideoTaskProvider exposes platforms whose video APIs are inherently async.
+// VideoStart must submit the task once and return the provider task ID.
+// VideoPoll must inspect an existing provider task without creating a new one.
+type VideoTaskProvider interface {
+	VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error)
+	VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error)
 }
 
 // DebugCallResult captures the raw HTTP exchange plus job-level context for debugging.
