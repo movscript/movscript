@@ -1,0 +1,28 @@
+# Binaries
+backend/bin/
+frontend/dist/
+frontend/dist-electron/
+frontend/out/
+
+# Go
+backend/uploads/
+*.exe
+*.test
+*.out
+
+# Node
+frontend/node_modules/
+node_modules/
+
+# Env
+.env
+backend/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

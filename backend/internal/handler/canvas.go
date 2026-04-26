@@ -1,0 +1,171 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/ai"
+	"github.com/movscript/movscript/internal/model"
+	"gorm.io/gorm"
+)
+
+type CanvasHandler struct {
+	db        *gorm.DB
+	registry  *ai.Registry
+	svc       *ai.AIService
+	uploadDir string
+}
+
+func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService) *CanvasHandler {
+	return &CanvasHandler{db: db, registry: registry, svc: svc, uploadDir: "/tmp/movscript-canvas"}
+}
+
+func (h *CanvasHandler) List(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var canvases []model.Canvas
+	q := h.db.Where("owner_id = ?", user.ID)
+	if pid := c.Query("project_id"); pid != "" {
+		q = q.Where("project_id = ?", pid)
+	}
+	if stage := c.Query("stage"); stage != "" {
+		q = q.Where("stage = ?", stage)
+	}
+	q.Find(&canvases)
+	c.JSON(http.StatusOK, canvases)
+}
+
+func (h *CanvasHandler) Create(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var req struct {
+		Name       string `json:"name" binding:"required"`
+		ProjectID  *uint  `json:"project_id"`
+		CanvasType string `json:"canvas_type"`
+		Stage      string `json:"stage"`
+		RefType    string `json:"ref_type"`
+		RefID      *uint  `json:"ref_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	cv := model.Canvas{
+		OwnerID:    user.ID,
+		Name:       req.Name,
+		ProjectID:  req.ProjectID,
+		CanvasType: req.CanvasType,
+		Stage:      req.Stage,
+		RefType:    req.RefType,
+		RefID:      req.RefID,
+	}
+	h.db.Create(&cv)
+	c.JSON(http.StatusCreated, cv)
+}
+
+func (h *CanvasHandler) Get(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var cv model.Canvas
+	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if cv.OwnerID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	c.JSON(http.StatusOK, cv)
+}
+
+func (h *CanvasHandler) Delete(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var cv model.Canvas
+	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if cv.OwnerID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	h.db.Where("canvas_run_id IN (?)", h.db.Model(&model.CanvasRun{}).Select("id").Where("canvas_id = ?", cv.ID)).Delete(&model.CanvasTask{})
+	h.db.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasRun{})
+	h.db.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{})
+	h.db.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{})
+	h.db.Delete(&cv)
+	c.Status(http.StatusNoContent)
+}
+
+// Save performs a full replace of nodes + edges for a canvas.
+func (h *CanvasHandler) Save(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var cv model.Canvas
+	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if cv.OwnerID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	var req struct {
+		Name       string             `json:"name"`
+		CanvasType string             `json:"canvas_type"`
+		Nodes      []model.CanvasNode `json:"nodes"`
+		Edges      []model.CanvasEdge `json:"edges"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.Name != "" {
+		cv.Name = req.Name
+	}
+	if req.CanvasType != "" {
+		cv.CanvasType = req.CanvasType
+	}
+
+	h.db.Transaction(func(tx *gorm.DB) error {
+		tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{})
+		tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{})
+		for i := range req.Nodes {
+			req.Nodes[i].CanvasID = cv.ID
+			req.Nodes[i].ID = 0
+		}
+		for i := range req.Edges {
+			req.Edges[i].CanvasID = cv.ID
+			req.Edges[i].ID = 0
+		}
+		if len(req.Nodes) > 0 {
+			tx.Create(&req.Nodes)
+		}
+		if len(req.Edges) > 0 {
+			tx.Create(&req.Edges)
+		}
+		tx.Save(&cv)
+		return nil
+	})
+
+	h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID)
+	c.JSON(http.StatusOK, cv)
+}

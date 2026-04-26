@@ -1,0 +1,95 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/apierr"
+	"github.com/movscript/movscript/internal/model"
+	"gorm.io/gorm"
+)
+
+type ShotHandler struct{ db *gorm.DB }
+
+func NewShotHandler(db *gorm.DB) *ShotHandler { return &ShotHandler{db: db} }
+
+// List returns shots for a storyboard.
+func (h *ShotHandler) List(c *gin.Context) {
+	shots := make([]model.Shot, 0)
+	h.db.Where("storyboard_id = ?", c.Param("id")).Order("\"order\"").Find(&shots)
+	c.JSON(http.StatusOK, shots)
+}
+
+// Create creates a shot under a storyboard.
+func (h *ShotHandler) Create(c *gin.Context) {
+	var s model.Shot
+	if err := c.ShouldBindJSON(&s); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	boardID := parseID(c.Param("id"))
+	s.StoryboardID = &boardID
+
+	// Inherit project_id from storyboard.
+	var board model.Storyboard
+	if h.db.First(&board, boardID).Error == nil {
+		s.ProjectID = board.ProjectID
+	}
+
+	var count int64
+	h.db.Model(&model.Shot{}).Where("storyboard_id = ?", boardID).Count(&count)
+	if s.Order == 0 {
+		s.Order = int(count) + 1
+	}
+	h.db.Create(&s)
+	c.JSON(http.StatusCreated, s)
+}
+
+// CreateByProject creates a shot directly under a project (no storyboard required).
+func (h *ShotHandler) CreateByProject(c *gin.Context) {
+	var s model.Shot
+	if err := c.ShouldBindJSON(&s); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	s.ProjectID = parseID(c.Param("id"))
+	if s.Order == 0 {
+		var count int64
+		h.db.Model(&model.Shot{}).Where("project_id = ? AND storyboard_id IS NULL", s.ProjectID).Count(&count)
+		s.Order = int(count) + 1
+	}
+	h.db.Create(&s)
+	c.JSON(http.StatusCreated, s)
+}
+
+// Update updates a shot by its own ID.
+func (h *ShotHandler) Update(c *gin.Context) {
+	var s model.Shot
+	if err := h.db.First(&s, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("镜头不存在"))
+		return
+	}
+	if err := c.ShouldBindJSON(&s); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.db.Save(&s)
+	c.JSON(http.StatusOK, s)
+}
+
+// Delete deletes a shot by its own ID.
+func (h *ShotHandler) Delete(c *gin.Context) {
+	h.db.Delete(&model.Shot{}, c.Param("id"))
+	c.Status(http.StatusNoContent)
+}
+
+// ListByProject returns all shots for a project.
+func (h *ShotHandler) ListByProject(c *gin.Context) {
+	shots := make([]model.Shot, 0)
+	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\"")
+	if sid := c.Query("storyboard_id"); sid != "" {
+		q = q.Where("storyboard_id = ?", sid)
+	}
+	q.Find(&shots)
+	c.JSON(http.StatusOK, shots)
+}

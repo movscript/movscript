@@ -1,0 +1,1020 @@
+import { useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import type { Asset, RawResource, ResourceFolder, ResourceFolderPermission, User } from '@/types'
+import { useProjectStore } from '@/store/projectStore'
+import {
+  Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File,
+  FolderPlus, Folder, FolderOpen, Share2,
+  PlusSquare, ChevronRight, MoreHorizontal, Globe, MoveRight,
+  ShieldCheck, Pencil, Eye, PenLine, X as XIcon, UserPlus,
+  LayoutGrid, List,
+} from 'lucide-react'
+import { MediaViewer } from '@/components/shared/MediaViewer'
+import { ResourceListItem } from '@/components/shared/ResourcePanel'
+import { Button } from '@/components/ui/button'
+import * as Dialog from '@radix-ui/react-dialog'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+
+type TypeFilter = 'all' | 'image' | 'video' | 'audio'
+type Tab = 'mine' | 'shared'
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function TypeIcon({ type }: { type: string }) {
+  switch (type) {
+    case 'image': return <ImageIcon size={13} />
+    case 'video': return <Video size={13} />
+    case 'audio': return <FileAudio size={13} />
+    default: return <File size={13} />
+  }
+}
+
+const TYPE_TABS: { label: string; value: TypeFilter }[] = [
+  { label: '全部', value: 'all' },
+  { label: '图片', value: 'image' },
+  { label: '视频', value: 'video' },
+  { label: '音频', value: 'audio' },
+]
+
+// ─── Folder Dialog ────────────────────────────────────────────────────────────
+function FolderDialog({
+  open,
+  onClose,
+  editFolder,
+}: {
+  open: boolean
+  onClose: () => void
+  editFolder?: ResourceFolder | null
+}) {
+  const qc = useQueryClient()
+  const [name, setName] = useState(editFolder?.name ?? '')
+  const [isShared, setIsShared] = useState(editFolder?.is_shared ?? false)
+
+  const save = useMutation({
+    mutationFn: () => {
+      const body = { name, is_shared: isShared }
+      return editFolder
+        ? api.put(`/resource-folders/${editFolder.ID}`, body)
+        : api.post('/resource-folders', body)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resource-folders'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Dialog.Root open={open} onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
+          <Dialog.Title className="text-sm font-semibold mb-4">
+            {editFolder ? '编辑文件夹' : '新建文件夹'}
+          </Dialog.Title>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">名称</label>
+              <input
+                autoFocus
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                placeholder="文件夹名称"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isShared}
+                onChange={e => setIsShared(e.target.checked)}
+                className="rounded"
+              />
+              <Globe size={13} className="text-muted-foreground" />
+              开启共享（对其他用户可见）
+            </label>
+          </div>
+          <div className="flex justify-end gap-2 mt-5">
+            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+            <Button size="sm" onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
+              {save.isPending ? '保存中…' : '保存'}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+// ─── Permissions Dialog ───────────────────────────────────────────────────────
+function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [searchQ, setSearchQ] = useState('')
+  const [localIsShared, setLocalIsShared] = useState(folder.is_shared)
+
+  const { data: perms = [] } = useQuery<ResourceFolderPermission[]>({
+    queryKey: ['folder-permissions', folder.ID],
+    queryFn: () => api.get(`/resource-folders/${folder.ID}/permissions`).then(r => r.data),
+  })
+
+  const { data: searchResults = [] } = useQuery<User[]>({
+    queryKey: ['users-search', searchQ],
+    queryFn: () => api.get(`/users?q=${encodeURIComponent(searchQ)}`).then(r => r.data),
+    enabled: searchQ.trim().length > 0,
+  })
+
+  const existingUserIds = new Set(perms.map(p => p.user_id))
+
+  const toggleShared = useMutation({
+    mutationFn: (v: boolean) => api.put(`/resource-folders/${folder.ID}`, { is_shared: v }),
+    onSuccess: (_, v) => {
+      setLocalIsShared(v)
+      qc.invalidateQueries({ queryKey: ['resource-folders'] })
+    },
+  })
+
+  const grant = useMutation({
+    mutationFn: ({ userId, permission }: { userId: number; permission: string }) =>
+      api.post(`/resource-folders/${folder.ID}/permissions`, { user_id: userId, permission }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['folder-permissions', folder.ID] }),
+  })
+
+  const revoke = useMutation({
+    mutationFn: (userId: number) =>
+      api.delete(`/resource-folders/${folder.ID}/permissions/${userId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['folder-permissions', folder.ID] }),
+  })
+
+  const PERM_LABELS = { read: '只读', write: '读写' }
+  const PERM_ICONS = { read: <Eye size={11} />, write: <PenLine size={11} /> }
+
+  return (
+    <Dialog.Root open onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-96 z-50 max-h-[80vh] flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={15} className="text-primary" />
+            <Dialog.Title className="text-sm font-semibold flex-1">权限设置 — {folder.name}</Dialog.Title>
+            <Dialog.Close className="text-muted-foreground hover:text-foreground">
+              <XIcon size={14} />
+            </Dialog.Close>
+          </div>
+
+          {/* Sharing toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+            <div>
+              <p className="text-xs font-medium">启用共享</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">开启后才能授权其他用户访问此文件夹</p>
+            </div>
+            <button
+              onClick={() => toggleShared.mutate(!localIsShared)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${localIsShared ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${localIsShared ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+
+          {localIsShared && (
+            <>
+              {/* Current permission list */}
+              <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                <p className="text-[11px] text-muted-foreground font-medium mb-1">已授权用户</p>
+                {perms.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60 py-2 text-center">暂无授权用户</p>
+                ) : (
+                  perms.map(p => (
+                    <div key={p.ID} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background">
+                      <span className="text-xs font-medium flex-1 truncate">{p.user?.username ?? `用户 ${p.user_id}`}</span>
+                      {/* Toggle permission */}
+                      <button
+                        onClick={() => grant.mutate({ userId: p.user_id, permission: p.permission === 'read' ? 'write' : 'read' })}
+                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border hover:bg-muted transition-colors"
+                        title="点击切换权限"
+                      >
+                        {PERM_ICONS[p.permission]}
+                        {PERM_LABELS[p.permission]}
+                      </button>
+                      {/* Revoke */}
+                      <button
+                        onClick={() => revoke.mutate(p.user_id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        title="移除权限"
+                      >
+                        <XIcon size={12} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add user */}
+              <div className="border-t border-border pt-3 space-y-2">
+                <p className="text-[11px] text-muted-foreground font-medium">添加用户</p>
+                <div className="relative">
+                  <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={searchQ}
+                    onChange={e => setSearchQ(e.target.value)}
+                    placeholder="搜索用户名…"
+                    className="w-full pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="space-y-1 max-h-36 overflow-y-auto">
+                    {searchResults.map(u => {
+                      const already = existingUserIds.has(u.ID)
+                      return (
+                        <div key={u.ID} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background text-xs">
+                          <span className="flex-1 truncate">{u.username}</span>
+                          {already ? (
+                            <span className="text-muted-foreground text-[11px]">已添加</span>
+                          ) : (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => { grant.mutate({ userId: u.ID, permission: 'read' }); setSearchQ('') }}
+                                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+                              >
+                                <Eye size={10} /> 只读
+                              </button>
+                              <button
+                                onClick={() => { grant.mutate({ userId: u.ID, permission: 'write' }); setSearchQ('') }}
+                                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+                              >
+                                <PenLine size={10} /> 读写
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+// ─── Move to Folder Dialog ───────────────────────────────────────────────────
+function MoveDialog({
+  resource,
+  folders,
+  onClose,
+}: {
+  resource: RawResource
+  folders: ResourceFolder[]
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  // null = root (unfiled), number = folder ID
+  const [targetFolder, setTargetFolder] = useState<number | null>(resource.folder_id ?? null)
+
+  const move = useMutation({
+    mutationFn: () =>
+      api.put(`/resources/${resource.ID}`, { folder_id: targetFolder ?? 0 }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resources'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Dialog.Root open onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-72 z-50">
+          <Dialog.Title className="text-sm font-semibold mb-4">移动到文件夹</Dialog.Title>
+          <p className="text-xs text-muted-foreground mb-3 truncate" title={resource.name}>{resource.name}</p>
+          <div className="space-y-1 max-h-56 overflow-y-auto">
+            <FolderOption
+              label="未分类（根目录）"
+              selected={targetFolder === null}
+              onClick={() => setTargetFolder(null)}
+            />
+            {folders.map(f => (
+              <FolderOption
+                key={f.ID}
+                label={f.name}
+                selected={targetFolder === f.ID}
+                isShared={f.is_shared}
+                onClick={() => setTargetFolder(f.ID)}
+              />
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 mt-5">
+            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+            <Button size="sm" onClick={() => move.mutate()} disabled={move.isPending}>
+              {move.isPending ? '移动中…' : '移动'}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function FolderOption({ label, selected, isShared, onClick }: {
+  label: string; selected: boolean; isShared?: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg transition-colors text-left ${
+        selected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
+      }`}
+    >
+      <Folder size={12} />
+      <span className="flex-1 truncate">{label}</span>
+      {isShared && <Globe size={10} className={selected ? 'opacity-70' : 'text-blue-400'} />}
+    </button>
+  )
+}
+
+// ─── Add to Asset Dialog ──────────────────────────────────────────────────────
+function AddToAssetDialog({
+  resource,
+  onClose,
+}: {
+  resource: RawResource
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const project = useProjectStore(s => s.current)
+  const [assetId, setAssetId] = useState<number | ''>('')
+  const [viewType, setViewType] = useState('custom')
+  const [label, setLabel] = useState('')
+
+  const { data: assets = [] } = useQuery<Asset[]>({
+    queryKey: ['assets', project?.ID],
+    queryFn: () => api.get(`/projects/${project!.ID}/assets`).then(r => r.data),
+    enabled: !!project,
+  })
+
+  const add = useMutation({
+    mutationFn: () =>
+      api.post(`/resources/${resource.ID}/to-asset`, {
+        asset_id: assetId,
+        view_type: viewType,
+        label,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assets'] })
+      onClose()
+    },
+  })
+
+  const VIEW_TYPES = ['front', 'back', 'left', 'right', 'detail', 'custom']
+  const VIEW_LABELS: Record<string, string> = {
+    front: '正面', back: '背面', left: '左侧', right: '右侧', detail: '细节', custom: '自定义',
+  }
+
+  return (
+    <Dialog.Root open onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
+          <Dialog.Title className="text-sm font-semibold mb-4">添加到素材</Dialog.Title>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">选择素材</label>
+              <select
+                value={assetId}
+                onChange={e => setAssetId(Number(e.target.value))}
+                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none"
+              >
+                <option value="">-- 请选择 --</option>
+                {assets.map(a => (
+                  <option key={a.ID} value={a.ID}>{a.name}</option>
+                ))}
+              </select>
+              {!project && (
+                <p className="text-xs text-muted-foreground mt-1">请先选择一个项目</p>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">视角类型</label>
+              <select
+                value={viewType}
+                onChange={e => setViewType(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none"
+              >
+                {VIEW_TYPES.map(v => (
+                  <option key={v} value={v}>{VIEW_LABELS[v]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">标签（可选）</label>
+              <input
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                placeholder="例：主视觉"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-5">
+            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+            <Button
+              size="sm"
+              onClick={() => add.mutate()}
+              disabled={!assetId || add.isPending}
+            >
+              {add.isPending ? '添加中…' : '添加'}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+// ─── Resource Card ────────────────────────────────────────────────────────────
+function ResourceCard({
+  resource,
+  myFolders,
+  onDelete,
+  onAddToAsset,
+  onMove,
+  isSharedView,
+}: {
+  resource: RawResource
+  myFolders: ResourceFolder[]
+  onDelete?: () => void
+  onAddToAsset: () => void
+  onMove: () => void
+  isSharedView?: boolean
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  return (
+    <div className="group relative flex flex-col gap-1.5">
+      {/* Preview */}
+      <div className="aspect-square relative">
+        {resource.type === 'image' || resource.type === 'video' ? (
+          <MediaViewer resource={resource} className="w-full h-full" />
+        ) : (
+          <div className="w-full h-full rounded-lg bg-muted flex items-center justify-center">
+            <TypeIcon type={resource.type} />
+          </div>
+        )}
+
+        {/* Action menu */}
+        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenu.Trigger asChild>
+            <button
+              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              title="操作"
+            >
+              <MoreHorizontal size={12} />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 text-sm"
+              align="end"
+              sideOffset={4}
+            >
+              <DropdownMenu.Item
+                className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                onSelect={onAddToAsset}
+              >
+                <PlusSquare size={13} />
+                添加到素材
+              </DropdownMenu.Item>
+              {!isSharedView && (
+                <DropdownMenu.Item
+                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                  onSelect={onMove}
+                >
+                  <MoveRight size={13} />
+                  移动到文件夹
+                </DropdownMenu.Item>
+              )}
+              {!isSharedView && onDelete && (
+                <>
+                  <DropdownMenu.Separator className="my-1 border-t border-border" />
+                  <DropdownMenu.Item
+                    className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive"
+                    onSelect={onDelete}
+                  >
+                    <Trash2 size={13} />
+                    删除
+                  </DropdownMenu.Item>
+                </>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+
+        {/* Shared badge */}
+        {resource.is_shared && (
+          <div className="absolute bottom-1 right-1">
+            <span title="已共享"><Share2 size={10} className="text-blue-400" /></span>
+          </div>
+        )}
+      </div>
+
+      {/* Meta */}
+      <div className="flex items-center gap-1 text-muted-foreground/70">
+        <TypeIcon type={resource.type} />
+        <span className="text-xs truncate flex-1" title={resource.name}>{resource.name}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground/50">{formatBytes(resource.size)}</span>
+        {isSharedView && resource.owner && (
+          <span className="text-xs text-muted-foreground/50 truncate ml-1">{resource.owner.username}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function ResourcesPage() {
+  const qc = useQueryClient()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [tab, setTab] = useState<Tab>('mine')
+  const [filter, setFilter] = useState<TypeFilter>('all')
+  const [search, setSearch] = useState('')
+  // selectedFolder: null=all, 'root'=unfiled, number=folder ID
+  // selectedFolderTab: which sidebar section the selected folder belongs to
+  const [selectedFolder, setSelectedFolder] = useState<number | 'root' | null>(null)
+  const [selectedFolderTab, setSelectedFolderTab] = useState<'mine' | 'shared'>('mine')
+  const [folderDialog, setFolderDialog] = useState<{ open: boolean; folder?: ResourceFolder | null }>({ open: false })
+  const [addToAssetResource, setAddToAssetResource] = useState<RawResource | null>(null)
+  const [moveResource, setMoveResource] = useState<RawResource | null>(null)
+  const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+
+  // My folders
+  const { data: myFolders = [] } = useQuery<ResourceFolder[]>({
+    queryKey: ['resource-folders', 'mine'],
+    queryFn: () => api.get('/resource-folders').then(r => r.data),
+  })
+
+  // Shared folders from other users
+  const { data: sharedFolders = [] } = useQuery<ResourceFolder[]>({
+    queryKey: ['resource-folders', 'shared'],
+    queryFn: () => api.get('/resource-folders?shared=true').then(r => r.data),
+  })
+
+  const deleteFolder = useMutation({
+    mutationFn: (id: number) => api.delete(`/resource-folders/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resource-folders'] })
+      if (typeof selectedFolder === 'number') setSelectedFolder(null)
+    },
+  })
+
+  // Resources: personal or shared, with optional folder filter
+  const folderParam = selectedFolder === 'root' ? 'root' : selectedFolder != null ? String(selectedFolder) : undefined
+  const { data: resources = [], isLoading } = useQuery<RawResource[]>({
+    queryKey: ['resources', tab, folderParam, selectedFolderTab],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (tab === 'shared' || (selectedFolderTab === 'shared' && selectedFolder != null)) {
+        params.set('shared', 'true')
+      }
+      if (folderParam && !(tab === 'shared' && !selectedFolder)) {
+        params.set('folder_id', folderParam)
+      }
+      // When showing all shared (no folder selected), don't pass folder_id
+      if (tab === 'shared' && selectedFolder === null) {
+        params.delete('folder_id')
+      }
+      return api.get(`/resources?${params}`).then(r => r.data)
+    },
+  })
+
+  const upload = useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      if (typeof selectedFolder === 'number' && selectedFolderTab === 'mine') {
+        fd.append('folder_id', String(selectedFolder))
+      }
+      return api.post('/resources/upload', fd).then(r => r.data as RawResource)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => api.delete(`/resources/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
+  })
+
+  const isSharedView = tab === 'shared' || selectedFolderTab === 'shared'
+
+  const visible = resources.filter(r => {
+    if (filter !== 'all' && r.type !== filter) return false
+    if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  const currentFolderLabel = () => {
+    if (selectedFolder === 'root') return '未分类'
+    if (typeof selectedFolder === 'number') {
+      const inMine = myFolders.find(f => f.ID === selectedFolder)
+      if (inMine) return inMine.name
+      const inShared = sharedFolders.find(f => f.ID === selectedFolder)
+      if (inShared) return `${inShared.name}（${inShared.owner?.username ?? '他人'}）`
+    }
+    return null
+  }
+
+  function selectMyFolder(id: number | 'root' | null) {
+    setSelectedFolder(id)
+    setSelectedFolderTab('mine')
+    setTab('mine')
+  }
+
+  function selectSharedFolder(id: number) {
+    setSelectedFolder(id)
+    setSelectedFolderTab('shared')
+    setTab('shared')
+  }
+
+  return (
+    <div className="flex h-full">
+      {/* Sidebar — folder tree */}
+      <div className="w-52 shrink-0 border-r border-border flex flex-col bg-background">
+        {/* My Folders section */}
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
+          <span className="text-xs font-semibold text-foreground">我的文件夹</span>
+          <button
+            onClick={() => setFolderDialog({ open: true, folder: null })}
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            title="新建文件夹"
+          >
+            <FolderPlus size={13} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto py-1 border-b border-border">
+          <FolderItem
+            label="全部资源"
+            icon={<Folder size={13} />}
+            active={selectedFolder === null && tab === 'mine'}
+            onClick={() => selectMyFolder(null)}
+          />
+          <FolderItem
+            label="未分类"
+            icon={<Folder size={13} />}
+            active={selectedFolder === 'root' && tab === 'mine'}
+            onClick={() => selectMyFolder('root')}
+          />
+          {myFolders.map(f => (
+            <FolderItem
+              key={f.ID}
+              label={f.name}
+              icon={selectedFolder === f.ID && tab === 'mine' ? <FolderOpen size={13} /> : <Folder size={13} />}
+              active={selectedFolder === f.ID && tab === 'mine'}
+              onClick={() => selectMyFolder(f.ID)}
+              badge={f.resource_count > 0 ? f.resource_count : undefined}
+              isShared={f.is_shared}
+              onEdit={() => setFolderDialog({ open: true, folder: f })}
+              onDelete={() => deleteFolder.mutate(f.ID)}
+              onPermissions={() => setPermissionsFolder(f)}
+            />
+          ))}
+        </div>
+
+        {/* Shared Folders section */}
+        <div className="px-3 py-2.5 border-b border-border/50">
+          <div className="flex items-center gap-1.5">
+            <Share2 size={11} className="text-muted-foreground" />
+            <span className="text-xs font-semibold text-foreground">共享文件夹</span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-1">
+          {sharedFolders.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground/50">暂无他人共享的文件夹</p>
+          ) : (
+            sharedFolders.map(f => (
+              <FolderItem
+                key={f.ID}
+                label={f.name}
+                icon={selectedFolder === f.ID && tab === 'shared' ? <FolderOpen size={13} /> : <Folder size={13} />}
+                active={selectedFolder === f.ID && tab === 'shared'}
+                onClick={() => selectSharedFolder(f.ID)}
+                badge={f.resource_count > 0 ? f.resource_count : undefined}
+                subtitle={f.owner?.username}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Main panel */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-sm">
+            <span className="text-muted-foreground">资源库</span>
+            {currentFolderLabel() && (
+              <>
+                <ChevronRight size={12} className="text-muted-foreground/50" />
+                <span className="font-medium text-foreground">{currentFolderLabel()}</span>
+              </>
+            )}
+          </div>
+          <div className="flex-1" />
+
+          {/* Tabs */}
+          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+            <button
+              onClick={() => { setTab('mine'); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
+              className={`px-3 py-1 transition-colors ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              我的
+            </button>
+            <button
+              onClick={() => { setTab('shared'); setSelectedFolderTab('shared') }}
+              className={`px-3 py-1 flex items-center gap-1 transition-colors ${tab === 'shared' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <Share2 size={11} />
+              共享
+            </button>
+          </div>
+
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="搜索文件名…"
+              className="pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
+            />
+          </div>
+
+          {/* Upload button — only visible for personal folders */}
+          <Button
+            size="sm"
+            onClick={() => fileRef.current?.click()}
+            disabled={upload.isPending}
+            className={`gap-1.5 ${isSharedView ? 'invisible' : ''}`}
+          >
+            <Upload size={13} />
+            {upload.isPending ? '上传中…' : '上传文件'}
+          </Button>
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              title="缩略图"
+            >
+              <LayoutGrid size={13} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              title="列表"
+            >
+              <List size={13} />
+            </button>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            accept="image/*,video/*,audio/*"
+            multiple
+            onChange={e => {
+              if (!e.target.files) return
+              Array.from(e.target.files).forEach(f => upload.mutate(f))
+              e.target.value = ''
+            }}
+          />
+        </div>
+
+        {/* Type filter */}
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-background shrink-0">
+          {TYPE_TABS.map(t => (
+            <button
+              key={t.value}
+              onClick={() => setFilter(t.value)}
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                filter === t.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              {t.label}
+              {t.value !== 'all' && (
+                <span className="ml-1 opacity-60">
+                  {resources.filter(r => r.type === t.value).length}
+                </span>
+              )}
+            </button>
+          ))}
+          <div className="flex-1" />
+          <span className="text-xs text-muted-foreground">{visible.length} 个文件</span>
+        </div>
+
+        {/* Grid / List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">加载中…</div>
+          ) : visible.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
+              <Upload size={32} className="mb-3 opacity-30" />
+              <p className="text-sm">
+                {isSharedView ? '暂无共享资源' : search ? '没有匹配的文件' : '暂无资源，点击上传'}
+              </p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {visible.map(r => (
+                <ResourceCard
+                  key={r.ID}
+                  resource={r}
+                  myFolders={myFolders}
+                  isSharedView={isSharedView}
+                  onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
+                  onAddToAsset={() => setAddToAssetResource(r)}
+                  onMove={() => setMoveResource(r)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {visible.map(r => (
+                <ResourceListItem
+                  key={r.ID}
+                  resource={r}
+                  thumbSize="md"
+                  trailing={
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all shrink-0"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <MoreHorizontal size={14} />
+                        </button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 text-sm" align="end" sideOffset={4}>
+                          <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setAddToAssetResource(r)}>
+                            <PlusSquare size={13} />添加到素材
+                          </DropdownMenu.Item>
+                          {!isSharedView && (
+                            <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setMoveResource(r)}>
+                              <MoveRight size={13} />移动到文件夹
+                            </DropdownMenu.Item>
+                          )}
+                          {!isSharedView && (
+                            <>
+                              <DropdownMenu.Separator className="my-1 border-t border-border" />
+                              <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive" onSelect={() => remove.mutate(r.ID)}>
+                                <Trash2 size={13} />删除
+                              </DropdownMenu.Item>
+                            </>
+                          )}
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      {folderDialog.open && (
+        <FolderDialog
+          open
+          onClose={() => setFolderDialog({ open: false })}
+          editFolder={folderDialog.folder}
+        />
+      )}
+      {addToAssetResource && (
+        <AddToAssetDialog
+          resource={addToAssetResource}
+          onClose={() => setAddToAssetResource(null)}
+        />
+      )}
+      {moveResource && (
+        <MoveDialog
+          resource={moveResource}
+          folders={myFolders}
+          onClose={() => setMoveResource(null)}
+        />
+      )}
+      {permissionsFolder && (
+        <PermissionsDialog
+          folder={permissionsFolder}
+          onClose={() => setPermissionsFolder(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Folder Sidebar Item ──────────────────────────────────────────────────────
+function FolderItem({
+  label,
+  icon,
+  active,
+  onClick,
+  badge,
+  isShared,
+  subtitle,
+  onEdit,
+  onDelete,
+  onPermissions,
+}: {
+  label: string
+  icon: React.ReactNode
+  active: boolean
+  onClick: () => void
+  badge?: number
+  isShared?: boolean
+  subtitle?: string
+  onEdit?: () => void
+  onDelete?: () => void
+  onPermissions?: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  return (
+    <div
+      className={`group flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+        active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+      }`}
+      onClick={onClick}
+    >
+      <span className="shrink-0">{icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className="truncate">{label}</div>
+        {subtitle && <div className="text-[10px] text-muted-foreground/60 truncate">{subtitle}</div>}
+      </div>
+
+      {isShared && <span title="已共享"><Globe size={10} className="text-blue-400 shrink-0" /></span>}
+
+      {badge != null && (
+        <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px]">{badge}</span>
+      )}
+
+      {(onEdit || onDelete || onPermissions) && (
+        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenu.Trigger asChild>
+            <button
+              className="w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all shrink-0"
+              onClick={e => e.stopPropagation()}
+            >
+              <MoreHorizontal size={11} />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-28 z-50 text-xs"
+              align="end"
+              sideOffset={4}
+            >
+              {onEdit && (
+                <DropdownMenu.Item
+                  className="px-3 py-1.5 cursor-pointer hover:bg-muted text-foreground"
+                  onSelect={() => { onEdit(); setMenuOpen(false) }}
+                >
+                  编辑
+                </DropdownMenu.Item>
+              )}
+              {onPermissions && (
+                <DropdownMenu.Item
+                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                  onSelect={() => { onPermissions(); setMenuOpen(false) }}
+                >
+                  <ShieldCheck size={11} />
+                  权限设置
+                </DropdownMenu.Item>
+              )}
+              {onDelete && (
+                <DropdownMenu.Item
+                  className="px-3 py-1.5 cursor-pointer hover:bg-muted text-destructive"
+                  onSelect={() => { onDelete(); setMenuOpen(false) }}
+                >
+                  删除
+                </DropdownMenu.Item>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,253 @@
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Loader2, AlertCircle, Download, RotateCcw, CheckCircle2, Maximize2, X } from 'lucide-react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { AuthedImage, AuthedVideo } from './AuthedImage'
+import { cn } from '@/lib/utils'
+import type { RawResource } from '@/types'
+import { useUserStore } from '@/store/userStore'
+
+const API_BASE = 'http://localhost:8765'
+
+// ── PromptText ────────────────────────────────────────────────────────────────
+// Renders a prompt string, replacing @[resource:ID] tokens with inline thumbnails.
+
+function ResourceChip({ id }: { id: number }) {
+  const qc = useQueryClient()
+  const userId = useUserStore(s => s.currentUser?.ID)
+  const resources = qc.getQueryData<RawResource[]>(['resources']) ?? []
+  const resource = resources.find(r => r.ID === id)
+
+  if (!resource) {
+    return (
+      <span className="inline-flex items-center gap-1 align-middle bg-muted rounded px-1.5 py-0.5 text-[11px] text-muted-foreground mx-0.5">
+        #{id}
+      </span>
+    )
+  }
+
+  const uid = userId ? `?uid=${userId}` : ''
+  const url = resource.direct_url ?? `${API_BASE}${resource.url}${uid}`
+  return (
+    <span className="inline-flex items-center gap-1 align-middle bg-muted rounded-md px-1.5 py-0.5 mx-0.5 text-[11px] text-foreground whitespace-nowrap">
+      <span className="w-4 h-4 rounded overflow-hidden shrink-0 bg-muted-foreground/20 inline-block">
+        {resource.type === 'video' ? (
+          resource.direct_url
+            ? <video src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+            : <AuthedVideo src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+        ) : resource.direct_url ? (
+          <img src={url} alt={resource.name} className="w-full h-full object-cover" />
+        ) : (
+          <AuthedImage src={url} alt={resource.name} className="w-full h-full object-cover" />
+        )}
+      </span>
+      <span className="max-w-[80px] truncate">{resource.name}</span>
+    </span>
+  )
+}
+
+export function PromptText({ text, className }: { text: string; className?: string }) {
+  const parts = text.split(/(@\[resource:\d+\])/g)
+  return (
+    <span className={className}>
+      {parts.map((part, i) => {
+        const m = part.match(/^@\[resource:(\d+)\]$/)
+        if (m) return <ResourceChip key={i} id={Number(m[1])} />
+        return <span key={i}>{part}</span>
+      })}
+    </span>
+  )
+}
+
+export function formatGenTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 60_000) return '刚刚'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
+  return new Date(iso).toLocaleDateString('zh-CN')
+}
+
+export interface GenResultCardProps {
+  prompt?: string
+  status: 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  outputResource?: RawResource
+  outputType: 'image' | 'video'
+  error?: string
+  timestamp?: string
+  onReuse?: () => void
+  debugPanel?: React.ReactNode
+  compact?: boolean
+  className?: string
+}
+
+export function GenResultCard({
+  prompt,
+  status,
+  outputResource,
+  outputType,
+  error,
+  timestamp,
+  onReuse,
+  debugPanel,
+  compact = false,
+  className,
+}: GenResultCardProps) {
+  const isRunning = status === 'pending' || status === 'running'
+  const outputUrl = outputResource
+    ? outputResource.direct_url ?? `${API_BASE}${outputResource.url}`
+    : undefined
+
+  return (
+    <div className={cn('bg-background rounded-xl border border-border shadow-sm overflow-hidden', className)}>
+      {/* Prompt */}
+      {prompt && (
+        <div className={cn('border-b border-border', compact ? 'px-3 py-2' : 'px-4 py-3')}>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <p className={cn('text-foreground flex-1 leading-relaxed whitespace-pre-wrap', compact ? 'text-xs line-clamp-3' : 'text-sm')}>
+              <PromptText text={prompt} />
+            </p>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {status === 'done' && <CheckCircle2 size={12} className="text-green-500" />}
+              {onReuse && (
+                <button
+                  onClick={onReuse}
+                  title="复用此提示词"
+                  className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                >
+                  <RotateCcw size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+          {timestamp && (
+            <span className="text-xs text-muted-foreground/50">{formatGenTime(timestamp)}</span>
+          )}
+        </div>
+      )}
+
+      {/* Output */}
+      <div className={cn('bg-card', compact ? 'min-h-[48px]' : 'min-h-[80px]')}>
+        {isRunning && (
+          <div className={cn('flex items-center justify-center', compact ? 'py-6' : 'py-10')}>
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <Loader2 size={compact ? 16 : 22} className="animate-spin" />
+              <p className="text-xs">{status === 'pending' ? '等待开始…' : '生成中…'}</p>
+            </div>
+          </div>
+        )}
+
+        {!isRunning && status === 'failed' && (
+          <div className={cn('flex items-center justify-center gap-2 text-destructive', compact ? 'py-4' : 'py-6')}>
+            <AlertCircle size={compact ? 12 : 16} />
+            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? '生成失败'}</p>
+          </div>
+        )}
+
+        {!isRunning && status === 'done' && outputUrl && (
+          <MediaCell
+            outputResource={outputResource!}
+            outputType={outputType}
+            outputUrl={outputUrl}
+            compact={compact}
+          />
+        )}
+      </div>
+
+      {debugPanel && (
+        <div className="px-4 py-3 border-t border-border">
+          {debugPanel}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── MediaCell ─────────────────────────────────────────────────────────────────
+// 4:3 容器，内容居中不裁剪，点击弹出灯箱
+
+function MediaCell({
+  outputResource,
+  outputType,
+  outputUrl,
+  compact,
+}: {
+  outputResource: RawResource
+  outputType: 'image' | 'video'
+  outputUrl: string
+  compact: boolean
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      {/* Thumbnail: 4:3 aspect ratio, content centered without cropping */}
+      <div
+        className="relative w-full aspect-[4/3] bg-muted cursor-pointer group overflow-hidden"
+        onClick={() => setOpen(true)}
+      >
+        {outputType === 'image' ? (
+          outputResource.direct_url
+            ? <img src={outputUrl} alt="生成结果" className="absolute inset-0 w-full h-full object-contain" />
+            : <AuthedImage src={outputUrl} alt="生成结果" className="absolute inset-0 w-full h-full object-contain" />
+        ) : outputResource.direct_url ? (
+          <video src={outputUrl} className="absolute inset-0 w-full h-full object-contain" muted playsInline preload="metadata" />
+        ) : (
+          <AuthedVideo src={outputUrl} className="absolute inset-0 w-full h-full object-contain" muted playsInline preload="metadata" />
+        )}
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <Maximize2 size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+        </div>
+      </div>
+
+      {/* Lightbox dialog */}
+      <Dialog.Root open={open} onOpenChange={setOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/80 z-50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-4 shrink-0">
+                <span className="text-white/80 text-sm truncate max-w-[60vw]">{outputResource.name}</span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={outputUrl}
+                    download={outputResource.name}
+                    className="text-white/70 hover:text-white transition-colors"
+                    title="下载"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download size={16} />
+                  </a>
+                  <Dialog.Close className="text-white/70 hover:text-white transition-colors">
+                    <X size={18} />
+                  </Dialog.Close>
+                </div>
+              </div>
+
+              {outputType === 'video' ? (
+                <video
+                  src={outputUrl}
+                  controls
+                  autoPlay
+                  className="max-w-[90vw] max-h-[80vh] rounded-lg"
+                />
+              ) : outputResource.direct_url ? (
+                <img
+                  src={outputUrl}
+                  alt={outputResource.name}
+                  className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+                />
+              ) : (
+                <AuthedImage
+                  src={outputUrl}
+                  alt={outputResource.name}
+                  className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+                />
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  )
+}

@@ -1,0 +1,195 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import type { Asset, AssetView } from '@/types'
+import { useProjectStore } from '@/store/projectStore'
+import { Plus, Image, LayoutGrid, List } from 'lucide-react'
+import { CreateDialog } from '@/components/shared/CreateDialog'
+import { AssetCreateForm } from '@/components/shared/EntityCreateForms'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { AssetDetail, ReviewStatusBadge } from '@/components/detail'
+
+const TYPES = ['character', 'scene', 'prop', 'draft'] as const
+const TYPE_LABELS: Record<string, string> = {
+  character: '角色', scene: '场景', prop: '道具', draft: '底稿',
+}
+const TYPE_COLORS: Record<string, string> = {
+  character: 'bg-muted text-foreground',
+  scene: 'bg-muted text-foreground',
+  prop: 'bg-muted text-foreground',
+  draft: 'bg-muted text-foreground',
+}
+
+const API_BASE = 'http://localhost:8765'
+
+function viewMediaSrc(view: AssetView): string | undefined {
+  if (view.resource?.url) return `${API_BASE}${view.resource.url}`
+  if (view.image_url) return view.image_url.startsWith('http') ? view.image_url : `${API_BASE}${view.image_url}`
+  return undefined
+}
+
+function isVideoResource(view: AssetView): boolean {
+  if (view.resource?.type === 'video') return true
+  if (view.resource?.mime_type?.startsWith('video/')) return true
+  return false
+}
+
+// --- Shared sub-components ---
+
+function AssetThumb({ asset, className }: { asset: Asset; className?: string }) {
+  const firstView = asset.views?.[0]
+  const src = firstView ? viewMediaSrc(firstView) : undefined
+  const isVid = firstView ? isVideoResource(firstView) : false
+
+  if (!src) {
+    return (
+      <div className={cn('flex items-center justify-center text-muted-foreground bg-muted', className)}>
+        <Image size={20} />
+      </div>
+    )
+  }
+  return isVid
+    ? <AuthedVideo src={src} className={cn('object-cover', className)} muted playsInline />
+    : <AuthedImage src={src} alt={asset.name} className={cn('object-cover', className)} />
+}
+
+function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'text-left bg-background border border-border rounded-lg overflow-hidden hover:border-ring hover:shadow-sm transition-all',
+        selected && 'border-primary ring-1 ring-primary',
+      )}
+    >
+      <div className="aspect-square bg-muted overflow-hidden">
+        <AssetThumb asset={asset} className="w-full h-full" />
+      </div>
+      <div className="p-3">
+        <p className="text-sm font-medium truncate">{asset.name}</p>
+        <div className="flex items-center justify-between mt-1">
+          <span className={cn('text-xs px-1.5 py-0.5 rounded-full', TYPE_COLORS[asset.type] ?? 'bg-muted text-muted-foreground')}>
+            {TYPE_LABELS[asset.type]}
+          </span>
+          <ReviewStatusBadge status={asset.review_status} />
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full text-left px-3 py-2.5 border-b border-border hover:bg-muted/30 transition-colors flex items-center gap-2.5',
+        selected && 'bg-muted/50 border-l-2 border-l-primary',
+      )}
+    >
+      <div className="w-8 h-8 rounded bg-muted shrink-0 overflow-hidden">
+        <AssetThumb asset={asset} className="w-full h-full" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium truncate">{asset.name}</p>
+        <p className="text-xs text-muted-foreground">{TYPE_LABELS[asset.type]}</p>
+      </div>
+      <ReviewStatusBadge status={asset.review_status} />
+    </button>
+  )
+}
+
+// --- Page ---
+
+export default function AssetsPage() {
+  const projectId = useProjectStore((s) => s.current?.ID)
+  const [filterType, setFilterType] = useState('')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+
+  const { data: assets = [], isLoading } = useQuery<Asset[]>({
+    queryKey: ['assets', projectId, filterType],
+    queryFn: () =>
+      api.get(`/projects/${projectId}/assets`, { params: filterType ? { type: filterType } : {} })
+        .then((r) => r.data),
+    enabled: !!projectId,
+  })
+
+  const selected = assets.find((a) => a.ID === selectedId) ?? null
+  const detailOpen = selectedId !== null
+
+  const filterTabs = [
+    { value: '', label: '全部' },
+    ...TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] })),
+  ]
+
+  return (
+    <div className="flex h-full overflow-hidden bg-background">
+      {/* Left list panel */}
+      <div className={cn('flex flex-col border-r border-border bg-card overflow-hidden', detailOpen ? 'w-72 shrink-0' : 'flex-1')}>
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
+          <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
+            {filterTabs.map((t) => (
+              <button key={t.value} onClick={() => { setFilterType(t.value); setSelectedId(null) }}
+                className={cn('px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors', filterType === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 ml-2 shrink-0">
+            <Button onClick={() => setShowCreate(true)} size="icon" className="h-7 w-7"><Plus size={14} /></Button>
+            {!detailOpen && (
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                <button onClick={() => setViewMode('grid')} className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title="缩略图"><LayoutGrid size={13} /></button>
+                <button onClick={() => setViewMode('list')} className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title="列表"><List size={13} /></button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+          ) : assets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+              <Image size={32} className="opacity-30" />
+              <p className="text-sm">暂无素材</p>
+              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">新建一个</button>
+            </div>
+          ) : detailOpen ? (
+            // Compact sidebar list when detail panel is open — reuses AssetListRow
+            assets.map((a) => (
+              <AssetListRow key={a.ID} asset={a} selected={selectedId === a.ID} onClick={() => setSelectedId(a.ID)} />
+            ))
+          ) : viewMode === 'list' ? (
+            <div className="divide-y divide-border">
+              {assets.map((a) => (
+                <AssetListRow key={a.ID} asset={a} selected={selectedId === a.ID} onClick={() => setSelectedId(a.ID)} />
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 grid grid-cols-2 xl:grid-cols-3 gap-3">
+              {assets.map((a) => (
+                <AssetGridCard key={a.ID} asset={a} selected={selectedId === a.ID} onClick={() => setSelectedId(a.ID)} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Detail panel */}
+      {detailOpen && selected && (
+        <div className="flex-1 overflow-hidden">
+          <AssetDetail asset={selected} onClose={() => setSelectedId(null)} onDelete={() => setSelectedId(null)} />
+        </div>
+      )}
+
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建素材">
+        <AssetCreateForm projectId={projectId!} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
+      </CreateDialog>
+    </div>
+  )
+}

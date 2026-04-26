@@ -1,0 +1,448 @@
+import { useRef, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon } from 'lucide-react'
+import { MediaViewer } from './MediaViewer'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import type { RawResource, ParamDef } from '@/types'
+import { useUserStore } from '@/store/userStore'
+import { api } from '@/lib/api'
+
+const API_BASE = 'http://localhost:8765'
+
+// Fetch a blob URL for a resource using the authed api instance.
+// Returns a revocable blob: URL, or the direct_url if available.
+async function fetchBlobUrl(resource: RawResource, userId?: number): Promise<string> {
+  const uid = userId ? `?uid=${userId}` : ''
+  const src = `${API_BASE}${resource.url}${uid}`
+  const res = await api.get(src, { baseURL: '', responseType: 'blob' })
+  return URL.createObjectURL(res.data)
+}
+
+// Builds a chip DOM node with a placeholder thumb container.
+// Returns the chip element and the img/video element inside it so the caller can set src later.
+function buildChipElement(resource: RawResource): { chip: HTMLElement; media: HTMLImageElement | HTMLVideoElement } {
+  const chip = document.createElement('span')
+  chip.contentEditable = 'false'
+  chip.dataset.resourceName = resource.name
+  chip.dataset.resourceId = String(resource.ID)
+  chip.style.cssText = 'display:inline-flex;align-items:center;gap:3px;vertical-align:middle;background:var(--muted);border-radius:6px;padding:1px 5px;margin:0 2px;font-size:12px;line-height:1.4;white-space:nowrap;cursor:default;'
+
+  let media: HTMLImageElement | HTMLVideoElement
+  if (resource.type === 'video') {
+    const vid = document.createElement('video')
+    vid.muted = true
+    vid.playsInline = true
+    vid.preload = 'metadata'
+    vid.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--muted);'
+    chip.appendChild(vid)
+    media = vid
+  } else {
+    const img = document.createElement('img')
+    img.alt = resource.name
+    img.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--muted);'
+    chip.appendChild(img)
+    media = img
+  }
+
+  const label = document.createElement('span')
+  label.textContent = resource.name
+  label.style.cssText = 'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+  chip.appendChild(label)
+
+  return { chip, media }
+}
+
+function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove: () => void }) {
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 })
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tagRef = useRef<HTMLDivElement>(null)
+
+  function handleMouseEnter() {
+    timerRef.current = setTimeout(() => {
+      if (tagRef.current) {
+        const rect = tagRef.current.getBoundingClientRect()
+        setPreviewPos({ x: rect.left, y: rect.top })
+      }
+      setShowPreview(true)
+    }, 2000)
+  }
+
+  function handleMouseLeave() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+    setShowPreview(false)
+  }
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
+  const previewLeft = Math.min(previewPos.x, window.innerWidth - 216)
+  const previewTop = Math.max(8, previewPos.y - 232)
+
+  return (
+    <>
+      <div
+        ref={tagRef}
+        className="flex items-center gap-1.5 bg-muted rounded-full px-2 py-1 cursor-default"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className="w-6 h-6 rounded-full overflow-hidden shrink-0">
+          <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
+        </div>
+        <span className="text-xs text-foreground max-w-[72px] truncate">{resource.name}</span>
+        <button onClick={onRemove} className="text-muted-foreground hover:text-foreground shrink-0 transition-colors">
+          <X size={11} />
+        </button>
+      </div>
+
+      {showPreview && createPortal(
+        <div
+          className="fixed z-[200] bg-background border border-border rounded-xl shadow-2xl p-2 pointer-events-none"
+          style={{ left: previewLeft, top: previewTop }}
+        >
+          <div className="w-48 h-48 rounded-lg overflow-hidden bg-muted">
+            <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
+          </div>
+          <p className="text-xs text-foreground mt-1.5 truncate max-w-[192px] px-0.5">{resource.name}</p>
+          <p className="text-[10px] text-muted-foreground px-0.5 capitalize">{resource.type}</p>
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
+export interface InputSlotDef {
+  label: string       // e.g. "参考图", "原视频"
+  type: 'image' | 'video'
+  required: boolean
+}
+
+export interface GenInputCardProps {
+  prompt: string
+  onPromptChange: (v: string) => void
+  attachments: RawResource[]
+  onRemoveAttachment: (i: number) => void
+  // inputSlots: when provided, replaces the legacy inputType-based attachment UI.
+  // Each slot defines what kind of resource is expected at that position.
+  inputSlots?: InputSlotDef[]
+  params: ParamDef[]
+  paramValues: Record<string, string | number | boolean>
+  onParamChange: (key: string, val: string | number | boolean) => void
+  onGenerate: () => void
+  onUpload: (file: File) => void
+  isRunning: boolean
+  canGenerate: boolean
+  selectedModelId: number | null
+  inputType: 'image' | 'video' | 'image+video'
+  promptPlaceholder?: string
+  uploading: boolean
+  imageEditRequired?: boolean
+}
+
+export function GenInputCard({
+  prompt,
+  onPromptChange,
+  attachments,
+  onRemoveAttachment,
+  inputSlots,
+  params,
+  paramValues,
+  onParamChange,
+  onGenerate,
+  onUpload,
+  isRunning,
+  canGenerate,
+  selectedModelId: _selectedModelId,
+  inputType,
+  promptPlaceholder,
+  uploading,
+  imageEditRequired,
+}: GenInputCardProps) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const userId = useUserStore(s => s.currentUser?.ID)
+
+  const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? 'image/*' : 'image/*,video/*'
+
+  const mentionResources = attachments
+    .filter((r) => {
+      if (!mentionQuery) return true
+      return r.name.toLowerCase().includes(mentionQuery)
+    })
+    .slice(0, 8)
+
+  // Serialize contenteditable DOM → plain text (chip spans → @[resource:ID])
+  function serialize(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+    const el = node as HTMLElement
+    if (el.dataset?.resourceId) return `@[resource:${el.dataset.resourceId}] `
+    return Array.from(node.childNodes).map(serialize).join('')
+  }
+
+  // Sync contenteditable → prompt state
+  function handleInput() {
+    if (!editorRef.current) return
+    const text = serialize(editorRef.current)
+    onPromptChange(text)
+
+    // Detect @query at cursor
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) { setMentionQuery(null); return }
+    const range = sel.getRangeAt(0)
+    const node = range.startContainer
+    if (node.nodeType !== Node.TEXT_NODE) { setMentionQuery(null); return }
+    const before = (node.textContent ?? '').slice(0, range.startOffset)
+    const match = before.match(/@(\w*)$/)
+    setMentionQuery(match ? match[1].toLowerCase() : null)
+  }
+
+  // Insert a resource chip at cursor, replacing the @query trigger
+  function insertMentionChip(resource: RawResource) {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !editorRef.current) return
+    const range = sel.getRangeAt(0)
+    const node = range.startContainer
+    if (node.nodeType === Node.TEXT_NODE) {
+      const before = (node.textContent ?? '').slice(0, range.startOffset)
+      const match = before.match(/@(\w*)$/)
+      if (match) {
+        const deleteRange = document.createRange()
+        deleteRange.setStart(node, range.startOffset - match[0].length)
+        deleteRange.setEnd(node, range.startOffset)
+        deleteRange.deleteContents()
+      }
+    }
+
+    const { chip, media } = buildChipElement(resource)
+
+    const space = document.createTextNode('​')
+    const insertRange = sel.getRangeAt(0)
+    insertRange.insertNode(space)
+    insertRange.insertNode(chip)
+
+    const newRange = document.createRange()
+    newRange.setStartAfter(space)
+    newRange.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(newRange)
+
+    setMentionQuery(null)
+    onPromptChange(serialize(editorRef.current))
+
+    // Fetch blob URL via authed api and set directly on the media element.
+    // Errors are suppressed (no toast) because responseType=blob is excluded in the interceptor.
+    fetchBlobUrl(resource, userId).then((blobUrl) => {
+      // If the media element was detached by the browser's editing engine, find it again by resource ID
+      let target: HTMLImageElement | HTMLVideoElement | null = media
+      if (!media.isConnected && editorRef.current) {
+        const chip = editorRef.current.querySelector(`[data-resource-id="${resource.ID}"]`)
+        target = chip?.querySelector('img, video') as HTMLImageElement | HTMLVideoElement | null
+      }
+      if (target) {
+        target.src = blobUrl
+        if (resource.type === 'video') {
+          const vid = target as HTMLVideoElement
+          vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0.1 }, { once: true })
+        }
+      }
+    }).catch((e) => { console.error('[chip thumb] fetch failed', resource.url, e?.response?.status, e?.message) })
+  }
+
+  // Keep editor DOM in sync when prompt is cleared externally (e.g. after generate)
+  const prevPromptRef = useRef(prompt)
+  useEffect(() => {
+    if (prompt === '' && prevPromptRef.current !== '' && editorRef.current) {
+      editorRef.current.innerHTML = ''
+    }
+    prevPromptRef.current = prompt
+  }, [prompt])
+
+  return (
+    <div className="space-y-0">
+      {/* Prompt area — contenteditable */}
+      <div className="relative">
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setMentionQuery(null)
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onGenerate() }
+          }}
+          className="w-full text-sm focus:outline-none bg-transparent text-foreground leading-relaxed min-h-[80px] px-1 py-1 mention-editor"
+          data-placeholder={
+            promptPlaceholder ??
+            `描述你想生成的内容… 输入 @ 可引用${inputType !== 'video' ? '图片' : ''}${inputType !== 'image' ? '视频' : ''}`
+          }
+        />
+
+        {mentionQuery !== null && (
+          <div className="absolute bottom-full left-0 mb-1.5 bg-background border border-border rounded-xl shadow-lg z-20 w-56 overflow-hidden">
+            {mentionResources.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-3 py-2.5">
+                {attachments.length === 0 ? '请先添加资源到标签' : '没有匹配的资源'}
+              </p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto">
+                {mentionResources.map((r) => (
+                  <button
+                    key={r.ID}
+                    onMouseDown={(e) => { e.preventDefault(); insertMentionChip(r) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/50 text-left transition-colors"
+                  >
+                    <div className="w-6 h-6 rounded overflow-hidden shrink-0 bg-muted">
+                      <MediaViewer resource={r} className="w-full h-full" lightbox={false} />
+                    </div>
+                    <span className="text-xs text-foreground truncate">{r.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Input slots (typed, ordered) — shown when model declares specific input requirements */}
+      {inputSlots && inputSlots.length > 0 ? (
+        <div className="flex flex-wrap gap-2 py-1">
+          {inputSlots.map((slot, i) => {
+            const filled = attachments[i]
+            const Icon = slot.type === 'video' ? VideoIcon : ImageIcon
+            return (
+              <div
+                key={i}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition-colors',
+                  filled
+                    ? 'border-border bg-muted'
+                    : slot.required
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+                    : 'border-dashed border-border text-muted-foreground'
+                )}
+              >
+                <span className="shrink-0 font-mono text-[10px] text-muted-foreground w-4 text-center">{i + 1}</span>
+                {filled ? (
+                  <>
+                    <div className="w-5 h-5 rounded overflow-hidden shrink-0">
+                      <MediaViewer resource={filled} className="w-full h-full" lightbox={false} />
+                    </div>
+                    <span className="max-w-[72px] truncate text-foreground">{filled.name}</span>
+                    <button onClick={() => onRemoveAttachment(i)} className="text-muted-foreground hover:text-foreground shrink-0">
+                      <X size={10} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Icon size={11} className="shrink-0" />
+                    <span>{slot.label}</span>
+                    {slot.required && <span className="text-[10px] opacity-70">必填</span>}
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : attachments.length > 0 ? (
+        /* Legacy flat attachment list */
+        <div className="flex flex-wrap gap-1.5 py-1">
+          {attachments.map((r, i) => (
+            <AttachmentTag key={r.ID} resource={r} onRemove={() => onRemoveAttachment(i)} />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Params row */}
+      {params.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2 border-t border-border/50">
+          {params.map((p) => {
+            const val = paramValues[p.key] ?? p.default ?? ''
+            return (
+              <div key={p.key} className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">{p.label}</span>
+                {p.type === 'select' && p.options ? (
+                  <select
+                    className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground"
+                    value={String(val)}
+                    onChange={(e) => onParamChange(p.key, e.target.value)}
+                  >
+                    {p.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                ) : p.type === 'number' ? (
+                  <input
+                    type="number"
+                    className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground w-16"
+                    value={Number(val)}
+                    min={p.min}
+                    max={p.max}
+                    step={p.step ?? 1}
+                    onChange={(e) => onParamChange(p.key, Number(e.target.value))}
+                  />
+                ) : p.type === 'boolean' ? (
+                  <input
+                    type="checkbox"
+                    checked={Boolean(val)}
+                    onChange={(e) => onParamChange(p.key, e.target.checked)}
+                    className="rounded"
+                  />
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Action bar */}
+      <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className={cn(
+            'flex items-center gap-1.5 text-xs border rounded-full px-3 py-1.5 transition-colors',
+            imageEditRequired && attachments.length === 0
+              ? 'text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30'
+              : 'text-muted-foreground hover:text-foreground border-border'
+          )}
+        >
+          {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+          {imageEditRequired && attachments.length === 0 ? '上传原图（必填）' : '上传'}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+        />
+        <button
+          onClick={() => {
+            const el = editorRef.current
+            if (!el) return
+            el.focus()
+            document.execCommand('insertText', false, '@')
+            setMentionQuery('')
+          }}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors"
+        >
+          <AtSign size={12} /> 引用
+        </button>
+        <div className="flex-1" />
+        <span className="text-xs text-muted-foreground/50 hidden sm:block">⌘ + Enter</span>
+        <Button
+          onClick={onGenerate}
+          disabled={!canGenerate}
+          size="sm"
+          className="rounded-full"
+        >
+          {isRunning
+            ? <><Loader2 size={13} className="animate-spin mr-1.5" />生成中…</>
+            : <><Wand2 size={13} className="mr-1.5" />生成</>
+          }
+        </Button>
+      </div>
+    </div>
+  )
+}

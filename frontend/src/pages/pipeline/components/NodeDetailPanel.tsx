@@ -1,0 +1,382 @@
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  X, CalendarDays, AlertCircle, CheckCircle2, Clock,
+  FileWarning, Link2, Plus, ExternalLink, Loader2,
+} from 'lucide-react'
+import { api } from '@/lib/api'
+import { useProjectStore } from '@/store/projectStore'
+import { useUserStore } from '@/store/userStore'
+import type { PipelineNode, ProjectMember } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+interface EntityDef {
+  entityType: string
+  label: string
+  apiPath: (pid: number) => string
+  defaultBody: (pid: number) => object
+}
+
+// Node type → entity mapping
+const NODE_TYPE_TO_ENTITY: Record<string, EntityDef> = {
+  episode_script: {
+    entityType: 'episode',
+    label: '分集',
+    apiPath: (pid) => `/projects/${pid}/episodes`,
+    defaultBody: () => ({ title: '新分集', synopsis: '' }),
+  },
+  scene_script: {
+    entityType: 'scene',
+    label: '分场',
+    apiPath: (pid) => `/projects/${pid}/scenes`,
+    defaultBody: () => ({ title: '新分场', location: '' }),
+  },
+  storyboard_script: {
+    entityType: 'storyboard',
+    label: '分镜',
+    apiPath: (pid) => `/projects/${pid}/storyboards`,
+    defaultBody: () => ({ title: '新分镜' }),
+  },
+  shot_production: {
+    entityType: 'shot',
+    label: '镜头',
+    apiPath: (pid) => `/projects/${pid}/shots`,
+    defaultBody: () => ({ description: '' }),
+  },
+}
+
+const STATUS_META: Record<string, { label: string; className: string }> = {
+  draft:        { label: '草稿',   className: 'bg-muted text-muted-foreground' },
+  under_review: { label: '审核中', className: 'bg-amber-100 text-amber-700' },
+  rejected:     { label: '已拒绝', className: 'bg-red-100 text-red-700' },
+  final:        { label: '已定稿', className: 'bg-green-100 text-green-700' },
+}
+
+interface Props {
+  node: PipelineNode
+  onClose: () => void
+  onNodeUpdated: (node: PipelineNode) => void
+}
+
+export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
+  const qc = useQueryClient()
+  const project = useProjectStore((s) => s.current)
+  const currentUser = useUserStore((s) => s.currentUser)
+  const [rejectNote, setRejectNote] = useState('')
+  const [showRejectInput, setShowRejectInput] = useState(false)
+
+  const { data: projectDetail } = useQuery({
+    queryKey: ['project', project?.ID],
+    queryFn: () => api.get(`/projects/${project!.ID}`).then((r) => r.data),
+    enabled: !!project,
+  })
+
+  const members: ProjectMember[] = projectDetail?.members ?? []
+
+  const userRole = members.find((m) => m.user_id === currentUser?.ID)?.role
+    ?? (project?.owner_id === currentUser?.ID ? 'owner' : 'viewer')
+  const canReview = userRole === 'owner' || userRole === 'director'
+
+  const updateMutation = useMutation({
+    mutationFn: (body: Partial<PipelineNode>) =>
+      api.put(`/pipeline/nodes/${node.ID}`, body).then((r) => r.data),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+      onNodeUpdated(updated as PipelineNode)
+    },
+  })
+
+  const transitionMutation = useMutation({
+    mutationFn: ({ action, body }: { action: string; body?: object }) =>
+      api.post(`/pipeline/nodes/${node.ID}/${action}`, body ?? {}).then((r) => r.data),
+    onSuccess: (data: unknown) => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+      const d = data as Record<string, unknown>
+      const updated = (d.node ?? d) as PipelineNode
+      onNodeUpdated(updated)
+      setShowRejectInput(false)
+      setRejectNote('')
+    },
+  })
+
+  // Create entity and link to this node
+  const createEntityMutation = useMutation({
+    mutationFn: async () => {
+      if (!project) return
+      const def = NODE_TYPE_TO_ENTITY[node.type]
+      if (!def) return
+      const entity = await api.post(def.apiPath(project.ID), def.defaultBody(project.ID)).then((r) => r.data)
+      const updated = await api.put(`/pipeline/nodes/${node.ID}`, {
+        entity_type: def.entityType,
+        entity_id: entity.ID,
+      }).then((r) => r.data)
+      return updated
+    },
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+      // Invalidate the related entity list
+      const def = NODE_TYPE_TO_ENTITY[node.type]
+      if (def) qc.invalidateQueries({ queryKey: [def.entityType + 's', project?.ID] })
+      if (updated) onNodeUpdated(updated as PipelineNode)
+    },
+  })
+
+  function handleSaveField(field: string, value: string | number | null) {
+    updateMutation.mutate({ [field]: value } as Partial<PipelineNode>)
+  }
+
+  const statusMeta = STATUS_META[node.status] ?? STATUS_META.draft
+  const entityDef = NODE_TYPE_TO_ENTITY[node.type]
+
+  return (
+    <div className="w-80 bg-card border-l border-border flex flex-col h-full shrink-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs px-2 py-0.5 rounded font-medium ${statusMeta.className}`}>
+            {statusMeta.label}
+          </span>
+          <span className="text-xs text-muted-foreground">{node.name}</span>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Name */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">节点名称</Label>
+          <EditableField
+            key={node.ID + '-name'}
+            value={node.name}
+            onSave={(v) => handleSaveField('name', v)}
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">描述</Label>
+          <EditableTextarea
+            key={node.ID + '-desc'}
+            value={node.description ?? ''}
+            placeholder="添加描述..."
+            onSave={(v) => handleSaveField('description', v)}
+          />
+        </div>
+
+        {/* Assignee */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">负责人</Label>
+          <Select
+            value={node.assignee_id?.toString() ?? '__none__'}
+            onValueChange={(v) => handleSaveField('assignee_id', v === '__none__' ? null : parseInt(v))}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="未分配" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">未分配</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.user_id} value={m.user_id.toString()}>
+                  {m.user?.username ?? `用户 ${m.user_id}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Due date */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+            <CalendarDays size={11} /> 截止日期
+          </Label>
+          <Input
+            key={node.ID + '-date'}
+            type="date"
+            className="h-8 text-sm"
+            defaultValue={node.due_date ? node.due_date.substring(0, 10) : ''}
+            onBlur={(e) => handleSaveField('due_date', e.target.value || null as unknown as string)}
+          />
+        </div>
+
+        {/* ── Entity link section ────────────────────────────────────── */}
+        {entityDef && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              <Link2 size={11} /> 关联{entityDef.label}
+            </Label>
+            {node.entity_id ? (
+              <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-green-200 bg-green-50">
+                <CheckCircle2 size={13} className="text-green-600 shrink-0" />
+                <span className="text-xs text-green-700 flex-1">
+                  已关联 {entityDef.label} #{node.entity_id}
+                </span>
+                <a
+                  href={`/${entityDef.entityType}s`}
+                  className="text-[10px] text-green-600 hover:underline flex items-center gap-0.5"
+                  target="_self"
+                >
+                  查看 <ExternalLink size={10} />
+                </a>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-xs border-dashed"
+                onClick={() => createEntityMutation.mutate()}
+                disabled={createEntityMutation.isPending}
+              >
+                {createEntityMutation.isPending ? (
+                  <Loader2 size={12} className="animate-spin mr-1.5" />
+                ) : (
+                  <Plus size={12} className="mr-1.5" />
+                )}
+                创建并关联{entityDef.label}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Review note (shown when rejected) */}
+        {node.status === 'rejected' && node.review_note && (
+          <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-red-700">
+              <FileWarning size={13} /> 拒绝原因
+            </div>
+            <p className="text-xs text-red-600">{node.review_note}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Status action buttons */}
+      <div className="px-4 py-3 border-t border-border space-y-2">
+        {(node.status === 'draft' || node.status === 'rejected') && (
+          <Button
+            className="w-full"
+            size="sm"
+            onClick={() => transitionMutation.mutate({ action: 'submit' })}
+            disabled={transitionMutation.isPending}
+          >
+            <Clock size={14} className="mr-1.5" />
+            {node.status === 'rejected' ? '重新提交' : '提交审核'}
+          </Button>
+        )}
+
+        {node.status === 'under_review' && canReview && (
+          <>
+            <Button
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              size="sm"
+              onClick={() => transitionMutation.mutate({ action: 'approve' })}
+              disabled={transitionMutation.isPending}
+            >
+              <CheckCircle2 size={14} className="mr-1.5" />
+              批准定稿
+            </Button>
+
+            {!showRejectInput ? (
+              <Button
+                variant="outline"
+                className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                size="sm"
+                onClick={() => setShowRejectInput(true)}
+              >
+                <AlertCircle size={14} className="mr-1.5" />
+                拒绝
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="请填写拒绝原因..."
+                  className="text-sm resize-none"
+                  rows={2}
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => { setShowRejectInput(false); setRejectNote('') }}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => transitionMutation.mutate({ action: 'reject', body: { note: rejectNote } })}
+                    disabled={transitionMutation.isPending}
+                  >
+                    确认拒绝
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {(node.status === 'final' || node.status === 'rejected') && (
+          <Button
+            variant="outline"
+            className="w-full"
+            size="sm"
+            onClick={() => transitionMutation.mutate({ action: 'reopen' })}
+            disabled={transitionMutation.isPending}
+          >
+            重新开放（级联回退下游）
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Inline editable field ──────────────────────────────────────────────────
+
+function EditableField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  if (editing) {
+    return (
+      <Input
+        autoFocus
+        className="h-8 text-sm"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { onSave(draft); setEditing(false) }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { onSave(draft); setEditing(false) } }}
+      />
+    )
+  }
+  return (
+    <p
+      className="text-sm text-foreground px-2 py-1.5 rounded border border-transparent hover:border-border cursor-text truncate"
+      onClick={() => { setDraft(value); setEditing(true) }}
+    >
+      {value || <span className="text-muted-foreground">点击编辑...</span>}
+    </p>
+  )
+}
+
+function EditableTextarea({ value, placeholder, onSave }: { value: string; placeholder: string; onSave: (v: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  return (
+    <Textarea
+      className="text-sm resize-none"
+      rows={3}
+      placeholder={placeholder}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (draft !== value) onSave(draft) }}
+    />
+  )
+}
