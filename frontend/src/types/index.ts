@@ -396,6 +396,7 @@ export interface InputSlotDef {
   label: string
   accept: 'image' | 'video'
   required: boolean
+  max_count: number
   requires_cap?: string // only show when model has this capability
 }
 
@@ -469,6 +470,16 @@ export interface GenJobDetail extends GenJob {
   debug_detail?: DebugCallResult
 }
 
+export interface GenJobStateTraceEntry {
+  state: string
+  status: 'running' | 'succeeded' | 'failed'
+  message?: string
+  error?: string
+  started_at: string
+  finished_at?: string
+  duration_ms?: number
+}
+
 export interface ResourceFolder {
   ID: number
   owner_id: number
@@ -527,6 +538,8 @@ export interface GenJob {
   provider_task_id?: string
   error_msg?: string
   debug_info?: string  // JSON-encoded DebugCallResult
+  execution_state?: string
+  state_trace?: string // JSON-encoded GenJobStateTraceEntry[]
   started_at?: string
   finished_at?: string
   project_id?: number
@@ -553,6 +566,7 @@ export interface CanvasNodeData {
   resource?: RawResource
   prompt?: string
   modelDbId?: number   // AIModelConfig primary key (preferred routing)
+  inputResourceIds?: number[]                             // selected resource inputs for full tool cards
   status?: CanvasTaskStatus
   taskId?: number
   error?: string

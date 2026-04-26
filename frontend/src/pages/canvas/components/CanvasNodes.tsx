@@ -41,6 +41,7 @@ type NodeDataWithHandlers = CanvasNodeData & {
   onUpdatePrompt?: (prompt: string) => void
   onUpdateOutputType?: (type: 'image' | 'video' | 'text' | 'audio') => void
   onUpdateModelId?: (id: number) => void
+  onUpdateAttachments?: (ids: number[]) => void
   onApprove?: () => void
   onReject?: () => void
   onPush?: () => void
@@ -403,6 +404,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
           resource={data.resource}
           error={data.error}
           onRun={data.onRun}
+          onUpdateAttachments={data.onUpdateAttachments}
           className={selected ? 'border-primary ring-2 ring-primary/20 shadow-md' : ''}
           onCycleMode={data.onCycleMode}
           canvasId={data.canvasId}

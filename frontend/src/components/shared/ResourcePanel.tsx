@@ -272,6 +272,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
                 key={r.ID}
                 resource={r}
                 selected={selectedIds.includes(r.ID)}
+                onClick={() => !selectedIds.includes(r.ID) && _onSelect(r)}
                 draggable
                 thumbSize="sm"
               />

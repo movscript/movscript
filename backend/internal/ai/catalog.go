@@ -649,9 +649,9 @@ var ModelSuggestions = []ModelDef{
 		}},
 
 	{ID: "gemini:gemini-flash-image", ModelID: "gemini-2.0-flash-preview-image-generation",
-		DisplayName: "Gemini Flash 图像生成", Capabilities: []string{CapabilityImage},
+		DisplayName: "Gemini Flash 图像生成", Capabilities: []string{CapabilityImage, CapabilityImageEdit},
 		BillingMode: BillingPerImage, AdapterType: AdapterGemini,
-		MaxInputImages: 0,
+		AcceptsImageInput: true, MaxInputImages: -1,
 		RefUSDPerImage: 0.04,
 		SupportedParams: []ParamDef{
 			{Key: "aspect_ratio", Label: "画面比例", Type: "select",

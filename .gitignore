@@ -1,5 +1,6 @@
 # Binaries
 backend/bin/
+backend/main
 frontend/dist/
 frontend/dist-electron/
 frontend/out/

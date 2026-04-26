@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, DebugCallResult, GenJobDetail, RawCallResult, AdapterDef, ModelDef, ParamDef } from '@/types'
-import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap } from 'lucide-react'
+import type { AICredential, DebugCallResult, GenJobDetail, GenJobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
+import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -115,6 +115,65 @@ const STATUS_COLOR: Record<string, string> = {
   running:   'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   succeeded: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   failed:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+}
+
+const STATE_LABEL: Record<string, string> = {
+  claimed: '已领取',
+  resolving_inputs: '解析输入',
+  loading_inputs: '加载素材',
+  preparing_request: '准备请求',
+  calling_provider: '调用模型',
+  validating_provider_data: '校验结果',
+  saving_result: '保存结果',
+  persisting_success: '写入成功',
+  succeeded: '完成',
+  failed: '失败',
+}
+
+function parseStateTrace(trace?: string): GenJobStateTraceEntry[] {
+  if (!trace) return []
+  try {
+    const parsed = JSON.parse(trace)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function StateTimeline({ trace }: { trace: GenJobStateTraceEntry[] }) {
+  if (trace.length === 0) {
+    return <p className="text-xs text-muted-foreground">暂无状态机记录</p>
+  }
+  return (
+    <div className="space-y-2">
+      {trace.map((entry, index) => {
+        const isRunning = entry.status === 'running'
+        const isFailed = entry.status === 'failed'
+        const Icon = isFailed ? XCircle : isRunning ? PlayCircle : CheckCircle2
+        return (
+          <div key={`${entry.state}-${index}`} className="grid grid-cols-[18px_1fr_auto] gap-2 text-xs">
+            <div className="pt-0.5">
+              <Icon size={14} className={cn(isFailed ? 'text-red-500' : isRunning ? 'text-blue-500 animate-pulse' : 'text-green-500')} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-medium text-foreground">{STATE_LABEL[entry.state] ?? entry.state}</span>
+                <span className="font-mono text-muted-foreground truncate">{entry.state}</span>
+              </div>
+              {(entry.message || entry.error) && (
+                <p className={cn('mt-0.5 break-all', entry.error ? 'text-destructive' : 'text-muted-foreground')}>
+                  {entry.error || entry.message}
+                </p>
+              )}
+            </div>
+            <div className="text-right text-muted-foreground font-mono">
+              {entry.duration_ms !== undefined ? `${entry.duration_ms}ms` : isRunning ? 'running' : '—'}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function HttpExchange({ method, url, headers, body, responseStatus, responseBody, latencyMs, error }: {
@@ -382,6 +441,7 @@ function JobMonitorSection() {
         {jobs.map((job) => {
           const isExpanded = expandedId === job.ID
           const hasDebug = !!job.debug_detail || !!job.debug_info
+          const stateTrace = parseStateTrace(job.state_trace)
           return (
             <div key={job.ID} className="border border-border rounded-lg bg-background overflow-hidden">
               <div
@@ -394,6 +454,11 @@ function JobMonitorSection() {
                     <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', STATUS_COLOR[job.status] ?? 'bg-muted text-muted-foreground')}>
                       {job.status}
                     </span>
+                    {job.execution_state && (
+                      <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+                        {STATE_LABEL[job.execution_state] ?? job.execution_state}
+                      </span>
+                    )}
                     <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">{job.job_type}</span>
                     {hasDebug && <span className="text-xs text-amber-500 flex items-center gap-0.5"><Bug size={10} /> debug</span>}
                   </div>
@@ -415,6 +480,7 @@ function JobMonitorSection() {
                       ['Model Config ID', String(job.model_config_id)],
                       ['Job Type', job.job_type],
                       ['Status', job.status],
+                      ['Execution State', job.execution_state ? (STATE_LABEL[job.execution_state] ?? job.execution_state) : '—'],
                       ['Provider Task ID', job.provider_task_id || '—'],
                       ['Started', job.started_at ? new Date(job.started_at).toLocaleString() : '—'],
                       ['Finished', job.finished_at ? new Date(job.finished_at).toLocaleString() : '—'],
@@ -425,6 +491,13 @@ function JobMonitorSection() {
                         <span className="font-mono truncate">{v}</span>
                       </div>
                     ))}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-foreground mb-1.5">执行状态机</p>
+                    <div className="bg-background border border-border rounded-md p-2">
+                      <StateTimeline trace={stateTrace} />
+                    </div>
                   </div>
 
                   {job.output_resource && (
@@ -711,28 +784,16 @@ function ProviderSandboxSection() {
     queryFn: () => api.get('/admin/adapters').then((r) => r.data),
   })
 
-  const { data: catalog = [] } = useQuery<ModelDef[]>({
-    queryKey: ['admin', 'catalog'],
-    queryFn: () => api.get('/admin/catalog').then((r) => r.data),
-  })
-
   const adapterDef = adapters.find((a) => a.adapter_type === adapterType)
 
   useEffect(() => {
     if (adapterDef?.default_base_url) setBaseURL(adapterDef.default_base_url)
   }, [adapterType, adapterDef?.default_base_url])
 
-  // Infer capability from endpoint URL for param defaults and catalog filtering.
+  // Infer capability from endpoint URL for param defaults.
   const capability = endpointURL ? inferCapabilityFromURL(endpointURL) : 'text'
 
-  const catalogModels = catalog.filter(
-    (m) => m.AdapterType === adapterType && m.Capabilities?.some((c) => c === capability || (capability === 'video' && c.startsWith('video')))
-  )
-
-  const selectedModel = catalogModels.find((m) => m.ModelID === model || m.ID === model)
-  const paramDefs: ParamDef[] = selectedModel?.SupportedParams?.length
-    ? selectedModel.SupportedParams
-    : (DEFAULT_PARAMS[capability] ?? [])
+  const paramDefs: ParamDef[] = DEFAULT_PARAMS[capability] ?? []
 
   useEffect(() => {
     const defaults: Record<string, string> = {}
@@ -891,13 +952,6 @@ function ProviderSandboxSection() {
               <div className="flex gap-2">
                 <Input value={model} onChange={(e) => setModel(e.target.value)}
                   placeholder="gpt-4o" className="font-mono text-xs flex-1" />
-                {catalogModels.length > 0 && (
-                  <select onChange={(e) => { const m = catalogModels.find((m) => m.ID === e.target.value); if (m) setModel(m.ModelID) }}
-                    className="h-9 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground" defaultValue="">
-                    <option value="" disabled>从目录选择</option>
-                    {catalogModels.map((m) => <option key={m.ID} value={m.ID}>{m.DisplayName}</option>)}
-                  </select>
-                )}
               </div>
             </div>
             <div className="space-y-1">

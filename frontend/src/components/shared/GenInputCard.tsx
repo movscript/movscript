@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon } from 'lucide-react'
+import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -114,9 +114,11 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
 }
 
 export interface InputSlotDef {
+  key: string
   label: string       // e.g. "参考图", "原视频"
   type: 'image' | 'video'
   required: boolean
+  maxCount: number    // 0 = unlimited
 }
 
 export interface GenInputCardProps {
@@ -141,6 +143,22 @@ export interface GenInputCardProps {
   imageEditRequired?: boolean
 }
 
+function buildSlotGroups(slots: InputSlotDef[], attachments: RawResource[]) {
+  const used = new Set<number>()
+  return slots.map((slot) => {
+    const items: Array<{ resource: RawResource; index: number }> = []
+    for (let i = 0; i < attachments.length; i++) {
+      if (used.has(i)) continue
+      const r = attachments[i]
+      if (r.type !== slot.type) continue
+      if (slot.maxCount > 0 && items.length >= slot.maxCount) continue
+      used.add(i)
+      items.push({ resource: r, index: i })
+    }
+    return { slot, items }
+  })
+}
+
 export function GenInputCard({
   prompt,
   onPromptChange,
@@ -158,7 +176,7 @@ export function GenInputCard({
   inputType,
   promptPlaceholder,
   uploading,
-  imageEditRequired,
+  imageEditRequired: _imageEditRequired,
 }: GenInputCardProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -308,39 +326,48 @@ export function GenInputCard({
 
       {/* Input slots (typed, ordered) — shown when model declares specific input requirements */}
       {inputSlots && inputSlots.length > 0 ? (
-        <div className="flex flex-wrap gap-2 py-1">
-          {inputSlots.map((slot, i) => {
-            const filled = attachments[i]
+        <div className="grid gap-2 py-2">
+          {buildSlotGroups(inputSlots, attachments).map(({ slot, items }, i) => {
             const Icon = slot.type === 'video' ? VideoIcon : ImageIcon
+            const limitText = slot.maxCount > 0 ? `最多 ${slot.maxCount} 个` : '可多个'
             return (
               <div
-                key={i}
+                key={slot.key || i}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition-colors',
-                  filled
+                  'rounded-lg border px-2.5 py-2 text-xs transition-colors',
+                  items.length > 0
                     ? 'border-border bg-muted'
                     : slot.required
                     ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
                     : 'border-dashed border-border text-muted-foreground'
                 )}
               >
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground w-4 text-center">{i + 1}</span>
-                {filled ? (
-                  <>
-                    <div className="w-5 h-5 rounded overflow-hidden shrink-0">
-                      <MediaViewer resource={filled} className="w-full h-full" lightbox={false} />
-                    </div>
-                    <span className="max-w-[72px] truncate text-foreground">{filled.name}</span>
-                    <button onClick={() => onRemoveAttachment(i)} className="text-muted-foreground hover:text-foreground shrink-0">
-                      <X size={10} />
-                    </button>
-                  </>
+                <div className="flex items-center gap-1.5">
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground w-4 text-center">{i + 1}</span>
+                  <Icon size={12} className="shrink-0" />
+                  <span className="font-medium text-foreground">{slot.label}</span>
+                  {slot.required && <span className="text-[10px] text-amber-600 dark:text-amber-400">必填</span>}
+                  <span className="text-[10px] text-muted-foreground">{limitText}</span>
+                </div>
+                {items.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 mt-2 pl-5">
+                    {items.map(({ resource, index }) => (
+                      <div key={`${resource.ID}-${index}`} className="flex items-center gap-1.5 bg-background rounded-full px-2 py-1">
+                        <div className="w-6 h-6 rounded-full overflow-hidden shrink-0">
+                          <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
+                        </div>
+                        <span className="max-w-[96px] truncate text-foreground">{resource.name}</span>
+                        <button onClick={() => onRemoveAttachment(index)} className="text-muted-foreground hover:text-foreground shrink-0">
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <>
+                  <div className="flex items-center gap-1.5 mt-1 pl-5 text-muted-foreground">
                     <Icon size={11} className="shrink-0" />
-                    <span>{slot.label}</span>
-                    {slot.required && <span className="text-[10px] opacity-70">必填</span>}
-                  </>
+                    <span>从左侧资源库选择，或使用下方上传入口添加</span>
+                  </div>
                 )}
               </div>
             )
@@ -400,15 +427,10 @@ export function GenInputCard({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className={cn(
-            'flex items-center gap-1.5 text-xs border rounded-full px-3 py-1.5 transition-colors',
-            imageEditRequired && attachments.length === 0
-              ? 'text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30'
-              : 'text-muted-foreground hover:text-foreground border-border'
-          )}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
         >
           {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-          {imageEditRequired && attachments.length === 0 ? '上传原图（必填）' : '上传'}
+          添加到资源库
         </button>
         <input
           ref={fileRef}
@@ -429,6 +451,9 @@ export function GenInputCard({
         >
           <AtSign size={12} /> 引用
         </button>
+        <span className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground/60">
+          <Library size={11} /> 工具只会使用已加入资源库的文件
+        </span>
         <div className="flex-1" />
         <span className="text-xs text-muted-foreground/50 hidden sm:block">⌘ + Enter</span>
         <Button

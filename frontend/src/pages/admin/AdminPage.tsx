@@ -370,6 +370,9 @@ function ModelManagementTab() {
   const [filesAPIEditBaseURL, setFilesAPIEditBaseURL] = useState('')
   const [filesAPIEditKey, setFilesAPIEditKey] = useState('')
   const [filesAPIEditSaving, setFilesAPIEditSaving] = useState(false)
+  // Credential auth/base URL editing state
+  const [credentialEditFor, setCredentialEditFor] = useState<number | null>(null)
+  const [credentialEditFields, setCredentialEditFields] = useState<Record<string, string>>({})
   // Inline credential name editing
   const [editingNameId, setEditingNameId] = useState<number | null>(null)
   const [editingNameValue, setEditingNameValue] = useState('')
@@ -406,6 +409,21 @@ function ModelManagementTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       setEditingNameId(null)
+    },
+  })
+
+  const updateCredentialAuth = useMutation({
+    mutationFn: ({ id, fields }: { id: number; fields: Record<string, string> }) => {
+      const credentials: Record<string, string> = { base_url: fields.base_url ?? '' }
+      Object.entries(fields).forEach(([key, value]) => {
+        if (key !== 'base_url' && value.trim()) credentials[key] = value
+      })
+      return api.put(`/admin/credentials/${id}`, { credentials })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+      setCredentialEditFor(null)
+      setCredentialEditFields({})
     },
   })
 
@@ -512,6 +530,16 @@ function ModelManagementTab() {
     return adapters.find((a) => a.adapter_type === adapterType)?.display_name ?? adapterType
   }
 
+  function openCredentialAuthEdit(cred: AICredential) {
+    const adapter = adapters.find((a) => a.adapter_type === cred.adapter_type)
+    const next: Record<string, string> = { base_url: cred.base_url ?? '' }
+    adapter?.cred_fields.forEach((field) => {
+      if (field.key !== 'base_url') next[field.key] = ''
+    })
+    setCredentialEditFor(cred.ID)
+    setCredentialEditFields(next)
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
@@ -547,6 +575,7 @@ function ModelManagementTab() {
         {credentials.map((cred) => {
           const testKey = `cred-${cred.ID}`
           const testRes = testResults[testKey]
+          const adapter = adapters.find((a) => a.adapter_type === cred.adapter_type)
 
           return (
             <div key={cred.ID} className="border border-border rounded-lg bg-background overflow-hidden">
@@ -645,6 +674,74 @@ function ModelManagementTab() {
               {/* Expanded: model configs + add panel */}
               {expandedId === cred.ID && (
                 <div className="border-t border-border px-4 py-3 space-y-3 bg-card">
+                  <div className="border border-border rounded-lg bg-background p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">接口凭据</p>
+                      <button
+                        onClick={() => credentialEditFor === cred.ID ? setCredentialEditFor(null) : openCredentialAuthEdit(cred)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {credentialEditFor === cred.ID ? '收起' : '编辑'}
+                      </button>
+                    </div>
+
+                    {credentialEditFor !== cred.ID ? (
+                      <div className="grid gap-1 text-xs text-muted-foreground">
+                        <p className="truncate">
+                          Base URL: <span className="font-mono">{cred.base_url || adapter?.default_base_url || '未设置'}</span>
+                        </p>
+                        <p>
+                          API Key: <span className="font-mono">{cred.masked_key || '未设置'}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground block mb-1">Base URL</Label>
+                          <Input
+                            value={credentialEditFields.base_url ?? ''}
+                            onChange={(e) => setCredentialEditFields((f) => ({ ...f, base_url: e.target.value }))}
+                            placeholder={adapter?.default_base_url || '留空使用适配器默认地址'}
+                            className="text-xs"
+                          />
+                        </div>
+                        {(adapter?.cred_fields.filter((field) => field.key !== 'base_url') ?? []).map((field) => (
+                          <div key={field.key}>
+                            <Label className="text-xs text-muted-foreground block mb-1">{field.label}</Label>
+                            <Input
+                              type="password"
+                              value={credentialEditFields[field.key] ?? ''}
+                              onChange={(e) => setCredentialEditFields((f) => ({ ...f, [field.key]: e.target.value }))}
+                              placeholder={field.key === 'api_key' && cred.masked_key ? `留空不修改（当前 ${cred.masked_key}）` : '留空不修改'}
+                              className="text-xs"
+                            />
+                          </div>
+                        ))}
+                        {updateCredentialAuth.isError && (
+                          <p className="text-xs text-destructive">
+                            {String((updateCredentialAuth.error as any)?.response?.data?.error ?? (updateCredentialAuth.error as Error)?.message)}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            disabled={updateCredentialAuth.isPending}
+                            onClick={() => updateCredentialAuth.mutate({ id: cred.ID, fields: credentialEditFields })}
+                          >
+                            {updateCredentialAuth.isPending ? '保存中…' : '保存'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setCredentialEditFor(null); setCredentialEditFields({}) }}
+                          >
+                            取消
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-medium text-muted-foreground">已启用模型</p>
                     {addingFor !== cred.ID && (
@@ -1061,7 +1158,7 @@ function ModelManagementTab() {
                   )}
 
                   {/* Files API config — shown only for adapters that support it */}
-                  {adapters.find(a => a.adapter_type === cred.adapter_type)?.supports_files_api && (() => {
+                  {adapter?.supports_files_api && (() => {
                     const isEditing = filesAPIEditFor === cred.ID
                     return (
                       <div className="border-t border-border pt-3">

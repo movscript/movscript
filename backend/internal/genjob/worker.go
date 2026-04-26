@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -93,6 +94,7 @@ func (w *Worker) processOne(ctx context.Context) {
 		return
 	}
 
+	newJobStateMachine(w, &job).reset(StateClaimed, "worker claimed pending job")
 	log.Printf("[genjob] picked job #%d type=%s user=%d", job.ID, job.JobType, job.UserID)
 
 	if err := w.execute(ctx, &job); err != nil {
@@ -106,19 +108,36 @@ func (w *Worker) processOne(ctx context.Context) {
 	}
 }
 
-func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
+func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	callCtx, cancel := context.WithTimeout(ctx, 8*time.Minute)
 	defer cancel()
+	sm := newJobStateMachine(w, job)
 
 	// Attach a debug recorder so adapters can capture the raw HTTP exchange.
 	debugCtx, debugResult := ai.WithDebugRecorder(callCtx)
+	defer func() {
+		if err == nil {
+			return
+		}
+		if debugResult != nil {
+			debugResult.Success = false
+			if debugResult.Error == "" {
+				debugResult.Error = err.Error()
+			}
+			w.saveDebugInfo(job, debugResult)
+		}
+		sm.fail(err)
+	}()
 
 	// Resolve @[resource:ID] mentions in the prompt.
 	// This populates InputResourceID (legacy) and merges mention IDs into InputResourceIDs.
 	// All mention markers are stripped from the prompt text sent to the model.
+	sm.enter(StateResolvingInputs, "resolve resource mentions in prompt")
 	job.Prompt, job.InputResourceID, job.InputResourceIDs = w.resolveMentions(job.Prompt, job.InputResourceID, job.InputResourceIDs)
+	sm.succeed("resource mentions resolved")
 
 	// Parse extra params (size, quality, duration, aspect_ratio, etc.)
+	sm.enter(StatePreparingRequest, "parse job params")
 	var extra map[string]interface{}
 	if job.ExtraParams != "" {
 		_ = json.Unmarshal([]byte(job.ExtraParams), &extra)
@@ -146,12 +165,17 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 		}
 		return 0
 	}
+	sm.succeed("job params parsed")
 
 	// Load all input resources as raw bytes from storage, classified by type.
+	sm.enter(StateLoadingInputs, "load input resources from storage")
 	imageData, videoData := w.loadInputResources(job)
+	sm.succeed(fmt.Sprintf("loaded %d image inputs and %d video inputs", len(imageData), len(videoData)))
 
 	var resultURL string
 	var mimeType string
+
+	sm.enter(StatePreparingRequest, "resolve model and debug context")
 
 	// Determine effective output type from job_type.
 	outputType := job.JobType
@@ -180,26 +204,30 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 			debugResult.JobInputResourceIDs = append(debugResult.JobInputResourceIDs, *job.InputResourceID)
 		}
 	}
+	sm.succeed("request context prepared")
 
 	switch outputType {
 	case ai.CapabilityImage:
 		req := ai.ImageRequest{
-			Prompt:      job.Prompt,
-			N:           1,
-			Size:        getString("size"),
-			Quality:     getString("quality"),
-			Style:       getString("style"),
-			AspectRatio: firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			Prompt:             job.Prompt,
+			N:                  1,
+			Size:               getString("size"),
+			Quality:            getString("quality"),
+			Style:              getString("style"),
+			AspectRatio:        firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			InputImageDataList: imageData,
 		}
 		if len(imageData) > 0 {
 			req.InputImageBytes = imageData[0].Bytes
 			req.InputImageMime = imageData[0].MimeType
 		}
+		sm.enter(StateCallingProvider, "call image provider")
 		resp, err := w.aiService.CallImage(debugCtx, job.UserID, job.ModelConfigID, req)
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return fmt.Errorf("image generation: %w", err)
 		}
+		sm.succeed("image provider returned")
 		if len(resp.URLs) == 0 {
 			return fmt.Errorf("no image URL returned by provider")
 		}
@@ -211,12 +239,13 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 			return fmt.Errorf("image_edit job requires an image input but none was found (job #%d)", job.ID)
 		}
 		req := ai.ImageRequest{
-			Prompt:      job.Prompt,
-			N:           1,
-			Size:        getString("size"),
-			Quality:     getString("quality"),
-			Style:       getString("style"),
-			AspectRatio: firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			Prompt:             job.Prompt,
+			N:                  1,
+			Size:               getString("size"),
+			Quality:            getString("quality"),
+			Style:              getString("style"),
+			AspectRatio:        firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			InputImageDataList: imageData,
 		}
 
 		// Try cloud upload first (avoids large multipart body that causes EOF on some providers).
@@ -231,11 +260,13 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 			req.InputImageMime = firstImage.MimeType
 		}
 
+		sm.enter(StateCallingProvider, "call image edit provider")
 		resp, err := w.aiService.CallImage(debugCtx, job.UserID, job.ModelConfigID, req)
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return fmt.Errorf("image generation: %w", err)
 		}
+		sm.succeed("image edit provider returned")
 		if len(resp.URLs) == 0 {
 			return fmt.Errorf("no image URL returned by provider")
 		}
@@ -248,29 +279,34 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 			dur = getInt("duration")
 		}
 		req := ai.VideoRequest{
-			Prompt:         job.Prompt,
-			Duration:       dur,
-			AspectRatio:    firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
-			Quality:        getString("quality"),
-			Size:           getString("size"),
-			ResolutionName: getString("resolution_name"),
-			Preset:         getString("preset"),
+			Prompt:             job.Prompt,
+			Duration:           dur,
+			AspectRatio:        firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			Quality:            getString("quality"),
+			Size:               getString("size"),
+			ResolutionName:     getString("resolution_name"),
+			Preset:             getString("preset"),
 			InputImageDataList: imageData,
 		}
 		if len(videoData) > 0 {
 			req.InputVideoData = &videoData[0]
 		}
+		sm.enter(StateCallingProvider, "call video provider")
 		resp, err := w.aiService.CallVideo(debugCtx, job.UserID, job.ModelConfigID, req)
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return fmt.Errorf("video generation: %w", err)
 		}
+		sm.succeed("video provider returned")
 		// If the adapter downloaded bytes directly (auth-gated content), save them now.
 		if len(resp.ContentBytes) > 0 {
+			sm.enter(StateSavingResult, "store provider bytes")
 			resourceID, err := w.saveBytes(callCtx, job, resp.ContentBytes, "video/mp4")
 			if err != nil {
 				return fmt.Errorf("save result: %w", err)
 			}
+			sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
+			sm.enter(StatePersistingSuccess, "mark job succeeded")
 			now := time.Now()
 			updates := map[string]any{
 				"status":             StatusSucceeded,
@@ -283,6 +319,8 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 				}
 			}
 			w.db.Model(job).Updates(updates)
+			sm.succeed("job marked succeeded")
+			sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 			log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
 			return nil
 		}
@@ -299,11 +337,21 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 		return fmt.Errorf("unsupported output type %q", outputType)
 	}
 
+	sm.enter(StateValidatingProviderData, "validate provider result URL")
+	resultURL = strings.TrimSpace(resultURL)
+	if err := validateProviderResultURL(resultURL); err != nil {
+		return err
+	}
+	sm.succeed("provider returned downloadable result")
+
+	sm.enter(StateSavingResult, "download and store provider result")
 	resourceID, err := w.saveResult(callCtx, job, resultURL, mimeType)
 	if err != nil {
 		return fmt.Errorf("save result: %w", err)
 	}
+	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
 
+	sm.enter(StatePersistingSuccess, "mark job succeeded")
 	now := time.Now()
 	updates := map[string]any{
 		"status":             StatusSucceeded,
@@ -316,6 +364,8 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) error {
 		}
 	}
 	w.db.Model(job).Updates(updates)
+	sm.succeed("job marked succeeded")
+	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }
@@ -439,6 +489,10 @@ func (w *Worker) saveBytes(ctx context.Context, job *model.GenJob, data []byte, 
 // saveResult downloads the provider URL (or decodes a data URI), stores it, and creates a RawResource record.
 func (w *Worker) saveResult(ctx context.Context, job *model.GenJob, providerURL, mimeType string) (uint, error) {
 	var data []byte
+	providerURL = strings.TrimSpace(providerURL)
+	if err := validateProviderResultURL(providerURL); err != nil {
+		return 0, err
+	}
 
 	if strings.HasPrefix(providerURL, "data:") {
 		// data URI: data:<mime>;base64,<encoded>
@@ -500,6 +554,23 @@ func (w *Worker) saveResult(ctx context.Context, job *model.GenJob, providerURL,
 
 	w.db.Model(&r).Update("file_path", "stored:"+key)
 	return r.ID, nil
+}
+
+func validateProviderResultURL(providerURL string) error {
+	if providerURL == "" {
+		return fmt.Errorf("provider result URL is empty")
+	}
+	if strings.HasPrefix(providerURL, "data:") {
+		return nil
+	}
+	u, err := url.Parse(providerURL)
+	if err != nil {
+		return fmt.Errorf("provider result URL is invalid: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("provider result URL must use http, https, or data URI, got scheme %q", u.Scheme)
+	}
+	return nil
 }
 
 func (w *Worker) resourceURL(id *uint) (string, error) {

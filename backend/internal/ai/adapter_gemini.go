@@ -186,7 +186,37 @@ func (a *GeminiAdapter) imageGenerateViaContent(ctx context.Context, client *gen
 		ResponseModalities: []string{"IMAGE", "TEXT"},
 	}
 
-	contents := []*genai.Content{genai.NewContentFromParts([]*genai.Part{genai.NewPartFromText(req.Prompt)}, "user")}
+	parts := make([]*genai.Part, 0, len(req.InputImageDataList)+2)
+	if len(req.InputImageDataList) > 0 {
+		for _, img := range req.InputImageDataList {
+			if len(img.Bytes) == 0 {
+				continue
+			}
+			mime := img.MimeType
+			if mime == "" {
+				mime = "image/png"
+			}
+			parts = append(parts, genai.NewPartFromBytes(img.Bytes, mime))
+		}
+	} else if len(req.InputImageBytes) > 0 {
+		mime := req.InputImageMime
+		if mime == "" {
+			mime = "image/png"
+		}
+		parts = append(parts, genai.NewPartFromBytes(req.InputImageBytes, mime))
+	} else if req.InputImage != "" {
+		imgBytes, imgMime, fetchErr := fetchURLBytes(ctx, req.InputImage, "")
+		if fetchErr != nil {
+			return ImageResponse{}, fmt.Errorf("gemini image via content: fetch input image: %w", fetchErr)
+		}
+		if imgMime == "" {
+			imgMime = "image/png"
+		}
+		parts = append(parts, genai.NewPartFromBytes(imgBytes, imgMime))
+	}
+	parts = append(parts, genai.NewPartFromText(req.Prompt))
+
+	contents := []*genai.Content{genai.NewContentFromParts(parts, "user")}
 	resp, err := client.Models.GenerateContent(ctx, req.Model, contents, cfg)
 	if err != nil {
 		return ImageResponse{}, fmt.Errorf("gemini image via content: %w", err)

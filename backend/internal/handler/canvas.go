@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/storage"
 	"gorm.io/gorm"
 )
 
@@ -13,11 +14,12 @@ type CanvasHandler struct {
 	db        *gorm.DB
 	registry  *ai.Registry
 	svc       *ai.AIService
+	store     storage.Storage
 	uploadDir string
 }
 
-func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService) *CanvasHandler {
-	return &CanvasHandler{db: db, registry: registry, svc: svc, uploadDir: "/tmp/movscript-canvas"}
+func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
+	return &CanvasHandler{db: db, registry: registry, svc: svc, store: store, uploadDir: "/tmp/movscript-canvas"}
 }
 
 func (h *CanvasHandler) List(c *gin.Context) {

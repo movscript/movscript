@@ -41,7 +41,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	resources := handler.NewResourceHandler(db, store)
 	resourceFolders := handler.NewResourceFolderHandler(db)
 	resourceAdmin := handler.NewResourceAdminHandler(db, store)
-	canvases := handler.NewCanvasHandler(db, registry, aiService)
+	canvases := handler.NewCanvasHandler(db, registry, aiService, store)
 	modelsH := handler.NewModelsHandler(aiService)
 	featureH := handler.NewFeatureHandler(db, aiService)
 	genJobs := handler.NewGenJobHandler(db, aiService)

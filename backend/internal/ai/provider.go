@@ -32,17 +32,18 @@ type TokenUsage struct {
 }
 
 type ImageRequest struct {
-	Model       string
-	Prompt      string
-	Size        string
-	N           int
-	Quality     string // "standard" | "hd"
-	Style       string // "vivid" | "natural" (DALL-E 3)
-	AspectRatio string // "16:9" | "9:16" | "1:1" etc.
-	InputImage  string // presigned URL; when set, routes to /images/edits
-	InputImageBytes []byte // raw image bytes; takes precedence over InputImage when non-nil
-	InputImageMime  string // MIME type for InputImageBytes (e.g. "image/png")
-	ImageFieldName string // multipart field name for the image; empty defaults to "image" (xAI uses "image[]")
+	Model              string
+	Prompt             string
+	Size               string
+	N                  int
+	Quality            string      // "standard" | "hd"
+	Style              string      // "vivid" | "natural" (DALL-E 3)
+	AspectRatio        string      // "16:9" | "9:16" | "1:1" etc.
+	InputImage         string      // presigned URL; when set, routes to /images/edits
+	InputImageBytes    []byte      // raw image bytes; takes precedence over InputImage when non-nil
+	InputImageMime     string      // MIME type for InputImageBytes (e.g. "image/png")
+	InputImageDataList []MediaData // ordered image inputs; takes precedence over the legacy single-image fields
+	ImageFieldName     string      // multipart field name for the image; empty defaults to "image" (xAI uses "image[]")
 	// CloudFileID is the provider-issued file ID from the Files API.
 	// When set, imageEdit passes the file ID via JSON body instead of multipart bytes.
 	CloudFileID string
@@ -57,22 +58,22 @@ type ImageResponse struct {
 }
 
 type VideoRequest struct {
-	Model          string
-	Prompt         string
-	Image          string   // URL for single image-to-video reference (deprecated: prefer InputImageDataList)
-	InputImages    []string // Multiple image URLs (deprecated: prefer InputImageDataList)
+	Model       string
+	Prompt      string
+	Image       string   // URL for single image-to-video reference (deprecated: prefer InputImageDataList)
+	InputImages []string // Multiple image URLs (deprecated: prefer InputImageDataList)
 	// InputImageDataList holds pre-fetched image bytes; takes precedence over Image/InputImages.
 	InputImageDataList []MediaData
-	InputVideo     string   // URL for video-to-video reference (deprecated: prefer InputVideoData)
-	InputVideoData *MediaData // pre-fetched video bytes
-	Duration       int      // requested duration in seconds (0 = model default)
-	Width          int
-	Height         int
-	AspectRatio    string // "16:9" | "9:16" | "1:1"
-	Quality        string // "standard" | "pro"
-	Size           string // pixel dimensions e.g. "720x1280"
-	ResolutionName string // "480p" | "720p"
-	Preset         string // "normal" | "fun" | "spicy" | "custom"
+	InputVideo         string     // URL for video-to-video reference (deprecated: prefer InputVideoData)
+	InputVideoData     *MediaData // pre-fetched video bytes
+	Duration           int        // requested duration in seconds (0 = model default)
+	Width              int
+	Height             int
+	AspectRatio        string // "16:9" | "9:16" | "1:1"
+	Quality            string // "standard" | "pro"
+	Size               string // pixel dimensions e.g. "720x1280"
+	ResolutionName     string // "480p" | "720p"
+	Preset             string // "normal" | "fun" | "spicy" | "custom"
 }
 
 // MediaData holds raw bytes for a media resource passed to AI adapters.
@@ -80,8 +81,8 @@ type VideoRequest struct {
 // PresignedURL is set when available, for adapters that accept a URL in JSON body (e.g. Kling, Ark).
 type MediaData struct {
 	Bytes        []byte
-	MimeType     string  // e.g. "image/png", "video/mp4"
-	PresignedURL string  // public URL valid for the duration of the call; may be empty
+	MimeType     string // e.g. "image/png", "video/mp4"
+	PresignedURL string // public URL valid for the duration of the call; may be empty
 }
 
 type VideoResponse struct {
@@ -105,14 +106,14 @@ type Provider interface {
 // HTTP exchange fields are filled by the adapter via recordDebug.
 type DebugCallResult struct {
 	// ── Job context (filled by worker) ───────────────────────────────────────
-	JobType            string   `json:"job_type,omitempty"`              // job_type used: image|image_edit|video|video_i2v|video_v2v
-	JobModelDefID      string   `json:"job_model_def_id,omitempty"`      // ModelDef.ID e.g. "kling:v1-5-standard-i2v"
-	JobResolvedPrompt  string   `json:"job_resolved_prompt,omitempty"`   // prompt after @[resource:N] mention resolution
-	JobInputResourceIDs []uint  `json:"job_input_resource_ids,omitempty"` // ordered resource IDs passed to the adapter
+	JobType             string `json:"job_type,omitempty"`               // job_type used: image|image_edit|video|video_i2v|video_v2v
+	JobModelDefID       string `json:"job_model_def_id,omitempty"`       // ModelDef.ID e.g. "kling:v1-5-standard-i2v"
+	JobResolvedPrompt   string `json:"job_resolved_prompt,omitempty"`    // prompt after @[resource:N] mention resolution
+	JobInputResourceIDs []uint `json:"job_input_resource_ids,omitempty"` // ordered resource IDs passed to the adapter
 
 	// ── HTTP exchange (filled by adapter via recordDebug) ────────────────────
 	Success        bool              `json:"success"`
-	ModelID        string            `json:"model_id"`        // actual model ID sent to API
+	ModelID        string            `json:"model_id"` // actual model ID sent to API
 	Endpoint       string            `json:"endpoint"`
 	Method         string            `json:"method"`
 	RequestHeaders map[string]string `json:"request_headers,omitempty"`

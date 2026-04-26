@@ -131,6 +131,8 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 	}
 	var req struct {
 		DisplayName     string            `json:"display_name"`
+		BaseURL         *string           `json:"base_url"`
+		APIKey          string            `json:"api_key"`
 		IsEnabled       *bool             `json:"is_enabled"`
 		FilesAPIEnabled *bool             `json:"files_api_enabled"`
 		FilesAPIBaseURL *string           `json:"files_api_base_url"`
@@ -143,6 +145,9 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 	}
 	if req.DisplayName != "" {
 		cred.DisplayName = req.DisplayName
+	}
+	if req.BaseURL != nil {
+		cred.BaseURL = *req.BaseURL
 	}
 	if req.IsEnabled != nil {
 		cred.IsEnabled = *req.IsEnabled
@@ -162,9 +167,26 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 		cred.FilesAPIEncryptedKey = encFilesKey
 		cred.FilesAPIMaskedKey = crypto.MaskKey(req.FilesAPIKey)
 	}
+	if req.APIKey != "" {
+		if req.Credentials == nil {
+			req.Credentials = map[string]string{}
+		}
+		req.Credentials["api_key"] = req.APIKey
+	}
 	if len(req.Credentials) > 0 {
-		if v := req.Credentials["base_url"]; v != "" {
+		if v, ok := req.Credentials["base_url"]; ok {
 			cred.BaseURL = v
+		}
+		if cred.AdapterType == ai.AdapterKling && (req.Credentials["access_key"] != "" || req.Credentials["secret_key"] != "") {
+			if plain, err := crypto.Decrypt(cred.EncryptedKey, h.encryptionKey); err == nil {
+				parts := splitKlingCredential(plain)
+				if req.Credentials["access_key"] == "" {
+					req.Credentials["access_key"] = parts[0]
+				}
+				if req.Credentials["secret_key"] == "" {
+					req.Credentials["secret_key"] = parts[1]
+				}
+			}
 		}
 		encKey, masked, err := h.registry.EncryptCredentials(cred.AdapterType, req.Credentials)
 		if err != nil {
@@ -183,6 +205,15 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, cred)
+}
+
+func splitKlingCredential(key string) [2]string {
+	for i, c := range key {
+		if c == ':' {
+			return [2]string{key[:i], key[i+1:]}
+		}
+	}
+	return [2]string{key, ""}
 }
 
 func (h *AIHandler) DeleteCredential(c *gin.Context) {

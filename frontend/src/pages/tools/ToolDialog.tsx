@@ -255,8 +255,7 @@ export function ToolDialog({
   const resources = resourcesData ?? []
 
   const jobType = capability === 'video' ? 'video' : 'image'
-  // Derive from model capabilities: image_edit models require an input image;
-  // i2v video models also accept_image_input (flagged server-side).
+  // Derive from model capabilities: image_edit/i2v models accept media input.
   const modelAcceptsImageInput = selectedModel?.accepts_image_input ?? false
   // Fallback to static inputType for tools where the model hasn't been selected yet.
   const showImageInput = modelAcceptsImageInput || (selectedModel == null && (inputType === 'image' || inputType === 'image+video'))
@@ -270,8 +269,44 @@ export function ToolDialog({
     const caps = selectedModel?.capabilities ?? []
     const visible = slots.filter((s) => !s.requires_cap || caps.includes(s.requires_cap))
     if (visible.length === 0) return undefined
-    return visible.map((s) => ({ label: s.label, type: s.accept as 'image' | 'video', required: s.required }))
+    return visible.map((s) => ({
+      key: s.key,
+      label: s.label,
+      type: s.accept as 'image' | 'video',
+      required: s.required,
+      maxCount: s.max_count ?? 0,
+    }))
   })()
+
+  function slotGroupsFor(nextAttachments: RawResource[]) {
+    if (!inputSlots || inputSlots.length === 0) return []
+    const used = new Set<number>()
+    return inputSlots.map((slot) => {
+      const indexes: number[] = []
+      for (let i = 0; i < nextAttachments.length; i++) {
+        if (used.has(i)) continue
+        const r = nextAttachments[i]
+        if (r.type !== slot.type) continue
+        if (slot.maxCount > 0 && indexes.length >= slot.maxCount) continue
+        used.add(i)
+        indexes.push(i)
+      }
+      return { slot, indexes }
+    })
+  }
+
+  function addAttachment(resource: RawResource) {
+    setAttachments((current) => {
+      if (current.some((r) => r.ID === resource.ID)) return current
+      const next = [...current, resource]
+      if (!inputSlots || inputSlots.length === 0) return next
+      const assigned = new Set<number>()
+      for (const group of slotGroupsFor(next)) {
+        group.indexes.forEach((i) => assigned.add(i))
+      }
+      return assigned.has(next.length - 1) ? next : current
+    })
+  }
 
   // Warn when an attachment's type doesn't match any accepted slot for the selected model.
   const attachmentMismatchWarnings: string[] = (() => {
@@ -324,7 +359,7 @@ export function ToolDialog({
       fd.append('file', file)
       const r = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
       qc.invalidateQueries({ queryKey: ['resources'] })
-      setAttachments((a) => [...a, r])
+      addAttachment(r)
     } finally {
       setUploading(false)
     }
@@ -335,11 +370,11 @@ export function ToolDialog({
     // Derive the exact job_type from model capabilities and provided inputs.
     const caps = selectedModel?.capabilities ?? []
     let effectiveJobType: string = outputType
-    if (outputType === 'image' && caps.includes('image_edit')) {
+    const hasImageAttachment = attachments.some((a) => a.type === 'image')
+    if (outputType === 'image' && caps.includes('image_edit') && (hasImageAttachment || !caps.includes('image'))) {
       effectiveJobType = 'image_edit'
     } else if (outputType === 'video') {
       const hasVideoAttachment = attachments.some((a) => a.type === 'video')
-      const hasImageAttachment = attachments.some((a) => a.type === 'image')
       if (caps.includes('video_v2v') && hasVideoAttachment) {
         effectiveJobType = 'video_v2v'
       } else if (caps.includes('video_i2v') && hasImageAttachment) {
@@ -373,8 +408,9 @@ export function ToolDialog({
   const isRunning = activeJobId != null
   // Check that all required input slots are filled.
   const requiredSlots = inputSlots?.filter((s) => s.required) ?? []
+  const slotGroups = inputSlots ? slotGroupsFor(attachments) : []
   const slotsAreFilled = requiredSlots.every((slot) =>
-    attachments.some((a) => a.type === slot.type)
+    slotGroups.some((group) => group.slot.key === slot.key && group.indexes.length > 0)
   )
   // Fallback: if no model is selected yet but the tool demands media input, require at least one attachment.
   const fallbackInputRequired = selectedModel == null && (inputType === 'image' || inputType === 'image+video' || inputType === 'video')
@@ -403,13 +439,13 @@ export function ToolDialog({
         <ResourcePanel
           inputType={
             inputSlots
-              ? (inputSlots[attachments.length]?.type ?? inputSlots[inputSlots.length - 1]?.type ?? 'image')
+              ? 'image+video'
               : inputType === 'image+video'
               ? 'image+video'
               : (showImageInput ? 'image' : outputType)
           }
           selectedIds={attachments.map((a) => a.ID)}
-          onSelect={(r) => setAttachments((a) => [...a, r])}
+          onSelect={addAttachment}
         />
 
         {/* Right: scrollable content — drop zone for resources */}
@@ -421,7 +457,7 @@ export function ToolDialog({
             const id = Number(e.dataTransfer.getData('application/resource-id'))
             if (!id) return
             const r = resources.find((r) => r.ID === id)
-            if (r && !attachments.find((a) => a.ID === id)) setAttachments((a) => [...a, r])
+            if (r) addAttachment(r)
           }}
         >
           {/* ── Section 1: Generation input ─────────────────────────────────── */}

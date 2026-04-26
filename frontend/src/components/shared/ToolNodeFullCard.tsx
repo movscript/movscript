@@ -242,7 +242,6 @@ export function ToolNodeFullCard({
             selectedModelId={modelDbId ?? null}
             inputType={inputType}
             uploading={uploading}
-            uploading={uploading}
           />
         </div>
 
