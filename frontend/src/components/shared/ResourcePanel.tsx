@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { RawResource, Asset, AssetView } from '@/types'
+import type { RawResource, Asset, AssetView, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { MediaViewer } from '@/components/shared/MediaViewer'
-import { Video, Package, X, Image } from 'lucide-react'
+import { Video, Package, X, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as Dialog from '@radix-ui/react-dialog'
 
@@ -227,22 +227,67 @@ interface ResourcePanelProps {
 
 export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: ResourcePanelProps) {
   const [tab, setTab] = useState<'resources' | 'assets'>('resources')
+  const [keyword, setKeyword] = useState('')
+  const [resourceType, setResourceType] = useState<'all' | 'image' | 'video'>('all')
+  const [assetType, setAssetType] = useState<'all' | 'character' | 'scene' | 'prop' | 'draft'>('all')
+  const [resourcePage, setResourcePage] = useState(1)
+  const [assetPage, setAssetPage] = useState(1)
   const current = useProjectStore(s => s.current)
+  const pageSize = 12
 
-  const { data: resources = [] } = useQuery<RawResource[]>({
-    queryKey: ['resources'],
-    queryFn: () => api.get('/resources').then(r => r.data),
+  const resourceTypeParam = (() => {
+    if (inputType === 'image+video') return resourceType === 'all' ? 'image,video' : resourceType
+    return inputType
+  })()
+
+  const { data: resourcesPageData } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['resources', 'panel', inputType, resourceTypeParam, keyword, resourcePage],
+    queryFn: () => api.get('/resources', {
+      params: { page: resourcePage, page_size: pageSize, type: resourceTypeParam, q: keyword || undefined },
+    }).then(r => r.data),
   })
+  const resources = resourcesPageData?.items ?? []
+  const resourceTotal = resourcesPageData?.total ?? 0
+  const resourcePageCount = Math.max(1, Math.ceil(resourceTotal / pageSize))
 
-  const { data: assets = [] } = useQuery<Asset[]>({
-    queryKey: ['assets', current?.ID],
-    queryFn: () => api.get(`/projects/${current!.ID}/assets`).then(r => r.data),
+  const { data: assetsPageData } = useQuery<PaginatedResponse<Asset>>({
+    queryKey: ['assets', 'panel', current?.ID, assetType, keyword, assetPage],
+    queryFn: () => api.get(`/projects/${current!.ID}/assets`, {
+      params: {
+        page: assetPage,
+        page_size: pageSize,
+        type: assetType === 'all' ? undefined : assetType,
+        q: keyword || undefined,
+      },
+    }).then(r => r.data),
     enabled: !!current,
   })
+  const assets = assetsPageData?.items ?? []
+  const assetTotal = assetsPageData?.total ?? 0
+  const assetPageCount = Math.max(1, Math.ceil(assetTotal / pageSize))
 
-  const filteredResources = resources.filter(r =>
-    inputType === 'image+video' ? r.type === 'image' || r.type === 'video' : r.type === inputType
-  )
+  function resetFilters(nextTab?: 'resources' | 'assets') {
+    if (nextTab) setTab(nextTab)
+    setResourcePage(1)
+    setAssetPage(1)
+  }
+
+  function Pager({ page, pageCount, total, onPage }: { page: number; pageCount: number; total: number; onPage: (p: number) => void }) {
+    return (
+      <div className="flex items-center justify-between px-2 py-2 border-t border-border text-[11px] text-muted-foreground shrink-0">
+        <span>{total} 项</span>
+        <div className="flex items-center gap-1">
+          <button className="p-1 rounded hover:bg-muted disabled:opacity-40" disabled={page <= 1} onClick={() => onPage(Math.max(1, page - 1))}>
+            <ChevronLeft size={12} />
+          </button>
+          <span className="tabular-nums">{page}/{pageCount}</span>
+          <button className="p-1 rounded hover:bg-muted disabled:opacity-40" disabled={page >= pageCount} onClick={() => onPage(Math.min(pageCount, page + 1))}>
+            <ChevronRight size={12} />
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-56 shrink-0 border-r border-border bg-background flex flex-col overflow-hidden">
@@ -250,7 +295,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
         {(['resources', 'assets'] as const).map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => resetFilters(t)}
             className={cn(
               'flex-1 py-2 text-xs font-medium transition-colors',
               tab === t ? 'text-foreground border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'
@@ -261,13 +306,51 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
         ))}
       </div>
 
+      <div className="p-2 border-b border-border space-y-2 shrink-0">
+        <div className="relative">
+          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={keyword}
+            onChange={e => { setKeyword(e.target.value); resetFilters() }}
+            placeholder={tab === 'resources' ? '搜索资源…' : '搜索素材…'}
+            className="w-full pl-6 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+        {tab === 'resources' && inputType === 'image+video' && (
+          <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
+            {(['all', 'image', 'video'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => { setResourceType(t); setResourcePage(1) }}
+                className={cn('flex-1 py-1 transition-colors', resourceType === t ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}
+              >
+                {t === 'all' ? '全部' : t === 'image' ? '图片' : '视频'}
+              </button>
+            ))}
+          </div>
+        )}
+        {tab === 'assets' && (
+          <select
+            value={assetType}
+            onChange={e => { setAssetType(e.target.value as typeof assetType); setAssetPage(1) }}
+            className="w-full px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="all">全部素材</option>
+            <option value="character">角色</option>
+            <option value="scene">场景</option>
+            <option value="prop">道具</option>
+            <option value="draft">底稿</option>
+          </select>
+        )}
+      </div>
+
       <div className="flex-1 overflow-y-auto p-2">
         {tab === 'resources' && (
           <div className="space-y-0.5">
-            {filteredResources.length === 0 && (
+            {resources.length === 0 && (
               <p className="text-xs text-muted-foreground text-center pt-8">暂无资源</p>
             )}
-            {filteredResources.map(r => (
+            {resources.map(r => (
               <ResourceListItem
                 key={r.ID}
                 resource={r}
@@ -295,6 +378,11 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
           </div>
         )}
       </div>
+      {tab === 'resources' ? (
+        <Pager page={resourcePage} pageCount={resourcePageCount} total={resourceTotal} onPage={setResourcePage} />
+      ) : (
+        <Pager page={assetPage} pageCount={assetPageCount} total={assetTotal} onPage={setAssetPage} />
+      )}
     </div>
   )
 }

@@ -11,9 +11,10 @@ import (
 type GenJob struct {
 	gorm.Model
 	UserID           uint       `gorm:"not null" json:"user_id"`
-	ModelConfigID    uint       `gorm:"not null" json:"model_config_id"`          // AIModelConfig.ID
-	JobType          string     `gorm:"not null" json:"job_type"`                 // image | image_edit | video | video_i2v | video_v2v
-	Status           string     `gorm:"not null;default:'pending'" json:"status"` // pending|running|succeeded|failed
+	ModelConfigID    uint       `gorm:"not null" json:"model_config_id"`               // AIModelConfig.ID
+	JobType          string     `gorm:"not null" json:"job_type"`                      // image | image_edit | video | video_i2v | video_v2v
+	FeatureKey       string     `gorm:"index;default:''" json:"feature_key,omitempty"` // product feature/tool key, e.g. ref_image_gen
+	Status           string     `gorm:"not null;default:'pending'" json:"status"`      // pending|running|succeeded|failed
 	Prompt           string     `json:"prompt"`
 	ExtraParams      string     `json:"extra_params,omitempty"`                   // JSON: size, quality, style, etc.
 	AspectRatio      string     `gorm:"default:''" json:"aspect_ratio,omitempty"` // e.g. "16:9", "9:16"

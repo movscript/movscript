@@ -436,13 +436,14 @@ export interface UsageLog {
   ai_model_config?: AIModelConfig
 }
 
-export interface DebugCallResult {
-  // Job context (filled by worker before adapter call)
-  job_type?: string
-  job_model_def_id?: string
-  job_resolved_prompt?: string
-  job_input_resource_ids?: number[]
-  // HTTP exchange (filled by adapter)
+export interface PaginatedResponse<T> {
+  total: number
+  items: T[]
+  page: number
+  page_size: number
+}
+
+export interface DebugHTTPExchange {
   success: boolean
   model_id: string
   endpoint: string
@@ -453,6 +454,17 @@ export interface DebugCallResult {
   response_body: string
   latency_ms: number
   error?: string
+}
+
+export interface DebugCallResult extends DebugHTTPExchange {
+  // Job context (filled by worker before adapter call)
+  job_type?: string
+  job_model_def_id?: string
+  job_resolved_prompt?: string
+  job_input_resource_ids?: number[]
+  // Every provider HTTP exchange for multi-step jobs. The inherited flat fields
+  // mirror the latest call for compatibility.
+  calls?: DebugHTTPExchange[]
 }
 
 export interface RawCallResult {

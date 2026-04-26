@@ -97,38 +97,67 @@ export function GenResultCard({
     ? outputResource.direct_url ?? `${API_BASE}${outputResource.url}`
     : undefined
 
+  const statusLabel: Record<string, string> = {
+    pending: '排队中',
+    running: '生成中',
+    done: '已完成',
+    failed: '失败',
+    idle: '未开始',
+  }
+
   return (
-    <div className={cn('bg-background rounded-xl border border-border shadow-sm overflow-hidden', className)}>
+    <div className={cn(
+      compact
+        ? 'bg-background rounded-lg border border-border/80 shadow-sm overflow-hidden hover:border-border transition-colors'
+        : 'bg-background rounded-xl border border-border shadow-sm overflow-hidden',
+      className,
+    )}>
       {/* Prompt */}
       {prompt && (
-        <div className={cn('border-b border-border', compact ? 'px-3 py-2' : 'px-4 py-3')}>
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <p className={cn('text-foreground flex-1 leading-relaxed whitespace-pre-wrap', compact ? 'text-xs line-clamp-3' : 'text-sm')}>
-              <PromptText text={prompt} />
-            </p>
+        <div className={cn(compact ? 'px-3 pt-3 pb-2' : 'px-4 py-3 border-b border-border')}>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={cn(
+                'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0',
+                status === 'done' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+                isRunning && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                status === 'failed' && 'bg-destructive/10 text-destructive',
+                status === 'idle' && 'bg-muted text-muted-foreground',
+              )}>
+                {statusLabel[status]}
+              </span>
+              {timestamp && (
+                <span className="text-[11px] text-muted-foreground/60 truncate">{formatGenTime(timestamp)}</span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {status === 'done' && <CheckCircle2 size={12} className="text-green-500" />}
+              {status === 'done' && !compact && <CheckCircle2 size={12} className="text-green-500" />}
               {onReuse && (
                 <button
                   onClick={onReuse}
                   title="复用此提示词"
-                  className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  className="text-muted-foreground/60 hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
                 >
                   <RotateCcw size={13} />
                 </button>
               )}
             </div>
           </div>
-          {timestamp && (
+          <div className="flex items-start justify-between gap-2">
+            <p className={cn('text-foreground flex-1 leading-relaxed whitespace-pre-wrap', compact ? 'text-xs line-clamp-3' : 'text-sm')}>
+              <PromptText text={prompt} />
+            </p>
+          </div>
+          {timestamp && !compact && (
             <span className="text-xs text-muted-foreground/50">{formatGenTime(timestamp)}</span>
           )}
         </div>
       )}
 
       {/* Output */}
-      <div className={cn('bg-card', compact ? 'min-h-[48px]' : 'min-h-[80px]')}>
+      <div className={cn(compact ? 'px-3 pb-3 bg-background' : 'bg-card min-h-[80px]')}>
         {isRunning && (
-          <div className={cn('flex items-center justify-center', compact ? 'py-6' : 'py-10')}>
+          <div className={cn('flex items-center justify-center rounded-md bg-muted/40', compact ? 'h-24' : 'py-10')}>
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 size={compact ? 16 : 22} className="animate-spin" />
               <p className="text-xs">{status === 'pending' ? '等待开始…' : '生成中…'}</p>
@@ -137,7 +166,7 @@ export function GenResultCard({
         )}
 
         {!isRunning && status === 'failed' && (
-          <div className={cn('flex items-center justify-center gap-2 text-destructive', compact ? 'py-4' : 'py-6')}>
+          <div className={cn('flex items-center justify-center gap-2 text-destructive rounded-md bg-destructive/5', compact ? 'min-h-20 px-3 py-4' : 'py-6')}>
             <AlertCircle size={compact ? 12 : 16} />
             <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? '生成失败'}</p>
           </div>
@@ -154,7 +183,7 @@ export function GenResultCard({
       </div>
 
       {debugPanel && (
-        <div className="px-4 py-3 border-t border-border">
+        <div className="px-4 py-3 border-t border-border bg-muted/20">
           {debugPanel}
         </div>
       )}
@@ -182,7 +211,10 @@ function MediaCell({
     <>
       {/* Thumbnail: 4:3 aspect ratio, content centered without cropping */}
       <div
-        className="relative w-full aspect-[4/3] bg-muted cursor-pointer group overflow-hidden"
+        className={cn(
+          'relative w-full bg-muted cursor-pointer group overflow-hidden',
+          compact ? 'aspect-video rounded-md border border-border/60' : 'aspect-[4/3]',
+        )}
         onClick={() => setOpen(true)}
       >
         {outputType === 'image' ? (

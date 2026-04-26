@@ -58,12 +58,12 @@ func (h *AIHandler) ListCredentials(c *gin.Context) {
 
 func (h *AIHandler) CreateCredential(c *gin.Context) {
 	var req struct {
-		AdapterType      string            `json:"adapter_type" binding:"required"`
-		DisplayName      string            `json:"display_name" binding:"required"`
-		Credentials      map[string]string `json:"credentials"`
-		FilesAPIEnabled  bool              `json:"files_api_enabled"`
-		FilesAPIBaseURL  string            `json:"files_api_base_url"`
-		FilesAPIKey      string            `json:"files_api_key"`
+		AdapterType     string            `json:"adapter_type" binding:"required"`
+		DisplayName     string            `json:"display_name" binding:"required"`
+		Credentials     map[string]string `json:"credentials"`
+		FilesAPIEnabled bool              `json:"files_api_enabled"`
+		FilesAPIBaseURL string            `json:"files_api_base_url"`
+		FilesAPIKey     string            `json:"files_api_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -321,9 +321,9 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		CreditsPerCall     float64 `json:"credits_per_call"`
 		// Custom metadata — always used; overrides catalog defaults when model is in catalog.
 		CustomDisplayName     string `json:"custom_display_name"`
-		CustomCapabilities    string `json:"custom_capabilities"`    // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
-		CustomBillingMode     string `json:"custom_billing_mode"`    // "per_token"|"per_image"|"per_second"|"per_call"
-		CustomAcceptsImage    bool   `json:"custom_accepts_image"`   // true for image_edit / i2v models
+		CustomCapabilities    string `json:"custom_capabilities"`     // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
+		CustomBillingMode     string `json:"custom_billing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
+		CustomAcceptsImage    bool   `json:"custom_accepts_image"`    // true for image_edit / i2v models
 		CustomMaxInputImages  int    `json:"custom_max_input_images"` // 0=unset, 1=single, -1=unlimited
 		CustomMaxInputVideos  int    `json:"custom_max_input_videos"`
 		CustomImageEditField  string `json:"custom_image_edit_field"` // multipart field; empty = "image"
@@ -580,25 +580,35 @@ func (h *AIHandler) SetUserQuota(c *gin.Context) {
 func (h *AIHandler) ListUsageLogs(c *gin.Context) {
 	page := max(1, parseInt(c.DefaultQuery("page", "1")))
 	pageSize := max(1, parseInt(c.DefaultQuery("page_size", "50")))
+	if pageSize > 200 {
+		pageSize = 200
+	}
 	offset := (page - 1) * pageSize
 
 	q := h.db.Model(&model.UsageLog{}).Preload("User").Preload("AIModelConfig")
 	if uid := c.Query("user_id"); uid != "" {
 		q = q.Where("user_id = ?", uid)
 	}
+	if modelID := c.Query("model_config_id"); modelID != "" {
+		q = q.Where("ai_model_config_id = ?", modelID)
+	}
+	if providerID := c.Query("provider_id"); providerID != "" {
+		q = q.Joins("JOIN ai_model_configs ON ai_model_configs.id = usage_logs.ai_model_config_id").
+			Where("ai_model_configs.credential_id = ?", providerID)
+	}
 	if start := c.Query("start"); start != "" {
-		q = q.Where("created_at >= ?", start)
+		q = q.Where("usage_logs.created_at >= ?", start)
 	}
 	if end := c.Query("end"); end != "" {
-		q = q.Where("created_at <= ?", end)
+		q = q.Where("usage_logs.created_at <= ?", end)
 	}
 
 	var total int64
 	q.Count(&total)
 
 	var logs []model.UsageLog
-	q.Order("created_at DESC").Limit(pageSize).Offset(offset).Find(&logs)
-	c.JSON(http.StatusOK, gin.H{"total": total, "items": logs})
+	q.Order("usage_logs.created_at DESC").Limit(pageSize).Offset(offset).Find(&logs)
+	c.JSON(http.StatusOK, gin.H{"total": total, "items": logs, "page": page, "page_size": pageSize})
 }
 
 // ── User: own quota & usage ───────────────────────────────────────────────────

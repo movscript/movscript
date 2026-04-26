@@ -93,6 +93,20 @@ type VideoResponse struct {
 	Debug        *DebugCallResult
 }
 
+// DebugHTTPExchange captures one HTTP request/response made to a provider.
+type DebugHTTPExchange struct {
+	Success        bool              `json:"success"`
+	ModelID        string            `json:"model_id"`
+	Endpoint       string            `json:"endpoint"`
+	Method         string            `json:"method"`
+	RequestHeaders map[string]string `json:"request_headers,omitempty"`
+	RequestBody    string            `json:"request_body"`
+	ResponseStatus int               `json:"response_status"`
+	ResponseBody   string            `json:"response_body"`
+	LatencyMs      int64             `json:"latency_ms"`
+	Error          string            `json:"error,omitempty"`
+}
+
 type Provider interface {
 	TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error)
 	ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error)
@@ -110,6 +124,11 @@ type DebugCallResult struct {
 	JobModelDefID       string `json:"job_model_def_id,omitempty"`       // ModelDef.ID e.g. "kling:v1-5-standard-i2v"
 	JobResolvedPrompt   string `json:"job_resolved_prompt,omitempty"`    // prompt after @[resource:N] mention resolution
 	JobInputResourceIDs []uint `json:"job_input_resource_ids,omitempty"` // ordered resource IDs passed to the adapter
+
+	// Calls keeps every provider HTTP exchange for multi-step jobs such as task
+	// creation, polling, and content download. The flat fields below mirror the
+	// latest call for backward compatibility with existing UI/API consumers.
+	Calls []DebugHTTPExchange `json:"calls,omitempty"`
 
 	// ── HTTP exchange (filled by adapter via recordDebug) ────────────────────
 	Success        bool              `json:"success"`

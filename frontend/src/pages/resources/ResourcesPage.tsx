@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Asset, RawResource, ResourceFolder, ResourceFolderPermission, User } from '@/types'
+import type { Asset, RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import {
   Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File,
   FolderPlus, Folder, FolderOpen, Share2,
   PlusSquare, ChevronRight, MoreHorizontal, Globe, MoveRight,
   ShieldCheck, Pencil, Eye, PenLine, X as XIcon, UserPlus,
-  LayoutGrid, List,
+  LayoutGrid, List, ChevronLeft,
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
@@ -554,6 +554,8 @@ export default function ResourcesPage() {
   const [moveResource, setMoveResource] = useState<RawResource | null>(null)
   const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [page, setPage] = useState(1)
+  const pageSize = 30
 
   // My folders
   const { data: myFolders = [] } = useQuery<ResourceFolder[]>({
@@ -577,10 +579,12 @@ export default function ResourcesPage() {
 
   // Resources: personal or shared, with optional folder filter
   const folderParam = selectedFolder === 'root' ? 'root' : selectedFolder != null ? String(selectedFolder) : undefined
-  const { data: resources = [], isLoading } = useQuery<RawResource[]>({
-    queryKey: ['resources', tab, folderParam, selectedFolderTab],
+  const { data: resourcesData, isLoading } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['resources', tab, folderParam, selectedFolderTab, filter, search, page],
     queryFn: () => {
       const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('page_size', String(pageSize))
       if (tab === 'shared' || (selectedFolderTab === 'shared' && selectedFolder != null)) {
         params.set('shared', 'true')
       }
@@ -591,9 +595,14 @@ export default function ResourcesPage() {
       if (tab === 'shared' && selectedFolder === null) {
         params.delete('folder_id')
       }
+      if (filter !== 'all') params.set('type', filter)
+      if (search.trim()) params.set('q', search.trim())
       return api.get(`/resources?${params}`).then(r => r.data)
     },
   })
+  const resources = resourcesData?.items ?? []
+  const total = resourcesData?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   const upload = useMutation({
     mutationFn: (file: File) => {
@@ -614,11 +623,7 @@ export default function ResourcesPage() {
 
   const isSharedView = tab === 'shared' || selectedFolderTab === 'shared'
 
-  const visible = resources.filter(r => {
-    if (filter !== 'all' && r.type !== filter) return false
-    if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  const visible = resources
 
   const currentFolderLabel = () => {
     if (selectedFolder === 'root') return '未分类'
@@ -635,12 +640,14 @@ export default function ResourcesPage() {
     setSelectedFolder(id)
     setSelectedFolderTab('mine')
     setTab('mine')
+    setPage(1)
   }
 
   function selectSharedFolder(id: number) {
     setSelectedFolder(id)
     setSelectedFolderTab('shared')
     setTab('shared')
+    setPage(1)
   }
 
   return (
@@ -734,13 +741,13 @@ export default function ResourcesPage() {
           {/* Tabs */}
           <div className="flex rounded-lg border border-border overflow-hidden text-xs">
             <button
-              onClick={() => { setTab('mine'); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
+              onClick={() => { setTab('mine'); setPage(1); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
               className={`px-3 py-1 transition-colors ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
             >
               我的
             </button>
             <button
-              onClick={() => { setTab('shared'); setSelectedFolderTab('shared') }}
+              onClick={() => { setTab('shared'); setSelectedFolderTab('shared'); setPage(1) }}
               className={`px-3 py-1 flex items-center gap-1 transition-colors ${tab === 'shared' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
             >
               <Share2 size={11} />
@@ -752,7 +759,7 @@ export default function ResourcesPage() {
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="搜索文件名…"
               className="pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
             />
@@ -804,7 +811,7 @@ export default function ResourcesPage() {
           {TYPE_TABS.map(t => (
             <button
               key={t.value}
-              onClick={() => setFilter(t.value)}
+              onClick={() => { setFilter(t.value); setPage(1) }}
               className={`px-3 py-1 text-xs rounded-full transition-colors ${
                 filter === t.value
                   ? 'bg-primary text-primary-foreground'
@@ -812,15 +819,10 @@ export default function ResourcesPage() {
               }`}
             >
               {t.label}
-              {t.value !== 'all' && (
-                <span className="ml-1 opacity-60">
-                  {resources.filter(r => r.type === t.value).length}
-                </span>
-              )}
             </button>
           ))}
           <div className="flex-1" />
-          <span className="text-xs text-muted-foreground">{visible.length} 个文件</span>
+          <span className="text-xs text-muted-foreground">{total} 个文件</span>
         </div>
 
         {/* Grid / List */}
@@ -891,6 +893,20 @@ export default function ResourcesPage() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-background shrink-0 text-xs text-muted-foreground">
+          <span>第 {page} / {pageCount} 页</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
+              <ChevronLeft size={13} />
+              上一页
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page >= pageCount}>
+              下一页
+              <ChevronRight size={13} />
+            </Button>
+          </div>
         </div>
       </div>
 

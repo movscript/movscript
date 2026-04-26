@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/model"
@@ -26,7 +27,29 @@ func (h *AssetHandler) List(c *gin.Context) {
 	if t := c.Query("type"); t != "" {
 		q = q.Where("type = ?", t)
 	}
-	q.Preload("Views.Resource").Find(&assets)
+	if keyword := strings.TrimSpace(c.Query("q")); keyword != "" {
+		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(keyword)+"%")
+	}
+	if c.Query("page") != "" || c.Query("page_size") != "" {
+		page := max(1, parseInt(c.DefaultQuery("page", "1")))
+		pageSize := max(1, parseInt(c.DefaultQuery("page_size", "24")))
+		if pageSize > 100 {
+			pageSize = 100
+		}
+		var total int64
+		q.Count(&total)
+		q.Preload("Views.Resource").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets)
+		for i := range assets {
+			for j := range assets[i].Views {
+				if assets[i].Views[j].Resource != nil {
+					assets[i].Views[j].Resource.URL = resourceURL(c, assets[i].Views[j].Resource.ID)
+				}
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"total": total, "items": assets, "page": page, "page_size": pageSize})
+		return
+	}
+	q.Preload("Views.Resource").Order("created_at desc").Find(&assets)
 	for i := range assets {
 		for j := range assets[i].Views {
 			if assets[i].Views[j].Resource != nil {

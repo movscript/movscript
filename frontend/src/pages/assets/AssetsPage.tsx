@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Asset, AssetView } from '@/types'
+import type { Asset, AssetView, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, Image, LayoutGrid, List } from 'lucide-react'
+import { Plus, Image, LayoutGrid, List, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { AssetCreateForm } from '@/components/shared/EntityCreateForms'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
@@ -109,14 +109,27 @@ export default function AssetsPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 24
 
-  const { data: assets = [], isLoading } = useQuery<Asset[]>({
-    queryKey: ['assets', projectId, filterType],
+  const { data, isLoading } = useQuery<PaginatedResponse<Asset>>({
+    queryKey: ['assets', projectId, filterType, search, page],
     queryFn: () =>
-      api.get(`/projects/${projectId}/assets`, { params: filterType ? { type: filterType } : {} })
+      api.get(`/projects/${projectId}/assets`, {
+        params: {
+          page,
+          page_size: pageSize,
+          type: filterType || undefined,
+          q: search.trim() || undefined,
+        },
+      })
         .then((r) => r.data),
     enabled: !!projectId,
   })
+  const assets = data?.items ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   const selected = assets.find((a) => a.ID === selectedId) ?? null
   const detailOpen = selectedId !== null
@@ -130,16 +143,25 @@ export default function AssetsPage() {
     <div className="flex h-full overflow-hidden bg-background">
       {/* Left list panel */}
       <div className={cn('flex flex-col border-r border-border bg-card overflow-hidden', detailOpen ? 'w-72 shrink-0' : 'flex-1')}>
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
-          <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background shrink-0 flex-wrap">
+          <div className="flex gap-0.5 overflow-x-auto scrollbar-none flex-1 min-w-0">
             {filterTabs.map((t) => (
-              <button key={t.value} onClick={() => { setFilterType(t.value); setSelectedId(null) }}
+              <button key={t.value} onClick={() => { setFilterType(t.value); setPage(1); setSelectedId(null) }}
                 className={cn('px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors', filterType === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
                 {t.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1 ml-2 shrink-0">
+          <div className="relative flex-1 min-w-28">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); setSelectedId(null) }}
+              placeholder="搜索素材…"
+              className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
             <Button onClick={() => setShowCreate(true)} size="icon" className="h-7 w-7"><Plus size={14} /></Button>
             {!detailOpen && (
               <div className="flex rounded-lg border border-border overflow-hidden">
@@ -177,6 +199,17 @@ export default function AssetsPage() {
               ))}
             </div>
           )}
+        </div>
+        <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-background shrink-0 text-xs text-muted-foreground">
+          <span>{total} 个素材 · {page}/{pageCount}</span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => { setPage(p => Math.max(1, p - 1)); setSelectedId(null) }} disabled={page <= 1}>
+              <ChevronLeft size={13} />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setPage(p => Math.min(pageCount, p + 1)); setSelectedId(null) }} disabled={page >= pageCount}>
+              <ChevronRight size={13} />
+            </Button>
+          </div>
         </div>
       </div>
 

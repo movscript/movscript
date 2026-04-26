@@ -3,14 +3,14 @@ import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { RawResource, NodeType, GenJob, PublicModel, DebugCallResult, FeatureConfig } from '@/types'
+import type { RawResource, NodeType, GenJob, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
 import {
   ArrowLeft, Wand2, Loader2,
-  Bug, Copy, Check, History,
+  Bug, Copy, Check, History, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
-import { GenResultCard, formatGenTime } from '@/components/shared/GenResultCard'
+import { GenResultCard } from '@/components/shared/GenResultCard'
 import type { InputSlotDef } from '@/components/shared/GenInputCard'
 import { GenInputCard } from '@/components/shared/GenInputCard'
 import {
@@ -240,6 +240,8 @@ export function ToolDialog({
   const [uploading, setUploading] = useState(false)
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [historyPage, setHistoryPage] = useState(1)
+  const historyPageSize = 10
 
   // Fetch feature definition to get authoritative input slot requirements.
   const { data: featureDef } = useQuery<FeatureConfig>({
@@ -254,7 +256,6 @@ export function ToolDialog({
   })
   const resources = resourcesData ?? []
 
-  const jobType = capability === 'video' ? 'video' : 'image'
   // Derive from model capabilities: image_edit/i2v models accept media input.
   const modelAcceptsImageInput = selectedModel?.accepts_image_input ?? false
   // Fallback to static inputType for tools where the model hasn't been selected yet.
@@ -325,11 +326,16 @@ export function ToolDialog({
     }
     return warnings
   })()
-  const { data: jobs = [] } = useQuery<GenJob[]>({
-    queryKey: ['gen-jobs', { type: jobType }],
-    queryFn: () => api.get(`/gen-jobs?type=${jobType}&limit=50`).then((r) => r.data),
+  const { data: jobsData } = useQuery<PaginatedResponse<GenJob>>({
+    queryKey: ['gen-jobs', _nodeType, historyPage],
+    queryFn: () => api.get('/gen-jobs', {
+      params: { feature: _nodeType, page: historyPage, page_size: historyPageSize },
+    }).then((r) => r.data),
     refetchInterval: activeJobId ? 3000 : 30000,
   })
+  const jobs = jobsData?.items ?? []
+  const historyTotal = jobsData?.total ?? 0
+  const historyPageCount = Math.max(1, Math.ceil(historyTotal / historyPageSize))
 
   useEffect(() => {
     if (!activeJobId) return
@@ -397,11 +403,13 @@ export function ToolDialog({
         duration: duration ?? undefined,
         extra_params: Object.keys(remainingParams).length > 0 ? JSON.stringify(remainingParams) : undefined,
         input_resource_ids: attachments.map((a) => a.ID),
+        feature_key: _nodeType,
       }).then((r) => r.data as GenJob)
       setActiveJobId(job.ID)
+      setHistoryPage(1)
       setPrompt('')
       setAttachments([])
-      qc.invalidateQueries({ queryKey: ['gen-jobs', { type: jobType }] })
+      qc.invalidateQueries({ queryKey: ['gen-jobs', _nodeType] })
     } catch { /* toast handled by interceptor */ }
   }
 
@@ -529,11 +537,29 @@ export function ToolDialog({
             <div className="flex items-center gap-2 mb-3">
               <History size={13} className="text-muted-foreground" />
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">生成历史</span>
-              {jobs.length > 0 && (
+              {historyTotal > 0 && (
                 <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
-                  {jobs.length}
+                  {historyTotal}
                 </span>
               )}
+              <div className="flex-1" />
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <button
+                  className="p-1 rounded hover:bg-muted disabled:opacity-40"
+                  disabled={historyPage <= 1}
+                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                <span className="tabular-nums">{historyPage}/{historyPageCount}</span>
+                <button
+                  className="p-1 rounded hover:bg-muted disabled:opacity-40"
+                  disabled={historyPage >= historyPageCount}
+                  onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))}
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
             </div>
 
             {jobs.length === 0 ? (

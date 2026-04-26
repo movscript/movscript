@@ -1372,15 +1372,39 @@ function UserManagementTab() {
 
 function UsageLogsTab() {
   const [page, setPage] = useState(1)
+  const [modelFilter, setModelFilter] = useState('')
+  const [providerFilter, setProviderFilter] = useState('')
+  const [userFilter, setUserFilter] = useState('')
+  const pageSize = 50
 
   const { data } = useQuery<{ total: number; items: UsageLog[] }>({
-    queryKey: ['admin', 'usage-logs', page],
-    queryFn: () => api.get(`/admin/usage-logs?page=${page}&page_size=50`).then((r) => r.data),
+    queryKey: ['admin', 'usage-logs', page, modelFilter, providerFilter, userFilter],
+    queryFn: () => api.get('/admin/usage-logs', {
+      params: {
+        page,
+        page_size: pageSize,
+        model_config_id: modelFilter || undefined,
+        provider_id: providerFilter || undefined,
+        user_id: userFilter || undefined,
+      },
+    }).then((r) => r.data),
+  })
+
+  const { data: credentials = [] } = useQuery<AICredential[]>({
+    queryKey: ['admin', 'credentials'],
+    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
+  })
+
+  const { data: users = [] } = useQuery<UserWithQuota[]>({
+    queryKey: ['admin', 'users'],
+    queryFn: () => api.get('/admin/users').then((r) => r.data),
   })
 
   const items = data?.items ?? []
   const total = data?.total ?? 0
-  const pageCount = Math.ceil(total / 50)
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const models = credentials.flatMap(cred => (cred.models ?? []).map(model => ({ ...model, providerName: cred.display_name })))
+  const providerById = new Map(credentials.map(c => [c.ID, c.display_name]))
 
   function formatDate(s: string) {
     return new Date(s).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -1390,6 +1414,11 @@ function UsageLogsTab() {
     const cfg = log.ai_model_config
     if (cfg) return cfg.custom_display_name || cfg.model_def_id
     return String(log.ai_model_config_id)
+  }
+
+  function providerName(log: UsageLog): string {
+    const credentialId = log.ai_model_config?.credential_id
+    return credentialId ? providerById.get(credentialId) ?? String(credentialId) : '—'
   }
 
   function usageDetail(log: UsageLog): string {
@@ -1410,12 +1439,50 @@ function UsageLogsTab() {
         <p className="text-xs text-muted-foreground mt-0.5">共 {total} 条记录</p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
+        <select
+          value={providerFilter}
+          onChange={e => { setProviderFilter(e.target.value); setModelFilter(''); setPage(1) }}
+          className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">全部服务商</option>
+          {credentials.map(cred => (
+            <option key={cred.ID} value={cred.ID}>{cred.display_name}</option>
+          ))}
+        </select>
+        <select
+          value={modelFilter}
+          onChange={e => { setModelFilter(e.target.value); setPage(1) }}
+          className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">全部模型</option>
+          {models
+            .filter(model => !providerFilter || String(model.credential_id) === providerFilter)
+            .map(model => (
+              <option key={model.ID} value={model.ID}>
+                {(model.custom_display_name || model.model_def_id)} · {model.providerName}
+              </option>
+            ))}
+        </select>
+        <select
+          value={userFilter}
+          onChange={e => { setUserFilter(e.target.value); setPage(1) }}
+          className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">全部用户</option>
+          {users.map(u => (
+            <option key={u.ID} value={u.ID}>{u.username}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-card border-b border-border">
             <tr>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">时间</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">用户</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">服务商</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">模型</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">类型</th>
               <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">用量</th>
@@ -1427,6 +1494,7 @@ function UsageLogsTab() {
               <tr key={log.ID} className="hover:bg-card text-xs">
                 <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(log.CreatedAt)}</td>
                 <td className="px-4 py-2.5">{log.user?.username ?? log.user_id}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{providerName(log)}</td>
                 <td className="px-4 py-2.5 text-foreground">{modelName(log)}</td>
                 <td className="px-4 py-2.5">{opLabel[log.operation_type] ?? log.operation_type}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{usageDetail(log)}</td>
@@ -1434,19 +1502,17 @@ function UsageLogsTab() {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">暂无用量记录</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">暂无用量记录</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {pageCount > 1 && (
-        <div className="flex items-center justify-center gap-2 text-sm">
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</Button>
-          <span className="text-muted-foreground">{page} / {pageCount}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>下一页</Button>
-        </div>
-      )}
+      <div className="flex items-center justify-center gap-2 text-sm">
+        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</Button>
+        <span className="text-muted-foreground">{page} / {pageCount}</span>
+        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>下一页</Button>
+      </div>
     </div>
   )
 }

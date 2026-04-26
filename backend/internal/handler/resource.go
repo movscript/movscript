@@ -52,9 +52,16 @@ func (h *ResourceHandler) List(c *gin.Context) {
 	default:
 		q = q.Where("folder_id = ?", c.Query("folder_id"))
 	}
+	q = applyResourceListFilters(q, c)
+
+	pageMode := c.Query("page") != "" || c.Query("page_size") != ""
+	if pageMode {
+		h.respondResourcePage(c, q.Preload("Owner"))
+		return
+	}
 
 	resources := make([]model.RawResource, 0)
-	q.Find(&resources)
+	q.Order("created_at desc").Find(&resources)
 	for i := range resources {
 		resources[i].URL = resourceURL(c, resources[i].ID)
 		h.populateDirectURL(c, &resources[i])
@@ -79,8 +86,13 @@ func (h *ResourceHandler) listShared(c *gin.Context, user *model.User) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
 		}
+		q := applyResourceListFilters(h.db.Where("folder_id = ?", folder.ID).Preload("Owner"), c)
+		if c.Query("page") != "" || c.Query("page_size") != "" {
+			h.respondResourcePage(c, q)
+			return
+		}
 		resources := make([]model.RawResource, 0)
-		h.db.Where("folder_id = ?", folder.ID).Preload("Owner").Find(&resources)
+		q.Order("created_at desc").Find(&resources)
 		for i := range resources {
 			resources[i].URL = resourceURL(c, resources[i].ID)
 			h.populateDirectURL(c, &resources[i])
@@ -89,8 +101,13 @@ func (h *ResourceHandler) listShared(c *gin.Context, user *model.User) {
 		return
 	}
 
+	q := applyResourceListFilters(h.db.Where("owner_id != ? AND is_shared = true", user.ID).Preload("Owner"), c)
+	if c.Query("page") != "" || c.Query("page_size") != "" {
+		h.respondResourcePage(c, q)
+		return
+	}
 	resources := make([]model.RawResource, 0)
-	h.db.Where("owner_id != ? AND is_shared = true", user.ID).Preload("Owner").Find(&resources)
+	q.Order("created_at desc").Find(&resources)
 	for i := range resources {
 		resources[i].URL = resourceURL(c, resources[i].ID)
 		h.populateDirectURL(c, &resources[i])
@@ -400,6 +417,45 @@ func (h *ResourceHandler) populateDirectURL(_ *gin.Context, _ *model.RawResource
 	// its presigned URLs use the internal hostname (minio:9000) which is
 	// unreachable from the browser. The frontend always uses the backend
 	// proxy route /api/v1/resources/:id/file instead.
+}
+
+func applyResourceListFilters(q *gorm.DB, c *gin.Context) *gorm.DB {
+	if typ := strings.TrimSpace(c.Query("type")); typ != "" && typ != "all" {
+		parts := strings.Split(typ, ",")
+		types := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if v := strings.TrimSpace(p); v != "" {
+				types = append(types, v)
+			}
+		}
+		if len(types) == 1 {
+			q = q.Where("type = ?", types[0])
+		} else if len(types) > 1 {
+			q = q.Where("type IN ?", types)
+		}
+	}
+	if keyword := strings.TrimSpace(c.Query("q")); keyword != "" {
+		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(keyword)+"%")
+	}
+	return q
+}
+
+func (h *ResourceHandler) respondResourcePage(c *gin.Context, q *gorm.DB) {
+	page := max(1, parseInt(c.DefaultQuery("page", "1")))
+	pageSize := max(1, parseInt(c.DefaultQuery("page_size", "24")))
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	offset := (page - 1) * pageSize
+	var total int64
+	q.Count(&total)
+	resources := make([]model.RawResource, 0)
+	q.Order("created_at desc").Limit(pageSize).Offset(offset).Find(&resources)
+	for i := range resources {
+		resources[i].URL = resourceURL(c, resources[i].ID)
+		h.populateDirectURL(c, &resources[i])
+	}
+	c.JSON(http.StatusOK, gin.H{"total": total, "items": resources, "page": page, "page_size": pageSize})
 }
 
 func currentUser(c *gin.Context) *model.User {

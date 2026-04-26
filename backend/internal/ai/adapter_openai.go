@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go"
@@ -132,14 +133,47 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 		reqOpts2 = append(reqOpts2, option.WithJSONSet("aspect_ratio", req.AspectRatio))
 	}
 
+	debugBody := map[string]any{
+		"model":  req.Model,
+		"prompt": req.Prompt,
+		"n":      n,
+	}
+	if req.Size != "" {
+		debugBody["size"] = req.Size
+	}
+	if req.Quality != "" {
+		debugBody["quality"] = req.Quality
+	}
+	if req.Style != "" {
+		debugBody["style"] = req.Style
+	}
+	if req.AspectRatio != "" && req.Size == "" {
+		debugBody["aspect_ratio"] = req.AspectRatio
+	}
+	endpoint := a.BaseURL + "/images/generations"
+	start := time.Now()
 	resp, err := a.client.Images.Generate(ctx, params, reqOpts2...)
+	latency := time.Since(start).Milliseconds()
 	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
+			RequestBody: mustJSON(debugBody), LatencyMs: latency, Error: err.Error(),
+		})
 		return ImageResponse{}, err
 	}
-	urls := make([]string, len(resp.Data))
-	for i, d := range resp.Data {
-		urls[i] = d.URL
+	urls := make([]string, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		if result := openAIImageResult(d.URL, d.B64JSON, string(resp.OutputFormat)); result != "" {
+			urls = append(urls, result)
+		}
 	}
+	recordDebug(ctx, DebugCallResult{
+		Success: true, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
+		RequestBody:    mustJSON(debugBody),
+		ResponseStatus: http.StatusOK,
+		ResponseBody:   resp.RawJSON(),
+		LatencyMs:      latency,
+	})
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
 
@@ -188,23 +222,37 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 	}
 
 	endpoint := a.BaseURL + "/images/edits"
+	debugBody := map[string]any{
+		"model":  req.Model,
+		"prompt": req.Prompt,
+		"image":  fmt.Sprintf("(binary %s, %d bytes)", mimeType, len(imgData)),
+	}
+	if req.Size != "" {
+		debugBody["size"] = req.Size
+	}
 	start := time.Now()
 	resp, err := a.client.Images.Edit(ctx, params)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
-			LatencyMs: latency, Error: err.Error(),
+			RequestBody: mustJSON(debugBody),
+			LatencyMs:   latency, Error: err.Error(),
 		})
 		return ImageResponse{}, err
 	}
 	recordDebug(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
-		LatencyMs: latency,
+		RequestBody:    mustJSON(debugBody),
+		ResponseStatus: http.StatusOK,
+		ResponseBody:   resp.RawJSON(),
+		LatencyMs:      latency,
 	})
-	urls := make([]string, len(resp.Data))
-	for i, d := range resp.Data {
-		urls[i] = d.URL
+	urls := make([]string, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		if result := openAIImageResult(d.URL, d.B64JSON, string(resp.OutputFormat)); result != "" {
+			urls = append(urls, result)
+		}
 	}
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
@@ -225,23 +273,37 @@ func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest)
 		option.WithJSONSet("image[]", req.CloudFileID),
 	}
 	endpoint := a.BaseURL + "/images/edits"
+	debugBody := map[string]any{
+		"model":   req.Model,
+		"prompt":  req.Prompt,
+		"image[]": req.CloudFileID,
+	}
+	if req.Size != "" {
+		debugBody["size"] = req.Size
+	}
 	start := time.Now()
 	resp, err := a.client.Images.Edit(ctx, params, reqOpts...)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		recordDebug(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
-			LatencyMs: latency, Error: err.Error(),
+			RequestBody: mustJSON(debugBody),
+			LatencyMs:   latency, Error: err.Error(),
 		})
 		return ImageResponse{}, err
 	}
 	recordDebug(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
-		LatencyMs: latency,
+		RequestBody:    mustJSON(debugBody),
+		ResponseStatus: http.StatusOK,
+		ResponseBody:   resp.RawJSON(),
+		LatencyMs:      latency,
 	})
-	urls := make([]string, len(resp.Data))
-	for i, d := range resp.Data {
-		urls[i] = d.URL
+	urls := make([]string, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		if result := openAIImageResult(d.URL, d.B64JSON, string(resp.OutputFormat)); result != "" {
+			urls = append(urls, result)
+		}
 	}
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
@@ -307,16 +369,40 @@ func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req I
 		return ImageResponse{}, fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
 	}
 	var result struct {
-		Data []struct{ URL string } `json:"data"`
+		Data []struct {
+			URL     string `json:"url"`
+			B64JSON string `json:"b64_json"`
+		} `json:"data"`
+		OutputFormat string `json:"output_format"`
 	}
 	if err := jsonUnmarshal(respBody, &result); err != nil {
 		return ImageResponse{}, fmt.Errorf("parse image edit response: %w", err)
 	}
-	urls := make([]string, len(result.Data))
-	for i, d := range result.Data {
-		urls[i] = d.URL
+	urls := make([]string, 0, len(result.Data))
+	for _, d := range result.Data {
+		if resultURL := openAIImageResult(d.URL, d.B64JSON, result.OutputFormat); resultURL != "" {
+			urls = append(urls, resultURL)
+		}
 	}
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
+}
+
+func openAIImageResult(rawURL, b64JSON, outputFormat string) string {
+	if u := strings.TrimSpace(rawURL); u != "" {
+		return u
+	}
+	b64 := strings.TrimSpace(b64JSON)
+	if b64 == "" {
+		return ""
+	}
+	mimeType := "image/png"
+	switch strings.ToLower(strings.TrimSpace(outputFormat)) {
+	case "jpeg", "jpg":
+		mimeType = "image/jpeg"
+	case "webp":
+		mimeType = "image/webp"
+	}
+	return "data:" + mimeType + ";base64," + b64
 }
 
 func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
@@ -394,7 +480,7 @@ func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 			RequestHeaders: reqHeaders,
 			RequestBody:    fmt.Sprintf("(multipart: model=%s prompt=%q images=%d)", req.Model, req.Prompt, len(refImages)),
-			LatencyMs: latency, Error: err.Error(),
+			LatencyMs:      latency, Error: err.Error(),
 		})
 		return VideoResponse{}, err
 	}
@@ -441,12 +527,29 @@ func (a *OpenAIAdapter) pollVideoTask(ctx context.Context, taskID string) (Video
 		}
 		httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
 
+		reqHeaders := map[string]string{
+			"Authorization": "Bearer " + maskKey(a.APIKey),
+		}
+		start := time.Now()
 		resp, err := a.rawHTTP.Do(httpReq)
+		latency := time.Since(start).Milliseconds()
 		if err != nil {
+			recordDebug(ctx, DebugCallResult{
+				ModelID: taskID, Endpoint: pollURL, Method: "GET",
+				RequestHeaders: reqHeaders,
+				LatencyMs:      latency, Error: err.Error(),
+			})
 			return VideoResponse{}, fmt.Errorf("poll video task: %w", err)
 		}
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		recordDebug(ctx, DebugCallResult{
+			Success: resp.StatusCode < 400, ModelID: taskID,
+			Endpoint: pollURL, Method: "GET",
+			RequestHeaders: reqHeaders,
+			ResponseStatus: resp.StatusCode, ResponseBody: string(body),
+			LatencyMs: latency,
+		})
 
 		if resp.StatusCode >= 400 {
 			return VideoResponse{}, fmt.Errorf("poll video task API error %d: %s", resp.StatusCode, string(body))
@@ -485,14 +588,30 @@ func (a *OpenAIAdapter) downloadVideoContent(ctx context.Context, taskID string)
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
 
+	reqHeaders := map[string]string{
+		"Authorization": "Bearer " + maskKey(a.APIKey),
+	}
+	start := time.Now()
 	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
 	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			ModelID: taskID, Endpoint: contentURL, Method: "GET",
+			RequestHeaders: reqHeaders,
+			LatencyMs:      latency, Error: err.Error(),
+		})
 		return VideoResponse{}, fmt.Errorf("download video content: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: taskID, Endpoint: contentURL, Method: "GET",
+			RequestHeaders: reqHeaders,
+			ResponseStatus: resp.StatusCode, ResponseBody: string(body),
+			LatencyMs: latency,
+		})
 		return VideoResponse{}, fmt.Errorf("download video content API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -500,6 +619,13 @@ func (a *OpenAIAdapter) downloadVideoContent(ctx context.Context, taskID string)
 	if err != nil {
 		return VideoResponse{}, fmt.Errorf("download video content: read body: %w", err)
 	}
+	recordDebug(ctx, DebugCallResult{
+		Success: true, ModelID: taskID, Endpoint: contentURL, Method: "GET",
+		RequestHeaders: reqHeaders,
+		ResponseStatus: resp.StatusCode,
+		ResponseBody:   fmt.Sprintf("(binary video content, %d bytes)", len(data)),
+		LatencyMs:      latency,
+	})
 	return VideoResponse{TaskID: taskID, ContentBytes: data}, nil
 }
 

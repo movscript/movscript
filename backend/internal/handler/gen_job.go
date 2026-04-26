@@ -32,6 +32,7 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 	var req struct {
 		ModelConfigID    uint   `json:"model_config_id" binding:"required"`
 		JobType          string `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v
+		FeatureKey       string `json:"feature_key"`
 		Prompt           string `json:"prompt"`
 		ExtraParams      string `json:"extra_params"`
 		AspectRatio      string `json:"aspect_ratio"`
@@ -107,6 +108,7 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		UserID:           user.ID,
 		ModelConfigID:    req.ModelConfigID,
 		JobType:          jobType,
+		FeatureKey:       req.FeatureKey,
 		Status:           genjob.StatusPending,
 		Prompt:           req.Prompt,
 		ExtraParams:      req.ExtraParams,
@@ -175,8 +177,21 @@ func (h *GenJobHandler) List(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	pageMode := c.Query("page") != "" || c.Query("page_size") != ""
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(pageSize)))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
+	if pageMode {
+		limit = pageSize
+		offset = (page - 1) * pageSize
+	}
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -187,6 +202,9 @@ func (h *GenJobHandler) List(c *gin.Context) {
 	q := h.db.Model(&model.GenJob{}).Where("user_id = ?", user.ID)
 	if status := c.Query("status"); status != "" {
 		q = q.Where("status = ?", status)
+	}
+	if featureKey := c.Query("feature"); featureKey != "" {
+		q = q.Where("feature_key = ?", featureKey)
 	}
 	if jobType := c.Query("type"); jobType != "" {
 		// "image" also includes "image_edit" jobs since they're the same from the user's perspective.
@@ -210,6 +228,10 @@ func (h *GenJobHandler) List(c *gin.Context) {
 		}
 	}
 	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
+	if pageMode {
+		c.JSON(http.StatusOK, gin.H{"total": total, "items": jobs, "page": page, "page_size": pageSize})
+		return
+	}
 	c.JSON(http.StatusOK, jobs)
 }
 

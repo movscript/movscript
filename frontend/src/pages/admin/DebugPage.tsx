@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, DebugCallResult, GenJobDetail, GenJobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
+import type { AICredential, DebugCallResult, DebugHTTPExchange, GenJobDetail, GenJobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
 import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -174,6 +174,12 @@ function StateTimeline({ trace }: { trace: GenJobStateTraceEntry[] }) {
       })}
     </div>
   )
+}
+
+function getDebugCalls(debug: DebugCallResult): DebugHTTPExchange[] {
+  if (debug.calls && debug.calls.length > 0) return debug.calls
+  if (debug.endpoint || debug.error) return [debug]
+  return []
 }
 
 function HttpExchange({ method, url, headers, body, responseStatus, responseBody, latencyMs, error }: {
@@ -561,18 +567,44 @@ function JobMonitorSection() {
 
                   {job.debug_detail && (
                     <div>
-                      <p className="text-xs font-medium text-foreground mb-1.5">HTTP 交换记录</p>
-                      <p className="text-xs font-mono text-muted-foreground mb-1">{job.debug_detail.method} {job.debug_detail.endpoint}</p>
-                      <HttpExchange
-                        method={job.debug_detail.method}
-                        url={job.debug_detail.endpoint}
-                        headers={job.debug_detail.request_headers}
-                        body={job.debug_detail.request_body}
-                        responseStatus={job.debug_detail.response_status}
-                        responseBody={job.debug_detail.response_body}
-                        latencyMs={job.debug_detail.latency_ms}
-                        error={job.debug_detail.error}
-                      />
+                      <p className="text-xs font-medium text-foreground mb-1.5">Debug 上下文</p>
+                      <div className="bg-background border border-border rounded-md p-2 mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        {[
+                          ['Model Def', job.debug_detail.job_model_def_id || '—'],
+                          ['Job Type', job.debug_detail.job_type || job.job_type],
+                          ['Input Resources', job.debug_detail.job_input_resource_ids?.length ? job.debug_detail.job_input_resource_ids.map((id) => `#${id}`).join(', ') : '—'],
+                          ['Resolved Prompt', job.debug_detail.job_resolved_prompt || job.prompt || '—'],
+                        ].map(([k, v]) => (
+                          <div key={k} className={cn('flex gap-2', k === 'Resolved Prompt' && 'col-span-2')}>
+                            <span className="text-muted-foreground w-28 shrink-0">{k}</span>
+                            <span className="font-mono break-all">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-xs font-medium text-foreground mb-1.5">HTTP 交换记录 ({getDebugCalls(job.debug_detail).length})</p>
+                      <div className="space-y-3">
+                        {getDebugCalls(job.debug_detail).map((call, index) => (
+                          <div key={`${call.method}-${call.endpoint}-${index}`} className="bg-background border border-border rounded-md p-2">
+                            <p className="text-xs font-mono text-muted-foreground mb-1">
+                              #{index + 1} {call.method || '—'} {call.endpoint || '—'}
+                            </p>
+                            <HttpExchange
+                              method={call.method}
+                              url={call.endpoint}
+                              headers={call.request_headers}
+                              body={call.request_body}
+                              responseStatus={call.response_status}
+                              responseBody={call.response_body}
+                              latencyMs={call.latency_ms}
+                              error={call.error}
+                            />
+                          </div>
+                        ))}
+                        {getDebugCalls(job.debug_detail).length === 0 && (
+                          <p className="text-xs text-muted-foreground">没有捕获到 provider HTTP 调用，查看上方状态机和错误信息。</p>
+                        )}
+                      </div>
                     </div>
                   )}
 
