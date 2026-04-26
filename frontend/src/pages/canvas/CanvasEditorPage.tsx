@@ -22,7 +22,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
-import type { Canvas, CanvasNodeData, CanvasRun, CanvasTask, CanvasType, NodeType } from '@/types'
+import type { Asset, Canvas, CanvasNodeData, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, RawResource } from '@/types'
 import {
   TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
   InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode,
@@ -56,7 +56,15 @@ import {
   Workflow,
   Zap,
   Lightbulb,
+  HardDrive,
+  Image as ImageIcon,
+  Video,
+  Music,
+  File,
+  Package,
 } from 'lucide-react'
+
+const API_BASE = 'http://localhost:8765'
 
 const nodeTypes = {
   text: TextNode,
@@ -83,6 +91,127 @@ function genId() {
 
 function createNodeData(type: NodeType): Partial<CanvasNodeData> & { label: string } {
   return { ...(CANVAS_NODE_META[type]?.defaultData ?? { source: 'upload', label: NODE_LABELS[type] }) }
+}
+
+function resourceToNodeType(resource: RawResource): NodeType {
+  if (resource.type === 'image' || resource.type === 'video' || resource.type === 'audio' || resource.type === 'text') {
+    return resource.type
+  }
+  return 'text'
+}
+
+function ResourceThumb({ resource }: { resource: RawResource }) {
+  const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
+  if (resource.type === 'image') return <img src={url} alt="" className="h-full w-full object-cover" />
+  if (resource.type === 'video') return <video src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+  if (resource.type === 'audio') return <Music size={14} className="text-muted-foreground" />
+  return <File size={14} className="text-muted-foreground" />
+}
+
+function CanvasResourceShelf({
+  projectId,
+}: {
+  projectId?: number
+}) {
+  const [tab, setTab] = useState<'resources' | 'assets'>('resources')
+  const { data: resourcePage } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['canvas-resource-shelf', 'resources'],
+    queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((r) => r.data),
+  })
+  const { data: assetPage } = useQuery<PaginatedResponse<Asset>>({
+    queryKey: ['canvas-resource-shelf', 'assets', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/assets`, { params: { page: 1, page_size: 18 } }).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const resources = resourcePage?.items ?? []
+  const assets = assetPage?.items ?? []
+
+  function dragResource(e: React.DragEvent, resource: RawResource) {
+    e.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
+  return (
+    <div className="pointer-events-auto absolute bottom-4 left-4 right-24 z-10 overflow-hidden rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur">
+      <div className="flex h-9 items-center gap-2 border-b border-border px-3">
+        <HardDrive size={14} className="text-muted-foreground" />
+        <span className="text-xs font-semibold text-foreground">资源 / 素材</span>
+        <div className="ml-2 flex overflow-hidden rounded-md border border-border text-[11px]">
+          <button
+            onClick={() => setTab('resources')}
+            className={cn('px-2 py-1 transition-colors', tab === 'resources' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50')}
+          >
+            资源库
+          </button>
+          <button
+            onClick={() => setTab('assets')}
+            className={cn('border-l border-border px-2 py-1 transition-colors', tab === 'assets' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50')}
+          >
+            素材库
+          </button>
+        </div>
+        <span className="ml-auto text-[11px] text-muted-foreground">拖入画布创建节点</span>
+      </div>
+      <div className="flex h-24 gap-2 overflow-x-auto p-2">
+        {tab === 'resources' && resources.map((resource) => (
+          <button
+            key={resource.ID}
+            draggable
+            onDragStart={(e) => dragResource(e, resource)}
+            className="flex w-36 shrink-0 cursor-grab items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left transition-colors hover:border-foreground/25 active:cursor-grabbing"
+            title={resource.name}
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+              <ResourceThumb resource={resource} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium text-foreground">{resource.name}</span>
+              <span className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                {resource.type === 'image' ? <ImageIcon size={10} /> : resource.type === 'video' ? <Video size={10} /> : resource.type === 'audio' ? <Music size={10} /> : <File size={10} />}
+                {resource.type}
+              </span>
+            </span>
+          </button>
+        ))}
+        {tab === 'resources' && resources.length === 0 && (
+          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">暂无资源</div>
+        )}
+        {tab === 'assets' && assets.map((asset) => {
+          const views = asset.views?.filter((view) => view.resource) ?? []
+          const first = views[0]?.resource
+          return (
+            <div key={asset.ID} className="flex w-44 shrink-0 flex-col gap-1 rounded-md border border-border bg-card p-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                  {first ? <ResourceThumb resource={first} /> : <Package size={13} className="text-muted-foreground" />}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{asset.name}</span>
+              </div>
+              <div className="flex gap-1 overflow-x-auto">
+                {views.length === 0 && <span className="text-[10px] text-muted-foreground">暂无素材视图</span>}
+                {views.map((view) => view.resource && (
+                  <button
+                    key={view.ID}
+                    draggable
+                    onDragStart={(e) => dragResource(e, view.resource!)}
+                    className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center overflow-hidden rounded border border-border bg-muted active:cursor-grabbing"
+                    title={view.label || view.resource.name}
+                  >
+                    <ResourceThumb resource={view.resource} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+        {tab === 'assets' && (!projectId || assets.length === 0) && (
+          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+            {projectId ? '暂无素材' : '该画布未绑定项目'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function CanvasEditorInner() {
@@ -172,12 +301,7 @@ function CanvasEditorInner() {
         try {
           const task: CanvasTask = await api.get(`/canvases/${id}/nodes/${n.id}/task`).then((r) => r.data)
           if (task.status === 'done' || task.status === 'failed') {
-            let resource: any
-            if (task.resource_id) {
-              resource = await api.get('/resources').then((r) =>
-                (r.data as any[]).find((res) => res.ID === task.resource_id)
-              )
-            }
+            const resource = task.resource
             setNodes((prev) => prev.map((node) => {
               if (node.id !== n.id) return node
               const d = node.data as unknown as CanvasNodeData
@@ -203,7 +327,6 @@ function CanvasEditorInner() {
     mutationFn: () => {
       const payload = {
         name: canvasName,
-        canvas_type: canvasType,
         nodes: nodes.map((n) => {
           const { label, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onApprove, onReject, onPush, onCycleMode, canvasId: _canvasId, rfNodeId: _rfNodeId, ...rest } = n.data as any
           return {
@@ -313,6 +436,27 @@ function CanvasEditorInner() {
     }
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition])
+
+  const addResourceNodeAt = useCallback((resource: RawResource, clientPosition: { x: number; y: number }) => {
+    const type = resourceToNodeType(resource)
+    const position = screenToFlowPosition(clientPosition)
+    const baseData = createNodeData(type)
+    const newNode: Node = {
+      id: genId(),
+      type,
+      position,
+      data: {
+        ...baseData,
+        label: resource.name,
+        source: 'upload',
+        resourceId: resource.ID,
+        resource,
+        status: 'done',
+      },
+      style: { width: type === 'text' ? 220 : 200 },
+    }
+    setNodes((prev) => [...prev, newNode])
+  }, [screenToFlowPosition, setNodes])
 
   // Add node from context menu
   const addNode = useCallback((type: NodeType) => {
@@ -456,13 +600,23 @@ function CanvasEditorInner() {
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDropActive(false)
+    const resourcePayload = e.dataTransfer.getData('application/canvas-resource')
+    if (resourcePayload) {
+      try {
+        const resource = JSON.parse(resourcePayload) as RawResource
+        addResourceNodeAt(resource, { x: e.clientX, y: e.clientY })
+      } catch {
+        // Ignore malformed drag data from outside the app.
+      }
+      return
+    }
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt])
+  }, [addNodeAt, addResourceNodeAt])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/canvas-node-type')) {
+    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -482,13 +636,14 @@ function CanvasEditorInner() {
     onNodeDragStop(event, node)
   }, [onNodeDragStop])
 
+  const canRunSingleNode = canvasType === 'inspiration'
   const nodesWithHandlers = nodes.map((n) => ({
     ...n,
     data: {
       ...n.data,
       canvasId: id,
       rfNodeId: n.id,
-      onRun: () => runNode(n.id),
+      onRun: canRunSingleNode ? () => runNode(n.id) : undefined,
       onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
       onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
       onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
@@ -579,27 +734,10 @@ function CanvasEditorInner() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-border bg-background text-xs">
-            <button
-              onClick={() => setCanvasType('inspiration')}
-              className={cn(
-                'flex h-8 items-center gap-1.5 px-3 transition-colors',
-                canvasType === 'inspiration' ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <Lightbulb size={12} /> 灵感
-            </button>
-            <div className="h-5 w-px bg-border" />
-            <button
-              onClick={() => setCanvasType('workflow')}
-              className={cn(
-                'flex h-8 items-center gap-1.5 px-3 transition-colors',
-                canvasType === 'workflow' ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:bg-muted/50'
-              )}
-            >
-              <Zap size={12} /> 工作流
-            </button>
-          </div>
+          <Badge variant="outline" className="h-8 shrink-0 gap-1.5 px-3 text-xs font-medium">
+            {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
+            {canvasType === 'workflow' ? '工作流画布' : '灵感激发画布'}
+          </Badge>
 
           {canvasType === 'workflow' && (
             <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
@@ -751,6 +889,8 @@ function CanvasEditorInner() {
             <MousePointer2 size={13} />
             {draggingNodeId ? '正在移动节点，松开后会保留位置' : selectedNode ? `已选中 ${selectedNodeData?.label || selectedNodeMeta?.label || selectedNode.type}` : '拖动画布平移，框选可批量操作'}
           </div>
+
+          <CanvasResourceShelf projectId={canvas?.project_id} />
         </div>
 
         <aside className={cn(
@@ -783,6 +923,7 @@ function CanvasEditorInner() {
                   edges={edges}
                   onUpdate={updateNodeData}
                   onRun={runNode}
+                  allowRun={canRunSingleNode}
                 />
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col p-4 text-sm">

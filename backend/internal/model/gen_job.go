@@ -15,6 +15,9 @@ type GenJob struct {
 	JobType          string     `gorm:"not null" json:"job_type"`                      // image | image_edit | video | video_i2v | video_v2v
 	FeatureKey       string     `gorm:"index;default:''" json:"feature_key,omitempty"` // product feature/tool key, e.g. ref_image_gen
 	Status           string     `gorm:"not null;default:'pending'" json:"status"`      // pending|running|succeeded|failed
+	AttemptCount     int        `gorm:"not null;default:0" json:"attempt_count"`
+	MaxAttempts      int        `gorm:"not null;default:3" json:"max_attempts"`
+	NextRunAt        *time.Time `json:"next_run_at,omitempty"`
 	Prompt           string     `json:"prompt"`
 	ExtraParams      string     `json:"extra_params,omitempty"`                   // JSON: size, quality, style, etc.
 	AspectRatio      string     `gorm:"default:''" json:"aspect_ratio,omitempty"` // e.g. "16:9", "9:16"
@@ -27,6 +30,7 @@ type GenJob struct {
 	DebugInfo        string     `json:"debug_info,omitempty"`      // JSON-encoded DebugCallResult (populated in debug mode)
 	ExecutionState   string     `json:"execution_state,omitempty"` // current worker state-machine state
 	StateTrace       string     `json:"state_trace,omitempty"`     // JSON-encoded []genjob.StateTraceEntry
+	LastHeartbeatAt  *time.Time `json:"last_heartbeat_at,omitempty"`
 	StartedAt        *time.Time `json:"started_at,omitempty"`
 	FinishedAt       *time.Time `json:"finished_at,omitempty"`
 	ProjectID        *uint      `json:"project_id,omitempty"` // optional project context

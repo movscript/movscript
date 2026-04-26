@@ -103,7 +103,6 @@ interface InnerProps {
   canvasName: string
   canvasType: CanvasType
   onChangeName: (name: string) => void
-  onChangeType: (type: CanvasType) => void
   pushTargets: PushTarget[]
   onClose: () => void
 }
@@ -113,7 +112,6 @@ function EmbeddedCanvasInner({
   canvasName,
   canvasType,
   onChangeName,
-  onChangeType,
   pushTargets,
   onClose,
 }: InnerProps) {
@@ -179,12 +177,7 @@ function EmbeddedCanvasInner({
         try {
           const task: CanvasTask = await api.get(`/canvases/${canvasId}/nodes/${n.id}/task`).then((r) => r.data)
           if (task.status === 'done' || task.status === 'failed') {
-            let resource: RawResource | undefined
-            if (task.resource_id) {
-              resource = await api.get('/resources').then((r) =>
-                (r.data as RawResource[]).find((res) => res.ID === task.resource_id)
-              )
-            }
+            const resource: RawResource | undefined = task.resource
             setNodes((prev) => prev.map((node) => {
               if (node.id !== n.id) return node
               const d = node.data as unknown as CanvasNodeData
@@ -204,7 +197,6 @@ function EmbeddedCanvasInner({
     mutationFn: () => {
       const payload = {
         name: canvasName,
-        canvas_type: canvasType,
         nodes: nodes.map((n) => {
           const { label, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onApprove, onReject, onPush, ...rest } = n.data as any
           return {
@@ -229,7 +221,7 @@ function EmbeddedCanvasInner({
 
   // Run all
   const runAll = useMutation({
-    mutationFn: () => api.post(`/canvases/${canvasId}/run`).then((r) => r.data),
+    mutationFn: (values?: Record<string, string>) => api.post(`/canvases/${canvasId}/run`, { input_values: values ?? {} }).then((r) => r.data),
     onSuccess: () => {
       setNodes((prev) => prev.map((n) => {
         const d = n.data as unknown as CanvasNodeData
@@ -264,7 +256,7 @@ function EmbeddedCanvasInner({
       setInputValues(initial)
       setRunDialogOpen(true)
     } else {
-      runAll.mutate()
+      runAll.mutate({})
     }
   }
 
@@ -276,7 +268,7 @@ function EmbeddedCanvasInner({
       return n
     }))
     setRunDialogOpen(false)
-    runAll.mutate()
+    runAll.mutate(inputValues)
   }
 
   function handleApprove(nodeId: string) {
@@ -456,6 +448,7 @@ function EmbeddedCanvasInner({
     return d.status === 'running' || d.status === 'pending'
   }).length
 
+  const canRunSingleNode = canvasType === 'inspiration'
   const nodesWithHandlers = nodes.map((n) => {
     const d = n.data as unknown as CanvasNodeData
     const hasPushableOutput = (n.type === 'image' || n.type === 'video' || n.type === 'output') &&
@@ -464,7 +457,7 @@ function EmbeddedCanvasInner({
       ...n,
       data: {
         ...n.data,
-        onRun: () => runNode(n.id),
+        onRun: canRunSingleNode ? () => runNode(n.id) : undefined,
         onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
         onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
         onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
@@ -487,21 +480,9 @@ function EmbeddedCanvasInner({
     <div className="flex flex-col h-full">
       {/* Canvas toolbar */}
       <div className="h-10 bg-card border-b border-border shrink-0 flex items-center gap-2 px-3">
-        {/* Type toggle */}
-        <div className="flex items-center border border-border rounded overflow-hidden text-xs shrink-0">
-          <button
-            onClick={() => onChangeType('inspiration')}
-            className={cn('flex items-center gap-1 px-2.5 py-1 transition-colors', canvasType === 'inspiration' ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground hover:bg-muted/50')}
-          >
-            <Lightbulb size={11} /> 灵感激发
-          </button>
-          <div className="w-px h-4 bg-border" />
-          <button
-            onClick={() => onChangeType('workflow')}
-            className={cn('flex items-center gap-1 px-2.5 py-1 transition-colors', canvasType === 'workflow' ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground hover:bg-muted/50')}
-          >
-            <Zap size={11} /> 工作流
-          </button>
+        <div className="flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs text-muted-foreground shrink-0">
+          {canvasType === 'workflow' ? <Zap size={11} /> : <Lightbulb size={11} />}
+          {canvasType === 'workflow' ? '工作流' : '灵感激发'}
         </div>
 
         <input
@@ -782,7 +763,6 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
               canvasName={canvasName}
               canvasType={canvasType}
               onChangeName={setCanvasName}
-              onChangeType={setCanvasType}
               pushTargets={pushTargets}
               onClose={onClose}
             />

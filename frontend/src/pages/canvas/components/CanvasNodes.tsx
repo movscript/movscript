@@ -182,7 +182,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && data.source === 'ai' && status === 'idle' ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={mode !== 'compact' && data.source === 'ai' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
       {mode !== 'compact' && (
         data.source === 'manual' ? (
@@ -195,8 +195,8 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
           />
         ) : (
           <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
-            {data.prompt
-              ? <span className="text-muted-foreground break-words">{data.prompt}</span>
+            {data.textContent || data.prompt || data.resource?.name
+              ? <span className="text-muted-foreground break-words line-clamp-4">{data.textContent || data.prompt || data.resource?.name}</span>
               : <span className="italic text-muted-foreground/40">无内容</span>}
           </div>
         )
@@ -224,7 +224,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
         actions={mode !== 'compact' ? <>
-          {data.source === 'ai' && status === 'idle' && <RunBtn onClick={data.onRun} />}
+          {data.source === 'ai' && status === 'idle' && data.onRun && <RunBtn onClick={data.onRun} />}
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
         </> : undefined}
       />
@@ -258,7 +258,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
         actions={mode !== 'compact' ? <>
-          {data.source === 'ai' && status === 'idle' && <RunBtn onClick={data.onRun} />}
+          {data.source === 'ai' && status === 'idle' && data.onRun && <RunBtn onClick={data.onRun} />}
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
         </> : undefined}
       />
@@ -291,7 +291,7 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && data.source === 'ai' && status === 'idle' ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={mode !== 'compact' && data.source === 'ai' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
       {mode !== 'compact' && (
         <div className="flex-1 px-3 py-3 rounded-b-xl flex items-center">
@@ -425,7 +425,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && status === 'idle' ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={mode !== 'compact' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
       {mode === 'detail' && (
         <CanvasCardBody
@@ -562,7 +562,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && status === 'idle' ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={mode !== 'compact' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
       {mode === 'detail' && (
         <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
@@ -623,7 +623,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
         actions={mode !== 'compact' ? <>
-          {status === 'idle' && <RunBtn onClick={data.onRun} />}
+          {status === 'idle' && data.onRun && <RunBtn onClick={data.onRun} />}
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
         </> : undefined}
       />

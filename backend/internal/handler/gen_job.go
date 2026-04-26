@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
@@ -110,6 +111,7 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		JobType:          jobType,
 		FeatureKey:       req.FeatureKey,
 		Status:           genjob.StatusPending,
+		MaxAttempts:      genjob.DefaultMaxAttempts,
 		Prompt:           req.Prompt,
 		ExtraParams:      req.ExtraParams,
 		AspectRatio:      req.AspectRatio,
@@ -255,6 +257,60 @@ func (h *GenJobHandler) Get(c *gin.Context) {
 
 	if job.OutputResource != nil {
 		job.OutputResource.URL = resourceURL(c, job.OutputResource.ID)
+	}
+	c.JSON(http.StatusOK, job)
+}
+
+// Retry requeues a failed generation job for manual retry.
+func (h *GenJobHandler) Retry(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	var job model.GenJob
+	if err := h.db.First(&job, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if job.UserID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	if job.Status == genjob.StatusSucceeded {
+		c.JSON(http.StatusConflict, gin.H{"error": "succeeded jobs cannot be retried"})
+		return
+	}
+	if job.Status == genjob.StatusRunning {
+		c.JSON(http.StatusConflict, gin.H{"error": "running jobs cannot be retried until they fail or time out"})
+		return
+	}
+
+	now := time.Now()
+	maxAttempts := job.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = genjob.DefaultMaxAttempts
+	}
+	if err := h.db.Model(&job).Updates(map[string]any{
+		"status":             genjob.StatusPending,
+		"attempt_count":      0,
+		"max_attempts":       maxAttempts,
+		"error_msg":          "",
+		"next_run_at":        &now,
+		"finished_at":        nil,
+		"last_heartbeat_at":  nil,
+		"output_resource_id": nil,
+		"provider_task_id":   "",
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	genjob.MarkRetryScheduled(h.db, &job, "manual retry requested")
+
+	if err := h.db.Preload("OutputResource").First(&job, job.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, job)
 }

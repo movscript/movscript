@@ -101,6 +101,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.POST("/gen-jobs", genJobs.Create)
 		v1.GET("/gen-jobs", genJobs.List)
 		v1.GET("/gen-jobs/:id", genJobs.Get)
+		v1.POST("/gen-jobs/:id/retry", genJobs.Retry)
 		v1.DELETE("/gen-jobs/:id", genJobs.Delete)
 
 		// canvases

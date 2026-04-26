@@ -21,16 +21,17 @@ import (
 
 // nodeData mirrors the JSON stored in CanvasNode.Data.
 type nodeData struct {
-	Source           string `json:"source"`
-	ResourceID       *uint  `json:"resourceId,omitempty"`
-	Prompt           string `json:"prompt,omitempty"`
-	ProviderName     string `json:"providerName,omitempty"`
-	ModelID          string `json:"modelId,omitempty"`
-	ModelDbID        uint   `json:"modelDbId,omitempty"` // AIModel primary key (preferred over ProviderName+ModelID)
-	InputResourceIDs []uint `json:"inputResourceIds,omitempty"`
-	Status           string `json:"status,omitempty"`
-	TaskID           *uint  `json:"taskId,omitempty"`
-	Error            string `json:"error,omitempty"`
+	Source             string `json:"source"`
+	ResourceID         *uint  `json:"resourceId,omitempty"`
+	ReferencedCanvasID *uint  `json:"referencedCanvasId,omitempty"`
+	Prompt             string `json:"prompt,omitempty"`
+	ProviderName       string `json:"providerName,omitempty"`
+	ModelID            string `json:"modelId,omitempty"`
+	ModelDbID          uint   `json:"modelDbId,omitempty"` // AIModel primary key (preferred over ProviderName+ModelID)
+	InputResourceIDs   []uint `json:"inputResourceIds,omitempty"`
+	Status             string `json:"status,omitempty"`
+	TaskID             *uint  `json:"taskId,omitempty"`
+	Error              string `json:"error,omitempty"`
 }
 
 // RunNode executes a single AI node and returns a pending CanvasTask.
@@ -47,6 +48,10 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 	}
 	if cv.OwnerID != user.ID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	if cv.CanvasType == "workflow" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workflow canvases must be run as a workflow"})
 		return
 	}
 
@@ -80,6 +85,10 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
+	if cv.CanvasType != "workflow" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only workflow canvases can create run records"})
+		return
+	}
 	var req struct {
 		InputValues map[string]string `json:"input_values"`
 	}
@@ -106,34 +115,123 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	}
 	h.db.Create(&run)
 
-	// Build upstream map: nodeID → list of upstream nodeIDs
-	upstream := map[string][]string{}
-	for _, e := range cv.Edges {
-		upstream[e.Target] = append(upstream[e.Target], e.Source)
-	}
-
 	nodeMap := map[string]*model.CanvasNode{}
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
 
-	// nodeID → resourceID produced by that node
-	produced := map[string]*uint{}
-
 	var tasks []model.CanvasTask
-	aiNodeCount := 0
-	startErrorCount := 0
 	for _, nid := range order {
 		node := nodeMap[nid]
 		var nd nodeData
 		json.Unmarshal([]byte(node.Data), &nd)
+		if nd.Source != "ai" && node.Type != "output" {
+			continue
+		}
+		task := model.CanvasTask{CanvasNodeID: node.ID, CanvasRunID: &run.ID, Status: "pending"}
+		h.db.Create(&task)
+		tasks = append(tasks, task)
+	}
+
+	if len(tasks) == 0 {
+		finishedAt := time.Now()
+		h.db.Model(&run).Updates(map[string]any{"status": "done", "finished_at": &finishedAt})
+		run.Status = "done"
+		run.FinishedAt = &finishedAt
+	} else {
+		go h.executeWorkflowRun(user, cv.ID, run.ID, order)
+	}
+	run.Tasks = tasks
+	c.JSON(http.StatusAccepted, gin.H{"run": run, "tasks": tasks})
+}
+
+func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runID uint, order []string) {
+	var cv model.Canvas
+	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
+		finishedAt := time.Now()
+		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
+			"status":      "failed",
+			"error":       "canvas not found",
+			"finished_at": &finishedAt,
+		})
+		return
+	}
+
+	upstream := map[string][]string{}
+	for _, e := range cv.Edges {
+		upstream[e.Target] = append(upstream[e.Target], e.Source)
+	}
+	nodeMap := map[string]*model.CanvasNode{}
+	for i := range cv.Nodes {
+		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
+	}
+	taskMap := map[string]*model.CanvasTask{}
+	var runTasks []model.CanvasTask
+	h.db.Where("canvas_run_id = ?", runID).Order("id asc").Find(&runTasks)
+	taskIndex := 0
+	for _, nid := range order {
+		node := nodeMap[nid]
+		if node == nil {
+			continue
+		}
+		var nd nodeData
+		json.Unmarshal([]byte(node.Data), &nd)
+		if nd.Source != "ai" && node.Type != "output" {
+			continue
+		}
+		if taskIndex >= len(runTasks) {
+			break
+		}
+		taskMap[nid] = &runTasks[taskIndex]
+		taskIndex++
+	}
+
+	produced := map[string]*uint{}
+	for _, nid := range order {
+		node := nodeMap[nid]
+		if node == nil {
+			continue
+		}
+		var nd nodeData
+		json.Unmarshal([]byte(node.Data), &nd)
+		if node.Type == "output" {
+			task := taskMap[nid]
+			var outputResource *uint
+			for _, uid := range upstream[nid] {
+				if rid := produced[uid]; rid != nil {
+					outputResource = rid
+					break
+				}
+			}
+			if task != nil {
+				if outputResource == nil {
+					h.failTask(task, node, nd, "output node has no upstream resource")
+				} else {
+					h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *outputResource})
+					produced[nid] = outputResource
+					h.updateRunStatus(task.CanvasRunID)
+				}
+			}
+			continue
+		}
 		if nd.Source != "ai" {
 			if nd.ResourceID != nil {
 				produced[nid] = nd.ResourceID
 			}
 			continue
 		}
-		aiNodeCount++
+		task := taskMap[nid]
+		if task == nil {
+			continue
+		}
+		promptOptionalTypes := map[string]bool{
+			"motion_imitation": true,
+			"canvas":           true,
+		}
+		if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
+			h.failTask(task, node, nd, "prompt is required")
+			continue
+		}
 
 		var upstreamResources []*uint
 		for _, uid := range upstream[nid] {
@@ -141,33 +239,14 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 				upstreamResources = append(upstreamResources, rid)
 			}
 		}
+		h.executeTask(user, node, task, nd, upstreamResources)
 
-		task, err := h.startNodeTask(user, node, upstreamResources, &run)
-		if err != nil {
-			startErrorCount++
-			continue
+		var updated model.CanvasTask
+		if err := h.db.First(&updated, task.ID).Error; err == nil && updated.Status == "done" && updated.ResourceID != nil {
+			produced[nid] = updated.ResourceID
 		}
-		tasks = append(tasks, *task)
 	}
-
-	if len(tasks) == 0 {
-		finishedAt := time.Now()
-		status := "done"
-		errorMsg := ""
-		if aiNodeCount > 0 && startErrorCount > 0 {
-			status = "failed"
-			errorMsg = fmt.Sprintf("%d workflow node(s) could not start", startErrorCount)
-		}
-		h.db.Model(&run).Updates(map[string]any{"status": status, "error": errorMsg, "finished_at": &finishedAt})
-		run.Status = status
-		run.Error = errorMsg
-		run.FinishedAt = &finishedAt
-	} else if startErrorCount > 0 {
-		run.Error = fmt.Sprintf("%d workflow node(s) could not start", startErrorCount)
-		h.db.Model(&run).Update("error", run.Error)
-	}
-	run.Tasks = tasks
-	c.JSON(http.StatusAccepted, gin.H{"run": run, "tasks": tasks})
+	h.updateRunStatus(&runID)
 }
 
 // ListRuns returns workflow runs for a canvas, newest first.
@@ -268,6 +347,13 @@ func (h *CanvasHandler) GetNodeTask(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no task"})
 		return
 	}
+	if task.ResourceID != nil {
+		var resource model.RawResource
+		if err := h.db.First(&resource, *task.ResourceID).Error; err == nil {
+			resource.URL = resourceURL(c, resource.ID)
+			task.Resource = &resource
+		}
+	}
 	c.JSON(http.StatusOK, task)
 }
 
@@ -305,6 +391,7 @@ func (h *CanvasHandler) startNodeTask(user *model.User, node *model.CanvasNode, 
 	}
 	promptOptionalTypes := map[string]bool{
 		"motion_imitation": true,
+		"canvas":           true,
 	}
 	if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
 		return nil, fmt.Errorf("prompt is required")
@@ -318,7 +405,9 @@ func (h *CanvasHandler) startNodeTask(user *model.User, node *model.CanvasNode, 
 
 	nd.Status = "pending"
 	nd.TaskID = &task.ID
-	h.updateNodeData(node, nd)
+	if run == nil {
+		h.updateNodeData(node, nd)
+	}
 
 	go h.executeTask(user, node, &task, nd, upstreamResources)
 	return &task, nil
@@ -327,7 +416,9 @@ func (h *CanvasHandler) startNodeTask(user *model.User, node *model.CanvasNode, 
 func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, upstreamResources []*uint) {
 	h.db.Model(task).Update("status", "running")
 	nd.Status = "running"
-	h.updateNodeData(node, nd)
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -340,6 +431,11 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 
 	var resultURL, mimeType, resType string
 	imageData, videoData := h.loadCanvasInputResources(ctx, nd, upstreamResources)
+
+	if node.Type == "canvas" {
+		h.completeCanvasReferenceTask(task, node, nd, user)
+		return
+	}
 
 	switch node.Type {
 	case "text":
@@ -407,10 +503,6 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 		h.failTask(task, node, nd, "audio generation not yet supported")
 		return
 
-	case "canvas":
-		h.failTask(task, node, nd, "canvas reference nodes do not generate output directly")
-		return
-
 	default:
 		h.failTask(task, node, nd, "unknown node type")
 		return
@@ -429,7 +521,57 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 	nd.Status = "done"
 	nd.ResourceID = &r.ID
 	nd.TaskID = &task.ID
-	h.updateNodeData(node, nd)
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
+	h.updateRunStatus(task.CanvasRunID)
+}
+
+func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User) {
+	if nd.ReferencedCanvasID == nil || *nd.ReferencedCanvasID == 0 {
+		h.failTask(task, node, nd, "referenced workflow canvas is required")
+		return
+	}
+	var ref model.Canvas
+	if err := h.db.First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
+		h.failTask(task, node, nd, "referenced canvas not found")
+		return
+	}
+	if ref.OwnerID != user.ID {
+		h.failTask(task, node, nd, "referenced canvas is not accessible")
+		return
+	}
+	if ref.CanvasType != "workflow" {
+		h.failTask(task, node, nd, "only workflow canvases can be referenced")
+		return
+	}
+
+	var latestRun model.CanvasRun
+	if err := h.db.Where("canvas_id = ? AND status = ?", ref.ID, "done").Order("id desc").First(&latestRun).Error; err != nil {
+		h.failTask(task, node, nd, "referenced workflow has no completed run")
+		return
+	}
+
+	var outputNodeIDs []uint
+	h.db.Model(&model.CanvasNode{}).Where("canvas_id = ? AND type = ?", ref.ID, "output").Pluck("id", &outputNodeIDs)
+
+	var refTask model.CanvasTask
+	refTaskQuery := h.db.Where("canvas_run_id = ? AND resource_id IS NOT NULL", latestRun.ID)
+	if len(outputNodeIDs) > 0 {
+		refTaskQuery = refTaskQuery.Where("canvas_node_id IN ?", outputNodeIDs)
+	}
+	if err := refTaskQuery.Order("id desc").First(&refTask).Error; err != nil || refTask.ResourceID == nil {
+		h.failTask(task, node, nd, "referenced workflow run has no resource output")
+		return
+	}
+
+	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *refTask.ResourceID})
+	nd.Status = "done"
+	nd.ResourceID = refTask.ResourceID
+	nd.TaskID = &task.ID
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
 	h.updateRunStatus(task.CanvasRunID)
 }
 
@@ -568,7 +710,9 @@ func (h *CanvasHandler) failTask(task *model.CanvasTask, node *model.CanvasNode,
 	h.db.Model(task).Updates(map[string]any{"status": "failed", "error": errMsg})
 	nd.Status = "failed"
 	nd.Error = errMsg
-	h.updateNodeData(node, nd)
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
 	h.updateRunStatus(task.CanvasRunID)
 }
 

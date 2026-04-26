@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { NodeType } from '@/types'
 import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '../nodeCatalog'
 import { Boxes, Trash2 } from 'lucide-react'
@@ -50,7 +50,19 @@ function Section({
 
 export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelected, onDeleteSelected, hasSelection }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ left: x, top: y })
   const selectedNodeCount = selectedCount ?? 0
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const padding = 8
+    setPosition({
+      left: Math.min(Math.max(padding, x), window.innerWidth - rect.width - padding),
+      top: Math.min(Math.max(padding, y), window.innerHeight - rect.height - padding),
+    })
+  }, [x, y])
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -63,8 +75,8 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
   return (
     <div
       ref={ref}
-      style={{ position: 'fixed', left: x, top: y, zIndex: 1000 }}
-      className="bg-popover border border-border rounded-xl shadow-md py-1 w-64"
+      style={{ position: 'fixed', left: position.left, top: position.top, zIndex: 1000, maxHeight: 'calc(100vh - 16px)' }}
+      className="bg-popover border border-border rounded-xl shadow-md py-1 w-64 overflow-y-auto"
     >
       {selectedNodeCount >= 2 && onGroupSelected && (
         <>

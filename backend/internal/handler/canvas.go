@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
@@ -36,6 +37,9 @@ func (h *CanvasHandler) List(c *gin.Context) {
 	if stage := c.Query("stage"); stage != "" {
 		q = q.Where("stage = ?", stage)
 	}
+	if canvasType := c.Query("type"); canvasType != "" {
+		q = q.Where("canvas_type = ?", canvasType)
+	}
 	q.Find(&canvases)
 	c.JSON(http.StatusOK, canvases)
 }
@@ -56,6 +60,13 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.CanvasType == "" {
+		req.CanvasType = "inspiration"
+	}
+	if !slices.Contains([]string{"inspiration", "workflow"}, req.CanvasType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "canvas_type must be inspiration or workflow"})
 		return
 	}
 	cv := model.Canvas{
@@ -142,9 +153,6 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 
 	if req.Name != "" {
 		cv.Name = req.Name
-	}
-	if req.CanvasType != "" {
-		cv.CanvasType = req.CanvasType
 	}
 
 	h.db.Transaction(func(tx *gorm.DB) error {

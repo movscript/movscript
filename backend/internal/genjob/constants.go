@@ -7,3 +7,7 @@ const (
 	StatusSucceeded = "succeeded"
 	StatusFailed    = "failed"
 )
+
+const (
+	DefaultMaxAttempts = 3
+)

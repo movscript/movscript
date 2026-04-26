@@ -31,6 +31,13 @@ type Worker struct {
 	client        *http.Client
 }
 
+const (
+	jobExecutionTimeout = 10 * time.Minute
+	providerCallTimeout = 8 * time.Minute
+	heartbeatInterval   = 15 * time.Second
+	staleRunningTimeout = 12 * time.Minute
+)
+
 func NewWorker(db *gorm.DB, aiService *ai.AIService, store storage.Storage, encryptionKey []byte) *Worker {
 	return &Worker{
 		db:            db,
@@ -76,14 +83,27 @@ func (w *Worker) loop(ctx context.Context) {
 
 // processOne atomically claims one pending job and executes it.
 func (w *Worker) processOne(ctx context.Context) {
+	w.requeueStaleRunningJobs(ctx)
+
 	var job model.GenJob
 	// Atomically claim a pending job using PostgreSQL FOR UPDATE SKIP LOCKED.
 	result := w.db.Raw(`
-		UPDATE gen_jobs SET status='running', started_at=NOW(), updated_at=NOW()
+		UPDATE gen_jobs
+		SET status='running',
+			started_at=NOW(),
+			finished_at=NULL,
+			next_run_at=NULL,
+			attempt_count=attempt_count+1,
+			last_heartbeat_at=NOW(),
+			error_msg='',
+			updated_at=NOW()
 		WHERE id = (
 			SELECT id FROM gen_jobs
-			WHERE status='pending' AND deleted_at IS NULL
-			ORDER BY created_at
+			WHERE status='pending'
+				AND deleted_at IS NULL
+				AND (next_run_at IS NULL OR next_run_at <= NOW())
+				AND (max_attempts <= 0 OR attempt_count < max_attempts)
+			ORDER BY COALESCE(next_run_at, created_at), created_at
 			LIMIT 1
 			FOR UPDATE SKIP LOCKED
 		)
@@ -94,23 +114,166 @@ func (w *Worker) processOne(ctx context.Context) {
 		return
 	}
 
-	newJobStateMachine(w, &job).reset(StateClaimed, "worker claimed pending job")
-	log.Printf("[genjob] picked job #%d type=%s user=%d", job.ID, job.JobType, job.UserID)
+	maxAttempts := effectiveMaxAttempts(&job)
+	newJobStateMachine(w, &job).enter(StateClaimed, fmt.Sprintf("worker claimed job (attempt %d/%d)", job.AttemptCount, maxAttempts))
+	log.Printf("[genjob] picked job #%d type=%s user=%d attempt=%d/%d", job.ID, job.JobType, job.UserID, job.AttemptCount, maxAttempts)
 
 	if err := w.execute(ctx, &job); err != nil {
-		now := time.Now()
-		w.db.Model(&job).Updates(map[string]any{
-			"status":      StatusFailed,
-			"error_msg":   err.Error(),
-			"finished_at": &now,
+		w.completeFailure(&job, err)
+	}
+}
+
+func (w *Worker) completeFailure(job *model.GenJob, err error) {
+	if err == nil {
+		return
+	}
+	now := time.Now()
+	maxAttempts := effectiveMaxAttempts(job)
+	if job.AttemptCount < maxAttempts {
+		nextRun := now.Add(retryDelay(job.AttemptCount))
+		w.db.Model(job).Updates(map[string]any{
+			"status":            StatusPending,
+			"error_msg":         err.Error(),
+			"next_run_at":       &nextRun,
+			"last_heartbeat_at": &now,
+			"finished_at":       nil,
 		})
-		log.Printf("[genjob] job #%d failed: %v", job.ID, err)
+		newJobStateMachine(w, job).finish(StateRetryScheduled, fmt.Sprintf("retry scheduled at %s", nextRun.Format(time.RFC3339)))
+		log.Printf("[genjob] job #%d failed attempt %d/%d, retry at %s: %v", job.ID, job.AttemptCount, maxAttempts, nextRun.Format(time.RFC3339), err)
+		return
+	}
+
+	w.db.Model(job).Updates(map[string]any{
+		"status":            StatusFailed,
+		"error_msg":         err.Error(),
+		"finished_at":       &now,
+		"next_run_at":       nil,
+		"last_heartbeat_at": &now,
+	})
+	log.Printf("[genjob] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
+}
+
+func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+	threshold := time.Now().Add(-staleRunningTimeout)
+	var jobs []model.GenJob
+	if err := w.db.Where(`
+		status = ?
+		AND deleted_at IS NULL
+		AND (last_heartbeat_at IS NULL OR last_heartbeat_at < ?)
+	`, StatusRunning, threshold).
+		Order("updated_at asc").
+		Limit(10).
+		Find(&jobs).Error; err != nil {
+		log.Printf("[genjob] stale running scan failed: %v", err)
+		return
+	}
+	if len(jobs) == 0 {
+		return
+	}
+
+	now := time.Now()
+	for i := range jobs {
+		job := &jobs[i]
+		maxAttempts := effectiveMaxAttempts(job)
+		if job.AttemptCount < maxAttempts {
+			msg := fmt.Sprintf("worker heartbeat stale for %s; requeued", staleRunningTimeout)
+			if err := w.db.Model(job).Updates(map[string]any{
+				"status":      StatusPending,
+				"error_msg":   msg,
+				"next_run_at": &now,
+				"finished_at": nil,
+			}).Error; err != nil {
+				log.Printf("[genjob] stale job #%d requeue failed: %v", job.ID, err)
+				continue
+			}
+			newJobStateMachine(w, job).finish(StateRetryScheduled, msg)
+			log.Printf("[genjob] stale running job #%d requeued", job.ID)
+			continue
+		}
+
+		msg := fmt.Sprintf("worker heartbeat stale for %s; max attempts exhausted", staleRunningTimeout)
+		if err := w.db.Model(job).Updates(map[string]any{
+			"status":      StatusFailed,
+			"error_msg":   msg,
+			"finished_at": &now,
+			"next_run_at": nil,
+		}).Error; err != nil {
+			log.Printf("[genjob] stale job #%d fail update failed: %v", job.ID, err)
+			continue
+		}
+		newJobStateMachine(w, job).fail(fmt.Errorf("%s", msg))
+		log.Printf("[genjob] stale running job #%d marked failed", job.ID)
+	}
+}
+
+func (w *Worker) heartbeat(ctx context.Context, jobID uint) {
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			now := time.Now()
+			w.db.Model(&model.GenJob{}).Where("id = ? AND status = ?", jobID, StatusRunning).Update("last_heartbeat_at", &now)
+		}
+	}
+}
+
+func effectiveMaxAttempts(job *model.GenJob) int {
+	if job.MaxAttempts > 0 {
+		return job.MaxAttempts
+	}
+	return DefaultMaxAttempts
+}
+
+func retryDelay(attempt int) time.Duration {
+	if attempt <= 1 {
+		return 10 * time.Second
+	}
+	delay := time.Duration(1<<min(attempt-1, 5)) * 10 * time.Second
+	if delay > 5*time.Minute {
+		return 5 * time.Minute
+	}
+	return delay
+}
+
+func callProviderWithTimeout[T any](ctx context.Context, timeout time.Duration, call func(context.Context) (T, error)) (T, error) {
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	type result struct {
+		value T
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		value, err := call(callCtx)
+		done <- result{value: value, err: err}
+	}()
+
+	select {
+	case res := <-done:
+		return res.value, res.err
+	case <-callCtx.Done():
+		var zero T
+		if callCtx.Err() == context.DeadlineExceeded {
+			return zero, fmt.Errorf("provider call timed out after %s: %w", timeout, callCtx.Err())
+		}
+		return zero, callCtx.Err()
 	}
 }
 
 func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
-	callCtx, cancel := context.WithTimeout(ctx, 8*time.Minute)
+	callCtx, cancel := context.WithTimeout(ctx, jobExecutionTimeout)
 	defer cancel()
+	heartbeatCtx, stopHeartbeat := context.WithCancel(callCtx)
+	defer stopHeartbeat()
+	go w.heartbeat(heartbeatCtx, job.ID)
+
 	sm := newJobStateMachine(w, job)
 
 	// Attach a debug recorder so adapters can capture the raw HTTP exchange.
@@ -222,7 +385,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			req.InputImageMime = imageData[0].MimeType
 		}
 		sm.enter(StateCallingProvider, "call image provider")
-		resp, err := w.aiService.CallImage(debugCtx, job.UserID, job.ModelConfigID, req)
+		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
+			return w.aiService.CallImage(ctx, job.UserID, job.ModelConfigID, req)
+		})
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return fmt.Errorf("image generation: %w", err)
@@ -261,7 +426,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		}
 
 		sm.enter(StateCallingProvider, "call image edit provider")
-		resp, err := w.aiService.CallImage(debugCtx, job.UserID, job.ModelConfigID, req)
+		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
+			return w.aiService.CallImage(ctx, job.UserID, job.ModelConfigID, req)
+		})
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return fmt.Errorf("image generation: %w", err)
@@ -292,7 +459,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			req.InputVideoData = &videoData[0]
 		}
 		sm.enter(StateCallingProvider, "call video provider")
-		resp, err := w.aiService.CallVideo(debugCtx, job.UserID, job.ModelConfigID, req)
+		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
+			return w.aiService.CallVideo(ctx, job.UserID, job.ModelConfigID, req)
+		})
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
 			return fmt.Errorf("video generation: %w", err)

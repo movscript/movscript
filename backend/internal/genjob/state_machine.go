@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/model"
+	"gorm.io/gorm"
 )
 
 type JobExecutionState string
@@ -18,6 +19,7 @@ const (
 	StateValidatingProviderData JobExecutionState = "validating_provider_data"
 	StateSavingResult           JobExecutionState = "saving_result"
 	StatePersistingSuccess      JobExecutionState = "persisting_success"
+	StateRetryScheduled         JobExecutionState = "retry_scheduled"
 	StateSucceeded              JobExecutionState = "succeeded"
 	StateFailed                 JobExecutionState = "failed"
 )
@@ -115,8 +117,19 @@ func (sm *jobStateMachine) persist(state JobExecutionState) {
 	}
 	sm.job.ExecutionState = string(state)
 	sm.job.StateTrace = string(b)
+	now := time.Now()
+	sm.job.LastHeartbeatAt = &now
 	sm.w.db.Model(sm.job).Updates(map[string]any{
-		"execution_state": string(state),
-		"state_trace":     string(b),
+		"execution_state":   string(state),
+		"state_trace":       string(b),
+		"last_heartbeat_at": &now,
 	})
+}
+
+func MarkRetryScheduled(db *gorm.DB, job *model.GenJob, message string) {
+	sm := &jobStateMachine{w: &Worker{db: db}, job: job}
+	if job.StateTrace != "" {
+		_ = json.Unmarshal([]byte(job.StateTrace), &sm.trace)
+	}
+	sm.finish(StateRetryScheduled, message)
 }

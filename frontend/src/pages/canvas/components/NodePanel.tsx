@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Node, Edge } from '@xyflow/react'
 import { api } from '@/lib/api'
-import type { CanvasNodeData, CanvasParamType, NodeType, RawResource, PublicModel } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasParamType, NodeType, RawResource, PublicModel } from '@/types'
 import { Upload, Wand2, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,7 @@ interface Props {
   edges: Edge[]
   onUpdate: (nodeId: string, data: Partial<CanvasNodeData & { label: string }>) => void
   onRun: (nodeId: string) => void
+  allowRun?: boolean
 }
 
 // ── @mention prompt textarea ──────────────────────────────────────────────────
@@ -104,7 +105,7 @@ function PromptTextarea({
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, edges, onUpdate, onRun }: Props) {
+export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, edges, onUpdate, onRun, allowRun = true }: Props) {
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [source, setSource] = useState<'upload' | 'ai' | 'manual'>(data.source ?? 'upload')
@@ -135,7 +136,14 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   const { data: resources = [] } = useQuery<RawResource[]>({
     queryKey: ['resources'],
-    queryFn: () => api.get('/resources').then((r) => r.data)
+    queryFn: () => api.get('/resources', { params: { page: 1, page_size: 200 } }).then((r) => r.data.items ?? r.data)
+  })
+
+  const { data: workflowCanvases = [] } = useQuery<Canvas[]>({
+    queryKey: ['workflow-canvases'],
+    queryFn: () => api.get('/canvases', { params: { type: 'workflow' } }).then((r) => r.data),
+    enabled: nodeType === 'canvas',
+    select: (items) => items.filter((canvas) => canvas.canvas_type === 'workflow' && canvas.ID !== canvasId),
   })
 
   const upload = useMutation({
@@ -274,15 +282,53 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           onUpdate={(patch) => onUpdate(nodeId, patch)}
         />
         {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
-        <Button
-          onClick={() => onRun(nodeId)}
-          disabled={isRunning || !data.prompt}
-          className="w-full"
-          size="sm"
-        >
-          <Wand2 size={12} />
-          {isRunning ? '生成中…' : '生成文本'}
-        </Button>
+        {allowRun && (
+          <Button
+            onClick={() => onRun(nodeId)}
+            disabled={isRunning || !data.prompt}
+            className="w-full"
+            size="sm"
+          >
+            <Wand2 size={12} />
+            {isRunning ? '生成中…' : '生成文本'}
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  if (nodeType === 'canvas') {
+    return (
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+        <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">引用工作流</p>
+          <select
+            className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
+            value={data.referencedCanvasId ?? ''}
+            onChange={(e) => onUpdate({ referencedCanvasId: Number(e.target.value) || undefined, source: 'ai' })}
+          >
+            <option value="">选择可复用工作流…</option>
+            {workflowCanvases.map((canvas) => (
+              <option key={canvas.ID} value={canvas.ID}>{canvas.name}</option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+          只能引用工作流画布。运行时会读取该工作流最近一次成功运行的输出资源。
+        </p>
+        {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+        {allowRun && (
+          <Button
+            onClick={() => onRun(nodeId)}
+            disabled={isRunning || !data.referencedCanvasId}
+            className="w-full"
+            size="sm"
+          >
+            <Wand2 size={12} />
+            {isRunning ? '运行中…' : '读取引用输出'}
+          </Button>
+        )}
       </div>
     )
   }
@@ -374,15 +420,17 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             onUpdate={(patch) => onUpdate(nodeId, patch)}
           />
           {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
-          <Button
-            onClick={() => onRun(nodeId)}
-            disabled={isRunning || (!isToolNode && !data.prompt)}
-            className="w-full"
-            size="sm"
-          >
-            <Wand2 size={12} />
-            {isRunning ? '生成中…' : '运行节点'}
-          </Button>
+          {allowRun && (
+            <Button
+              onClick={() => onRun(nodeId)}
+              disabled={isRunning || (!isToolNode && !data.prompt)}
+              className="w-full"
+              size="sm"
+            >
+              <Wand2 size={12} />
+              {isRunning ? '生成中…' : '运行节点'}
+            </Button>
+          )}
         </>
       )}
     </div>

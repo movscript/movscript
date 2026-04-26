@@ -578,6 +578,7 @@ export interface CanvasNodeData {
   resource?: RawResource
   prompt?: string
   modelDbId?: number   // AIModelConfig primary key (preferred routing)
+  referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards
   status?: CanvasTaskStatus
   taskId?: number
