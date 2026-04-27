@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -322,6 +323,78 @@ func (h *GenJobHandler) Retry(c *gin.Context) {
 	c.JSON(http.StatusOK, job)
 }
 
+// Cancel requests cancellation for a video generation job.
+// Provider-side cancellation is currently supported for Volcengine async video tasks.
+func (h *GenJobHandler) Cancel(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	var job model.GenJob
+	if err := h.db.First(&job, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if job.UserID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	if !isVideoGenJob(job.JobType) {
+		c.JSON(http.StatusConflict, gin.H{"error": "only video generation jobs can be cancelled"})
+		return
+	}
+	switch job.Status {
+	case genjob.StatusCancelled:
+		c.JSON(http.StatusOK, job)
+		return
+	case genjob.StatusSucceeded, genjob.StatusFailed:
+		c.JSON(http.StatusConflict, gin.H{"error": "finished jobs cannot be cancelled"})
+		return
+	case genjob.StatusPending, genjob.StatusRunning:
+	default:
+		c.JSON(http.StatusConflict, gin.H{"error": "job cannot be cancelled from status " + job.Status})
+		return
+	}
+	if !h.aiService.SupportsVideoTaskCancellation(job.ModelConfigID) {
+		c.JSON(http.StatusConflict, gin.H{"error": "this provider does not support video task cancellation"})
+		return
+	}
+
+	providerStatus := ai.VideoStatusCancelled
+	message := "cancelled by user"
+	if job.ProviderTaskID != "" {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 90*time.Second)
+		defer cancel()
+		resp, err := h.aiService.CallVideoCancel(ctx, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind)
+		if err != nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "provider cancellation failed: " + err.Error()})
+			return
+		}
+		providerStatus = firstNonEmptyHandler(resp.Status, ai.VideoStatusCancelled)
+		message = firstNonEmptyHandler(resp.Message, message)
+	}
+
+	now := time.Now()
+	if err := h.db.Model(&job).Updates(map[string]any{
+		"status":               genjob.StatusCancelled,
+		"provider_task_status": providerStatus,
+		"error_msg":            message,
+		"next_run_at":          nil,
+		"finished_at":          &now,
+		"last_heartbeat_at":    &now,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.db.Preload("OutputResource").First(&job, job.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, job)
+}
+
 // Delete cancels a pending job or removes a finished job record.
 func (h *GenJobHandler) Delete(c *gin.Context) {
 	user := currentUser(c)
@@ -340,11 +413,39 @@ func (h *GenJobHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Only cancel pending jobs; running jobs are let to complete naturally.
+	// Only cancel pending jobs; running jobs should use the explicit cancel endpoint.
 	if job.Status == genjob.StatusPending {
-		h.db.Model(&job).Update("status", genjob.StatusFailed)
+		now := time.Now()
+		h.db.Model(&job).Updates(map[string]any{
+			"status":            genjob.StatusCancelled,
+			"error_msg":         "cancelled by user",
+			"finished_at":       &now,
+			"next_run_at":       nil,
+			"last_heartbeat_at": &now,
+		})
+	} else if job.Status == genjob.StatusRunning {
+		c.JSON(http.StatusConflict, gin.H{"error": "running jobs must be cancelled before deletion"})
+		return
 	} else {
 		h.db.Delete(&job)
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func isVideoGenJob(jobType string) bool {
+	switch jobType {
+	case ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+		return true
+	default:
+		return false
+	}
+}
+
+func firstNonEmptyHandler(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

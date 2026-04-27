@@ -14,7 +14,7 @@ type GenJob struct {
 	ModelConfigID       uint       `gorm:"not null" json:"model_config_id"`               // AIModelConfig.ID
 	JobType             string     `gorm:"not null" json:"job_type"`                      // image | image_edit | video | video_i2v | video_v2v
 	FeatureKey          string     `gorm:"index;default:''" json:"feature_key,omitempty"` // product feature/tool key, e.g. ref_image_gen
-	Status              string     `gorm:"not null;default:'pending'" json:"status"`      // pending|running|succeeded|failed
+	Status              string     `gorm:"not null;default:'pending'" json:"status"`      // pending|running|succeeded|failed|cancelled
 	AttemptCount        int        `gorm:"not null;default:0" json:"attempt_count"`
 	MaxAttempts         int        `gorm:"not null;default:3" json:"max_attempts"`
 	NextRunAt           *time.Time `json:"next_run_at,omitempty"`

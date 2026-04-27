@@ -101,6 +101,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.POST("/gen-jobs", genJobs.Create)
 		v1.GET("/gen-jobs", genJobs.List)
 		v1.GET("/gen-jobs/:id", genJobs.Get)
+		v1.POST("/gen-jobs/:id/cancel", genJobs.Cancel)
 		v1.POST("/gen-jobs/:id/retry", genJobs.Retry)
 		v1.DELETE("/gen-jobs/:id", genJobs.Delete)
 
@@ -233,10 +234,9 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		// admin routes — super_admin only
 		admin := v1.Group("/admin", middleware.RequireSystemRole("super_admin"))
 		{
-			// model suggestions (read-only UI hints, not used at runtime)
+			// adapters and model presets (read-only UI templates, not used at runtime)
 			admin.GET("/adapters", aiH.ListAdapters)
-			admin.GET("/model-suggestions", aiH.ListModelSuggestions)
-			admin.GET("/catalog/openai-compat-models", aiH.ListOpenAICompatModels)
+			admin.GET("/model-presets", aiH.ListModelPresets)
 
 			// credentials (one per adapter type)
 			admin.GET("/credentials", aiH.ListCredentials)
@@ -246,7 +246,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			admin.POST("/credentials/:id/test", aiH.TestCredential)
 			admin.GET("/credentials/:id/remote-models", aiH.ListRemoteModels)
 
-			// model configs (catalog activation per credential)
+			// model configs (admin-declared model activation per credential)
 			admin.GET("/credentials/:id/models", aiH.ListModelConfigs)
 			admin.POST("/credentials/:id/models", aiH.CreateModelConfig)
 			admin.PUT("/credentials/:id/models/:modelId", aiH.UpdateModelConfig)

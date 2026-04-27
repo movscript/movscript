@@ -107,6 +107,11 @@ func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio s
 		return nil
 	}
 	if len(def.SupportedParams) == 0 {
+		if def.SupportedParamsExplicit {
+			for key := range params {
+				return fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
+			}
+		}
 		return nil
 	}
 
@@ -209,11 +214,11 @@ func validateParamValue(p ParamDef, val any) error {
 			return fmt.Errorf("parameter %q must be a boolean", p.Key)
 		}
 	default:
-		if p.Key == "size" {
+		if p.Key == "size" || p.Key == "image_size" {
 			return validateSizeParam(p.Key, val)
 		}
 	}
-	if p.Key == "size" {
+	if p.Key == "size" || p.Key == "image_size" {
 		return validateSizeParam(p.Key, val)
 	}
 	return nil

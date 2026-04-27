@@ -193,7 +193,7 @@ function GenerationCard({
   onReuse: () => void
   debugMode: boolean
 }) {
-  const normalizedStatus = job.status === 'succeeded' ? 'done' : job.status as 'pending' | 'running' | 'failed'
+  const normalizedStatus = job.status === 'succeeded' ? 'done' : job.status as 'pending' | 'running' | 'failed' | 'cancelled'
   return (
     <GenResultCard
       prompt={job.prompt}

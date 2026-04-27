@@ -25,6 +25,7 @@ const (
 	StateRetryScheduled         JobExecutionState = "retry_scheduled"
 	StateSucceeded              JobExecutionState = "succeeded"
 	StateFailed                 JobExecutionState = "failed"
+	StateCancelled              JobExecutionState = "cancelled"
 )
 
 type StateTraceEntry struct {
@@ -99,6 +100,25 @@ func (sm *jobStateMachine) fail(err error) {
 		FinishedAt: &now,
 	})
 	sm.persist(StateFailed)
+}
+
+func (sm *jobStateMachine) cancel(message string) {
+	now := time.Now()
+	if len(sm.trace) > 0 {
+		idx := len(sm.trace) - 1
+		sm.trace[idx].Status = "failed"
+		sm.trace[idx].Message = firstNonEmpty(message, sm.trace[idx].Message)
+		sm.trace[idx].FinishedAt = &now
+		sm.trace[idx].DurationMs = now.Sub(sm.trace[idx].StartedAt).Milliseconds()
+	}
+	sm.trace = append(sm.trace, StateTraceEntry{
+		State:      StateCancelled,
+		Status:     "succeeded",
+		Message:    message,
+		StartedAt:  now,
+		FinishedAt: &now,
+	})
+	sm.persist(StateCancelled)
 }
 
 func (sm *jobStateMachine) finish(state JobExecutionState, message string) {

@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Registry builds Provider instances from AICredential + catalog ModelDef.
+// Registry builds Provider instances from AICredential + resolved ModelDef.
 type Registry struct {
 	db            *gorm.DB
 	encryptionKey []byte
@@ -26,8 +26,8 @@ func NewRegistry(db *gorm.DB, encryptionKey []byte) *Registry {
 }
 
 // BuildForConfig constructs a Provider for the given AIModelConfig.
-// It loads the AICredential and looks up the ModelDef in the catalog,
-// falling back to a synthesized ModelDef for custom/dynamic models.
+// It loads the AICredential and resolves the model from admin config plus
+// adapter defaults. Presets are never consulted here.
 func (r *Registry) BuildForConfig(cfg model.AIModelConfig) (Provider, *ModelDef, error) {
 	var cred model.AICredential
 	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {

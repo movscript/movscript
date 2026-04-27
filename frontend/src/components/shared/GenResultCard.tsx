@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, AlertCircle, Download, RotateCcw, CheckCircle2, Maximize2, X } from 'lucide-react'
-import * as Dialog from '@radix-ui/react-dialog'
+import { Loader2, AlertCircle, RotateCcw, CheckCircle2, X } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
+import { MediaViewer } from './MediaViewer'
 import { cn } from '@/lib/utils'
 import type { RawResource } from '@/types'
 import { useUserStore } from '@/store/userStore'
@@ -69,7 +68,7 @@ export function formatGenTime(iso: string): string {
 
 export interface GenResultCardProps {
   prompt?: string
-  status: 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  status: 'idle' | 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
   outputResource?: RawResource
   outputType: 'image' | 'video'
   error?: string
@@ -84,7 +83,6 @@ export function GenResultCard({
   prompt,
   status,
   outputResource,
-  outputType,
   error,
   timestamp,
   onReuse,
@@ -93,15 +91,13 @@ export function GenResultCard({
   className,
 }: GenResultCardProps) {
   const isRunning = status === 'pending' || status === 'running'
-  const outputUrl = outputResource
-    ? outputResource.direct_url ?? `${API_BASE}${outputResource.url}`
-    : undefined
 
   const statusLabel: Record<string, string> = {
     pending: '排队中',
     running: '生成中',
     done: '已完成',
     failed: '失败',
+    cancelled: '已取消',
     idle: '未开始',
   }
 
@@ -122,6 +118,7 @@ export function GenResultCard({
                 status === 'done' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
                 isRunning && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
                 status === 'failed' && 'bg-destructive/10 text-destructive',
+                status === 'cancelled' && 'bg-muted text-muted-foreground',
                 status === 'idle' && 'bg-muted text-muted-foreground',
               )}>
                 {statusLabel[status]}
@@ -172,11 +169,16 @@ export function GenResultCard({
           </div>
         )}
 
-        {!isRunning && status === 'done' && outputUrl && (
+        {!isRunning && status === 'cancelled' && (
+          <div className={cn('flex items-center justify-center gap-2 text-muted-foreground rounded-md bg-muted/40', compact ? 'min-h-20 px-3 py-4' : 'py-6')}>
+            <X size={compact ? 12 : 16} />
+            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? '任务已取消'}</p>
+          </div>
+        )}
+
+        {!isRunning && status === 'done' && outputResource && (
           <MediaCell
             outputResource={outputResource!}
-            outputType={outputType}
-            outputUrl={outputUrl}
             compact={compact}
           />
         )}
@@ -196,90 +198,20 @@ export function GenResultCard({
 
 function MediaCell({
   outputResource,
-  outputType,
-  outputUrl,
   compact,
 }: {
   outputResource: RawResource
-  outputType: 'image' | 'video'
-  outputUrl: string
   compact: boolean
 }) {
-  const [open, setOpen] = useState(false)
-
   return (
-    <>
-      {/* Thumbnail: 4:3 aspect ratio, content centered without cropping */}
-      <div
-        className={cn(
-          'relative w-full bg-muted cursor-pointer group overflow-hidden',
-          compact ? 'aspect-video rounded-md border border-border/60' : 'aspect-[4/3]',
-        )}
-        onClick={() => setOpen(true)}
-      >
-        {outputType === 'image' ? (
-          outputResource.direct_url
-            ? <img src={outputUrl} alt="生成结果" className="absolute inset-0 w-full h-full object-contain" />
-            : <AuthedImage src={outputUrl} alt="生成结果" className="absolute inset-0 w-full h-full object-contain" />
-        ) : outputResource.direct_url ? (
-          <video src={outputUrl} className="absolute inset-0 w-full h-full object-contain" muted playsInline preload="metadata" />
-        ) : (
-          <AuthedVideo src={outputUrl} className="absolute inset-0 w-full h-full object-contain" muted playsInline preload="metadata" />
-        )}
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-          <Maximize2 size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-        </div>
-      </div>
-
-      {/* Lightbox dialog */}
-      <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/80 z-50 backdrop-blur-sm" />
-          <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-4 shrink-0">
-                <span className="text-white/80 text-sm truncate max-w-[60vw]">{outputResource.name}</span>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={outputUrl}
-                    download={outputResource.name}
-                    className="text-white/70 hover:text-white transition-colors"
-                    title="下载"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Download size={16} />
-                  </a>
-                  <Dialog.Close className="text-white/70 hover:text-white transition-colors">
-                    <X size={18} />
-                  </Dialog.Close>
-                </div>
-              </div>
-
-              {outputType === 'video' ? (
-                <video
-                  src={outputUrl}
-                  controls
-                  autoPlay
-                  className="max-w-[90vw] max-h-[80vh] rounded-lg"
-                />
-              ) : outputResource.direct_url ? (
-                <img
-                  src={outputUrl}
-                  alt={outputResource.name}
-                  className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
-                />
-              ) : (
-                <AuthedImage
-                  src={outputUrl}
-                  alt={outputResource.name}
-                  className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
-                />
-              )}
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-    </>
+    <MediaViewer
+      resource={outputResource}
+      fit="contain"
+      className={cn(
+        'w-full bg-muted',
+        compact ? 'aspect-video rounded-md border border-border/60' : 'aspect-[4/3] rounded-none',
+      )}
+      lightbox
+    />
   )
 }

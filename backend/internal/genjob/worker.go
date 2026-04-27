@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -40,6 +41,8 @@ const (
 	heartbeatInterval   = 15 * time.Second
 	staleRunningTimeout = 12 * time.Minute
 )
+
+var errJobCancelled = errors.New("generation job cancelled")
 
 func NewWorker(db *gorm.DB, aiService *ai.AIService, store storage.Storage, encryptionKey []byte) *Worker {
 	return &Worker{
@@ -130,6 +133,9 @@ func (w *Worker) completeFailure(job *model.GenJob, err error) {
 	if err == nil {
 		return
 	}
+	if errors.Is(err, errJobCancelled) || w.isJobCancelled(job.ID) {
+		return
+	}
 	now := time.Now()
 	maxAttempts := effectiveMaxAttempts(job)
 	if job.AttemptCount < maxAttempts {
@@ -154,6 +160,29 @@ func (w *Worker) completeFailure(job *model.GenJob, err error) {
 		"last_heartbeat_at": &now,
 	})
 	log.Printf("[genjob] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
+}
+
+func (w *Worker) isJobCancelled(jobID uint) bool {
+	var status string
+	if err := w.db.Model(&model.GenJob{}).
+		Select("status").
+		Where("id = ?", jobID).
+		Scan(&status).Error; err != nil {
+		return false
+	}
+	return status == StatusCancelled
+}
+
+func (w *Worker) abortIfCancelled(ctx context.Context, job *model.GenJob, sm *jobStateMachine) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if !w.isJobCancelled(job.ID) {
+		return nil
+	}
+	job.Status = StatusCancelled
+	sm.cancel("job cancelled")
+	return errJobCancelled
 }
 
 func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
@@ -316,6 +345,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	// This populates InputResourceID (legacy) and merges mention IDs into InputResourceIDs.
 	// All mention markers are stripped from the prompt text sent to the model.
 	sm.enter(StateResolvingInputs, "resolve resource mentions in prompt")
+	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+		return err
+	}
 	job.Prompt, job.InputResourceID, job.InputResourceIDs = w.resolveMentions(job.Prompt, job.InputResourceID, job.InputResourceIDs)
 	sm.succeed("resource mentions resolved")
 
@@ -399,6 +431,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 
 	// Load all input resources as raw bytes from storage, classified by type.
 	sm.enter(StateLoadingInputs, "load input resources from storage")
+	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+		return err
+	}
 	imageData, videoData := w.loadInputResources(job)
 	sm.succeed(fmt.Sprintf("loaded %d image inputs and %d video inputs", len(imageData), len(videoData)))
 
@@ -438,6 +473,10 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 
 	switch outputType {
 	case ai.CapabilityImage:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
+		cloudFileID := w.prepareImageInputReferences(job, imageData)
 		req := ai.ImageRequest{
 			Prompt:              job.Prompt,
 			N:                   1,
@@ -454,10 +493,15 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			WebSearch:           getBool("web_search"),
 			OptimizePromptMode:  getString("optimize_prompt_mode"),
 			InputImageDataList:  imageData,
+			CloudFileID:         cloudFileID,
 		}
 		if len(imageData) > 0 {
-			req.InputImageBytes = imageData[0].Bytes
-			req.InputImageMime = imageData[0].MimeType
+			if cloudFileID == "" && imageData[0].PresignedURL != "" {
+				req.InputImage = imageData[0].PresignedURL
+			} else if cloudFileID == "" {
+				req.InputImageBytes = imageData[0].Bytes
+				req.InputImageMime = imageData[0].MimeType
+			}
 		}
 		sm.enter(StateCallingProvider, "call image provider")
 		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
@@ -475,9 +519,13 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		mimeType = "image/png"
 
 	case ai.CapabilityImageEdit:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
 		if len(imageData) == 0 {
 			return fmt.Errorf("image_edit job requires an image input but none was found (job #%d)", job.ID)
 		}
+		cloudFileID := w.prepareImageInputReferences(job, imageData)
 		req := ai.ImageRequest{
 			Prompt:              job.Prompt,
 			N:                   1,
@@ -494,18 +542,16 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			WebSearch:           getBool("web_search"),
 			OptimizePromptMode:  getString("optimize_prompt_mode"),
 			InputImageDataList:  imageData,
+			CloudFileID:         cloudFileID,
 		}
-
-		// Try cloud upload first (avoids large multipart body that causes EOF on some providers).
-		firstImage := imageData[0]
-		if cloudResult, configID := w.ensureCloudUpload(job, firstImage, false); cloudResult.FileID != "" {
-			req.CloudFileID = cloudResult.FileID
-			_ = configID
-		} else if cloudResult.URL != "" {
-			req.InputImage = cloudResult.URL
-		} else {
-			req.InputImageBytes = firstImage.Bytes
-			req.InputImageMime = firstImage.MimeType
+		if cloudFileID == "" {
+			firstImage := imageData[0]
+			if firstImage.PresignedURL != "" {
+				req.InputImage = firstImage.PresignedURL
+			} else {
+				req.InputImageBytes = firstImage.Bytes
+				req.InputImageMime = firstImage.MimeType
+			}
 		}
 
 		sm.enter(StateCallingProvider, "call image edit provider")
@@ -524,6 +570,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		mimeType = "image/png"
 
 	case ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
 		dur := job.Duration
 		if dur == 0 {
 			dur = getInt("duration")
@@ -552,7 +601,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		if len(videoData) > 0 {
 			req.InputVideoData = &videoData[0]
 		}
-		w.attachPublicInputURLs(job, req.InputImageDataList)
+		w.preparePublicMediaReferences(job, req.InputImageDataList)
 		if req.InputVideoData != nil {
 			if cloudResult, _ := w.ensureCloudUpload(job, *req.InputVideoData, true); cloudResult.URL != "" {
 				req.InputVideoData.PresignedURL = cloudResult.URL
@@ -562,11 +611,17 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		}
 		if job.ProviderTaskID != "" {
 			sm.enter(StatePollingProviderTask, fmt.Sprintf("poll provider task %s", job.ProviderTaskID))
+			if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+				return err
+			}
 			resp, err := callProviderWithTimeout(debugCtx, providerPollTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
 				return w.aiService.CallVideoPoll(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, dur)
 			})
 			w.saveDebugInfo(job, debugResult)
 			w.appendProviderTaskEvent(job, "poll", resp, err)
+			if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+				return err
+			}
 			if err != nil {
 				if resp.Status == ai.VideoStatusFailed {
 					w.markProviderTaskFailed(job, resp, err)
@@ -580,9 +635,16 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			sm.succeed(firstNonEmpty(resp.Status, "provider task polled"))
 			switch resp.Status {
 			case ai.VideoStatusSucceeded:
+				if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+					return err
+				}
 				if err := w.completeVideoSuccess(callCtx, job, resp, sm, debugResult); err != nil {
 					return err
 				}
+				return nil
+			case ai.VideoStatusCancelled:
+				w.markProviderTaskCancelled(job, resp, firstNonEmpty(resp.Message, "video generation cancelled"))
+				sm.cancel(firstNonEmpty(resp.Message, "provider task cancelled"))
 				return nil
 			case ai.VideoStatusFailed:
 				w.markProviderTaskFailed(job, resp, fmt.Errorf("%s", firstNonEmpty(resp.Message, "video generation failed")))
@@ -605,7 +667,20 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 				return fmt.Errorf("video task submission: %w", err)
 			}
 			sm.succeed("video provider accepted task")
+			if w.isJobCancelled(job.ID) {
+				job.ProviderTaskID = resp.TaskID
+				job.ProviderTaskKind = resp.TaskKind
+				if resp.TaskID != "" {
+					cancelResp, cancelErr := w.cancelProviderTask(callCtx, job, resp.TaskID, resp.TaskKind)
+					w.appendProviderTaskEvent(job, "cancel_after_submit", cancelResp, cancelErr)
+				}
+				sm.cancel("job cancelled after provider task submission")
+				return errJobCancelled
+			}
 			if resp.URL != "" || len(resp.ContentBytes) > 0 {
+				if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+					return err
+				}
 				if err := w.completeVideoSuccess(callCtx, job, resp, sm, debugResult); err != nil {
 					return err
 				}
@@ -619,6 +694,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		}
 
 		sm.enter(StateCallingProvider, "call video provider")
+		if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+			return err
+		}
 		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
 			return w.aiService.CallVideo(ctx, job.UserID, job.ModelConfigID, req)
 		})
@@ -637,6 +715,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	}
 
 	sm.enter(StateValidatingProviderData, "validate provider result URL")
+	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+		return err
+	}
 	resultURL = strings.TrimSpace(resultURL)
 	if err := validateProviderResultURL(resultURL); err != nil {
 		return err
@@ -644,6 +725,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	sm.succeed("provider returned downloadable result")
 
 	sm.enter(StateSavingResult, "download and store provider result")
+	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+		return err
+	}
 	resourceID, err := w.saveResult(callCtx, job, resultURL, mimeType)
 	if err != nil {
 		return fmt.Errorf("save result: %w", err)
@@ -651,6 +735,9 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
 
 	sm.enter(StatePersistingSuccess, "mark job succeeded")
+	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
+		return err
+	}
 	now := time.Now()
 	updates := map[string]any{
 		"status":             StatusSucceeded,
@@ -662,7 +749,11 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			updates["debug_info"] = string(b)
 		}
 	}
-	w.db.Model(job).Updates(updates)
+	result := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
+	if result.RowsAffected == 0 && w.isJobCancelled(job.ID) {
+		sm.cancel("job cancelled")
+		return errJobCancelled
+	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
@@ -734,7 +825,11 @@ func (w *Worker) scheduleSubmittedProviderTask(job *model.GenJob, resp ai.VideoR
 		"finished_at":          nil,
 		"error_msg":            "",
 	}
-	w.db.Model(job).Updates(updates)
+	result := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
+	if result.RowsAffected == 0 && w.isJobCancelled(job.ID) {
+		sm.cancel("job cancelled")
+		return
+	}
 	job.ProviderTaskID = resp.TaskID
 	job.ProviderTaskKind = resp.TaskKind
 	job.ProviderTaskStatus = status
@@ -750,7 +845,11 @@ func (w *Worker) scheduleProviderPoll(job *model.GenJob, message string, sm *job
 		"next_run_at": &nextRun,
 		"finished_at": nil,
 	}
-	w.db.Model(job).Updates(updates)
+	result := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
+	if result.RowsAffected == 0 && w.isJobCancelled(job.ID) {
+		sm.cancel("job cancelled")
+		return
+	}
 	sm.finish(StateWaitingProviderTask, fmt.Sprintf("%s; next poll at %s", firstNonEmpty(message, "provider task still running"), nextRun.Format(time.RFC3339)))
 	log.Printf("[genjob] job #%d provider task %s pending; next poll at %s", job.ID, job.ProviderTaskID, nextRun.Format(time.RFC3339))
 }
@@ -775,7 +874,40 @@ func (w *Worker) markProviderTaskFailed(job *model.GenJob, resp ai.VideoResponse
 	log.Printf("[genjob] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
 }
 
+func (w *Worker) markProviderTaskCancelled(job *model.GenJob, resp ai.VideoResponse, message string) {
+	now := time.Now()
+	msg := firstNonEmpty(message, resp.Message, "video generation cancelled")
+	w.db.Model(job).Updates(map[string]any{
+		"status":               StatusCancelled,
+		"provider_task_status": ai.VideoStatusCancelled,
+		"error_msg":            msg,
+		"finished_at":          &now,
+		"next_run_at":          nil,
+		"last_heartbeat_at":    &now,
+	})
+	log.Printf("[genjob] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
+}
+
+func (w *Worker) cancelProviderTask(ctx context.Context, job *model.GenJob, taskID, taskKind string) (ai.VideoResponse, error) {
+	if taskID == "" {
+		return ai.VideoResponse{}, nil
+	}
+	if !w.aiService.SupportsVideoTaskCancellation(job.ModelConfigID) {
+		return ai.VideoResponse{TaskID: taskID, TaskKind: taskKind}, fmt.Errorf("provider does not support video task cancellation")
+	}
+	cancelCtx, cancel := context.WithTimeout(ctx, providerPollTimeout)
+	defer cancel()
+	resp, err := w.aiService.CallVideoCancel(cancelCtx, job.ModelConfigID, taskID, taskKind)
+	if err != nil {
+		return resp, err
+	}
+	return resp, nil
+}
+
 func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, resp ai.VideoResponse, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
 	var resourceID uint
 	var err error
 	if len(resp.ContentBytes) > 0 {
@@ -800,6 +932,9 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, re
 	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
 
 	sm.enter(StatePersistingSuccess, "mark job succeeded")
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
 	now := time.Now()
 	updates := map[string]any{
 		"status":               StatusSucceeded,
@@ -819,21 +954,67 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, re
 			updates["debug_info"] = string(b)
 		}
 	}
-	w.db.Model(job).Updates(updates)
+	result := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
+	if result.RowsAffected == 0 && w.isJobCancelled(job.ID) {
+		sm.cancel("job cancelled")
+		return errJobCancelled
+	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }
 
-func (w *Worker) attachPublicInputURLs(job *model.GenJob, mediaList []ai.MediaData) {
+func (w *Worker) prepareImageInputReferences(job *model.GenJob, mediaList []ai.MediaData) string {
+	if len(mediaList) == 0 {
+		return ""
+	}
+
+	switch w.modelAdapterType(job.ModelConfigID) {
+	case ai.AdapterVolcen, ai.AdapterKling:
+		// These generation APIs accept provider-readable URLs for reference media.
+		// Volcen Files API file_id is supported by Responses multimodal input, but
+		// not by the Seedream / Seedance generation endpoints used here.
+		w.preparePublicMediaReferences(job, mediaList)
+		return ""
+	default:
+		// OpenAI-compatible image edit paths can consume a provider Files API ID.
+		if cloudResult, _ := w.ensureCloudUpload(job, mediaList[0], false); cloudResult.FileID != "" {
+			mediaList[0].CloudFileID = cloudResult.FileID
+			return cloudResult.FileID
+		} else if cloudResult.URL != "" {
+			mediaList[0].PresignedURL = cloudResult.URL
+		}
+		w.preparePublicMediaReferences(job, mediaList)
+		return ""
+	}
+}
+
+func (w *Worker) preparePublicMediaReferences(job *model.GenJob, mediaList []ai.MediaData) {
 	for i := range mediaList {
+		if mediaList[i].PresignedURL != "" {
+			continue
+		}
 		if cloudResult, _ := w.ensureCloudUpload(job, mediaList[i], true); cloudResult.URL != "" {
 			mediaList[i].PresignedURL = cloudResult.URL
 			continue
 		}
 		mediaList[i].PresignedURL = ""
 	}
+}
+
+func (w *Worker) modelAdapterType(modelConfigID uint) string {
+	var row struct {
+		AdapterType string
+	}
+	if err := w.db.Model(&model.AIModelConfig{}).
+		Select("ai_credentials.adapter_type AS adapter_type").
+		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
+		Where("ai_model_configs.id = ?", modelConfigID).
+		Scan(&row).Error; err != nil {
+		return ""
+	}
+	return row.AdapterType
 }
 
 // ensureCloudUpload checks the resource's CloudUploads cache; if no valid entry exists,
@@ -870,13 +1051,18 @@ func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData, requir
 	}
 
 	// Check if any cached entry is still valid (not older than 24h for file IDs, 7 days for URLs).
-	for _, entry := range cache {
-		age := time.Since(entry.UploadedAt)
-		if !requirePublicURL && entry.FileID != "" && age < 24*time.Hour {
-			return cloudup.UploadResult{FileID: entry.FileID}, 0
+	// When a provider file ID is allowed, prefer it over cached public URLs to avoid sending media again.
+	if !requirePublicURL {
+		for _, entry := range cache {
+			if entry.FileID != "" && time.Since(entry.UploadedAt) < 24*time.Hour {
+				return cloudup.UploadResult{FileID: entry.FileID}, 0
+			}
 		}
-		if entry.URL != "" && age < 7*24*time.Hour {
-			return cloudup.UploadResult{URL: entry.URL}, 0
+	} else {
+		for _, entry := range cache {
+			if entry.URL != "" && time.Since(entry.UploadedAt) < 7*24*time.Hour {
+				return cloudup.UploadResult{URL: entry.URL}, 0
+			}
 		}
 	}
 

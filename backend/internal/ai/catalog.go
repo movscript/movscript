@@ -35,11 +35,18 @@ type ParamDef struct {
 	Step    float64     `json:"step,omitempty"`
 }
 
-// ModelDef describes an AI model's intrinsic properties.
-// At runtime all values come from AIModelConfig.Custom* fields (admin-declared).
-// ModelSuggestions provides pre-filled defaults the admin UI can load as a starting point.
+// AdapterParamSet describes the default generation controls exposed by an adapter
+// for a capability. Model configs inherit these controls unless admins override
+// CustomSupportedParams to restrict or remove parameters for a specific model.
+type AdapterParamSet struct {
+	Capability string     `json:"capability"`
+	Params     []ParamDef `json:"params"`
+}
+
+// ModelDef describes an enabled model after resolving its admin-declared config
+// with adapter defaults. It is used at runtime and is not a catalog entry.
 type ModelDef struct {
-	ID           string // unique catalog ID, e.g. "openai:gpt-4o"
+	ID           string // logical model ID, usually the configured provider model ID
 	ModelID      string // API model ID sent in requests
 	DisplayName  string
 	Capabilities []string // use Capability* constants: "text", "image", "video", "video_i2v", "video_v2v", "image_edit", "reasoning"
@@ -69,6 +76,11 @@ type ModelDef struct {
 	// SupportedParams lists user-configurable generation parameters exposed in the UI.
 	SupportedParams []ParamDef
 
+	// SupportedParamsExplicit is true when SupportedParams came from the model
+	// config override rather than adapter defaults. It lets an explicit empty
+	// list mean "this model accepts no generation params".
+	SupportedParamsExplicit bool `json:"-"`
+
 	// Reference USD pricing — informational; admins set actual credit prices separately.
 	RefInputUSDPer1M  float64 // per_token: per 1M input tokens
 	RefOutputUSDPer1M float64 // per_token: per 1M output tokens
@@ -78,6 +90,25 @@ type ModelDef struct {
 	// Video generation params.
 	DefaultDurSec int
 	MaxDurSec     int
+}
+
+// ModelPreset is a read-only admin UI template for quickly filling the add-model form.
+// Runtime routing and generation parameter controls never consult this list.
+type ModelPreset struct {
+	ID                string      `json:"id"`
+	ModelID           string      `json:"model_id"`
+	DisplayName       string      `json:"display_name"`
+	Capabilities      []string    `json:"capabilities"`
+	BillingMode       BillingMode `json:"billing_mode"`
+	AdapterType       string      `json:"adapter_type"`
+	AcceptsImageInput bool        `json:"accepts_image_input"`
+	MaxInputImages    int         `json:"max_input_images"`
+	MaxInputVideos    int         `json:"max_input_videos"`
+	ImageEditField    string      `json:"image_edit_field,omitempty"`
+	RefInputUSDPer1M  float64     `json:"ref_input_usd_per_1m,omitempty"`
+	RefOutputUSDPer1M float64     `json:"ref_output_usd_per_1m,omitempty"`
+	RefUSDPerImage    float64     `json:"ref_usd_per_image,omitempty"`
+	RefUSDPerSecond   float64     `json:"ref_usd_per_second,omitempty"`
 }
 
 // CredField describes one credential input field for an adapter.
@@ -91,12 +122,97 @@ type CredField struct {
 // AdapterDef describes how to authenticate with a specific adapter.
 // One AdapterDef = one set of credentials + one adapter implementation.
 type AdapterDef struct {
-	AdapterType      string      `json:"adapter_type"`
-	DisplayName      string      `json:"display_name"`
-	Description      string      `json:"description"`
-	DefaultBaseURL   string      `json:"default_base_url"`
-	CredFields       []CredField `json:"cred_fields"`
-	SupportsFilesAPI bool        `json:"supports_files_api"` // provider has a Files API for pre-uploading media
+	AdapterType      string            `json:"adapter_type"`
+	DisplayName      string            `json:"display_name"`
+	Description      string            `json:"description"`
+	DefaultBaseURL   string            `json:"default_base_url"`
+	CredFields       []CredField       `json:"cred_fields"`
+	SupportsFilesAPI bool              `json:"supports_files_api"` // provider has a Files API for pre-uploading media
+	ParamSets        []AdapterParamSet `json:"param_sets,omitempty"`
+}
+
+func commonImageParams() []ParamDef {
+	return []ParamDef{
+		{Key: "image_size", Label: "画面尺寸", Type: "select",
+			Options: []string{"1024x1024", "1536x1024", "1024x1536", "1280x720", "720x1280"}, Default: "1024x1024"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"1:1", "16:9", "9:16", "4:3", "3:4"}, Default: "1:1"},
+		{Key: "quality", Label: "质量", Type: "select",
+			Options: []string{"auto", "standard", "hd", "high", "medium", "low"}, Default: "auto"},
+		{Key: "style", Label: "风格", Type: "select",
+			Options: []string{"vivid", "natural"}, Default: "vivid"},
+	}
+}
+
+func openAICompatVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5", "6", "8", "10", "12", "16", "20"}, Default: "6"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+		{Key: "image_size", Label: "画面尺寸", Type: "select",
+			Options: []string{"1280x720", "720x1280", "1024x1024"}, Default: "1280x720"},
+		{Key: "resolution", Label: "清晰度", Type: "select",
+			Options: []string{"480p", "720p", "1080p"}, Default: "720p"},
+		{Key: "preset", Label: "预设", Type: "select",
+			Options: []string{"normal", "fun", "spicy", "custom"}, Default: "normal"},
+		{Key: "quality", Label: "质量", Type: "select",
+			Options: []string{"standard", "pro"}, Default: "standard"},
+	}
+}
+
+func klingVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5", "10"}, Default: "5"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+	}
+}
+
+func geminiImageParams() []ParamDef {
+	return []ParamDef{
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"1:1", "3:4", "4:3", "9:16", "16:9"}, Default: "1:1"},
+	}
+}
+
+func geminiVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"6", "8"}, Default: "6"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16"}, Default: "16:9"},
+	}
+}
+
+func volcenImageParams() []ParamDef {
+	params := volcenSeedream5LiteParams()
+	params = append(params, ParamDef{Key: "prompt_strength", Label: "提示词强度", Type: "number", Default: 2.5, Min: 1, Max: 10, Step: 0.1})
+	params = append(params, ParamDef{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1})
+	return params
+}
+
+func volcenVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"-1", "2", "4", "5", "10", "12", "15"}, Default: "5"},
+		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"}, Default: "16:9"},
+		{Key: "resolution", Label: "清晰度", Type: "select",
+			Options: []string{"480p", "720p", "1080p"}, Default: "720p"},
+		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
+		{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false},
+		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
+		{Key: "audio", Label: "生成音频", Type: "boolean", Default: true},
+		{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false},
+		{Key: "service_tier", Label: "服务等级", Type: "select",
+			Options: []string{"default", "flex"}, Default: "default"},
+		{Key: "execution_expires_after", Label: "过期时间(秒)", Type: "number", Min: 1, Step: 1},
+		{Key: "draft", Label: "样片模式", Type: "boolean", Default: false},
+		{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false},
+	}
 }
 
 // AdapterDefs lists all supported adapter definitions.
@@ -110,6 +226,13 @@ var AdapterDefs = []AdapterDef{
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选，用于代理或第三方兼容接口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityImage, Params: commonImageParams()},
+			{Capability: CapabilityImageEdit, Params: commonImageParams()},
+			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: openAICompatVideoParams()},
+			{Capability: CapabilityVideoV2V, Params: openAICompatVideoParams()},
 		},
 	},
 	{
@@ -130,6 +253,10 @@ var AdapterDefs = []AdapterDef{
 			{Key: "access_key", Label: "Access Key", Required: true},
 			{Key: "secret_key", Label: "Secret Key", Required: true},
 		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: klingVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: klingVideoParams()},
+		},
 	},
 	{
 		AdapterType:      AdapterVolcen,
@@ -141,6 +268,13 @@ var AdapterDefs = []AdapterDef{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选）", Required: false},
 		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityImage, Params: volcenImageParams()},
+			{Capability: CapabilityImageEdit, Params: volcenImageParams()},
+			{Capability: CapabilityVideo, Params: volcenVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: volcenVideoParams()},
+			{Capability: CapabilityVideoV2V, Params: volcenVideoParams()},
+		},
 	},
 	{
 		AdapterType:    AdapterGemini,
@@ -150,6 +284,12 @@ var AdapterDefs = []AdapterDef{
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityImage, Params: geminiImageParams()},
+			{Capability: CapabilityImageEdit, Params: geminiImageParams()},
+			{Capability: CapabilityVideo, Params: geminiVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: geminiVideoParams()},
 		},
 	},
 }
@@ -217,10 +357,33 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 	return params
 }
 
-// ModelSuggestions is a read-only list of well-known models used only as UI hints.
-// The admin can pick a suggestion to pre-fill the "add model" form; all values
-// are editable and the list is never consulted at runtime.
-var ModelSuggestions = []ModelDef{
+// ModelPresets returns read-only well-known models used only as UI templates.
+// The admin can pick a preset to pre-fill the add-model form; all values are
+// editable and the list is never consulted at runtime.
+func ModelPresets() []ModelPreset {
+	result := make([]ModelPreset, 0, len(modelPresetSources))
+	for _, def := range modelPresetSources {
+		result = append(result, ModelPreset{
+			ID:                def.ID,
+			ModelID:           def.ModelID,
+			DisplayName:       def.DisplayName,
+			Capabilities:      def.Capabilities,
+			BillingMode:       def.BillingMode,
+			AdapterType:       def.AdapterType,
+			AcceptsImageInput: def.AcceptsImageInput,
+			MaxInputImages:    def.MaxInputImages,
+			MaxInputVideos:    def.MaxInputVideos,
+			ImageEditField:    def.ImageEditField,
+			RefInputUSDPer1M:  def.RefInputUSDPer1M,
+			RefOutputUSDPer1M: def.RefOutputUSDPer1M,
+			RefUSDPerImage:    def.RefUSDPerImage,
+			RefUSDPerSecond:   def.RefUSDPerSecond,
+		})
+	}
+	return result
+}
+
+var modelPresetSources = []ModelDef{
 
 	// ─── OpenAI ────────────────────────────────────────────────────────────────
 
@@ -759,8 +922,45 @@ func GetAdapterDef(adapterType string) *AdapterDef {
 	return nil
 }
 
+// DefaultParamsForAdapter returns the adapter-level default parameters for the
+// requested capabilities. The result is de-duplicated by abstract parameter key.
+func DefaultParamsForAdapter(adapterType string, capabilities []string) []ParamDef {
+	def := GetAdapterDef(adapterType)
+	if def == nil || len(capabilities) == 0 {
+		return nil
+	}
+	capSet := make(map[string]bool, len(capabilities))
+	for _, cap := range capabilities {
+		capSet[cap] = true
+	}
+	var out []ParamDef
+	seen := map[string]bool{}
+	for _, set := range def.ParamSets {
+		if !capSet[set.Capability] {
+			continue
+		}
+		for _, p := range NormalizeParamDefsForUI(set.Params) {
+			if p.Key == "" || seen[p.Key] {
+				continue
+			}
+			seen[p.Key] = true
+			out = append(out, cloneParamDef(p))
+		}
+	}
+	return out
+}
+
+func cloneParamDef(p ParamDef) ParamDef {
+	if len(p.Options) > 0 {
+		p.Options = append([]string{}, p.Options...)
+	}
+	return p
+}
+
 // ResolveModelDef builds a ModelDef entirely from the Custom* fields stored in AIModelConfig.
-// There is no catalog lookup — all values must be provided by the admin at model-config creation time.
+// Adapter definitions provide default parameter controls; model configs may
+// override those controls by storing CustomSupportedParams, including "[]" to
+// explicitly expose no parameters for a model.
 func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, customBilling string,
 	customAcceptsImage bool, customMaxInputImages, customMaxInputVideos int,
 	customImageEditField, customSupportedParams string) *ModelDef {
@@ -817,10 +1017,13 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 		def.ImageEditField = customImageEditField
 	}
 	if customSupportedParams != "" {
+		def.SupportedParamsExplicit = true
 		var params []ParamDef
 		if err := json.Unmarshal([]byte(customSupportedParams), &params); err == nil {
 			def.SupportedParams = NormalizeParamDefsForUI(params)
 		}
+	} else {
+		def.SupportedParams = DefaultParamsForAdapter(adapterType, def.Capabilities)
 	}
 	return def
 }

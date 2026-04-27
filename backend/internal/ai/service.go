@@ -41,7 +41,7 @@ type modelConfigWithProvider struct {
 	AdapterType  string
 }
 
-// GetModelsByCapability returns enabled model configs whose catalog def includes capability.
+// GetModelsByCapability returns enabled model configs whose resolved definition includes capability.
 func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, error) {
 	var rows []modelConfigWithProvider
 	s.db.Model(&model.AIModelConfig{}).
@@ -93,7 +93,7 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 		return []PublicModel{}, nil
 	}
 
-	// Determine which capabilities to query from the FeatureDef catalog.
+	// Determine which capabilities to query from the feature definition.
 	caps := []string{cfg.Capability}
 	if def := GetFeatureDef(featureKey); def != nil {
 		caps = def.Caps()
@@ -400,6 +400,17 @@ func (s *AIService) SupportsVideoTasks(modelConfigID uint) bool {
 	return ok
 }
 
+// SupportsVideoTaskCancellation reports whether this model config can cancel
+// provider-side async video tasks.
+func (s *AIService) SupportsVideoTaskCancellation(modelConfigID uint) bool {
+	_, provider, _, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return false
+	}
+	_, ok := provider.(VideoTaskCancelProvider)
+	return ok
+}
+
 // CallVideoStart submits an async provider video task exactly once.
 func (s *AIService) CallVideoStart(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
@@ -445,6 +456,24 @@ func (s *AIService) CallVideoPoll(ctx context.Context, userID, modelConfigID uin
 		s.logVideoUsage(userID, modelConfigID, cfg, def, requestedDuration, resp.DurationSec)
 	}
 	return resp, nil
+}
+
+// CallVideoCancel requests provider-side cancellation for an async video task.
+func (s *AIService) CallVideoCancel(ctx context.Context, modelConfigID uint, taskID, taskKind string) (VideoResponse, error) {
+	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	cancelProvider, ok := provider.(VideoTaskCancelProvider)
+	if !ok {
+		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task cancellation", modelConfigID)
+	}
+	req := VideoCancelRequest{
+		Model:    resolveModelID(cfg, def),
+		TaskID:   taskID,
+		TaskKind: taskKind,
+	}
+	return cancelProvider.VideoCancel(ctx, req)
 }
 
 // GetFileUploader returns the provider-side Files API uploader configured for a model.

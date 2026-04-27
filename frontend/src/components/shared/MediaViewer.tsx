@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, Maximize2, Download } from 'lucide-react'
 import { AuthedImage } from './AuthedImage'
 import { api } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import type { RawResource } from '@/types'
 import { useUserStore } from '@/store/userStore'
 
@@ -11,6 +12,7 @@ const API_BASE = 'http://localhost:8765'
 interface MediaViewerProps {
   resource: RawResource
   className?: string
+  fit?: 'cover' | 'contain'
   /** If true, clicking opens a fullscreen lightbox. Default: true */
   lightbox?: boolean
   /** Controlled open state — when provided, the component acts as a pure lightbox (no thumbnail) */
@@ -37,7 +39,7 @@ async function downloadResource(proxyUrl: string, name: string) {
 
 /** Renders a thumbnail/preview of a resource; image or video.
  *  Pass `open` + `onOpenChange` to use as a controlled lightbox without a thumbnail. */
-export function MediaViewer({ resource, className = '', lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
+export function MediaViewer({ resource, className = '', fit = 'cover', lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const userId = useUserStore(s => s.currentUser?.ID)
   const proxyUrl = resolveUrl(resource, userId)
@@ -48,14 +50,14 @@ export function MediaViewer({ resource, className = '', lightbox = true, open: c
 
   const thumb = (
     <div
-      className={`relative group overflow-hidden rounded-lg bg-muted ${className}`}
+      className={cn('relative group overflow-hidden rounded-lg bg-muted', className)}
       onClick={() => lightbox && setOpen(true)}
       style={{ cursor: lightbox ? 'pointer' : 'default' }}
     >
       {resource.type === 'video' ? (
-        <VideoThumb proxyUrl={proxyUrl} />
+        <VideoThumb proxyUrl={proxyUrl} fit={fit} />
       ) : (
-        <ImageThumb proxyUrl={proxyUrl} alt={resource.name} />
+        <ImageThumb proxyUrl={proxyUrl} alt={resource.name} fit={fit} />
       )}
       {lightbox && (
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -120,14 +122,14 @@ export function MediaViewer({ resource, className = '', lightbox = true, open: c
   )
 }
 
-function ImageThumb({ proxyUrl, alt }: { proxyUrl: string; alt: string }) {
-  return <AuthedImage src={proxyUrl} alt={alt} className="w-full h-full object-cover" />
+function ImageThumb({ proxyUrl, alt, fit }: { proxyUrl: string; alt: string; fit: 'cover' | 'contain' }) {
+  return <AuthedImage src={proxyUrl} alt={alt} className={fit === 'contain' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'} />
 }
 
-function VideoThumb({ proxyUrl }: { proxyUrl: string }) {
+function VideoThumb({ proxyUrl, fit }: { proxyUrl: string; fit: 'cover' | 'contain' }) {
   return (
     <div className="w-full h-full flex items-center justify-center bg-muted/50">
-      <video src={proxyUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+      <video src={proxyUrl} className={fit === 'contain' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'} muted playsInline preload="metadata" />
     </div>
   )
 }

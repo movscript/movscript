@@ -6,6 +6,7 @@ const (
 	StatusRunning   = "running"
 	StatusSucceeded = "succeeded"
 	StatusFailed    = "failed"
+	StatusCancelled = "cancelled"
 )
 
 const (

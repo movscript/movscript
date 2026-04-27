@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { GenJob, RawResource } from '@/types'
 import {
   Loader2, AlertCircle, CheckCircle2, Clock,
-  Image as ImageIcon, Video, Download, Wand2,
+  Image as ImageIcon, Video, Wand2,
   LayoutGrid, List, ChevronDown, ChevronRight,
-  ChevronLeft,
+  ChevronLeft, XCircle,
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
-import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { PromptText } from '@/components/shared/GenResultCard'
 import { cn } from '@/lib/utils'
 
-const API_BASE = 'http://localhost:8765'
 const PAGE_SIZE = 24
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -88,15 +86,21 @@ function StatusBadge({ status }: { status: GenJob['status'] }) {
           <AlertCircle size={10} /> 失败
         </span>
       )
+    case 'cancelled':
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+          <XCircle size={10} /> 已取消
+        </span>
+      )
   }
 }
 
 // ── List view card ────────────────────────────────────────────────────────────
 
-function JobListCard({ job }: { job: GenJob }) {
+function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id: number) => void; cancelling: boolean }) {
   const isActive = job.status === 'pending' || job.status === 'running'
   const out = job.output_resource as RawResource | undefined
-  const downloadUrl = out ? out.direct_url ?? `${API_BASE}${out.url}` : undefined
+  const canCancel = isActive && job.job_type.startsWith('video')
 
   return (
     <div className="bg-background rounded-xl border border-border shadow-sm overflow-hidden">
@@ -113,6 +117,17 @@ function JobListCard({ job }: { job: GenJob }) {
         </p>
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={job.status} />
+          {canCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(job.ID)}
+              disabled={cancelling}
+              className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive hover:bg-destructive/15 disabled:opacity-50"
+              title="取消任务"
+            >
+              <XCircle size={10} /> 取消
+            </button>
+          )}
           <span className="text-xs text-muted-foreground/50">{formatTime(job.CreatedAt)}</span>
         </div>
       </div>
@@ -134,26 +149,16 @@ function JobListCard({ job }: { job: GenJob }) {
           </div>
         )}
 
+        {!isActive && job.status === 'cancelled' && (
+          <div className="flex items-center gap-2 text-muted-foreground px-4 py-4">
+            <XCircle size={14} />
+            <p className="text-sm">{job.error_msg || '任务已取消'}</p>
+          </div>
+        )}
+
         {!isActive && job.status === 'succeeded' && out && (
-          <div className="relative w-full h-48 bg-muted flex items-center justify-center overflow-hidden">
-            {out.type === 'video' ? (
-              out.direct_url
-                ? <video src={downloadUrl} className="max-w-full max-h-full object-contain" muted playsInline preload="metadata" />
-                : <AuthedVideo src={`${API_BASE}${out.url}`} className="max-w-full max-h-full object-contain" muted playsInline preload="metadata" />
-            ) : out.direct_url ? (
-              <img src={downloadUrl} alt={out.name} className="max-w-full max-h-full object-contain" />
-            ) : (
-              <AuthedImage src={`${API_BASE}${out.url}`} alt={out.name} className="max-w-full max-h-full object-contain" />
-            )}
-            {downloadUrl && (
-              <a
-                href={downloadUrl}
-                download={out.name}
-                className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-foreground/80 text-background px-3 py-1.5 rounded-full text-xs hover:bg-foreground backdrop-blur-sm transition-colors"
-              >
-                <Download size={11} /> 下载
-              </a>
-            )}
+          <div className="relative w-full h-48 bg-muted overflow-hidden">
+            <MediaViewer resource={out} fit="contain" className="w-full h-full rounded-none" lightbox />
           </div>
         )}
       </div>
@@ -163,9 +168,10 @@ function JobListCard({ job }: { job: GenJob }) {
 
 // ── Grid view thumbnail ───────────────────────────────────────────────────────
 
-function JobGridThumb({ job }: { job: GenJob }) {
+function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id: number) => void; cancelling: boolean }) {
   const isActive = job.status === 'pending' || job.status === 'running'
   const out = job.output_resource as RawResource | undefined
+  const canCancel = isActive && job.job_type.startsWith('video')
 
   return (
     <div className="bg-background rounded-lg border border-border overflow-hidden">
@@ -177,10 +183,27 @@ function JobGridThumb({ job }: { job: GenJob }) {
             <p className="text-[10px]">{job.status === 'pending' ? '排队中' : '生成中'}</p>
           </div>
         )}
+        {canCancel && (
+          <button
+            type="button"
+            onClick={() => onCancel(job.ID)}
+            disabled={cancelling}
+            className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-destructive shadow-sm hover:bg-background disabled:opacity-50"
+            title="取消任务"
+          >
+            <XCircle size={11} /> 取消
+          </button>
+        )}
         {!isActive && job.status === 'failed' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
             <AlertCircle size={16} />
             <p className="text-[10px]">失败</p>
+          </div>
+        )}
+        {!isActive && job.status === 'cancelled' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
+            <XCircle size={16} />
+            <p className="text-[10px]">已取消</p>
           </div>
         )}
         {!isActive && job.status === 'succeeded' && out && (
@@ -205,10 +228,14 @@ function CategorySection({
   label,
   jobs,
   viewMode,
+  onCancel,
+  cancellingId,
 }: {
   label: string
   jobs: GenJob[]
   viewMode: 'grid' | 'list'
+  onCancel: (id: number) => void
+  cancellingId?: number
 }) {
   const [open, setOpen] = useState(true)
 
@@ -226,11 +253,11 @@ function CategorySection({
       {open && (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} />)}
+            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} onCancel={onCancel} cancelling={cancellingId === job.ID} />)}
           </div>
         ) : (
           <div className="space-y-3">
-            {jobs.map((job) => <JobListCard key={job.ID} job={job} />)}
+            {jobs.map((job) => <JobListCard key={job.ID} job={job} onCancel={onCancel} cancelling={cancellingId === job.ID} />)}
           </div>
         )
       )}
@@ -241,6 +268,7 @@ function CategorySection({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function GenJobsPage() {
+  const qc = useQueryClient()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [activeCategory, setActiveCategory] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -269,6 +297,16 @@ export default function GenJobsPage() {
     refetchInterval: (query) => {
       const data = query.state.data as GenJobsQueryResult | undefined
       return data && hasActiveJobs(data.jobs) ? 3000 : 30000
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/gen-jobs/${id}/cancel`).then((r) => r.data as GenJob),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gen-jobs'] })
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error ?? err?.message ?? '取消失败')
     },
   })
 
@@ -396,16 +434,18 @@ export default function GenJobsPage() {
                 label={g.label}
                 jobs={g.jobs}
                 viewMode={viewMode}
+                onCancel={(id) => cancelMutation.mutate(id)}
+                cancellingId={cancelMutation.variables}
               />
             ))}
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} />)}
+            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} onCancel={(id) => cancelMutation.mutate(id)} cancelling={cancelMutation.variables === job.ID} />)}
           </div>
         ) : (
           <div className="space-y-4">
-            {jobs.map((job) => <JobListCard key={job.ID} job={job} />)}
+            {jobs.map((job) => <JobListCard key={job.ID} job={job} onCancel={(id) => cancelMutation.mutate(id)} cancelling={cancelMutation.variables === job.ID} />)}
           </div>
         )}
       </div>

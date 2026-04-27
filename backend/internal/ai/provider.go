@@ -103,6 +103,7 @@ type MediaData struct {
 	Bytes        []byte
 	MimeType     string // e.g. "image/png", "video/mp4"
 	PresignedURL string // provider-readable URL valid for the duration of the call; may be empty
+	CloudFileID  string // provider Files API ID when the target API accepts file_id
 	ResourceID   uint   // RawResource ID, used for provider/cloud upload caching
 }
 
@@ -123,9 +124,16 @@ const (
 	VideoStatusProcessing = "processing"
 	VideoStatusSucceeded  = "succeeded"
 	VideoStatusFailed     = "failed"
+	VideoStatusCancelled  = "cancelled"
 )
 
 type VideoPollRequest struct {
+	Model    string
+	TaskID   string
+	TaskKind string
+}
+
+type VideoCancelRequest struct {
 	Model    string
 	TaskID   string
 	TaskKind string
@@ -159,6 +167,12 @@ type Provider interface {
 type VideoTaskProvider interface {
 	VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error)
 	VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error)
+}
+
+// VideoTaskCancelProvider exposes provider-side cancellation for async video tasks.
+// Implementations may support only a subset of provider task states.
+type VideoTaskCancelProvider interface {
+	VideoCancel(ctx context.Context, req VideoCancelRequest) (VideoResponse, error)
 }
 
 // DebugCallResult captures the raw HTTP exchange plus job-level context for debugging.

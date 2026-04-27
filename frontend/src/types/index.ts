@@ -316,28 +316,32 @@ export interface AdapterDef {
   default_base_url: string
   cred_fields: CredField[]
   supports_files_api: boolean  // true = provider has a Files API for pre-uploading media
+  param_sets?: AdapterParamSet[]
 }
 
-// ModelDef is a model suggestion entry — used only as a UI hint when adding models.
-// All values are editable; this list is never consulted at runtime.
-export interface ModelDef {
-  ID: string               // suggestion ID, e.g. "openai:gpt-4o"
-  ModelID: string          // default API model ID
-  DisplayName: string
-  Capabilities: string[]
-  BillingMode: 'per_token' | 'per_image' | 'per_second' | 'per_call'
-  AdapterType: string
-  AllowModelIDOverride: boolean
-  AcceptsImageInput: boolean
-  MaxInputImages: number
-  MaxInputVideos: number
-  RefInputUSDPer1M: number
-  RefOutputUSDPer1M: number
-  RefUSDPerImage: number
-  RefUSDPerSecond: number
-  DefaultDurSec: number
-  MaxDurSec: number
-  SupportedParams?: ParamDef[]
+// AdapterParamSet is the adapter-level default generation parameter schema for a capability.
+export interface AdapterParamSet {
+  capability: string
+  params: ParamDef[]
+}
+
+// ModelPreset is a read-only admin UI template for quickly adding a model.
+// Runtime routing and generation parameters never consult this list.
+export interface ModelPreset {
+  id: string
+  model_id: string
+  display_name: string
+  capabilities: string[]
+  billing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call'
+  adapter_type: string
+  accepts_image_input: boolean
+  max_input_images: number
+  max_input_videos: number
+  image_edit_field?: string
+  ref_input_usd_per_1m?: number
+  ref_output_usd_per_1m?: number
+  ref_usd_per_image?: number
+  ref_usd_per_second?: number
 }
 
 // ParamDef describes a user-configurable generation parameter for a model.
@@ -530,7 +534,7 @@ export interface RawResource {
   owner?: { ID: number; username: string }
 }
 
-export type GenJobStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+export type GenJobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface GenJob {
   ID: number

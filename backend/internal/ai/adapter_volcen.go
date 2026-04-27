@@ -232,6 +232,13 @@ func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 			}
 			return pollResp, fmt.Errorf("video task %s failed: %s", startResp.TaskID, msg)
 		}
+		if pollResp.Status == VideoStatusCancelled {
+			msg := pollResp.Message
+			if msg == "" {
+				msg = "video generation cancelled"
+			}
+			return pollResp, fmt.Errorf("video task %s cancelled: %s", startResp.TaskID, msg)
+		}
 	}
 	return VideoResponse{TaskID: startResp.TaskID, TaskKind: startResp.TaskKind, Status: VideoStatusProcessing}, fmt.Errorf("video generation timed out (task %s)", startResp.TaskID)
 }
@@ -239,7 +246,7 @@ func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 func (a *VolcenAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	createReq, debugBody := buildVolcenVideoTaskRequest(req)
 	debugBodyJSON, _ := json.Marshal(debugBody)
-	debugEndpoint := a.baseURL + "/content_generation/tasks"
+	debugEndpoint := a.baseURL + "/contents/generations/tasks"
 
 	start := time.Now()
 	taskResp, err := a.client.CreateContentGenerationTask(ctx, createReq)
@@ -273,7 +280,7 @@ func (a *VolcenAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 		return VideoResponse{}, fmt.Errorf("volcen poll task: task id is required")
 	}
 
-	debugEndpoint := a.baseURL + "/content_generation/tasks/" + req.TaskID
+	debugEndpoint := a.baseURL + "/contents/generations/tasks/" + req.TaskID
 	start := time.Now()
 	pollResp, err := a.client.GetContentGenerationTask(ctx, arkmodel.GetContentGenerationTaskRequest{ID: req.TaskID})
 	latency := time.Since(start).Milliseconds()
@@ -321,7 +328,13 @@ func (a *VolcenAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 			durSec = int(*pollResp.Duration)
 		}
 		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusSucceeded, URL: url, DurationSec: durSec, Debug: takeDebug(ctx)}, nil
-	case arkmodel.StatusFailed, arkmodel.StatusCancelled:
+	case arkmodel.StatusCancelled:
+		msg := "video generation cancelled"
+		if pollResp.Error != nil && pollResp.Error.Message != "" {
+			msg = pollResp.Error.Message
+		}
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusCancelled, Message: msg, Debug: takeDebug(ctx)}, nil
+	case arkmodel.StatusFailed:
 		msg := "video generation failed"
 		if pollResp.Error != nil && pollResp.Error.Message != "" {
 			msg = pollResp.Error.Message
@@ -332,6 +345,34 @@ func (a *VolcenAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 	default:
 		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusProcessing, Debug: takeDebug(ctx)}, nil
 	}
+}
+
+func (a *VolcenAdapter) VideoCancel(ctx context.Context, req VideoCancelRequest) (VideoResponse, error) {
+	if req.TaskID == "" {
+		return VideoResponse{}, fmt.Errorf("volcen cancel task: task id is required")
+	}
+
+	debugEndpoint := a.baseURL + "/contents/generations/tasks/" + req.TaskID
+	start := time.Now()
+	err := a.client.DeleteContentGenerationTask(ctx, arkmodel.DeleteContentGenerationTaskRequest{ID: req.TaskID})
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.TaskID,
+			Endpoint: debugEndpoint, Method: "DELETE",
+			LatencyMs: latency, Error: err.Error(),
+		})
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusProcessing}, fmt.Errorf("volcen cancel task: %w", err)
+	}
+
+	recordDebugIfEmpty(ctx, DebugCallResult{
+		Success: true, ModelID: req.TaskID,
+		Endpoint: debugEndpoint, Method: "DELETE",
+		ResponseStatus: http.StatusOK,
+		ResponseBody:   fmt.Sprintf(`{"task_id":%q,"status":"cancelled"}`, req.TaskID),
+		LatencyMs:      latency,
+	})
+	return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusCancelled, Message: "video task cancelled", Debug: takeDebug(ctx)}, nil
 }
 
 func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenerationTaskRequest, map[string]any) {

@@ -22,9 +22,9 @@ func recordDebug(ctx context.Context, r DebugCallResult) {
 			Endpoint:       r.Endpoint,
 			Method:         r.Method,
 			RequestHeaders: r.RequestHeaders,
-			RequestBody:    r.RequestBody,
+			RequestBody:    sanitizeDebugBody(r.RequestBody),
 			ResponseStatus: r.ResponseStatus,
-			ResponseBody:   r.ResponseBody,
+			ResponseBody:   sanitizeDebugBody(r.ResponseBody),
 			LatencyMs:      r.LatencyMs,
 			Error:          r.Error,
 		}

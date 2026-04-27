@@ -776,7 +776,7 @@ const ADAPTER_ENDPOINT_SUGGESTIONS: Record<string, { label: string; url: string 
   ],
 }
 
-// Default param schemas for each capability, used when no catalog model is selected.
+// Default param schemas for each capability, used in direct debug calls.
 const DEFAULT_PARAMS: Record<string, ParamDef[]> = {
   text: [
     { key: 'max_tokens', label: '最大 Token 数', type: 'number', default: 256, min: 1, max: 32768 },

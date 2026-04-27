@@ -24,16 +24,16 @@ func NewAIHandler(db *gorm.DB, encryptionKeyHex string, registry *ai.Registry) *
 	return &AIHandler{db: db, encryptionKey: key, registry: registry}
 }
 
-// ── Catalog ──────────────────────────────────────────────────────────────────
+// ── Adapter & Model Presets ───────────────────────────────────────────────────
 
 func (h *AIHandler) ListAdapters(c *gin.Context) {
 	c.JSON(http.StatusOK, ai.AdapterDefs)
 }
 
-// ListModelSuggestions returns the built-in model suggestion list for the admin UI.
-// These are read-only hints; they are never consulted at runtime.
-func (h *AIHandler) ListModelSuggestions(c *gin.Context) {
-	c.JSON(http.StatusOK, ai.ModelSuggestions)
+// ListModelPresets returns read-only templates for the admin add-model form.
+// Presets never participate in runtime routing or generation parameter control.
+func (h *AIHandler) ListModelPresets(c *gin.Context) {
+	c.JSON(http.StatusOK, ai.ModelPresets())
 }
 
 // ── Credentials ───────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 
 // autoCreateModelConfigs was removed — models are now created manually by the admin.
 
-// SyncModels was removed — no catalog to sync from.
+// SyncModels was removed — model configs are admin-declared.
 
 func (h *AIHandler) UpdateCredential(c *gin.Context) {
 	var cred model.AICredential
@@ -221,32 +221,6 @@ func (h *AIHandler) DeleteCredential(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// ListOpenAICompatModels returns model suggestions for the OpenAI-compatible adapter.
-// Used as a hint list when the admin adds a custom model under an openai_compat credential.
-func (h *AIHandler) ListOpenAICompatModels(c *gin.Context) {
-	type modelSuggestion struct {
-		ModelID      string   `json:"model_id"`
-		DisplayName  string   `json:"display_name"`
-		AdapterType  string   `json:"adapter_type"`
-		Capabilities []string `json:"capabilities"`
-		BillingMode  string   `json:"billing_mode"`
-	}
-	var result []modelSuggestion
-	for _, def := range ai.ModelSuggestions {
-		if def.AdapterType != ai.AdapterOpenAICompat || def.ModelID == "" {
-			continue
-		}
-		result = append(result, modelSuggestion{
-			ModelID:      def.ModelID,
-			DisplayName:  def.DisplayName,
-			AdapterType:  def.AdapterType,
-			Capabilities: def.Capabilities,
-			BillingMode:  string(def.BillingMode),
-		})
-	}
-	c.JSON(http.StatusOK, result)
-}
-
 // ListRemoteModels calls the provider's /models endpoint and returns available model IDs.
 // Only supported for OpenAI-compatible providers (including custom).
 func (h *AIHandler) ListRemoteModels(c *gin.Context) {
@@ -300,7 +274,7 @@ func (h *AIHandler) TestCredential(c *gin.Context) {
 	c.JSON(http.StatusOK, testResult{Success: true, Message: "连接正常", LatencyMs: time.Since(start).Milliseconds()})
 }
 
-// ── Model Configs (catalog activation) ───────────────────────────────────────
+// ── Model Configs ────────────────────────────────────────────────────────────
 
 func (h *AIHandler) ListModelConfigs(c *gin.Context) {
 	var cfgs []model.AIModelConfig
@@ -319,7 +293,7 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		CreditsPerImage    float64 `json:"credits_per_image"`
 		CreditsPerSecond   float64 `json:"credits_per_second"`
 		CreditsPerCall     float64 `json:"credits_per_call"`
-		// Custom metadata — always used; overrides catalog defaults when model is in catalog.
+		// Custom metadata — always used at runtime.
 		CustomDisplayName     string `json:"custom_display_name"`
 		CustomCapabilities    string `json:"custom_capabilities"`     // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
 		CustomBillingMode     string `json:"custom_billing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
@@ -334,7 +308,7 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		return
 	}
 
-	// custom_capabilities is always required — there is no catalog fallback.
+	// custom_capabilities is always required; presets are only UI templates.
 	if req.CustomCapabilities == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "custom_capabilities is required (e.g. \"text\" or \"image\")"})
 		return

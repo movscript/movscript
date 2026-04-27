@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelDef, UsageLog, FeatureConfig, PublicModel, ParamDef } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -33,24 +33,24 @@ const BILLING_LABELS: Record<string, string> = {
   per_call: '按次',
 }
 
-function billingDesc(def: ModelDef): string {
-  switch (def.BillingMode) {
-    case 'per_token': return `输入/输出 token`
-    case 'per_image': return `图像`
-    case 'per_second': return `视频秒数`
-    case 'per_call': return `每次调用`
-    default: return def.BillingMode
-  }
+type PriceDef = {
+  billing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
+  ref_input_usd_per_1m?: number
+  ref_output_usd_per_1m?: number
+  ref_usd_per_image?: number
+  ref_usd_per_second?: number
 }
 
-function refPriceHint(def: ModelDef): string {
-  switch (def.BillingMode) {
+function refPriceHint(def: PriceDef): string {
+  switch (def.billing_mode) {
     case 'per_token':
-      return `参考: $${def.RefInputUSDPer1M}/$${def.RefOutputUSDPer1M} USD/1M token`
+      return def.ref_input_usd_per_1m || def.ref_output_usd_per_1m
+        ? `参考: $${def.ref_input_usd_per_1m ?? 0}/$${def.ref_output_usd_per_1m ?? 0} USD/1M token`
+        : ''
     case 'per_image':
-      return `参考: $${def.RefUSDPerImage} USD/张`
+      return def.ref_usd_per_image ? `参考: $${def.ref_usd_per_image} USD/张` : ''
     case 'per_second':
-      return `参考: $${def.RefUSDPerSecond} USD/秒${def.DefaultDurSec ? `，默认 ${def.DefaultDurSec}s` : ''}`
+      return def.ref_usd_per_second ? `参考: $${def.ref_usd_per_second} USD/秒` : ''
     default:
       return ''
   }
@@ -278,25 +278,12 @@ function defaultPriceForm(): PriceForm {
   return { model_id_override: '', credits_input_per_1m: 0, credits_output_per_1m: 0, credits_per_image: 0, credits_per_second: 0, credits_per_call: 0 }
 }
 
-function PriceFields({ def, form, onChange }: { def: ModelDef; form: PriceForm; onChange: (f: PriceForm) => void }) {
-  const mode = def.BillingMode
+function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; onChange: (f: PriceForm) => void }) {
+  const mode = def.billing_mode
   const hint = refPriceHint(def)
   return (
     <div className="space-y-2">
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {def.AllowModelIDOverride && (
-        <div>
-          <Label className="text-xs text-muted-foreground block mb-0.5">
-            Model ID（可选，如 Volcengine ep-xxx 接入点）
-          </Label>
-          <Input
-            className="text-xs"
-            placeholder={def.ModelID || '如 gpt-4o、claude-3-5-sonnet-20241022'}
-            value={form.model_id_override}
-            onChange={(e) => onChange({ ...form, model_id_override: e.target.value })}
-          />
-        </div>
-      )}
       {mode === 'per_token' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -398,7 +385,7 @@ function serializeParamDefs(params: ParamDef[]): string {
       return next
     })
     .filter(Boolean) as ParamDef[]
-  return normalized.length ? JSON.stringify(normalized) : ''
+  return JSON.stringify(normalized)
 }
 
 function splitOptions(value: string): string[] {
@@ -422,11 +409,31 @@ const PARAM_TEMPLATES: Record<string, ParamDef> = {
   audio: { key: 'audio', label: '生成音频', type: 'boolean', default: true },
   return_last_frame: { key: 'return_last_frame', label: '返回尾帧', type: 'boolean', default: false },
   service_tier: { key: 'service_tier', label: '服务等级', type: 'select', options: ['default', 'flex'], default: 'default' },
+  frames: { key: 'frames', label: '帧数', type: 'number', min: 29, max: 289, step: 4 },
+  execution_expires_after: { key: 'execution_expires_after', label: '过期时间(秒)', type: 'number', min: 1, step: 1 },
+  preset: { key: 'preset', label: '预设', type: 'select', options: ['normal', 'fun', 'spicy', 'custom'], default: 'normal' },
   draft: { key: 'draft', label: '样片模式', type: 'boolean', default: false },
 }
 
 function paramTemplateFor(key: string): ParamDef | null {
   return PARAM_TEMPLATES[key] ?? null
+}
+
+function adapterParamsForCapabilities(adapter: AdapterDef | undefined, capabilities: string[]): ParamDef[] {
+  if (!adapter?.param_sets?.length) return []
+  const caps = new Set(capabilities)
+  const seen = new Set<string>()
+  const params: ParamDef[] = []
+  for (const set of adapter.param_sets) {
+    if (!caps.has(set.capability)) continue
+    for (const raw of set.params ?? []) {
+      const p = normalizeParamDefForAdmin(raw)
+      if (!p.key || seen.has(p.key)) continue
+      seen.add(p.key)
+      params.push({ ...p, options: p.options ? [...p.options] : undefined })
+    }
+  }
+  return params
 }
 
 function ParamBuilder({ value, onChange }: { value: string; onChange: (next: string) => void }) {
@@ -561,7 +568,7 @@ function ModelManagementTab() {
   const [addImageEditField, setAddImageEditField] = useState('')
   const [addSupportedParams, setAddSupportedParams] = useState('')
   const [addPriceForm, setAddPriceForm] = useState<PriceForm>(defaultPriceForm())
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showPresets, setShowPresets] = useState(false)
   // Remote model fetch state (within add panel)
   const [remoteModels, setRemoteModels] = useState<string[]>([])
   const [remoteFetching, setRemoteFetching] = useState(false)
@@ -589,9 +596,9 @@ function ModelManagementTab() {
     queryFn: () => api.get('/admin/adapters').then((r) => r.data),
   })
 
-  const { data: suggestions = [] } = useQuery<ModelDef[]>({
-    queryKey: ['admin', 'model-suggestions'],
-    queryFn: () => api.get('/admin/model-suggestions').then((r) => r.data),
+  const { data: presets = [] } = useQuery<ModelPreset[]>({
+    queryKey: ['admin', 'model-presets'],
+    queryFn: () => api.get('/admin/model-presets').then((r) => r.data),
   })
 
   const { data: credentials = [] } = useQuery<AICredential[]>({
@@ -686,27 +693,30 @@ function ModelManagementTab() {
   })
 
   function openAddPanel(credId: number) {
+    const cred = credentials.find((c) => c.ID === credId)
+    const adapter = adapters.find((a) => a.adapter_type === cred?.adapter_type)
+    const defaultCaps = ['text']
     setAddingFor(credId)
     setAddModelId('')
     setAddDisplayName('')
-    setAddCapabilities(['text'])
+    setAddCapabilities(defaultCaps)
     setAddBillingMode('per_token')
     setAddAcceptsImage(false)
     setAddMaxInputImages(0)
     setAddMaxInputVideos(0)
     setAddImageEditField('')
-    setAddSupportedParams('')
+    setAddSupportedParams(serializeParamDefs(adapterParamsForCapabilities(adapter, defaultCaps)))
     setAddPriceForm(defaultPriceForm())
     setRemoteModels([])
     setRemoteError('')
-    setShowSuggestions(false)
+    setShowPresets(false)
   }
 
   function closeAddPanel() {
     setAddingFor(null)
     setRemoteModels([])
     setRemoteError('')
-    setShowSuggestions(false)
+    setShowPresets(false)
   }
 
   async function fetchRemoteModels(credId: number) {
@@ -979,21 +989,22 @@ function ModelManagementTab() {
                       if (caps.some(c => c.startsWith('video'))) return 'per_second'
                       return 'per_token'
                     }
-                    // Filter suggestions to this credential's adapter type
+                    // Filter presets to this credential's adapter type.
                     const credAdapter = cred.adapter_type
-                    const filteredSuggestions = suggestions.filter(s => s.AdapterType === credAdapter)
+                    const currentAdapter = adapters.find((a) => a.adapter_type === credAdapter)
+                    const filteredPresets = presets.filter(p => p.adapter_type === credAdapter)
 
-                    function applySuggestion(def: ModelDef) {
-                      setAddModelId(def.ModelID)
-                      setAddDisplayName(def.DisplayName)
-                      setAddCapabilities(def.Capabilities)
-                      setAddBillingMode(def.BillingMode)
-                      setAddAcceptsImage(def.AcceptsImageInput ?? false)
-                      setAddMaxInputImages(def.MaxInputImages ?? 0)
-                      setAddMaxInputVideos(def.MaxInputVideos ?? 0)
-                      setAddImageEditField('')
-                      setAddSupportedParams(def.SupportedParams ? serializeParamDefs(def.SupportedParams) : '')
-                      setShowSuggestions(false)
+                    function applyPreset(preset: ModelPreset) {
+                      setAddModelId(preset.model_id)
+                      setAddDisplayName(preset.display_name)
+                      setAddCapabilities(preset.capabilities)
+                      setAddBillingMode(preset.billing_mode)
+                      setAddAcceptsImage(preset.accepts_image_input ?? false)
+                      setAddMaxInputImages(preset.max_input_images ?? 0)
+                      setAddMaxInputVideos(preset.max_input_videos ?? 0)
+                      setAddImageEditField(preset.image_edit_field ?? '')
+                      setAddSupportedParams(serializeParamDefs(adapterParamsForCapabilities(currentAdapter, preset.capabilities)))
+                      setShowPresets(false)
                     }
 
                     return (
@@ -1001,13 +1012,13 @@ function ModelManagementTab() {
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-medium text-foreground">添加模型</p>
                           <div className="flex items-center gap-2">
-                            {filteredSuggestions.length > 0 && (
+                            {filteredPresets.length > 0 && (
                               <button
-                                onClick={() => setShowSuggestions(!showSuggestions)}
+                                onClick={() => setShowPresets(!showPresets)}
                                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                               >
                                 <Sparkles size={11} />
-                                {showSuggestions ? '收起建议' : '从建议选'}
+                                {showPresets ? '收起预设' : '从预设选'}
                               </button>
                             )}
                             <button
@@ -1021,18 +1032,18 @@ function ModelManagementTab() {
                           </div>
                         </div>
 
-                        {/* Suggestion list — filtered by adapter type */}
-                        {showSuggestions && filteredSuggestions.length > 0 && (
+                        {/* Preset list — filtered by adapter type */}
+                        {showPresets && filteredPresets.length > 0 && (
                           <div className="border border-border rounded bg-muted/20 p-2 space-y-1 max-h-48 overflow-y-auto">
                             <p className="text-[10px] text-muted-foreground mb-1">选中后自动填充所有字段，可继续修改</p>
-                            {filteredSuggestions.map((def) => (
+                            {filteredPresets.map((preset) => (
                               <button
-                                key={def.ID}
-                                onClick={() => applySuggestion(def)}
+                                key={preset.id}
+                                onClick={() => applyPreset(preset)}
                                 className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors flex items-center justify-between gap-2"
                               >
-                                <span className="font-medium truncate">{def.DisplayName}</span>
-                                <span className="text-muted-foreground font-mono shrink-0">{def.ModelID}</span>
+                                <span className="font-medium truncate">{preset.display_name}</span>
+                                <span className="text-muted-foreground font-mono shrink-0">{preset.model_id}</span>
                               </button>
                             ))}
                           </div>
@@ -1093,6 +1104,7 @@ function ModelManagementTab() {
                                     setAddBillingMode(inferBilling(next))
                                     const needsImage = next.some(c => c === 'image_edit' || c === 'video_i2v' || c === 'video_v2v')
                                     setAddAcceptsImage(needsImage)
+                                    setAddSupportedParams(serializeParamDefs(adapterParamsForCapabilities(currentAdapter, next)))
                                   }
                                 }}
                                 className={cn(
@@ -1166,7 +1178,7 @@ function ModelManagementTab() {
                         <ParamBuilder value={addSupportedParams} onChange={setAddSupportedParams} />
 
                         {(() => {
-                          const fakeDef = { BillingMode: addBillingMode, AllowModelIDOverride: false } as any
+                          const fakeDef = { billing_mode: addBillingMode }
                           return <PriceFields def={fakeDef} form={addPriceForm} onChange={setAddPriceForm} />
                         })()}
 
@@ -1241,14 +1253,15 @@ function ModelManagementTab() {
                           )}
                           <button
                             onClick={() => {
+                              const nextCaps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
                               setEditingConfig(cfg)
                               setEditForm({
                                 display_name: cfg.custom_display_name,
                                 model_id_override: cfg.model_id_override,
                                 priority: String(cfg.priority ?? 0),
-                                capabilities: cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : [],
+                                capabilities: nextCaps,
                                 billing_mode: cfg.custom_billing_mode || 'per_token',
-                                supported_params: cfg.custom_supported_params || '',
+                                supported_params: cfg.custom_supported_params || serializeParamDefs(adapterParamsForCapabilities(adapter, nextCaps)),
                               })
                             }}
                             className="text-muted-foreground/50 hover:text-foreground"
@@ -1298,7 +1311,13 @@ function ModelManagementTab() {
                                         const next = active
                                           ? editForm.capabilities.filter((c) => c !== cap)
                                           : [...editForm.capabilities, cap]
-                                        if (next.length > 0) setEditForm((f) => ({ ...f, capabilities: next }))
+                                        if (next.length > 0) {
+                                          setEditForm((f) => ({
+                                            ...f,
+                                            capabilities: next,
+                                            supported_params: serializeParamDefs(adapterParamsForCapabilities(adapter, next)),
+                                          }))
+                                        }
                                       }}
                                       className={cn(
                                         'text-xs px-2 py-0.5 rounded border transition-colors',
