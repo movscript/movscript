@@ -2,6 +2,14 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
+const alias = {
+  '@movscript/tokens/theme.css': resolve('../movscript-ui/packages/tokens/src/theme.css'),
+  '@movscript/ui/styles.css': resolve('../movscript-ui/packages/ui/src/styles.css'),
+  '@movscript/tokens': resolve('../movscript-ui/packages/tokens/src/index.ts'),
+  '@movscript/ui': resolve('../movscript-ui/packages/ui/src/index.ts'),
+  '@': resolve('src')
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -11,7 +19,7 @@ export default defineConfig({
       }
     },
     resolve: {
-      alias: { '@': resolve('src') }
+      alias
     }
   },
   preload: {
@@ -31,7 +39,7 @@ export default defineConfig({
       }
     },
     resolve: {
-      alias: { '@': resolve('src') }
+      alias
     }
   }
 })

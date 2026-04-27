@@ -1,0 +1,3 @@
+[submodule "movscript-ui"]
+	path = movscript-ui
+	url = git@github.com:movscript/movscript-ui.git

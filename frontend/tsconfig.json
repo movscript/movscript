@@ -17,6 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      "@movscript/tokens": ["../movscript-ui/packages/tokens/src/index.ts"],
+      "@movscript/ui": ["../movscript-ui/packages/ui/src/index.ts"],
       "@/*": ["./src/*"]
     }
   },
