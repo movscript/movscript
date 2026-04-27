@@ -21,7 +21,94 @@
     "loadingShort": "加载中…",
     "switch": "切换",
     "selectProject": "选择项目...",
-    "requestFailed": "请求失败，请稍后重试"
+    "requestFailed": "请求失败，请稍后重试",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "credits": "Credits",
+    "endpointUrl": "端点 URL",
+    "method": "请求方法",
+    "modelId": "模型 ID",
+    "modelIdOverride": "模型 ID 覆盖",
+    "prompt": "提示词",
+    "tokens": "Tokens",
+    "url": "URL"
+  },
+  "apiErrors": {
+    "accessDenied": "无访问权限",
+    "agentNotFound": "Agent 不存在",
+    "agentTemplateNotFound": "Agent 模板不存在",
+    "aiAnalyzeFailed": "AI 分析失败：{{detail}}",
+    "aiBadResponse": "AI 返回格式异常，请重试",
+    "aiNotConfigured": "AI 服务未配置",
+    "assetNotFound": "素材不存在",
+    "authRequired": "请先登录",
+    "cancelFinishedJob": "已结束的任务无法取消",
+    "cancelStatusInvalid": "当前状态无法取消任务：{{detail}}",
+    "cancelUnsupported": "该服务商不支持取消视频任务",
+    "cancelVideoOnly": "只有视频生成任务可以取消",
+    "cannotGrantSelf": "不能给自己授权",
+    "capabilityOrFeatureRequired": "需要提供 capability 或 feature 查询参数",
+    "canvasNotFound": "画布不存在",
+    "conflict": "请求与当前状态冲突",
+    "credentialNotFound": "凭据不存在",
+    "customCapabilitiesRequired": "需要填写自定义能力，例如 text 或 image",
+    "cycleDetected": "检测到循环依赖",
+    "deleteRunningJob": "运行中的任务需先取消后才能删除",
+    "dependencyExists": "依赖关系已存在",
+    "directorOrOwnerRequired": "需要导演或所有者权限",
+    "encryptConfigFailed": "加密配置失败：{{detail}}",
+    "episodeNotFound": "分集不存在",
+    "failedReadFile": "读取文件失败",
+    "failedRetrieveFile": "获取文件失败",
+    "failedStoreFile": "存储文件失败",
+    "featureNotFound": "功能不存在",
+    "fileRequired": "请选择文件",
+    "folderNotFound": "文件夹不存在",
+    "forbidden": "无权限",
+    "invalidCanvasType": "画布类型必须是 inspiration 或 workflow",
+    "invalidCloudConfigType": "配置类型必须是 S3、OSS 或 TOS",
+    "invalidCredentials": "用户名或密码错误",
+    "invalidId": "无效 ID",
+    "invalidInput": "输入无效",
+    "invalidJobType": "无效任务类型：{{detail}}",
+    "invalidPermission": "权限必须是 read 或 write",
+    "invalidUserId": "无效用户 ID",
+    "internalError": "服务器内部错误",
+    "jobTypeRequired": "任务类型不能为空",
+    "loadInputResourcesFailed": "加载输入资源失败：{{detail}}",
+    "missingCredentialField": "缺少必要凭据字段：{{detail}}",
+    "modelConfigNotFound": "模型配置不存在",
+    "modelListingUnsupported": "该服务商不支持拉取模型列表",
+    "noAIProviderAvailable": "暂无可用 AI 服务商：{{detail}}",
+    "noAIProviderConfigured": "暂无可用的 AI 提供商，请先在 AI 配置中添加并启用提供商",
+    "noStorageKey": "缺少存储键",
+    "noTask": "任务不存在",
+    "nodeNotFound": "节点不存在",
+    "nodeSelfDependency": "节点不能指向自身",
+    "notFound": "资源不存在",
+    "passwordHashFailed": "密码处理失败",
+    "permissionDenied": "权限不足",
+    "pipelineAlreadyDraft": "节点已经是草稿状态",
+    "pipelineApproveState": "只有审核中的节点可以批准",
+    "pipelineRejectState": "只有审核中的节点可以拒绝",
+    "pipelineSubmitState": "只有草稿或被拒绝的节点可以提交审核",
+    "projectNotFound": "项目不存在",
+    "providerCancellationFailed": "服务商取消失败：{{detail}}",
+    "runNotFound": "运行记录不存在",
+    "runningJobRetry": "运行中的任务需失败或超时后才能重试",
+    "sceneAlreadyLinked": "该分场已关联到此分集",
+    "sceneNotFound": "分场不存在",
+    "scriptContentEmpty": "剧本内容不能为空",
+    "scriptNotFound": "剧本不存在",
+    "settingNotFound": "设定不存在",
+    "shotNotFound": "镜头不存在",
+    "storyboardNotFound": "分镜不存在",
+    "succeededJobRetry": "成功任务不能重试",
+    "unknownAdapterType": "未知适配器类型：{{detail}}",
+    "workflowCanvasRequired": "只有 workflow 画布可以创建运行记录",
+    "workflowRunRequired": "workflow 画布必须按工作流运行",
+    "writePermissionRequired": "需要写权限才能上传到此文件夹",
+    "usernameExists": "用户名已存在"
   },
   "auth": {
     "tagline": "短剧制作协作平台",
@@ -998,7 +1085,16 @@
         "image+video": "描述你想生成的内容… 输入 @ 可引用资源库中的图片或视频"
       },
       "required": "必填",
-      "selectOrUploadHint": "从左侧资源库选择，或使用下方上传入口添加"
+      "selectOrUploadHint": "从左侧资源库选择，或使用下方上传入口添加",
+      "slots": {
+        "ref_images": "参考图（可选）",
+        "ref_video": "参考视频（可选）",
+        "target_images": "目标图像",
+        "motion_video": "动作视频",
+        "target_image": "需要修改的图像",
+        "style_images": "画风图像",
+        "source_image": "多角度图像"
+      }
     },
     "genResult": {
       "reusePrompt": "复用此提示词"
@@ -1124,6 +1220,34 @@
       "storage": "资源存储",
       "cloudFiles": "输入中转"
     },
+    "adapters": {
+      "openai_compat": {
+        "name": "OpenAI 兼容 API",
+        "description": "兼容 OpenAI 接口的文本/图像模型，支持 OpenAI、DeepSeek、豆包等。"
+      },
+      "anthropic": {
+        "name": "Anthropic",
+        "description": "Claude 系列文本模型。"
+      },
+      "kling": {
+        "name": "可灵 (Kling)",
+        "description": "快手旗下视频/图像生成模型，使用 Access Key + Secret Key 鉴权。"
+      },
+      "volcen": {
+        "name": "火山引擎 Ark",
+        "description": "字节跳动 Ark 平台，支持豆包文本、Seedream 图像生成、Seedance 视频生成。"
+      },
+      "gemini": {
+        "name": "Google Gemini",
+        "description": "Google AI：Gemini 文本对话、Imagen 图像生成、Veo 视频生成。"
+      }
+    },
+    "credentialFields": {
+      "access_key": "Access Key",
+      "api_key": "API Key",
+      "base_url": "Base URL",
+      "secret_key": "Secret Key"
+    },
     "billing": {
       "perToken": "按 token",
       "perImage": "按张",
@@ -1185,7 +1309,10 @@
         "frames": "帧数",
         "execution_expires_after": "过期时间(秒)",
         "preset": "预设",
-        "draft": "样片模式"
+        "draft": "样片模式",
+        "size": "尺寸",
+        "sequential_image_generation": "组图",
+        "optimize_prompt_mode": "提示词优化"
       }
     },
     "models": {
@@ -1313,6 +1440,60 @@
       "autoHighestPriority": "自动（优先级最高）",
       "accessRoles": "访问权限",
       "accessRolesHint": "（留空 = 所有角色可用）",
+      "catalog": {
+        "script_analyze": {
+          "name": "剧本 AI 分析",
+          "description": "对剧本内容进行智能分析，提取人物、背景、场景等关键信息。"
+        },
+        "agent_chat": {
+          "name": "AI 助手对话",
+          "description": "侧边栏 AI 助手，用于项目创作辅助对话。"
+        },
+        "canvas_text": {
+          "name": "画布·文本生成",
+          "description": "画布工作流中的文本生成节点。"
+        },
+        "canvas_image": {
+          "name": "画布·图像生成",
+          "description": "画布工作流中的图像生成节点。"
+        },
+        "canvas_video": {
+          "name": "画布·视频生成",
+          "description": "画布工作流中的视频生成节点。"
+        },
+        "shot_ref_image": {
+          "name": "分镜·参考图生成",
+          "description": "根据分镜描述生成参考图。"
+        },
+        "shot_ref_video": {
+          "name": "分镜·参考视频生成",
+          "description": "根据参考图或描述生成参考视频。"
+        },
+        "ref_image_gen": {
+          "name": "参考生图",
+          "description": "以参考图为基础生成新的图像，同时支持纯文本生图。"
+        },
+        "ref_video_gen": {
+          "name": "参考生视频",
+          "description": "以参考图或描述为基础生成视频。"
+        },
+        "motion_imitation": {
+          "name": "动作迁移",
+          "description": "将参考视频的动作迁移到目标角色。"
+        },
+        "style_transfer": {
+          "name": "画风迁移",
+          "description": "将参考图的画风迁移到目标图像。"
+        },
+        "multi_angle": {
+          "name": "多角度",
+          "description": "从单张参考图生成多角度视图。"
+        },
+        "brainstorm": {
+          "name": "头脑风暴",
+          "description": "AI 多轮对话，辅助创意发散与剧本构思。"
+        }
+      },
       "roles": {
         "owner": "项目所有者",
         "editor": "编辑者",
@@ -1351,7 +1532,18 @@
       "disable": "禁用",
       "editConfig": "编辑配置",
       "newConfig": "新建配置",
-      "priority": "优先级（数字越小越优先）"
+      "priority": "优先级（数字越小越优先）",
+      "namePlaceholder": "TOS 公网中转",
+      "fields": {
+        "access_key": "Access Key",
+        "access_key_id": "Access Key ID",
+        "access_key_secret": "Access Key Secret",
+        "bucket": "Bucket",
+        "endpoint": "Endpoint",
+        "public_base_url": "公网 Base URL",
+        "region": "Region",
+        "secret_key": "Secret Key"
+      }
     },
     "debug": {
       "copy": "复制",
@@ -1370,6 +1562,7 @@
       "responseBody": "响应体",
       "imagePreview": "图片预览 ({{count}})",
       "generatedImageAlt": "生成图片 {{number}}",
+      "debugMark": "调试",
       "tabs": {
         "providerSandbox": "服务商沙盒",
         "rawCall": "Raw 调用",
@@ -1406,7 +1599,22 @@
         "outputResource": "输出资源",
         "debugContext": "Debug 上下文",
         "httpExchanges": "HTTP 交换记录 ({{count}})",
-        "noProviderCalls": "没有捕获到 provider HTTP 调用，查看上方状态机和错误信息。"
+        "noProviderCalls": "没有捕获到 provider HTTP 调用，查看上方状态机和错误信息。",
+        "debugInfoRaw": "Debug 信息（原始）",
+        "fields": {
+          "executionState": "执行状态",
+          "finished": "完成时间",
+          "inputResources": "输入资源",
+          "jobId": "任务 ID",
+          "jobType": "任务类型",
+          "modelConfigId": "模型配置 ID",
+          "modelDef": "模型定义",
+          "outputResource": "输出资源",
+          "providerTaskId": "服务商任务 ID",
+          "resolvedPrompt": "解析后提示词",
+          "started": "开始时间",
+          "status": "状态"
+        }
       },
       "connectivity": {
         "title": "模型连通性测试",
@@ -1434,6 +1642,7 @@
         "description": "直接输入凭据和参数，对任意服务商接口进行调试。凭据不会存储，仅用于本次请求。",
         "credentialConfig": "凭据配置",
         "adapterType": "适配器类型",
+        "defaultPrompt": "讲一个简短的笑话。",
         "endpointHint": "（能力类型从 URL 路径自动推断）",
         "baseUrlHint": "（适配器内部构建请求时使用）",
         "klingKeyFormat": "（格式: access_key:secret_key）",

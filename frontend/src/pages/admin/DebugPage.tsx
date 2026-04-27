@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { translateApiError } from '@/lib/apiError'
 import type { AICredential, DebugCallResult, DebugHTTPExchange, GenJobDetail, GenJobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
 import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -311,7 +312,7 @@ function RawCallSection() {
       }).then((r) => r.data)
       setResult(res)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = translateApiError((e as any)?.response?.data)
       setResult({ url, method, request_headers: {}, request_body: body, response_status: 0, response_body: '', latency_ms: 0, error: msg })
     } finally {
       setLoading(false)
@@ -501,7 +502,7 @@ function JobMonitorSection() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-mono text-muted-foreground">#{job.ID}</span>
                     <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', STATUS_COLOR[job.status] ?? 'bg-muted text-muted-foreground')}>
-                      {job.status}
+                      {t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })}
                     </span>
                     {job.execution_state && (
                       <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">
@@ -658,7 +659,7 @@ function ModelConnectivitySection() {
       const result: DebugCallResult = await api.post(`/admin/credentials/${credId}/models/${modelId}/debug`, {}).then((r) => r.data)
       setStates((s) => ({ ...s, [key]: { loading: false, result } }))
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = translateApiError((e as any)?.response?.data)
       setStates((s) => ({
         ...s,
         [key]: { loading: false, result: { success: false, model_id: '', endpoint: '', method: '', request_body: '', response_status: 0, response_body: '', latency_ms: 0, error: msg } },
@@ -851,7 +852,7 @@ function ProviderSandboxSection() {
   const [apiKey, setApiKey] = useState('')
   const [endpointURL, setEndpointURL] = useState('')
   const [model, setModel] = useState('')
-  const [prompt, setPrompt] = useState('Tell me a joke.')
+  const [prompt, setPrompt] = useState(() => t('admin.debug.sandbox.defaultPrompt'))
   const [paramValues, setParamValues] = useState<Record<string, string>>({})
   const [extraParamsText, setExtraParamsText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -950,7 +951,7 @@ function ProviderSandboxSection() {
       }).then((r) => r.data)
       setResult(res)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = translateApiError((e as any)?.response?.data)
       setResult({ success: false, model_id: model, endpoint: '', method: '', request_body: '', response_status: 0, response_body: '', latency_ms: 0, error: msg })
     } finally {
       setLoading(false)
@@ -976,7 +977,11 @@ function ProviderSandboxSection() {
               <Label className="text-xs">{t('admin.debug.sandbox.adapterType')}</Label>
               <select value={adapterType} onChange={(e) => setAdapterType(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                {adapters.map((a) => <option key={a.adapter_type} value={a.adapter_type}>{a.display_name}</option>)}
+                {adapters.map((a) => (
+                  <option key={a.adapter_type} value={a.adapter_type}>
+                    {t(`admin.adapters.${a.adapter_type}.name`, { defaultValue: a.display_name })}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">

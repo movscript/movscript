@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { generationParamLabel } from '@/lib/paramLabels'
 import { useTranslation } from 'react-i18next'
 
 // ── Node category ─────────────────────────────────────────────────────────────
@@ -350,7 +351,7 @@ function InlineToolCard({
             const val = extraParams[p.key] ?? p.default ?? ''
             return (
               <div key={p.key} className="flex items-center gap-1">
-                <span className="text-[10px] text-muted-foreground">{p.label}</span>
+                <span className="text-[10px] text-muted-foreground">{generationParamLabel(p, t)}</span>
                 {p.type === 'select' && p.options ? (
                   <select
                     className="border border-border rounded px-1 py-0.5 text-[10px] bg-background text-foreground"

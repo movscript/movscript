@@ -19,6 +19,26 @@ import { translateApiError } from '@/lib/apiError'
 
 interface TestResult { success: boolean; message: string; latency_ms: number }
 
+function adapterDisplayName(adapter: Pick<AdapterDef, 'adapter_type' | 'display_name'>, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`admin.adapters.${adapter.adapter_type}.name`, { defaultValue: adapter.display_name })
+}
+
+function adapterDescription(adapter: Pick<AdapterDef, 'adapter_type' | 'description'>, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`admin.adapters.${adapter.adapter_type}.description`, { defaultValue: adapter.description })
+}
+
+function credentialFieldLabel(key: string, fallback: string, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`admin.credentialFields.${key}`, { defaultValue: fallback })
+}
+
+function featureDisplayName(feature: FeatureConfig, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`admin.features.catalog.${feature.feature_key}.name`, { defaultValue: feature.display_name })
+}
+
+function featureDescription(feature: FeatureConfig, t: (key: string, options?: Record<string, unknown>) => string) {
+  return t(`admin.features.catalog.${feature.feature_key}.description`, { defaultValue: feature.description })
+}
+
 type ModelEditForm = {
   display_name: string
   model_id_override: string
@@ -84,8 +104,8 @@ function AdapterPicker({
             onClick={() => onPick(a)}
             className="text-left border border-border rounded-lg bg-background px-3 py-2.5 hover:border-ring hover:shadow-sm transition-all space-y-0.5"
           >
-            <p className="text-sm font-medium text-foreground">{a.display_name}</p>
-            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{a.description}</p>
+            <p className="text-sm font-medium text-foreground">{adapterDisplayName(a, t)}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{adapterDescription(a, t)}</p>
           </button>
         ))}
       </div>
@@ -106,7 +126,7 @@ function CredentialForm({
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [displayName, setDisplayName] = useState(adapter.display_name)
+  const [displayName, setDisplayName] = useState(() => adapterDisplayName(adapter, t))
   const [fields, setFields] = useState<Record<string, string>>({})
   const [testState, setTestState] = useState<{ loading: boolean; result: TestResult | null }>({ loading: false, result: null })
   const [filesAPIEnabled, setFilesAPIEnabled] = useState(false)
@@ -144,8 +164,8 @@ function CredentialForm({
       const res = await api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
       setTestState({ loading: false, result: res })
       if (res.success) onSuccess()
-    } catch (e) {
-      setTestState({ loading: false, result: { success: false, message: String(e), latency_ms: 0 } })
+    } catch (e: any) {
+      setTestState({ loading: false, result: { success: false, message: translateApiError(e?.response?.data), latency_ms: 0 } })
     }
   }
 
@@ -158,7 +178,7 @@ function CredentialForm({
         <button onClick={onBack} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft size={15} />
         </button>
-        <p className="text-sm font-medium">{t('admin.credentials.configureAdapter', { name: adapter.display_name })}</p>
+        <p className="text-sm font-medium">{t('admin.credentials.configureAdapter', { name: adapterDisplayName(adapter, t) })}</p>
       </div>
 
       <Input
@@ -170,7 +190,7 @@ function CredentialForm({
       {baseURLField && (
         <div>
           <Label className="text-xs text-muted-foreground block mb-1">
-            {baseURLField.label}{baseURLField.required && <span className="text-destructive ml-0.5">*</span>}
+            {credentialFieldLabel(baseURLField.key, baseURLField.label, t)}{baseURLField.required && <span className="text-destructive ml-0.5">*</span>}
           </Label>
           <Input
             placeholder={adapter.default_base_url || baseURLField.hint || ''}
@@ -183,7 +203,7 @@ function CredentialForm({
       {keyFields.map((field) => (
         <div key={field.key}>
           <Label className="text-xs text-muted-foreground block mb-1">
-            {field.label}{field.required && <span className="text-destructive ml-0.5">*</span>}
+            {credentialFieldLabel(field.key, field.label, t)}{field.required && <span className="text-destructive ml-0.5">*</span>}
           </Label>
           <Input
             type="password"
@@ -195,7 +215,7 @@ function CredentialForm({
       ))}
 
       {create.isError && (
-        <p className="text-xs text-destructive">{String((create.error as Error)?.message)}</p>
+        <p className="text-xs text-destructive">{translateApiError((create.error as any)?.response?.data)}</p>
       )}
       {testState.result && (
         <p className={`text-xs ${testState.result.success ? 'text-foreground' : 'text-destructive'}`}>
@@ -750,8 +770,8 @@ function ModelManagementTab() {
     try {
       const result = await fn()
       setTestResults((r) => ({ ...r, [key]: result }))
-    } catch (e) {
-      setTestResults((r) => ({ ...r, [key]: { success: false, message: String(e), latency_ms: 0 } }))
+    } catch (e: any) {
+      setTestResults((r) => ({ ...r, [key]: { success: false, message: translateApiError(e?.response?.data), latency_ms: 0 } }))
     } finally {
       setTestingId(null)
     }
@@ -937,7 +957,7 @@ function ModelManagementTab() {
                         </div>
                         {(adapter?.cred_fields.filter((field) => field.key !== 'base_url') ?? []).map((field) => (
                           <div key={field.key}>
-                            <Label className="text-xs text-muted-foreground block mb-1">{field.label}</Label>
+                            <Label className="text-xs text-muted-foreground block mb-1">{credentialFieldLabel(field.key, field.label, t)}</Label>
                             <Input
                               type="password"
                               value={credentialEditFields[field.key] ?? ''}
@@ -1195,7 +1215,7 @@ function ModelManagementTab() {
                         })()}
 
                         {addModel.isError && (
-                          <p className="text-xs text-destructive">{String((addModel.error as Error)?.message)}</p>
+                          <p className="text-xs text-destructive">{translateApiError((addModel.error as any)?.response?.data)}</p>
                         )}
 
                         <div className="flex gap-2">
@@ -1858,7 +1878,7 @@ function FeatureRow({
       <div className="flex items-start gap-3 px-4 py-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-foreground">{feature.display_name}</p>
+            <p className="text-sm font-medium text-foreground">{featureDisplayName(feature, t)}</p>
             <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', CAPABILITY_COLOR[feature.capability] ?? 'bg-muted text-muted-foreground')}>
               {CAPABILITY_TRANSLATION_KEYS[feature.capability] ? t(CAPABILITY_TRANSLATION_KEYS[feature.capability]) : feature.capability}
             </span>
@@ -1868,7 +1888,7 @@ function FeatureRow({
             )}
           </div>
           {feature.description && (
-            <p className="text-xs text-muted-foreground mt-0.5">{feature.description}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{featureDescription(feature, t)}</p>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-0.5">
@@ -2040,7 +2060,7 @@ function FeatureRow({
                       </div>
                     </div>
                     {patchModel.isError && (
-                      <p className="text-xs text-destructive">{String((patchModel.error as Error)?.message)}</p>
+                      <p className="text-xs text-destructive">{translateApiError((patchModel.error as any)?.response?.data)}</p>
                     )}
                   </div>
                 )}
@@ -2485,7 +2505,7 @@ function CloudFileConfigTab() {
           <div className="grid grid-cols-2 gap-3">
             {fields.map(f => (
               <div key={f.key} className="space-y-1">
-                <Label className="text-xs">{f.label}</Label>
+                <Label className="text-xs">{t(`admin.cloudFiles.fields.${f.key}`, { defaultValue: f.label })}</Label>
                 <Input
                   type={f.secret ? 'password' : 'text'}
                   value={formFields[f.key] ?? ''}

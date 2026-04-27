@@ -21,7 +21,94 @@
     "loadingShort": "Loading...",
     "switch": "Switch",
     "selectProject": "Select project...",
-    "requestFailed": "Request failed. Please try again later."
+    "requestFailed": "Request failed. Please try again later.",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "credits": "Credits",
+    "endpointUrl": "Endpoint URL",
+    "method": "Method",
+    "modelId": "Model ID",
+    "modelIdOverride": "Model ID Override",
+    "prompt": "Prompt",
+    "tokens": "Tokens",
+    "url": "URL"
+  },
+  "apiErrors": {
+    "accessDenied": "Access denied",
+    "agentNotFound": "Agent not found",
+    "agentTemplateNotFound": "Agent template not found",
+    "aiAnalyzeFailed": "AI analysis failed: {{detail}}",
+    "aiBadResponse": "AI returned an invalid format. Please try again.",
+    "aiNotConfigured": "AI service is not configured",
+    "assetNotFound": "Asset not found",
+    "authRequired": "Please sign in first",
+    "cancelFinishedJob": "Finished jobs cannot be cancelled",
+    "cancelStatusInvalid": "This job cannot be cancelled from its current status: {{detail}}",
+    "cancelUnsupported": "This provider does not support video task cancellation",
+    "cancelVideoOnly": "Only video generation jobs can be cancelled",
+    "cannotGrantSelf": "You cannot grant permission to yourself",
+    "capabilityOrFeatureRequired": "Capability or feature query parameter is required",
+    "canvasNotFound": "Canvas not found",
+    "conflict": "The request conflicts with the current state",
+    "credentialNotFound": "Credential not found",
+    "customCapabilitiesRequired": "Custom capabilities are required, such as text or image",
+    "cycleDetected": "A cycle was detected",
+    "deleteRunningJob": "Running jobs must be cancelled before deletion",
+    "dependencyExists": "Dependency already exists",
+    "directorOrOwnerRequired": "Director or owner permission is required",
+    "encryptConfigFailed": "Failed to encrypt configuration: {{detail}}",
+    "episodeNotFound": "Episode not found",
+    "failedReadFile": "Failed to read file",
+    "failedRetrieveFile": "Failed to retrieve file",
+    "failedStoreFile": "Failed to store file",
+    "featureNotFound": "Feature not found",
+    "fileRequired": "File is required",
+    "folderNotFound": "Folder not found",
+    "forbidden": "Forbidden",
+    "invalidCanvasType": "Canvas type must be inspiration or workflow",
+    "invalidCloudConfigType": "Config type must be S3, OSS, or TOS",
+    "invalidCredentials": "Invalid username or password",
+    "invalidId": "Invalid ID",
+    "invalidInput": "Invalid input",
+    "invalidJobType": "Invalid job type: {{detail}}",
+    "invalidPermission": "Permission must be read or write",
+    "invalidUserId": "Invalid user ID",
+    "internalError": "Internal server error",
+    "jobTypeRequired": "Job type is required",
+    "loadInputResourcesFailed": "Failed to load input resources: {{detail}}",
+    "missingCredentialField": "Missing required credential: {{detail}}",
+    "modelConfigNotFound": "Model config not found",
+    "modelListingUnsupported": "This provider does not support model listing",
+    "noAIProviderAvailable": "No AI provider is available: {{detail}}",
+    "noAIProviderConfigured": "No AI provider is available. Add and enable a provider in AI configuration first.",
+    "noStorageKey": "No storage key",
+    "noTask": "No task found",
+    "nodeNotFound": "Node not found",
+    "nodeSelfDependency": "A node cannot depend on itself",
+    "notFound": "Not found",
+    "passwordHashFailed": "Failed to hash password",
+    "permissionDenied": "Permission denied",
+    "pipelineAlreadyDraft": "The node is already in draft state",
+    "pipelineApproveState": "Only nodes in review can be approved",
+    "pipelineRejectState": "Only nodes in review can be rejected",
+    "pipelineSubmitState": "Only draft or rejected nodes can be submitted for review",
+    "projectNotFound": "Project not found",
+    "providerCancellationFailed": "Provider cancellation failed: {{detail}}",
+    "runNotFound": "Run not found",
+    "runningJobRetry": "Running jobs cannot be retried until they fail or time out",
+    "sceneAlreadyLinked": "This scene is already linked to the episode",
+    "sceneNotFound": "Scene not found",
+    "scriptContentEmpty": "Script content cannot be empty",
+    "scriptNotFound": "Script not found",
+    "settingNotFound": "Setting not found",
+    "shotNotFound": "Shot not found",
+    "storyboardNotFound": "Storyboard not found",
+    "succeededJobRetry": "Succeeded jobs cannot be retried",
+    "unknownAdapterType": "Unknown adapter type: {{detail}}",
+    "workflowCanvasRequired": "Only workflow canvases can create run records",
+    "workflowRunRequired": "Workflow canvases must be run as a workflow",
+    "writePermissionRequired": "Write permission is required to upload to this folder",
+    "usernameExists": "Username already exists"
   },
   "auth": {
     "tagline": "Short drama production collaboration platform",
@@ -998,7 +1085,16 @@
         "image+video": "Describe what you want to generate... Type @ to reference images or videos from the resource library"
       },
       "required": "Required",
-      "selectOrUploadHint": "Select from the resource library on the left, or upload below"
+      "selectOrUploadHint": "Select from the resource library on the left, or upload below",
+      "slots": {
+        "ref_images": "Reference images (optional)",
+        "ref_video": "Reference video (optional)",
+        "target_images": "Target images",
+        "motion_video": "Motion video",
+        "target_image": "Image to edit",
+        "style_images": "Style images",
+        "source_image": "Multi-angle image"
+      }
     },
     "genResult": {
       "reusePrompt": "Reuse this prompt"
@@ -1124,6 +1220,34 @@
       "storage": "Resource Storage",
       "cloudFiles": "Input Relay"
     },
+    "adapters": {
+      "openai_compat": {
+        "name": "OpenAI-compatible API",
+        "description": "Text and image models compatible with the OpenAI API, including OpenAI, DeepSeek, and Doubao."
+      },
+      "anthropic": {
+        "name": "Anthropic",
+        "description": "Claude family text models."
+      },
+      "kling": {
+        "name": "Kling",
+        "description": "Kuaishou video and image generation models using Access Key and Secret Key authentication."
+      },
+      "volcen": {
+        "name": "Volcengine Ark",
+        "description": "ByteDance Ark platform for Doubao text, Seedream image generation, and Seedance video generation."
+      },
+      "gemini": {
+        "name": "Google Gemini",
+        "description": "Google AI models for Gemini text chat, Imagen image generation, and Veo video generation."
+      }
+    },
+    "credentialFields": {
+      "access_key": "Access Key",
+      "api_key": "API Key",
+      "base_url": "Base URL",
+      "secret_key": "Secret Key"
+    },
     "billing": {
       "perToken": "Per token",
       "perImage": "Per image",
@@ -1185,7 +1309,10 @@
         "frames": "Frames",
         "execution_expires_after": "Expiration (seconds)",
         "preset": "Preset",
-        "draft": "Draft Mode"
+        "draft": "Draft Mode",
+        "size": "Size",
+        "sequential_image_generation": "Sequential Images",
+        "optimize_prompt_mode": "Prompt Optimization"
       }
     },
     "models": {
@@ -1313,6 +1440,60 @@
       "autoHighestPriority": "Auto (highest priority)",
       "accessRoles": "Access roles",
       "accessRolesHint": "(blank = available to all roles)",
+      "catalog": {
+        "script_analyze": {
+          "name": "Script AI Analysis",
+          "description": "Analyze script content and extract key information such as characters, background, and scenes."
+        },
+        "agent_chat": {
+          "name": "AI Assistant Chat",
+          "description": "Sidebar AI assistant for project creation support."
+        },
+        "canvas_text": {
+          "name": "Canvas Text Generation",
+          "description": "Text generation node in canvas workflows."
+        },
+        "canvas_image": {
+          "name": "Canvas Image Generation",
+          "description": "Image generation node in canvas workflows."
+        },
+        "canvas_video": {
+          "name": "Canvas Video Generation",
+          "description": "Video generation node in canvas workflows."
+        },
+        "shot_ref_image": {
+          "name": "Shot Reference Image Generation",
+          "description": "Generate reference images from storyboard descriptions."
+        },
+        "shot_ref_video": {
+          "name": "Shot Reference Video Generation",
+          "description": "Generate reference videos from reference images or descriptions."
+        },
+        "ref_image_gen": {
+          "name": "Reference Image",
+          "description": "Generate a new image from reference images, with text-to-image also supported."
+        },
+        "ref_video_gen": {
+          "name": "Reference Video",
+          "description": "Generate video from reference images or descriptions."
+        },
+        "motion_imitation": {
+          "name": "Motion Imitation",
+          "description": "Transfer motion from a reference video to target characters."
+        },
+        "style_transfer": {
+          "name": "Style Transfer",
+          "description": "Transfer the reference image's art style to the target image."
+        },
+        "multi_angle": {
+          "name": "Multi-angle",
+          "description": "Generate multi-angle views from a single reference image."
+        },
+        "brainstorm": {
+          "name": "Brainstorm",
+          "description": "Multi-turn AI chat for creative exploration and script ideation."
+        }
+      },
       "roles": {
         "owner": "Project owner",
         "editor": "Editor",
@@ -1351,7 +1532,18 @@
       "disable": "Disable",
       "editConfig": "Edit Config",
       "newConfig": "New Config",
-      "priority": "Priority (lower numbers run first)"
+      "priority": "Priority (lower numbers run first)",
+      "namePlaceholder": "TOS public relay",
+      "fields": {
+        "access_key": "Access Key",
+        "access_key_id": "Access Key ID",
+        "access_key_secret": "Access Key Secret",
+        "bucket": "Bucket",
+        "endpoint": "Endpoint",
+        "public_base_url": "Public Base URL",
+        "region": "Region",
+        "secret_key": "Secret Key"
+      }
     },
     "debug": {
       "copy": "Copy",
@@ -1370,6 +1562,7 @@
       "responseBody": "Response body",
       "imagePreview": "Image preview ({{count}})",
       "generatedImageAlt": "Generated image {{number}}",
+      "debugMark": "debug",
       "tabs": {
         "providerSandbox": "Provider Sandbox",
         "rawCall": "Raw Call",
@@ -1406,7 +1599,22 @@
         "outputResource": "Output Resource",
         "debugContext": "Debug Context",
         "httpExchanges": "HTTP Exchanges ({{count}})",
-        "noProviderCalls": "No provider HTTP calls were captured. Check the state machine and error details above."
+        "noProviderCalls": "No provider HTTP calls were captured. Check the state machine and error details above.",
+        "debugInfoRaw": "Debug Info (raw)",
+        "fields": {
+          "executionState": "Execution State",
+          "finished": "Finished",
+          "inputResources": "Input Resources",
+          "jobId": "Job ID",
+          "jobType": "Job Type",
+          "modelConfigId": "Model Config ID",
+          "modelDef": "Model Def",
+          "outputResource": "Output Resource",
+          "providerTaskId": "Provider Task ID",
+          "resolvedPrompt": "Resolved Prompt",
+          "started": "Started",
+          "status": "Status"
+        }
       },
       "connectivity": {
         "title": "Model Connectivity Test",
@@ -1434,6 +1642,7 @@
         "description": "Enter credentials and parameters directly to debug any provider API. Credentials are not stored and are only used for this request.",
         "credentialConfig": "Credential Config",
         "adapterType": "Adapter Type",
+        "defaultPrompt": "Tell me a joke.",
         "endpointHint": "(capability is inferred from the URL path)",
         "baseUrlHint": "(used when the adapter builds requests)",
         "klingKeyFormat": "(format: access_key:secret_key)",

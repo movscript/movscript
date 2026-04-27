@@ -179,6 +179,10 @@ export function Sidebar() {
               <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} />
               {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} />}
               {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} />}
+              <div className="border-t border-border mx-3 my-1.5" />
+              <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} />
+              <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} />
+              <NavItem to="/creation" icon={PenLine} label={t('sidebar.items.creation')} />
             </>
           )}
         </Section>
@@ -221,29 +225,15 @@ export function Sidebar() {
           <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} />
         </Section>
 
-        <div className="border-t border-border my-2" />
-
         {/* Admin (super_admin only) */}
         {currentUser?.system_role === 'super_admin' && (
-          <Section title={t('sidebar.items.admin')} defaultOpen={false}>
-            <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
-          </Section>
-        )}
-
-        <div className="border-t border-border my-2" />
-
-        {/* Workspace */}
-        <Section title={t('sidebar.sections.workspace')}>
-          {current ? (
-            <>
-              <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} />
-              <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} />
-              <NavItem to="/creation" icon={PenLine} label={t('sidebar.items.creation')} />
-            </>
-          ) : (
-            <p className="px-3 py-1 text-xs text-muted-foreground">{t('sidebar.items.projectRequired')}</p>
+          <>
+            <div className="border-t border-border my-2" />
+            <Section title={t('sidebar.items.admin')} defaultOpen={false}>
+              <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
+            </Section>
+          </>
           )}
-        </Section>
 
       </nav>
 

@@ -5,6 +5,7 @@ import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from
 import { MediaViewer } from './MediaViewer'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { generationParamLabel, generationSlotLabel } from '@/lib/paramLabels'
 import type { RawResource, ParamDef } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
@@ -347,7 +348,7 @@ export function GenInputCard({
                 <div className="flex items-center gap-1.5">
                   <span className="shrink-0 font-mono text-[10px] text-muted-foreground w-4 text-center">{i + 1}</span>
                   <Icon size={12} className="shrink-0" />
-                  <span className="font-medium text-foreground">{slot.label}</span>
+                  <span className="font-medium text-foreground">{generationSlotLabel(slot, t)}</span>
                   {slot.required && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('shared.genInput.required')}</span>}
                   <span className="text-[10px] text-muted-foreground">{limitText}</span>
                 </div>
@@ -391,7 +392,7 @@ export function GenInputCard({
             const val = paramValues[p.key] ?? p.default ?? ''
             return (
               <div key={p.key} className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">{p.label}</span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">{generationParamLabel(p, t)}</span>
                 {p.type === 'select' && p.options ? (
                   <select
                     className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground"
