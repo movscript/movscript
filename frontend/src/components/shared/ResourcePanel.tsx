@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, Asset, AssetView, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
@@ -8,8 +9,6 @@ import { MediaViewer } from '@/components/shared/MediaViewer'
 import { Video, Package, X, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as Dialog from '@radix-ui/react-dialog'
-
-const API_BASE = 'http://localhost:8765'
 
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 

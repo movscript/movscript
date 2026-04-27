@@ -2,14 +2,13 @@ import { useRef } from 'react'
 import { Upload, Wand2, Download, Loader2, AlertCircle, X, Plus } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, PublicModel } from '@/types'
 import type { ToolCanvasState } from '@/hooks/useToolCanvas'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-
-const API_BASE = 'http://localhost:8765'
 
 export interface ToolDef {
   name: string

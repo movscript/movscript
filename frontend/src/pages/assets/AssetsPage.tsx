@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { Asset, AssetView, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Plus, Image, LayoutGrid, List, Search, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -21,8 +22,6 @@ const TYPE_COLORS: Record<string, string> = {
   prop: 'bg-muted text-foreground',
   draft: 'bg-muted text-foreground',
 }
-
-const API_BASE = 'http://localhost:8765'
 
 function viewMediaSrc(view: AssetView): string | undefined {
   if (view.resource?.url) return `${API_BASE}${view.resource.url}`

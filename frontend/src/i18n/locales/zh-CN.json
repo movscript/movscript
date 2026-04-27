@@ -1,0 +1,86 @@
+{
+  "app": {
+    "name": "Movscript"
+  },
+  "common": {
+    "retry": "重试",
+    "loading": "加载中...",
+    "switch": "切换",
+    "selectProject": "选择项目...",
+    "requestFailed": "请求失败，请稍后重试"
+  },
+  "header": {
+    "titles": {
+      "projects": "项目",
+      "scripts": "剧本管理",
+      "assets": "素材库",
+      "episodes": "分集管理",
+      "collaboration": "协作进度",
+      "scenes": "分场管理",
+      "storyboards": "分镜管理",
+      "shots": "镜头管理",
+      "canvases": "画布",
+      "resources": "资源库",
+      "jobs": "生成记录",
+      "agents": "Agent",
+      "agentSettings": "Agent 设置",
+      "user": "用户资料",
+      "admin": "管理后台",
+      "default": "Movscript"
+    },
+    "theme": {
+      "light": "切换到浅色模式",
+      "dark": "切换到深色模式"
+    },
+    "language": "语言"
+  },
+  "sidebar": {
+    "sections": {
+      "project": "项目",
+      "progress": "进度",
+      "tools": "工具",
+      "files": "文件",
+      "agent": "Agent",
+      "workspace": "工作区"
+    },
+    "items": {
+      "scripts": "剧本",
+      "assets": "素材",
+      "episodes": "分集",
+      "scenes": "分场",
+      "storyboards": "分镜",
+      "shots": "镜头",
+      "canvas": "画布",
+      "refImageGen": "参考生图",
+      "refVideoGen": "参考生视频",
+      "motionImitation": "动作迁移",
+      "styleTransfer": "画风迁移",
+      "multiAngle": "多角度",
+      "brainstorm": "头脑风暴",
+      "resources": "资源库",
+      "jobs": "生成记录",
+      "myAgents": "我的 Agent",
+      "pipeline": "管线",
+      "creation": "创作",
+      "collaboration": "协作",
+      "user": "用户资料",
+      "admin": "管理后台",
+      "projectRequired": "需要先选择项目"
+    },
+    "roles": {
+      "superAdmin": "超级管理员",
+      "user": "普通用户"
+    },
+    "progress": {
+      "scripts": "剧本",
+      "episodes": "分集",
+      "scenes": "分场",
+      "storyboards": "分镜",
+      "finalShots": "镜头终稿"
+    },
+    "logout": "退出登录"
+  },
+  "errorBoundary": {
+    "title": "页面加载出错"
+  }
+}

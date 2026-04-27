@@ -2,13 +2,12 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { XCircle, Loader2, ChevronDown, History, ChevronUp } from 'lucide-react'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, PublicModel, CanvasTask } from '@/types'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { GenInputCard } from './GenInputCard'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { cn } from '@/lib/utils'
-
-const API_BASE = 'http://localhost:8765'
 
 export interface ToolNodeFullCardProps {
   toolName: string

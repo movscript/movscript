@@ -1,9 +1,11 @@
 import axios from 'axios'
 import { useUserStore } from '@/store/userStore'
 import { toast } from '@/store/toastStore'
+import { API_V1_BASE_URL } from '@/lib/config'
+import i18n from '@/i18n'
 
 export const api = axios.create({
-  baseURL: 'http://localhost:8765/api/v1'
+  baseURL: API_V1_BASE_URL
 })
 
 api.interceptors.request.use((config) => {
@@ -35,7 +37,7 @@ api.interceptors.response.use(
     }
 
     const body: APIErrorBody = err.response?.data ?? {}
-    const message = body.message ?? body.error ?? '请求失败，请稍后重试'
+    const message = body.message ?? body.error ?? i18n.t('common.requestFailed')
     const action  = body.action ?? ''
 
     // Build debug detail when debug mode is on

@@ -2,10 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2, Wand2 } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import type { PublicModel, RawResource } from '@/types'
-
-const API_BASE = 'http://localhost:8765'
 
 export interface CanvasGenBodyProps {
   prompt?: string

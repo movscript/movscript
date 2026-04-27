@@ -3,11 +3,10 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, Maximize2, Download } from 'lucide-react'
 import { AuthedImage } from './AuthedImage'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import type { RawResource } from '@/types'
 import { useUserStore } from '@/store/userStore'
-
-const API_BASE = 'http://localhost:8765'
 
 interface MediaViewerProps {
   resource: RawResource

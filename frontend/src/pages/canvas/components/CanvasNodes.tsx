@@ -11,8 +11,7 @@ import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
 import { CanvasGenBody } from '@/components/shared/CanvasGenBody'
 import { ToolNodeFullCard } from '@/components/shared/ToolNodeFullCard'
-
-const API_BASE = 'http://localhost:8765'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 
 type CardMode = 'compact' | 'detail' | 'full'
 

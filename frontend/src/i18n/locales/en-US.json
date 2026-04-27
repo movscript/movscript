@@ -1,0 +1,86 @@
+{
+  "app": {
+    "name": "Movscript"
+  },
+  "common": {
+    "retry": "Retry",
+    "loading": "Loading...",
+    "switch": "Switch",
+    "selectProject": "Select project...",
+    "requestFailed": "Request failed. Please try again later."
+  },
+  "header": {
+    "titles": {
+      "projects": "Projects",
+      "scripts": "Script Management",
+      "assets": "Asset Library",
+      "episodes": "Episode Management",
+      "collaboration": "Collaboration Progress",
+      "scenes": "Scene Management",
+      "storyboards": "Storyboard Management",
+      "shots": "Shot Management",
+      "canvases": "Canvas",
+      "resources": "Resources",
+      "jobs": "Generation Jobs",
+      "agents": "Agents",
+      "agentSettings": "Agent Settings",
+      "user": "User Profile",
+      "admin": "Admin",
+      "default": "Movscript"
+    },
+    "theme": {
+      "light": "Switch to light mode",
+      "dark": "Switch to dark mode"
+    },
+    "language": "Language"
+  },
+  "sidebar": {
+    "sections": {
+      "project": "Project",
+      "progress": "Progress",
+      "tools": "Tools",
+      "files": "Files",
+      "agent": "Agent",
+      "workspace": "Workspace"
+    },
+    "items": {
+      "scripts": "Scripts",
+      "assets": "Assets",
+      "episodes": "Episodes",
+      "scenes": "Scenes",
+      "storyboards": "Storyboards",
+      "shots": "Shots",
+      "canvas": "Canvas",
+      "refImageGen": "Reference Image",
+      "refVideoGen": "Reference Video",
+      "motionImitation": "Motion Imitation",
+      "styleTransfer": "Style Transfer",
+      "multiAngle": "Multi-angle",
+      "brainstorm": "Brainstorm",
+      "resources": "Resources",
+      "jobs": "Generation Jobs",
+      "myAgents": "My Agents",
+      "pipeline": "Pipeline",
+      "creation": "Creation",
+      "collaboration": "Collaboration",
+      "user": "User Profile",
+      "admin": "Admin",
+      "projectRequired": "Select a project first"
+    },
+    "roles": {
+      "superAdmin": "Super Admin",
+      "user": "User"
+    },
+    "progress": {
+      "scripts": "Scripts",
+      "episodes": "Episodes",
+      "scenes": "Scenes",
+      "storyboards": "Storyboards",
+      "finalShots": "Final Shots"
+    },
+    "logout": "Log out"
+  },
+  "errorBoundary": {
+    "title": "Page failed to load"
+  }
+}

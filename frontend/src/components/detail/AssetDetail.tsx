@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { Asset, AssetView } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Save } from 'lucide-react'
@@ -11,8 +12,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
-
-const API_BASE = 'http://localhost:8765'
 
 function resolveViewSrc(v: AssetView): string | undefined {
   const raw = v.resource?.url ? `${API_BASE}${v.resource.url}` : v.image_url

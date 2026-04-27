@@ -5,6 +5,7 @@ import { queryClient } from './lib/queryClient'
 import { initTheme } from './hooks/useTheme'
 import App from './App'
 import './index.css'
+import './i18n'
 
 initTheme()
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   FileText, Image, ImagePlus, Film, Clapperboard, Layers, Camera,
@@ -57,6 +58,7 @@ function Section({ title, defaultOpen = true, children }: {
 }
 
 function ProjectProgress({ projectId }: { projectId: number }) {
+  const { t } = useTranslation()
   const { data: progress } = useQuery<Progress>({
     queryKey: ['progress', projectId],
     queryFn: () => api.get(`/projects/${projectId}/progress`).then((r) => r.data),
@@ -75,9 +77,9 @@ function ProjectProgress({ projectId }: { projectId: number }) {
   return (
     <div className="px-3 py-2 space-y-2">
       {[
-        { label: '剧本', value: progress.scripts, total: 0 },
-        { label: '分集', value: progress.episodes, total: progress.total_episodes },
-        { label: '分场', value: progress.scenes, total: 0 },
+        { label: t('sidebar.progress.scripts'), value: progress.scripts, total: 0 },
+        { label: t('sidebar.progress.episodes'), value: progress.episodes, total: progress.total_episodes },
+        { label: t('sidebar.progress.scenes'), value: progress.scenes, total: 0 },
       ].map(({ label, value, total }) => (
         <div key={label} className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">{label}</span>
@@ -89,7 +91,7 @@ function ProjectProgress({ projectId }: { projectId: number }) {
 
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">分镜</span>
+          <span className="text-muted-foreground">{t('sidebar.progress.storyboards')}</span>
           <span className="text-muted-foreground font-mono tabular-nums">
             {progress.storyboards.approved}/{progress.storyboards.total}
           </span>
@@ -99,7 +101,7 @@ function ProjectProgress({ projectId }: { projectId: number }) {
 
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">镜头终稿</span>
+          <span className="text-muted-foreground">{t('sidebar.progress.finalShots')}</span>
           <span className="text-muted-foreground font-mono tabular-nums">
             {progress.shots.is_approved}/{progress.shots.total}
           </span>
@@ -111,6 +113,7 @@ function ProjectProgress({ projectId }: { projectId: number }) {
 }
 
 export function Sidebar() {
+  const { t } = useTranslation()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
@@ -144,7 +147,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-3 px-2">
 
         {/* 项目 */}
-        <Section title="项目">
+        <Section title={t('sidebar.sections.project')}>
           <div className="px-3 py-1 mb-0.5">
             {current ? (
               <div className="flex items-center gap-2">
@@ -154,7 +157,7 @@ export function Sidebar() {
                   to="/projects"
                   className="text-xs text-muted-foreground hover:text-muted-foreground shrink-0 transition-colors"
                 >
-                  切换
+                  {t('common.switch')}
                 </NavLink>
               </div>
             ) : (
@@ -163,19 +166,19 @@ export function Sidebar() {
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <FolderOpen size={13} className="shrink-0" />
-                <span>选择项目…</span>
+                <span>{t('common.selectProject')}</span>
               </NavLink>
             )}
           </div>
 
           {current && (
             <>
-              {showScripts && <NavItem to="/scripts" icon={FileText} label="剧本" />}
-              <NavItem to="/assets" icon={Image} label="素材" />
-              <NavItem to="/episodes" icon={Film} label="分集" />
-              <NavItem to="/scenes" icon={Clapperboard} label="分场" />
-              {showStoryboards && <NavItem to="/storyboards" icon={Layers} label="分镜" />}
-              {showStoryboards && <NavItem to="/shots" icon={Camera} label="镜头" />}
+              {showScripts && <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} />}
+              <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} />
+              <NavItem to="/episodes" icon={Film} label={t('sidebar.items.episodes')} />
+              <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} />
+              {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} />}
+              {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} />}
             </>
           )}
         </Section>
@@ -184,7 +187,7 @@ export function Sidebar() {
         {current && (
           <>
             <div className="border-t border-border my-2" />
-            <Section title="进度" defaultOpen={true}>
+            <Section title={t('sidebar.sections.progress')} defaultOpen={true}>
               <ProjectProgress projectId={current.ID} />
             </Section>
           </>
@@ -193,52 +196,52 @@ export function Sidebar() {
         <div className="border-t border-border my-2" />
 
         {/* 工具 */}
-        <Section title="工具">
-          <NavItem to="/canvases" icon={LayoutTemplate} label="画布" />
-          <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label="参考生图" />
-          <NavItem to="/tools/ref-video-gen" icon={Video} label="参考生视频" />
-          <NavItem to="/tools/motion-imitation" icon={Move} label="动作迁移" />
-          <NavItem to="/tools/style-transfer" icon={Palette} label="画风迁移" />
-          <NavItem to="/tools/multi-angle" icon={Box} label="多角度" />
-          <NavItem to="/tools/brainstorm" icon={MessageSquare} label="头脑风暴" />
+        <Section title={t('sidebar.sections.tools')}>
+          <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} />
+          <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label={t('sidebar.items.refImageGen')} />
+          <NavItem to="/tools/ref-video-gen" icon={Video} label={t('sidebar.items.refVideoGen')} />
+          <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} />
+          <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} />
+          <NavItem to="/tools/multi-angle" icon={Box} label={t('sidebar.items.multiAngle')} />
+          <NavItem to="/tools/brainstorm" icon={MessageSquare} label={t('sidebar.items.brainstorm')} />
         </Section>
 
         <div className="border-t border-border my-2" />
 
         {/* 文件 */}
-        <Section title="文件">
-          <NavItem to="/resources" icon={HardDrive} label="资源库" />
-          <NavItem to="/jobs" icon={Wand2} label="生成记录" />
+        <Section title={t('sidebar.sections.files')}>
+          <NavItem to="/resources" icon={HardDrive} label={t('sidebar.items.resources')} />
+          <NavItem to="/jobs" icon={Wand2} label={t('sidebar.items.jobs')} />
         </Section>
 
         <div className="border-t border-border my-2" />
 
         {/* Agent */}
-        <Section title="Agent">
-          <NavItem to="/agents" icon={BotMessageSquare} label="我的 Agent" />
+        <Section title={t('sidebar.sections.agent')}>
+          <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} />
         </Section>
 
         <div className="border-t border-border my-2" />
 
         {/* 管理 (super_admin only) */}
         {currentUser?.system_role === 'super_admin' && (
-          <Section title="管理" defaultOpen={false}>
-            <NavItem to="/admin" icon={ShieldAlert} label="管理后台" />
+          <Section title={t('sidebar.items.admin')} defaultOpen={false}>
+            <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
           </Section>
         )}
 
         <div className="border-t border-border my-2" />
 
         {/* 工作 */}
-        <Section title="工作">
+        <Section title={t('sidebar.sections.workspace')}>
           {current ? (
             <>
-              <NavItem to="/pipeline" icon={Network} label="管线" />
-              <NavItem to="/collaboration" icon={Users} label="协作" />
-              <NavItem to="/creation" icon={PenLine} label="创作" />
+              <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} />
+              <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} />
+              <NavItem to="/creation" icon={PenLine} label={t('sidebar.items.creation')} />
             </>
           ) : (
-            <p className="px-3 py-1 text-xs text-muted-foreground">需要先选择项目</p>
+            <p className="px-3 py-1 text-xs text-muted-foreground">{t('sidebar.items.projectRequired')}</p>
           )}
         </Section>
 
@@ -258,7 +261,7 @@ export function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-foreground truncate">{currentUser.username}</p>
             <p className="text-xs text-muted-foreground truncate">
-              {currentUser.system_role === 'super_admin' ? '超级管理员' : '普通用户'}
+              {currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
             </p>
           </div>
           <Button
@@ -266,7 +269,7 @@ export function Sidebar() {
             size="icon"
             onClick={(e) => { e.stopPropagation(); setCurrentUser(null) }}
             className="text-muted-foreground hover:text-muted-foreground h-7 w-7 shrink-0"
-            title="退出登录"
+            title={t('sidebar.logout')}
           >
             <LogOut size={14} />
           </Button>

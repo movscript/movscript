@@ -7,8 +7,7 @@ import { cn } from '@/lib/utils'
 import type { RawResource, ParamDef } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
-
-const API_BASE = 'http://localhost:8765'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 
 // Fetch a blob URL for a resource using the authed api instance.
 // Returns a revocable blob: URL, or the direct_url if available.

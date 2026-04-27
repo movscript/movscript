@@ -8,6 +8,7 @@ import {
 import type { PipelineNode, GenJob, PublicModel, RawResource, ParamDef } from '@/types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,8 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-
-const API_BASE = 'http://localhost:8765'
 
 // ── Node category ─────────────────────────────────────────────────────────────
 

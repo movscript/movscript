@@ -10,10 +10,10 @@
 |----|------|
 | 桌面壳 | Electron 33 (main: `frontend/electron/main.ts`) |
 | 前端 | React 18 + React Router v6 + Zustand + TanStack Query v5 + Tailwind CSS |
-| 后端 | Go 1.22 + Gin + GORM + PostgreSQL |
+| 后端 | Go 1.25 + Gin + GORM + PostgreSQL |
 | AI | 多 provider 适配层（Anthropic / OpenAI-compatible / Kling） |
 
-API 基地址：`http://localhost:8765/api/v1`
+API 基地址：默认 `http://localhost:8765/api/v1`，前端通过 `VITE_API_BASE_URL` 配置后端 origin。
 
 ---
 

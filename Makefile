@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend dev-backend dev-frontend
+.PHONY: build build-backend build-frontend dev-backend dev-frontend test test-backend typecheck-frontend tidy
 
 build: build-backend build-frontend
 
@@ -19,3 +19,8 @@ tidy:
 
 test-backend:
 	cd backend && go test ./...
+
+typecheck-frontend:
+	cd frontend && npm run typecheck
+
+test: test-backend typecheck-frontend

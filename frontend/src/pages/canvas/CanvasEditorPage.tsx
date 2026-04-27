@@ -28,6 +28,7 @@ import {
   InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode,
 } from './components/CanvasNodes'
 import { ContextMenu } from './components/ContextMenu'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { NodePanel } from './components/NodePanel'
 import {
   CANVAS_NODE_CATALOG,
@@ -68,8 +69,6 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react'
-
-const API_BASE = 'http://localhost:8765'
 
 const nodeTypes = {
   text: TextNode,

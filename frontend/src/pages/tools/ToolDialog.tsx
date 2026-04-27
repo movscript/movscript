@@ -3,6 +3,7 @@ import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, NodeType, GenJob, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
 import {
   ArrowLeft, Wand2, Loader2,
@@ -21,8 +22,6 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-
-const API_BASE = 'http://localhost:8765'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
 

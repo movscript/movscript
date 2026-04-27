@@ -31,6 +31,7 @@ import PipelineEditorPage from './pages/pipeline/PipelineEditorPage'
 import AgentSettingsPage from './pages/agent/AgentSettingsPage'
 import AgentsPage from './pages/agent/AgentsPage'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
+import i18n from './i18n'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -52,14 +53,14 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
             <span className="text-destructive text-xl">!</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground mb-1">页面加载出错</p>
+            <p className="text-sm font-medium text-foreground mb-1">{i18n.t('errorBoundary.title')}</p>
             <p className="text-xs text-muted-foreground font-mono max-w-sm break-all">{error.message}</p>
           </div>
           <button
             onClick={() => this.setState({ error: null })}
             className="text-xs border border-border text-muted-foreground px-4 py-2 rounded hover:bg-muted transition-colors"
           >
-            重试
+            {i18n.t('common.retry')}
           </button>
         </div>
       )

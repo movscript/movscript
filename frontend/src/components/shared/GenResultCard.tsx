@@ -3,10 +3,9 @@ import { Loader2, AlertCircle, RotateCcw, CheckCircle2, X } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { MediaViewer } from './MediaViewer'
 import { cn } from '@/lib/utils'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource } from '@/types'
 import { useUserStore } from '@/store/userStore'
-
-const API_BASE = 'http://localhost:8765'
 
 // ── PromptText ────────────────────────────────────────────────────────────────
 // Renders a prompt string, replacing @[resource:ID] tokens with inline thumbnails.

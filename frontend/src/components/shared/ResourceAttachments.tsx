@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { API_BASE_URL } from '@/lib/config'
 import type { RawResource } from '@/types'
 import { Paperclip, X, Upload } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
@@ -10,7 +11,7 @@ interface Props {
   onChange: (ids: number[]) => void
 }
 
-const BASE = 'http://localhost:8765'
+const BASE = API_BASE_URL
 
 export function ResourceAttachments({ resourceIds, onChange }: Props) {
   const qc = useQueryClient()

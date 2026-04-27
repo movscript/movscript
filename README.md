@@ -1,68 +1,86 @@
-# movscript
+# Movscript
 
-An open-source short drama production tool.
+Movscript is an open-source desktop production workspace for short drama and AI-assisted video workflows. It combines script, asset, episode, scene, storyboard, shot, resource, pipeline, canvas, and generation-job management in one Electron application.
 
-## Tech Stack
+## Highlights
 
-- **Backend**: Go + Gin + GORM + PostgreSQL
-- **Frontend**: Electron + Vite + React + TypeScript + shadcn/ui
-- **Collaboration**: Polling-based refresh
+- Project workspace for scripts, assets, episodes, scenes, storyboards, and shots
+- AI generation tools for text, image, video, reference image, reference video, motion imitation, style transfer, multi-angle views, and brainstorming
+- Provider abstraction for OpenAI-compatible, Anthropic, Gemini, Volcengine, Kling, and dry-run adapters
+- Local-first desktop frontend built with Electron, Vite, React, TypeScript, Tailwind CSS, and shadcn/ui primitives
+- Go API server with Gin, GORM, PostgreSQL, MinIO-compatible object storage, and MCP endpoint support
+- Internationalization foundation for Simplified Chinese and English
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - Node.js 20+
-- PostgreSQL 15+
+- Docker and Docker Compose
 
-### Backend
+### Start infrastructure
 
 ```bash
-cd backend
-cp .env.example .env   # edit DB credentials
-go run ./cmd/server
-# → http://localhost:8765/health
+docker compose up -d db minio createbuckets
 ```
 
-### Frontend
+### Configure and run the backend
 
 ```bash
+cp backend/.env.example backend/.env
+openssl rand -hex 32
+# paste the generated value into ENCRYPTION_KEY
+make dev-backend
+```
+
+The health endpoint is available at `http://localhost:8765/health`.
+
+### Configure and run the frontend
+
+```bash
+cp frontend/.env.example frontend/.env
 cd frontend
 npm install
-npm run dev   # Electron dev mode
+npm run dev
 ```
 
 ### Build
 
 ```bash
-make build-backend   # compiles Go binary to backend/bin/server
-make build-frontend  # packages Electron app
-make build           # both
+make build
 ```
 
-## API
+### Validate
 
-Base URL: `http://localhost:8765/api/v1`
+```bash
+make test
+```
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET/POST | `/scripts` | List / create scripts |
-| GET/PUT/DELETE | `/scripts/:id` | Script CRUD |
-| GET/POST | `/assets?type=character\|scene\|prop` | Assets |
-| GET/PUT/DELETE | `/assets/:id` | Asset CRUD |
-| GET/POST | `/scripts/:scriptId/episodes` | Episodes |
-| PUT/DELETE | `/episodes/:id` | Episode update/delete |
-| GET/POST | `/episodes/:episodeId/storyboards` | Storyboards |
-| PUT/DELETE | `/storyboards/:id` | Storyboard update/delete |
-| GET | `/progress` | Collaboration polling |
-| GET/POST | `/users` | Users |
-| GET | `/health` | Health check |
+## Documentation
+
+- [Getting started](docs/getting-started.md)
+- [Configuration](docs/configuration.md)
+- [Development](docs/development.md)
+- [Deployment](docs/deployment.md)
+- [Architecture](docs/architecture.md)
+- [API reference](docs/api.md)
+- [AI providers](docs/ai-providers.md)
+- [Internationalization](docs/internationalization.md)
+- [Troubleshooting](docs/troubleshooting.md)
+
+Chinese documentation entry: [README.zh-CN.md](README.zh-CN.md)
 
 ## Project Structure
 
-```
+```text
 movscript/
-├── backend/          # Go API server
-└── frontend/         # Electron + React app
+├── backend/          Go API server
+├── frontend/         Electron + Vite + React application
+├── docs/             User, developer, and deployment documentation
+└── docker-compose.yml
 ```
+
+## Open Source
+
+Movscript is released under the [MIT License](LICENSE). Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before participating.
