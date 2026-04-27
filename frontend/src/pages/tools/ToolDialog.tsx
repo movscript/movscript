@@ -20,7 +20,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from '@/components/ui/card'
+} from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 

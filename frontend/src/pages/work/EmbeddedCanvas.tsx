@@ -23,9 +23,9 @@ import {
   InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode,
 } from '@/pages/canvas/components/CanvasNodes'
 import { ContextMenu } from '@/pages/canvas/components/ContextMenu'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
+import { Button } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
+import { Label } from '@movscript/ui'
 import { Save, Play, X, Zap, Lightbulb, ChevronDown, Loader2, Plus, Layers, CheckCircle2, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'

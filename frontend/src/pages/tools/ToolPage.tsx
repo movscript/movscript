@@ -7,8 +7,8 @@ import type { RawResource, PublicModel } from '@/types'
 import type { ToolCanvasState } from '@/hooks/useToolCanvas'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 export interface ToolDef {

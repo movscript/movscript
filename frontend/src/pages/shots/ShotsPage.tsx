@@ -8,7 +8,7 @@ import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ShotCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { SHOT_STATUS_COLORS as STATUS_COLORS, SHOT_STATUS_LABEL_KEYS as STATUS_LABEL_KEYS } from '@/constants/shot'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { ShotDetail, ReviewStatusBadge } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 

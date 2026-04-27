@@ -3,7 +3,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@movscript/ui'
 
 interface CreateDialogProps {
   open: boolean

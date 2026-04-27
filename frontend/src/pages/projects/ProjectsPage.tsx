@@ -5,18 +5,18 @@ import type { Project } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, ArrowRight, FolderOpen, FileEdit, FileText, Layers, LayoutGrid, ChevronLeft } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { Button } from '@movscript/ui'
+import { Input } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
+import { Label } from '@movscript/ui'
+import { Badge } from '@movscript/ui'
+import { Progress } from '@movscript/ui'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 type ProjectStatus = 'planning' | 'script_analysis' | 'asset_prep' | 'production' | 'editing' | 'done'

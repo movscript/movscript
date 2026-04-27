@@ -14,9 +14,9 @@ import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import type { ProjectMember, Progress } from '@/types'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Progress as ProgressBar } from '@/components/ui/progress'
-import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@movscript/ui'
+import { Progress as ProgressBar } from '@movscript/ui'
+import { Button } from '@movscript/ui'
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
   return (

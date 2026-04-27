@@ -9,7 +9,7 @@ import { CreateDialog } from '@/components/shared/CreateDialog'
 import { AssetCreateForm } from '@/components/shared/EntityCreateForms'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { AssetDetail, ReviewStatusBadge } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 

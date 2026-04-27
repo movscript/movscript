@@ -1,8 +1,8 @@
 import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
-} from '@/components/ui/dialog'
+} from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 interface Props {

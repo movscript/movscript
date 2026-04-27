@@ -8,9 +8,9 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
+import { ScrollArea } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import {
   useAgentStore,

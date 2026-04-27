@@ -20,7 +20,7 @@ import { StoryboardWorkspace } from './workspaces/StoryboardWorkspace'
 import { ShotWorkspace } from './workspaces/ShotWorkspace'
 import { EmptyWorkspace } from './workspaces/EmptyWorkspace'
 import { EmbeddedCanvas, type EntityDragItem, type PushTarget } from './EmbeddedCanvas'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 
 const ALL_KINDS: EntityKind[] = ['script', 'asset', 'episode', 'scene', 'storyboard', 'shot']
 const CANVAS_DEFAULT_H = 340

@@ -9,12 +9,12 @@ import {
   Plus, Trash2, MessageSquare, ChevronDown, ChevronUp,
   CheckCircle, Play, X,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Button } from '@movscript/ui'
+import { Input } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
+import { Label } from '@movscript/ui'
+import { Badge } from '@movscript/ui'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 const ROLE_LABEL_KEYS: Record<string, string> = {

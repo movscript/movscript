@@ -10,14 +10,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { AuthedImage } from '@/components/shared/AuthedImage'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { generationParamLabel } from '@/lib/paramLabels'
 import { useTranslation } from 'react-i18next'

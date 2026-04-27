@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useTranslation } from 'react-i18next'

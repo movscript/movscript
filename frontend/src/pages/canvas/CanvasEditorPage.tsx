@@ -37,10 +37,10 @@ import {
   CANVAS_NODE_META,
   NODE_LABELS,
 } from './nodeCatalog'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
+import { Label } from '@movscript/ui'
+import { Badge } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import {
   ArrowLeft,

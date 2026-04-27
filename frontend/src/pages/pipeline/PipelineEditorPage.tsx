@@ -28,7 +28,7 @@ import { GanttChart } from './components/GanttChart'
 import { CanvasContextMenu } from './components/CanvasContextMenu'
 import { DeleteNodeDialog } from './components/DeleteNodeDialog'
 import { PipelineEntityNavPanel, PIPELINE_ENTITY_DRAG_TYPE, type PipelineEntityDragItem } from './components/PipelineEntityNavPanel'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { ArrowLeft, LayoutDashboard, GanttChartSquare, Loader2, ScanLine } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

@@ -4,8 +4,8 @@ import { api } from '@/lib/api'
 import type { UserQuota, UsageLog } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { LogOut, Coins } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Button } from '@movscript/ui'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 /* ─── Profile tab ─── */

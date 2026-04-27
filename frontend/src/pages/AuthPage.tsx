@@ -6,9 +6,9 @@ import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
 import { useUserStore } from '@/store/userStore'
 import type { User } from '@/types'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@movscript/ui'
+import { Input } from '@movscript/ui'
+import { Label } from '@movscript/ui'
 
 type Tab = 'login' | 'register'
 

@@ -3,7 +3,7 @@ import { Sun, Moon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useProjectStore } from '@/store/projectStore'
 import { useTheme } from '@/hooks/useTheme'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 
 const titleKeys: Record<string, string> = {

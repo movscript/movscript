@@ -6,9 +6,9 @@ import type { Canvas, CanvasType } from '@/types'
 import { Plus, Trash2, ArrowRight, LayoutTemplate, Lightbulb, Zap } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 import { CreateDialog } from '@/components/shared/CreateDialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@movscript/ui'
+import { Input } from '@movscript/ui'
+import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 const TYPE_META: Record<CanvasType, { labelKey: string; icon: React.ReactNode; color: string; descKey: string }> = {

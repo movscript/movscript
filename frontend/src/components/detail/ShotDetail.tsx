@@ -9,9 +9,9 @@ import { cn } from '@/lib/utils'
 import {
   SHOT_STATUS_LABEL_KEYS, SHOT_STATUS_COLORS, SHOT_STATUS_NEXT, SHOT_STATUS_STEPS,
 } from '@/constants/shot'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
+import { Button } from '@movscript/ui'
+import { Textarea } from '@movscript/ui'
+import { Label } from '@movscript/ui'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
 

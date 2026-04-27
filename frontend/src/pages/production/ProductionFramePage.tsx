@@ -27,9 +27,9 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import type { Asset, Episode, Progress, Scene, Script, Shot, Storyboard, Task } from '@/types'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Progress as ProgressBar } from '@/components/ui/progress'
+import { Badge } from '@movscript/ui'
+import { Button } from '@movscript/ui'
+import { Progress as ProgressBar } from '@movscript/ui'
 
 type WorkbenchView = 'overview' | 'beats' | 'shots'
 

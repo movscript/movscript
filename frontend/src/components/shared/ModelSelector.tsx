@@ -10,7 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@movscript/ui'
 import { cn } from '@/lib/utils'
 
 interface ModelSelectorProps {

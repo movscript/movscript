@@ -7,7 +7,7 @@ import { Plus, Film } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { EpisodeCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { EpisodeDetail, ReviewStatusBadge } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 

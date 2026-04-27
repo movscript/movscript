@@ -7,7 +7,7 @@ import { Plus, Clapperboard } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { SceneCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { SceneDetail, ReviewStatusBadge } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 

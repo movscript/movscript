@@ -16,7 +16,7 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-} from '@/components/ui/card'
+} from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { translateApiError } from '@/lib/apiError'
 import { useTranslation } from 'react-i18next'

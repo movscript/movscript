@@ -3,7 +3,7 @@ import { api } from '@/lib/api'
 import type { ReviewStatus } from '@/types'
 import { cn } from '@/lib/utils'
 import { Send, CheckCircle, RotateCcw, FileEdit } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 export const REVIEW_STATUS_CONFIG: Record<ReviewStatus, {
