@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { NodeType, PublicModel, RawResource } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 export type ToolStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 
@@ -32,6 +33,7 @@ function clearStoredCanvasId(nodeType: NodeType) {
 }
 
 export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video', options?: { promptRequired?: boolean }) {
+  const { t } = useTranslation()
   const canvasIdRef = useRef<number | null>(getStoredCanvasId(nodeType))
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -79,7 +81,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
       }
     }
     const data = await api.post('/canvases', {
-      name: `工具: ${nodeType}`,
+      name: t('tools.canvasName', { type: nodeType }),
       nodes: [],
       edges: [],
     }).then((r) => r.data as { ID: number })
@@ -99,7 +101,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
       const modelDbId = state.modelDbId || models[0]?.id || 0
 
       await api.put(`/canvases/${cid}`, {
-        name: `工具: ${nodeType}`,
+        name: t('tools.canvasName', { type: nodeType }),
         nodes: [{
           node_id: TOOL_NODE_ID,
           type: nodeType,
@@ -139,11 +141,11 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
           }
         } catch {
           if (pollRef.current) clearInterval(pollRef.current)
-          setState((s) => ({ ...s, status: 'failed', error: '轮询失败' }))
+          setState((s) => ({ ...s, status: 'failed', error: t('tools.errors.pollFailed') }))
         }
       }, 2000)
     } catch (err: any) {
-      setState((s) => ({ ...s, status: 'failed', error: err?.message ?? '运行失败' }))
+      setState((s) => ({ ...s, status: 'failed', error: err?.message ?? t('tools.errors.runFailed') }))
     }
   }
 

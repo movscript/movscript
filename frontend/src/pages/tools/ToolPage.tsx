@@ -9,6 +9,7 @@ import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { useTranslation } from 'react-i18next'
 
 export interface ToolDef {
   name: string
@@ -32,6 +33,7 @@ interface ToolPageProps {
 }
 
 export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
+  const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
 
@@ -91,7 +93,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                         : <AuthedImage src={`${API_BASE}${r.url}`} alt={r.name} className="w-20 h-20 object-cover rounded-lg border border-border" />
                     ) : (
                       <div className="w-20 h-20 bg-muted rounded-lg border border-border flex items-center justify-center">
-                        <span className="text-xs text-muted-foreground">视频</span>
+                        <span className="text-xs text-muted-foreground">{t('canvas.paramTypes.video')}</span>
                       </div>
                     )}
                     <button
@@ -114,11 +116,11 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                     ? <Loader2 size={16} className="animate-spin" />
                     : state.inputResources.length === 0 ? <Upload size={16} /> : <Plus size={16} />
                   }
-                  <span className="text-[10px]">{upload.isPending ? '上传中' : '上传'}</span>
+                  <span className="text-[10px]">{upload.isPending ? t('canvas.nodePanel.uploading') : t('shared.attachments.upload')}</span>
                 </button>
               </div>
               {state.inputResources.length === 0 && (
-                <p className="text-[10px] text-muted-foreground mt-2">或从左侧资源库 / 素材库点击选择</p>
+                <p className="text-[10px] text-muted-foreground mt-2">{t('tools.page.selectFromLeft')}</p>
               )}
             </div>
             <input
@@ -134,7 +136,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
               <div className="p-3 border-b border-border">
                 <Textarea
                   rows={3}
-                  placeholder={def.promptPlaceholder ?? '描述你想生成的内容…'}
+                  placeholder={def.promptPlaceholder ?? t('shared.generation.promptPlaceholder')}
                   value={state.prompt}
                   onChange={(e) => update({ prompt: e.target.value })}
                   className="resize-none text-sm"
@@ -150,7 +152,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                 onChange={(e) => update({ modelDbId: Number(e.target.value) })}
               >
                 {models.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
-                {models.length === 0 && <option value="">暂无可用模型</option>}
+                {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
               </select>
               <div className="flex-1" />
               <Button
@@ -164,8 +166,8 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                 className="rounded-full"
               >
                 {isRunning
-                  ? <><Loader2 size={13} className="animate-spin mr-2" />生成中…</>
-                  : <><Wand2 size={13} className="mr-2" />运行</>
+                  ? <><Loader2 size={13} className="animate-spin mr-2" />{t('canvas.generating')}</>
+                  : <><Wand2 size={13} className="mr-2" />{t('canvas.run')}</>
                 }
               </Button>
             </div>
@@ -175,29 +177,29 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
           {state.status !== 'idle' && (
             <div className="bg-background rounded-xl border border-border shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-border">
-                <p className="text-sm font-medium text-foreground">生成结果</p>
+                <p className="text-sm font-medium text-foreground">{t('tools.page.result')}</p>
               </div>
               <div className="bg-card min-h-[80px]">
                 {isRunning && (
                   <div className="flex items-center justify-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Loader2 size={24} className="animate-spin" />
-                      <p className="text-xs">{state.status === 'pending' ? '等待开始…' : '生成中…'}</p>
+                      <p className="text-xs">{state.status === 'pending' ? t('canvas.waitingStart') : t('canvas.generating')}</p>
                     </div>
                   </div>
                 )}
                 {!isRunning && state.status === 'failed' && (
                   <div className="flex items-center justify-center py-8 gap-2 text-destructive">
                     <AlertCircle size={16} />
-                    <p className="text-sm">{state.error ?? '生成失败'}</p>
+                    <p className="text-sm">{state.error ?? t('canvas.generationFailed')}</p>
                   </div>
                 )}
                 {!isRunning && state.status === 'done' && outputSrc && (
                   <div className="relative">
                     {def.outputType === 'image' ? (
                       state.outputResource?.direct_url
-                        ? <img src={outputSrc} alt="生成结果" className="w-full max-h-[480px] object-contain" />
-                        : <AuthedImage src={outputSrc} alt="生成结果" className="w-full max-h-[480px] object-contain" />
+                        ? <img src={outputSrc} alt={t('shared.generation.resultAlt')} className="w-full max-h-[480px] object-contain" />
+                        : <AuthedImage src={outputSrc} alt={t('shared.generation.resultAlt')} className="w-full max-h-[480px] object-contain" />
                     ) : (
                       state.outputResource?.direct_url
                         ? <video src={outputSrc} controls className="w-full max-h-[480px]" />
@@ -208,7 +210,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                       download={state.outputResource?.name}
                       className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-foreground/80 text-background px-3 py-1.5 rounded-full text-xs hover:bg-foreground backdrop-blur-sm transition-colors"
                     >
-                      <Download size={12} /> 下载
+                      <Download size={12} /> {t('shared.mediaViewer.download')}
                     </a>
                   </div>
                 )}

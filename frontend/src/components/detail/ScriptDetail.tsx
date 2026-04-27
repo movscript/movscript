@@ -12,11 +12,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
+import { useTranslation } from 'react-i18next'
 
-const SCRIPT_TYPE_MAP: Record<string, { label: string; color: string }> = {
-  main:    { label: '主剧本',   color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400' },
-  episode: { label: '分集剧本', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
-  scene:   { label: '分场剧本', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
+const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; color: string }> = {
+  main:    { labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400' },
+  episode: { labelKey: 'domain.scriptTypes.episode', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
+  scene:   { labelKey: 'domain.scriptTypes.scene',   color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
 }
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function ScriptDetail({ script, onClose, onDelete }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Script>>({ ...script })
@@ -85,7 +87,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0 font-medium', typeCfg?.color)}>
-            {typeCfg?.label ?? script.script_type}
+            {typeCfg ? t(typeCfg.labelKey) : script.script_type}
           </span>
           <h2 className="text-sm font-semibold text-foreground truncate">{script.title}</h2>
         </div>
@@ -97,10 +99,10 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
             className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded hover:bg-primary/90 disabled:opacity-50"
           >
             {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            AI 分析
+            {t('details.aiAnalyze')}
           </button>
           {onClose && (
-            <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>
           )}
         </div>
       </div>
@@ -117,7 +119,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
             onClick={() => remove.mutate()}
             className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors"
           >
-            删除
+            {t('common.delete')}
           </button>
         )}
       </div>
@@ -125,10 +127,10 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
       <Tabs defaultValue="content" className="flex flex-col flex-1 overflow-hidden">
         <TabsList className="shrink-0 w-full justify-start rounded-none border-b bg-background px-0 h-auto py-0">
           <TabsTrigger value="content" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-5 py-2.5 text-xs font-medium">
-            内容管理
+            {t('details.contentManagement')}
           </TabsTrigger>
           <TabsTrigger value="plot" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-5 py-2.5 text-xs font-medium">
-            剧本正文
+            {t('details.scriptBody')}
           </TabsTrigger>
         </TabsList>
 
@@ -136,69 +138,69 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
           <div className="p-5 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">标题</Label>
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.title')}</Label>
                 <Input value={draft.title ?? ''} onChange={field('title')} />
               </div>
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">简介</Label>
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
                 <Input value={draft.description ?? ''} onChange={field('description')} />
               </div>
             </div>
             <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">剧本总结</Label>
-              <Textarea className="resize-none" rows={3} placeholder="剧本核心内容概括…" value={draft.summary ?? ''} onChange={field('summary')} />
+              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.scriptSummary')}</Label>
+              <Textarea className="resize-none" rows={3} placeholder={t('details.scriptSummaryPlaceholder')} value={draft.summary ?? ''} onChange={field('summary')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">人物</Label>
-                <Textarea className="resize-none" rows={4} placeholder="主要角色姓名、身份、性格特点…" value={draft.characters ?? ''} onChange={field('characters')} />
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.characters')}</Label>
+                <Textarea className="resize-none" rows={4} placeholder={t('details.charactersPlaceholder')} value={draft.characters ?? ''} onChange={field('characters')} />
               </div>
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">核心设定</Label>
-                <Textarea className="resize-none" rows={4} placeholder="世界观、规则、特殊设定…" value={draft.core_settings ?? ''} onChange={field('core_settings')} />
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.coreSettings')}</Label>
+                <Textarea className="resize-none" rows={4} placeholder={t('details.coreSettingsPlaceholder')} value={draft.core_settings ?? ''} onChange={field('core_settings')} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">背景</Label>
-                <Textarea className="resize-none" rows={3} placeholder="故事时代背景、环境…" value={draft.background ?? ''} onChange={field('background')} />
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.background')}</Label>
+                <Textarea className="resize-none" rows={3} placeholder={t('details.backgroundPlaceholder')} value={draft.background ?? ''} onChange={field('background')} />
               </div>
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">场景</Label>
-                <Textarea className="resize-none" rows={3} placeholder="主要拍摄场景描述…" value={draft.scenes_desc ?? ''} onChange={field('scenes_desc')} />
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.scenes')}</Label>
+                <Textarea className="resize-none" rows={3} placeholder={t('details.scenesPlaceholder')} value={draft.scenes_desc ?? ''} onChange={field('scenes_desc')} />
               </div>
             </div>
             {(isEpisode || isScene) && (
               <div className="border-t border-border pt-4 space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{isEpisode ? '分集特有' : '分场特有'}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{isEpisode ? t('details.episodeSpecific') : t('details.sceneSpecific')}</p>
                 {isEpisode && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-xs font-medium text-muted-foreground mb-1">集数顺序</Label>
+                      <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.episodeOrder')}</Label>
                       <Input type="number" value={draft.order ?? ''} onChange={(e) => setDraft((d) => ({ ...d, order: Number(e.target.value) }))} />
                     </div>
                     <div>
-                      <Label className="text-xs font-medium text-muted-foreground mb-1">钩子</Label>
-                      <Textarea className="resize-none" rows={2} placeholder="本集核心钩子/看点…" value={draft.hook ?? ''} onChange={field('hook')} />
+                      <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.hook')}</Label>
+                      <Textarea className="resize-none" rows={2} placeholder={t('details.episodeHookPlaceholder')} value={draft.hook ?? ''} onChange={field('hook')} />
                     </div>
                   </div>
                 )}
                 {isEpisode && (
                   <div>
-                    <Label className="text-xs font-medium text-muted-foreground mb-1">剧情推演总结</Label>
-                    <Textarea className="resize-none" rows={3} placeholder="本集剧情走向简要描述…" value={draft.plot_summary ?? ''} onChange={field('plot_summary')} />
+                    <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.plotSummary')}</Label>
+                    <Textarea className="resize-none" rows={3} placeholder={t('details.plotSummaryPlaceholder')} value={draft.plot_summary ?? ''} onChange={field('plot_summary')} />
                   </div>
                 )}
                 {isScene && (
                   <div>
-                    <Label className="text-xs font-medium text-muted-foreground mb-1">钩子</Label>
-                    <Textarea className="resize-none" rows={2} placeholder="本场核心内容或目的…" value={draft.hook ?? ''} onChange={field('hook')} />
+                    <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.hook')}</Label>
+                    <Textarea className="resize-none" rows={2} placeholder={t('details.sceneHookPlaceholder')} value={draft.hook ?? ''} onChange={field('hook')} />
                   </div>
                 )}
               </div>
             )}
             <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">附件</Label>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.attachments')}</Label>
               <ResourceAttachments
                 resourceIds={draft.resource_ids ? JSON.parse(draft.resource_ids) : []}
                 onChange={(ids) => setDraft((d) => ({ ...d, resource_ids: JSON.stringify(ids) }))}
@@ -206,7 +208,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
             </div>
             <div className="pt-1 border-t border-border">
               <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="gap-1.5">
-                <Save size={13} /> {update.isPending ? '保存中…' : '保存'}
+                <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>
@@ -215,17 +217,17 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
         <TabsContent value="plot" className="flex-1 overflow-y-auto mt-0">
           <div className="p-5 space-y-4 h-full flex flex-col">
             <div className="flex-1 flex flex-col min-h-0">
-              <Label className="text-xs font-medium text-muted-foreground mb-1">剧本正文</Label>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.scriptBody')}</Label>
               <Textarea
                 className="flex-1 font-mono resize-none min-h-[400px]"
-                placeholder="在此输入剧本正文内容…"
+                placeholder={t('details.scriptBodyPlaceholder')}
                 value={draft.content ?? ''}
                 onChange={field('content')}
               />
             </div>
             <div className="pt-1 border-t border-border">
               <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="gap-1.5">
-                <Save size={13} /> {update.isPending ? '保存中…' : '保存'}
+                <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>

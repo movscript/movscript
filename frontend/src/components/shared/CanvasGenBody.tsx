@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Wand2 } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { api } from '@/lib/api'
@@ -35,6 +36,7 @@ export function CanvasGenBody({
   onRun,
   textContent,
 }: CanvasGenBodyProps) {
+  const { t } = useTranslation()
   const isRunning = status === 'pending' || status === 'running'
   const outputUrl = resource
     ? resource.direct_url ?? `${API_BASE}${resource.url}`
@@ -63,7 +65,7 @@ export function CanvasGenBody({
       <textarea
         className="w-full border border-border rounded px-2 py-1.5 text-[11px] resize-none focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground nodrag nowheel"
         rows={3}
-        placeholder="描述你想生成的内容…"
+        placeholder={t('shared.generation.promptPlaceholder')}
         value={prompt ?? ''}
         onChange={e => onUpdatePrompt?.(e.target.value)}
         onClick={e => e.stopPropagation()}
@@ -98,8 +100,8 @@ export function CanvasGenBody({
         )}
       >
         {isRunning
-          ? <><Loader2 size={11} className="animate-spin" />生成中…</>
-          : <><Wand2 size={11} />运行节点</>
+          ? <><Loader2 size={11} className="animate-spin" />{t('pages.jobs.generating')}</>
+          : <><Wand2 size={11} />{t('shared.generation.runNode')}</>
         }
       </button>
     </div>

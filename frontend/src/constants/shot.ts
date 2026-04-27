@@ -1,11 +1,11 @@
 import type { ShotStatus } from '@/types'
 
-export const SHOT_STATUS_LABELS: Record<ShotStatus, string> = {
-  draft: '草稿',
-  prompt_ready: '就绪',
-  generating: '生成中',
-  generated: '已生成',
-  approved: '已通过',
+export const SHOT_STATUS_LABEL_KEYS: Record<ShotStatus, string> = {
+  draft: 'domain.shotStatus.draft',
+  prompt_ready: 'domain.shotStatus.prompt_ready',
+  generating: 'domain.shotStatus.generating',
+  generated: 'domain.shotStatus.generated',
+  approved: 'domain.shotStatus.approved',
 }
 
 export const SHOT_STATUS_COLORS: Record<ShotStatus, string> = {

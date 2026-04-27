@@ -9,10 +9,15 @@ import { EpisodeCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { EpisodeDetail, ReviewStatusBadge } from '@/components/detail'
+import { useTranslation } from 'react-i18next'
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: '草稿', scripted: '已编剧', storyboarded: '已分镜',
-  generating: '生成中', editing: '剪辑中', done: '完成',
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  draft: 'domain.episodeStatus.draft',
+  scripted: 'domain.episodeStatus.scripted',
+  storyboarded: 'domain.episodeStatus.storyboarded',
+  generating: 'domain.episodeStatus.generating',
+  editing: 'domain.episodeStatus.editing',
+  done: 'domain.episodeStatus.done',
 }
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -24,6 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function EpisodesPage() {
+  const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterScriptId, setFilterScriptId] = useState<number | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -57,7 +63,7 @@ export default function EpisodesPage() {
             value={filterScriptId ?? ''}
             onChange={(e) => { setFilterScriptId(Number(e.target.value) || null); setSelectedId(null) }}
           >
-            <option value="">全部分集</option>
+            <option value="">{t('pages.episodes.all')}</option>
             {scripts.map((s) => <option key={s.ID} value={s.ID}>{s.title}</option>)}
           </select>
           <Button onClick={() => setShowCreate(true)} size="icon" className="shrink-0 h-7 w-7"><Plus size={14} /></Button>
@@ -65,12 +71,12 @@ export default function EpisodesPage() {
 
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+            <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
           ) : episodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Film size={32} className="opacity-30" />
-              <p className="text-sm">暂无分集</p>
-              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">新建一个</button>
+              <p className="text-sm">{t('pages.episodes.empty')}</p>
+              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">{t('pages.episodes.createOne')}</button>
             </div>
           ) : detailOpen ? (
             episodes.map((e) => (
@@ -90,7 +96,7 @@ export default function EpisodesPage() {
                   className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-lg font-bold text-muted-foreground/50 font-mono">EP{String(e.number).padStart(2, '0')}</span>
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded-full', STATUS_COLORS[e.status] ?? 'bg-muted text-muted-foreground')}>{STATUS_LABELS[e.status] ?? e.status}</span>
+                    <span className={cn('text-xs px-1.5 py-0.5 rounded-full', STATUS_COLORS[e.status] ?? 'bg-muted text-muted-foreground')}>{STATUS_LABEL_KEYS[e.status] ? t(STATUS_LABEL_KEYS[e.status]) : e.status}</span>
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-1">{e.title}</h3>
                   {e.synopsis && <p className="text-xs text-muted-foreground line-clamp-2">{e.synopsis}</p>}
@@ -111,7 +117,7 @@ export default function EpisodesPage() {
         </div>
       )}
 
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建分集">
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.episodes.createTitle')}>
         <EpisodeCreateForm projectId={projectId!} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </CreateDialog>
     </div>

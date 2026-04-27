@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   Bot, ChevronRight, Send, Loader2,
   Plus, ArrowLeft, Copy, Check, Settings, MessageSquare, X, ChevronDown,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { translateApiError } from '@/lib/apiError'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -75,9 +77,11 @@ function MarkdownContent({ text }: { text: string }) {
 // ── Message bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
+  const { i18n } = useTranslation()
   const [copied, setCopied] = useState(false)
   const isUser = msg.role === 'user'
-  const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const time = new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 
   function copy() {
     navigator.clipboard.writeText(msg.content)
@@ -121,6 +125,7 @@ function AgentPicker({ onSelect, onCancel }: {
   onSelect: (userAgentId: number | null) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: templates = [] } = useQuery<AgentTemplate[]>({
@@ -154,7 +159,7 @@ function AgentPicker({ onSelect, onCancel }: {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="px-3 py-2.5 border-b border-border shrink-0 flex items-center justify-between">
-        <span className="text-xs font-medium text-foreground">选择 Agent</span>
+        <span className="text-xs font-medium text-foreground">{t('agents.chat.selectAgent')}</span>
         <button onClick={onCancel} className="text-muted-foreground hover:text-foreground transition-colors">
           <X size={14} />
         </button>
@@ -164,7 +169,7 @@ function AgentPicker({ onSelect, onCancel }: {
           {/* Platform templates */}
           {templates.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-1">平台模板</p>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-1">{t('agents.chat.platformTemplates')}</p>
               {templates.map((tpl) => (
                 <button
                   key={tpl.id}
@@ -188,7 +193,7 @@ function AgentPicker({ onSelect, onCancel }: {
           {/* User's own agents */}
           {myAgents.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-1">我的 Agent</p>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-1">{t('agents.chat.myAgents')}</p>
               {myAgents.map((agent) => (
                 <button
                   key={agent.id}
@@ -214,7 +219,7 @@ function AgentPicker({ onSelect, onCancel }: {
             onClick={() => onSelect(null)}
             className="w-full text-left px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
           >
-            不使用 Agent，直接对话
+            {t('agents.chat.noAgent')}
           </button>
 
           <div className="pt-1 border-t border-border">
@@ -222,7 +227,7 @@ function AgentPicker({ onSelect, onCancel }: {
               onClick={() => { onCancel(); navigate('/agents') }}
               className="w-full text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1"
             >
-              管理我的 Agent →
+              {t('agents.chat.manageMyAgents')}
             </button>
           </div>
         </div>
@@ -234,6 +239,7 @@ function AgentPicker({ onSelect, onCancel }: {
 // ── Chat view ─────────────────────────────────────────────────────────────────
 
 function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string; onBack: () => void }) {
+  const { t } = useTranslation()
   const { settings, addMessage, updateConversationTitle, updateSettings } = useAgentStore()
   const { data: textModels = [] } = useQuery<PublicModel[]>({
     queryKey: ['models', 'text'],
@@ -283,7 +289,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     const text = input.trim()
     if (!text || loading) return
     if (!modelId) {
-      addMessage(userId, conv.id, { role: 'assistant', content: '请先选择一个模型。' })
+      addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
     }
     setInput('')
@@ -304,17 +310,18 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       const { data } = await api.post('/ai/chat', { model_config_id: modelId, messages })
       addMessage(userId, conv.id, { role: 'assistant', content: data.content })
     } catch (e: any) {
-      const errMsg: string = e?.response?.data?.error ?? String(e)
-      if (errMsg.includes('not found') || errMsg.includes('disabled')) {
+      const rawErr: string = e?.response?.data?.error ?? e?.response?.data?.message ?? String(e)
+      const errMsg = translateApiError(e?.response?.data)
+      if (rawErr.includes('not found') || rawErr.includes('disabled')) {
         updateSettings({ modelId: null })
-        addMessage(userId, conv.id, { role: 'assistant', content: '当前模型配置已失效，请重新选择模型。' })
+        addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.modelInvalid') })
       } else {
-        addMessage(userId, conv.id, { role: 'assistant', content: `错误：${errMsg}` })
+        addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.errorMessage', { message: errMsg }) })
       }
     } finally {
       setLoading(false)
     }
-  }, [input, loading, conv, systemPrompt, modelId, userId, addMessage, updateConversationTitle, updateSettings])
+  }, [input, loading, conv, systemPrompt, modelId, userId, addMessage, updateConversationTitle, updateSettings, t])
 
   return (
     <>
@@ -328,7 +335,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             <p className="text-[10px] text-muted-foreground truncate">{effectiveAgent.name}</p>
           )}
         </div>
-        <span className="text-[10px] text-muted-foreground/50 shrink-0">{conv.messages.length} 条</span>
+        <span className="text-[10px] text-muted-foreground/50 shrink-0">{t('agents.chat.messagesCount', { count: conv.messages.length })}</span>
       </div>
 
       <ScrollArea className="flex-1 px-3 py-3 min-h-0">
@@ -337,7 +344,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             <div className="text-center mt-8">
               <Bot size={24} className="mx-auto mb-2 text-muted-foreground/20" />
               <p className="text-xs text-muted-foreground/50">
-                {effectiveAgent ? `${effectiveAgent.name} 已就绪` : '开始对话吧'}
+                {effectiveAgent ? t('agents.chat.agentReady', { name: effectiveAgent.name }) : t('agents.chat.startChat')}
               </p>
             </div>
           )}
@@ -372,7 +379,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           <Textarea
             ref={inputRef}
             className="flex-1 text-xs resize-none leading-relaxed min-h-0 py-2 h-16"
-            placeholder="输入消息… (Enter 发送)"
+            placeholder={t('agents.chat.inputPlaceholder')}
             rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -383,7 +390,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             <Send size={13} />
           </Button>
         </div>
-        <p className="text-[10px] text-muted-foreground/40 text-right">Enter 发送 · Shift+Enter 换行</p>
+        <p className="text-[10px] text-muted-foreground/40 text-right">{t('agents.chat.inputHint')}</p>
       </div>
     </>
   )
@@ -402,6 +409,7 @@ function ConversationList({
   onNew: () => void
   onDelete: (id: string) => void
 }) {
+  const { t, i18n } = useTranslation()
   const { data: myAgents = [] } = useQuery<UserAgent[]>({
     queryKey: ['agents', 'my'],
     queryFn: () => api.get('/agents/my').then((r) => r.data),
@@ -410,10 +418,11 @@ function ConversationList({
   function formatDate(ts: number) {
     const d = new Date(ts)
     const now = new Date()
+    const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
     if (d.toDateString() === now.toDateString()) {
-      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
     }
-    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+    return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
   }
 
   return (
@@ -423,14 +432,14 @@ function ConversationList({
           onClick={onNew}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-ring hover:text-foreground transition-colors"
         >
-          <Plus size={13} /> 新对话
+          <Plus size={13} /> {t('agents.chat.newConversation')}
         </button>
       </div>
       <ScrollArea className="flex-1">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground/40">
             <MessageSquare size={24} className="opacity-30" />
-            <p className="text-xs">暂无对话记录</p>
+            <p className="text-xs">{t('agents.chat.noConversations')}</p>
           </div>
         ) : (
           <div className="p-2 space-y-1">
@@ -519,6 +528,7 @@ function BuiltinChat({ userId }: { userId: string }) {
 const PANEL_OPEN_KEY = 'ai-panel-open'
 
 export function AIAgentPanel() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(() => {
     try {
       const saved = localStorage.getItem(PANEL_OPEN_KEY)
@@ -546,16 +556,16 @@ export function AIAgentPanel() {
     )}>
       <button
         onClick={toggleOpen}
-        title={open ? '收起 AI 助手' : 'AI 助手'}
+        title={open ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')}
         className="flex items-center h-10 text-muted-foreground hover:text-foreground transition-colors border-b border-border shrink-0 px-2 gap-2 w-full"
       >
         <Bot size={15} className="shrink-0 text-foreground" />
-        {open && <span className="text-xs font-medium flex-1 text-left text-foreground">AI 助手</span>}
+        {open && <span className="text-xs font-medium flex-1 text-left text-foreground">{t('agents.chat.aiAssistant')}</span>}
         {open && (
           <button
             onClick={(e) => { e.stopPropagation(); navigate('/agents') }}
             className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-            title="管理 Agent"
+            title={t('agents.chat.manageAgent')}
           >
             <Settings size={13} />
           </button>

@@ -18,6 +18,8 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { translateApiError } from '@/lib/apiError'
+import { useTranslation } from 'react-i18next'
 
 const HISTORY_KEY = 'tool_history_brainstorm'
 const MAX_HISTORY = 50
@@ -53,11 +55,12 @@ function BrainstormResultCard({
   entry: BrainstormEntry
   onReuse: () => void
 }) {
+  const { t, i18n } = useTranslation()
   return (
     <div className="rounded-lg border border-border bg-background p-3 space-y-2 text-xs">
       {/* Prompt */}
       <div className="flex items-start gap-2">
-        <span className="text-muted-foreground shrink-0 mt-0.5">提示词</span>
+        <span className="text-muted-foreground shrink-0 mt-0.5">{t('tools.brainstorm.prompt')}</span>
         <p className="text-foreground leading-relaxed line-clamp-2 flex-1">{entry.prompt}</p>
       </div>
 
@@ -79,11 +82,11 @@ function BrainstormResultCard({
       {entry.status === 'pending' && (
         <div className="flex items-center gap-2 text-muted-foreground py-2">
           <Loader2 size={12} className="animate-spin" />
-          <span>生成中…</span>
+          <span>{t('canvas.generating')}</span>
         </div>
       )}
       {entry.status === 'failed' && (
-        <p className="text-destructive">{entry.error ?? '生成失败'}</p>
+        <p className="text-destructive">{entry.error ?? t('canvas.generationFailed')}</p>
       )}
       {entry.status === 'done' && (
         <div className="bg-muted/40 rounded-md p-2.5 text-foreground leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
@@ -94,14 +97,14 @@ function BrainstormResultCard({
       {/* Footer */}
       <div className="flex items-center justify-between pt-0.5">
         <span className="text-muted-foreground/60 text-[10px]">
-          {new Date(entry.timestamp).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          {new Date(entry.timestamp).toLocaleString(i18n.language, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </span>
         {entry.status === 'done' && (
           <button
             onClick={onReuse}
             className="text-[10px] text-primary hover:underline"
           >
-            复用提示词
+            {t('shared.genResult.reusePrompt')}
           </button>
         )}
       </div>
@@ -112,6 +115,7 @@ function BrainstormResultCard({
 // ── BrainstormPage ────────────────────────────────────────────────────────────
 
 export default function BrainstormPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -175,7 +179,7 @@ export default function BrainstormPage() {
         )
       )
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? '请求失败，请检查模型配置后重试'
+      const msg = translateApiError(err?.response?.data, 'tools.brainstorm.requestFailed')
       setHistory((prev) =>
         prev.map((e) =>
           e.id === entryId
@@ -234,9 +238,9 @@ export default function BrainstormPage() {
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="text-sm font-medium text-muted-foreground">工具</span>
+        <span className="text-sm font-medium text-muted-foreground">{t('sidebar.sections.tools')}</span>
         <span className="text-muted-foreground/40">/</span>
-        <span className="text-sm font-semibold text-foreground">头脑风暴</span>
+        <span className="text-sm font-semibold text-foreground">{t('sidebar.items.brainstorm')}</span>
       </div>
 
       {/* Body */}
@@ -268,10 +272,10 @@ export default function BrainstormPage() {
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Bot size={16} className="text-violet-500" />
-                    头脑风暴
+                    {t('sidebar.items.brainstorm')}
                   </CardTitle>
                   <CardDescription className="mt-0.5 text-xs">
-                    与 AI 自由对话，激发创作灵感。每次提交为独立请求。
+                    {t('tools.brainstorm.description')}
                   </CardDescription>
                 </div>
                 <ModelSelector
@@ -290,7 +294,7 @@ export default function BrainstormPage() {
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                     <History size={11} />
-                    最新结果
+                    {t('tools.brainstorm.latestResult')}
                   </p>
                   <BrainstormResultCard
                     entry={latestEntry}
@@ -304,7 +308,7 @@ export default function BrainstormPage() {
               {/* Input */}
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground">
-                  {latestEntry ? '新建提问' : '开始提问'}
+                  {latestEntry ? t('tools.brainstorm.newQuestion') : t('tools.brainstorm.startQuestion')}
                 </p>
 
                 {/* Attachment chips */}
@@ -333,7 +337,7 @@ export default function BrainstormPage() {
                     ref={textareaRef}
                     className="w-full border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed bg-background text-foreground min-h-[80px] max-h-[160px]"
                     rows={3}
-                    placeholder="输入你的想法… 输入 @ 可引用资源库中的图片，⌘+Enter 发送"
+                    placeholder={t('tools.brainstorm.promptPlaceholder')}
                     value={prompt}
                     onChange={handleTextareaChange}
                     onKeyDown={(e) => {
@@ -368,7 +372,7 @@ export default function BrainstormPage() {
                 {/* Actions */}
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-muted-foreground">
-                    {!selectedModelId ? '请先选择 AI 模型' : '⌘+Enter 发送 · 输入 @ 引用图片'}
+                    {!selectedModelId ? t('tools.brainstorm.selectModelFirst') : t('tools.brainstorm.inputHint')}
                   </p>
                   <button
                     onClick={generate}
@@ -381,8 +385,8 @@ export default function BrainstormPage() {
                     )}
                   >
                     {isRunning
-                      ? <><Loader2 size={12} className="animate-spin" /> 生成中…</>
-                      : <><Wand2 size={12} /> 发送</>
+                      ? <><Loader2 size={12} className="animate-spin" /> {t('canvas.generating')}</>
+                      : <><Wand2 size={12} /> {t('agents.chat.send')}</>
                     }
                   </button>
                 </div>
@@ -398,7 +402,7 @@ export default function BrainstormPage() {
                 >
                   <span className="flex items-center gap-1.5 font-medium">
                     <History size={12} />
-                    历史记录
+                    {t('tools.brainstorm.history')}
                     <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
                       {historyEntries.length}
                     </span>
@@ -425,8 +429,8 @@ export default function BrainstormPage() {
               <CardFooter className="justify-center py-8 border-t border-border">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground/40 select-none">
                   <Bot size={28} className="opacity-30" />
-                  <p className="text-xs">还没有对话记录</p>
-                  <p className="text-[10px]">输入你的想法，开始激发灵感</p>
+                  <p className="text-xs">{t('tools.brainstorm.empty')}</p>
+                  <p className="text-[10px]">{t('tools.brainstorm.emptyHint')}</p>
                 </div>
               </CardFooter>
             )}

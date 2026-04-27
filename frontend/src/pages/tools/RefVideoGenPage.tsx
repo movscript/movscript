@@ -1,15 +1,18 @@
 import { ToolDialog } from './ToolDialog'
+import { useTranslation } from 'react-i18next'
 
 export default function RefVideoGenPage() {
+  const { t } = useTranslation()
+
   return (
     <ToolDialog
       nodeType="ref_video_gen"
       capability="video"
-      toolName="参考生视频"
-      toolDescription="以参考视频为基础，生成新的视频"
+      toolName={t('tools.defs.refVideoGen.name')}
+      toolDescription={t('tools.defs.refVideoGen.description')}
       inputType="image+video"
       outputType="video"
-      promptPlaceholder="描述想要生成的视频内容… 输入 @ 可引用资源库中的图片或视频"
+      promptPlaceholder={t('tools.defs.refVideoGen.promptPlaceholder')}
     />
   )
 }

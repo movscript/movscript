@@ -1,15 +1,18 @@
 import { ToolDialog } from './ToolDialog'
+import { useTranslation } from 'react-i18next'
 
 export default function StyleTransferPage() {
+  const { t } = useTranslation()
+
   return (
     <ToolDialog
       nodeType="style_transfer"
       capability="image"
-      toolName="画风迁移"
-      toolDescription="将参考图的艺术风格迁移到内容图上，生成新的风格化图像"
+      toolName={t('tools.defs.styleTransfer.name')}
+      toolDescription={t('tools.defs.styleTransfer.description')}
       inputType="image"
       outputType="image"
-      promptPlaceholder="描述目标内容，AI 将使用参考图的画风重新绘制… 输入 @ 可引用资源库中的图片"
+      promptPlaceholder={t('tools.defs.styleTransfer.promptPlaceholder')}
     />
   )
 }

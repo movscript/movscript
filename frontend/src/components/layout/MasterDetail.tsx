@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 interface MasterDetailProps {
@@ -27,10 +28,11 @@ interface EmptyDetailProps {
   message?: string
 }
 
-export function EmptyDetail({ message = '从左侧列表选择一个项目' }: EmptyDetailProps) {
+export function EmptyDetail({ message }: EmptyDetailProps) {
+  const { t } = useTranslation()
   return (
     <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-      {message}
+      {message ?? t('layout.emptyDetail')}
     </div>
   )
 }

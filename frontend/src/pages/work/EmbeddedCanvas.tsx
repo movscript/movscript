@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ReactFlow,
   Background,
@@ -52,21 +53,24 @@ function genId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
-const DEFAULT_DATA: Partial<Record<NodeType, Partial<CanvasNodeData> & { label: string }>> = {
-  input:    { source: 'manual', label: '输入', inputValue: '' },
-  output:   { source: 'upload', label: '输出' },
-  approval: { source: 'manual', label: '人工确认', approvalStatus: 'waiting' },
-  text_gen: { source: 'ai',     label: 'AI 文本生成' },
-  ai_gen:   { source: 'ai',     label: 'AI 生成', outputType: 'image' },
-  group:    { source: 'manual', label: '分组', isGroup: true, groupWidth: 320, groupHeight: 240 },
-}
-
-const NODE_LABELS: Record<NodeType, string> = {
-  text: '文本', image: '图片', video: '视频', audio: '音频',
-  canvas: '画布引用', ref_image_gen: '参考生图', ref_video_gen: '参考生视频',
-  multi_angle: '图像多角度', style_transfer: '风格迁移', motion_imitation: '动作模仿',
-  input: '输入', output: '输出', approval: '人工确认', text_gen: 'AI 文本生成',
-  ai_gen: 'AI 生成', group: '分组',
+function getDefaultNodeData(type: NodeType, t: (key: string) => string): Partial<CanvasNodeData> & { label: string } {
+  const label = t(`canvas.nodeLabels.${type}`)
+  switch (type) {
+    case 'input':
+      return { source: 'manual', label, inputValue: '' }
+    case 'output':
+      return { source: 'upload', label }
+    case 'approval':
+      return { source: 'manual', label, approvalStatus: 'waiting' }
+    case 'text_gen':
+      return { source: 'ai', label }
+    case 'ai_gen':
+      return { source: 'ai', label, outputType: 'image' }
+    case 'group':
+      return { source: 'manual', label, isGroup: true, groupWidth: 320, groupHeight: 240 }
+    default:
+      return { source: 'upload', label }
+  }
 }
 
 function resourceToNodeType(resource: RawResource): NodeType {
@@ -122,6 +126,7 @@ function EmbeddedCanvasInner({
   pushTargets,
   onClose,
 }: InnerProps) {
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const { screenToFlowPosition } = useReactFlow()
@@ -346,7 +351,7 @@ function EmbeddedCanvasInner({
       } else if (kind === 'asset') {
         await api.post(`/projects/${projectId}/assets/${id}/views`, {
           view_type: 'custom',
-          label: 'canvas生成',
+          label: t('canvas.generatedByCanvas'),
           resource_id: resourceId,
         })
         qc.invalidateQueries({ queryKey: ['assets', projectId] })
@@ -362,13 +367,13 @@ function EmbeddedCanvasInner({
   const addNode = useCallback((type: NodeType) => {
     if (!menu) return
     const position = screenToFlowPosition({ x: menu.x, y: menu.y })
-    const baseData = DEFAULT_DATA[type] ?? { source: 'upload', label: NODE_LABELS[type] }
+    const baseData = getDefaultNodeData(type, t)
     const newNode: Node = {
       id: genId(), type, position, data: { ...baseData },
       ...(type === 'group' && { style: { width: 320, height: 240 }, zIndex: -1 }),
     }
     setNodes((prev) => [...prev, newNode])
-  }, [menu, screenToFlowPosition])
+  }, [menu, screenToFlowPosition, t])
 
   const createGroupFromSelection = useCallback(() => {
     const selected = nodes.filter((n) => n.selected && n.type !== 'group')
@@ -384,7 +389,7 @@ function EmbeddedCanvasInner({
       position: { x: minX, y: minY },
       style: { width: maxX - minX, height: maxY - minY },
       zIndex: -1,
-      data: { source: 'manual', label: '分组', isGroup: true },
+      data: { source: 'manual', label: t('canvas.nodeLabels.group'), isGroup: true },
     }
     setNodes((prev) => [
       groupNode,
@@ -393,7 +398,7 @@ function EmbeddedCanvasInner({
         return { ...n, parentId: groupId, position: { x: n.position.x - minX, y: n.position.y - minY } }
       }),
     ])
-  }, [nodes])
+  }, [nodes, t])
 
   const deleteSelectedNodes = useCallback(() => {
     const directSelected = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
@@ -446,7 +451,7 @@ function EmbeddedCanvasInner({
         const resource = JSON.parse(resourcePayload) as RawResource
         const type = resourceToNodeType(resource)
         const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-        const baseData = DEFAULT_DATA[type] ?? { source: 'upload', label: NODE_LABELS[type] }
+        const baseData = getDefaultNodeData(type, t)
         setNodes((prev) => [...prev, {
           id: genId(),
           type,
@@ -475,12 +480,12 @@ function EmbeddedCanvasInner({
       position,
       data: {
         source: 'manual',
-        label: `${KIND_CONFIG[item.kind].label}: ${item.label}`,
-        textContent: `[${KIND_CONFIG[item.kind].label} #${item.id}] ${item.label}`,
+        label: `${t(KIND_CONFIG[item.kind].labelKey)}: ${item.label}`,
+        textContent: `[${t(KIND_CONFIG[item.kind].labelKey)} #${item.id}] ${item.label}`,
       },
     }
     setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition, setNodes])
+  }, [screenToFlowPosition, setNodes, t])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/entity-node') || e.dataTransfer.types.includes('application/canvas-resource')) {
@@ -554,21 +559,21 @@ function EmbeddedCanvasInner({
       <div className="h-10 bg-card border-b border-border shrink-0 flex items-center gap-2 px-3">
         <div className="flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs text-muted-foreground shrink-0">
           {canvasType === 'workflow' ? <Zap size={11} /> : <Lightbulb size={11} />}
-          {canvasType === 'workflow' ? '工作流' : '灵感激发'}
+          {canvasType === 'workflow' ? t('canvas.types.workflow') : t('canvas.types.inspiration')}
         </div>
 
         <input
           className="flex-1 text-xs bg-transparent border-none outline-none text-muted-foreground placeholder-muted-foreground min-w-0"
           value={canvasName}
           onChange={(e) => onChangeName(e.target.value)}
-          placeholder="画布名称"
+          placeholder={t('canvas.namePlaceholder')}
         />
 
         {/* Running nodes badge */}
         {runningCount > 0 && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
             <Loader2 size={10} className="animate-spin" />
-            {runningCount} 运行中
+            {t('canvas.runningCount', { count: runningCount })}
           </span>
         )}
 
@@ -576,7 +581,7 @@ function EmbeddedCanvasInner({
         {taskList.length > 0 && (
           <div className="relative shrink-0 group">
             <button className="flex items-center gap-1 text-xs text-muted-foreground border border-border px-2 py-1 rounded hover:bg-background transition-colors">
-              任务 ({taskList.length}) <ChevronDown size={10} />
+              {t('canvas.tasksCount', { count: taskList.length })} <ChevronDown size={10} />
             </button>
             <div className="absolute right-0 top-full mt-1 w-56 bg-popover border border-border rounded-lg shadow-md z-50 hidden group-hover:block">
               <div className="p-1.5 space-y-1">
@@ -589,7 +594,7 @@ function EmbeddedCanvasInner({
                       : <span className="text-destructive shrink-0">✗</span>
                     }
                     <span className="truncate flex-1 text-foreground">{t.name}</span>
-                    <span className="text-muted-foreground shrink-0">{new Date(t.startedAt).toLocaleTimeString('zh', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-muted-foreground shrink-0">{new Date(t.startedAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 ))}
               </div>
@@ -603,7 +608,7 @@ function EmbeddedCanvasInner({
             disabled={runAll.isPending}
             className="flex items-center gap-1 bg-primary text-primary-foreground rounded px-2.5 py-1 text-xs hover:bg-primary/90 disabled:opacity-50 shrink-0"
           >
-            <Play size={10} /> {runAll.isPending ? '运行中…' : '运行'}
+            <Play size={10} /> {runAll.isPending ? t('canvas.running') : t('canvas.run')}
           </button>
         )}
 
@@ -613,7 +618,7 @@ function EmbeddedCanvasInner({
           size="sm"
           className="shrink-0"
         >
-          <Save size={10} /> {save.isPending ? '…' : '保存'}
+          <Save size={10} /> {save.isPending ? '…' : t('common.save')}
         </Button>
 
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">
@@ -667,21 +672,21 @@ function EmbeddedCanvasInner({
       {runDialogOpen && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-background border border-border rounded-xl p-5 w-96 shadow-2xl space-y-3">
-            <h2 className="text-sm font-semibold text-foreground">填写工作流输入</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('canvas.workflowInputTitle')}</h2>
             {inputNodes.map((n) => (
               <div key={n.id}>
-                <Label className="text-xs font-medium text-muted-foreground mb-1 block">{(n.data as any).label || '输入'}</Label>
+                <Label className="text-xs font-medium text-muted-foreground mb-1 block">{(n.data as any).label || t('canvas.nodeLabels.input')}</Label>
                 <Textarea
                   rows={2}
-                  placeholder="输入内容…"
+                  placeholder={t('canvas.inputContentPlaceholder')}
                   value={inputValues[n.id] ?? ''}
                   onChange={(e) => setInputValues((p) => ({ ...p, [n.id]: e.target.value }))}
                 />
               </div>
             ))}
             <div className="flex gap-2 pt-1">
-              <Button onClick={handleConfirmRun} className="flex-1">开始运行</Button>
-              <Button variant="outline" onClick={() => setRunDialogOpen(false)}>取消</Button>
+              <Button onClick={handleConfirmRun} className="flex-1">{t('canvas.startRun')}</Button>
+              <Button variant="outline" onClick={() => setRunDialogOpen(false)}>{t('common.cancel')}</Button>
             </div>
           </div>
         </div>
@@ -692,45 +697,40 @@ function EmbeddedCanvasInner({
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-background border border-border rounded-xl p-5 w-80 shadow-2xl space-y-3">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">推送到实体</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">将该{pushDialog.resourceType === 'video' ? '视频' : '图片'}添加到以下实体的素材中</p>
+              <h2 className="text-sm font-semibold text-foreground">{t('canvas.pushToEntity')}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">{t('canvas.pushHint', { type: pushDialog.resourceType === 'video' ? t('canvas.mediaTypes.video') : t('canvas.mediaTypes.image') })}</p>
             </div>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {pushTargets.length === 0 && (
-                <p className="text-xs text-muted-foreground py-2">暂无可推送目标（请先在上方选择素材/分镜/分场）</p>
+                <p className="text-xs text-muted-foreground py-2">{t('canvas.noPushTargets')}</p>
               )}
-              {pushTargets.map((t) => (
+              {pushTargets.map((target) => (
                 <button
-                  key={`${t.kind}-${t.id}`}
-                  onClick={() => setPushTarget(t)}
+                  key={`${target.kind}-${target.id}`}
+                  onClick={() => setPushTarget(target)}
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors',
-                    pushTarget?.kind === t.kind && pushTarget?.id === t.id
+                    pushTarget?.kind === target.kind && pushTarget?.id === target.id
                       ? 'border-foreground bg-foreground text-background'
                       : 'border-border text-foreground hover:border-border/80'
                   )}
                 >
                   <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
-                    {t.kind === 'asset' ? '素材' : t.kind === 'storyboard' ? '分镜' : '分场'}
+                    {target.kind === 'asset' ? t('entities.assets') : target.kind === 'storyboard' ? t('entities.storyboards') : t('entities.scenes')}
                   </span>
-                  <span className="truncate">{t.label}</span>
+                  <span className="truncate">{target.label}</span>
                 </button>
               ))}
             </div>
             <div className="flex gap-2 pt-1">
-              <Button onClick={handlePushConfirm} disabled={!pushTarget} className="flex-1">推送</Button>
-              <Button variant="outline" onClick={() => { setPushDialog(null); setPushTarget(null) }}>取消</Button>
+              <Button onClick={handlePushConfirm} disabled={!pushTarget} className="flex-1">{t('canvas.push')}</Button>
+              <Button variant="outline" onClick={() => { setPushDialog(null); setPushTarget(null) }}>{t('common.cancel')}</Button>
             </div>
           </div>
         </div>
       )}
     </div>
   )
-}
-
-const CANVAS_TYPE_LABELS: Record<string, string> = {
-  inspiration: '灵感激发',
-  workflow: '工作流',
 }
 
 function CanvasListItem({
@@ -742,6 +742,7 @@ function CanvasListItem({
   active: boolean
   onSelect: () => void
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: runs = [] } = useQuery<CanvasRun[]>({
     queryKey: ['canvas-runs', canvas.ID],
@@ -763,10 +764,10 @@ function CanvasListItem({
     : isRunning
     ? <Loader2 size={10} className="animate-spin text-amber-500" />
     : null
-  const statusText = latestRun?.status === 'done' ? '已完成'
-    : latestRun?.status === 'failed' ? '失败'
-    : isRunning ? '运行中'
-    : canvas.canvas_type === 'workflow' ? '未运行' : '灵感画布'
+  const statusText = latestRun?.status === 'done' ? t('canvas.status.done')
+    : latestRun?.status === 'failed' ? t('canvas.status.failed')
+    : isRunning ? t('canvas.status.running')
+    : canvas.canvas_type === 'workflow' ? t('canvas.status.notRun') : t('canvas.types.inspiration')
 
   return (
     <button
@@ -789,7 +790,7 @@ function CanvasListItem({
         {canvas.canvas_type === 'workflow' && (
           <span
             role="button"
-            title="运行画布"
+            title={t('canvas.runCanvas')}
             onClick={(e) => {
               e.stopPropagation()
               if (!isRunning && !run.isPending) run.mutate()
@@ -804,18 +805,19 @@ function CanvasListItem({
         )}
       </div>
       <p className="mt-1 text-[10px] text-muted-foreground">
-        {CANVAS_TYPE_LABELS[canvas.canvas_type ?? 'inspiration'] ?? canvas.canvas_type}
+        {canvas.canvas_type === 'workflow' ? t('canvas.types.workflow') : t('canvas.types.inspiration')}
       </p>
     </button>
   )
 }
 
 export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
 
   const [activeCanvasId, setActiveCanvasId] = useState<number | null>(null)
-  const [canvasName, setCanvasName] = useState('创作画布')
+  const [canvasName, setCanvasName] = useState(t('work.creationCanvas'))
   const [canvasType, setCanvasType] = useState<CanvasType>('inspiration')
 
   const { data: canvases = [], isLoading: loadingList } = useQuery<Canvas[]>({
@@ -836,7 +838,7 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
 
   const createCanvas = useMutation({
     mutationFn: () =>
-      api.post('/canvases', { name: '新画布', canvas_type: 'workflow', project_id: projectId }).then((r) => r.data),
+      api.post('/canvases', { name: t('canvas.newCanvasDefaultName'), canvas_type: 'workflow', project_id: projectId }).then((r) => r.data),
     onSuccess: (data: Canvas) => {
       qc.invalidateQueries({ queryKey: ['canvases-project', projectId] })
       setActiveCanvasId(data.ID)
@@ -857,28 +859,28 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
       <div className="w-40 shrink-0 border-r border-border bg-card flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-2 py-1.5 border-b border-border shrink-0">
           <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-            <Layers size={11} /> 画布列表
+            <Layers size={11} /> {t('canvas.canvasList')}
           </span>
           <button
             onClick={() => createCanvas.mutate()}
             disabled={createCanvas.isPending}
             className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-            title="新建画布"
+            title={t('canvas.newCanvas')}
           >
             <Plus size={13} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {loadingList ? (
-            <p className="text-xs text-muted-foreground p-2 text-center">加载中…</p>
+            <p className="text-xs text-muted-foreground p-2 text-center">{t('common.loadingShort')}</p>
           ) : canvases.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 p-3 text-center">
-              <p className="text-xs text-muted-foreground">暂无画布</p>
+              <p className="text-xs text-muted-foreground">{t('canvas.empty')}</p>
               <button
                 onClick={() => createCanvas.mutate()}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
               >
-                新建一个
+                {t('pages.canvases.createFirst')}
               </button>
             </div>
           ) : (
@@ -910,13 +912,13 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
             <Layers size={28} className="opacity-30" />
-            <p className="text-sm">选择或新建一个画布</p>
+            <p className="text-sm">{t('canvas.selectOrCreate')}</p>
             <button
               onClick={() => createCanvas.mutate()}
               disabled={createCanvas.isPending}
               className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-40"
             >
-              新建画布
+              {t('canvas.newCanvas')}
             </button>
           </div>
         )}

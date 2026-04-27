@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '@/lib/api'
+import { translateApiError } from '@/lib/apiError'
 import { useUserStore } from '@/store/userStore'
 import type { User } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -16,6 +18,7 @@ function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
   onChange: (v: string) => void
   onKeyDown?: (e: React.KeyboardEvent) => void
 }) {
+  const { t } = useTranslation()
   const [show, setShow] = useState(false)
   return (
     <div className="relative">
@@ -32,7 +35,7 @@ function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
         onClick={() => setShow((s) => !s)}
         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
         tabIndex={-1}
-        aria-label={show ? '隐藏密码' : '显示密码'}
+        aria-label={show ? t('auth.hidePassword') : t('auth.showPassword')}
       >
         {show ? <EyeOff size={15} /> : <Eye size={15} />}
       </button>
@@ -41,6 +44,7 @@ function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
 }
 
 export default function AuthPage() {
+  const { t } = useTranslation()
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const [tab, setTab] = useState<Tab>('login')
   const [username, setUsername] = useState('')
@@ -51,20 +55,20 @@ export default function AuthPage() {
   const login = useMutation({
     mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as User),
     onSuccess: setCurrentUser,
-    onError: (e: any) => setError(e.response?.data?.error ?? '登录失败')
+    onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.loginFailed'))
   })
 
   const register = useMutation({
     mutationFn: () => api.post('/auth/register', { username, password }).then((r) => r.data as User),
     onSuccess: setCurrentUser,
-    onError: (e: any) => setError(e.response?.data?.error ?? '注册失败')
+    onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
   })
 
   function handleSubmit() {
     setError('')
     if (!username.trim() || !password) return
     if (tab === 'register') {
-      if (password !== confirm) { setError('两次密码不一致'); return }
+      if (password !== confirm) { setError(t('auth.passwordMismatch')); return }
       register.mutate()
     } else {
       login.mutate()
@@ -78,39 +82,39 @@ export default function AuthPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-foreground mb-1">Movscript</h1>
-        <p className="text-sm text-muted-foreground mb-8">短剧制作协作平台</p>
+        <p className="text-sm text-muted-foreground mb-8">{t('auth.tagline')}</p>
 
         <div className="flex border-b border-border mb-6">
-          {(['login', 'register'] as Tab[]).map((t) => (
+          {(['login', 'register'] as Tab[]).map((tabName) => (
             <button
-              key={t}
-              onClick={() => { setTab(t); setError('') }}
+              key={tabName}
+              onClick={() => { setTab(tabName); setError('') }}
               className={`flex-1 pb-2 text-sm font-medium transition-colors ${
-                tab === t
+                tab === tabName
                   ? 'border-b-2 border-primary text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'login' ? '登录' : '注册'}
+              {tabName === 'login' ? t('auth.login') : t('auth.register')}
             </button>
           ))}
         </div>
 
         <div className="space-y-3">
           <div>
-            <Label htmlFor="username" className="sr-only">用户名</Label>
+            <Label htmlFor="username" className="sr-only">{t('auth.username')}</Label>
             <Input
               id="username"
-              placeholder="用户名"
+              placeholder={t('auth.username')}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               onKeyDown={onEnter}
               autoFocus
             />
           </div>
-          <PasswordInput placeholder="密码" value={password} onChange={setPassword} onKeyDown={onEnter} />
+          <PasswordInput placeholder={t('auth.password')} value={password} onChange={setPassword} onKeyDown={onEnter} />
           {tab === 'register' && (
-            <PasswordInput placeholder="确认密码" value={confirm} onChange={setConfirm} onKeyDown={onEnter} />
+            <PasswordInput placeholder={t('auth.confirmPassword')} value={confirm} onChange={setConfirm} onKeyDown={onEnter} />
           )}
 
           {error && <p className="text-xs text-destructive">{error}</p>}
@@ -120,14 +124,14 @@ export default function AuthPage() {
             disabled={loading || !username.trim() || !password}
             className="w-full"
           >
-            {loading ? '请稍候…' : tab === 'login' ? '登录' : '注册'}
+            {loading ? t('auth.pleaseWait') : tab === 'login' ? t('auth.login') : t('auth.register')}
           </Button>
         </div>
 
         {tab === 'login' && (
           <p className="text-xs text-muted-foreground text-center mt-5">
-            还没有账号？
-            <button onClick={() => setTab('register')} className="text-foreground hover:underline ml-1 transition-colors">立即注册</button>
+            {t('auth.noAccount')}
+            <button onClick={() => setTab('register')} className="text-foreground hover:underline ml-1 transition-colors">{t('auth.registerNow')}</button>
           </p>
         )}
       </div>

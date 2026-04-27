@@ -30,6 +30,7 @@ import { DeleteNodeDialog } from './components/DeleteNodeDialog'
 import { PipelineEntityNavPanel, PIPELINE_ENTITY_DRAG_TYPE, type PipelineEntityDragItem } from './components/PipelineEntityNavPanel'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, LayoutDashboard, GanttChartSquare, Loader2, ScanLine } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 // ── ReactFlow node type registry ─────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ interface ContextMenuState {
 // ── Inner editor ──────────────────────────────────────────────────────────────
 
 function PipelineEditorInner() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
@@ -270,7 +272,7 @@ function PipelineEditorInner() {
   if (!project) return null
 
   const pendingDeleteNames = pendingDelete.map(
-    (n) => (n.data as unknown as PipelineNode).name ?? `节点 ${n.id}`
+    (n) => (n.data as unknown as PipelineNode).name ?? t('pipeline.node.fallbackName', { id: n.id })
   )
 
   return (
@@ -287,14 +289,14 @@ function PipelineEditorInner() {
           </Button>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">{project.name}</p>
-            <p className="text-xs text-muted-foreground">内容生产管线</p>
+            <p className="text-xs text-muted-foreground">{t('pipeline.editor.subtitle')}</p>
           </div>
         </div>
 
         <div className="flex-1 flex justify-center">
           <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-            <TabBtn active={activeTab === 'dag'} icon={<LayoutDashboard size={13} />} label="DAG 视图" onClick={() => setActiveTab('dag')} />
-            <TabBtn active={activeTab === 'gantt'} icon={<GanttChartSquare size={13} />} label="甘特图" onClick={() => setActiveTab('gantt')} />
+            <TabBtn active={activeTab === 'dag'} icon={<LayoutDashboard size={13} />} label={t('pipeline.editor.dagView')} onClick={() => setActiveTab('dag')} />
+            <TabBtn active={activeTab === 'gantt'} icon={<GanttChartSquare size={13} />} label={t('pipeline.editor.ganttView')} onClick={() => setActiveTab('gantt')} />
           </div>
         </div>
 
@@ -302,7 +304,7 @@ function PipelineEditorInner() {
           {activeTab === 'dag' && (
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTimeout(() => fitView({ padding: 0.2 }), 100)}>
               <ScanLine size={12} className="mr-1" />
-              适应画面
+              {t('pipeline.editor.fitView')}
             </Button>
           )}
         </div>
@@ -365,7 +367,7 @@ function PipelineEditorInner() {
                 <Panel position="top-center">
                   <div className="mt-12 text-center">
                     <p className="text-sm text-muted-foreground">
-                      管线为空 · 右键画板添加节点，或从左侧拖入内容
+                      {t('pipeline.editor.empty')}
                     </p>
                   </div>
                 </Panel>

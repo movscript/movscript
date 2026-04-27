@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useUserStore } from '@/store/userStore'
 import { toast } from '@/store/toastStore'
 import { API_V1_BASE_URL } from '@/lib/config'
-import i18n from '@/i18n'
+import { translateApiError, type APIErrorBody } from '@/lib/apiError'
 
 export const api = axios.create({
   baseURL: API_V1_BASE_URL
@@ -15,14 +15,6 @@ api.interceptors.request.use((config) => {
   }
   return config
 })
-
-// Structured error body from the backend (new apierr format).
-interface APIErrorBody {
-  code?: string
-  message?: string
-  error?: string   // legacy format: {"error": "..."}
-  action?: string  // "logout" | "redirect_projects" | "retry" | ""
-}
 
 api.interceptors.response.use(
   (res) => res,
@@ -37,7 +29,7 @@ api.interceptors.response.use(
     }
 
     const body: APIErrorBody = err.response?.data ?? {}
-    const message = body.message ?? body.error ?? i18n.t('common.requestFailed')
+    const message = translateApiError(body)
     const action  = body.action ?? ''
 
     // Build debug detail when debug mode is on

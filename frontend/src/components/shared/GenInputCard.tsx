@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { Upload, Wand2, Loader2, X, AtSign, ImageIcon, VideoIcon, Library } from 'lucide-react'
 import { MediaViewer } from './MediaViewer'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,7 @@ function buildChipElement(resource: RawResource): { chip: HTMLElement; media: HT
 }
 
 function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove: () => void }) {
+  const { t } = useTranslation()
   const [showPreview, setShowPreview] = useState(false)
   const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 })
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -104,7 +106,7 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
             <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
           </div>
           <p className="text-xs text-foreground mt-1.5 truncate max-w-[192px] px-0.5">{resource.name}</p>
-          <p className="text-[10px] text-muted-foreground px-0.5 capitalize">{resource.type}</p>
+          <p className="text-[10px] text-muted-foreground px-0.5 capitalize">{t(`pages.resources.types.${resource.type}`, { defaultValue: resource.type })}</p>
         </div>,
         document.body
       )}
@@ -114,7 +116,7 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
 
 export interface InputSlotDef {
   key: string
-  label: string       // e.g. "参考图", "原视频"
+  label: string       // e.g. "reference image", "source video"
   type: 'image' | 'video'
   required: boolean
   maxCount: number    // 0 = unlimited
@@ -177,6 +179,7 @@ export function GenInputCard({
   uploading,
   imageEditRequired: _imageEditRequired,
 }: GenInputCardProps) {
+  const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
@@ -293,7 +296,7 @@ export function GenInputCard({
           className="w-full text-sm focus:outline-none bg-transparent text-foreground leading-relaxed min-h-[80px] px-1 py-1 mention-editor"
           data-placeholder={
             promptPlaceholder ??
-            `描述你想生成的内容… 输入 @ 可引用${inputType !== 'video' ? '图片' : ''}${inputType !== 'image' ? '视频' : ''}`
+            t(`shared.genInput.promptPlaceholder.${inputType}`)
           }
         />
 
@@ -301,7 +304,7 @@ export function GenInputCard({
           <div className="absolute bottom-full left-0 mb-1.5 bg-background border border-border rounded-xl shadow-lg z-20 w-56 overflow-hidden">
             {mentionResources.length === 0 ? (
               <p className="text-xs text-muted-foreground px-3 py-2.5">
-                {attachments.length === 0 ? '请先添加资源到标签' : '没有匹配的资源'}
+                {attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
               </p>
             ) : (
               <div className="max-h-48 overflow-y-auto">
@@ -328,7 +331,7 @@ export function GenInputCard({
         <div className="grid gap-2 py-2">
           {buildSlotGroups(inputSlots, attachments).map(({ slot, items }, i) => {
             const Icon = slot.type === 'video' ? VideoIcon : ImageIcon
-            const limitText = slot.maxCount > 0 ? `最多 ${slot.maxCount} 个` : '可多个'
+            const limitText = slot.maxCount > 0 ? t('shared.genInput.maxCount', { count: slot.maxCount }) : t('shared.genInput.multipleAllowed')
             return (
               <div
                 key={slot.key || i}
@@ -345,7 +348,7 @@ export function GenInputCard({
                   <span className="shrink-0 font-mono text-[10px] text-muted-foreground w-4 text-center">{i + 1}</span>
                   <Icon size={12} className="shrink-0" />
                   <span className="font-medium text-foreground">{slot.label}</span>
-                  {slot.required && <span className="text-[10px] text-amber-600 dark:text-amber-400">必填</span>}
+                  {slot.required && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('shared.genInput.required')}</span>}
                   <span className="text-[10px] text-muted-foreground">{limitText}</span>
                 </div>
                 {items.length > 0 ? (
@@ -365,7 +368,7 @@ export function GenInputCard({
                 ) : (
                   <div className="flex items-center gap-1.5 mt-1 pl-5 text-muted-foreground">
                     <Icon size={11} className="shrink-0" />
-                    <span>从左侧资源库选择，或使用下方上传入口添加</span>
+                    <span>{t('shared.genInput.selectOrUploadHint')}</span>
                   </div>
                 )}
               </div>
@@ -429,7 +432,7 @@ export function GenInputCard({
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
         >
           {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-          添加到资源库
+          {t('shared.genInput.addToLibrary')}
         </button>
         <input
           ref={fileRef}
@@ -448,10 +451,10 @@ export function GenInputCard({
           }}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors"
         >
-          <AtSign size={12} /> 引用
+          <AtSign size={12} /> {t('shared.genInput.mention')}
         </button>
         <span className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground/60">
-          <Library size={11} /> 工具只会使用已加入资源库的文件
+          <Library size={11} /> {t('shared.genInput.libraryOnlyHint')}
         </span>
         <div className="flex-1" />
         <span className="text-xs text-muted-foreground/50 hidden sm:block">⌘ + Enter</span>
@@ -462,8 +465,8 @@ export function GenInputCard({
           className="rounded-full"
         >
           {isRunning
-            ? <><Loader2 size={13} className="animate-spin mr-1.5" />生成中…</>
-            : <><Wand2 size={13} className="mr-1.5" />生成</>
+            ? <><Loader2 size={13} className="animate-spin mr-1.5" />{t('pages.jobs.generating')}</>
+            : <><Wand2 size={13} className="mr-1.5" />{t('shared.genInput.generate')}</>
           }
         </Button>
       </div>

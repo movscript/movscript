@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean
@@ -13,16 +14,18 @@ interface Props {
 }
 
 export function DeleteNodeDialog({ open, nodeNames, onConfirm, onCancel, isPending }: Props) {
+  const { t } = useTranslation()
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 size={16} className="text-destructive" />
-            确认删除节点
+            {t('pipeline.delete.title')}
           </DialogTitle>
           <DialogDescription>
-            此操作无法撤销，关联的审核记录也将被移除。
+            {t('pipeline.delete.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -37,10 +40,10 @@ export function DeleteNodeDialog({ open, nodeNames, onConfirm, onCancel, isPendi
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onCancel} disabled={isPending}>
-            取消
+            {t('common.cancel')}
           </Button>
           <Button variant="destructive" size="sm" onClick={onConfirm} disabled={isPending}>
-            {isPending ? '删除中…' : '确认删除'}
+            {isPending ? t('pipeline.delete.deleting') : t('pipeline.delete.confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

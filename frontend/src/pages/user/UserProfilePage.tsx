@@ -4,13 +4,14 @@ import { api } from '@/lib/api'
 import type { UserQuota, UsageLog } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { LogOut, Coins } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useTranslation } from 'react-i18next'
 
 /* ─── Profile tab ─── */
 
 function ProfileTab() {
+  const { t } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
 
@@ -23,7 +24,7 @@ function ProfileTab() {
         <div>
           <p className="text-lg font-semibold text-foreground">{currentUser?.username}</p>
           <p className="text-sm text-muted-foreground">
-            {currentUser?.system_role === 'super_admin' ? '超级管理员' : '普通用户'}
+            {currentUser?.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
           </p>
         </div>
       </div>
@@ -33,7 +34,7 @@ function ProfileTab() {
           onClick={() => setCurrentUser(null)}
           className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors"
         >
-          <LogOut size={15} /> 退出登录
+          <LogOut size={15} /> {t('sidebar.logout')}
         </button>
       </div>
     </div>
@@ -43,6 +44,7 @@ function ProfileTab() {
 /* ─── Usage tab ─── */
 
 function UsageTab() {
+  const { t, i18n } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const [page, setPage] = useState(1)
 
@@ -63,10 +65,14 @@ function UsageTab() {
   const pageCount = Math.ceil(total / 20)
 
   function formatDate(s: string) {
-    return new Date(s).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return new Date(s).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
-  const opLabel: Record<string, string> = { text: '文本', image: '生图', video: '生视频' }
+  const opLabel: Record<string, string> = {
+    text: t('user.usage.operations.text'),
+    image: t('user.usage.operations.image'),
+    video: t('user.usage.operations.video'),
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -74,40 +80,40 @@ function UsageTab() {
       <div className="bg-foreground rounded-xl px-6 py-5 text-background">
         <div className="flex items-center gap-2 mb-1">
           <Coins size={14} className="opacity-60" />
-          <p className="text-xs opacity-60">可用余额</p>
+          <p className="text-xs opacity-60">{t('user.usage.balance')}</p>
         </div>
         <p className="text-3xl font-bold tabular-nums">{(quota?.balance ?? 0).toFixed(2)}</p>
-        <p className="text-xs opacity-50 mt-0.5">Credits</p>
+        <p className="text-xs opacity-50 mt-0.5">{t('common.credits')}</p>
       </div>
 
       {/* This month stats */}
       {quota && (
         <div className="grid grid-cols-2 gap-3">
           <div className="border border-border rounded-lg px-4 py-3">
-            <p className="text-xs text-muted-foreground">本月消耗</p>
+            <p className="text-xs text-muted-foreground">{t('user.usage.monthCost')}</p>
             <p className="text-lg font-semibold tabular-nums mt-0.5">{quota.total_cost_this_month.toFixed(3)}</p>
-            <p className="text-xs text-muted-foreground">Credits</p>
+            <p className="text-xs text-muted-foreground">{t('common.credits')}</p>
           </div>
           <div className="border border-border rounded-lg px-4 py-3">
-            <p className="text-xs text-muted-foreground">本月 Tokens</p>
+            <p className="text-xs text-muted-foreground">{t('user.usage.monthTokens')}</p>
             <p className="text-lg font-semibold tabular-nums mt-0.5">{quota.total_tokens_this_month.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">tokens</p>
+            <p className="text-xs text-muted-foreground">{t('common.tokens')}</p>
           </div>
         </div>
       )}
 
       {/* Usage log table */}
       <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">用量明细</h3>
+        <h3 className="text-sm font-medium text-foreground mb-3">{t('user.usage.details')}</h3>
         <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-xs">
             <thead className="bg-card border-b border-border">
               <tr>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">时间</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">模型</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">类型</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Tokens</th>
-                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">Credits</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">{t('user.usage.time')}</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">{t('user.usage.model')}</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">{t('user.usage.type')}</th>
+                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">{t('common.tokens')}</th>
+                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">{t('common.credits')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -127,7 +133,7 @@ function UsageTab() {
                 </tr>
               ))}
               {logs.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">暂无用量记录</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{t('user.usage.empty')}</td></tr>
               )}
             </tbody>
           </table>
@@ -135,9 +141,9 @@ function UsageTab() {
 
         {pageCount > 1 && (
           <div className="flex items-center justify-center gap-2 text-sm mt-3">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>{t('user.usage.prevPage')}</Button>
             <span className="text-muted-foreground text-xs">{page} / {pageCount}</span>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>下一页</Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>{t('user.usage.nextPage')}</Button>
           </div>
         )}
       </div>
@@ -148,17 +154,19 @@ function UsageTab() {
 /* ─── Main page ─── */
 
 export default function UserProfilePage() {
+  const { t } = useTranslation()
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-foreground">用户设置</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">账户信息与 Credits 用量</p>
+        <h1 className="text-lg font-semibold text-foreground">{t('user.title')}</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">{t('user.subtitle')}</p>
       </div>
 
       <Tabs defaultValue="profile">
         <TabsList>
-          <TabsTrigger value="profile">个人信息</TabsTrigger>
-          <TabsTrigger value="usage">用量</TabsTrigger>
+          <TabsTrigger value="profile">{t('user.tabs.profile')}</TabsTrigger>
+          <TabsTrigger value="usage">{t('user.tabs.usage')}</TabsTrigger>
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileTab />

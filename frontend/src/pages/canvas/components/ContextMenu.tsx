@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { NodeType } from '@/types'
 import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '../nodeCatalog'
 import { Boxes, Trash2 } from 'lucide-react'
@@ -25,11 +26,12 @@ function Section({
   onAdd: (t: NodeType) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const nodes = CANVAS_NODE_CATALOG.filter((node) => node.category === category)
   return (
     <>
       <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
-      {nodes.map(({ type, label, description, icon: Icon }) => (
+      {nodes.map(({ type, labelKey, descriptionKey, icon: Icon }) => (
         <button
           key={type}
           onClick={() => { onAdd(type); onClose() }}
@@ -39,8 +41,8 @@ function Section({
             <Icon size={14} />
           </span>
           <span className="min-w-0">
-            <span className="block text-xs font-medium">{label}</span>
-            <span className="block truncate text-[10px] text-muted-foreground">{description}</span>
+            <span className="block text-xs font-medium">{t(labelKey)}</span>
+            <span className="block truncate text-[10px] text-muted-foreground">{t(descriptionKey)}</span>
           </span>
         </button>
       ))}
@@ -49,6 +51,7 @@ function Section({
 }
 
 export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelected, onDeleteSelected, hasSelection }: Props) {
+  const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
   const selectedNodeCount = selectedCount ?? 0
@@ -85,7 +88,7 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted/50 text-left transition-colors text-foreground"
           >
             <Boxes size={14} className="text-muted-foreground" />
-            <span>将 {selectedNodeCount} 个节点分组</span>
+            <span>{t('canvas.contextMenu.groupSelected', { count: selectedNodeCount })}</span>
           </button>
           <div className="border-t border-border my-1" />
         </>
@@ -97,7 +100,7 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-destructive/10 text-left transition-colors text-destructive"
           >
             <Trash2 size={14} />
-            <span>删除选中节点</span>
+            <span>{t('canvas.contextMenu.deleteSelected')}</span>
           </button>
           <div className="border-t border-border my-1" />
         </>
@@ -105,7 +108,7 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
       {CANVAS_NODE_CATEGORIES.map((category, index) => (
         <div key={category.id}>
           {index > 0 && <div className="border-t border-border my-1" />}
-          <Section title={category.title} category={category.id} onAdd={onAdd} onClose={onClose} />
+          <Section title={t(category.titleKey)} category={category.id} onAdd={onAdd} onClose={onClose} />
         </div>
       ))}
     </div>

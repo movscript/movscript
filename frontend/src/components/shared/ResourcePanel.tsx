@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, Asset, AssetView, PaginatedResponse } from '@/types'
@@ -44,7 +45,7 @@ export function ResourcePreviewDialog({ resource, onClose }: { resource: RawReso
 
 interface ResourceListItemProps {
   resource: RawResource
-  /** Show "已选" badge and disable drag when true */
+  /** Show a selected badge and disable drag when true */
   selected?: boolean
   /** Called on click — defaults to opening preview */
   onClick?: () => void
@@ -63,6 +64,7 @@ export function ResourceListItem({
   trailing,
   thumbSize = 'sm',
 }: ResourceListItemProps) {
+  const { t } = useTranslation()
   const [preview, setPreview] = useState(false)
   const userId = useUserStore(s => s.currentUser?.ID)
   const proxyUrl = r.direct_url ?? `${API_BASE}${r.url}${userId ? `?uid=${userId}` : ''}`
@@ -90,7 +92,7 @@ export function ResourceListItem({
           selected ? 'opacity-40' : 'hover:bg-muted/50',
           isDraggable && !selected && 'cursor-grab active:cursor-grabbing'
         )}
-        title={selected ? '已选' : isDraggable ? '点击预览，拖拽添加' : undefined}
+        title={selected ? t('common.selected') : isDraggable ? t('shared.resourcePanel.previewDragTitle') : undefined}
       >
         <div className={cn(thumbCls, 'rounded shrink-0 overflow-hidden bg-muted')}>
           {r.type === 'image' || r.type === 'video' ? (
@@ -102,11 +104,11 @@ export function ResourceListItem({
           )}
         </div>
         <span className="text-xs text-foreground truncate flex-1">{r.name}</span>
-        {selected && <span className="text-[10px] text-muted-foreground shrink-0">已选</span>}
+        {selected && <span className="text-[10px] text-muted-foreground shrink-0">{t('common.selected')}</span>}
         {trailing}
       </div>
 
-      {/* Controlled MediaViewer lightbox — same AuthedImage path as grid mode */}
+      {/* Controlled MediaViewer lightbox uses the same AuthedImage path as grid mode. */}
       {preview && <MediaViewer resource={r} className="" open={preview} onOpenChange={v => !v && setPreview(false)} />}
     </>
   )
@@ -140,6 +142,7 @@ export function AssetListItem({
   selectedResourceIds = [],
   trailing,
 }: AssetListItemProps) {
+  const { t } = useTranslation()
   const [preview, setPreview] = useState<RawResource | null>(null)
   const userId = useUserStore(s => s.currentUser?.ID)
   const views = asset.views?.filter(v => v.resource) ?? []
@@ -177,7 +180,7 @@ export function AssetListItem({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-foreground truncate leading-tight">{asset.name}</p>
-            <p className="text-[10px] text-muted-foreground capitalize">{asset.type}</p>
+            <p className="text-[10px] text-muted-foreground capitalize">{t(`domain.assetTypes.${asset.type}`, { defaultValue: asset.type })}</p>
           </div>
           {trailing}
         </div>
@@ -227,6 +230,7 @@ interface ResourcePanelProps {
 }
 
 export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: ResourcePanelProps) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<'resources' | 'assets'>('resources')
   const [keyword, setKeyword] = useState('')
   const [resourceType, setResourceType] = useState<'all' | 'image' | 'video'>('all')
@@ -276,7 +280,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   function Pager({ page, pageCount, total, onPage }: { page: number; pageCount: number; total: number; onPage: (p: number) => void }) {
     return (
       <div className="flex items-center justify-between px-2 py-2 border-t border-border text-[11px] text-muted-foreground shrink-0">
-        <span>{total} 项</span>
+        <span>{t('common.itemsCount', { count: total })}</span>
         <div className="flex items-center gap-1">
           <button className="p-1 rounded hover:bg-muted disabled:opacity-40" disabled={page <= 1} onClick={() => onPage(Math.max(1, page - 1))}>
             <ChevronLeft size={12} />
@@ -293,16 +297,16 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   return (
     <div className="w-56 shrink-0 border-r border-border bg-background flex flex-col overflow-hidden">
       <div className="flex border-b border-border shrink-0">
-        {(['resources', 'assets'] as const).map(t => (
+        {(['resources', 'assets'] as const).map(panelTab => (
           <button
-            key={t}
-            onClick={() => resetFilters(t)}
+            key={panelTab}
+            onClick={() => resetFilters(panelTab)}
             className={cn(
               'flex-1 py-2 text-xs font-medium transition-colors',
-              tab === t ? 'text-foreground border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'
+              tab === panelTab ? 'text-foreground border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {t === 'resources' ? '资源库' : '素材库'}
+            {panelTab === 'resources' ? t('shared.resourcePanel.resourceLibrary') : t('shared.resourcePanel.assetLibrary')}
           </button>
         ))}
       </div>
@@ -313,19 +317,19 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
           <input
             value={keyword}
             onChange={e => { setKeyword(e.target.value); resetFilters() }}
-            placeholder={tab === 'resources' ? '搜索资源…' : '搜索素材…'}
+            placeholder={tab === 'resources' ? t('shared.resourcePanel.searchResources') : t('shared.resourcePanel.searchAssets')}
             className="w-full pl-6 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
         {tab === 'resources' && inputType === 'image+video' && (
           <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
-            {(['all', 'image', 'video'] as const).map(t => (
+            {(['all', 'image', 'video'] as const).map(type => (
               <button
-                key={t}
-                onClick={() => { setResourceType(t); setResourcePage(1) }}
-                className={cn('flex-1 py-1 transition-colors', resourceType === t ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}
+                key={type}
+                onClick={() => { setResourceType(type); setResourcePage(1) }}
+                className={cn('flex-1 py-1 transition-colors', resourceType === type ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}
               >
-                {t === 'all' ? '全部' : t === 'image' ? '图片' : '视频'}
+                {type === 'all' ? t('common.all') : t(`pages.resources.types.${type}`)}
               </button>
             ))}
           </div>
@@ -336,11 +340,11 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
             onChange={e => { setAssetType(e.target.value as typeof assetType); setAssetPage(1) }}
             className="w-full px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            <option value="all">全部素材</option>
-            <option value="character">角色</option>
-            <option value="scene">场景</option>
-            <option value="prop">道具</option>
-            <option value="draft">底稿</option>
+            <option value="all">{t('shared.resourcePanel.allAssets')}</option>
+            <option value="character">{t('domain.assetTypes.character')}</option>
+            <option value="scene">{t('domain.assetTypes.scene')}</option>
+            <option value="prop">{t('domain.assetTypes.prop')}</option>
+            <option value="draft">{t('domain.assetTypes.draft')}</option>
           </select>
         )}
       </div>
@@ -349,7 +353,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
         {tab === 'resources' && (
           <div className="space-y-0.5">
             {resources.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center pt-8">暂无资源</p>
+              <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noResources')}</p>
             )}
             {resources.map(r => (
               <ResourceListItem
@@ -366,8 +370,8 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
 
         {tab === 'assets' && (
           <div className="space-y-1">
-            {!current && <p className="text-xs text-muted-foreground text-center pt-8">需要先选择项目</p>}
-            {current && assets.length === 0 && <p className="text-xs text-muted-foreground text-center pt-8">暂无素材</p>}
+            {!current && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.selectProjectFirst')}</p>}
+            {current && assets.length === 0 && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noAssets')}</p>}
             {assets.map(asset => (
               <AssetListItem
                 key={asset.ID}

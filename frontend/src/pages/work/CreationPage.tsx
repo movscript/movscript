@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import type { Script, Asset, Episode, Scene, Storyboard, Shot, RawResource } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
@@ -32,6 +33,7 @@ interface OpenTab {
 }
 
 export default function CreationPage() {
+  const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [activeKind, setActiveKind] = useState<EntityKind>('script')
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([])
@@ -91,12 +93,12 @@ export default function CreationPage() {
   /* ── Item strip ── */
   function getItems(): { id: number; label: string; sub?: string; resource?: RawResource }[] {
     switch (activeKind) {
-      case 'script':     return scripts.map((s) => ({ id: s.ID, label: s.title, sub: s.script_type === 'main' ? '总剧本' : s.script_type === 'episode' ? '分集' : '分场' }))
-      case 'asset':      return assets.map((a) => ({ id: a.ID, label: a.name, sub: a.type, resource: a.views?.find((v) => v.resource)?.resource }))
+      case 'script':     return scripts.map((s) => ({ id: s.ID, label: s.title, sub: s.script_type === 'main' ? t('domain.scriptTypes.mainAlt') : s.script_type === 'episode' ? t('entities.episodes') : t('entities.scenes') }))
+      case 'asset':      return assets.map((a) => ({ id: a.ID, label: a.name, sub: t(`domain.assetTypes.${a.type}`, { defaultValue: a.type }), resource: a.views?.find((v) => v.resource)?.resource }))
       case 'episode':    return episodes.map((e) => ({ id: e.ID, label: e.title, sub: `EP${String(e.number).padStart(2, '0')}` }))
-      case 'scene':      return scenes.map((s) => ({ id: s.ID, label: s.title, sub: `场${s.number}` }))
-      case 'storyboard': return storyboards.map((b) => ({ id: b.ID, label: b.title || `分镜 #${b.order}`, sub: b.description?.slice(0, 20) }))
-      case 'shot':       return shots.map((s) => ({ id: s.ID, label: `镜头 ${s.order}`, sub: s.description?.slice(0, 20) }))
+      case 'scene':      return scenes.map((s) => ({ id: s.ID, label: s.title, sub: t('details.sceneLabel', { number: s.number }) }))
+      case 'storyboard': return storyboards.map((b) => ({ id: b.ID, label: b.title || t('details.storyboardLabel', { order: b.order }), sub: b.description?.slice(0, 20) }))
+      case 'shot':       return shots.map((s) => ({ id: s.ID, label: t('details.shotLabel', { order: s.order }), sub: s.description?.slice(0, 20) }))
     }
   }
 
@@ -128,15 +130,15 @@ export default function CreationPage() {
         if (a) targets.push({ kind: 'asset', id: a.ID, label: a.name })
       } else if (activeTab.kind === 'storyboard') {
         const b = storyboards.find((x) => x.ID === activeTab.id)
-        if (b) targets.push({ kind: 'storyboard', id: b.ID, label: `#${b.order} ${b.title || b.description || '（无标题）'}` })
+        if (b) targets.push({ kind: 'storyboard', id: b.ID, label: `#${b.order} ${b.title || b.description || t('common.emptyTitle')}` })
       } else if (activeTab.kind === 'scene') {
         const s = scenes.find((x) => x.ID === activeTab.id)
-        if (s) targets.push({ kind: 'scene', id: s.ID, label: `场${s.number} ${s.title}` })
+        if (s) targets.push({ kind: 'scene', id: s.ID, label: `${t('details.sceneLabel', { number: s.number })} ${s.title}` })
       }
     }
     assets.forEach((a) => { if (!targets.find((t) => t.kind === 'asset' && t.id === a.ID)) targets.push({ kind: 'asset', id: a.ID, label: a.name }) })
-    storyboards.forEach((b) => { if (!targets.find((t) => t.kind === 'storyboard' && t.id === b.ID)) targets.push({ kind: 'storyboard', id: b.ID, label: `#${b.order} ${b.title || b.description || '（无标题）'}` }) })
-    scenes.forEach((s) => { if (!targets.find((t) => t.kind === 'scene' && t.id === s.ID)) targets.push({ kind: 'scene', id: s.ID, label: `场${s.number} ${s.title}` }) })
+    storyboards.forEach((b) => { if (!targets.find((t) => t.kind === 'storyboard' && t.id === b.ID)) targets.push({ kind: 'storyboard', id: b.ID, label: `#${b.order} ${b.title || b.description || t('common.emptyTitle')}` }) })
+    scenes.forEach((s) => { if (!targets.find((t) => t.kind === 'scene' && t.id === s.ID)) targets.push({ kind: 'scene', id: s.ID, label: `${t('details.sceneLabel', { number: s.number })} ${s.title}` }) })
     return targets
   }
 
@@ -196,7 +198,7 @@ export default function CreationPage() {
               )}>
                 <Icon size={16} className={active ? 'text-background' : cfg.activeColor} />
               </div>
-              <span className="text-xs font-semibold whitespace-nowrap">{cfg.label}</span>
+              <span className="text-xs font-semibold whitespace-nowrap">{t(cfg.labelKey)}</span>
               <span className={cn(
                 'text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-full leading-none',
                 active ? 'bg-background/20 text-background' : 'bg-muted text-muted-foreground'
@@ -218,7 +220,7 @@ export default function CreationPage() {
             )}
           >
             <LayoutTemplate size={15} />
-            <span className="whitespace-nowrap">{canvasOpen ? '收起画布' : '创作画布'}</span>
+            <span className="whitespace-nowrap">{canvasOpen ? t('work.collapseCanvas') : t('work.creationCanvas')}</span>
             {canvasOpen ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
           </button>
         </div>
@@ -229,7 +231,7 @@ export default function CreationPage() {
         <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none min-w-0">
           {items.length === 0 ? (
             <span className="text-xs text-muted-foreground py-1">
-              暂无{KIND_CONFIG[activeKind].label}，点击右侧新建
+              {t('work.emptyKindHint', { entity: t(KIND_CONFIG[activeKind].labelKey) })}
             </span>
           ) : (
             items.map((item) => {
@@ -256,7 +258,7 @@ export default function CreationPage() {
           className="shrink-0 gap-1"
         >
           <Plus size={13} />
-          新建
+          {t('common.create')}
         </Button>
       </div>
 
@@ -330,7 +332,7 @@ export default function CreationPage() {
       <CreateDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title={`新建${KIND_CONFIG[activeKind].label}`}
+        title={t('work.createEntityTitle', { entity: t(KIND_CONFIG[activeKind].labelKey) })}
       >
         {renderCreateForm()}
       </CreateDialog>

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import i18n from '@/i18n'
 
 export interface ChatMessage {
   id: string
@@ -126,7 +127,7 @@ export const useAgentStore = create<AgentStore>()(
               ...state.convsByUser,
               [userId]: {
                 conversations: [
-                  { id, userAgentId, title: '新对话', messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+                  { id, userAgentId, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
                   ...cur.conversations,
                 ],
                 activeConversationId: id,

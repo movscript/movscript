@@ -7,13 +7,15 @@ import { Plus, Camera, Play, SkipBack, SkipForward, X, ListVideo } from 'lucide-
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ShotCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
-import { SHOT_STATUS_COLORS as STATUS_COLORS, SHOT_STATUS_LABELS as STATUS_LABELS } from '@/constants/shot'
+import { SHOT_STATUS_COLORS as STATUS_COLORS, SHOT_STATUS_LABEL_KEYS as STATUS_LABEL_KEYS } from '@/constants/shot'
 import { Button } from '@/components/ui/button'
 import { ShotDetail, ReviewStatusBadge } from '@/components/detail'
+import { useTranslation } from 'react-i18next'
 
 type SortMode = 'scene' | 'episode'
 
 export default function ShotsPage() {
+  const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterSceneId, setFilterSceneId] = useState<number | null>(null)
   const [filterEpisodeId, setFilterEpisodeId] = useState<number | null>(null)
@@ -115,15 +117,15 @@ export default function ShotsPage() {
   const detailOpen = selectedId !== null
 
   function getShotLabel(s: Shot): string {
-    if (!s.storyboard_id) return `镜${s.order}`
+    if (!s.storyboard_id) return t('details.shotShortLabel', { order: s.order })
     const board = boardById[s.storyboard_id]
-    if (!board) return `镜${s.order}`
+    if (!board) return t('details.shotShortLabel', { order: s.order })
     if (sortMode === 'scene') {
       const scene = board.scene_id ? sceneById[board.scene_id] : null
-      return scene ? `场${scene.number}-镜${s.order}` : `镜${s.order}`
+      return scene ? t('details.sceneShotLabel', { scene: scene.number, shot: s.order }) : t('details.shotShortLabel', { order: s.order })
     } else {
       const ep = board.episode_id ? episodes.find((e) => e.ID === board.episode_id) : null
-      return ep ? `EP${ep.number}-镜${s.order}` : `镜${s.order}`
+      return ep ? t('details.episodeShotLabel', { episode: ep.number, shot: s.order }) : t('details.shotShortLabel', { order: s.order })
     }
   }
 
@@ -164,24 +166,24 @@ export default function ShotsPage() {
             <div className="flex items-center gap-2">
               <div className="flex rounded-md border border-border overflow-hidden shrink-0">
                 <button onClick={() => { setSortMode('scene'); setFilterEpisodeId(null) }}
-                  className={cn('px-2.5 py-1.5 text-xs transition-colors', sortMode === 'scene' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>按分场</button>
+                  className={cn('px-2.5 py-1.5 text-xs transition-colors', sortMode === 'scene' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>{t('pages.shots.byScene')}</button>
                 <button onClick={() => { setSortMode('episode'); setFilterSceneId(null) }}
-                  className={cn('px-2.5 py-1.5 text-xs border-l border-border transition-colors', sortMode === 'episode' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>按分集</button>
+                  className={cn('px-2.5 py-1.5 text-xs border-l border-border transition-colors', sortMode === 'episode' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>{t('pages.shots.byEpisode')}</button>
               </div>
               {sortMode === 'scene' ? (
                 <select className="flex-1 border border-border rounded px-2 py-1.5 text-xs min-w-0 bg-background text-foreground"
                   value={filterSceneId ?? ''} onChange={(e) => { setFilterSceneId(Number(e.target.value) || null); setSelectedId(null) }}>
-                  <option value="">全部分场</option>
-                  {scenes.map((s) => <option key={s.ID} value={s.ID}>场{s.number} {s.title}</option>)}
+                  <option value="">{t('pages.shots.allScenes')}</option>
+                  {scenes.map((s) => <option key={s.ID} value={s.ID}>{t('details.sceneLabel', { number: s.number })} {s.title}</option>)}
                 </select>
               ) : (
                 <select className="flex-1 border border-border rounded px-2 py-1.5 text-xs min-w-0 bg-background text-foreground"
                   value={filterEpisodeId ?? ''} onChange={(e) => { setFilterEpisodeId(Number(e.target.value) || null); setSelectedId(null) }}>
-                  <option value="">全部分集</option>
+                  <option value="">{t('pages.shots.allEpisodes')}</option>
                   {episodes.map((ep) => <option key={ep.ID} value={ep.ID}>EP{ep.number} {ep.title}</option>)}
                 </select>
               )}
-              <button onClick={playAll} disabled={playableShots.length === 0} title="连播"
+              <button onClick={playAll} disabled={playableShots.length === 0} title={t('pages.shots.playAll')}
                 className={cn('shrink-0 p-1.5 rounded-md transition-colors', playableShots.length > 0 ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-muted text-muted-foreground/50 cursor-not-allowed')}>
                 <ListVideo size={14} />
               </button>
@@ -191,12 +193,12 @@ export default function ShotsPage() {
 
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
-              <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+              <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
             ) : shots.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                 <Camera size={32} className="opacity-30" />
-                <p className="text-sm">暂无镜头</p>
-                <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">新建一个</button>
+                <p className="text-sm">{t('pages.shots.empty')}</p>
+                <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">{t('pages.shots.createOne')}</button>
               </div>
             ) : detailOpen ? (
               shots.map((s) => (
@@ -204,10 +206,10 @@ export default function ShotsPage() {
                   className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono shrink-0">{getShotLabel(s)}</span>
-                    <span className="text-sm truncate flex-1">{s.description || '（无描述）'}</span>
+                    <span className="text-sm truncate flex-1">{s.description || t('common.emptyDescription')}</span>
                     <ReviewStatusBadge status={s.review_status} />
                     <span className={cn('text-xs px-1.5 py-0.5 rounded-full shrink-0', STATUS_COLORS[s.status])}>
-                      {STATUS_LABELS[s.status]}
+                      {t(STATUS_LABEL_KEYS[s.status])}
                     </span>
                   </div>
                 </button>
@@ -223,16 +225,16 @@ export default function ShotsPage() {
                         <div className="flex items-center gap-1">
                           <ReviewStatusBadge status={s.review_status} />
                           <span className={cn('text-xs px-1.5 py-0.5 rounded-full', STATUS_COLORS[s.status])}>
-                            {STATUS_LABELS[s.status]}
+                            {t(STATUS_LABEL_KEYS[s.status])}
                           </span>
                         </div>
                       </div>
-                      <p className="text-sm text-foreground line-clamp-3">{s.description || '（无描述）'}</p>
-                      {!s.storyboard_id && <span className="text-xs text-muted-foreground/50 mt-1 block">独立镜头</span>}
+                      <p className="text-sm text-foreground line-clamp-3">{s.description || t('common.emptyDescription')}</p>
+                      {!s.storyboard_id && <span className="text-xs text-muted-foreground/50 mt-1 block">{t('pages.shots.independent')}</span>}
                     </button>
                     {s.generated_res_id && (
                       <button onClick={(e) => { e.stopPropagation(); playSingle(s) }}
-                        className="absolute bottom-3 right-3 bg-primary text-primary-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" title="播放">
+                        className="absolute bottom-3 right-3 bg-primary text-primary-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" title={t('pages.shots.play')}>
                         <Play size={11} />
                       </button>
                     )}
@@ -261,7 +263,7 @@ export default function ShotsPage() {
             </button>
             <div className="flex-1 min-w-0">
               <span className="text-xs text-background/60 font-mono mr-2">{getShotLabel(currentPlayerShot)}</span>
-              <span className="text-sm truncate">{currentPlayerShot?.description || '（无描述）'}</span>
+              <span className="text-sm truncate">{currentPlayerShot?.description || t('common.emptyDescription')}</span>
             </div>
             <span className="text-xs text-background/60 shrink-0">{playerIndex + 1} / {playerQueue.length}</span>
             <button onClick={playerNext} className="p-1.5 rounded hover:bg-muted/20 transition-colors"><SkipForward size={16} /></button>
@@ -272,13 +274,13 @@ export default function ShotsPage() {
               className="w-full max-h-72 bg-black" onEnded={playerNext} />
           ) : (
             <div className="flex items-center justify-center h-20 text-xs text-background/60">
-              {currentPlayerShot?.generated_res_id ? '加载中…' : '该镜头暂无生成视频'}
+              {currentPlayerShot?.generated_res_id ? t('common.loadingShort') : t('pages.shots.noVideo')}
             </div>
           )}
         </div>
       )}
 
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建镜头">
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.shots.createTitle')}>
         <ShotCreateForm projectId={projectId!} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </CreateDialog>
     </div>

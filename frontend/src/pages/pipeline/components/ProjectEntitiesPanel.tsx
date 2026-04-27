@@ -4,6 +4,7 @@ import { Film, Clapperboard, Layers, Camera, ChevronDown, ChevronRight, Link2 } 
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
 import type { Episode, Scene, Storyboard, Shot } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 const STATUS_CHIP: Record<string, string> = {
   // Episode statuses
@@ -44,10 +45,13 @@ interface EntityCardProps {
   title: string
   subtitle?: string
   status?: string
+  statusLabel?: string
   onLinkClick?: () => void
 }
 
-function EntityCard({ title, subtitle, status, onLinkClick }: EntityCardProps) {
+function EntityCard({ title, subtitle, status, statusLabel, onLinkClick }: EntityCardProps) {
+  const { t } = useTranslation()
+
   return (
     <div className="mx-2 mb-1 px-2.5 py-2 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors group">
       <div className="flex items-start justify-between gap-1">
@@ -58,14 +62,14 @@ function EntityCard({ title, subtitle, status, onLinkClick }: EntityCardProps) {
         <div className="flex items-center gap-1 shrink-0">
           {status && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATUS_CHIP[status] ?? 'bg-muted text-muted-foreground'}`}>
-              {status}
+              {statusLabel ?? status}
             </span>
           )}
           {onLinkClick && (
             <button
               onClick={onLinkClick}
               className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted-foreground hover:text-primary"
-              title="关联到节点"
+              title={t('pipeline.entities.linkToNode')}
             >
               <Link2 size={11} />
             </button>
@@ -82,6 +86,7 @@ interface Props {
 }
 
 export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
+  const { t } = useTranslation()
   const project = useProjectStore((s) => s.current)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     episodes: true, scenes: false, storyboards: false, shots: false,
@@ -115,11 +120,20 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
     enabled: !!project,
   })
 
+  function statusLabel(status?: string) {
+    if (!status) return undefined
+    return t(`domain.episodeStatus.${status}`, {
+      defaultValue: t(`domain.reviewStatus.${status}`, {
+        defaultValue: t(`domain.shotStatus.${status}`, { defaultValue: status }),
+      }),
+    })
+  }
+
   return (
     <div className="w-60 border-l border-border bg-card flex flex-col shrink-0 overflow-hidden">
       <div className="px-3 py-2.5 border-b border-border shrink-0">
-        <p className="text-xs font-semibold text-foreground">项目内容</p>
-        <p className="text-[10px] text-muted-foreground">点击链接图标关联到节点</p>
+        <p className="text-xs font-semibold text-foreground">{t('pipeline.entities.title')}</p>
+        <p className="text-[10px] text-muted-foreground">{t('pipeline.entities.hint')}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -128,7 +142,7 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
         <div>
           <SectionHeader
             icon={Film}
-            label="分集"
+            label={t('entities.episodes')}
             count={episodes.length}
             open={openSections.episodes}
             onToggle={() => toggle('episodes')}
@@ -136,14 +150,15 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
           {openSections.episodes && (
             <div className="pb-1">
               {episodes.length === 0 ? (
-                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">暂无分集</p>
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">{t('pipeline.entities.emptyEpisodes')}</p>
               ) : episodes.map((e) => (
                 <EntityCard
                   key={e.ID}
-                  title={`第 ${e.number} 集${e.title ? ` · ${e.title}` : ''}`}
+                  title={t('pipeline.entities.episodeTitle', { number: e.number, title: e.title ? ` · ${e.title}` : '' })}
                   subtitle={e.synopsis}
                   status={e.status}
-                  onLinkClick={onLinkEntity ? () => onLinkEntity('episode', e.ID, `第${e.number}集`) : undefined}
+                  statusLabel={statusLabel(e.status)}
+                  onLinkClick={onLinkEntity ? () => onLinkEntity('episode', e.ID, t('pipeline.entities.episodeLabel', { number: e.number })) : undefined}
                 />
               ))}
             </div>
@@ -156,7 +171,7 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
         <div>
           <SectionHeader
             icon={Clapperboard}
-            label="分场"
+            label={t('entities.scenes')}
             count={scenes.length}
             open={openSections.scenes}
             onToggle={() => toggle('scenes')}
@@ -164,13 +179,13 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
           {openSections.scenes && (
             <div className="pb-1">
               {scenes.length === 0 ? (
-                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">暂无分场</p>
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">{t('pipeline.entities.emptyScenes')}</p>
               ) : scenes.map((s) => (
                 <EntityCard
                   key={s.ID}
-                  title={`场景 ${s.number}${s.title ? ` · ${s.title}` : ''}`}
+                  title={t('pipeline.entities.sceneTitle', { number: s.number, title: s.title ? ` · ${s.title}` : '' })}
                   subtitle={s.location}
-                  onLinkClick={onLinkEntity ? () => onLinkEntity('scene', s.ID, `场景${s.number}`) : undefined}
+                  onLinkClick={onLinkEntity ? () => onLinkEntity('scene', s.ID, t('pipeline.entities.sceneLabel', { number: s.number })) : undefined}
                 />
               ))}
             </div>
@@ -183,7 +198,7 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
         <div>
           <SectionHeader
             icon={Layers}
-            label="分镜"
+            label={t('entities.storyboards')}
             count={storyboards.length}
             open={openSections.storyboards}
             onToggle={() => toggle('storyboards')}
@@ -191,14 +206,15 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
           {openSections.storyboards && (
             <div className="pb-1">
               {storyboards.length === 0 ? (
-                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">暂无分镜</p>
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">{t('pipeline.entities.emptyStoryboards')}</p>
               ) : storyboards.map((sb) => (
                 <EntityCard
                   key={sb.ID}
-                  title={sb.title || `分镜 ${sb.order}`}
+                  title={sb.title || t('details.storyboardLabel', { order: sb.order })}
                   subtitle={sb.description}
                   status={sb.status}
-                  onLinkClick={onLinkEntity ? () => onLinkEntity('storyboard', sb.ID, sb.title || `分镜${sb.order}`) : undefined}
+                  statusLabel={statusLabel(sb.status)}
+                  onLinkClick={onLinkEntity ? () => onLinkEntity('storyboard', sb.ID, sb.title || t('details.storyboardLabel', { order: sb.order })) : undefined}
                 />
               ))}
             </div>
@@ -211,7 +227,7 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
         <div>
           <SectionHeader
             icon={Camera}
-            label="镜头"
+            label={t('entities.shots')}
             count={shots.length}
             open={openSections.shots}
             onToggle={() => toggle('shots')}
@@ -219,14 +235,15 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
           {openSections.shots && (
             <div className="pb-1">
               {shots.length === 0 ? (
-                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">暂无镜头</p>
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground">{t('pipeline.entities.emptyShots')}</p>
               ) : shots.map((sh) => (
                 <EntityCard
                   key={sh.ID}
-                  title={`镜头 ${sh.order}`}
+                  title={t('details.shotLabel', { order: sh.order })}
                   subtitle={sh.description}
                   status={sh.status}
-                  onLinkClick={onLinkEntity ? () => onLinkEntity('shot', sh.ID, `镜头${sh.order}`) : undefined}
+                  statusLabel={statusLabel(sh.status)}
+                  onLinkClick={onLinkEntity ? () => onLinkEntity('shot', sh.ID, t('details.shotLabel', { order: sh.order })) : undefined}
                 />
               ))}
             </div>

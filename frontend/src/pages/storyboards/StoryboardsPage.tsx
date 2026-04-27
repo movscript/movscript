@@ -9,15 +9,27 @@ import { StoryboardCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { StoryboardDetail, ReviewStatusBadge } from '@/components/detail'
+import { useTranslation } from 'react-i18next'
 
-const ANGLE_LABELS: Record<string, string> = {
-  'close-up': '特写', medium: '中景', wide: '远景', 'extreme-wide': '大远景', overhead: '俯拍', pov: '主观',
+const ANGLE_LABEL_KEYS: Record<string, string> = {
+  'close-up': 'domain.cameraAngles.close-up',
+  medium: 'domain.cameraAngles.medium',
+  wide: 'domain.cameraAngles.wide',
+  'extreme-wide': 'domain.cameraAngles.extreme-wide',
+  overhead: 'domain.cameraAngles.overhead',
+  pov: 'domain.cameraAngles.pov',
 }
-const MOVE_LABELS: Record<string, string> = {
-  static: '固定', pan: '横摇', tilt: '纵摇', dolly: '推拉', zoom: '变焦', handheld: '手持',
+const MOVE_LABEL_KEYS: Record<string, string> = {
+  static: 'domain.cameraMoves.static',
+  pan: 'domain.cameraMoves.pan',
+  tilt: 'domain.cameraMoves.tilt',
+  dolly: 'domain.cameraMoves.dolly',
+  zoom: 'domain.cameraMoves.zoom',
+  handheld: 'domain.cameraMoves.handheld',
 }
 
 export default function StoryboardsPage() {
+  const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterMode, setFilterMode] = useState<'all' | 'scene' | 'episode'>('all')
   const [filterSceneId, setFilterSceneId] = useState<number | null>(null)
@@ -57,9 +69,9 @@ export default function StoryboardsPage() {
   const detailOpen = selectedId !== null
 
   const statusTabs = [
-    { value: '' as const, label: '全部' },
-    { value: 'draft' as const, label: '草稿' },
-    { value: 'approved' as const, label: '已通过' },
+    { value: '' as const, label: t('common.all') },
+    { value: 'draft' as const, label: t('domain.shotStatus.draft') },
+    { value: 'approved' as const, label: t('pages.storyboards.approved') },
   ]
 
   return (
@@ -70,23 +82,23 @@ export default function StoryboardsPage() {
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-border overflow-hidden shrink-0">
               <button onClick={() => { setFilterMode('all'); setFilterSceneId(null); setFilterEpisodeId(null); setSelectedId(null) }}
-                className={cn('px-2.5 py-1.5 text-xs transition-colors', filterMode === 'all' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>全部</button>
+                className={cn('px-2.5 py-1.5 text-xs transition-colors', filterMode === 'all' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>{t('common.all')}</button>
               <button onClick={() => { setFilterMode('scene'); setFilterEpisodeId(null); setSelectedId(null) }}
-                className={cn('px-2.5 py-1.5 text-xs border-l border-border transition-colors', filterMode === 'scene' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>按分场</button>
+                className={cn('px-2.5 py-1.5 text-xs border-l border-border transition-colors', filterMode === 'scene' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>{t('pages.storyboards.byScene')}</button>
               <button onClick={() => { setFilterMode('episode'); setFilterSceneId(null); setSelectedId(null) }}
-                className={cn('px-2.5 py-1.5 text-xs border-l border-border transition-colors', filterMode === 'episode' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>按分集</button>
+                className={cn('px-2.5 py-1.5 text-xs border-l border-border transition-colors', filterMode === 'episode' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50')}>{t('pages.storyboards.byEpisode')}</button>
             </div>
             {filterMode === 'scene' && (
               <select className="flex-1 border border-border rounded px-2 py-1.5 text-xs min-w-0 bg-background text-foreground"
                 value={filterSceneId ?? ''} onChange={(e) => { setFilterSceneId(Number(e.target.value) || null); setSelectedId(null) }}>
-                <option value="">全部分场</option>
-                {scenes.map((s) => <option key={s.ID} value={s.ID}>场{s.number} {s.title}</option>)}
+                <option value="">{t('pages.storyboards.allScenes')}</option>
+                {scenes.map((s) => <option key={s.ID} value={s.ID}>{t('details.sceneLabel', { number: s.number })} {s.title}</option>)}
               </select>
             )}
             {filterMode === 'episode' && (
               <select className="flex-1 border border-border rounded px-2 py-1.5 text-xs min-w-0 bg-background text-foreground"
                 value={filterEpisodeId ?? ''} onChange={(e) => { setFilterEpisodeId(Number(e.target.value) || null); setSelectedId(null) }}>
-                <option value="">全部分集</option>
+                <option value="">{t('pages.storyboards.allEpisodes')}</option>
                 {episodes.map((ep) => <option key={ep.ID} value={ep.ID}>EP{ep.number} {ep.title}</option>)}
               </select>
             )}
@@ -104,12 +116,12 @@ export default function StoryboardsPage() {
 
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+            <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
           ) : storyboards.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Layers size={32} className="opacity-30" />
-              <p className="text-sm">暂无分镜</p>
-              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline-offset-4">新建一个</button>
+              <p className="text-sm">{t('pages.storyboards.empty')}</p>
+              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline-offset-4">{t('pages.storyboards.createOne')}</button>
             </div>
           ) : detailOpen ? (
             storyboards.map((b) => (
@@ -117,7 +129,7 @@ export default function StoryboardsPage() {
                 className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors', selectedId === b.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground font-mono shrink-0">#{b.order}</span>
-                  <span className="text-sm font-medium truncate flex-1">{b.title || b.description || '（无标题）'}</span>
+                  <span className="text-sm font-medium truncate flex-1">{b.title || b.description || t('common.emptyTitle')}</span>
                   <ReviewStatusBadge status={b.review_status} />
                 </div>
               </button>
@@ -134,14 +146,14 @@ export default function StoryboardsPage() {
                       <span className="text-sm font-mono text-muted-foreground">#{b.order}</span>
                       <ReviewStatusBadge status={b.review_status} />
                     </div>
-                    <p className="text-sm font-medium text-foreground line-clamp-2 mb-1">{b.title || b.description || '（无标题）'}</p>
+                    <p className="text-sm font-medium text-foreground line-clamp-2 mb-1">{b.title || b.description || t('common.emptyTitle')}</p>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {scene && <span className="text-xs text-muted-foreground truncate">场{scene.number} {scene.title}</span>}
+                      {scene && <span className="text-xs text-muted-foreground truncate">{t('details.sceneLabel', { number: scene.number })} {scene.title}</span>}
                       {episode && <span className="text-xs text-muted-foreground truncate">EP{episode.number} {episode.title}</span>}
                     </div>
                     <div className="flex gap-1 flex-wrap mt-1">
-                      {b.camera_angle && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{ANGLE_LABELS[b.camera_angle] ?? b.camera_angle}</span>}
-                      {b.camera_movement && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{MOVE_LABELS[b.camera_movement] ?? b.camera_movement}</span>}
+                      {b.camera_angle && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{ANGLE_LABEL_KEYS[b.camera_angle] ? t(ANGLE_LABEL_KEYS[b.camera_angle]) : b.camera_angle}</span>}
+                      {b.camera_movement && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{MOVE_LABEL_KEYS[b.camera_movement] ? t(MOVE_LABEL_KEYS[b.camera_movement]) : b.camera_movement}</span>}
                     </div>
                   </button>
                 )
@@ -158,7 +170,7 @@ export default function StoryboardsPage() {
         </div>
       )}
 
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建分镜">
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.storyboards.createTitle')}>
         <StoryboardCreateForm projectId={projectId!} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </CreateDialog>
     </div>

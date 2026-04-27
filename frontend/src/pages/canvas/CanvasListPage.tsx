@@ -9,23 +9,25 @@ import { CreateDialog } from '@/components/shared/CreateDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTranslation } from 'react-i18next'
 
-const TYPE_META: Record<CanvasType, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
+const TYPE_META: Record<CanvasType, { labelKey: string; icon: React.ReactNode; color: string; descKey: string }> = {
   inspiration: {
-    label: '灵感激发',
+    labelKey: 'pages.canvases.types.inspiration',
     icon: <Lightbulb size={12} />,
     color: 'bg-muted text-foreground border-border',
-    desc: '手动逐节点运行，自由探索创意',
+    descKey: 'pages.canvases.typeDescriptions.inspiration',
   },
   workflow: {
-    label: '工作流',
+    labelKey: 'pages.canvases.types.workflow',
     icon: <Zap size={12} />,
     color: 'bg-muted text-foreground border-border',
-    desc: '定义输入输出，全流程自动执行',
+    descKey: 'pages.canvases.typeDescriptions.workflow',
   },
 }
 
 export default function CanvasListPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const navigate = useNavigate()
   const currentProject = useProjectStore((s) => s.current)
@@ -67,26 +69,26 @@ export default function CanvasListPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-base font-semibold text-foreground">画布</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">灵感激发 · 工作流</p>
+          <h1 className="text-base font-semibold text-foreground">{t('header.titles.canvases')}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('pages.canvases.subtitle')}</p>
         </div>
         <Button onClick={() => setShowCreate(true)} size="sm">
-          <Plus size={14} /> 新建画布
+          <Plus size={14} /> {t('pages.canvases.newCanvas')}
         </Button>
       </div>
 
       {/* Canvas list */}
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">加载中…</p>
+        <p className="text-sm text-muted-foreground">{t('common.loadingShort')}</p>
       ) : canvases.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <LayoutTemplate size={36} className="mb-3 opacity-40" />
-          <p className="text-sm mb-2">还没有画布</p>
+          <p className="text-sm mb-2">{t('pages.canvases.empty')}</p>
           <button
             onClick={() => setShowCreate(true)}
             className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-4"
           >
-            创建第一个画布
+            {t('pages.canvases.createFirst')}
           </button>
         </div>
       ) : (
@@ -104,7 +106,7 @@ export default function CanvasListPage() {
                   <p className="text-sm font-medium text-foreground truncate">{cv.name}</p>
                 </div>
                 <span className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-medium shrink-0 ${meta.color}`}>
-                  {meta.icon}{meta.label}
+                  {meta.icon}{t(meta.labelKey)}
                 </span>
                 <Button
                   variant="outline"
@@ -112,13 +114,13 @@ export default function CanvasListPage() {
                   onClick={() => navigate(`/canvases/${cv.ID}`)}
                   className="shrink-0"
                 >
-                  打开 <ArrowRight size={13} />
+                  {t('pages.canvases.open')} <ArrowRight size={13} />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => remove.mutate(cv.ID)}
-                  aria-label="删除"
+                  aria-label={t('common.delete')}
                   className="shrink-0 text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 size={14} />
@@ -133,14 +135,14 @@ export default function CanvasListPage() {
       <CreateDialog
         open={showCreate}
         onClose={() => { setShowCreate(false); setNewName('') }}
-        title="新建画布"
+        title={t('pages.canvases.newCanvas')}
       >
         <div className="space-y-4">
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1.5">画布名称 *</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1.5">{t('pages.canvases.nameRequired')}</Label>
             <Input
               autoFocus
-              placeholder="为你的画布起个名字"
+              placeholder={t('pages.canvases.namePlaceholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
@@ -148,7 +150,7 @@ export default function CanvasListPage() {
           </div>
 
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            新画布会以工作流创建，包含默认输入、输出节点。
+            {t('pages.canvases.workflowCreateHint')}
           </div>
 
           <div className="flex gap-2 pt-1">
@@ -157,13 +159,13 @@ export default function CanvasListPage() {
               disabled={!newName.trim() || create.isPending}
               className="flex-1"
             >
-              {create.isPending ? '创建中…' : '创建并打开'}
+              {create.isPending ? t('common.creating') : t('pages.canvases.createAndOpen')}
             </Button>
             <Button
               variant="outline"
               onClick={() => { setShowCreate(false); setNewName('') }}
             >
-              取消
+              {t('common.cancel')}
             </Button>
           </div>
         </div>

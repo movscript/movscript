@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { XCircle, Loader2, ChevronDown, History, ChevronUp } from 'lucide-react'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
@@ -32,12 +33,14 @@ export interface ToolNodeFullCardProps {
 }
 
 function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasTask; outputType: 'image' | 'video'; fallbackResource?: RawResource }) {
+  const { t, i18n } = useTranslation()
   const resource = task.resource ?? fallbackResource
   const outputUrl = resource
     ? resource.direct_url ?? `${API_BASE}${resource.url}`
     : undefined
   const isRunning = task.status === 'pending' || task.status === 'running'
-  const ts = new Date(task.CreatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const ts = new Date(task.CreatedAt).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 
   return (
     <div className="border border-border rounded-lg overflow-hidden text-xs">
@@ -47,20 +50,20 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasT
           'text-emerald-500': task.status === 'done',
           'text-destructive': task.status === 'failed',
         })}>
-          {isRunning ? '生成中' : task.status === 'done' ? '已完成' : '失败'}
+          {isRunning ? t('canvas.status.running') : task.status === 'done' ? t('canvas.status.done') : t('canvas.status.failed')}
         </span>
         <span className="text-muted-foreground ml-auto">{ts}</span>
       </div>
       {isRunning && (
         <div className="flex items-center justify-center py-4 text-muted-foreground gap-1.5">
           <Loader2 size={12} className="animate-spin" />
-          <span className="text-[11px]">生成中…</span>
+          <span className="text-[11px]">{t('pages.jobs.generating')}</span>
         </div>
       )}
       {task.status === 'failed' && (
         <div className="flex items-center gap-1.5 text-destructive px-3 py-2">
           <XCircle size={11} />
-          <span className="text-[11px]">{task.error ?? '生成失败'}</span>
+          <span className="text-[11px]">{task.error ?? t('pages.jobs.generationFailed')}</span>
         </div>
       )}
       {task.status === 'done' && outputUrl && (
@@ -99,6 +102,7 @@ export function ToolNodeFullCard({
   canvasId,
   rfNodeId,
 }: ToolNodeFullCardProps) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [attachments, setAttachments] = useState<RawResource[]>([])
   const [uploading, setUploading] = useState(false)
@@ -163,12 +167,12 @@ export function ToolNodeFullCard({
           )}
           {onCycleMode && (
             <button
-              title="切换显示模式（当前：完整）"
+              title={t('shared.toolNode.switchModeTitle')}
               className="nodrag shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-[10px] font-medium"
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); onCycleMode() }}
             >
-              完整
+              {t('shared.toolNode.fullMode')}
               <ChevronDown size={10} className="rotate-180" />
             </button>
           )}
@@ -181,7 +185,7 @@ export function ToolNodeFullCard({
           <div className="space-y-1.5">
             <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
               <History size={11} />
-              最新生成
+              {t('shared.toolNode.latestGeneration')}
             </p>
             <TaskHistoryItem task={latestTask} outputType={outputType} fallbackResource={resource} />
           </div>
@@ -192,8 +196,8 @@ export function ToolNodeFullCard({
           <div className="rounded-lg overflow-hidden">
             {outputType === 'image'
               ? (resource?.direct_url
-                ? <img src={outputUrl} alt="生成结果" className="w-full h-72 object-cover" />
-                : <AuthedImage src={outputUrl} alt="生成结果" className="w-full h-72 object-cover" />)
+                ? <img src={outputUrl} alt={t('shared.generation.resultAlt')} className="w-full h-72 object-cover" />
+                : <AuthedImage src={outputUrl} alt={t('shared.generation.resultAlt')} className="w-full h-72 object-cover" />)
               : (resource?.direct_url
                 ? <video src={outputUrl} controls className="w-full h-72 object-cover" />
                 : <AuthedVideo src={outputUrl} controls className="w-full h-72 object-cover" />)
@@ -205,7 +209,7 @@ export function ToolNodeFullCard({
         {!latestTask && isRunning && (
           <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground">
             <Loader2 size={14} className="animate-spin" />
-            <span className="text-xs">{status === 'pending' ? '等待开始…' : '生成中…'}</span>
+            <span className="text-xs">{status === 'pending' ? t('shared.generation.waitingStart') : t('pages.jobs.generating')}</span>
           </div>
         )}
 
@@ -254,7 +258,7 @@ export function ToolNodeFullCard({
             >
               <span className="flex items-center gap-1.5 font-medium">
                 <History size={12} />
-                生成历史
+                {t('shared.toolNode.generationHistory')}
                 <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
                   {historyTasks.length}
                 </span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { translateApiError } from '@/lib/apiError'
 import type { GenJob, RawResource } from '@/types'
 import {
   Loader2, AlertCircle, CheckCircle2, Clock,
@@ -11,22 +12,23 @@ import {
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { PromptText } from '@/components/shared/GenResultCard'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 const PAGE_SIZE = 24
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, locale: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
-  return new Date(iso).toLocaleDateString('zh-CN')
+  if (diff < 60_000) return t('pages.jobs.time.justNow')
+  if (diff < 3_600_000) return t('pages.jobs.time.minutesAgo', { count: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('pages.jobs.time.hoursAgo', { count: Math.floor(diff / 3_600_000) })
+  return new Date(iso).toLocaleDateString(locale)
 }
 
 type Category = {
   key: string
-  label: string
+  labelKey: string
   icon: React.ReactNode
 }
 
@@ -38,13 +40,13 @@ type GenJobsQueryResult = {
 }
 
 const CATEGORIES: Category[] = [
-  { key: 'all',           label: '全部',       icon: <Wand2 size={13} /> },
-  { key: 'image',         label: '文生图',      icon: <ImageIcon size={13} /> },
-  { key: 'image_edit',    label: '参考生图',    icon: <ImageIcon size={13} /> },
-  { key: 'video',         label: '文生视频',    icon: <Video size={13} /> },
-  { key: 'video_i2v',     label: '参考生视频',  icon: <Video size={13} /> },
-  { key: 'video_v2v',     label: '视频迁移',    icon: <Video size={13} /> },
-  { key: 'canvas',        label: '画布',        icon: <LayoutGrid size={13} /> },
+  { key: 'all',           labelKey: 'common.all',                    icon: <Wand2 size={13} /> },
+  { key: 'image',         labelKey: 'pages.jobs.categories.image',    icon: <ImageIcon size={13} /> },
+  { key: 'image_edit',    labelKey: 'pages.jobs.categories.imageEdit', icon: <ImageIcon size={13} /> },
+  { key: 'video',         labelKey: 'pages.jobs.categories.video',    icon: <Video size={13} /> },
+  { key: 'video_i2v',     labelKey: 'pages.jobs.categories.videoI2V', icon: <Video size={13} /> },
+  { key: 'video_v2v',     labelKey: 'pages.jobs.categories.videoV2V', icon: <Video size={13} /> },
+  { key: 'canvas',        labelKey: 'header.titles.canvases',         icon: <LayoutGrid size={13} /> },
 ]
 
 function getJobCategory(job: GenJob): string {
@@ -61,35 +63,37 @@ function filterJobs(jobs: GenJob[], category: string): GenJob[] {
 // ── StatusBadge ───────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: GenJob['status'] }) {
+  const { t } = useTranslation()
+
   switch (status) {
     case 'pending':
       return (
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-          <Clock size={10} /> 排队中
+          <Clock size={10} /> {t('pages.jobs.status.pending')}
         </span>
       )
     case 'running':
       return (
         <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full">
-          <Loader2 size={10} className="animate-spin" /> 生成中
+          <Loader2 size={10} className="animate-spin" /> {t('pages.jobs.status.running')}
         </span>
       )
     case 'succeeded':
       return (
         <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-950 px-2 py-0.5 rounded-full">
-          <CheckCircle2 size={10} /> 完成
+          <CheckCircle2 size={10} /> {t('pages.jobs.status.succeeded')}
         </span>
       )
     case 'failed':
       return (
         <span className="inline-flex items-center gap-1 text-xs text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
-          <AlertCircle size={10} /> 失败
+          <AlertCircle size={10} /> {t('pages.jobs.status.failed')}
         </span>
       )
     case 'cancelled':
       return (
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-          <XCircle size={10} /> 已取消
+          <XCircle size={10} /> {t('pages.jobs.status.cancelled')}
         </span>
       )
   }
@@ -98,6 +102,7 @@ function StatusBadge({ status }: { status: GenJob['status'] }) {
 // ── List view card ────────────────────────────────────────────────────────────
 
 function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id: number) => void; cancelling: boolean }) {
+  const { t, i18n } = useTranslation()
   const isActive = job.status === 'pending' || job.status === 'running'
   const out = job.output_resource as RawResource | undefined
   const canCancel = isActive && job.job_type.startsWith('video')
@@ -113,7 +118,7 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
           )}
         </div>
         <p className="text-sm text-foreground flex-1 leading-relaxed whitespace-pre-wrap line-clamp-3">
-          {job.prompt ? <PromptText text={job.prompt} /> : '（无提示词）'}
+          {job.prompt ? <PromptText text={job.prompt} /> : t('pages.jobs.noPrompt')}
         </p>
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={job.status} />
@@ -123,12 +128,12 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
               onClick={() => onCancel(job.ID)}
               disabled={cancelling}
               className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive hover:bg-destructive/15 disabled:opacity-50"
-              title="取消任务"
+              title={t('pages.jobs.cancelTask')}
             >
-              <XCircle size={10} /> 取消
+              <XCircle size={10} /> {t('common.cancel')}
             </button>
           )}
-          <span className="text-xs text-muted-foreground/50">{formatTime(job.CreatedAt)}</span>
+          <span className="text-xs text-muted-foreground/50">{formatTime(job.CreatedAt, i18n.language, t)}</span>
         </div>
       </div>
 
@@ -137,7 +142,7 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
           <div className="flex items-center justify-center w-full py-8">
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 size={20} className="animate-spin" />
-              <p className="text-xs">{job.status === 'pending' ? '等待 worker 处理…' : 'AI 生成中…'}</p>
+              <p className="text-xs">{job.status === 'pending' ? t('pages.jobs.waitingWorker') : t('pages.jobs.aiGenerating')}</p>
             </div>
           </div>
         )}
@@ -145,14 +150,14 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
         {!isActive && job.status === 'failed' && (
           <div className="flex items-center gap-2 text-destructive px-4 py-4">
             <AlertCircle size={14} />
-            <p className="text-sm">{job.error_msg || '生成失败'}</p>
+            <p className="text-sm">{job.error_msg || t('pages.jobs.generationFailed')}</p>
           </div>
         )}
 
         {!isActive && job.status === 'cancelled' && (
           <div className="flex items-center gap-2 text-muted-foreground px-4 py-4">
             <XCircle size={14} />
-            <p className="text-sm">{job.error_msg || '任务已取消'}</p>
+            <p className="text-sm">{job.error_msg || t('pages.jobs.taskCancelled')}</p>
           </div>
         )}
 
@@ -169,6 +174,7 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
 // ── Grid view thumbnail ───────────────────────────────────────────────────────
 
 function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id: number) => void; cancelling: boolean }) {
+  const { t, i18n } = useTranslation()
   const isActive = job.status === 'pending' || job.status === 'running'
   const out = job.output_resource as RawResource | undefined
   const canCancel = isActive && job.job_type.startsWith('video')
@@ -180,7 +186,7 @@ function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (i
         {isActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
             <Loader2 size={18} className="animate-spin" />
-            <p className="text-[10px]">{job.status === 'pending' ? '排队中' : '生成中'}</p>
+            <p className="text-[10px]">{job.status === 'pending' ? t('pages.jobs.status.pending') : t('pages.jobs.status.running')}</p>
           </div>
         )}
         {canCancel && (
@@ -189,21 +195,21 @@ function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (i
             onClick={() => onCancel(job.ID)}
             disabled={cancelling}
             className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-destructive shadow-sm hover:bg-background disabled:opacity-50"
-            title="取消任务"
+            title={t('pages.jobs.cancelTask')}
           >
-            <XCircle size={11} /> 取消
+            <XCircle size={11} /> {t('common.cancel')}
           </button>
         )}
         {!isActive && job.status === 'failed' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
             <AlertCircle size={16} />
-            <p className="text-[10px]">失败</p>
+            <p className="text-[10px]">{t('pages.jobs.status.failed')}</p>
           </div>
         )}
         {!isActive && job.status === 'cancelled' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
             <XCircle size={16} />
-            <p className="text-[10px]">已取消</p>
+            <p className="text-[10px]">{t('pages.jobs.status.cancelled')}</p>
           </div>
         )}
         {!isActive && job.status === 'succeeded' && out && (
@@ -214,9 +220,9 @@ function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (i
       {/* Caption */}
       <div className="px-2 py-1.5">
         <p className="text-[10px] text-muted-foreground truncate">
-          {job.prompt ? <PromptText text={job.prompt} /> : '（无提示词）'}
+          {job.prompt ? <PromptText text={job.prompt} /> : t('pages.jobs.noPrompt')}
         </p>
-        <p className="text-[9px] text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt)}</p>
+        <p className="text-[9px] text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt, i18n.language, t)}</p>
       </div>
     </div>
   )
@@ -268,6 +274,7 @@ function CategorySection({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function GenJobsPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [activeCategory, setActiveCategory] = useState('all')
@@ -306,7 +313,7 @@ export default function GenJobsPage() {
       qc.invalidateQueries({ queryKey: ['gen-jobs'] })
     },
     onError: (err: any) => {
-      alert(err?.response?.data?.error ?? err?.message ?? '取消失败')
+      alert(translateApiError(err?.response?.data, 'pages.jobs.cancelFailed'))
     },
   })
 
@@ -327,7 +334,7 @@ export default function GenJobsPage() {
     activeCategory === 'all'
       ? CATEGORIES.filter((c) => c.key !== 'all').map((c) => ({
           key: c.key,
-          label: c.label,
+          label: t(c.labelKey),
           jobs: filterJobs(jobs, c.key),
         })).filter((g) => g.jobs.length > 0)
       : []
@@ -336,11 +343,11 @@ export default function GenJobsPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-background shrink-0">
-        <h1 className="text-sm font-semibold text-foreground">生成记录</h1>
-        <span className="text-xs text-muted-foreground">{total} 条</span>
+        <h1 className="text-sm font-semibold text-foreground">{t('header.titles.jobs')}</h1>
+        <span className="text-xs text-muted-foreground">{t('pages.jobs.recordsCount', { count: total })}</span>
         {hasActiveJobs(jobs) && (
           <span className="flex items-center gap-1 text-xs text-blue-600">
-            <Loader2 size={11} className="animate-spin" /> 生成中…
+            <Loader2 size={11} className="animate-spin" /> {t('pages.jobs.generating')}
           </span>
         )}
         <div className="flex-1" />
@@ -354,7 +361,7 @@ export default function GenJobsPage() {
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
-            title="缩略图"
+            title={t('pages.resources.gridTitle')}
           >
             <LayoutGrid size={13} />
           </button>
@@ -366,7 +373,7 @@ export default function GenJobsPage() {
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
-            title="列表"
+            title={t('pages.resources.listTitle')}
           >
             <List size={13} />
           </button>
@@ -387,7 +394,7 @@ export default function GenJobsPage() {
                   : 'bg-muted text-muted-foreground hover:text-foreground'
               )}
             >
-              {s === 'all' ? '全部状态' : '只看成功'}
+              {s === 'all' ? t('pages.jobs.allStatuses') : t('pages.jobs.succeededOnly')}
             </button>
           ))}
         </div>
@@ -406,7 +413,7 @@ export default function GenJobsPage() {
               )}
             >
               {cat.icon}
-              {cat.label}
+              {t(cat.labelKey)}
               {showCount && (
                 <span className="text-[10px] font-semibold tabular-nums opacity-70">{total}</span>
               )}
@@ -418,12 +425,12 @@ export default function GenJobsPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-5">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">加载中…</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">{t('common.loadingShort')}</div>
         ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
             <Wand2 size={32} className="mb-3 opacity-30" />
-            <p className="text-sm">还没有生成记录</p>
-            <p className="text-xs mt-1">在工具页提交生成任务</p>
+            <p className="text-sm">{t('pages.jobs.empty')}</p>
+            <p className="text-xs mt-1">{t('pages.jobs.emptyHint')}</p>
           </div>
         ) : activeCategory === 'all' ? (
           // Grouped view
@@ -453,7 +460,7 @@ export default function GenJobsPage() {
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-background shrink-0">
           <span className="text-xs text-muted-foreground">
-            第 {page} / {pageCount} 页
+            {t('pages.resources.pageStatus', { page, pageCount })}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -461,14 +468,14 @@ export default function GenJobsPage() {
               disabled={page === 1}
               className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
             >
-              <ChevronLeft size={12} /> 上一页
+              <ChevronLeft size={12} /> {t('pages.resources.previousPage')}
             </button>
             <button
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
               disabled={page === pageCount}
               className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
             >
-              下一页 <ChevronRight size={12} />
+              {t('pages.resources.nextPage')} <ChevronRight size={12} />
             </button>
           </div>
         </div>

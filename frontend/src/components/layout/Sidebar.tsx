@@ -146,7 +146,7 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto py-3 px-2">
 
-        {/* 项目 */}
+        {/* Project */}
         <Section title={t('sidebar.sections.project')}>
           <div className="px-3 py-1 mb-0.5">
             {current ? (
@@ -183,7 +183,7 @@ export function Sidebar() {
           )}
         </Section>
 
-        {/* 进度 */}
+        {/* Progress */}
         {current && (
           <>
             <div className="border-t border-border my-2" />
@@ -195,7 +195,7 @@ export function Sidebar() {
 
         <div className="border-t border-border my-2" />
 
-        {/* 工具 */}
+        {/* Tools */}
         <Section title={t('sidebar.sections.tools')}>
           <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} />
           <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label={t('sidebar.items.refImageGen')} />
@@ -208,7 +208,7 @@ export function Sidebar() {
 
         <div className="border-t border-border my-2" />
 
-        {/* 文件 */}
+        {/* Files */}
         <Section title={t('sidebar.sections.files')}>
           <NavItem to="/resources" icon={HardDrive} label={t('sidebar.items.resources')} />
           <NavItem to="/jobs" icon={Wand2} label={t('sidebar.items.jobs')} />
@@ -223,7 +223,7 @@ export function Sidebar() {
 
         <div className="border-t border-border my-2" />
 
-        {/* 管理 (super_admin only) */}
+        {/* Admin (super_admin only) */}
         {currentUser?.system_role === 'super_admin' && (
           <Section title={t('sidebar.items.admin')} defaultOpen={false}>
             <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
@@ -232,7 +232,7 @@ export function Sidebar() {
 
         <div className="border-t border-border my-2" />
 
-        {/* 工作 */}
+        {/* Workspace */}
         <Section title={t('sidebar.sections.workspace')}>
           {current ? (
             <>
@@ -247,7 +247,7 @@ export function Sidebar() {
 
       </nav>
 
-      {/* 用户底栏 */}
+      {/* User footer */}
       {currentUser && (
         <div
           className="px-3 py-3 border-t border-sidebar-border flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0"

@@ -3,11 +3,1457 @@
     "name": "Movscript"
   },
   "common": {
+    "all": "All",
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "create": "Create",
+    "creating": "Creating...",
+    "delete": "Delete",
+    "emptyTitle": "(Untitled)",
+    "emptyDescription": "(No description)",
+    "itemsCount": "{{count}} items",
+    "save": "Save",
+    "saving": "Saving...",
+    "selected": "Selected",
     "retry": "Retry",
     "loading": "Loading...",
+    "loadingShort": "Loading...",
     "switch": "Switch",
     "selectProject": "Select project...",
     "requestFailed": "Request failed. Please try again later."
+  },
+  "auth": {
+    "tagline": "Short drama production collaboration platform",
+    "login": "Log In",
+    "register": "Register",
+    "username": "Username",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "pleaseWait": "Please wait...",
+    "noAccount": "No account yet?",
+    "registerNow": "Register now",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "loginFailed": "Login failed",
+    "registerFailed": "Registration failed",
+    "passwordMismatch": "Passwords do not match"
+  },
+  "domain": {
+    "assetTypes": {
+      "character": "Character",
+      "scene": "Scene",
+      "prop": "Prop",
+      "draft": "Draft"
+    },
+    "episodeStatus": {
+      "draft": "Draft",
+      "scripted": "Scripted",
+      "storyboarded": "Storyboarded",
+      "generating": "Generating",
+      "editing": "Editing",
+      "done": "Done"
+    },
+    "reviewStatus": {
+      "draft": "Draft",
+      "under_review": "In Review",
+      "approved": "Approved",
+      "revision": "Needs Revision"
+    },
+    "scriptTypes": {
+      "main": "Main Script",
+      "mainAlt": "Main Script",
+      "episode": "Episode Script",
+      "scene": "Scene Script"
+    },
+    "settingTypes": {
+      "character": "Character",
+      "scene": "Scene",
+      "prop": "Prop"
+    },
+    "shotStatus": {
+      "draft": "Draft",
+      "prompt_ready": "Ready",
+      "generating": "Generating",
+      "generated": "Generated",
+      "approved": "Approved"
+    },
+    "timeOfDay": {
+      "day": "Day",
+      "night": "Night",
+      "dawn": "Dawn",
+      "dusk": "Dusk"
+    },
+    "cameraAngles": {
+      "close-up": "Close-up",
+      "medium": "Medium",
+      "wide": "Wide",
+      "extreme-wide": "Extreme Wide",
+      "overhead": "Overhead",
+      "pov": "POV"
+    },
+    "cameraMoves": {
+      "static": "Static",
+      "pan": "Pan",
+      "tilt": "Tilt",
+      "dolly": "Dolly",
+      "zoom": "Zoom",
+      "handheld": "Handheld"
+    }
+  },
+  "entities": {
+    "scripts": "Scripts",
+    "settings": "Settings",
+    "assets": "Assets",
+    "episodes": "Episodes",
+    "scenes": "Scenes",
+    "storyboards": "Storyboards",
+    "shots": "Shots"
+  },
+  "forms": {
+    "name": "Name",
+    "nameRequired": "Name *",
+    "title": "Title",
+    "titleRequired": "Title *",
+    "titleOptional": "Title (optional)",
+    "type": "Type",
+    "typeRequired": "Type *",
+    "description": "Description",
+    "descriptionOptional": "Description (optional)",
+    "summaryOptional": "Summary (optional)",
+    "scriptTitle": "Script title",
+    "assetName": "Asset name",
+    "episodeTitle": "Episode title",
+    "sceneTitle": "Scene title",
+    "storyboardTitle": "Storyboard title",
+    "storyboardDescription": "Storyboard description",
+    "shotDescription": "Shot description",
+    "locationOptional": "Location (optional)",
+    "shootingLocation": "Shooting location",
+    "linkedScriptOptional": "Linked script (optional)",
+    "noScriptDirect": "None (produce directly)",
+    "parentSceneOptional": "Parent scene (optional)",
+    "parentEpisodeOptional": "Parent episode (optional)",
+    "parentStoryboardOptional": "Parent storyboard (optional)",
+    "unlinked": "Not linked",
+    "independentShot": "Independent shot"
+  },
+  "review": {
+    "submit": "Submit for Review",
+    "approve": "Approve",
+    "requestRevision": "Request Revision",
+    "resetDraft": "Reset to Draft"
+  },
+  "details": {
+    "aiAnalyze": "AI Analyze",
+    "attachments": "Attachments",
+    "generatedVideo": "Generated Video",
+    "startGenerate": "Start Generating",
+    "noGeneratedVideo": "No generated video",
+    "generateHint": "Enter an AI prompt to start generating",
+    "prompt": "AI Prompt",
+    "promptPlaceholder": "Describe the shot visuals...",
+    "referenceAssets": "Reference Assets",
+    "assetViews": "Multi-view Images",
+    "empty": "Empty",
+    "noAssetViews": "No view images yet. Upload them from the asset page.",
+    "mediaLibrary": "Asset Library",
+    "imageVideo": "Images / Videos",
+    "keyframes": "Keyframes",
+    "referenceImages": "Reference Images",
+    "uploadKeyframe": "Upload Keyframe",
+    "generateKeyframe": "AI Generate Keyframe",
+    "draftVideo": "Draft Video",
+    "cameraReference": "Camera control reference",
+    "noDraftVideo": "No draft video",
+    "generateDraft": "AI Generate Draft",
+    "contentManagement": "Content Management",
+    "scriptBody": "Script Body",
+    "scriptSummary": "Script Summary",
+    "characters": "Characters",
+    "actions": "Actions",
+    "dialogue": "Dialogue",
+    "atmosphere": "Atmosphere",
+    "coreSettings": "Core Settings",
+    "background": "Background",
+    "scenes": "Scenes",
+    "episodeSpecific": "Episode Specific",
+    "sceneSpecific": "Scene Specific",
+    "episodeOrder": "Episode Order",
+    "hook": "Hook",
+    "plotSummary": "Plot Summary",
+    "scriptSummaryPlaceholder": "Summarize the core script content...",
+    "charactersPlaceholder": "Main character names, identities, and traits...",
+    "coreSettingsPlaceholder": "Worldbuilding, rules, special settings...",
+    "backgroundPlaceholder": "Story period, background, environment...",
+    "scenesPlaceholder": "Describe the main filming scenes...",
+    "episodeHookPlaceholder": "Core hook or highlight of this episode...",
+    "plotSummaryPlaceholder": "Briefly describe this episode's plot direction...",
+    "sceneHookPlaceholder": "Core purpose or content of this scene...",
+    "scriptBodyPlaceholder": "Enter the script body here...",
+    "episodeNumber": "Episode Number",
+    "episodeSynopsis": "Synopsis",
+    "productionStatus": "Production Status",
+    "targetStoryboards": "Target Storyboards",
+    "targetScenes": "Target Scenes",
+    "linkedScenes": "Linked Scenes",
+    "noLinkedScenes": "No linked scenes",
+    "sceneFallback": "Scene #{{id}}",
+    "selectSceneLink": "Select a scene to link",
+    "link": "Link",
+    "sceneLabel": "Scene {{number}}",
+    "shotLabel": "Shot {{order}}",
+    "storyboardLabel": "Storyboard #{{order}}",
+    "shotShortLabel": "Shot {{order}}",
+    "sceneShotLabel": "Scene {{scene}} - Shot {{shot}}",
+    "episodeShotLabel": "EP{{episode}} - Shot {{shot}}",
+    "timeOfDay": "Time of Day",
+    "notes": "Notes"
+  },
+  "pages": {
+    "assets": {
+      "searchPlaceholder": "Search assets...",
+      "gridTitle": "Grid",
+      "listTitle": "List",
+      "empty": "No assets",
+      "createOne": "Create one",
+      "createTitle": "New Asset",
+      "pagination": "{{total}} assets · {{page}}/{{pageCount}}"
+    },
+    "resources": {
+      "types": {
+        "image": "Images",
+        "video": "Videos",
+        "audio": "Audio"
+      },
+      "gridTitle": "Grid",
+      "listTitle": "List",
+      "editFolder": "Edit Folder",
+      "newFolder": "New Folder",
+      "folderNamePlaceholder": "Folder name",
+      "enableSharingVisible": "Enable sharing (visible to other users)",
+      "enableSharing": "Enable Sharing",
+      "enableSharingHint": "Enable sharing before granting other users access to this folder.",
+      "permissionSettings": "Permissions",
+      "permissionSettingsTitle": "Permissions - {{name}}",
+      "permissions": {
+        "read": "Read only",
+        "write": "Read/write"
+      },
+      "authorizedUsers": "Authorized Users",
+      "noAuthorizedUsers": "No authorized users",
+      "userFallback": "User {{id}}",
+      "togglePermissionTitle": "Click to toggle permission",
+      "removePermissionTitle": "Remove permission",
+      "addUser": "Add User",
+      "searchUsersPlaceholder": "Search usernames...",
+      "alreadyAdded": "Added",
+      "moveToFolder": "Move to Folder",
+      "unfiledRoot": "Unfiled (root)",
+      "moving": "Moving...",
+      "move": "Move",
+      "addToAsset": "Add to Asset",
+      "selectAsset": "Select asset",
+      "pleaseSelect": "-- Select --",
+      "selectProjectFirst": "Select a project first",
+      "viewType": "View Type",
+      "viewTypes": {
+        "front": "Front",
+        "back": "Back",
+        "left": "Left",
+        "right": "Right",
+        "detail": "Detail",
+        "custom": "Custom"
+      },
+      "labelOptional": "Label (optional)",
+      "labelPlaceholder": "Example: main visual",
+      "adding": "Adding...",
+      "add": "Add",
+      "actions": "Actions",
+      "sharedTitle": "Shared",
+      "unfiled": "Unfiled",
+      "sharedFolderWithOwner": "{{name}} ({{owner}})",
+      "otherUser": "Other user",
+      "myFolders": "My Folders",
+      "allResources": "All Resources",
+      "sharedFolders": "Shared Folders",
+      "noSharedFolders": "No folders shared by others",
+      "mine": "Mine",
+      "shared": "Shared",
+      "searchFilesPlaceholder": "Search filenames...",
+      "uploading": "Uploading...",
+      "uploadFile": "Upload File",
+      "filesCount": "{{count}} files",
+      "noSharedResources": "No shared resources",
+      "noMatchedFiles": "No matching files",
+      "noResourcesUpload": "No resources. Click upload.",
+      "pageStatus": "Page {{page}} / {{pageCount}}",
+      "previousPage": "Previous",
+      "nextPage": "Next",
+      "edit": "Edit"
+    },
+    "collaboration": {
+      "roles": {
+        "owner": "Owner",
+        "director": "Director",
+        "writer": "Writer",
+        "generator": "Generation Engineer",
+        "viewer": "Viewer"
+      },
+      "status": {
+        "pending": "Pending",
+        "in_progress": "In Progress",
+        "review": "In Review",
+        "done": "Done"
+      },
+      "priority": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "priorityLabel": "{{priority}} priority",
+      "assigneeValue": "Assignee: {{assignee}}",
+      "deadlineValue": "Due: {{date}}",
+      "unassigned": "Unassigned",
+      "workNotesOptional": "Work notes (optional)",
+      "workNotesPlaceholder": "Record your progress, blockers, or completion notes...",
+      "later": "Later",
+      "markDone": "Mark Done",
+      "goWork": "Work",
+      "comments": "Comments",
+      "addCommentPlaceholder": "Add a comment...",
+      "send": "Send",
+      "newTask": "New Task",
+      "taskTitleRequired": "Task title *",
+      "refType": "Reference type",
+      "assignTo": "Assign to...",
+      "allTasksFilter": "All ({{count}})",
+      "myTasksFilter": "My Tasks ({{count}})",
+      "allStatuses": "All Statuses",
+      "noTasks": "No tasks",
+      "teamMembers": "Team Members",
+      "selectUser": "Select user",
+      "add": "Add",
+      "remove": "Remove",
+      "noMembers": "No members",
+      "tasks": "Tasks",
+      "management": "Management"
+    },
+    "canvases": {
+      "subtitle": "Inspiration · Workflow",
+      "types": {
+        "inspiration": "Inspiration",
+        "workflow": "Workflow"
+      },
+      "typeDescriptions": {
+        "inspiration": "Run nodes manually and explore ideas freely.",
+        "workflow": "Define inputs and outputs for end-to-end automation."
+      },
+      "newCanvas": "New Canvas",
+      "empty": "No canvases yet",
+      "createFirst": "Create the first canvas",
+      "open": "Open",
+      "nameRequired": "Canvas name *",
+      "namePlaceholder": "Name your canvas",
+      "workflowCreateHint": "New canvases are created as workflows with default input and output nodes.",
+      "createAndOpen": "Create and Open"
+    },
+    "projects": {
+      "myProjects": "My Projects",
+      "newProject": "New Project",
+      "enter": "Enter",
+      "members": "Members",
+      "storyboardProgress": "Storyboard Progress",
+      "approvedCount": "{{approved}}/{{total}} approved",
+      "status": {
+        "planning": "Planning",
+        "scriptAnalysis": "Script Analysis",
+        "assetPrep": "Asset Prep",
+        "production": "Production",
+        "editing": "Editing",
+        "done": "Done"
+      },
+      "selectTemplateTitle": "Select Production Pipeline Template",
+      "templateHint": "Choose a production pipeline for your project. You can customize it later on the pipeline page.",
+      "blankPipeline": "Blank pipeline",
+      "nextStep": "Next",
+      "backToTemplate": "Back to templates",
+      "nameRequired": "Project name *",
+      "namePlaceholder": "Name your project",
+      "descriptionOptional": "Project description (optional)",
+      "descriptionPlaceholder": "Briefly describe this project",
+      "createProject": "Create Project",
+      "empty": "No projects yet",
+      "emptyHint": "Create your first short drama project to start managing scripts, episodes, and assets.",
+      "createFirst": "Create the first project",
+      "templates": {
+        "fullProduction": {
+          "label": "Full Production",
+          "description": "Start from a draft and cover the complete process."
+        },
+        "fromScript": {
+          "label": "Script Adaptation",
+          "description": "Start episode production from an existing script."
+        },
+        "fromStoryboard": {
+          "label": "Storyboard Ready",
+          "description": "Use an existing storyboard script and go straight to shot production."
+        },
+        "custom": {
+          "label": "Custom",
+          "description": "Start blank and build the production pipeline manually."
+        }
+      },
+      "templateSteps": {
+        "draftWriting": "Draft Writing",
+        "mainScript": "Main Script",
+        "episodeScript": "Episode Script",
+        "sceneScript": "Scene Script",
+        "storyboardScript": "Storyboard Script",
+        "shotProduction": "Shot Production",
+        "episodeEditing": "Episode Editing"
+      }
+    },
+    "jobs": {
+      "categories": {
+        "image": "Text to Image",
+        "imageEdit": "Reference Image",
+        "video": "Text to Video",
+        "videoI2V": "Reference Video",
+        "videoV2V": "Video Transfer"
+      },
+      "status": {
+        "pending": "Queued",
+        "running": "Generating",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "time": {
+        "justNow": "Just now",
+        "minutesAgo": "{{count}} minutes ago",
+        "hoursAgo": "{{count}} hours ago"
+      },
+      "noPrompt": "(No prompt)",
+      "cancelTask": "Cancel task",
+      "waitingWorker": "Waiting for worker...",
+      "aiGenerating": "AI generating...",
+      "generationFailed": "Generation failed",
+      "taskCancelled": "Task cancelled",
+      "cancelFailed": "Cancel failed",
+      "recordsCount": "{{count}} records",
+      "generating": "Generating...",
+      "allStatuses": "All statuses",
+      "succeededOnly": "Succeeded only",
+      "empty": "No generation records yet",
+      "emptyHint": "Submit a generation task from the tools page."
+    },
+    "scripts": {
+      "empty": "No scripts",
+      "createOne": "Create one",
+      "createTitle": "New Script",
+      "settingsEmpty": "No settings",
+      "settingsCreateTitle": "New Setting",
+      "settingName": "Setting name",
+      "settingContent": "Detailed Content",
+      "settingContentPlaceholder": "Describe this setting in detail...",
+      "createSetting": "Create Setting"
+    },
+    "episodes": {
+      "all": "All Episodes",
+      "empty": "No episodes",
+      "createOne": "Create one",
+      "createTitle": "New Episode"
+    },
+    "scenes": {
+      "list": "Scene List",
+      "empty": "No scenes",
+      "createOne": "Create one",
+      "createTitle": "New Scene"
+    },
+    "storyboards": {
+      "byScene": "By Scene",
+      "byEpisode": "By Episode",
+      "allScenes": "All Scenes",
+      "allEpisodes": "All Episodes",
+      "approved": "Approved",
+      "empty": "No storyboards",
+      "createOne": "Create one",
+      "createTitle": "New Storyboard"
+    },
+    "shots": {
+      "byScene": "By Scene",
+      "byEpisode": "By Episode",
+      "allScenes": "All Scenes",
+      "allEpisodes": "All Episodes",
+      "playAll": "Play All",
+      "play": "Play",
+      "empty": "No shots",
+      "createOne": "Create one",
+      "independent": "Independent Shot",
+      "noVideo": "This shot has no generated video",
+      "createTitle": "New Shot"
+    }
+  },
+  "agents": {
+    "myAgents": "My Agents",
+    "description": "Manage your personal AI assistants with platform templates or full customization.",
+    "newAgent": "New Agent",
+    "editAgent": "Edit: {{name}}",
+    "empty": "No agents yet. Click \"New Agent\" to start.",
+    "emptyTemplateHint": "Or choose a platform template when starting a new chat.",
+    "skillNamePlaceholder": "Skill name",
+    "skillDescriptionPlaceholder": "Skill description",
+    "agentNamePlaceholder": "Agent name",
+    "model": "Model",
+    "platformModel": "Platform model",
+    "customOpenAICompatible": "Custom (OpenAI compatible)",
+    "useDefaultModel": "- Not specified (use default) -",
+    "displayNameOptional": "Display name (optional)",
+    "customModelNamePlaceholder": "My custom model",
+    "soul": "Soul (system prompt)",
+    "soulPlaceholder": "Define the agent's role, behavior, and constraints...",
+    "addSkill": "Add Skill",
+    "skillsCount": "Skills ({{count}})",
+    "modelFallback": "Model #{{id}}",
+    "unspecified": "Not specified",
+    "followPlatform": "Follow platform",
+    "fromTemplate": "From template: {{name}}",
+    "chat": {
+      "aiAssistant": "AI Assistant",
+      "agentReady": "{{name}} is ready",
+      "collapseAssistant": "Collapse AI Assistant",
+      "errorMessage": "Error: {{message}}",
+      "inputHint": "Enter to send · Shift+Enter for newline",
+      "inputPlaceholder": "Enter message... (Enter to send)",
+      "manageAgent": "Manage Agent",
+      "manageMyAgents": "Manage My Agents ->",
+      "messagesCount": "{{count}} messages",
+      "modelInvalid": "The current model configuration is invalid. Please select another model.",
+      "myAgents": "My Agents",
+      "newConversation": "New Conversation",
+      "noAgent": "Chat without an Agent",
+      "noConversations": "No conversations yet",
+      "platformTemplates": "Platform Templates",
+      "selectAgent": "Select Agent",
+      "selectModelFirst": "Please select a model first.",
+      "startChat": "Start a conversation"
+    }
+  },
+  "user": {
+    "title": "User Settings",
+    "subtitle": "Account information and Credits usage",
+    "tabs": {
+      "profile": "Profile",
+      "usage": "Usage"
+    },
+    "usage": {
+      "balance": "Available Balance",
+      "monthCost": "This Month",
+      "monthTokens": "Monthly Tokens",
+      "details": "Usage Details",
+      "time": "Time",
+      "model": "Model",
+      "type": "Type",
+      "empty": "No usage records",
+      "prevPage": "Previous",
+      "nextPage": "Next",
+      "operations": {
+        "text": "Text",
+        "image": "Image",
+        "video": "Video"
+      }
+    }
+  },
+  "pipeline": {
+    "status": {
+      "draft": "Draft",
+      "under_review": "In Review",
+      "rejected": "Rejected",
+      "final": "Final"
+    },
+    "categories": {
+      "work": "Work",
+      "artifact": "Artifact",
+      "custom": "Custom",
+      "tool": "Tool",
+      "workNodes": "Work Nodes",
+      "artifactNodes": "Artifact Nodes",
+      "toolNodes": "Tool Nodes"
+    },
+    "nodeTypes": {
+      "script_writing": { "label": "Script Writing", "desc": "Create the main script" },
+      "episode_writing": { "label": "Episode Script Writing", "desc": "Create episode scripts" },
+      "scene_writing": { "label": "Scene Script Writing", "desc": "Create scene scripts" },
+      "storyboard_creation": { "label": "Storyboard Creation", "desc": "Create storyboard scripts" },
+      "asset_creation": { "label": "Asset Creation", "desc": "Create characters, scenes, and props" },
+      "raw_script": { "label": "Draft Writing", "desc": "Original draft or outline" },
+      "shot_production": { "label": "Shot Production", "desc": "Generate shots with AI" },
+      "episode_edit": { "label": "Episode Editing", "desc": "Post-production editing" },
+      "main_script": { "label": "Main Script", "desc": "Complete main script artifact" },
+      "episode_script": { "label": "Episode Script", "desc": "Script split by episode" },
+      "scene_script": { "label": "Scene Script", "desc": "Script split by scene" },
+      "storyboard_script": { "label": "Storyboard Script", "desc": "Storyboard description script" },
+      "episode": { "label": "Episode", "desc": "Episode artifact" },
+      "scene": { "label": "Scene", "desc": "Scene artifact" },
+      "storyboard": { "label": "Storyboard", "desc": "Storyboard artifact" },
+      "asset": { "label": "Asset", "desc": "Asset artifact" },
+      "ref_image_gen": { "label": "Reference Image", "desc": "Generate a new image from a reference image" },
+      "ref_video_gen": { "label": "Reference Video", "desc": "Generate video from a reference video" },
+      "style_transfer": { "label": "Style Transfer", "desc": "Transfer the reference image's art style" },
+      "motion_imitation": { "label": "Motion Imitation", "desc": "Transfer motion from a reference video" },
+      "multi_angle": { "label": "Multi-angle", "desc": "Generate multi-angle views" },
+      "custom": { "label": "Custom", "desc": "Define a custom type" }
+    },
+    "editor": {
+      "subtitle": "Content production pipeline",
+      "dagView": "DAG View",
+      "ganttView": "Gantt",
+      "fitView": "Fit View",
+      "empty": "Pipeline is empty. Right-click the canvas to add a node, or drag content from the left."
+    },
+    "contextMenu": {
+      "addNode": "Add Node",
+      "hint": "Choose a node type and drag it onto the canvas"
+    },
+    "delete": {
+      "title": "Delete Node",
+      "description": "This action cannot be undone. Related review records will also be removed.",
+      "deleting": "Deleting...",
+      "confirm": "Delete"
+    },
+    "gantt": {
+      "empty": "No nodes",
+      "noDueDate": "No due date"
+    },
+    "node": {
+      "fallbackName": "Node {{id}}",
+      "linkedEntity": "Linked {{type}} #{{id}}",
+      "dragConnect": "Drag to connect"
+    },
+    "toolNode": {
+      "noModels": "No models",
+      "selectModel": "Select model",
+      "status": "Status",
+      "error": "Error"
+    },
+    "entities": {
+      "title": "Project Content",
+      "hint": "Click the link icon to attach content to a node",
+      "linkToNode": "Link to node",
+      "emptyEpisodes": "No episodes",
+      "emptyScenes": "No scenes",
+      "emptyStoryboards": "No storyboards",
+      "emptyShots": "No shots",
+      "episodeTitle": "Episode {{number}}{{title}}",
+      "sceneTitle": "Scene {{number}}{{title}}",
+      "episodeLabel": "Episode {{number}}",
+      "sceneLabel": "Scene {{number}}"
+    },
+    "nav": {
+      "title": "Content Navigation",
+      "hint": "Drag onto the canvas to create linked nodes",
+      "emptySection": "No {{section}}",
+      "footerLine1": "Drag onto empty canvas space",
+      "footerLine2": "to create artifact nodes automatically"
+    },
+    "detail": {
+      "entities": {
+        "episode": "Episode",
+        "scene": "Scene",
+        "storyboard": "Storyboard",
+        "shot": "Shot"
+      },
+      "defaultTitles": {
+        "episode": "New Episode",
+        "scene": "New Scene",
+        "storyboard": "New Storyboard"
+      },
+      "nodeName": "Node Name",
+      "addDescription": "Add description...",
+      "assignee": "Assignee",
+      "unassigned": "Unassigned",
+      "dueDate": "Due Date",
+      "linkEntity": "Link {{entity}}",
+      "linkedEntity": "Linked {{entity}} #{{id}}",
+      "view": "View",
+      "createAndLink": "Create and link {{entity}}",
+      "rejectReason": "Rejection Reason",
+      "resubmit": "Resubmit",
+      "approveFinal": "Approve Final",
+      "reject": "Reject",
+      "rejectPlaceholder": "Enter a rejection reason...",
+      "confirmReject": "Confirm Reject",
+      "reopen": "Reopen (cascade downstream rollback)",
+      "clickToEdit": "Click to edit..."
+    }
+  },
+  "work": {
+    "creationCanvas": "Creation Canvas",
+    "collapseCanvas": "Collapse Canvas",
+    "emptyKindHint": "No {{entity}} yet. Create one on the right.",
+    "createEntityTitle": "New {{entity}}",
+    "emptyWorkspace": "Select a {{entity}} from the list above"
+  },
+  "canvas": {
+    "types": {
+      "inspiration": "Inspiration",
+      "workflow": "Workflow"
+    },
+    "status": {
+      "done": "Done",
+      "failed": "Failed",
+      "running": "Running",
+      "notRun": "Not run"
+    },
+    "runStatus": {
+      "pending": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "modes": {
+      "compact": "Compact",
+      "detail": "Detail",
+      "full": "Full"
+    },
+    "switchModeTitle": "Switch display mode (current: {{mode}})",
+    "mediaTypes": {
+      "image": "image",
+      "video": "video"
+    },
+    "paramTypes": {
+      "text": "Text",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "json": "JSON",
+      "number": "Number",
+      "boolean": "Boolean",
+      "resource": "Resource"
+    },
+    "outputTypes": {
+      "image": "Image",
+      "video": "Video",
+      "text": "Text",
+      "audio": "Audio"
+    },
+    "nodeLabels": {
+      "text": "Text",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "canvas": "Canvas Reference",
+      "ref_image_gen": "Reference Image",
+      "ref_video_gen": "Reference Video",
+      "multi_angle": "Multi-angle Image",
+      "style_transfer": "Style Transfer",
+      "motion_imitation": "Motion Imitation",
+      "input": "Input",
+      "output": "Output",
+      "approval": "Manual Approval",
+      "text_gen": "AI Text Generation",
+      "ai_gen": "AI Generation",
+      "group": "Group"
+    },
+    "catalog": {
+      "categories": {
+        "flow": {
+          "title": "Input / Output",
+          "description": "Define workflow entry, exit, and approval gates."
+        },
+        "media": {
+          "title": "Media",
+          "description": "Hold text, image, video, and audio assets."
+        },
+        "ai": {
+          "title": "AI Processing",
+          "description": "Transform upstream input into generated results."
+        },
+        "organization": {
+          "title": "Organization",
+          "description": "Organize complex canvases with regions and semantic groups."
+        }
+      },
+      "nodes": {
+        "input": {
+          "label": "User Input",
+          "description": "Collect text input when running a workflow."
+        },
+        "output": {
+          "label": "Output Result",
+          "description": "Collect the final result from upstream nodes."
+        },
+        "approval": {
+          "label": "Manual Approval",
+          "description": "Pause the workflow at key steps for review."
+        },
+        "text": {
+          "label": "Text",
+          "description": "Write, upload, or receive AI text."
+        },
+        "image": {
+          "label": "Image",
+          "description": "Image resource or generated image result."
+        },
+        "video": {
+          "label": "Video",
+          "description": "Video resource or generated result."
+        },
+        "audio": {
+          "label": "Audio",
+          "description": "Audio resource or sound result."
+        },
+        "ai_gen": {
+          "label": "AI Generation",
+          "description": "Generate image, video, text, or audio by target type."
+        },
+        "text_gen": {
+          "label": "AI Text Generation",
+          "description": "Expand, summarize, or rewrite from upstream content."
+        },
+        "ref_image_gen": {
+          "label": "Reference Image",
+          "description": "Generate a new visual direction from reference images."
+        },
+        "ref_video_gen": {
+          "label": "Reference Video",
+          "description": "Generate video from reference media."
+        },
+        "multi_angle": {
+          "label": "Multi-angle Image",
+          "description": "Generate multi-angle views from a character or object image."
+        },
+        "style_transfer": {
+          "label": "Style Transfer",
+          "description": "Transfer a reference style to target media."
+        },
+        "motion_imitation": {
+          "label": "Motion Imitation",
+          "description": "Make the target character imitate reference motion."
+        },
+        "canvas": {
+          "label": "Canvas Reference",
+          "description": "Reuse intermediate results from another canvas."
+        },
+        "group": {
+          "label": "Group",
+          "description": "Select and organize a group of nodes."
+        }
+      }
+    },
+    "contextMenu": {
+      "groupSelected": "Group {{count}} nodes",
+      "deleteSelected": "Delete selected nodes"
+    },
+    "editor": {
+      "resourceShelf": {
+        "title": "Resources / Assets",
+        "dragHint": "Drag onto the canvas to create nodes",
+        "noAssetViews": "No asset views",
+        "noProject": "This canvas is not linked to a project"
+      },
+      "history": {
+        "title": "Run History",
+        "description": "Runtime snapshots let you review inputs, results, and the canvas structure from each run.",
+        "allStatuses": "All statuses",
+        "runsCount": "{{count}} runs",
+        "run": "Run",
+        "status": "Status",
+        "duration": "Duration",
+        "snapshot": "Snapshot",
+        "startedAt": "Started",
+        "loading": "Loading run records",
+        "empty": "No matching run records",
+        "snapshotSummary": "{{nodes}} nodes / {{edges}} edges"
+      },
+      "errors": {
+        "nodeNotFound": "Node not found in the database"
+      },
+      "untitled": "Untitled canvas",
+      "nodesCount": "{{count}} nodes",
+      "runningCount": "{{count}} running",
+      "activeRun": "Run #{{id}} · {{status}}",
+      "parallelRuns": "{{count}} parallel",
+      "stats": {
+        "inputs": "Inputs {{count}}",
+        "processors": "Processors {{count}}",
+        "outputs": "Outputs {{count}}",
+        "done": "Done {{count}}"
+      },
+      "canvasType": {
+        "workflow": "Workflow Canvas",
+        "inspiration": "Inspiration Canvas"
+      },
+      "starting": "Starting...",
+      "startRun": "Start Run",
+      "nodeLibrary": "Node Library",
+      "nodeLibraryHint": "Drag nodes onto the canvas, or click to add them to the viewport center",
+      "emptyTitle": "Drag input, AI processing, and output nodes from the left",
+      "emptyDescription": "You can also right-click the canvas to insert nodes. Select a node to configure its model, prompt, and media source on the right.",
+      "dropToPlace": "Release to place node",
+      "status": {
+        "dragging": "Moving node. Release to keep its position.",
+        "selected": "Selected {{label}}",
+        "idle": "Drag to pan the canvas. Box-select for batch actions."
+      },
+      "inspector": "Node Inspector",
+      "noSelectionTitle": "No node selected",
+      "noSelectionDescription": "Select a node to edit its label, input source, model, prompt, and run settings here.",
+      "currentSelection": "Current Selection",
+      "edgesCount": "Connections",
+      "workflowInputDescription": "After you fill in these input nodes, the workflow will run automatically."
+    },
+    "unset": "Not set",
+    "textInputPlaceholder": "Enter text here...",
+    "emptyContent": "No content",
+    "emptyAudio": "No audio",
+    "noPrompt": "No prompt",
+    "waitingStart": "Waiting to start...",
+    "generating": "Generating...",
+    "generationFailed": "Generation failed",
+    "fillAtRuntime": "Filled at runtime",
+    "generated": "Generated",
+    "waitingUpstream": "Waiting for upstream result",
+    "approval": {
+      "waiting": "Waiting",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approvedMark": "✓ Approved",
+      "rejectedMark": "✗ Rejected",
+      "resetWaiting": "Reset to waiting"
+    },
+    "nodePanel": {
+      "promptPlaceholder": "Describe what you want to generate... Type @ to reference upstream nodes",
+      "noUpstreamNodes": "No upstream connected nodes",
+      "inputContent": "Input Content",
+      "inputDefaultPlaceholder": "Workflow runs will prompt for this, or you can set a default here...",
+      "inputHint": "This node is the workflow entry. The run dialog will ask for this content.",
+      "outputHint": "This node is the workflow exit. Connect upstream nodes to show the run result here.",
+      "currentOutput": "Current Output",
+      "approvalHint": "The workflow pauses at this node and waits for manual approval before continuing.",
+      "currentStatus": "Current Status",
+      "generateText": "Generate Text",
+      "referenceWorkflow": "Referenced Workflow",
+      "selectWorkflow": "Select reusable workflow...",
+      "referenceWorkflowHint": "Only workflow canvases can be referenced. Runtime reads the latest successful output resource.",
+      "readReferenceOutput": "Read Reference Output",
+      "source": "Source",
+      "sources": {
+        "upload": "Upload",
+        "ai": "AI Generate",
+        "manual": "Manual"
+      },
+      "uploading": "Uploading...",
+      "uploaded": "Uploaded: {{name}}",
+      "selectFile": "Click to select a file",
+      "selectFromResources": "Or select from resources",
+      "selectResource": "Select resource...",
+      "textContent": "Text Content",
+      "textContentPlaceholder": "Enter text content here...",
+      "label": "Label",
+      "paramName": "Parameter Name",
+      "paramNamePlaceholder": "Example: prompt",
+      "paramType": "Parameter Type"
+    },
+    "generatedByCanvas": "Generated by canvas",
+    "namePlaceholder": "Canvas name",
+    "runningCount": "{{count}} running",
+    "tasksCount": "Tasks ({{count}})",
+    "running": "Running...",
+    "run": "Run",
+    "workflowInputTitle": "Fill Workflow Inputs",
+    "inputContentPlaceholder": "Enter content...",
+    "startRun": "Start Run",
+    "pushToEntity": "Push to Entity",
+    "pushHint": "Add this {{type}} to the following entity assets",
+    "noPushTargets": "No push targets yet. Select an asset, storyboard, or scene above first.",
+    "push": "Push",
+    "runCanvas": "Run Canvas",
+    "newCanvasDefaultName": "New Canvas",
+    "canvasList": "Canvas List",
+    "newCanvas": "New Canvas",
+    "empty": "No canvases",
+    "selectOrCreate": "Select or create a canvas"
+  },
+  "shared": {
+    "attachments": {
+      "remove": "Remove",
+      "upload": "Upload"
+    },
+    "genInput": {
+      "addResourcesFirst": "Add resources to the tags first",
+      "addToLibrary": "Add to Library",
+      "generate": "Generate",
+      "libraryOnlyHint": "Tools only use files already added to the resource library",
+      "maxCount": "Up to {{count}}",
+      "mention": "Mention",
+      "multipleAllowed": "Multiple allowed",
+      "noMatchedResources": "No matching resources",
+      "promptPlaceholder": {
+        "image": "Describe what you want to generate... Type @ to reference images from the resource library",
+        "video": "Describe what you want to generate... Type @ to reference videos from the resource library",
+        "image+video": "Describe what you want to generate... Type @ to reference images or videos from the resource library"
+      },
+      "required": "Required",
+      "selectOrUploadHint": "Select from the resource library on the left, or upload below"
+    },
+    "genResult": {
+      "reusePrompt": "Reuse this prompt"
+    },
+    "generation": {
+      "promptPlaceholder": "Describe what you want to generate...",
+      "resultAlt": "Generated result",
+      "runNode": "Run Node",
+      "waitingStart": "Waiting to start..."
+    },
+    "mediaViewer": {
+      "download": "Download"
+    },
+    "modelSelector": {
+      "noModels": "No models available",
+      "refresh": "Refresh model list"
+    },
+    "resourcePanel": {
+      "allAssets": "All assets",
+      "assetLibrary": "Asset Library",
+      "noAssets": "No assets",
+      "noResources": "No resources",
+      "previewDragTitle": "Click to preview, drag to add",
+      "resourceLibrary": "Resources",
+      "searchAssets": "Search assets...",
+      "searchResources": "Search resources...",
+      "selectProjectFirst": "Select a project first"
+    },
+    "scriptPanel": {
+      "emptyContent": "Script content is empty",
+      "expandMainScript": "Expand main script",
+      "noMainScript": "No main script"
+    },
+    "toolNode": {
+      "fullMode": "Full",
+      "generationHistory": "Generation History",
+      "latestGeneration": "Latest Generation",
+      "switchModeTitle": "Switch display mode (current: full)"
+    }
+  },
+  "tools": {
+    "canvasName": "Tool: {{type}}",
+    "errors": {
+      "pollFailed": "Polling failed",
+      "runFailed": "Run failed"
+    },
+    "page": {
+      "selectFromLeft": "Or select from the resource or asset library on the left",
+      "result": "Generated Result",
+      "imageUnsupportedWarning": "The current model does not support image references. Image \"{{name}}\" will be ignored.",
+      "videoUnsupportedWarning": "The current model does not support video references. Video \"{{name}}\" will be ignored."
+    },
+    "debug": {
+      "title": "Debug Info",
+      "mode": "Debug Mode",
+      "copy": "Copy",
+      "copied": "Copied",
+      "status": "Status",
+      "configId": "Config ID",
+      "started": "Started",
+      "finished": "Finished",
+      "callContext": "Call Context",
+      "outputType": "Output Type",
+      "modelDefinition": "Model Definition",
+      "inputResources": "Input Resources",
+      "sentPrompt": "Sent Prompt",
+      "request": "Request",
+      "response": "Response",
+      "adapterError": "Adapter Error"
+    },
+    "brainstorm": {
+      "prompt": "Prompt",
+      "description": "Chat freely with AI to spark creative ideas. Each submission is an independent request.",
+      "latestResult": "Latest Result",
+      "newQuestion": "New Question",
+      "startQuestion": "Start Asking",
+      "promptPlaceholder": "Enter your idea... Type @ to reference images from the resource library, Cmd+Enter to send",
+      "selectModelFirst": "Select an AI model first",
+      "inputHint": "Cmd+Enter to send · Type @ to reference images",
+      "history": "History",
+      "empty": "No conversations yet",
+      "emptyHint": "Enter an idea to start brainstorming",
+      "requestFailed": "Request failed. Check the model configuration and try again."
+    },
+    "defs": {
+      "refImageGen": {
+        "name": "Reference Image",
+        "description": "Generate a new image from a reference image.",
+        "promptPlaceholder": "Describe the image you want to generate... Type @ to reference images from the resource library"
+      },
+      "refVideoGen": {
+        "name": "Reference Video",
+        "description": "Generate a new video from reference video.",
+        "promptPlaceholder": "Describe the video you want to generate... Type @ to reference images or videos from the resource library"
+      },
+      "motionImitation": {
+        "name": "Motion Imitation",
+        "description": "Transfer motion from a reference video to the target character and generate a new motion video.",
+        "promptPlaceholder": "(Optional) Describe the target character's appearance. AI will transfer the reference video's motion to that character... Type @ to reference images or videos from the resource library"
+      },
+      "multiAngle": {
+        "name": "Multi-angle",
+        "description": "Generate multiple angle views of a character or object from a single image.",
+        "promptPlaceholder": "Describe the angles or viewpoints you want to generate... Type @ to reference images from the resource library"
+      },
+      "styleTransfer": {
+        "name": "Style Transfer",
+        "description": "Transfer the reference image's art style onto the content image and generate a new stylized image.",
+        "promptPlaceholder": "Describe the target content. AI will redraw it using the reference image's style... Type @ to reference images from the resource library"
+      }
+    }
+  },
+  "admin": {
+    "title": "Admin",
+    "subtitle": "AI model configuration, user credits, and usage analytics",
+    "tabs": {
+      "models": "Models",
+      "agents": "Agents",
+      "features": "Features",
+      "users": "Users",
+      "logs": "Usage Logs",
+      "debug": "Debug",
+      "storage": "Resource Storage",
+      "cloudFiles": "Input Relay"
+    },
+    "billing": {
+      "perToken": "Per token",
+      "perImage": "Per image",
+      "perSecond": "Per second",
+      "perCall": "Per call",
+      "referenceToken": "Reference: ${{input}}/${{output}} USD/1M tokens",
+      "referenceImage": "Reference: ${{price}} USD/image",
+      "referenceSecond": "Reference: ${{price}} USD/second"
+    },
+    "pricing": {
+      "inputCreditsPer1m": "Input credits / 1M tokens",
+      "outputCreditsPer1m": "Output credits / 1M tokens",
+      "creditsPerImage": "credits/image",
+      "creditsPerSecond": "credits/second (video duration billing)",
+      "creditsPerCall": "credits/call"
+    },
+    "capabilities": {
+      "text": "Text",
+      "reasoning": "Reasoning",
+      "image": "Image",
+      "imageEdit": "Image Edit",
+      "video": "Text to Video",
+      "videoI2V": "Image to Video",
+      "videoV2V": "Video to Video"
+    },
+    "params": {
+      "title": "Generation Parameters",
+      "add": "Add Parameter",
+      "empty": "No generation parameters configured. After adding them, users will see matching selects, number inputs, or toggles in the generation panel.",
+      "abstractParam": "Abstract Parameter",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Video duration",
+      "controlType": "Control Type",
+      "controlTypes": {
+        "select": "Select",
+        "number": "Number Input",
+        "boolean": "Toggle"
+      },
+      "options": "Options",
+      "defaultValue": "Default",
+      "defaultOn": "Default on",
+      "templates": {
+        "aspect_ratio": "Aspect Ratio",
+        "duration": "Duration (seconds)",
+        "image_size": "Image Size",
+        "resolution": "Resolution",
+        "quality": "Quality",
+        "style": "Style",
+        "seed": "Seed",
+        "prompt_strength": "Prompt Strength",
+        "watermark": "Watermark",
+        "image_count": "Image Count",
+        "output_format": "Output Format",
+        "web_search": "Web Search",
+        "fixed_camera": "Fixed Camera",
+        "audio": "Generate Audio",
+        "return_last_frame": "Return Last Frame",
+        "service_tier": "Service Tier",
+        "frames": "Frames",
+        "execution_expires_after": "Expiration (seconds)",
+        "preset": "Preset",
+        "draft": "Draft Mode"
+      }
+    },
+    "models": {
+      "title": "AI API Configuration",
+      "description": "Manage credentials, enable models, and configure credit pricing.",
+      "addCredential": "Add Credential",
+      "renameCredential": "Rename",
+      "modelsCount": "{{count}} models",
+      "connectionTest": "Connection Test",
+      "testFailedMark": "✗ Failed",
+      "disableCredentialTitle": "Disable this credential",
+      "enableCredentialTitle": "Enable this credential",
+      "enabledMark": "● Enabled",
+      "disabledMark": "○ Disabled",
+      "credentialAuth": "API Credential",
+      "collapse": "Collapse",
+      "edit": "Edit",
+      "useAdapterDefaultUrl": "Leave blank to use the adapter default URL",
+      "leaveBlankKeep": "Leave blank to keep unchanged",
+      "leaveBlankKeepCurrent": "Leave blank to keep unchanged (current {{value}})",
+      "enabledModels": "Enabled Models",
+      "addModel": "Add Model",
+      "collapsePresets": "Collapse presets",
+      "pickPreset": "Choose preset",
+      "fetchFromApi": "Fetch from API",
+      "presetHint": "Selecting one fills all fields automatically. You can still edit them.",
+      "modelIdLabel": "Model ID (identifier sent to the API)",
+      "modelIdPlaceholder": "e.g. gpt-4o, gemini-2.0-flash, doubao-seed-2-0-pro-260215",
+      "displayNamePlaceholder": "Optional. Leave blank to use Model ID.",
+      "capabilitiesLabel": "Capabilities (required, multiple allowed)",
+      "billingMode": "Billing Mode",
+      "acceptsImageInput": "Accepts image input",
+      "maxImages": "Max images",
+      "maxVideos": "Max videos",
+      "add": "Add",
+      "test": "Test",
+      "noModelsHint": "No models added yet. Click \"Add Model\" to start.",
+      "noCredentialsHint": "No credential configured yet. Click \"Add Credential\" in the top right to connect one."
+    },
+    "agentTemplates": {
+      "title": "Platform Agent Templates",
+      "description": "Manage platform Agent templates available to all users. Users can adopt or customize them."
+    },
+    "credentials": {
+      "selectAdapter": "Select Adapter",
+      "configureAdapter": "Configure {{name}}",
+      "connectionOk": "✓ Connection OK ({{latency}}ms)",
+      "enableFilesAPI": "Enable Files API pre-upload",
+      "filesAPIHint": "(Upload images to provider /files and pass file_id to the model to avoid oversized multipart requests.)",
+      "filesAPIBaseURL": "Files API Base URL (leave blank to use the Base URL above)",
+      "filesAPIKey": "Files API Key (leave blank to use the API Key above)",
+      "filesAPIKeyPlaceholder": "Leave blank to reuse the main credential API Key",
+      "testing": "Testing...",
+      "createAndTest": "Connect and Test",
+      "createDirectly": "Create Directly",
+      "filesAPIPreupload": "Files API Pre-upload",
+      "configure": "Configure",
+      "notEnabledMark": "○ Not enabled",
+      "enableFilesAPIDetail": "Enable Files API pre-upload (upload images to provider /files and use file_id instead of multipart)",
+      "filesAPIBaseURLCredential": "Base URL (leave blank to use credential Base URL)",
+      "leaveBlankUseCredentialBaseURL": "Leave blank to use credential Base URL",
+      "filesAPIKeyCredential": "API Key (leave blank to use the credential primary Key)",
+      "leaveBlankUseMainKey": "Leave blank to use the primary credential Key"
+    },
+    "users": {
+      "title": "User Management",
+      "description": "View user balances and recharge Credits for users.",
+      "username": "Username",
+      "role": "Role",
+      "creditsBalance": "Credits Balance",
+      "recharge": "Recharge",
+      "empty": "No users",
+      "setBalanceTitle": "Set balance - {{username}}",
+      "newBalance": "New balance (Credits)"
+    },
+    "logs": {
+      "title": "Usage Logs",
+      "total": "{{total}} records",
+      "allProviders": "All providers",
+      "allModels": "All models",
+      "allUsers": "All users",
+      "time": "Time",
+      "user": "User",
+      "provider": "Provider",
+      "model": "Model",
+      "type": "Type",
+      "usage": "Usage",
+      "empty": "No usage records",
+      "previousPage": "Previous",
+      "nextPage": "Next",
+      "operations": {
+        "text": "Text",
+        "image": "Image generation",
+        "video": "Video generation"
+      }
+    },
+    "features": {
+      "title": "Feature Configuration",
+      "description": "Assign available models for each tool feature. When unrestricted, all enabled models of that type are available.",
+      "systemPrompt": "System prompt",
+      "prompt": "Prompt",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "defaultSystemPrompt": "Default system prompt",
+      "defaultSystemPromptHint": "(from business FeatureDef, read-only)",
+      "noSystemPrompt": "(No system prompt)",
+      "outputSchema": "Output format (OutputSchema)",
+      "customOverride": "Custom override",
+      "customOverrideHint": "(blank = use default)",
+      "saved": "Saved ✓",
+      "saveOverride": "Save override",
+      "availableModels": "Available models",
+      "unrestrictedModelsHint": "(unrestricted, use all available models of this type)",
+      "selectedModelsHint": "({{count}} selected)",
+      "noConfiguredModels": "No configured {{capability}} model",
+      "goToModels": "Go to model management ->",
+      "imageInputMark": "· image input",
+      "editModelConfig": "Edit model config",
+      "leaveBlankUseModelId": "Leave blank to use model ID",
+      "modelIdOverridePlaceholder": "e.g. ep-xxx or a specific model ID",
+      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx",
+      "priority": "Priority",
+      "defaultModel": "Default model",
+      "defaultModelHint": "(preselected when users open the tool)",
+      "autoHighestPriority": "Auto (highest priority)",
+      "accessRoles": "Access roles",
+      "accessRolesHint": "(blank = available to all roles)",
+      "roles": {
+        "owner": "Project owner",
+        "editor": "Editor",
+        "viewer": "Viewer"
+      }
+    },
+    "storage": {
+      "internalStorage": "Internal Resource Storage",
+      "internalStorageDescription": "Stores user uploads, canvas intermediate assets, and model outputs. These URLs only need to be readable by the MovScript backend and are not provider input URLs.",
+      "modelInputRelay": "Model Input Relay",
+      "modelInputRelayDescription": "When local assets need to be sent to OpenAI, Volcen, Kling, and other providers, workers use provider Files API or public object relay configuration.",
+      "internalBackends": "Internal Resource Storage Backends",
+      "default": "Default",
+      "available": "● Available",
+      "userResourceUsage": "User Resource Usage",
+      "noResourceData": "No resource data",
+      "internalBackend": "Internal Backend",
+      "fileCount": "Files",
+      "usedSpace": "Used Space"
+    },
+    "cloudFiles": {
+      "confirmDelete": "Delete this cloud storage configuration?",
+      "publicObjectRelay": "Public Object Relay",
+      "publicObjectRelayDescription": "S3, OSS, and TOS buckets must be publicly reachable by providers for image-to-video and video reference inputs that only accept URLs.",
+      "providerFilesAPI": "Provider Files API",
+      "providerFilesAPIDescription": "Provider-owned file spaces such as OpenAI and Volcen are enabled under credentials in Model Management. Models receive file_id values.",
+      "internalMinio": "Internal MinIO",
+      "internalMinioDescription": "Only persists MovScript resources. Workers no longer send MinIO private presigned URLs to external providers.",
+      "title": "Public Object Relay Configuration",
+      "description": "After configuring S3, OSS, or TOS, workers upload input assets by priority and pass public URLs to provider APIs that only accept URLs.",
+      "addConfig": "Add Config",
+      "empty": "No public object relay configuration",
+      "enabledMark": "● Enabled",
+      "disabledMark": "○ Disabled",
+      "enable": "Enable",
+      "disable": "Disable",
+      "editConfig": "Edit Config",
+      "newConfig": "New Config",
+      "priority": "Priority (lower numbers run first)"
+    },
+    "debug": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "success": "Success",
+      "failed": "Failed",
+      "callingApi": "Calling API...",
+      "view": "View",
+      "noPrompt": "(no prompt)",
+      "noStateTrace": "No state machine records",
+      "requestHeaders": "Request headers",
+      "requestBody": "Request body",
+      "requestHeadersJson": "Request headers (JSON)",
+      "requestBodyJson": "Request body (JSON)",
+      "curlCommand": "curl command",
+      "responseBody": "Response body",
+      "imagePreview": "Image preview ({{count}})",
+      "generatedImageAlt": "Generated image {{number}}",
+      "tabs": {
+        "providerSandbox": "Provider Sandbox",
+        "rawCall": "Raw Call",
+        "jobs": "Job Monitor",
+        "connectivity": "Connectivity Test"
+      },
+      "states": {
+        "claimed": "Claimed",
+        "resolvingInputs": "Resolving inputs",
+        "loadingInputs": "Loading assets",
+        "preparingRequest": "Preparing request",
+        "callingProvider": "Calling provider",
+        "validatingProviderData": "Validating result",
+        "savingResult": "Saving result",
+        "persistingSuccess": "Persisting success",
+        "succeeded": "Done",
+        "failed": "Failed"
+      },
+      "rawCall": {
+        "title": "Raw API Call",
+        "description": "Send an HTTP request from the backend and return full request headers, request body, and response details.",
+        "credentialLabel": "Credential (optional, auto-fills Auth headers)",
+        "noCredential": "No credential",
+        "sending": "Sending...",
+        "send": "Send Request"
+      },
+      "jobs": {
+        "title": "Job Monitor",
+        "description": "Page through generation job states and complete HTTP exchange records. {{total}} total.",
+        "autoRefresh": "Auto refresh",
+        "pageStatus": "Page {{page}} / {{pageCount}}",
+        "empty": "No job records",
+        "stateMachine": "Execution State Machine",
+        "outputResource": "Output Resource",
+        "debugContext": "Debug Context",
+        "httpExchanges": "HTTP Exchanges ({{count}})",
+        "noProviderCalls": "No provider HTTP calls were captured. Check the state machine and error details above."
+      },
+      "connectivity": {
+        "title": "Model Connectivity Test",
+        "description": "Send real API requests for each configured model to verify credentials and network connectivity.",
+        "costWarning": "Image model debugging calls generation APIs and may incur a small cost.",
+        "empty": "No configured models",
+        "debugging": "Debugging..."
+      },
+      "capabilities": {
+        "text": "Text to Text",
+        "image": "Text to Image"
+      },
+      "endpointLabels": {
+        "geminiText": "Text to Text (gemini-*)",
+        "geminiImage": "Text to Image (gemini-*)",
+        "imagenImage": "Text to Image (imagen-*)",
+        "veoVideo": "Text to Video (veo-*)"
+      },
+      "params": {
+        "maxTokens": "Max Tokens",
+        "temperature": "Temperature"
+      },
+      "sandbox": {
+        "title": "Provider Sandbox",
+        "description": "Enter credentials and parameters directly to debug any provider API. Credentials are not stored and are only used for this request.",
+        "credentialConfig": "Credential Config",
+        "adapterType": "Adapter Type",
+        "endpointHint": "(capability is inferred from the URL path)",
+        "baseUrlHint": "(used when the adapter builds requests)",
+        "klingKeyFormat": "(format: access_key:secret_key)",
+        "requestParams": "Request Parameters",
+        "modelId": "Model ID",
+        "extraParams": "Extra params (JSON, optional)",
+        "calling": "Calling...",
+        "startDebugCall": "Start Debug Call",
+        "requestPreview": "Request Preview",
+        "live": "(live)",
+        "updating": "Updating...",
+        "endpoint": "Endpoint",
+        "endpointAfterModel": "Shown after entering a model ID"
+      }
+    }
+  },
+  "toast": {
+    "expandDetails": "Expand details",
+    "enableDebugMode": "Enable debug mode (show details on errors)",
+    "disableDebugMode": "Disable debug mode"
   },
   "header": {
     "titles": {
@@ -79,6 +1525,9 @@
       "finalShots": "Final Shots"
     },
     "logout": "Log out"
+  },
+  "layout": {
+    "emptyDetail": "Select an item from the left list"
   },
   "errorBoundary": {
     "title": "Page failed to load"

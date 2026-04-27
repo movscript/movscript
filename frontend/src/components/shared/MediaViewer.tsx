@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { useTranslation } from 'react-i18next'
 import { X, Maximize2, Download } from 'lucide-react'
 import { AuthedImage } from './AuthedImage'
 import { api } from '@/lib/api'
@@ -39,6 +40,7 @@ async function downloadResource(proxyUrl: string, name: string) {
 /** Renders a thumbnail/preview of a resource; image or video.
  *  Pass `open` + `onOpenChange` to use as a controlled lightbox without a thumbnail. */
 export function MediaViewer({ resource, className = '', fit = 'cover', lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
+  const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const userId = useUserStore(s => s.currentUser?.ID)
   const proxyUrl = resolveUrl(resource, userId)
@@ -78,7 +80,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
                 <button
                   onClick={() => downloadResource(proxyUrl, resource.name)}
                   className="text-white/70 hover:text-white transition-colors"
-                  title="下载"
+                  title={t('shared.mediaViewer.download')}
                 >
                   <Download size={16} />
                 </button>

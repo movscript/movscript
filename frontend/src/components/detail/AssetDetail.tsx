@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
+import { useTranslation } from 'react-i18next'
 
 function resolveViewSrc(v: AssetView): string | undefined {
   const raw = v.resource?.url ? `${API_BASE}${v.resource.url}` : v.image_url
@@ -23,11 +24,11 @@ function isVideoView(v: AssetView): boolean {
   return v.resource?.type === 'video' || !!v.resource?.mime_type?.startsWith('video/')
 }
 
-const ASSET_TYPE_MAP: Record<string, { label: string; color: string }> = {
-  character: { label: '角色', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
-  scene:     { label: '场景', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
-  prop:      { label: '道具', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
-  draft:     { label: '底稿', color: 'bg-muted text-muted-foreground' },
+const ASSET_TYPE_MAP: Record<string, { labelKey: string; color: string }> = {
+  character: { labelKey: 'domain.assetTypes.character', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
+  scene:     { labelKey: 'domain.assetTypes.scene',     color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
+  prop:      { labelKey: 'domain.assetTypes.prop',      color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
+  draft:     { labelKey: 'domain.assetTypes.draft',     color: 'bg-muted text-muted-foreground' },
 }
 
 interface Props {
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function AssetDetail({ asset, onClose, onDelete }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draftName, setDraftName] = useState(asset.name)
@@ -64,13 +66,13 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0 font-medium', typeCfg.color)}>
-            {typeCfg.label}
+            {t(typeCfg.labelKey)}
           </span>
           <h2 className="text-sm font-semibold text-foreground truncate">{asset.name}</h2>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ReviewStatusBadge status={asset.review_status} />
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>}
+          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
         </div>
       </div>
 
@@ -83,7 +85,7 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
         />
         {onDelete && (
           <button onClick={() => remove.mutate()} className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors">
-            删除
+            {t('common.delete')}
           </button>
         )}
       </div>
@@ -92,11 +94,11 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
         {/* Left: edit form */}
         <div className="w-72 shrink-0 border-r border-border overflow-y-auto p-5 space-y-3">
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">名称</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.name')}</Label>
             <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">描述</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
             <Textarea rows={5} value={draftDesc} onChange={(e) => setDraftDesc(e.target.value)} />
           </div>
           <Button
@@ -105,13 +107,13 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
             className="w-full gap-1.5"
             size="sm"
           >
-            <Save size={13} /> {update.isPending ? '保存中…' : '保存'}
+            <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
           </Button>
         </div>
 
         {/* Right: views gallery */}
         <div className="flex-1 overflow-y-auto p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">多视角图</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">{t('details.assetViews')}</h3>
           <div className="grid grid-cols-3 gap-3">
             {(asset.views ?? []).map((v) => {
               const src = resolveViewSrc(v)
@@ -124,7 +126,7 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
                         ? <AuthedVideo src={src} className="w-full h-full object-cover" muted playsInline controls />
                         : <AuthedImage src={src} alt={v.label} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">空</div>
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">{t('details.empty')}</div>
                     )}
                   </div>
                   <p className="text-xs text-center text-muted-foreground">{v.label || v.view_type}</p>
@@ -132,7 +134,7 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
               )
             })}
             {(!asset.views || asset.views.length === 0) && (
-              <p className="text-xs text-muted-foreground col-span-3">暂无视角图，请在素材管理页上传</p>
+              <p className="text-xs text-muted-foreground col-span-3">{t('details.noAssetViews')}</p>
             )}
           </div>
         </div>

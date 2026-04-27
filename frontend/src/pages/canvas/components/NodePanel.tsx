@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   nodeId: string
@@ -37,6 +38,7 @@ function PromptTextarea({
   upstreamNodes: Array<{ id: string; label: string }>
   rows?: number
 }) {
+  const { t } = useTranslation()
   const ref = useRef<HTMLTextAreaElement>(null)
   const [mention, setMention] = useState<{ filter: string; atPos: number } | null>(null)
 
@@ -75,7 +77,7 @@ function PromptTextarea({
         ref={ref}
         className="w-full border border-border rounded px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground"
         rows={rows}
-        placeholder={placeholder ?? '描述你想生成的内容… 输入 @ 引用上游节点'}
+        placeholder={placeholder ?? t('canvas.nodePanel.promptPlaceholder')}
         value={value}
         onChange={handleChange}
         onBlur={() => setTimeout(() => setMention(null), 150)}
@@ -96,7 +98,7 @@ function PromptTextarea({
       )}
       {mention && filtered.length === 0 && upstreamNodes.length === 0 && (
         <div className="absolute left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-lg shadow-sm px-3 py-2 text-xs text-muted-foreground z-20">
-          暂无上游连接节点
+          {t('canvas.nodePanel.noUpstreamNodes')}
         </div>
       )}
     </div>
@@ -106,6 +108,7 @@ function PromptTextarea({
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, edges, onUpdate, onRun, allowRun = true }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [source, setSource] = useState<'upload' | 'ai' | 'manual'>(data.source ?? 'upload')
@@ -181,16 +184,16 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           onUpdate={(patch) => onUpdate(nodeId, patch)}
         />
         <div>
-          <p className="text-xs text-muted-foreground mb-1">输入内容</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.inputContent')}</p>
           <Textarea
             rows={6}
-            placeholder="工作流运行时会弹窗填写，也可在此预设默认值…"
+            placeholder={t('canvas.nodePanel.inputDefaultPlaceholder')}
             value={data.inputValue ?? ''}
             onChange={(e) => onUpdate(nodeId, { inputValue: e.target.value, source: 'manual' })}
           />
         </div>
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
-          此节点是工作流的入口，运行时弹窗要求填写内容。
+          {t('canvas.nodePanel.inputHint')}
         </p>
       </div>
     )
@@ -206,11 +209,11 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           onUpdate={(patch) => onUpdate(nodeId, patch)}
         />
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
-          此节点是工作流的出口，连接上游节点后，运行结果将展示在此处。
+          {t('canvas.nodePanel.outputHint')}
         </p>
         {data.resource && (
           <div>
-            <p className="text-xs text-muted-foreground mb-1">当前输出</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.currentOutput')}</p>
             <p className="text-xs text-foreground">{data.resource.name}</p>
           </div>
         )}
@@ -224,45 +227,45 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
       <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
-          工作流运行到此节点时暂停，等待人工确认后继续。
+          {t('canvas.nodePanel.approvalHint')}
         </p>
         <div>
-          <p className="text-xs text-muted-foreground mb-2">当前状态</p>
+          <p className="text-xs text-muted-foreground mb-2">{t('canvas.nodePanel.currentStatus')}</p>
           {approvalStatus === 'waiting' && (
             <div className="flex gap-2">
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'approved' })}
                 className="flex-1 flex items-center justify-center gap-1 bg-foreground text-background rounded py-2 text-xs hover:bg-foreground/90 transition-colors"
               >
-                <Check size={12} /> 通过
+                <Check size={12} /> {t('canvas.approval.approve')}
               </button>
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'rejected' })}
                 className="flex-1 flex items-center justify-center gap-1 bg-destructive text-destructive-foreground rounded py-2 text-xs hover:bg-destructive/90 transition-colors"
               >
-                <X size={12} /> 拒绝
+                <X size={12} /> {t('canvas.approval.reject')}
               </button>
             </div>
           )}
           {approvalStatus === 'approved' && (
             <div className="space-y-2">
-              <p className="text-foreground text-xs">✓ 已通过</p>
+              <p className="text-foreground text-xs">{t('canvas.approval.approvedMark')}</p>
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'waiting' })}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
               >
-                重置为等待
+                {t('canvas.approval.resetWaiting')}
               </button>
             </div>
           )}
           {approvalStatus === 'rejected' && (
             <div className="space-y-2">
-              <p className="text-destructive text-xs">✗ 已拒绝</p>
+              <p className="text-destructive text-xs">{t('canvas.approval.rejectedMark')}</p>
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'waiting' })}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
               >
-                重置为等待
+                {t('canvas.approval.resetWaiting')}
               </button>
             </div>
           )}
@@ -290,7 +293,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             size="sm"
           >
             <Wand2 size={12} />
-            {isRunning ? '生成中…' : '生成文本'}
+            {isRunning ? t('canvas.generating') : t('canvas.nodePanel.generateText')}
           </Button>
         )}
       </div>
@@ -302,20 +305,20 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
       <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <div>
-          <p className="text-xs text-muted-foreground mb-1">引用工作流</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.referenceWorkflow')}</p>
           <select
             className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
             value={data.referencedCanvasId ?? ''}
             onChange={(e) => onUpdate(nodeId, { referencedCanvasId: Number(e.target.value) || undefined, source: 'ai' })}
           >
-            <option value="">选择可复用工作流…</option>
+            <option value="">{t('canvas.nodePanel.selectWorkflow')}</option>
             {workflowCanvases.map((canvas) => (
               <option key={canvas.ID} value={canvas.ID}>{canvas.name}</option>
             ))}
           </select>
         </div>
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
-          只能引用工作流画布。运行时会读取该工作流最近一次成功运行的输出资源。
+          {t('canvas.nodePanel.referenceWorkflowHint')}
         </p>
         {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
         {allowRun && (
@@ -326,7 +329,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             size="sm"
           >
             <Wand2 size={12} />
-            {isRunning ? '运行中…' : '读取引用输出'}
+            {isRunning ? t('canvas.running') : t('canvas.nodePanel.readReferenceOutput')}
           </Button>
         )}
       </div>
@@ -345,7 +348,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
       {!isToolNode && (
         <div>
-          <p className="text-xs text-muted-foreground mb-2">来源</p>
+          <p className="text-xs text-muted-foreground mb-2">{t('canvas.nodePanel.source')}</p>
           <div className="flex gap-1">
             {sourceOptions.map((s) => (
               <button
@@ -355,7 +358,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
                   source === s ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground hover:border-border/80'
                 }`}
               >
-                {s === 'upload' ? '上传' : s === 'ai' ? 'AI 生成' : '手写'}
+                {t(`canvas.nodePanel.sources.${s}`)}
               </button>
             ))}
           </div>
@@ -376,11 +379,11 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             disabled={upload.isPending}
             className="w-full border border-dashed border-border rounded px-3 py-3 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
           >
-            {upload.isPending ? '上传中…' : data.resource ? `已上传: ${data.resource.name}` : '点击选择文件'}
+            {upload.isPending ? t('canvas.nodePanel.uploading') : data.resource ? t('canvas.nodePanel.uploaded', { name: data.resource.name }) : t('canvas.nodePanel.selectFile')}
           </button>
           {resources.filter((r) => r.type === nodeType).length > 0 && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">或从资源库选择</p>
+              <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.selectFromResources')}</p>
               <select
                 className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
                 value={data.resourceId ?? ''}
@@ -389,7 +392,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
                   if (r) onUpdate(nodeId, { source: 'upload', resourceId: r.ID, resource: r, status: 'done' })
                 }}
               >
-                <option value="">选择资源…</option>
+                <option value="">{t('canvas.nodePanel.selectResource')}</option>
                 {resources.filter((r) => r.type === nodeType).map((r) => (
                   <option key={r.ID} value={r.ID}>{r.name}</option>
                 ))}
@@ -401,10 +404,10 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
       {source === 'manual' && nodeType === 'text' && (
         <div>
-          <p className="text-xs text-muted-foreground mb-1">文本内容</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.textContent')}</p>
           <Textarea
             rows={8}
-            placeholder="在此输入文本内容…"
+            placeholder={t('canvas.nodePanel.textContentPlaceholder')}
             value={data.textContent ?? ''}
             onChange={(e) => onUpdate(nodeId, { textContent: e.target.value, source: 'manual' })}
           />
@@ -428,7 +431,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
               size="sm"
             >
               <Wand2 size={12} />
-              {isRunning ? '生成中…' : '运行节点'}
+              {isRunning ? t('canvas.generating') : t('shared.generation.runNode')}
             </Button>
           )}
         </>
@@ -440,9 +443,10 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 function LabelField({ label, onUpdate }: { label: string; onUpdate: (v: string) => void }) {
+  const { t } = useTranslation()
   return (
     <div>
-      <Label className="text-xs text-muted-foreground mb-1">标签</Label>
+      <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.label')}</Label>
       <Input
         value={label}
         onChange={(e) => onUpdate(e.target.value)}
@@ -453,14 +457,14 @@ function LabelField({ label, onUpdate }: { label: string; onUpdate: (v: string) 
 }
 
 const PARAM_TYPE_OPTIONS: Array<{ value: CanvasParamType; label: string }> = [
-  { value: 'text', label: '文本' },
-  { value: 'image', label: '图片' },
-  { value: 'video', label: '视频' },
-  { value: 'audio', label: '音频' },
-  { value: 'json', label: 'JSON' },
-  { value: 'number', label: '数字' },
-  { value: 'boolean', label: '布尔' },
-  { value: 'resource', label: '资源' },
+  { value: 'text', label: 'canvas.paramTypes.text' },
+  { value: 'image', label: 'canvas.paramTypes.image' },
+  { value: 'video', label: 'canvas.paramTypes.video' },
+  { value: 'audio', label: 'canvas.paramTypes.audio' },
+  { value: 'json', label: 'canvas.paramTypes.json' },
+  { value: 'number', label: 'canvas.paramTypes.number' },
+  { value: 'boolean', label: 'canvas.paramTypes.boolean' },
+  { value: 'resource', label: 'canvas.paramTypes.resource' },
 ]
 
 function ParamFields({
@@ -472,26 +476,27 @@ function ParamFields({
   type: CanvasParamType
   onUpdate: (patch: Partial<CanvasNodeData>) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="grid grid-cols-[1fr_auto] gap-2">
       <div>
-        <Label className="text-xs text-muted-foreground mb-1">参数名</Label>
+        <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.paramName')}</Label>
         <Input
           value={name}
           onChange={(e) => onUpdate({ paramName: e.target.value })}
           className="text-sm"
-          placeholder="例如 prompt"
+          placeholder={t('canvas.nodePanel.paramNamePlaceholder')}
         />
       </div>
       <div className="w-28">
-        <Label className="text-xs text-muted-foreground mb-1">参数类型</Label>
+        <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.paramType')}</Label>
         <select
           className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
           value={type}
           onChange={(e) => onUpdate({ paramType: e.target.value as CanvasParamType })}
         >
           {PARAM_TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
+            <option key={option.value} value={option.value}>{t(option.label)}</option>
           ))}
         </select>
       </div>
@@ -510,23 +515,24 @@ function AIConfigSection({
   upstreamNodes: Array<{ id: string; label: string }>
   onUpdate: (patch: Partial<CanvasNodeData>) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs text-muted-foreground mb-1">模型</p>
+        <p className="text-xs text-muted-foreground mb-1">{t('agents.model')}</p>
         <select
           className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
           value={data.modelDbId ?? models[0]?.id ?? ''}
           onChange={(e) => onUpdate({ modelDbId: Number(e.target.value) })}
         >
-          {models.length === 0 && <option value="">暂无可用模型</option>}
+          {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
           {models.map((m) => (
             <option key={m.id} value={m.id}>{m.display_name}</option>
           ))}
         </select>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground mb-1">提示词</p>
+        <p className="text-xs text-muted-foreground mb-1">{t('details.prompt')}</p>
         <PromptTextarea
           value={data.prompt ?? ''}
           onChange={(v) => onUpdate({ prompt: v })}

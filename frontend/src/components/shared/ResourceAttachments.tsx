@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { API_BASE_URL } from '@/lib/config'
 import type { RawResource } from '@/types'
@@ -14,6 +15,7 @@ interface Props {
 const BASE = API_BASE_URL
 
 export function ResourceAttachments({ resourceIds, onChange }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -64,7 +66,7 @@ export function ResourceAttachments({ resourceIds, onChange }: Props) {
             <button
               onClick={() => remove(r.ID)}
               className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="移除"
+              aria-label={t('shared.attachments.remove')}
             >
               <X size={10} />
             </button>
@@ -77,7 +79,7 @@ export function ResourceAttachments({ resourceIds, onChange }: Props) {
           className="w-16 h-16 rounded border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-muted-foreground transition-colors"
         >
           <Upload size={14} />
-          <span className="text-xs">{upload.isPending ? '…' : '上传'}</span>
+          <span className="text-xs">{upload.isPending ? '...' : t('shared.attachments.upload')}</span>
         </button>
       </div>
 

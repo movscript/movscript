@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { NODE_TYPE_META, type NodeCategory } from './PipelineNodeComponent'
+import { useTranslation } from 'react-i18next'
 
 // ── Node type definitions (ordered for display) ───────────────────────────────
 
@@ -50,14 +51,17 @@ function NodeTypeRow({
   onSelect: (type: string, label: string) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const meta = NODE_TYPE_META[type]
   if (!meta) return null
   const Icon = meta.icon
+  const label = t(`pipeline.nodeTypes.${type}.label`, { defaultValue: meta.label })
+  const desc = meta.desc ? t(`pipeline.nodeTypes.${type}.desc`, { defaultValue: meta.desc }) : undefined
 
   return (
     <button
       className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg hover:bg-accent transition-colors text-left"
-      onClick={() => { onSelect(type, meta.label); onClose() }}
+      onClick={() => { onSelect(type, label); onClose() }}
     >
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${meta.accent}`}>
         {meta.toolEmoji
@@ -66,19 +70,20 @@ function NodeTypeRow({
         }
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground leading-tight">{meta.label}</p>
-        {meta.desc && <p className="text-xs text-muted-foreground">{meta.desc}</p>}
+        <p className="text-sm font-medium text-foreground leading-tight">{label}</p>
+        {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
       </div>
     </button>
   )
 }
 
 function SectionLabel({ category }: { category: NodeCategory }) {
+  const { t } = useTranslation()
   const map: Record<NodeCategory, { label: string; cls: string }> = {
-    work:     { label: '工作节点', cls: 'text-primary' },
-    artifact: { label: '产物节点', cls: 'text-muted-foreground' },
-    tool:     { label: '工具节点', cls: 'text-violet-600' },
-    custom:   { label: '自定义',   cls: 'text-muted-foreground' },
+    work:     { label: t('pipeline.categories.workNodes'), cls: 'text-primary' },
+    artifact: { label: t('pipeline.categories.artifactNodes'), cls: 'text-muted-foreground' },
+    tool:     { label: t('pipeline.categories.toolNodes'), cls: 'text-violet-600' },
+    custom:   { label: t('pipeline.categories.custom'),   cls: 'text-muted-foreground' },
   }
   const { label, cls } = map[category]
   return (
@@ -89,6 +94,7 @@ function SectionLabel({ category }: { category: NodeCategory }) {
 }
 
 export function CanvasContextMenu({ x, y, onSelect, onClose }: Props) {
+  const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -117,8 +123,8 @@ export function CanvasContextMenu({ x, y, onSelect, onClose }: Props) {
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className="px-3 py-2.5 border-b border-border">
-        <p className="text-xs font-semibold text-foreground">添加节点</p>
-        <p className="text-[10px] text-muted-foreground">选择节点类型拖入画布</p>
+        <p className="text-xs font-semibold text-foreground">{t('pipeline.contextMenu.addNode')}</p>
+        <p className="text-[10px] text-muted-foreground">{t('pipeline.contextMenu.hint')}</p>
       </div>
 
       <div className="max-h-[560px] overflow-y-auto p-1.5">

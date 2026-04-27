@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import * as Toast from '@radix-ui/react-toast'
+import { useTranslation } from 'react-i18next'
 import { X, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp, Bug } from 'lucide-react'
 import { useToastStore, type ToastItem } from '@/store/toastStore'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ const BORDER = {
 }
 
 function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
+  const { t: translate } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   return (
     <Toast.Root
@@ -38,7 +40,7 @@ function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
           <button
             onClick={() => setExpanded(e => !e)}
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
-            title="展开详情"
+            title={translate('toast.expandDetails')}
           >
             {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
@@ -59,6 +61,7 @@ function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
 }
 
 export function Toaster() {
+  const { t } = useTranslation()
   const { toasts, remove, debugMode, toggleDebugMode } = useToastStore()
 
   return (
@@ -71,7 +74,7 @@ export function Toaster() {
       {/* Debug mode toggle — bottom-left corner */}
       <button
         onClick={toggleDebugMode}
-        title={debugMode ? '关闭调试模式' : '开启调试模式（错误时显示详细信息）'}
+        title={debugMode ? t('toast.disableDebugMode') : t('toast.enableDebugMode')}
         className={cn(
           'fixed bottom-4 left-4 z-[200] p-1.5 rounded-md transition-colors',
           debugMode

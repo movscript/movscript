@@ -15,6 +15,7 @@ import { ResourceListItem } from '@/components/shared/ResourcePanel'
 import { Button } from '@/components/ui/button'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { useTranslation } from 'react-i18next'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio'
 type Tab = 'mine' | 'shared'
@@ -34,11 +35,11 @@ function TypeIcon({ type }: { type: string }) {
   }
 }
 
-const TYPE_TABS: { label: string; value: TypeFilter }[] = [
-  { label: '全部', value: 'all' },
-  { label: '图片', value: 'image' },
-  { label: '视频', value: 'video' },
-  { label: '音频', value: 'audio' },
+const TYPE_TABS: { labelKey: string; value: TypeFilter }[] = [
+  { labelKey: 'common.all', value: 'all' },
+  { labelKey: 'pages.resources.types.image', value: 'image' },
+  { labelKey: 'pages.resources.types.video', value: 'video' },
+  { labelKey: 'pages.resources.types.audio', value: 'audio' },
 ]
 
 // ─── Folder Dialog ────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ function FolderDialog({
   onClose: () => void
   editFolder?: ResourceFolder | null
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [name, setName] = useState(editFolder?.name ?? '')
   const [isShared, setIsShared] = useState(editFolder?.is_shared ?? false)
@@ -74,17 +76,17 @@ function FolderDialog({
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
           <Dialog.Title className="text-sm font-semibold mb-4">
-            {editFolder ? '编辑文件夹' : '新建文件夹'}
+            {editFolder ? t('pages.resources.editFolder') : t('pages.resources.newFolder')}
           </Dialog.Title>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">名称</label>
+              <label className="text-xs text-muted-foreground mb-1 block">{t('forms.name')}</label>
               <input
                 autoFocus
                 value={name}
                 onChange={e => setName(e.target.value)}
                 className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder="文件夹名称"
+                placeholder={t('pages.resources.folderNamePlaceholder')}
               />
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -95,13 +97,13 @@ function FolderDialog({
                 className="rounded"
               />
               <Globe size={13} className="text-muted-foreground" />
-              开启共享（对其他用户可见）
+              {t('pages.resources.enableSharingVisible')}
             </label>
           </div>
           <div className="flex justify-end gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
             <Button size="sm" onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
-              {save.isPending ? '保存中…' : '保存'}
+              {save.isPending ? t('common.saving') : t('common.save')}
             </Button>
           </div>
         </Dialog.Content>
@@ -112,6 +114,7 @@ function FolderDialog({
 
 // ─── Permissions Dialog ───────────────────────────────────────────────────────
 function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClose: () => void }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [searchQ, setSearchQ] = useState('')
   const [localIsShared, setLocalIsShared] = useState(folder.is_shared)
@@ -149,7 +152,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
     onSuccess: () => qc.invalidateQueries({ queryKey: ['folder-permissions', folder.ID] }),
   })
 
-  const PERM_LABELS = { read: '只读', write: '读写' }
+  const PERM_LABELS = { read: t('pages.resources.permissions.read'), write: t('pages.resources.permissions.write') }
   const PERM_ICONS = { read: <Eye size={11} />, write: <PenLine size={11} /> }
 
   return (
@@ -159,7 +162,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-96 z-50 max-h-[80vh] flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} className="text-primary" />
-            <Dialog.Title className="text-sm font-semibold flex-1">权限设置 — {folder.name}</Dialog.Title>
+            <Dialog.Title className="text-sm font-semibold flex-1">{t('pages.resources.permissionSettingsTitle', { name: folder.name })}</Dialog.Title>
             <Dialog.Close className="text-muted-foreground hover:text-foreground">
               <XIcon size={14} />
             </Dialog.Close>
@@ -168,8 +171,8 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
           {/* Sharing toggle */}
           <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
             <div>
-              <p className="text-xs font-medium">启用共享</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">开启后才能授权其他用户访问此文件夹</p>
+              <p className="text-xs font-medium">{t('pages.resources.enableSharing')}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{t('pages.resources.enableSharingHint')}</p>
             </div>
             <button
               onClick={() => toggleShared.mutate(!localIsShared)}
@@ -183,18 +186,18 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
             <>
               {/* Current permission list */}
               <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-                <p className="text-[11px] text-muted-foreground font-medium mb-1">已授权用户</p>
+                <p className="text-[11px] text-muted-foreground font-medium mb-1">{t('pages.resources.authorizedUsers')}</p>
                 {perms.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60 py-2 text-center">暂无授权用户</p>
+                  <p className="text-xs text-muted-foreground/60 py-2 text-center">{t('pages.resources.noAuthorizedUsers')}</p>
                 ) : (
                   perms.map(p => (
                     <div key={p.ID} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background">
-                      <span className="text-xs font-medium flex-1 truncate">{p.user?.username ?? `用户 ${p.user_id}`}</span>
+                      <span className="text-xs font-medium flex-1 truncate">{p.user?.username ?? t('pages.resources.userFallback', { id: p.user_id })}</span>
                       {/* Toggle permission */}
                       <button
                         onClick={() => grant.mutate({ userId: p.user_id, permission: p.permission === 'read' ? 'write' : 'read' })}
                         className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border hover:bg-muted transition-colors"
-                        title="点击切换权限"
+                        title={t('pages.resources.togglePermissionTitle')}
                       >
                         {PERM_ICONS[p.permission]}
                         {PERM_LABELS[p.permission]}
@@ -203,7 +206,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
                       <button
                         onClick={() => revoke.mutate(p.user_id)}
                         className="text-muted-foreground hover:text-destructive transition-colors"
-                        title="移除权限"
+                        title={t('pages.resources.removePermissionTitle')}
                       >
                         <XIcon size={12} />
                       </button>
@@ -214,13 +217,13 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
 
               {/* Add user */}
               <div className="border-t border-border pt-3 space-y-2">
-                <p className="text-[11px] text-muted-foreground font-medium">添加用户</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{t('pages.resources.addUser')}</p>
                 <div className="relative">
                   <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     value={searchQ}
                     onChange={e => setSearchQ(e.target.value)}
-                    placeholder="搜索用户名…"
+                    placeholder={t('pages.resources.searchUsersPlaceholder')}
                     className="w-full pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
@@ -232,20 +235,20 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
                         <div key={u.ID} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background text-xs">
                           <span className="flex-1 truncate">{u.username}</span>
                           {already ? (
-                            <span className="text-muted-foreground text-[11px]">已添加</span>
+                            <span className="text-muted-foreground text-[11px]">{t('pages.resources.alreadyAdded')}</span>
                           ) : (
                             <div className="flex gap-1">
                               <button
                                 onClick={() => { grant.mutate({ userId: u.ID, permission: 'read' }); setSearchQ('') }}
                                 className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
                               >
-                                <Eye size={10} /> 只读
+                                <Eye size={10} /> {t('pages.resources.permissions.read')}
                               </button>
                               <button
                                 onClick={() => { grant.mutate({ userId: u.ID, permission: 'write' }); setSearchQ('') }}
                                 className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
                               >
-                                <PenLine size={10} /> 读写
+                                <PenLine size={10} /> {t('pages.resources.permissions.write')}
                               </button>
                             </div>
                           )}
@@ -273,6 +276,7 @@ function MoveDialog({
   folders: ResourceFolder[]
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   // null = root (unfiled), number = folder ID
   const [targetFolder, setTargetFolder] = useState<number | null>(resource.folder_id ?? null)
@@ -291,11 +295,11 @@ function MoveDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-72 z-50">
-          <Dialog.Title className="text-sm font-semibold mb-4">移动到文件夹</Dialog.Title>
+          <Dialog.Title className="text-sm font-semibold mb-4">{t('pages.resources.moveToFolder')}</Dialog.Title>
           <p className="text-xs text-muted-foreground mb-3 truncate" title={resource.name}>{resource.name}</p>
           <div className="space-y-1 max-h-56 overflow-y-auto">
             <FolderOption
-              label="未分类（根目录）"
+              label={t('pages.resources.unfiledRoot')}
               selected={targetFolder === null}
               onClick={() => setTargetFolder(null)}
             />
@@ -310,9 +314,9 @@ function MoveDialog({
             ))}
           </div>
           <div className="flex justify-end gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
             <Button size="sm" onClick={() => move.mutate()} disabled={move.isPending}>
-              {move.isPending ? '移动中…' : '移动'}
+              {move.isPending ? t('pages.resources.moving') : t('pages.resources.move')}
             </Button>
           </div>
         </Dialog.Content>
@@ -346,6 +350,7 @@ function AddToAssetDialog({
   resource: RawResource
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const project = useProjectStore(s => s.current)
   const [assetId, setAssetId] = useState<number | ''>('')
@@ -372,8 +377,13 @@ function AddToAssetDialog({
   })
 
   const VIEW_TYPES = ['front', 'back', 'left', 'right', 'detail', 'custom']
-  const VIEW_LABELS: Record<string, string> = {
-    front: '正面', back: '背面', left: '左侧', right: '右侧', detail: '细节', custom: '自定义',
+  const VIEW_LABEL_KEYS: Record<string, string> = {
+    front: 'pages.resources.viewTypes.front',
+    back: 'pages.resources.viewTypes.back',
+    left: 'pages.resources.viewTypes.left',
+    right: 'pages.resources.viewTypes.right',
+    detail: 'pages.resources.viewTypes.detail',
+    custom: 'pages.resources.viewTypes.custom',
   }
 
   return (
@@ -381,54 +391,54 @@ function AddToAssetDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
-          <Dialog.Title className="text-sm font-semibold mb-4">添加到素材</Dialog.Title>
+          <Dialog.Title className="text-sm font-semibold mb-4">{t('pages.resources.addToAsset')}</Dialog.Title>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">选择素材</label>
+              <label className="text-xs text-muted-foreground mb-1 block">{t('pages.resources.selectAsset')}</label>
               <select
                 value={assetId}
                 onChange={e => setAssetId(Number(e.target.value))}
                 className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none"
               >
-                <option value="">-- 请选择 --</option>
+                <option value="">{t('pages.resources.pleaseSelect')}</option>
                 {assets.map(a => (
                   <option key={a.ID} value={a.ID}>{a.name}</option>
                 ))}
               </select>
               {!project && (
-                <p className="text-xs text-muted-foreground mt-1">请先选择一个项目</p>
+                <p className="text-xs text-muted-foreground mt-1">{t('pages.resources.selectProjectFirst')}</p>
               )}
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">视角类型</label>
+              <label className="text-xs text-muted-foreground mb-1 block">{t('pages.resources.viewType')}</label>
               <select
                 value={viewType}
                 onChange={e => setViewType(e.target.value)}
                 className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none"
               >
                 {VIEW_TYPES.map(v => (
-                  <option key={v} value={v}>{VIEW_LABELS[v]}</option>
+                  <option key={v} value={v}>{t(VIEW_LABEL_KEYS[v])}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">标签（可选）</label>
+              <label className="text-xs text-muted-foreground mb-1 block">{t('pages.resources.labelOptional')}</label>
               <input
                 value={label}
                 onChange={e => setLabel(e.target.value)}
                 className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder="例：主视觉"
+                placeholder={t('pages.resources.labelPlaceholder')}
               />
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+            <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
             <Button
               size="sm"
               onClick={() => add.mutate()}
               disabled={!assetId || add.isPending}
             >
-              {add.isPending ? '添加中…' : '添加'}
+              {add.isPending ? t('pages.resources.adding') : t('pages.resources.add')}
             </Button>
           </div>
         </Dialog.Content>
@@ -453,6 +463,7 @@ function ResourceCard({
   onMove: () => void
   isSharedView?: boolean
 }) {
+  const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -472,7 +483,7 @@ function ResourceCard({
           <DropdownMenu.Trigger asChild>
             <button
               className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              title="操作"
+              title={t('pages.resources.actions')}
             >
               <MoreHorizontal size={12} />
             </button>
@@ -488,7 +499,7 @@ function ResourceCard({
                 onSelect={onAddToAsset}
               >
                 <PlusSquare size={13} />
-                添加到素材
+                {t('pages.resources.addToAsset')}
               </DropdownMenu.Item>
               {!isSharedView && (
                 <DropdownMenu.Item
@@ -496,7 +507,7 @@ function ResourceCard({
                   onSelect={onMove}
                 >
                   <MoveRight size={13} />
-                  移动到文件夹
+                  {t('pages.resources.moveToFolder')}
                 </DropdownMenu.Item>
               )}
               {!isSharedView && onDelete && (
@@ -507,7 +518,7 @@ function ResourceCard({
                     onSelect={onDelete}
                   >
                     <Trash2 size={13} />
-                    删除
+                    {t('common.delete')}
                   </DropdownMenu.Item>
                 </>
               )}
@@ -518,7 +529,7 @@ function ResourceCard({
         {/* Shared badge */}
         {resource.is_shared && (
           <div className="absolute bottom-1 right-1">
-            <span title="已共享"><Share2 size={10} className="text-blue-400" /></span>
+            <span title={t('pages.resources.sharedTitle')}><Share2 size={10} className="text-blue-400" /></span>
           </div>
         )}
       </div>
@@ -540,6 +551,7 @@ function ResourceCard({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ResourcesPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<Tab>('mine')
@@ -626,12 +638,12 @@ export default function ResourcesPage() {
   const visible = resources
 
   const currentFolderLabel = () => {
-    if (selectedFolder === 'root') return '未分类'
+    if (selectedFolder === 'root') return t('pages.resources.unfiled')
     if (typeof selectedFolder === 'number') {
       const inMine = myFolders.find(f => f.ID === selectedFolder)
       if (inMine) return inMine.name
       const inShared = sharedFolders.find(f => f.ID === selectedFolder)
-      if (inShared) return `${inShared.name}（${inShared.owner?.username ?? '他人'}）`
+      if (inShared) return t('pages.resources.sharedFolderWithOwner', { name: inShared.name, owner: inShared.owner?.username ?? t('pages.resources.otherUser') })
     }
     return null
   }
@@ -656,11 +668,11 @@ export default function ResourcesPage() {
       <div className="w-52 shrink-0 border-r border-border flex flex-col bg-background">
         {/* My Folders section */}
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
-          <span className="text-xs font-semibold text-foreground">我的文件夹</span>
+          <span className="text-xs font-semibold text-foreground">{t('pages.resources.myFolders')}</span>
           <button
             onClick={() => setFolderDialog({ open: true, folder: null })}
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            title="新建文件夹"
+            title={t('pages.resources.newFolder')}
           >
             <FolderPlus size={13} />
           </button>
@@ -668,13 +680,13 @@ export default function ResourcesPage() {
 
         <div className="overflow-y-auto py-1 border-b border-border">
           <FolderItem
-            label="全部资源"
+            label={t('pages.resources.allResources')}
             icon={<Folder size={13} />}
             active={selectedFolder === null && tab === 'mine'}
             onClick={() => selectMyFolder(null)}
           />
           <FolderItem
-            label="未分类"
+            label={t('pages.resources.unfiled')}
             icon={<Folder size={13} />}
             active={selectedFolder === 'root' && tab === 'mine'}
             onClick={() => selectMyFolder('root')}
@@ -699,13 +711,13 @@ export default function ResourcesPage() {
         <div className="px-3 py-2.5 border-b border-border/50">
           <div className="flex items-center gap-1.5">
             <Share2 size={11} className="text-muted-foreground" />
-            <span className="text-xs font-semibold text-foreground">共享文件夹</span>
+            <span className="text-xs font-semibold text-foreground">{t('pages.resources.sharedFolders')}</span>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto py-1">
           {sharedFolders.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground/50">暂无他人共享的文件夹</p>
+            <p className="px-3 py-2 text-xs text-muted-foreground/50">{t('pages.resources.noSharedFolders')}</p>
           ) : (
             sharedFolders.map(f => (
               <FolderItem
@@ -728,7 +740,7 @@ export default function ResourcesPage() {
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-1 text-sm">
-            <span className="text-muted-foreground">资源库</span>
+            <span className="text-muted-foreground">{t('header.titles.resources')}</span>
             {currentFolderLabel() && (
               <>
                 <ChevronRight size={12} className="text-muted-foreground/50" />
@@ -744,14 +756,14 @@ export default function ResourcesPage() {
               onClick={() => { setTab('mine'); setPage(1); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
               className={`px-3 py-1 transition-colors ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
             >
-              我的
+              {t('pages.resources.mine')}
             </button>
             <button
               onClick={() => { setTab('shared'); setSelectedFolderTab('shared'); setPage(1) }}
               className={`px-3 py-1 flex items-center gap-1 transition-colors ${tab === 'shared' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
             >
               <Share2 size={11} />
-              共享
+              {t('pages.resources.shared')}
             </button>
           </div>
 
@@ -760,7 +772,7 @@ export default function ResourcesPage() {
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder="搜索文件名…"
+              placeholder={t('pages.resources.searchFilesPlaceholder')}
               className="pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
             />
           </div>
@@ -773,21 +785,21 @@ export default function ResourcesPage() {
             className={`gap-1.5 ${isSharedView ? 'invisible' : ''}`}
           >
             <Upload size={13} />
-            {upload.isPending ? '上传中…' : '上传文件'}
+            {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
           </Button>
           {/* View toggle */}
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              title="缩略图"
+              title={t('pages.resources.gridTitle')}
             >
               <LayoutGrid size={13} />
             </button>
             <button
               onClick={() => setViewMode('list')}
               className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              title="列表"
+              title={t('pages.resources.listTitle')}
             >
               <List size={13} />
             </button>
@@ -808,32 +820,32 @@ export default function ResourcesPage() {
 
         {/* Type filter */}
         <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-background shrink-0">
-          {TYPE_TABS.map(t => (
+          {TYPE_TABS.map(tabItem => (
             <button
-              key={t.value}
-              onClick={() => { setFilter(t.value); setPage(1) }}
+              key={tabItem.value}
+              onClick={() => { setFilter(tabItem.value); setPage(1) }}
               className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                filter === t.value
+                filter === tabItem.value
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
-              {t.label}
+              {t(tabItem.labelKey)}
             </button>
           ))}
           <div className="flex-1" />
-          <span className="text-xs text-muted-foreground">{total} 个文件</span>
+          <span className="text-xs text-muted-foreground">{t('pages.resources.filesCount', { count: total })}</span>
         </div>
 
         {/* Grid / List */}
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">加载中…</div>
+            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">{t('common.loadingShort')}</div>
           ) : visible.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
               <Upload size={32} className="mb-3 opacity-30" />
               <p className="text-sm">
-                {isSharedView ? '暂无共享资源' : search ? '没有匹配的文件' : '暂无资源，点击上传'}
+                {isSharedView ? t('pages.resources.noSharedResources') : search ? t('pages.resources.noMatchedFiles') : t('pages.resources.noResourcesUpload')}
               </p>
             </div>
           ) : viewMode === 'grid' ? (
@@ -870,18 +882,18 @@ export default function ResourcesPage() {
                       <DropdownMenu.Portal>
                         <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 text-sm" align="end" sideOffset={4}>
                           <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setAddToAssetResource(r)}>
-                            <PlusSquare size={13} />添加到素材
+                            <PlusSquare size={13} />{t('pages.resources.addToAsset')}
                           </DropdownMenu.Item>
                           {!isSharedView && (
                             <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setMoveResource(r)}>
-                              <MoveRight size={13} />移动到文件夹
+                              <MoveRight size={13} />{t('pages.resources.moveToFolder')}
                             </DropdownMenu.Item>
                           )}
                           {!isSharedView && (
                             <>
                               <DropdownMenu.Separator className="my-1 border-t border-border" />
                               <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive" onSelect={() => remove.mutate(r.ID)}>
-                                <Trash2 size={13} />删除
+                                <Trash2 size={13} />{t('common.delete')}
                               </DropdownMenu.Item>
                             </>
                           )}
@@ -896,14 +908,14 @@ export default function ResourcesPage() {
         </div>
 
         <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-background shrink-0 text-xs text-muted-foreground">
-          <span>第 {page} / {pageCount} 页</span>
+          <span>{t('pages.resources.pageStatus', { page, pageCount })}</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
               <ChevronLeft size={13} />
-              上一页
+              {t('pages.resources.previousPage')}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page >= pageCount}>
-              下一页
+              {t('pages.resources.nextPage')}
               <ChevronRight size={13} />
             </Button>
           </div>
@@ -965,6 +977,7 @@ function FolderItem({
   onDelete?: () => void
   onPermissions?: () => void
 }) {
+  const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -980,7 +993,7 @@ function FolderItem({
         {subtitle && <div className="text-[10px] text-muted-foreground/60 truncate">{subtitle}</div>}
       </div>
 
-      {isShared && <span title="已共享"><Globe size={10} className="text-blue-400 shrink-0" /></span>}
+      {isShared && <span title={t('pages.resources.sharedTitle')}><Globe size={10} className="text-blue-400 shrink-0" /></span>}
 
       {badge != null && (
         <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px]">{badge}</span>
@@ -1007,7 +1020,7 @@ function FolderItem({
                   className="px-3 py-1.5 cursor-pointer hover:bg-muted text-foreground"
                   onSelect={() => { onEdit(); setMenuOpen(false) }}
                 >
-                  编辑
+                  {t('pages.resources.edit')}
                 </DropdownMenu.Item>
               )}
               {onPermissions && (
@@ -1016,7 +1029,7 @@ function FolderItem({
                   onSelect={() => { onPermissions(); setMenuOpen(false) }}
                 >
                   <ShieldCheck size={11} />
-                  权限设置
+                  {t('pages.resources.permissionSettings')}
                 </DropdownMenu.Item>
               )}
               {onDelete && (
@@ -1024,7 +1037,7 @@ function FolderItem({
                   className="px-3 py-1.5 cursor-pointer hover:bg-muted text-destructive"
                   onSelect={() => { onDelete(); setMenuOpen(false) }}
                 >
-                  删除
+                  {t('common.delete')}
                 </DropdownMenu.Item>
               )}
             </DropdownMenu.Content>

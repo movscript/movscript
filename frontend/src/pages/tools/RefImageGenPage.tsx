@@ -1,15 +1,18 @@
 import { ToolDialog } from './ToolDialog'
+import { useTranslation } from 'react-i18next'
 
 export default function RefImageGenPage() {
+  const { t } = useTranslation()
+
   return (
     <ToolDialog
       nodeType="ref_image_gen"
       capability="image"
-      toolName="参考生图"
-      toolDescription="以参考图为基础，生成新的图像"
+      toolName={t('tools.defs.refImageGen.name')}
+      toolDescription={t('tools.defs.refImageGen.description')}
       inputType="image"
       outputType="image"
-      promptPlaceholder="描述你想生成的图像内容… 输入 @ 可引用资源库中的图片"
+      promptPlaceholder={t('tools.defs.refImageGen.promptPlaceholder')}
     />
   )
 }

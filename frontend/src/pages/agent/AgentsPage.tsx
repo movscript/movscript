@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { Plus, Trash2, Pencil, Check, X, ChevronDown, ChevronRight, Bot, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,19 +21,20 @@ function SkillRow({
   onChange: (s: AgentSkill) => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex gap-2 items-start">
       <div className="flex-1 grid grid-cols-2 gap-2">
         <Input
           value={skill.name}
           onChange={(e) => onChange({ ...skill, name: e.target.value })}
-          placeholder="技能名称"
+          placeholder={t('agents.skillNamePlaceholder')}
           className="h-8 text-xs"
         />
         <Input
           value={skill.description}
           onChange={(e) => onChange({ ...skill, description: e.target.value })}
-          placeholder="技能描述"
+          placeholder={t('agents.skillDescriptionPlaceholder')}
           className="h-8 text-xs"
         />
       </div>
@@ -82,6 +84,7 @@ function AgentForm({
   onSave: (form: AgentFormState) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const [form, setForm] = useState<AgentFormState>(() => defaultForm(agent))
   const [showSkills, setShowSkills] = useState(false)
 
@@ -96,17 +99,17 @@ function AgentForm({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label className="text-xs">名称</Label>
+        <Label className="text-xs">{t('forms.name')}</Label>
         <Input
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="Agent 名称"
+          placeholder={t('agents.agentNamePlaceholder')}
           className="h-8 text-sm"
         />
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs">模型</Label>
+        <Label className="text-xs">{t('agents.model')}</Label>
         <div className="flex gap-3 text-xs">
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input
@@ -114,7 +117,7 @@ function AgentForm({
               checked={!form.useCustomModel}
               onChange={() => setForm((f) => ({ ...f, useCustomModel: false }))}
             />
-            平台模型
+            {t('agents.platformModel')}
           </label>
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input
@@ -122,7 +125,7 @@ function AgentForm({
               checked={form.useCustomModel}
               onChange={() => setForm((f) => ({ ...f, useCustomModel: true }))}
             />
-            自定义（OpenAI 兼容）
+            {t('agents.customOpenAICompatible')}
           </label>
         </div>
 
@@ -132,7 +135,7 @@ function AgentForm({
             onChange={(e) => setForm((f) => ({ ...f, platform_model_id: Number(e.target.value) || null }))}
             className="w-full text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            <option value="">— 不指定（使用默认）—</option>
+            <option value="">{t('agents.useDefaultModel')}</option>
             {textModels.map((m) => (
               <option key={m.id} value={m.id}>{m.display_name}</option>
             ))}
@@ -141,7 +144,7 @@ function AgentForm({
           <div className="space-y-2 p-3 border border-border rounded-lg bg-muted/30">
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Base URL</Label>
+                <Label className="text-[11px] text-muted-foreground">{t('common.baseUrl')}</Label>
                 <Input
                   value={form.custom_model.base_url}
                   onChange={(e) => setForm((f) => ({ ...f, custom_model: { ...f.custom_model, base_url: e.target.value } }))}
@@ -150,7 +153,7 @@ function AgentForm({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Model ID</Label>
+                <Label className="text-[11px] text-muted-foreground">{t('common.modelId')}</Label>
                 <Input
                   value={form.custom_model.model_id}
                   onChange={(e) => setForm((f) => ({ ...f, custom_model: { ...f.custom_model, model_id: e.target.value } }))}
@@ -160,7 +163,7 @@ function AgentForm({
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">API Key</Label>
+              <Label className="text-[11px] text-muted-foreground">{t('common.apiKey')}</Label>
               <Input
                 type="password"
                 value={form.custom_model.api_key}
@@ -170,11 +173,11 @@ function AgentForm({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">显示名称（可选）</Label>
+              <Label className="text-[11px] text-muted-foreground">{t('agents.displayNameOptional')}</Label>
               <Input
                 value={form.custom_model.name}
                 onChange={(e) => setForm((f) => ({ ...f, custom_model: { ...f.custom_model, name: e.target.value } }))}
-                placeholder="我的自定义模型"
+                placeholder={t('agents.customModelNamePlaceholder')}
                 className="h-7 text-xs"
               />
             </div>
@@ -183,11 +186,11 @@ function AgentForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs">Soul（系统提示词）</Label>
+        <Label className="text-xs">{t('agents.soul')}</Label>
         <textarea
           value={form.soul}
           onChange={(e) => setForm((f) => ({ ...f, soul: e.target.value }))}
-          placeholder="定义 Agent 的角色、行为和限制…"
+          placeholder={t('agents.soulPlaceholder')}
           rows={4}
           className="w-full text-xs border border-border rounded-md px-3 py-2 bg-background text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
         />
@@ -199,7 +202,7 @@ function AgentForm({
           className="flex items-center gap-1.5 text-xs font-medium text-foreground hover:text-primary transition-colors"
         >
           {showSkills ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          Skills（{form.skills.length}）
+          {t('agents.skillsCount', { count: form.skills.length })}
         </button>
         {showSkills && (
           <div className="space-y-2 pl-4">
@@ -215,16 +218,16 @@ function AgentForm({
               onClick={addSkill}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Plus size={12} /> 添加技能
+              <Plus size={12} /> {t('agents.addSkill')}
             </button>
           </div>
         )}
       </div>
 
       <div className="flex justify-end gap-2 pt-2 border-t border-border">
-        <Button variant="ghost" size="sm" onClick={onCancel}>取消</Button>
+        <Button variant="ghost" size="sm" onClick={onCancel}>{t('common.cancel')}</Button>
         <Button size="sm" onClick={() => onSave(form)} disabled={!form.name.trim()}>
-          <Check size={13} className="mr-1" /> 保存
+          <Check size={13} className="mr-1" /> {t('common.save')}
         </Button>
       </div>
     </div>
@@ -246,11 +249,12 @@ function AgentCard({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
   const modelName = agent.platform_model_id
-    ? (textModels.find((m) => m.id === agent.platform_model_id)?.display_name ?? `Model #${agent.platform_model_id}`)
+    ? (textModels.find((m) => m.id === agent.platform_model_id)?.display_name ?? t('agents.modelFallback', { id: agent.platform_model_id }))
     : agent.custom_model
       ? (agent.custom_model.name || agent.custom_model.model_id)
-      : '未指定'
+      : t('agents.unspecified')
 
   const sourceTpl = agent.source_template_id
     ? templates.find((t) => t.id === agent.source_template_id)
@@ -271,7 +275,7 @@ function AgentCard({
         <div className="flex gap-1 shrink-0">
           {agent.accept_platform_updates && (
             <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full flex items-center gap-0.5">
-              <RefreshCw size={9} /> 跟随平台
+              <RefreshCw size={9} /> {t('agents.followPlatform')}
             </span>
           )}
           <button onClick={onEdit} className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors">
@@ -283,7 +287,7 @@ function AgentCard({
         </div>
       </div>
       {sourceTpl && (
-        <p className="text-[10px] text-muted-foreground pl-9">来自模板：{sourceTpl.name}</p>
+        <p className="text-[10px] text-muted-foreground pl-9">{t('agents.fromTemplate', { name: sourceTpl.name })}</p>
       )}
       {agent.soul && (
         <p className="text-[11px] text-muted-foreground line-clamp-2 pl-9">{agent.soul}</p>
@@ -304,6 +308,7 @@ function AgentCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: agents = [], isLoading } = useQuery<UserAgent[]>({
     queryKey: ['agents', 'my'],
@@ -359,7 +364,7 @@ export default function AgentsPage() {
           <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={15} />
           </button>
-          <h3 className="text-sm font-medium">{editing === 'new' ? '新建 Agent' : `编辑：${(editing as UserAgent).name}`}</h3>
+          <h3 className="text-sm font-medium">{editing === 'new' ? t('agents.newAgent') : t('agents.editAgent', { name: (editing as UserAgent).name })}</h3>
         </div>
         <AgentForm
           agent={editing === 'new' ? undefined : editing as UserAgent}
@@ -375,22 +380,22 @@ export default function AgentsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">我的 Agent</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">管理你的个人 AI 助手，可采用平台模板或完全自定义</p>
+          <h3 className="text-sm font-medium">{t('agents.myAgents')}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('agents.description')}</p>
         </div>
         <Button size="sm" onClick={() => setEditing('new')}>
-          <Plus size={13} className="mr-1" /> 新建 Agent
+          <Plus size={13} className="mr-1" /> {t('agents.newAgent')}
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="text-xs text-muted-foreground">加载中…</div>
+        <div className="text-xs text-muted-foreground">{t('common.loadingShort')}</div>
       ) : agents.length === 0 ? (
         <div className={cn('border border-dashed border-border rounded-lg p-8 text-center space-y-2')}>
           <Bot size={28} className="mx-auto text-muted-foreground/30" />
-          <p className="text-xs text-muted-foreground">还没有 Agent，点击"新建 Agent"开始</p>
+          <p className="text-xs text-muted-foreground">{t('agents.empty')}</p>
           {templates.length > 0 && (
-            <p className="text-[11px] text-muted-foreground/60">或在新建对话时从平台模板中选择</p>
+            <p className="text-[11px] text-muted-foreground/60">{t('agents.emptyTemplateHint')}</p>
           )}
         </div>
       ) : (

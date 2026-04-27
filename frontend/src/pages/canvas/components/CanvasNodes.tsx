@@ -12,6 +12,7 @@ import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/Authe
 import { CanvasGenBody } from '@/components/shared/CanvasGenBody'
 import { ToolNodeFullCard } from '@/components/shared/ToolNodeFullCard'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
+import { useTranslation } from 'react-i18next'
 
 type CardMode = 'compact' | 'detail' | 'full'
 
@@ -80,10 +81,11 @@ function NodeCard({ selected, children, className }: { selected?: boolean; child
 
 // Mode cycle button — shown in node header to prevent accidental mode switches on click
 function ModeCycleBtn({ mode, onCycle }: { mode: CardMode; onCycle?: () => void }) {
-  const label = mode === 'compact' ? '紧凑' : mode === 'detail' ? '详情' : '完整'
+  const { t } = useTranslation()
+  const label = t(`canvas.modes.${mode}`)
   return (
     <button
-      title={`切换显示模式（当前: ${label}）`}
+      title={t('canvas.switchModeTitle', { mode: label })}
       className="nodrag shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-[10px] font-medium"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => { e.stopPropagation(); onCycle?.() }}
@@ -124,22 +126,24 @@ function StatusPip({ status }: { status: string }) {
 }
 
 const PARAM_TYPE_LABELS: Record<string, string> = {
-  text: '文本',
-  image: '图片',
-  video: '视频',
-  audio: '音频',
-  json: 'JSON',
-  number: '数字',
-  boolean: '布尔',
-  resource: '资源',
+  text: 'canvas.paramTypes.text',
+  image: 'canvas.paramTypes.image',
+  video: 'canvas.paramTypes.video',
+  audio: 'canvas.paramTypes.audio',
+  json: 'canvas.paramTypes.json',
+  number: 'canvas.paramTypes.number',
+  boolean: 'canvas.paramTypes.boolean',
+  resource: 'canvas.paramTypes.resource',
 }
 
 function ParamMeta({ name, type }: { name?: string; type?: string }) {
+  const { t } = useTranslation()
+  const typeLabel = PARAM_TYPE_LABELS[type || '']
   return (
     <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
       <span className="truncate font-medium text-foreground">{name || 'param'}</span>
       <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 leading-none">
-        {PARAM_TYPE_LABELS[type || ''] ?? type ?? '未设置'}
+        {typeLabel ? t(typeLabel) : type ?? t('canvas.unset')}
       </span>
     </div>
   )
@@ -155,8 +159,9 @@ function RunBtn({ onClick, disabled }: { onClick?: () => void; disabled?: boolea
 }
 
 function PushBtn({ onClick }: { onClick?: () => void }) {
+  const { t } = useTranslation()
   return (
-    <button onClick={onClick} title="推送到实体"
+    <button onClick={onClick} title={t('canvas.pushToEntity')}
       className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
       <Share2 size={11} />
     </button>
@@ -166,6 +171,7 @@ function PushBtn({ onClick }: { onClick?: () => void }) {
 // ── Media nodes ────────────────────────────────────────────────────────────────
 
 export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const measuredWidth = useNodeWidth()
   const declaredMode: CardMode = data.cardMode ?? 'detail'
@@ -176,7 +182,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<FileText size={12} />}
-        label={data.label || '文本'}
+        label={data.label || t('canvas.nodeLabels.text')}
         status={status}
         hideLabel={hideLabel}
         mode={declaredMode}
@@ -187,7 +193,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
         data.source === 'manual' ? (
           <textarea
             className="flex-1 w-full px-3 py-2 text-xs resize-none focus:outline-none bg-transparent nodrag nowheel text-foreground placeholder:text-muted-foreground/50 rounded-b-xl min-h-[60px]"
-            placeholder="在此输入文本…"
+            placeholder={t('canvas.textInputPlaceholder')}
             value={data.textContent ?? ''}
             onChange={e => data.onUpdateContent?.(e.target.value)}
             onClick={e => e.stopPropagation()}
@@ -196,7 +202,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
           <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
             {data.textContent || data.prompt || data.resource?.name
               ? <span className="text-muted-foreground break-words line-clamp-4">{data.textContent || data.prompt || data.resource?.name}</span>
-              : <span className="italic text-muted-foreground/40">无内容</span>}
+              : <span className="italic text-muted-foreground/40">{t('canvas.emptyContent')}</span>}
           </div>
         )
       )}
@@ -206,6 +212,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
 }
 
 export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const measuredWidth = useNodeWidth()
   const declaredMode: CardMode = data.cardMode ?? 'detail'
@@ -217,7 +224,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<Image size={12} />}
-        label={data.label || '图片'}
+        label={data.label || t('canvas.nodeLabels.image')}
         status={status}
         hideLabel={hideLabel}
         mode={declaredMode}
@@ -240,6 +247,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 }
 
 export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const measuredWidth = useNodeWidth()
   const declaredMode: CardMode = data.cardMode ?? 'detail'
@@ -251,7 +259,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<Video size={12} />}
-        label={data.label || '视频'}
+        label={data.label || t('canvas.nodeLabels.video')}
         status={status}
         hideLabel={hideLabel}
         mode={declaredMode}
@@ -274,6 +282,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 }
 
 export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const measuredWidth = useNodeWidth()
   const declaredMode: CardMode = data.cardMode ?? 'detail'
@@ -285,7 +294,7 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<Music size={12} />}
-        label={data.label || '音频'}
+        label={data.label || t('canvas.nodeLabels.audio')}
         status={status}
         hideLabel={hideLabel}
         mode={declaredMode}
@@ -296,7 +305,7 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         <div className="flex-1 px-3 py-3 rounded-b-xl flex items-center">
           {audioUrl
             ? <AuthedAudio src={audioUrl} controls className="w-full h-6" />
-            : <span className="text-muted-foreground/40 italic">无音频</span>}
+            : <span className="text-muted-foreground/40 italic">{t('canvas.emptyAudio')}</span>}
         </div>
       )}
       <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
@@ -317,6 +326,7 @@ function CanvasCardBody({
   outputType: 'image' | 'video'
   error?: string
 }) {
+  const { t } = useTranslation()
   const isRunning = status === 'pending' || status === 'running'
   const outputUrl = outputResource
     ? outputResource.direct_url ?? `${API_BASE_CANVAS}${outputResource.url}`
@@ -331,7 +341,7 @@ function CanvasCardBody({
       )}
       {!prompt && status === 'idle' && (
         <div className="px-3 py-2">
-          <span className="italic text-muted-foreground/40 text-xs">无提示词</span>
+          <span className="italic text-muted-foreground/40 text-xs">{t('canvas.noPrompt')}</span>
         </div>
       )}
       <div className="flex-1 bg-card min-h-[48px]">
@@ -339,22 +349,22 @@ function CanvasCardBody({
           <div className="flex items-center justify-center py-6">
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 size={16} className="animate-spin" />
-              <p className="text-xs">{status === 'pending' ? '等待开始…' : '生成中…'}</p>
+              <p className="text-xs">{status === 'pending' ? t('canvas.waitingStart') : t('canvas.generating')}</p>
             </div>
           </div>
         )}
         {!isRunning && status === 'failed' && (
           <div className="flex items-center justify-center gap-2 text-destructive py-4">
             <XCircle size={12} />
-            <p className="text-xs">{error ?? '生成失败'}</p>
+            <p className="text-xs">{error ?? t('canvas.generationFailed')}</p>
           </div>
         )}
         {!isRunning && status === 'done' && outputUrl && (
           <div className="w-full h-full">
             {outputType === 'image'
               ? (outputResource?.direct_url
-                ? <img src={outputResource.direct_url} alt="生成结果" className="w-full h-full object-cover" />
-                : <AuthedImage src={`${API_BASE_CANVAS}${outputResource?.url}`} alt="生成结果" className="w-full h-full object-cover" />)
+                ? <img src={outputResource.direct_url} alt={t('shared.generation.resultAlt')} className="w-full h-full object-cover" />
+                : <AuthedImage src={`${API_BASE_CANVAS}${outputResource?.url}`} alt={t('shared.generation.resultAlt')} className="w-full h-full object-cover" />)
               : (outputResource?.direct_url
                 ? <video src={outputResource.direct_url} className="w-full h-full object-cover" />
                 : <AuthedVideo src={`${API_BASE_CANVAS}${outputResource?.url}`} className="w-full h-full object-cover" />)
@@ -368,29 +378,31 @@ function CanvasCardBody({
 
 // ── Tool nodes ─────────────────────────────────────────────────────────────────
 
-const TOOL_META: Record<string, { icon: React.ReactNode; label: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; featureKey: string; inputType: 'image' | 'video' | 'image+video' }> = {
-  canvas:           { icon: <Layers3 size={12} />, label: '画布引用',   outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  ref_image_gen:    { icon: <Palette size={12} />, label: '参考生图',   outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  ref_video_gen:    { icon: <Camera size={12} />, label: '参考生视频', outputType: 'video', capability: 'video', featureKey: 'canvas_video', inputType: 'video' },
-  multi_angle:      { icon: <RotateCw size={12} />, label: '图像多角度', outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  style_transfer:   { icon: <Brush size={12} />, label: '风格迁移',   outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  motion_imitation: { icon: <PersonStanding size={12} />, label: '动作模仿',   outputType: 'video', capability: 'video', featureKey: 'canvas_video', inputType: 'image+video' },
+const TOOL_META: Record<string, { icon: React.ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; featureKey: string; inputType: 'image' | 'video' | 'image+video' }> = {
+  canvas:           { icon: <Layers3 size={12} />, labelKey: 'canvas.nodeLabels.canvas',           outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
+  ref_image_gen:    { icon: <Palette size={12} />, labelKey: 'canvas.nodeLabels.ref_image_gen',    outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
+  ref_video_gen:    { icon: <Camera size={12} />, labelKey: 'canvas.nodeLabels.ref_video_gen',     outputType: 'video', capability: 'video', featureKey: 'canvas_video', inputType: 'video' },
+  multi_angle:      { icon: <RotateCw size={12} />, labelKey: 'canvas.nodeLabels.multi_angle',     outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
+  style_transfer:   { icon: <Brush size={12} />, labelKey: 'canvas.nodeLabels.style_transfer',    outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
+  motion_imitation: { icon: <PersonStanding size={12} />, labelKey: 'canvas.nodeLabels.motion_imitation', outputType: 'video', capability: 'video', featureKey: 'canvas_video', inputType: 'image+video' },
 }
 
 export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataWithHandlers; type: string }) {
+  const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const measuredWidth = useNodeWidth()
   const declaredMode: CardMode = data.cardMode ?? 'detail'
   const mode = effectiveMode(declaredMode, measuredWidth)
   const hideLabel = measuredWidth !== undefined && measuredWidth < 100
-  const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, label: type, outputType: 'image' as const, capability: 'image' as const, featureKey: 'canvas_image', inputType: 'image' as const }
+  const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image' as const, featureKey: 'canvas_image', inputType: 'image' as const }
+  const metaLabel = type in TOOL_META ? t(meta.labelKey) : meta.labelKey
 
   if (mode === 'full') {
     return (
       <div style={{ position: 'relative', display: 'inline-block' }}>
         <Handle type="target" position={Position.Left} style={targetHandleStyle} />
         <ToolNodeFullCard
-          toolName={data.label || meta.label}
+          toolName={data.label || metaLabel}
           capability={meta.capability}
           featureKey={meta.featureKey}
           inputType={meta.inputType}
@@ -419,7 +431,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={meta.icon}
-        label={data.label || meta.label}
+        label={data.label || metaLabel}
         status={status}
         hideLabel={hideLabel}
         mode={declaredMode}
@@ -443,6 +455,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
 // ── Special nodes ──────────────────────────────────────────────────────────────
 
 export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const declaredMode: CardMode = data.cardMode ?? 'detail'
   const measuredWidth = useNodeWidth()
   const mode = effectiveMode(declaredMode, measuredWidth)
@@ -451,18 +464,18 @@ export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHa
     <NodeCard selected={selected}>
       <NodeHeader
         icon={<LogIn size={12} />}
-        label={data.label || '输入'}
+        label={data.label || t('canvas.nodeLabels.input')}
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={!hideLabel ? <span className="text-[9px] text-muted-foreground shrink-0 font-medium">输入</span> : undefined}
+        actions={!hideLabel ? <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.input')}</span> : undefined}
       />
       {mode !== 'compact' && (
         <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
           <ParamMeta name={data.paramName ?? 'input'} type={data.paramType ?? 'text'} />
           {data.inputValue
             ? <span className="text-foreground block break-words">{data.inputValue}</span>
-            : <span className="italic text-muted-foreground/40">运行时填写</span>}
+            : <span className="italic text-muted-foreground/40">{t('canvas.fillAtRuntime')}</span>}
         </div>
       )}
       <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
@@ -471,6 +484,7 @@ export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 }
 
 export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const declaredMode: CardMode = data.cardMode ?? 'detail'
   const measuredWidth = useNodeWidth()
@@ -482,19 +496,19 @@ export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithH
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<LogOut size={12} />}
-        label={data.label || '输出'}
+        label={data.label || t('canvas.nodeLabels.output')}
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={!hideLabel ? <span className="text-[9px] text-muted-foreground shrink-0 font-medium">输出</span> : undefined}
+        actions={!hideLabel ? <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.output')}</span> : undefined}
       />
       {mode !== 'compact' && (
         <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
           <ParamMeta name={data.paramName ?? 'output'} type={data.paramType ?? 'resource'} />
           <div className="flex items-center justify-between gap-2">
             {hasOutput
-              ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> 已生成</span>
-              : <span className="italic text-muted-foreground/40">等待上游结果</span>}
+              ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.generated')}</span>
+              : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
             {hasOutput && data.onPush && <PushBtn onClick={data.onPush} />}
           </div>
         </div>
@@ -504,6 +518,7 @@ export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithH
 }
 
 export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const approvalStatus = data.approvalStatus ?? 'waiting'
   const declaredMode: CardMode = data.cardMode ?? 'detail'
   const measuredWidth = useNodeWidth()
@@ -514,26 +529,26 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<UserCheck size={12} />}
-        label={data.label || '人工确认'}
+        label={data.label || t('canvas.nodeLabels.approval')}
         accent="bg-amber-50 dark:bg-amber-950/30"
         hideLabel={hideLabel}
         mode={declaredMode}
         onCycleMode={data.onCycleMode}
-        actions={!hideLabel && approvalStatus === 'waiting' ? <span className="text-[9px] text-amber-600 shrink-0">等待</span> : undefined}
+        actions={!hideLabel && approvalStatus === 'waiting' ? <span className="text-[9px] text-amber-600 shrink-0">{t('canvas.approval.waiting')}</span> : undefined}
       />
       {mode !== 'compact' && (
         <div className="flex-1 px-3 py-2 rounded-b-xl">
-          {approvalStatus === 'approved' && <span className="text-emerald-600 flex items-center gap-1"><Check size={10} /> 已通过</span>}
-          {approvalStatus === 'rejected' && <span className="text-destructive flex items-center gap-1"><X size={10} /> 已拒绝</span>}
+          {approvalStatus === 'approved' && <span className="text-emerald-600 flex items-center gap-1"><Check size={10} /> {t('canvas.approval.approved')}</span>}
+          {approvalStatus === 'rejected' && <span className="text-destructive flex items-center gap-1"><X size={10} /> {t('canvas.approval.rejected')}</span>}
           {approvalStatus === 'waiting' && (
             <div className="flex gap-1.5 mt-0.5">
               <button onMouseDown={e => { e.stopPropagation(); data.onApprove?.() }}
                 className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-[10px] transition-colors">
-                <Check size={9} /> 通过
+                <Check size={9} /> {t('canvas.approval.approve')}
               </button>
               <button onMouseDown={e => { e.stopPropagation(); data.onReject?.() }}
                 className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-[10px] transition-colors">
-                <X size={9} /> 拒绝
+                <X size={9} /> {t('canvas.approval.reject')}
               </button>
             </div>
           )}
@@ -545,6 +560,7 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
 }
 
 export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const declaredMode: CardMode = data.cardMode ?? 'detail'
   const measuredWidth = useNodeWidth()
@@ -555,7 +571,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<Sparkles size={12} />}
-        label={data.label || 'AI 文本生成'}
+        label={data.label || t('canvas.nodeLabels.text_gen')}
         status={status}
         accent="bg-violet-50 dark:bg-violet-950/30"
         hideLabel={hideLabel}
@@ -567,7 +583,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
         <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
           {data.prompt
             ? <span className="text-muted-foreground break-words">{data.prompt}</span>
-            : <span className="italic text-muted-foreground/40">无提示词</span>}
+            : <span className="italic text-muted-foreground/40">{t('canvas.noPrompt')}</span>}
         </div>
       )}
       {mode === 'full' && (
@@ -594,13 +610,14 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
 // ── AI Gen node ────────────────────────────────────────────────────────────────
 
 const OUTPUT_TYPES: Array<{ value: 'image' | 'video' | 'text' | 'audio'; icon: React.ReactNode; label: string }> = [
-  { value: 'image', icon: <Image size={10} />, label: '图' },
-  { value: 'video', icon: <Video size={10} />, label: '视频' },
-  { value: 'text',  icon: <FileText size={10} />, label: '文' },
-  { value: 'audio', icon: <Music size={10} />, label: '音' },
+  { value: 'image', icon: <Image size={10} />, label: 'canvas.outputTypes.image' },
+  { value: 'video', icon: <Video size={10} />, label: 'canvas.outputTypes.video' },
+  { value: 'text',  icon: <FileText size={10} />, label: 'canvas.outputTypes.text' },
+  { value: 'audio', icon: <Music size={10} />, label: 'canvas.outputTypes.audio' },
 ]
 
 export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const outputType = (data.outputType ?? 'image') as 'image' | 'video'
   const declaredMode: CardMode = data.cardMode ?? 'detail'
@@ -616,7 +633,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       <Handle type="target" position={Position.Left} style={targetHandleStyle} />
       <NodeHeader
         icon={<Sparkles size={12} />}
-        label={data.label || 'AI 生成'}
+        label={data.label || t('canvas.nodeLabels.ai_gen')}
         status={status}
         hideLabel={hideLabel}
         mode={declaredMode}
@@ -628,16 +645,16 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       />
       {mode !== 'compact' && (
         <div className="flex gap-1 px-3 py-2 border-b border-border/50">
-          {OUTPUT_TYPES.map(t => (
-            <button key={t.value}
-              onClick={e => { e.stopPropagation(); data.onUpdateOutputType?.(t.value) }}
+          {OUTPUT_TYPES.map((option) => (
+            <button key={option.value}
+              onClick={e => { e.stopPropagation(); data.onUpdateOutputType?.(option.value) }}
               className={cn(
                 'flex-1 flex items-center justify-center gap-0.5 py-1 rounded-md text-[10px] border transition-colors',
-                outputType === t.value
+                outputType === option.value
                   ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               )}>
-              {t.icon} {t.label}
+              {option.icon} {t(option.label)}
             </button>
           ))}
         </div>
@@ -675,6 +692,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 // ── Group node ─────────────────────────────────────────────────────────────────
 
 export function GroupNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
   return (
     <div className={cn(
       'rounded-lg border border-dashed bg-background/35 transition-colors w-full h-full backdrop-blur-[1px]',
@@ -687,7 +705,7 @@ export function GroupNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       />
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
-        <span className="text-xs font-medium text-muted-foreground">{data.groupLabel || data.label || '分组'}</span>
+        <span className="text-xs font-medium text-muted-foreground">{data.groupLabel || data.label || t('canvas.nodeLabels.group')}</span>
       </div>
     </div>
   )

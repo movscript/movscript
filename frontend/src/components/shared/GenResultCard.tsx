@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Loader2, AlertCircle, RotateCcw, CheckCircle2, X } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { MediaViewer } from './MediaViewer'
@@ -57,12 +58,12 @@ export function PromptText({ text, className }: { text: string; className?: stri
   )
 }
 
-export function formatGenTime(iso: string): string {
+export function formatGenTime(iso: string, t: (key: string, options?: Record<string, unknown>) => string, locale: string): string {
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
-  return new Date(iso).toLocaleDateString('zh-CN')
+  if (diff < 60_000) return t('pages.jobs.time.justNow')
+  if (diff < 3_600_000) return t('pages.jobs.time.minutesAgo', { count: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('pages.jobs.time.hoursAgo', { count: Math.floor(diff / 3_600_000) })
+  return new Date(iso).toLocaleDateString(locale)
 }
 
 export interface GenResultCardProps {
@@ -89,15 +90,17 @@ export function GenResultCard({
   compact = false,
   className,
 }: GenResultCardProps) {
+  const { t, i18n } = useTranslation()
   const isRunning = status === 'pending' || status === 'running'
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
   const statusLabel: Record<string, string> = {
-    pending: '排队中',
-    running: '生成中',
-    done: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
-    idle: '未开始',
+    pending: t('pages.jobs.status.pending'),
+    running: t('pages.jobs.status.running'),
+    done: t('canvas.status.done'),
+    failed: t('canvas.status.failed'),
+    cancelled: t('pages.jobs.status.cancelled'),
+    idle: t('canvas.status.notRun'),
   }
 
   return (
@@ -123,7 +126,7 @@ export function GenResultCard({
                 {statusLabel[status]}
               </span>
               {timestamp && (
-                <span className="text-[11px] text-muted-foreground/60 truncate">{formatGenTime(timestamp)}</span>
+                <span className="text-[11px] text-muted-foreground/60 truncate">{formatGenTime(timestamp, t, locale)}</span>
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -131,7 +134,7 @@ export function GenResultCard({
               {onReuse && (
                 <button
                   onClick={onReuse}
-                  title="复用此提示词"
+                  title={t('shared.genResult.reusePrompt')}
                   className="text-muted-foreground/60 hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
                 >
                   <RotateCcw size={13} />
@@ -145,7 +148,7 @@ export function GenResultCard({
             </p>
           </div>
           {timestamp && !compact && (
-            <span className="text-xs text-muted-foreground/50">{formatGenTime(timestamp)}</span>
+            <span className="text-xs text-muted-foreground/50">{formatGenTime(timestamp, t, locale)}</span>
           )}
         </div>
       )}
@@ -156,7 +159,7 @@ export function GenResultCard({
           <div className={cn('flex items-center justify-center rounded-md bg-muted/40', compact ? 'h-24' : 'py-10')}>
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 size={compact ? 16 : 22} className="animate-spin" />
-              <p className="text-xs">{status === 'pending' ? '等待开始…' : '生成中…'}</p>
+              <p className="text-xs">{status === 'pending' ? t('shared.generation.waitingStart') : t('pages.jobs.generating')}</p>
             </div>
           </div>
         )}
@@ -164,14 +167,14 @@ export function GenResultCard({
         {!isRunning && status === 'failed' && (
           <div className={cn('flex items-center justify-center gap-2 text-destructive rounded-md bg-destructive/5', compact ? 'min-h-20 px-3 py-4' : 'py-6')}>
             <AlertCircle size={compact ? 12 : 16} />
-            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? '生成失败'}</p>
+            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? t('pages.jobs.generationFailed')}</p>
           </div>
         )}
 
         {!isRunning && status === 'cancelled' && (
           <div className={cn('flex items-center justify-center gap-2 text-muted-foreground rounded-md bg-muted/40', compact ? 'min-h-20 px-3 py-4' : 'py-6')}>
             <X size={compact ? 12 : 16} />
-            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? '任务已取消'}</p>
+            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? t('pages.jobs.taskCancelled')}</p>
           </div>
         )}
 
@@ -193,7 +196,7 @@ export function GenResultCard({
 }
 
 // ── MediaCell ─────────────────────────────────────────────────────────────────
-// 4:3 容器，内容居中不裁剪，点击弹出灯箱
+// 4:3 container, centered without cropping, opens a lightbox on click.
 
 function MediaCell({
   outputResource,

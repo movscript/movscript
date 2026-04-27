@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { AgentConfigTab } from './AgentConfigTab'
 import { DebugPage } from './DebugPage'
+import { useTranslation } from 'react-i18next'
+import { translateApiError } from '@/lib/apiError'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,11 +28,11 @@ type ModelEditForm = {
   supported_params: string
 }
 
-const BILLING_LABELS: Record<string, string> = {
-  per_token: '按 token',
-  per_image: '按张',
-  per_second: '按秒',
-  per_call: '按次',
+const BILLING_LABEL_KEYS: Record<string, string> = {
+  per_token: 'admin.billing.perToken',
+  per_image: 'admin.billing.perImage',
+  per_second: 'admin.billing.perSecond',
+  per_call: 'admin.billing.perCall',
 }
 
 type PriceDef = {
@@ -41,16 +43,16 @@ type PriceDef = {
   ref_usd_per_second?: number
 }
 
-function refPriceHint(def: PriceDef): string {
+function refPriceHint(def: PriceDef, t: (key: string, values?: Record<string, unknown>) => string): string {
   switch (def.billing_mode) {
     case 'per_token':
       return def.ref_input_usd_per_1m || def.ref_output_usd_per_1m
-        ? `参考: $${def.ref_input_usd_per_1m ?? 0}/$${def.ref_output_usd_per_1m ?? 0} USD/1M token`
+        ? t('admin.billing.referenceToken', { input: def.ref_input_usd_per_1m ?? 0, output: def.ref_output_usd_per_1m ?? 0 })
         : ''
     case 'per_image':
-      return def.ref_usd_per_image ? `参考: $${def.ref_usd_per_image} USD/张` : ''
+      return def.ref_usd_per_image ? t('admin.billing.referenceImage', { price: def.ref_usd_per_image }) : ''
     case 'per_second':
-      return def.ref_usd_per_second ? `参考: $${def.ref_usd_per_second} USD/秒` : ''
+      return def.ref_usd_per_second ? t('admin.billing.referenceSecond', { price: def.ref_usd_per_second }) : ''
     default:
       return ''
   }
@@ -67,11 +69,13 @@ function AdapterPicker({
   onPick: (a: AdapterDef) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <div className="border border-border rounded-lg p-4 bg-card space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">选择适配器</p>
-        <button onClick={onCancel} className="text-xs text-muted-foreground hover:text-foreground">取消</button>
+        <p className="text-sm font-medium">{t('admin.credentials.selectAdapter')}</p>
+        <button onClick={onCancel} className="text-xs text-muted-foreground hover:text-foreground">{t('common.cancel')}</button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {adapters.map((a) => (
@@ -100,6 +104,7 @@ function CredentialForm({
   onBack: () => void
   onSuccess: () => void
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [displayName, setDisplayName] = useState(adapter.display_name)
   const [fields, setFields] = useState<Record<string, string>>({})
@@ -153,11 +158,11 @@ function CredentialForm({
         <button onClick={onBack} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft size={15} />
         </button>
-        <p className="text-sm font-medium">配置 {adapter.display_name}</p>
+        <p className="text-sm font-medium">{t('admin.credentials.configureAdapter', { name: adapter.display_name })}</p>
       </div>
 
       <Input
-        placeholder="显示名称"
+        placeholder={t('agents.displayNameOptional')}
         value={displayName}
         onChange={(e) => setDisplayName(e.target.value)}
       />
@@ -195,7 +200,7 @@ function CredentialForm({
       {testState.result && (
         <p className={`text-xs ${testState.result.success ? 'text-foreground' : 'text-destructive'}`}>
           {testState.result.success
-            ? `✓ 连接正常 (${testState.result.latency_ms}ms)`
+            ? t('admin.credentials.connectionOk', { latency: testState.result.latency_ms })
             : `✗ ${testState.result.message}`}
         </p>
       )}
@@ -211,14 +216,14 @@ function CredentialForm({
                 onChange={(e) => setFilesAPIEnabled(e.target.checked)}
                 className="rounded"
               />
-              <span className="font-medium">启用 Files API 预上传</span>
+              <span className="font-medium">{t('admin.credentials.enableFilesAPI')}</span>
             </label>
-            <span className="text-xs text-muted-foreground">（上传图片至服务商 /files，再传 file_id 给模型，避免 multipart 超大体积）</span>
+            <span className="text-xs text-muted-foreground">{t('admin.credentials.filesAPIHint')}</span>
           </div>
           {filesAPIEnabled && (
             <div className="space-y-2 pt-1">
               <div>
-                <Label className="text-xs text-muted-foreground block mb-1">Files API Base URL（留空则使用上方 Base URL）</Label>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.credentials.filesAPIBaseURL')}</Label>
                 <Input
                   placeholder={fields['base_url'] || adapter.default_base_url || 'https://api.x.ai/v1'}
                   value={filesAPIBaseURL}
@@ -227,10 +232,10 @@ function CredentialForm({
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground block mb-1">Files API Key（留空则使用上方 API Key）</Label>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.credentials.filesAPIKey')}</Label>
                 <Input
                   type="password"
-                  placeholder="留空则复用主凭据 API Key"
+                  placeholder={t('admin.credentials.filesAPIKeyPlaceholder')}
                   value={filesAPIKey}
                   onChange={(e) => setFilesAPIKey(e.target.value)}
                   className="text-xs"
@@ -247,16 +252,16 @@ function CredentialForm({
           disabled={create.isPending || testState.loading}
           className="flex-1 bg-primary text-primary-foreground rounded px-4 py-2 text-sm hover:bg-primary/90 disabled:opacity-50"
         >
-          {testState.loading ? '测试中…' : '接入并测试'}
+          {testState.loading ? t('admin.credentials.testing') : t('admin.credentials.createAndTest')}
         </button>
         <Button
           onClick={() => create.mutate(buildPayload())}
           disabled={create.isPending || testState.loading}
         >
-          {create.isPending ? '…' : '直接创建'}
+          {create.isPending ? '…' : t('admin.credentials.createDirectly')}
         </Button>
         <Button variant="outline" onClick={onBack}>
-          返回
+          {t('common.back')}
         </Button>
       </div>
     </div>
@@ -279,21 +284,22 @@ function defaultPriceForm(): PriceForm {
 }
 
 function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; onChange: (f: PriceForm) => void }) {
+  const { t } = useTranslation()
   const mode = def.billing_mode
-  const hint = refPriceHint(def)
+  const hint = refPriceHint(def, t)
   return (
     <div className="space-y-2">
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       {mode === 'per_token' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground block mb-0.5">输入 credits/百万 token</Label>
+            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.pricing.inputCreditsPer1m')}</Label>
             <Input type="number" min="0" step="0.01" className="text-xs"
               value={form.credits_input_per_1m}
               onChange={(e) => onChange({ ...form, credits_input_per_1m: Number(e.target.value) })} />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground block mb-0.5">输出 credits/百万 token</Label>
+            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.pricing.outputCreditsPer1m')}</Label>
             <Input type="number" min="0" step="0.01" className="text-xs"
               value={form.credits_output_per_1m}
               onChange={(e) => onChange({ ...form, credits_output_per_1m: Number(e.target.value) })} />
@@ -302,7 +308,7 @@ function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; 
       )}
       {mode === 'per_image' && (
         <div>
-          <Label className="text-xs text-muted-foreground block mb-0.5">credits/张</Label>
+          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.pricing.creditsPerImage')}</Label>
           <Input type="number" min="0" step="0.001" className="text-xs"
             value={form.credits_per_image}
             onChange={(e) => onChange({ ...form, credits_per_image: Number(e.target.value) })} />
@@ -310,7 +316,7 @@ function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; 
       )}
       {mode === 'per_second' && (
         <div>
-          <Label className="text-xs text-muted-foreground block mb-0.5">credits/秒（视频时长计费）</Label>
+          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.pricing.creditsPerSecond')}</Label>
           <Input type="number" min="0" step="0.001" className="text-xs"
             value={form.credits_per_second}
             onChange={(e) => onChange({ ...form, credits_per_second: Number(e.target.value) })} />
@@ -318,7 +324,7 @@ function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; 
       )}
       {mode === 'per_call' && (
         <div>
-          <Label className="text-xs text-muted-foreground block mb-0.5">credits/次</Label>
+          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.pricing.creditsPerCall')}</Label>
           <Input type="number" min="0" step="0.01" className="text-xs"
             value={form.credits_per_call}
             onChange={(e) => onChange({ ...form, credits_per_call: Number(e.target.value) })} />
@@ -393,26 +399,30 @@ function splitOptions(value: string): string[] {
 }
 
 const PARAM_TEMPLATES: Record<string, ParamDef> = {
-  aspect_ratio: { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
-  duration: { key: 'duration', label: '时长(秒)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
-  image_size: { key: 'image_size', label: '画面尺寸', type: 'select', options: ['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280'], default: '1024x1024' },
-  resolution: { key: 'resolution', label: '清晰度', type: 'select', options: ['480p', '720p', '1080p'], default: '720p' },
-  quality: { key: 'quality', label: '质量', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'auto' },
-  style: { key: 'style', label: '风格', type: 'select', options: ['vivid', 'natural'], default: 'vivid' },
-  seed: { key: 'seed', label: '种子', type: 'number', default: -1, min: -1, max: 2147483647, step: 1 },
-  prompt_strength: { key: 'prompt_strength', label: '提示词强度', type: 'number', default: 2.5, min: 1, max: 10, step: 0.1 },
-  watermark: { key: 'watermark', label: '水印', type: 'boolean', default: false },
-  image_count: { key: 'image_count', label: '生成张数', type: 'number', default: 1, min: 1, max: 15, step: 1 },
-  output_format: { key: 'output_format', label: '输出格式', type: 'select', options: ['jpeg', 'png', 'webp'], default: 'jpeg' },
-  web_search: { key: 'web_search', label: '联网搜索', type: 'boolean', default: false },
-  fixed_camera: { key: 'fixed_camera', label: '固定镜头', type: 'boolean', default: false },
-  audio: { key: 'audio', label: '生成音频', type: 'boolean', default: true },
-  return_last_frame: { key: 'return_last_frame', label: '返回尾帧', type: 'boolean', default: false },
-  service_tier: { key: 'service_tier', label: '服务等级', type: 'select', options: ['default', 'flex'], default: 'default' },
-  frames: { key: 'frames', label: '帧数', type: 'number', min: 29, max: 289, step: 4 },
-  execution_expires_after: { key: 'execution_expires_after', label: '过期时间(秒)', type: 'number', min: 1, step: 1 },
-  preset: { key: 'preset', label: '预设', type: 'select', options: ['normal', 'fun', 'spicy', 'custom'], default: 'normal' },
-  draft: { key: 'draft', label: '样片模式', type: 'boolean', default: false },
+  aspect_ratio: { key: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
+  duration: { key: 'duration', label: 'Duration (seconds)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
+  image_size: { key: 'image_size', label: 'Image Size', type: 'select', options: ['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280'], default: '1024x1024' },
+  resolution: { key: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '720p', '1080p'], default: '720p' },
+  quality: { key: 'quality', label: 'Quality', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'auto' },
+  style: { key: 'style', label: 'Style', type: 'select', options: ['vivid', 'natural'], default: 'vivid' },
+  seed: { key: 'seed', label: 'Seed', type: 'number', default: -1, min: -1, max: 2147483647, step: 1 },
+  prompt_strength: { key: 'prompt_strength', label: 'Prompt Strength', type: 'number', default: 2.5, min: 1, max: 10, step: 0.1 },
+  watermark: { key: 'watermark', label: 'Watermark', type: 'boolean', default: false },
+  image_count: { key: 'image_count', label: 'Image Count', type: 'number', default: 1, min: 1, max: 15, step: 1 },
+  output_format: { key: 'output_format', label: 'Output Format', type: 'select', options: ['jpeg', 'png', 'webp'], default: 'jpeg' },
+  web_search: { key: 'web_search', label: 'Web Search', type: 'boolean', default: false },
+  fixed_camera: { key: 'fixed_camera', label: 'Fixed Camera', type: 'boolean', default: false },
+  audio: { key: 'audio', label: 'Generate Audio', type: 'boolean', default: true },
+  return_last_frame: { key: 'return_last_frame', label: 'Return Last Frame', type: 'boolean', default: false },
+  service_tier: { key: 'service_tier', label: 'Service Tier', type: 'select', options: ['default', 'flex'], default: 'default' },
+  frames: { key: 'frames', label: 'Frames', type: 'number', min: 29, max: 289, step: 4 },
+  execution_expires_after: { key: 'execution_expires_after', label: 'Expiration (seconds)', type: 'number', min: 1, step: 1 },
+  preset: { key: 'preset', label: 'Preset', type: 'select', options: ['normal', 'fun', 'spicy', 'custom'], default: 'normal' },
+  draft: { key: 'draft', label: 'Draft Mode', type: 'boolean', default: false },
+}
+
+function paramTemplateLabel(key: string, fallback: string, t: (key: string, values?: Record<string, unknown>) => string) {
+  return t(`admin.params.templates.${key}`, { defaultValue: fallback })
 }
 
 function paramTemplateFor(key: string): ParamDef | null {
@@ -437,6 +447,7 @@ function adapterParamsForCapabilities(adapter: AdapterDef | undefined, capabilit
 }
 
 function ParamBuilder({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const { t } = useTranslation()
   const params = parseParamDefs(value)
   const update = (index: number, patch: Partial<ParamDef>) => {
     const next = params.map((p, i) => i === index ? { ...p, ...patch } : p)
@@ -445,63 +456,63 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
   const remove = (index: number) => onChange(serializeParamDefs(params.filter((_, i) => i !== index)))
   const add = () => onChange(serializeParamDefs([
     ...params,
-    PARAM_TEMPLATES.aspect_ratio,
+    { ...PARAM_TEMPLATES.aspect_ratio, label: paramTemplateLabel('aspect_ratio', PARAM_TEMPLATES.aspect_ratio.label, t) },
   ]))
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">生成参数</p>
+        <p className="text-xs text-muted-foreground">{t('admin.params.title')}</p>
         <button onClick={add} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <Plus size={11} /> 添加参数
+          <Plus size={11} /> {t('admin.params.add')}
         </button>
       </div>
       {params.length === 0 && (
         <p className="text-xs text-muted-foreground/70 rounded border border-dashed border-border px-3 py-2">
-          未配置生成参数。添加后用户会在生成面板看到对应的选择框、数字输入或开关。
+          {t('admin.params.empty')}
         </p>
       )}
       {params.map((param, index) => (
         <div key={`${param.key}-${index}`} className="rounded border border-border bg-background p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs text-muted-foreground block mb-0.5">抽象参数</Label>
+              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.abstractParam')}</Label>
               <select
                 value={paramTemplateFor(param.key) ? param.key : '__custom'}
                 onChange={(e) => {
                   const tmpl = PARAM_TEMPLATES[e.target.value]
-                  if (tmpl) update(index, { ...tmpl })
+                  if (tmpl) update(index, { ...tmpl, label: paramTemplateLabel(tmpl.key, tmpl.label, t) })
                 }}
                 className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
               >
                 {Object.values(PARAM_TEMPLATES).map((tmpl) => (
-                  <option key={tmpl.key} value={tmpl.key}>{tmpl.label}</option>
+                  <option key={tmpl.key} value={tmpl.key}>{paramTemplateLabel(tmpl.key, tmpl.label, t)}</option>
                 ))}
                 {!paramTemplateFor(param.key) && <option value="__custom">{param.label || param.key}</option>}
               </select>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground block mb-0.5">显示名称</Label>
-              <Input className="text-xs" value={param.label} onChange={(e) => update(index, { label: e.target.value })} placeholder="视频时长" />
+              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
+              <Input className="text-xs" value={param.label} onChange={(e) => update(index, { label: e.target.value })} placeholder={t('admin.params.displayNamePlaceholder')} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
             <div>
-              <Label className="text-xs text-muted-foreground block mb-0.5">控件类型</Label>
+              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.controlType')}</Label>
               <select
                 value={param.type}
                 onChange={(e) => update(index, { type: e.target.value as ParamDef['type'], options: e.target.value === 'select' ? (param.options?.length ? param.options : ['16:9', '9:16']) : undefined })}
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs"
               >
-                <option value="select">下拉选项</option>
-                <option value="number">数字输入</option>
-                <option value="boolean">开关</option>
+                <option value="select">{t('admin.params.controlTypes.select')}</option>
+                <option value="number">{t('admin.params.controlTypes.number')}</option>
+                <option value="boolean">{t('admin.params.controlTypes.boolean')}</option>
               </select>
             </div>
             {param.type === 'select' && (
               <>
                 <div className="flex-1 min-w-48">
-                  <Label className="text-xs text-muted-foreground block mb-0.5">可选值</Label>
+                  <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.options')}</Label>
                   <Input
                     className="text-xs font-mono"
                     value={(param.options ?? []).join(', ')}
@@ -510,7 +521,7 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
                   />
                 </div>
                 <div className="w-32">
-                  <Label className="text-xs text-muted-foreground block mb-0.5">默认值</Label>
+                  <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.defaultValue')}</Label>
                   <Input className="text-xs font-mono" value={String(param.default ?? '')} onChange={(e) => update(index, { default: e.target.value })} />
                 </div>
               </>
@@ -533,11 +544,11 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
             {param.type === 'boolean' && (
               <label className="flex items-center gap-2 text-xs cursor-pointer h-8">
                 <input type="checkbox" checked={Boolean(param.default)} onChange={(e) => update(index, { default: e.target.checked })} className="rounded" />
-                默认开启
+                {t('admin.params.defaultOn')}
               </label>
             )}
             <button onClick={() => remove(index)} className="text-xs text-muted-foreground hover:text-destructive h-8 px-2">
-              删除
+              {t('common.delete')}
             </button>
           </div>
         </div>
@@ -549,6 +560,7 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
 // ── Model Management Tab ──────────────────────────────────────────────────────
 
 function ModelManagementTab() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [addStep, setAddStep] = useState<'idle' | 'pick' | 'fill'>('idle')
   const [selectedAdapter, setSelectedAdapter] = useState<AdapterDef | null>(null)
@@ -727,7 +739,7 @@ function ModelManagementTab() {
       const res = await api.get(`/admin/credentials/${credId}/remote-models`).then((r) => r.data)
       setRemoteModels(res.models ?? [])
     } catch (e: any) {
-      setRemoteError(e?.response?.data?.error ?? String(e))
+      setRemoteError(translateApiError(e?.response?.data))
     } finally {
       setRemoteFetching(false)
     }
@@ -762,14 +774,14 @@ function ModelManagementTab() {
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">AI 接口配置</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">管理凭据、启用模型、配置计费单价</p>
+          <h2 className="text-base font-semibold text-foreground">{t('admin.models.title')}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.models.description')}</p>
         </div>
         {addStep === 'idle' && (
           <Button
             onClick={() => setAddStep('pick')}
           >
-            <Plus size={14} className="mr-1.5" /> 添加凭据
+            <Plus size={14} className="mr-1.5" /> {t('admin.models.addCredential')}
           </Button>
         )}
       </div>
@@ -836,7 +848,7 @@ function ModelManagementTab() {
                         <button
                           onClick={() => { setEditingNameId(cred.ID); setEditingNameValue(cred.display_name) }}
                           className="text-muted-foreground/40 hover:text-muted-foreground"
-                          title="修改名称"
+                          title={t('admin.models.renameCredential')}
                         >
                           <Pencil size={12} />
                         </button>
@@ -846,7 +858,7 @@ function ModelManagementTab() {
                       {getAdapterLabel(cred.adapter_type)}
                     </span>
                     {cred.models && cred.models.length > 0 && (
-                      <span className="text-xs text-muted-foreground">{cred.models.length} 个模型</span>
+                      <span className="text-xs text-muted-foreground">{t('admin.models.modelsCount', { count: cred.models.length })}</span>
                     )}
                   </div>
                   {cred.base_url && <p className="text-xs text-muted-foreground truncate">{cred.base_url}</p>}
@@ -866,23 +878,23 @@ function ModelManagementTab() {
                   disabled={testingId === testKey}
                   className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5"
                 >
-                  {testingId === testKey ? '测试中…' : '连接测试'}
+                  {testingId === testKey ? t('admin.credentials.testing') : t('admin.models.connectionTest')}
                 </button>
                 {testRes && (
                   <span className={cn('text-xs', testRes.success ? 'text-foreground' : 'text-destructive')}>
-                    {testRes.success ? `✓ ${testRes.latency_ms}ms` : `✗ 失败`}
+                    {testRes.success ? `✓ ${testRes.latency_ms}ms` : t('admin.models.testFailedMark')}
                   </span>
                 )}
 
                 <button
                   onClick={() => toggleCredential.mutate({ id: cred.ID, is_enabled: !cred.is_enabled })}
-                  title={cred.is_enabled ? '点击禁用此凭据' : '点击启用此凭据'}
+                  title={cred.is_enabled ? t('admin.models.disableCredentialTitle') : t('admin.models.enableCredentialTitle')}
                   className={cn('text-xs px-2 py-0.5 rounded-full border transition-colors',
                     cred.is_enabled
                       ? 'border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400'
                       : 'border-border bg-muted text-muted-foreground hover:border-ring/50')}
                 >
-                  {cred.is_enabled ? '● 已启用' : '○ 已禁用'}
+                  {cred.is_enabled ? t('admin.models.enabledMark') : t('admin.models.disabledMark')}
                 </button>
                 <button onClick={() => deleteCredential.mutate(cred.ID)} className="text-muted-foreground hover:text-destructive">
                   <Trash2 size={14} />
@@ -894,32 +906,32 @@ function ModelManagementTab() {
                 <div className="border-t border-border px-4 py-3 space-y-3 bg-card">
                   <div className="border border-border rounded-lg bg-background p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium text-muted-foreground">接口凭据</p>
+                      <p className="text-xs font-medium text-muted-foreground">{t('admin.models.credentialAuth')}</p>
                       <button
                         onClick={() => credentialEditFor === cred.ID ? setCredentialEditFor(null) : openCredentialAuthEdit(cred)}
                         className="text-xs text-muted-foreground hover:text-foreground"
                       >
-                        {credentialEditFor === cred.ID ? '收起' : '编辑'}
+                        {credentialEditFor === cred.ID ? t('admin.models.collapse') : t('admin.models.edit')}
                       </button>
                     </div>
 
                     {credentialEditFor !== cred.ID ? (
                       <div className="grid gap-1 text-xs text-muted-foreground">
                         <p className="truncate">
-                          Base URL: <span className="font-mono">{cred.base_url || adapter?.default_base_url || '未设置'}</span>
+                          {t('common.baseUrl')}: <span className="font-mono">{cred.base_url || adapter?.default_base_url || t('canvas.unset')}</span>
                         </p>
                         <p>
-                          API Key: <span className="font-mono">{cred.masked_key || '未设置'}</span>
+                          {t('common.apiKey')}: <span className="font-mono">{cred.masked_key || t('canvas.unset')}</span>
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         <div>
-                          <Label className="text-xs text-muted-foreground block mb-1">Base URL</Label>
+                          <Label className="text-xs text-muted-foreground block mb-1">{t('common.baseUrl')}</Label>
                           <Input
                             value={credentialEditFields.base_url ?? ''}
                             onChange={(e) => setCredentialEditFields((f) => ({ ...f, base_url: e.target.value }))}
-                            placeholder={adapter?.default_base_url || '留空使用适配器默认地址'}
+                            placeholder={adapter?.default_base_url || t('admin.models.useAdapterDefaultUrl')}
                             className="text-xs"
                           />
                         </div>
@@ -930,14 +942,14 @@ function ModelManagementTab() {
                               type="password"
                               value={credentialEditFields[field.key] ?? ''}
                               onChange={(e) => setCredentialEditFields((f) => ({ ...f, [field.key]: e.target.value }))}
-                              placeholder={field.key === 'api_key' && cred.masked_key ? `留空不修改（当前 ${cred.masked_key}）` : '留空不修改'}
+                              placeholder={field.key === 'api_key' && cred.masked_key ? t('admin.models.leaveBlankKeepCurrent', { value: cred.masked_key }) : t('admin.models.leaveBlankKeep')}
                               className="text-xs"
                             />
                           </div>
                         ))}
                         {updateCredentialAuth.isError && (
                           <p className="text-xs text-destructive">
-                            {String((updateCredentialAuth.error as any)?.response?.data?.error ?? (updateCredentialAuth.error as Error)?.message)}
+                            {translateApiError((updateCredentialAuth.error as any)?.response?.data)}
                           </p>
                         )}
                         <div className="flex gap-2">
@@ -946,14 +958,14 @@ function ModelManagementTab() {
                             disabled={updateCredentialAuth.isPending}
                             onClick={() => updateCredentialAuth.mutate({ id: cred.ID, fields: credentialEditFields })}
                           >
-                            {updateCredentialAuth.isPending ? '保存中…' : '保存'}
+                            {updateCredentialAuth.isPending ? t('common.saving') : t('common.save')}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => { setCredentialEditFor(null); setCredentialEditFields({}) }}
                           >
-                            取消
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       </div>
@@ -961,13 +973,13 @@ function ModelManagementTab() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">已启用模型</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t('admin.models.enabledModels')}</p>
                     {addingFor !== cred.ID && (
                       <button
                         onClick={() => openAddPanel(cred.ID)}
                         className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                       >
-                        <Plus size={12} /> 添加模型
+                        <Plus size={12} /> {t('admin.models.addModel')}
                       </button>
                     )}
                   </div>
@@ -975,14 +987,14 @@ function ModelManagementTab() {
                   {/* Add model panel */}
                   {addingFor === cred.ID && (() => {
                     const capLabels: Record<string, string> = {
-                      text: '文本', reasoning: '推理', image: '图像', image_edit: '图像编辑',
-                      video: '文生视频', video_i2v: '图生视频', video_v2v: '视频转视频',
+                      text: t('admin.capabilities.text'), reasoning: t('admin.capabilities.reasoning'), image: t('admin.capabilities.image'), image_edit: t('admin.capabilities.imageEdit'),
+                      video: t('admin.capabilities.video'), video_i2v: t('admin.capabilities.videoI2V'), video_v2v: t('admin.capabilities.videoV2V'),
                     }
                     const billingOptions = [
-                      { value: 'per_token', label: '按 token' },
-                      { value: 'per_image', label: '按张' },
-                      { value: 'per_second', label: '按秒' },
-                      { value: 'per_call', label: '按次' },
+                      { value: 'per_token', label: t('admin.billing.perToken') },
+                      { value: 'per_image', label: t('admin.billing.perImage') },
+                      { value: 'per_second', label: t('admin.billing.perSecond') },
+                      { value: 'per_call', label: t('admin.billing.perCall') },
                     ]
                     const inferBilling = (caps: string[]) => {
                       if (caps.some(c => c === 'image' || c === 'image_edit')) return 'per_image'
@@ -1010,7 +1022,7 @@ function ModelManagementTab() {
                     return (
                       <div className="border border-border rounded bg-background p-3 space-y-3">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium text-foreground">添加模型</p>
+                          <p className="text-xs font-medium text-foreground">{t('admin.models.addModel')}</p>
                           <div className="flex items-center gap-2">
                             {filteredPresets.length > 0 && (
                               <button
@@ -1018,7 +1030,7 @@ function ModelManagementTab() {
                                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                               >
                                 <Sparkles size={11} />
-                                {showPresets ? '收起预设' : '从预设选'}
+                                {showPresets ? t('admin.models.collapsePresets') : t('admin.models.pickPreset')}
                               </button>
                             )}
                             <button
@@ -1027,7 +1039,7 @@ function ModelManagementTab() {
                               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-50"
                             >
                               <RefreshCw size={11} className={remoteFetching ? 'animate-spin' : ''} />
-                              从接口获取
+                              {t('admin.models.fetchFromApi')}
                             </button>
                           </div>
                         </div>
@@ -1035,7 +1047,7 @@ function ModelManagementTab() {
                         {/* Preset list — filtered by adapter type */}
                         {showPresets && filteredPresets.length > 0 && (
                           <div className="border border-border rounded bg-muted/20 p-2 space-y-1 max-h-48 overflow-y-auto">
-                            <p className="text-[10px] text-muted-foreground mb-1">选中后自动填充所有字段，可继续修改</p>
+                            <p className="text-[10px] text-muted-foreground mb-1">{t('admin.models.presetHint')}</p>
                             {filteredPresets.map((preset) => (
                               <button
                                 key={preset.id}
@@ -1051,12 +1063,12 @@ function ModelManagementTab() {
 
                         {/* Model ID input with remote list */}
                         <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">Model ID（发给 API 的模型标识）</Label>
+                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.modelIdLabel')}</Label>
                           <input
                             className="w-full text-xs border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                             value={addModelId}
                             onChange={(e) => setAddModelId(e.target.value)}
-                            placeholder="如 gpt-4o、gemini-2.0-flash、doubao-seed-2-0-pro-260215"
+                            placeholder={t('admin.models.modelIdPlaceholder')}
                           />
                         </div>
 
@@ -1080,17 +1092,17 @@ function ModelManagementTab() {
                         )}
 
                         <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">显示名称</Label>
+                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
                           <input
                             className="w-full text-xs border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                             value={addDisplayName}
                             onChange={(e) => setAddDisplayName(e.target.value)}
-                            placeholder={addModelId || '可选，留空使用 Model ID'}
+                            placeholder={addModelId || t('admin.models.displayNamePlaceholder')}
                           />
                         </div>
 
                         <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">能力类型（必填，可多选）</Label>
+                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capabilitiesLabel')}</Label>
                           <div className="flex flex-wrap gap-1.5">
                             {Object.entries(capLabels).map(([cap, label]) => (
                               <button
@@ -1121,7 +1133,7 @@ function ModelManagementTab() {
                         </div>
 
                         <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">计费模式</Label>
+                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.billingMode')}</Label>
                           <div className="flex gap-2 flex-wrap">
                             {billingOptions.map(opt => (
                               <button
@@ -1149,11 +1161,11 @@ function ModelManagementTab() {
                               onChange={e => setAddAcceptsImage(e.target.checked)}
                               className="rounded"
                             />
-                            接受图像输入
+                            {t('admin.models.acceptsImageInput')}
                           </label>
                           {addAcceptsImage && (
                             <div className="flex items-center gap-1.5">
-                              <Label className="text-xs text-muted-foreground">最多图片数</Label>
+                              <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
                               <input
                                 type="number"
                                 className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
@@ -1164,7 +1176,7 @@ function ModelManagementTab() {
                             </div>
                           )}
                           <div className="flex items-center gap-1.5">
-                            <Label className="text-xs text-muted-foreground">最多视频数</Label>
+                            <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
                             <input
                               type="number"
                               className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
@@ -1205,9 +1217,9 @@ function ModelManagementTab() {
                             size="sm"
                             className="flex-1"
                           >
-                            {addModel.isPending ? '…' : '添加'}
+                            {addModel.isPending ? '…' : t('admin.models.add')}
                           </Button>
-                          <Button variant="outline" size="sm" onClick={closeAddPanel}>取消</Button>
+                          <Button variant="outline" size="sm" onClick={closeAddPanel}>{t('common.cancel')}</Button>
                         </div>
                       </div>
                     )
@@ -1235,7 +1247,7 @@ function ModelManagementTab() {
                             <span className="text-muted-foreground">{caps.join(',')}</span>
                           )}
                           {billing && (
-                            <span className="text-muted-foreground/50">{BILLING_LABELS[billing] ?? billing}</span>
+                            <span className="text-muted-foreground/50">{BILLING_LABEL_KEYS[billing] ? t(BILLING_LABEL_KEYS[billing]) : billing}</span>
                           )}
                           <button
                             onClick={() => runTest(modelTestKey, () =>
@@ -1244,7 +1256,7 @@ function ModelManagementTab() {
                             disabled={testingId === modelTestKey}
                             className="text-muted-foreground/50 hover:text-foreground border border-border rounded px-1.5 py-0.5"
                           >
-                            {testingId === modelTestKey ? '…' : '测试'}
+                            {testingId === modelTestKey ? '…' : t('admin.models.test')}
                           </button>
                           {modelTestRes && (
                             <span className={cn('text-xs', modelTestRes.success ? 'text-foreground' : 'text-destructive')}>
@@ -1266,7 +1278,7 @@ function ModelManagementTab() {
                             }}
                             className="text-muted-foreground/50 hover:text-foreground"
                           >
-                            编辑
+                            {t('admin.models.edit')}
                           </button>
                           <button
                             onClick={() => deleteModelConfig.mutate({ credId: cred.ID, modelId: cfg.ID })}
@@ -1280,7 +1292,7 @@ function ModelManagementTab() {
                           <div className="border-t border-border px-3 py-2 space-y-2 bg-card">
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">显示名称</Label>
+                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
                                 <Input
                                   className="text-xs"
                                   value={editForm.display_name}
@@ -1289,20 +1301,20 @@ function ModelManagementTab() {
                                 />
                               </div>
                               <div>
-                                <Label className="text-xs text-muted-foreground block mb-0.5">Model ID Override</Label>
+                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('common.modelIdOverride')}</Label>
                                 <Input
                                   className="text-xs font-mono"
                                   value={editForm.model_id_override}
                                   onChange={(e) => setEditForm((f) => ({ ...f, model_id_override: e.target.value }))}
-                                  placeholder="如 ep-xxx"
+                                  placeholder={t('admin.features.modelIdOverrideShortPlaceholder')}
                                 />
                               </div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground block mb-0.5">能力类型</Label>
+                              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capabilitiesLabel')}</Label>
                               <div className="flex flex-wrap gap-1.5">
                                 {(['text', 'reasoning', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v'] as const).map((cap) => {
-                                  const label = { text: '文本', reasoning: '推理', image: '图像', image_edit: '图像编辑', video: '文生视频', video_i2v: '图生视频', video_v2v: '视频转视频' }[cap]
+                                  const labelKey = { text: 'admin.capabilities.text', reasoning: 'admin.capabilities.reasoning', image: 'admin.capabilities.image', image_edit: 'admin.capabilities.imageEdit', video: 'admin.capabilities.video', video_i2v: 'admin.capabilities.videoI2V', video_v2v: 'admin.capabilities.videoV2V' }[cap]
                                   const active = editForm.capabilities.includes(cap)
                                   return (
                                     <button
@@ -1324,16 +1336,16 @@ function ModelManagementTab() {
                                         active ? 'border-ring bg-accent text-foreground' : 'border-border text-muted-foreground hover:border-ring/50'
                                       )}
                                     >
-                                      {label}
+                                      {t(labelKey)}
                                     </button>
                                   )
                                 })}
                               </div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground block mb-0.5">计费模式</Label>
+                              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.billingMode')}</Label>
                               <div className="flex gap-1.5 flex-wrap">
-                                {([{ value: 'per_token', label: '按 token' }, { value: 'per_image', label: '按张' }, { value: 'per_second', label: '按秒' }, { value: 'per_call', label: '按次' }]).map((opt) => (
+                                {([{ value: 'per_token', label: t('admin.billing.perToken') }, { value: 'per_image', label: t('admin.billing.perImage') }, { value: 'per_second', label: t('admin.billing.perSecond') }, { value: 'per_call', label: t('admin.billing.perCall') }]).map((opt) => (
                                   <button
                                     key={opt.value}
                                     onClick={() => setEditForm((f) => ({ ...f, billing_mode: opt.value }))}
@@ -1358,10 +1370,10 @@ function ModelManagementTab() {
                                 size="sm"
                                 className="flex-1"
                               >
-                                保存
+                                {t('common.save')}
                               </Button>
                               <Button variant="outline" size="sm" onClick={() => setEditingConfig(null)}>
-                                取消
+                                {t('common.cancel')}
                               </Button>
                             </div>
                           </div>
@@ -1372,7 +1384,7 @@ function ModelManagementTab() {
 
                   {(!cred.models || cred.models.length === 0) && addingFor !== cred.ID && (
                     <p className="text-xs text-muted-foreground">
-                      暂无已添加的模型，点击「添加模型」开始配置
+                      {t('admin.models.noModelsHint')}
                     </p>
                   )}
 
@@ -1382,7 +1394,7 @@ function ModelManagementTab() {
                     return (
                       <div className="border-t border-border pt-3">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-muted-foreground">Files API 预上传</p>
+                          <p className="text-xs font-medium text-muted-foreground">{t('admin.credentials.filesAPIPreupload')}</p>
                           <button
                             onClick={() => {
                               if (isEditing) {
@@ -1396,14 +1408,14 @@ function ModelManagementTab() {
                             }}
                             className="text-xs text-muted-foreground hover:text-foreground"
                           >
-                            {isEditing ? '收起' : '配置'}
+                            {isEditing ? t('admin.models.collapse') : t('admin.credentials.configure')}
                           </button>
                         </div>
                         {!isEditing && (
                           <p className="text-xs text-muted-foreground">
                             {cred.files_api_enabled
-                              ? <span className="text-green-600 dark:text-green-400">● 已启用</span>
-                              : <span>○ 未启用</span>
+                              ? <span className="text-green-600 dark:text-green-400">{t('admin.models.enabledMark')}</span>
+                              : <span>{t('admin.credentials.notEnabledMark')}</span>
                             }
                           </p>
                         )}
@@ -1416,26 +1428,26 @@ function ModelManagementTab() {
                                 onChange={e => setFilesAPIEditEnabled(e.target.checked)}
                                 className="rounded"
                               />
-                              启用 Files API 预上传（上传图片至服务商 /files，用 file_id 代替 multipart）
+                              {t('admin.credentials.enableFilesAPIDetail')}
                             </label>
                             {filesAPIEditEnabled && (
                               <>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground block mb-1">Base URL（留空则使用凭据 Base URL）</Label>
+                                  <Label className="text-xs text-muted-foreground block mb-1">{t('admin.credentials.filesAPIBaseURLCredential')}</Label>
                                   <Input
                                     value={filesAPIEditBaseURL}
                                     onChange={e => setFilesAPIEditBaseURL(e.target.value)}
-                                    placeholder={cred.base_url || '留空使用凭据 Base URL'}
+                                    placeholder={cred.base_url || t('admin.credentials.leaveBlankUseCredentialBaseURL')}
                                     className="text-xs"
                                   />
                                 </div>
                                 <div>
-                                  <Label className="text-xs text-muted-foreground block mb-1">API Key（留空则使用凭据主 Key）</Label>
+                                  <Label className="text-xs text-muted-foreground block mb-1">{t('admin.credentials.filesAPIKeyCredential')}</Label>
                                   <Input
                                     type="password"
                                     value={filesAPIEditKey}
                                     onChange={e => setFilesAPIEditKey(e.target.value)}
-                                    placeholder="留空使用主凭据 Key"
+                                    placeholder={t('admin.credentials.leaveBlankUseMainKey')}
                                     className="text-xs"
                                   />
                                 </div>
@@ -1461,9 +1473,9 @@ function ModelManagementTab() {
                                   }
                                 }}
                               >
-                                {filesAPIEditSaving ? '…' : '保存'}
+                                {filesAPIEditSaving ? '…' : t('common.save')}
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => setFilesAPIEditFor(null)}>取消</Button>
+                              <Button size="sm" variant="outline" onClick={() => setFilesAPIEditFor(null)}>{t('common.cancel')}</Button>
                             </div>
                           </div>
                         )}
@@ -1478,7 +1490,7 @@ function ModelManagementTab() {
 
         {credentials.length === 0 && addStep === 'idle' && (
           <p className="text-sm text-muted-foreground text-center py-8">
-            暂无凭据配置，点击右上角「添加凭据」开始接入
+            {t('admin.models.noCredentialsHint')}
           </p>
         )}
       </div>
@@ -1496,6 +1508,7 @@ interface UserWithQuota {
 }
 
 function UserManagementTab() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [quotaDialog, setQuotaDialog] = useState<UserWithQuota | null>(null)
   const [newBalance, setNewBalance] = useState('')
@@ -1514,17 +1527,17 @@ function UserManagementTab() {
   return (
     <div className="space-y-4 max-w-2xl">
       <div>
-        <h2 className="text-base font-semibold text-foreground">用户管理</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">查看用户余额，为用户充值 Credits</p>
+        <h2 className="text-base font-semibold text-foreground">{t('admin.users.title')}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.users.description')}</p>
       </div>
 
       <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-card border-b border-border">
             <tr>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">用户名</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">角色</th>
-              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Credits 余额</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.users.username')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.users.role')}</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.users.creditsBalance')}</th>
               <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
@@ -1533,7 +1546,7 @@ function UserManagementTab() {
               <tr key={u.ID} className="hover:bg-card">
                 <td className="px-4 py-3 font-medium">{u.username}</td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">
-                  {u.system_role === 'super_admin' ? '超级管理员' : '普通用户'}
+                  {u.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
                 </td>
                 <td className="px-4 py-3 text-right font-mono tabular-nums text-sm">
                   {u.balance.toFixed(2)}
@@ -1543,13 +1556,13 @@ function UserManagementTab() {
                     onClick={() => { setQuotaDialog(u); setNewBalance(String(u.balance)) }}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    充值
+                    {t('admin.users.recharge')}
                   </button>
                 </td>
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">暂无用户</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.users.empty')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1558,9 +1571,9 @@ function UserManagementTab() {
       {quotaDialog && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
           <div className="bg-background rounded-xl shadow-2xl w-80 p-5 space-y-4">
-            <h3 className="text-sm font-semibold">设置余额 — {quotaDialog.username}</h3>
+            <h3 className="text-sm font-semibold">{t('admin.users.setBalanceTitle', { username: quotaDialog.username })}</h3>
             <div>
-              <Label className="text-xs text-muted-foreground block mb-1">新余额（Credits）</Label>
+              <Label className="text-xs text-muted-foreground block mb-1">{t('admin.users.newBalance')}</Label>
               <Input
                 type="number" min="0" step="1"
                 value={newBalance}
@@ -1574,10 +1587,10 @@ function UserManagementTab() {
                 disabled={setQuota.isPending}
                 className="flex-1"
               >
-                确认
+                {t('common.save')}
               </Button>
               <Button variant="outline" onClick={() => setQuotaDialog(null)}>
-                取消
+                {t('common.cancel')}
               </Button>
             </div>
           </div>
@@ -1590,6 +1603,7 @@ function UserManagementTab() {
 // ── Tab 3: 用量日志 ────────────────────────────────────────────────────────────
 
 function UsageLogsTab() {
+  const { t, i18n } = useTranslation()
   const [page, setPage] = useState(1)
   const [modelFilter, setModelFilter] = useState('')
   const [providerFilter, setProviderFilter] = useState('')
@@ -1626,7 +1640,7 @@ function UsageLogsTab() {
   const providerById = new Map(credentials.map(c => [c.ID, c.display_name]))
 
   function formatDate(s: string) {
-    return new Date(s).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return new Date(s).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   function modelName(log: UsageLog): string {
@@ -1649,13 +1663,17 @@ function UsageLogsTab() {
     return '—'
   }
 
-  const opLabel: Record<string, string> = { text: '文本', image: '生图', video: '生视频' }
+  const opLabel: Record<string, string> = {
+    text: t('admin.logs.operations.text'),
+    image: t('admin.logs.operations.image'),
+    video: t('admin.logs.operations.video'),
+  }
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-foreground">用量日志</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">共 {total} 条记录</p>
+        <h2 className="text-base font-semibold text-foreground">{t('admin.logs.title')}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.logs.total', { total })}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
@@ -1664,7 +1682,7 @@ function UsageLogsTab() {
           onChange={e => { setProviderFilter(e.target.value); setModelFilter(''); setPage(1) }}
           className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">全部服务商</option>
+          <option value="">{t('admin.logs.allProviders')}</option>
           {credentials.map(cred => (
             <option key={cred.ID} value={cred.ID}>{cred.display_name}</option>
           ))}
@@ -1674,7 +1692,7 @@ function UsageLogsTab() {
           onChange={e => { setModelFilter(e.target.value); setPage(1) }}
           className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">全部模型</option>
+          <option value="">{t('admin.logs.allModels')}</option>
           {models
             .filter(model => !providerFilter || String(model.credential_id) === providerFilter)
             .map(model => (
@@ -1688,7 +1706,7 @@ function UsageLogsTab() {
           onChange={e => { setUserFilter(e.target.value); setPage(1) }}
           className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <option value="">全部用户</option>
+          <option value="">{t('admin.logs.allUsers')}</option>
           {users.map(u => (
             <option key={u.ID} value={u.ID}>{u.username}</option>
           ))}
@@ -1699,13 +1717,13 @@ function UsageLogsTab() {
         <table className="w-full text-sm">
           <thead className="bg-card border-b border-border">
             <tr>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">时间</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">用户</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">服务商</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">模型</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">类型</th>
-              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">用量</th>
-              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Credits</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.time')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.user')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.provider')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.model')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.type')}</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.usage')}</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('common.credits')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -1721,16 +1739,16 @@ function UsageLogsTab() {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">暂无用量记录</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">{t('admin.logs.empty')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <div className="flex items-center justify-center gap-2 text-sm">
-        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</Button>
+        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>{t('admin.logs.previousPage')}</Button>
         <span className="text-muted-foreground">{page} / {pageCount}</span>
-        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>下一页</Button>
+        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>{t('admin.logs.nextPage')}</Button>
       </div>
     </div>
   )
@@ -1738,12 +1756,14 @@ function UsageLogsTab() {
 
 // ── Tab 4: 功能模型配置 ────────────────────────────────────────────────────────
 
-const CAPABILITY_LABEL: Record<string, string> = {
-  text: '文本',
-  reasoning: '推理',
-  image: '图像',
-  image_edit: '图像编辑',
-  video: '视频',
+const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
+  text: 'admin.capabilities.text',
+  reasoning: 'admin.capabilities.reasoning',
+  image: 'admin.capabilities.image',
+  image_edit: 'admin.capabilities.imageEdit',
+  video: 'admin.capabilities.video',
+  video_i2v: 'admin.capabilities.videoI2V',
+  video_v2v: 'admin.capabilities.videoV2V',
 }
 const CAPABILITY_COLOR: Record<string, string> = {
   text: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
@@ -1766,6 +1786,7 @@ function FeatureRow({
   onGoToModels: () => void
   isPending: boolean
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [showPrompt, setShowPrompt] = useState(false)
   const [promptOverride, setPromptOverride] = useState(feature.system_prompt_override)
@@ -1839,7 +1860,7 @@ function FeatureRow({
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-foreground">{feature.display_name}</p>
             <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', CAPABILITY_COLOR[feature.capability] ?? 'bg-muted text-muted-foreground')}>
-              {CAPABILITY_LABEL[feature.capability] ?? feature.capability}
+              {CAPABILITY_TRANSLATION_KEYS[feature.capability] ? t(CAPABILITY_TRANSLATION_KEYS[feature.capability]) : feature.capability}
             </span>
             <span className="text-xs text-muted-foreground font-mono">{feature.feature_key}</span>
             {feature.max_tokens > 0 && (
@@ -1855,10 +1876,10 @@ function FeatureRow({
             <button
               onClick={() => setShowPrompt(!showPrompt)}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-              title="系统提示词"
+              title={t('admin.features.systemPrompt')}
             >
               {showPrompt ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              提示词{hasOverride && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+              {t('admin.features.prompt')}{hasOverride && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
             </button>
           )}
           <button
@@ -1869,7 +1890,7 @@ function FeatureRow({
               feature.is_enabled ? 'bg-muted text-foreground' : 'bg-muted text-muted-foreground'
             )}
           >
-            {feature.is_enabled ? '已启用' : '已禁用'}
+            {feature.is_enabled ? t('admin.features.enabled') : t('admin.features.disabled')}
           </button>
         </div>
       </div>
@@ -1879,16 +1900,16 @@ function FeatureRow({
         <div className="border-t border-border px-4 py-3 bg-card space-y-2">
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">
-              默认系统提示词
-              <span className="ml-1 text-muted-foreground/50 font-normal">（来自业务层 FeatureDef，只读）</span>
+              {t('admin.features.defaultSystemPrompt')}
+              <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.defaultSystemPromptHint')}</span>
             </p>
             <pre className="text-xs font-mono bg-muted/50 rounded p-2 whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
-              {feature.default_system_prompt || '（无系统提示词）'}
+              {feature.default_system_prompt || t('admin.features.noSystemPrompt')}
             </pre>
           </div>
           {feature.output_schema && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1">输出格式（OutputSchema）</p>
+              <p className="text-xs font-medium text-muted-foreground mb-1">{t('admin.features.outputSchema')}</p>
               <pre className="text-xs font-mono bg-muted/50 rounded p-2 whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
                 {feature.output_schema}
               </pre>
@@ -1896,8 +1917,8 @@ function FeatureRow({
           )}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">
-              自定义覆盖
-              <span className="ml-1 text-muted-foreground/50 font-normal">（留空 = 使用默认）</span>
+              {t('admin.features.customOverride')}
+              <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.customOverrideHint')}</span>
             </p>
             <textarea
               value={promptOverride}
@@ -1912,7 +1933,7 @@ function FeatureRow({
                 disabled={isPending}
                 className="text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                {promptSaved ? '已保存 ✓' : '保存覆盖'}
+                {promptSaved ? t('admin.features.saved') : t('admin.features.saveOverride')}
               </button>
             </div>
           </div>
@@ -1922,19 +1943,19 @@ function FeatureRow({
       {/* Model selector */}
       <div className="border-t border-border px-4 py-3 bg-card space-y-2">
         <p className="text-xs text-muted-foreground">
-          可用模型
+          {t('admin.features.availableModels')}
           <span className="ml-1 text-muted-foreground/60">
-            {allowed.size === 0 ? '（未限制，使用所有该类型下的可用模型）' : `（已选 ${allowed.size} 个）`}
+            {allowed.size === 0 ? t('admin.features.unrestrictedModelsHint') : t('admin.features.selectedModelsHint', { count: allowed.size })}
           </span>
         </p>
         {availableModels.length === 0 ? (
           <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground/60">暂无已配置的{CAPABILITY_LABEL[feature.capability] ?? feature.capability}模型</p>
+            <p className="text-xs text-muted-foreground/60">{t('admin.features.noConfiguredModels', { capability: CAPABILITY_TRANSLATION_KEYS[feature.capability] ? t(CAPABILITY_TRANSLATION_KEYS[feature.capability]) : feature.capability })}</p>
             <button
               onClick={onGoToModels}
               className="text-xs text-primary hover:underline"
             >
-              前往模型管理添加 →
+              {t('admin.features.goToModels')}
             </button>
           </div>
         ) : (
@@ -1959,13 +1980,13 @@ function FeatureRow({
                       <span className="ml-1.5 font-mono text-muted-foreground/50">{m.model_id_override}</span>
                     )}
                     {m.accepts_image_input && (
-                      <span className="ml-1.5 text-muted-foreground/50">·图输入</span>
+                      <span className="ml-1.5 text-muted-foreground/50">{t('admin.features.imageInputMark')}</span>
                     )}
                   </button>
                   <button
                     onClick={() => editingModelId === m.id ? setEditingModelId(null) : openEdit(m)}
                     className="text-muted-foreground/40 hover:text-muted-foreground p-1"
-                    title="编辑模型配置"
+                    title={t('admin.features.editModelConfig')}
                   >
                     {editingModelId === m.id ? <X size={12} /> : <Pencil size={12} />}
                   </button>
@@ -1976,27 +1997,27 @@ function FeatureRow({
                   <div className="ml-0 mt-1 border border-border rounded bg-muted/30 p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-xs text-muted-foreground block mb-0.5">显示名称</Label>
+                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
                         <Input
                           className="text-xs h-7"
                           value={editForm.custom_display_name}
                           onChange={(e) => setEditForm((f) => ({ ...f, custom_display_name: e.target.value }))}
-                          placeholder="留空使用 model ID"
+                          placeholder={t('admin.features.leaveBlankUseModelId')}
                         />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground block mb-0.5">Model ID Override</Label>
+                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('common.modelIdOverride')}</Label>
                         <Input
                           className="text-xs h-7 font-mono"
                           value={editForm.model_id_override}
                           onChange={(e) => setEditForm((f) => ({ ...f, model_id_override: e.target.value }))}
-                          placeholder="如 ep-xxx 或具体 model ID"
+                          placeholder={t('admin.features.modelIdOverridePlaceholder')}
                         />
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-24">
-                        <Label className="text-xs text-muted-foreground block mb-0.5">优先级</Label>
+                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.features.priority')}</Label>
                         <Input
                           type="number"
                           className="text-xs h-7"
@@ -2011,10 +2032,10 @@ function FeatureRow({
                           onClick={() => saveEdit(m.id)}
                           disabled={patchModel.isPending}
                         >
-                          {patchModel.isPending ? '…' : '保存'}
+                          {patchModel.isPending ? '…' : t('common.save')}
                         </Button>
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditingModelId(null)}>
-                          取消
+                          {t('common.cancel')}
                         </Button>
                       </div>
                     </div>
@@ -2032,8 +2053,8 @@ function FeatureRow({
         {availableModels.length > 0 && (
           <div className="pt-1 border-t border-border/50">
             <p className="text-xs text-muted-foreground mb-1">
-              默认模型
-              <span className="ml-1 text-muted-foreground/50 font-normal">（用户打开工具时预选）</span>
+              {t('admin.features.defaultModel')}
+              <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.defaultModelHint')}</span>
             </p>
             <select
               disabled={isPending}
@@ -2044,7 +2065,7 @@ function FeatureRow({
               }}
               className="text-xs border border-border rounded px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             >
-              <option value="">自动（优先级最高）</option>
+              <option value="">{t('admin.features.autoHighestPriority')}</option>
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.provider_name ? `${m.provider_name} / ${m.display_name}` : m.display_name}
@@ -2057,13 +2078,13 @@ function FeatureRow({
         {/* Allowed roles */}
         <div className="pt-1 border-t border-border/50">
           <p className="text-xs text-muted-foreground mb-1">
-            访问权限
-            <span className="ml-1 text-muted-foreground/50 font-normal">（留空 = 所有角色可用）</span>
+            {t('admin.features.accessRoles')}
+            <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.accessRolesHint')}</span>
           </p>
           <div className="flex items-center gap-3">
             {(['owner', 'editor', 'viewer'] as const).map((role) => {
               const checked = feature.allowed_roles.includes(role)
-              const roleLabel: Record<string, string> = { owner: '项目所有者', editor: '编辑者', viewer: '查看者' }
+              const roleLabel: Record<string, string> = { owner: t('admin.features.roles.owner'), editor: t('admin.features.roles.editor'), viewer: t('admin.features.roles.viewer') }
               return (
                 <label key={role} className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -2090,6 +2111,7 @@ function FeatureRow({
 }
 
 function FeatureConfigTab() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [, setSearchParams] = useSearchParams()
 
@@ -2116,14 +2138,14 @@ function FeatureConfigTab() {
   return (
     <div className="space-y-4 max-w-2xl">
       <div>
-        <h2 className="text-base font-semibold text-foreground">功能配置</h2>
+        <h2 className="text-base font-semibold text-foreground">{t('admin.features.title')}</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          为每个工具功能指定可用模型。未限制时使用该类型下所有已启用模型。
+          {t('admin.features.description')}
         </p>
       </div>
 
       {features.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">加载中…</p>
+        <p className="text-sm text-muted-foreground text-center py-8">{t('common.loadingShort')}</p>
       )}
 
       <div className="space-y-3">
@@ -2144,6 +2166,7 @@ function FeatureConfigTab() {
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────
 function StorageTab() {
+  const { t } = useTranslation()
   const { data: backends } = useQuery<{ default: string; backends: { name: string; available: boolean }[] }>({
     queryKey: ['admin-storage-backends'],
     queryFn: () => api.get('/admin/resource-storage/backends').then(r => r.data),
@@ -2177,22 +2200,22 @@ function StorageTab() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="border border-border rounded-lg bg-card p-4">
-          <p className="text-sm font-semibold">内部资源存储</p>
+          <p className="text-sm font-semibold">{t('admin.storage.internalStorage')}</p>
           <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-            存放用户上传、画布中间产物和模型输出结果。这里的 URL 只保证 MovScript 后端可读，不作为服务商输入 URL。
+            {t('admin.storage.internalStorageDescription')}
           </p>
         </div>
         <div className="border border-border rounded-lg bg-card p-4">
-          <p className="text-sm font-semibold">模型输入中转</p>
+          <p className="text-sm font-semibold">{t('admin.storage.modelInputRelay')}</p>
           <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-            需要把本地素材交给 OpenAI、Volcen、Kling 等服务商时，Worker 会使用服务商 Files API 或公网对象中转配置。
+            {t('admin.storage.modelInputRelayDescription')}
           </p>
         </div>
       </div>
 
       {/* Backend status */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">内部资源存储后端</h3>
+        <h3 className="text-sm font-semibold mb-3">{t('admin.storage.internalBackends')}</h3>
         <div className="flex gap-3 flex-wrap">
           {(backends?.backends ?? []).map(b => (
             <div key={b.name} className="flex items-center gap-2 border border-border rounded-lg px-4 py-2.5 text-sm">
@@ -2202,9 +2225,9 @@ function StorageTab() {
               }
               <span className="font-medium capitalize">{b.name}</span>
               {b.name === backends?.default && (
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">默认</span>
+                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t('admin.storage.default')}</span>
               )}
-              <span className="text-xs text-green-500">● 可用</span>
+              <span className="text-xs text-green-500">{t('admin.storage.available')}</span>
             </div>
           ))}
         </div>
@@ -2212,18 +2235,18 @@ function StorageTab() {
 
       {/* Per-user stats */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">用户资源占用</h3>
+        <h3 className="text-sm font-semibold mb-3">{t('admin.storage.userResourceUsage')}</h3>
         {Object.keys(byUser).length === 0 ? (
-          <p className="text-sm text-muted-foreground">暂无资源数据</p>
+          <p className="text-sm text-muted-foreground">{t('admin.storage.noResourceData')}</p>
         ) : (
           <div className="border border-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/30">
                 <tr>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">用户</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">内部后端</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">文件数</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">占用空间</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">{t('admin.logs.user')}</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">{t('admin.storage.internalBackend')}</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">{t('admin.storage.fileCount')}</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">{t('admin.storage.usedSpace')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2250,7 +2273,7 @@ function StorageTab() {
 
 const CONFIG_TYPE_LABELS: Record<string, string> = {
   s3: 'AWS S3',
-  oss: '阿里云 OSS',
+  oss: 'Alibaba Cloud OSS',
   tos: 'Volcengine TOS',
 }
 
@@ -2289,6 +2312,7 @@ interface CloudFileConfig {
 }
 
 function CloudFileConfigTab() {
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -2352,7 +2376,7 @@ function CloudFileConfigTab() {
   }
 
   async function deleteCfg(id: number) {
-    if (!confirm('确认删除此云端存储配置？')) return
+    if (!confirm(t('admin.cloudFiles.confirmDelete'))) return
     await api.delete(`/admin/cloud-file-configs/${id}`)
     queryClient.invalidateQueries({ queryKey: ['admin-cloud-file-configs'] })
   }
@@ -2368,35 +2392,35 @@ function CloudFileConfigTab() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="border border-border rounded-lg bg-card p-4">
-          <p className="text-sm font-semibold">公网对象中转</p>
+          <p className="text-sm font-semibold">{t('admin.cloudFiles.publicObjectRelay')}</p>
           <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-            S3、OSS、TOS 桶必须能被服务商公网访问，用于只接受 URL 的图生视频、视频参考输入。
+            {t('admin.cloudFiles.publicObjectRelayDescription')}
           </p>
         </div>
         <div className="border border-border rounded-lg bg-card p-4">
-          <p className="text-sm font-semibold">服务商 Files API</p>
+          <p className="text-sm font-semibold">{t('admin.cloudFiles.providerFilesAPI')}</p>
           <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-            OpenAI、Volcen 等服务商自己的文件空间，在“模型管理”的凭据里启用，传给模型的是 file_id。
+            {t('admin.cloudFiles.providerFilesAPIDescription')}
           </p>
         </div>
         <div className="border border-border rounded-lg bg-card p-4">
-          <p className="text-sm font-semibold">内部 MinIO</p>
+          <p className="text-sm font-semibold">{t('admin.cloudFiles.internalMinio')}</p>
           <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-            只负责 MovScript 持久化资源。Worker 不会再把 MinIO 私网 presigned URL 发给外部服务商。
+            {t('admin.cloudFiles.internalMinioDescription')}
           </p>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold">公网对象中转配置</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">配置 S3、OSS、TOS 后，Worker 会按优先级上传输入素材，并把公网 URL 传给只接受 URL 的服务商接口。</p>
+          <h3 className="text-sm font-semibold">{t('admin.cloudFiles.title')}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.cloudFiles.description')}</p>
         </div>
-        <Button size="sm" onClick={openCreate}>添加配置</Button>
+        <Button size="sm" onClick={openCreate}>{t('admin.cloudFiles.addConfig')}</Button>
       </div>
 
       {configs.length === 0 && !showForm && (
-        <p className="text-sm text-muted-foreground text-center py-8">暂无公网对象中转配置</p>
+        <p className="text-sm text-muted-foreground text-center py-8">{t('admin.cloudFiles.empty')}</p>
       )}
 
       <div className="space-y-2">
@@ -2415,8 +2439,8 @@ function CloudFileConfigTab() {
                     <span className="text-sm font-medium">{cfg.name}</span>
                     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{CONFIG_TYPE_LABELS[cfg.config_type] ?? cfg.config_type}</span>
                     {cfg.is_enabled
-                      ? <span className="text-xs text-green-500">● 启用</span>
-                      : <span className="text-xs text-muted-foreground">○ 禁用</span>
+                      ? <span className="text-xs text-green-500">{t('admin.cloudFiles.enabledMark')}</span>
+                      : <span className="text-xs text-muted-foreground">{t('admin.cloudFiles.disabledMark')}</span>
                     }
                   </div>
                   <p className="text-xs font-mono text-muted-foreground mt-0.5 truncate">
@@ -2425,10 +2449,10 @@ function CloudFileConfigTab() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => toggleEnabled(cfg)} className="text-xs border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground transition-colors">
-                    {cfg.is_enabled ? '禁用' : '启用'}
+                    {cfg.is_enabled ? t('admin.cloudFiles.disable') : t('admin.cloudFiles.enable')}
                   </button>
-                  <button onClick={() => openEdit(cfg)} className="text-xs border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground transition-colors">编辑</button>
-                  <button onClick={() => deleteCfg(cfg.ID)} className="text-xs border border-destructive/30 rounded px-2 py-1 text-destructive/70 hover:text-destructive transition-colors">删除</button>
+                  <button onClick={() => openEdit(cfg)} className="text-xs border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground transition-colors">{t('admin.models.edit')}</button>
+                  <button onClick={() => deleteCfg(cfg.ID)} className="text-xs border border-destructive/30 rounded px-2 py-1 text-destructive/70 hover:text-destructive transition-colors">{t('common.delete')}</button>
                 </div>
               </div>
             </div>
@@ -2438,15 +2462,15 @@ function CloudFileConfigTab() {
 
       {showForm && (
         <div className="border border-border rounded-lg p-4 bg-card space-y-4">
-          <h4 className="text-sm font-medium">{editingId ? '编辑配置' : '新建配置'}</h4>
+          <h4 className="text-sm font-medium">{editingId ? t('admin.cloudFiles.editConfig') : t('admin.cloudFiles.newConfig')}</h4>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">名称</Label>
-              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="TOS public relay" className="text-sm" />
+              <Label className="text-xs">{t('forms.name')}</Label>
+              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder={t('admin.cloudFiles.namePlaceholder')} className="text-sm" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">类型</Label>
+              <Label className="text-xs">{t('forms.type')}</Label>
               <select
                 value={formType}
                 onChange={e => { setFormType(e.target.value); setFormFields({}) }}
@@ -2466,7 +2490,7 @@ function CloudFileConfigTab() {
                   type={f.secret ? 'password' : 'text'}
                   value={formFields[f.key] ?? ''}
                   onChange={e => setFormFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                  placeholder={editingId && f.secret ? '留空不修改' : f.placeholder}
+                  placeholder={editingId && f.secret ? t('admin.models.leaveBlankKeep') : f.placeholder}
                   className="text-sm font-mono"
                 />
               </div>
@@ -2475,20 +2499,20 @@ function CloudFileConfigTab() {
 
           <div className="flex items-center gap-4">
             <div className="space-y-1">
-              <Label className="text-xs">优先级（数字越小越优先）</Label>
+              <Label className="text-xs">{t('admin.cloudFiles.priority')}</Label>
               <Input type="number" value={formPriority} onChange={e => setFormPriority(Number(e.target.value))} className="w-24 text-sm" />
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer mt-4">
               <input type="checkbox" checked={formEnabled} onChange={e => setFormEnabled(e.target.checked)} className="rounded" />
-              启用
+              {t('admin.cloudFiles.enable')}
             </label>
           </div>
 
           <div className="flex gap-2">
             <Button size="sm" onClick={save} disabled={saving || !formName}>
-              {saving ? '保存中…' : '保存'}
+              {saving ? t('common.saving') : t('common.save')}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>取消</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>{t('common.cancel')}</Button>
           </div>
         </div>
       )}
@@ -2499,6 +2523,7 @@ function CloudFileConfigTab() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const { t } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -2514,21 +2539,21 @@ export default function AdminPage() {
       <div className="flex items-center gap-2">
         <ShieldAlert size={18} className="text-muted-foreground" />
         <div>
-          <h1 className="text-lg font-semibold text-foreground">管理后台</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">AI 模型配置、用户额度与用量统计</p>
+          <h1 className="text-lg font-semibold text-foreground">{t('admin.title')}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.subtitle')}</p>
         </div>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v })}>
         <TabsList>
-          <TabsTrigger value="models">模型管理</TabsTrigger>
-          <TabsTrigger value="agents">Agent 管理</TabsTrigger>
-          <TabsTrigger value="features">功能配置</TabsTrigger>
-          <TabsTrigger value="users">用户管理</TabsTrigger>
-          <TabsTrigger value="logs">用量日志</TabsTrigger>
-          <TabsTrigger value="debug">调试</TabsTrigger>
-          <TabsTrigger value="storage">资源存储</TabsTrigger>
-          <TabsTrigger value="cloud-files">输入中转</TabsTrigger>
+          <TabsTrigger value="models">{t('admin.tabs.models')}</TabsTrigger>
+          <TabsTrigger value="agents">{t('admin.tabs.agents')}</TabsTrigger>
+          <TabsTrigger value="features">{t('admin.tabs.features')}</TabsTrigger>
+          <TabsTrigger value="users">{t('admin.tabs.users')}</TabsTrigger>
+          <TabsTrigger value="logs">{t('admin.tabs.logs')}</TabsTrigger>
+          <TabsTrigger value="debug">{t('admin.tabs.debug')}</TabsTrigger>
+          <TabsTrigger value="storage">{t('admin.tabs.storage')}</TabsTrigger>
+          <TabsTrigger value="cloud-files">{t('admin.tabs.cloudFiles')}</TabsTrigger>
         </TabsList>
         <TabsContent value="models" className="mt-6">
           <ModelManagementTab />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ReactFlow,
   Background,
@@ -93,8 +94,10 @@ function genId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
-function createNodeData(type: NodeType): Partial<CanvasNodeData> & { label: string } {
-  return { ...(CANVAS_NODE_META[type]?.defaultData ?? { source: 'upload', label: NODE_LABELS[type] }) }
+function createNodeData(type: NodeType, t: (key: string) => string): Partial<CanvasNodeData> & { label: string } {
+  const meta = CANVAS_NODE_META[type]
+  const data = { ...(meta?.defaultData ?? { source: 'upload', label: NODE_LABELS[type] }) }
+  return { ...data, label: meta ? t(meta.defaultLabelKey) : t(`canvas.nodeLabels.${type}`) }
 }
 
 function resourceToNodeType(resource: RawResource): NodeType {
@@ -119,6 +122,7 @@ function CanvasResourceShelf({
   projectId?: number
   variant?: 'floating' | 'panel'
 }) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<'resources' | 'assets'>('resources')
   const isPanel = variant === 'panel'
   const { data: resourcePage } = useQuery<PaginatedResponse<RawResource>>({
@@ -146,22 +150,22 @@ function CanvasResourceShelf({
     )}>
       <div className="flex h-9 items-center gap-2 border-b border-border px-3">
         <HardDrive size={14} className="text-muted-foreground" />
-        <span className="text-xs font-semibold text-foreground">资源 / 素材</span>
+        <span className="text-xs font-semibold text-foreground">{t('canvas.editor.resourceShelf.title')}</span>
         <div className="ml-2 flex overflow-hidden rounded-md border border-border text-[11px]">
           <button
             onClick={() => setTab('resources')}
             className={cn('px-2 py-1 transition-colors', tab === 'resources' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50')}
           >
-            资源库
+            {t('shared.resourcePanel.resourceLibrary')}
           </button>
           <button
             onClick={() => setTab('assets')}
             className={cn('border-l border-border px-2 py-1 transition-colors', tab === 'assets' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50')}
           >
-            素材库
+            {t('shared.resourcePanel.assetLibrary')}
           </button>
         </div>
-        <span className="ml-auto text-[11px] text-muted-foreground">拖入画布创建节点</span>
+        <span className="ml-auto text-[11px] text-muted-foreground">{t('canvas.editor.resourceShelf.dragHint')}</span>
       </div>
       <div className={cn(
         'flex gap-2 overflow-x-auto p-2',
@@ -188,7 +192,7 @@ function CanvasResourceShelf({
           </button>
         ))}
         {tab === 'resources' && resources.length === 0 && (
-          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">暂无资源</div>
+          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">{t('shared.resourcePanel.noResources')}</div>
         )}
         {tab === 'assets' && assets.map((asset) => {
           const views = asset.views?.filter((view) => view.resource) ?? []
@@ -202,7 +206,7 @@ function CanvasResourceShelf({
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{asset.name}</span>
               </div>
               <div className="flex gap-1 overflow-x-auto">
-                {views.length === 0 && <span className="text-[10px] text-muted-foreground">暂无素材视图</span>}
+                {views.length === 0 && <span className="text-[10px] text-muted-foreground">{t('canvas.editor.resourceShelf.noAssetViews')}</span>}
                 {views.map((view) => view.resource && (
                   <button
                     key={view.ID}
@@ -220,7 +224,7 @@ function CanvasResourceShelf({
         })}
         {tab === 'assets' && (!projectId || assets.length === 0) && (
           <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
-            {projectId ? '暂无素材' : '该画布未绑定项目'}
+            {projectId ? t('shared.resourcePanel.noAssets') : t('canvas.editor.resourceShelf.noProject')}
           </div>
         )}
       </div>
@@ -228,16 +232,9 @@ function CanvasResourceShelf({
   )
 }
 
-const RUN_STATUS_LABELS: Record<CanvasRun['status'], string> = {
-  pending: '排队中',
-  running: '运行中',
-  done: '已完成',
-  failed: '失败',
-}
-
-function formatRunTime(value?: string) {
+function formatRunTime(value: string | undefined, language: string) {
   if (!value) return '-'
-  return new Date(value).toLocaleString('zh-CN', {
+  return new Date(value).toLocaleString(language, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -254,11 +251,12 @@ function formatRunDuration(run: CanvasRun) {
 }
 
 function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
+  const { t } = useTranslation()
   if (status === 'running' || status === 'pending') {
     return (
       <Badge variant="secondary" className="gap-1 border-transparent">
         <Loader2 size={11} className="animate-spin" />
-        {RUN_STATUS_LABELS[status]}
+        {t(`canvas.runStatus.${status}`)}
       </Badge>
     )
   }
@@ -266,14 +264,14 @@ function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
     return (
       <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600">
         <CheckCircle2 size={11} />
-        已完成
+        {t('canvas.runStatus.done')}
       </Badge>
     )
   }
   return (
     <Badge variant="destructive" className="gap-1">
       <XCircle size={11} />
-      失败
+      {t('canvas.runStatus.failed')}
     </Badge>
   )
 }
@@ -303,6 +301,7 @@ function WorkflowRunHistory({
   onPageChange: (page: number) => void
   onSelectRun: (runId: number) => void
 }) {
+  const { t, i18n } = useTranslation()
   return (
     <section className={cn(
       embedded ? 'flex h-full flex-col bg-background' : 'h-52 shrink-0 border-t border-border bg-background'
@@ -310,8 +309,8 @@ function WorkflowRunHistory({
       <div className="flex h-11 items-center gap-3 border-b border-border px-4">
         <History size={15} className="text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-foreground">工作流运行历史</p>
-          <p className="text-[10px] text-muted-foreground">按运行时快照记录，用于回看输入、结果和当次画布结构</p>
+          <p className="text-xs font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
+          <p className="text-[10px] text-muted-foreground">{t('canvas.editor.history.description')}</p>
         </div>
         <div className="flex items-center gap-2">
           <ListFilter size={13} className="text-muted-foreground" />
@@ -320,13 +319,13 @@ function WorkflowRunHistory({
             onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
             className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none"
           >
-            <option value="all">全部状态</option>
-            <option value="running">运行中</option>
-            <option value="pending">排队中</option>
-            <option value="done">已完成</option>
-            <option value="failed">失败</option>
+            <option value="all">{t('canvas.editor.history.allStatuses')}</option>
+            <option value="running">{t('canvas.runStatus.running')}</option>
+            <option value="pending">{t('canvas.runStatus.pending')}</option>
+            <option value="done">{t('canvas.runStatus.done')}</option>
+            <option value="failed">{t('canvas.runStatus.failed')}</option>
           </select>
-          <span className="hidden text-[11px] text-muted-foreground sm:inline">{total} 次运行</span>
+          <span className="hidden text-[11px] text-muted-foreground sm:inline">{t('canvas.editor.history.runsCount', { count: total })}</span>
           <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
             <ChevronLeft size={12} />
           </Button>
@@ -339,20 +338,20 @@ function WorkflowRunHistory({
 
       <div className={cn(embedded ? 'min-h-0 flex-1 overflow-auto' : 'h-[calc(100%-2.75rem)] overflow-auto')}>
         <div className="grid grid-cols-[96px_104px_112px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
-          <span>运行</span>
-          <span>状态</span>
-          <span>耗时</span>
-          <span>快照</span>
-          <span className="text-right">开始时间</span>
+          <span>{t('canvas.editor.history.run')}</span>
+          <span>{t('canvas.editor.history.status')}</span>
+          <span>{t('canvas.editor.history.duration')}</span>
+          <span>{t('canvas.editor.history.snapshot')}</span>
+          <span className="text-right">{t('canvas.editor.history.startedAt')}</span>
         </div>
         {isLoading && (
           <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
             <Loader2 size={14} className="mr-2 animate-spin" />
-            加载运行记录
+            {t('canvas.editor.history.loading')}
           </div>
         )}
         {!isLoading && runs.length === 0 && (
-          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">暂无匹配的运行记录</div>
+          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">{t('canvas.editor.history.empty')}</div>
         )}
         {!isLoading && runs.map((run) => (
           <button
@@ -370,11 +369,11 @@ function WorkflowRunHistory({
               {formatRunDuration(run)}
             </span>
             <span className="min-w-0 truncate text-muted-foreground">
-              {run.snapshot_node_count ?? 0} 节点 / {run.snapshot_edge_count ?? 0} 连接
+              {t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}
               {run.snapshot_hash && <span className="ml-2 font-mono text-[10px] text-muted-foreground/70">{run.snapshot_hash.slice(0, 8)}</span>}
               {run.error && <span className="ml-2 text-destructive">{run.error}</span>}
             </span>
-            <span className="text-right text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt)}</span>
+            <span className="text-right text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
           </button>
         ))}
       </div>
@@ -411,6 +410,7 @@ function WorkflowBottomPanel({
   onPageChange: (page: number) => void
   onSelectRun: (runId: number) => void
 }) {
+  const { t } = useTranslation()
   return (
     <section className="h-52 shrink-0 border-t border-border bg-background">
       <div className="flex h-10 items-center gap-2 border-b border-border px-4">
@@ -420,18 +420,18 @@ function WorkflowBottomPanel({
             className={cn('flex items-center gap-1.5 px-3 py-1.5 transition-colors', activeTab === 'resources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
           >
             <HardDrive size={12} />
-            资源库
+            {t('shared.resourcePanel.resourceLibrary')}
           </button>
           <button
             onClick={() => onTabChange('history')}
             className={cn('flex items-center gap-1.5 border-l border-border px-3 py-1.5 transition-colors', activeTab === 'history' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
           >
             <History size={12} />
-            运行历史
+            {t('canvas.editor.history.title')}
           </button>
         </div>
         <span className="ml-auto text-[11px] text-muted-foreground">
-          {activeTab === 'resources' ? '拖入画布创建节点' : `${total} 次运行`}
+          {activeTab === 'resources' ? t('canvas.editor.resourceShelf.dragHint') : t('canvas.editor.history.runsCount', { count: total })}
         </span>
       </div>
       <div className="h-[calc(100%-2.5rem)] overflow-hidden">
@@ -458,6 +458,7 @@ function WorkflowBottomPanel({
 }
 
 function CanvasEditorInner() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -608,14 +609,14 @@ function CanvasEditorInner() {
             setNodes((prev) => prev.map((node) => {
               if (node.id !== n.id) return node
               const d = node.data as unknown as CanvasNodeData
-              return { ...node, data: { ...d, status: 'failed', error: 'node not found in DB' } }
+              return { ...node, data: { ...d, status: 'failed', error: t('canvas.editor.errors.nodeNotFound') } }
             }))
           }
         }
       }
     }, 2000)
     return () => clearInterval(timer)
-  }, [nodes, id])
+  }, [nodes, id, t])
 
   // Save
   const save = useMutation({
@@ -722,7 +723,7 @@ function CanvasEditorInner() {
         : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     )
     const position = screenToFlowPosition(screenPosition)
-    const baseData = createNodeData(type)
+    const baseData = createNodeData(type, t)
     const newNode: Node = {
       id: genId(),
       type,
@@ -733,12 +734,12 @@ function CanvasEditorInner() {
         : { style: { width: 200 } }),
     }
     setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition])
+  }, [screenToFlowPosition, t])
 
   const addResourceNodeAt = useCallback((resource: RawResource, clientPosition: { x: number; y: number }) => {
     const type = resourceToNodeType(resource)
     const position = screenToFlowPosition(clientPosition)
-    const baseData = createNodeData(type)
+    const baseData = createNodeData(type, t)
     const newNode: Node = {
       id: genId(),
       type,
@@ -754,7 +755,7 @@ function CanvasEditorInner() {
       style: { width: type === 'text' ? 220 : 200 },
     }
     setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition, setNodes])
+  }, [screenToFlowPosition, setNodes, t])
 
   // Add node from context menu
   const addNode = useCallback((type: NodeType) => {
@@ -790,7 +791,7 @@ function CanvasEditorInner() {
       position: { x: minX, y: minY },
       style: { width: maxX - minX, height: maxY - minY },
       zIndex: -1,
-      data: { source: 'manual', label: '分组', isGroup: true },
+      data: { source: 'manual', label: t('canvas.nodeLabels.group'), isGroup: true },
     }
     setNodes((prev) => [
       groupNode, // parent must come before children
@@ -804,7 +805,7 @@ function CanvasEditorInner() {
         }
       }),
     ])
-  }, [nodes])
+  }, [nodes, t])
 
   // Drag node out of group → detach it
   const onNodeDragStop = useCallback((_: React.MouseEvent, draggedNode: Node) => {
@@ -975,11 +976,7 @@ function CanvasEditorInner() {
     outputs: nodes.filter((n) => n.type === 'output').length,
   }
   const activeRun = workflowRuns.find((run) => run.ID === activeRunId) ?? workflowRuns[0]
-  const activeRunStatusLabel = activeRun?.status === 'running' ? '运行中'
-    : activeRun?.status === 'pending' ? '排队中'
-    : activeRun?.status === 'done' ? '已完成'
-    : activeRun?.status === 'failed' ? '失败'
-    : undefined
+  const activeRunStatusLabel = activeRun ? t(`canvas.runStatus.${activeRun.status}`) : undefined
   const workflowRunningCount = workflowRuns.filter((run) => run.status === 'running' || run.status === 'pending').length
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
 
@@ -997,55 +994,55 @@ function CanvasEditorInner() {
                 className="min-w-0 flex-1 border-none bg-transparent text-sm font-semibold text-foreground outline-none"
                 value={canvasName}
                 onChange={(e) => setCanvasName(e.target.value)}
-                placeholder="未命名画布"
+                placeholder={t('canvas.editor.untitled')}
               />
               <Badge variant="outline" className="hidden shrink-0 gap-1 border-border font-medium text-muted-foreground sm:flex">
                 <Workflow size={12} />
-                {nodes.length} 节点
+                {t('canvas.editor.nodesCount', { count: nodes.length })}
               </Badge>
               {runningCount > 0 && (
                 <Badge variant="secondary" className="shrink-0 gap-1">
                   <Loader2 size={11} className="animate-spin" />
-                  {runningCount} 运行中
+                  {t('canvas.editor.runningCount', { count: runningCount })}
                 </Badge>
               )}
               {canvasType === 'workflow' && activeRun && activeRunStatusLabel && (
                 <Badge variant={activeRun.status === 'failed' ? 'destructive' : 'outline'} className="hidden shrink-0 gap-1 sm:flex">
                   {(activeRun.status === 'running' || activeRun.status === 'pending') && <Loader2 size={11} className="animate-spin" />}
-                  运行 #{activeRun.ID} · {activeRunStatusLabel}
+                  {t('canvas.editor.activeRun', { id: activeRun.ID, status: activeRunStatusLabel })}
                 </Badge>
               )}
               {canvasType === 'workflow' && workflowRunningCount > 1 && (
                 <Badge variant="secondary" className="hidden shrink-0 sm:flex">
-                  并行 {workflowRunningCount}
+                  {t('canvas.editor.parallelRuns', { count: workflowRunningCount })}
                 </Badge>
               )}
             </div>
             <div className="mt-0.5 hidden items-center gap-2 text-[11px] text-muted-foreground md:flex">
-              <span>输入 {workflowStats.inputs}</span>
+              <span>{t('canvas.editor.stats.inputs', { count: workflowStats.inputs })}</span>
               <span className="h-1 w-1 rounded-full bg-border" />
-              <span>处理 {workflowStats.processors}</span>
+              <span>{t('canvas.editor.stats.processors', { count: workflowStats.processors })}</span>
               <span className="h-1 w-1 rounded-full bg-border" />
-              <span>输出 {workflowStats.outputs}</span>
+              <span>{t('canvas.editor.stats.outputs', { count: workflowStats.outputs })}</span>
               <span className="h-1 w-1 rounded-full bg-border" />
-              <span>已完成 {doneCount}</span>
+              <span>{t('canvas.editor.stats.done', { count: doneCount })}</span>
             </div>
           </div>
 
           <Badge variant="outline" className="h-8 shrink-0 gap-1.5 px-3 text-xs font-medium">
             {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
-            {canvasType === 'workflow' ? '工作流画布' : '灵感激发画布'}
+            {t(`canvas.editor.canvasType.${canvasType}`)}
           </Badge>
 
           {canvasType === 'workflow' && (
             <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
-              <Play size={12} /> {runAll.isPending ? '启动中…' : '启动运行'}
+              <Play size={12} /> {runAll.isPending ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
             </Button>
           )}
 
           <Button onClick={() => save.mutate()} disabled={save.isPending} size="sm" variant="outline" className="shrink-0">
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            {save.isPending ? '保存中…' : '保存'}
+            {save.isPending ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       </div>
@@ -1061,7 +1058,7 @@ function CanvasEditorInner() {
               libraryCollapsed ? 'justify-center px-0' : 'gap-2 px-3'
             )}>
               {!libraryCollapsed && <Layers3 size={15} className="shrink-0 text-muted-foreground" />}
-              {!libraryCollapsed && <span className="flex-1 text-xs font-semibold text-foreground">节点库</span>}
+              {!libraryCollapsed && <span className="flex-1 text-xs font-semibold text-foreground">{t('canvas.editor.nodeLibrary')}</span>}
               <Button
                 variant="ghost"
                 size="icon"
@@ -1076,7 +1073,7 @@ function CanvasEditorInner() {
               <div className="min-h-0 flex-1 overflow-y-auto p-3">
                 <div className="mb-3 flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground">
                   <Search size={12} />
-                  <span>拖拽节点到画布，或点击添加到视口中心</span>
+                  <span>{t('canvas.editor.nodeLibraryHint')}</span>
                 </div>
                 <div className="space-y-4">
                   {CANVAS_NODE_CATEGORIES.map((category) => {
@@ -1084,8 +1081,8 @@ function CanvasEditorInner() {
                     return (
                       <section key={category.id}>
                         <div className="mb-2">
-                          <p className="text-[11px] font-semibold text-foreground">{category.title}</p>
-                          <p className="text-[10px] leading-relaxed text-muted-foreground">{category.description}</p>
+                          <p className="text-[11px] font-semibold text-foreground">{t(category.titleKey)}</p>
+                          <p className="text-[10px] leading-relaxed text-muted-foreground">{t(category.descriptionKey)}</p>
                         </div>
                         <div className="grid gap-1.5">
                           {items.map((item) => {
@@ -1105,8 +1102,8 @@ function CanvasEditorInner() {
                                   <Icon size={15} />
                                 </span>
                                 <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-xs font-medium text-foreground">{item.label}</span>
-                                  <span className="block truncate text-[10px] text-muted-foreground">{item.description}</span>
+                                  <span className="block truncate text-xs font-medium text-foreground">{t(item.labelKey)}</span>
+                                  <span className="block truncate text-[10px] text-muted-foreground">{t(item.descriptionKey)}</span>
                                 </span>
                                 <GripVertical size={13} className="shrink-0 text-muted-foreground/45" />
                               </button>
@@ -1172,21 +1169,25 @@ function CanvasEditorInner() {
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
               <div className="max-w-sm rounded-lg border border-dashed border-border bg-background/80 p-5 text-center shadow-sm backdrop-blur">
                 <Sparkles size={20} className="mx-auto mb-3 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">从左侧拖入输入、AI 处理和输出节点</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">右键画布也可以快速插入节点。选中节点后在右侧配置模型、提示词和素材来源。</p>
+                <p className="text-sm font-medium text-foreground">{t('canvas.editor.emptyTitle')}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('canvas.editor.emptyDescription')}</p>
               </div>
             </div>
           )}
 
           {dropActive && (
             <div className="pointer-events-none absolute inset-4 flex items-center justify-center rounded-lg border border-dashed border-primary/50 bg-primary/5 text-sm font-medium text-primary">
-              松开鼠标放置节点
+              {t('canvas.editor.dropToPlace')}
             </div>
           )}
 
           <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-md border border-border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur">
             <MousePointer2 size={13} />
-            {draggingNodeId ? '正在移动节点，松开后会保留位置' : selectedNode ? `已选中 ${selectedNodeData?.label || selectedNodeMeta?.label || selectedNode.type}` : '拖动画布平移，框选可批量操作'}
+            {draggingNodeId
+              ? t('canvas.editor.status.dragging')
+              : selectedNode
+                ? t('canvas.editor.status.selected', { label: selectedNodeData?.label || (selectedNodeMeta ? t(selectedNodeMeta.labelKey) : selectedNode.type) })
+                : t('canvas.editor.status.idle')}
           </div>
 
             {canvasType !== 'workflow' && <CanvasResourceShelf projectId={canvas?.project_id} />}
@@ -1218,7 +1219,7 @@ function CanvasEditorInner() {
           <div className="flex h-full flex-col">
             <div className="flex h-12 items-center gap-2 border-b border-border px-3">
               <PanelRightClose size={15} className="shrink-0 text-muted-foreground" />
-              {!inspectorCollapsed && <span className="flex-1 text-xs font-semibold text-foreground">节点检查器</span>}
+              {!inspectorCollapsed && <span className="flex-1 text-xs font-semibold text-foreground">{t('canvas.editor.inspector')}</span>}
               <Button
                 variant="ghost"
                 size="icon"
@@ -1236,7 +1237,7 @@ function CanvasEditorInner() {
                   canvasId={Number(id)}
                   nodeType={selectedNode.type as NodeType}
                   data={selectedNode.data as unknown as CanvasNodeData}
-                  label={(selectedNode.data as any).label || NODE_LABELS[selectedNode.type as NodeType]}
+                  label={(selectedNode.data as any).label || (selectedNodeMeta ? t(selectedNodeMeta.defaultLabelKey) : NODE_LABELS[selectedNode.type as NodeType])}
                   allNodes={nodes}
                   edges={edges}
                   onUpdate={updateNodeData}
@@ -1246,16 +1247,16 @@ function CanvasEditorInner() {
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col p-4 text-sm">
                   <div className="rounded-lg border border-dashed border-border bg-muted/25 p-4">
-                    <p className="text-sm font-medium text-foreground">未选择节点</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">选择一个节点后，可以在这里编辑标签、输入来源、模型、提示词和运行参数。</p>
+                    <p className="text-sm font-medium text-foreground">{t('canvas.editor.noSelectionTitle')}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('canvas.editor.noSelectionDescription')}</p>
                   </div>
                   <div className="mt-4 space-y-2 text-xs text-muted-foreground">
                     <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                      <span>当前选择</span>
+                      <span>{t('canvas.editor.currentSelection')}</span>
                       <span>{selectedNodeIds.length}</span>
                     </div>
                     <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                      <span>连接数量</span>
+                      <span>{t('canvas.editor.edgesCount')}</span>
                       <span>{edges.length}</span>
                     </div>
                   </div>
@@ -1285,20 +1286,20 @@ function CanvasEditorInner() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-background rounded-xl p-6 w-[420px] shadow-2xl space-y-4 border border-border">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">填写工作流输入</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">填写以下输入节点的内容后，工作流将自动运行。</p>
+              <h2 className="text-sm font-semibold text-foreground">{t('canvas.workflowInputTitle')}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">{t('canvas.editor.workflowInputDescription')}</p>
             </div>
             {inputNodes.map((n) => (
               <div key={n.id}>
                 <Label className="text-xs font-medium text-muted-foreground mb-1 block">
-                  {(n.data as any).paramName || (n.data as any).label || '输入'}
+                  {(n.data as any).paramName || (n.data as any).label || t('canvas.nodeLabels.input')}
                   {(n.data as any).paramType && (
                     <span className="ml-1 font-normal text-muted-foreground/70">({(n.data as any).paramType})</span>
                   )}
                 </Label>
                 <Textarea
                   rows={3}
-                  placeholder="输入内容…"
+                  placeholder={t('canvas.inputContentPlaceholder')}
                   value={inputValues[n.id] ?? ''}
                   onChange={(e) => setInputValues((prev) => ({ ...prev, [n.id]: e.target.value }))}
                   autoFocus={inputNodes[0]?.id === n.id}
@@ -1307,13 +1308,13 @@ function CanvasEditorInner() {
             ))}
             <div className="flex gap-2 pt-1">
               <Button onClick={handleConfirmRun} className="flex-1">
-                开始运行
+                {t('canvas.startRun')}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setRunDialogOpen(false)}
               >
-                取消
+                {t('common.cancel')}
               </Button>
             </div>
           </div>

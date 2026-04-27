@@ -1,17 +1,11 @@
 import type { PipelineNode, PipelineEdge } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:        'bg-muted-foreground/40',
   under_review: 'bg-amber-400',
   rejected:     'bg-destructive/70',
   final:        'bg-green-500',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  draft:        '草稿',
-  under_review: '审核中',
-  rejected:     '已拒绝',
-  final:        '已定稿',
 }
 
 interface Props {
@@ -21,6 +15,7 @@ interface Props {
 }
 
 export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
+  const { t, i18n } = useTranslation()
   const nodesWithDate = nodes.filter((n) => n.due_date)
   const nodesWithout = nodes.filter((n) => !n.due_date)
 
@@ -35,7 +30,7 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
   const dayCount = Math.ceil(spanMs / 86400_000) + 2
   for (let i = 0; i < dayCount; i++) {
     const d = new Date(minDate + i * 86400_000)
-    dayLabels.push(d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }))
+    dayLabels.push(d.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }))
   }
 
   function getBarLeft(dueDate: string) {
@@ -61,7 +56,7 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
         {/* Nodes with due dates */}
         {nodesWithDate.length === 0 && nodesWithout.length === 0 && (
           <div className="text-center py-16 text-muted-foreground text-sm">
-            <p>暂无节点</p>
+            <p>{t('pipeline.gantt.empty')}</p>
           </div>
         )}
 
@@ -77,6 +72,7 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
           {nodesWithDate.map((node) => {
             const left = getBarLeft(node.due_date!)
             const barColor = STATUS_COLORS[node.status] ?? STATUS_COLORS.draft
+            const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: node.status })
             return (
               <div
                 key={node.ID}
@@ -93,7 +89,7 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
                   <div
                     className={`absolute h-full rounded ${barColor} min-w-[4px] transition-all`}
                     style={{ left: `${left}%`, width: '4px' }}
-                    title={`${STATUS_LABELS[node.status]} — ${new Date(node.due_date!).toLocaleDateString('zh-CN')}`}
+                    title={`${statusLabel} - ${new Date(node.due_date!).toLocaleDateString(i18n.language)}`}
                   />
                   {/* Due date dot */}
                   <div
@@ -105,7 +101,7 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
                 {/* Status badge */}
                 <div className="w-16 pl-2 shrink-0">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${barColor === 'bg-green-500' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}>
-                    {STATUS_LABELS[node.status]}
+                    {statusLabel}
                   </span>
                 </div>
               </div>
@@ -115,7 +111,7 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
           {/* Nodes without due dates */}
           {nodesWithout.length > 0 && (
             <>
-              <div className="mt-4 mb-2 text-xs text-muted-foreground font-medium pl-0">未设置截止日期</div>
+              <div className="mt-4 mb-2 text-xs text-muted-foreground font-medium pl-0">{t('pipeline.gantt.noDueDate')}</div>
               {nodesWithout.map((node) => (
                 <div
                   key={node.ID}
@@ -126,11 +122,11 @@ export function GanttChart({ nodes, edges: _edges, onNodeClick }: Props) {
                     {node.name}
                   </div>
                   <div className="flex-1 h-6 border border-dashed border-border rounded flex items-center px-3">
-                    <span className="text-xs text-muted-foreground">未设置截止日期</span>
+                    <span className="text-xs text-muted-foreground">{t('pipeline.gantt.noDueDate')}</span>
                   </div>
                   <div className="w-16 pl-2 shrink-0">
                     <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-muted text-muted-foreground">
-                      {STATUS_LABELS[node.status]}
+                      {t(`pipeline.status.${node.status}`, { defaultValue: node.status })}
                     </span>
                   </div>
                 </div>

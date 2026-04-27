@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { PublicModel } from '@/types'
@@ -23,6 +24,7 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ capability, feature, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
+  const { t } = useTranslation()
   const queryKey = feature ? ['models', capability, feature] : ['models', capability]
   const queryUrl = feature
     ? `/models?capability=${capability}&feature=${feature}`
@@ -59,7 +61,7 @@ export function ModelSelector({ capability, feature, value, onChange, onModelCha
         onValueChange={handleChange}
       >
         <SelectTrigger className="min-w-[140px]">
-          <SelectValue placeholder={models.length === 0 ? '暂无可用模型' : undefined} />
+          <SelectValue placeholder={models.length === 0 ? t('shared.modelSelector.noModels') : undefined} />
         </SelectTrigger>
         <SelectContent>
           {models.map((m) => (
@@ -73,7 +75,7 @@ export function ModelSelector({ capability, feature, value, onChange, onModelCha
       <button
         onClick={() => refetch()}
         disabled={isFetching}
-        title="刷新模型列表"
+        title={t('shared.modelSelector.refresh')}
         className="text-muted-foreground/50 hover:text-muted-foreground transition-colors shrink-0"
       >
         <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />

@@ -11,10 +11,14 @@ import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { AssetDetail, ReviewStatusBadge } from '@/components/detail'
+import { useTranslation } from 'react-i18next'
 
 const TYPES = ['character', 'scene', 'prop', 'draft'] as const
-const TYPE_LABELS: Record<string, string> = {
-  character: '角色', scene: '场景', prop: '道具', draft: '底稿',
+const TYPE_LABEL_KEYS: Record<string, string> = {
+  character: 'domain.assetTypes.character',
+  scene: 'domain.assetTypes.scene',
+  prop: 'domain.assetTypes.prop',
+  draft: 'domain.assetTypes.draft',
 }
 const TYPE_COLORS: Record<string, string> = {
   character: 'bg-muted text-foreground',
@@ -55,6 +59,7 @@ function AssetThumb({ asset, className }: { asset: Asset; className?: string }) 
 }
 
 function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
+  const { t } = useTranslation()
   return (
     <button
       onClick={onClick}
@@ -70,7 +75,7 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
         <p className="text-sm font-medium truncate">{asset.name}</p>
         <div className="flex items-center justify-between mt-1">
           <span className={cn('text-xs px-1.5 py-0.5 rounded-full', TYPE_COLORS[asset.type] ?? 'bg-muted text-muted-foreground')}>
-            {TYPE_LABELS[asset.type]}
+            {t(TYPE_LABEL_KEYS[asset.type] ?? asset.type)}
           </span>
           <ReviewStatusBadge status={asset.review_status} />
         </div>
@@ -80,6 +85,7 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
 }
 
 function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
+  const { t } = useTranslation()
   return (
     <button
       onClick={onClick}
@@ -93,7 +99,7 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{asset.name}</p>
-        <p className="text-xs text-muted-foreground">{TYPE_LABELS[asset.type]}</p>
+        <p className="text-xs text-muted-foreground">{t(TYPE_LABEL_KEYS[asset.type] ?? asset.type)}</p>
       </div>
       <ReviewStatusBadge status={asset.review_status} />
     </button>
@@ -103,6 +109,7 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
 // --- Page ---
 
 export default function AssetsPage() {
+  const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterType, setFilterType] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -134,8 +141,8 @@ export default function AssetsPage() {
   const detailOpen = selectedId !== null
 
   const filterTabs = [
-    { value: '', label: '全部' },
-    ...TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] })),
+    { value: '', label: t('common.all') },
+    ...TYPES.map((type) => ({ value: type, label: t(TYPE_LABEL_KEYS[type]) })),
   ]
 
   return (
@@ -156,7 +163,7 @@ export default function AssetsPage() {
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); setSelectedId(null) }}
-              placeholder="搜索素材…"
+              placeholder={t('pages.assets.searchPlaceholder')}
               className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
@@ -164,8 +171,8 @@ export default function AssetsPage() {
             <Button onClick={() => setShowCreate(true)} size="icon" className="h-7 w-7"><Plus size={14} /></Button>
             {!detailOpen && (
               <div className="flex rounded-lg border border-border overflow-hidden">
-                <button onClick={() => setViewMode('grid')} className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title="缩略图"><LayoutGrid size={13} /></button>
-                <button onClick={() => setViewMode('list')} className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title="列表"><List size={13} /></button>
+                <button onClick={() => setViewMode('grid')} className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title={t('pages.assets.gridTitle')}><LayoutGrid size={13} /></button>
+                <button onClick={() => setViewMode('list')} className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title={t('pages.assets.listTitle')}><List size={13} /></button>
               </div>
             )}
           </div>
@@ -173,12 +180,12 @@ export default function AssetsPage() {
 
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+            <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
           ) : assets.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Image size={32} className="opacity-30" />
-              <p className="text-sm">暂无素材</p>
-              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">新建一个</button>
+              <p className="text-sm">{t('pages.assets.empty')}</p>
+              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline underline-offset-4">{t('pages.assets.createOne')}</button>
             </div>
           ) : detailOpen ? (
             // Compact sidebar list when detail panel is open — reuses AssetListRow
@@ -200,7 +207,7 @@ export default function AssetsPage() {
           )}
         </div>
         <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-background shrink-0 text-xs text-muted-foreground">
-          <span>{total} 个素材 · {page}/{pageCount}</span>
+          <span>{t('pages.assets.pagination', { total, page, pageCount })}</span>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => { setPage(p => Math.max(1, p - 1)); setSelectedId(null) }} disabled={page <= 1}>
               <ChevronLeft size={13} />
@@ -219,7 +226,7 @@ export default function AssetsPage() {
         </div>
       )}
 
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建素材">
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.assets.createTitle')}>
         <AssetCreateForm projectId={projectId!} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </CreateDialog>
     </div>

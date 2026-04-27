@@ -22,10 +22,12 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   function copy() {
     navigator.clipboard.writeText(text).then(() => {
@@ -39,7 +41,7 @@ function CopyButton({ text }: { text: string }) {
       className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:bg-muted/50"
     >
       {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
-      {copied ? '已复制' : '复制'}
+      {copied ? t('tools.debug.copied') : t('tools.debug.copy')}
     </button>
   )
 }
@@ -57,6 +59,7 @@ function buildCurl(d: DebugCallResult): string {
 // ── DebugPanel ────────────────────────────────────────────────────────────────
 
 function DebugPanel({ job }: { job: GenJob }) {
+  const { t, i18n } = useTranslation()
   const params = job.extra_params ? (() => { try { return JSON.parse(job.extra_params!) } catch { return {} } })() : {}
   const debug: DebugCallResult | null = job.debug_info ? (() => {
     try { return JSON.parse(job.debug_info!) } catch { return null }
@@ -94,29 +97,29 @@ function DebugPanel({ job }: { job: GenJob }) {
 
   return (
     <div className="bg-muted/30 rounded-lg p-3 text-xs font-mono space-y-2 border border-border">
-      <p className="text-muted-foreground font-sans font-medium text-xs">调试信息</p>
+      <p className="text-muted-foreground font-sans font-medium text-xs">{t('tools.debug.title')}</p>
 
       {/* ── Job 基础信息 ── */}
       <div className="space-y-1">
         <KV label="Job ID" value={String(job.ID)} />
-        <KV label="状态" value={job.status} color={job.status === 'failed' ? 'text-destructive' : job.status === 'succeeded' ? 'text-green-400' : 'text-foreground'} />
-        <KV label="配置 ID" value={String(job.model_config_id)} />
-        {job.started_at && <KV label="开始" value={new Date(job.started_at).toLocaleTimeString('zh-CN')} />}
-        {job.finished_at && <KV label="完成" value={new Date(job.finished_at).toLocaleTimeString('zh-CN')} />}
-        {job.error_msg && <KV label="错误" value={job.error_msg} color="text-destructive" />}
+        <KV label={t('tools.debug.status')} value={job.status} color={job.status === 'failed' ? 'text-destructive' : job.status === 'succeeded' ? 'text-green-400' : 'text-foreground'} />
+        <KV label={t('tools.debug.configId')} value={String(job.model_config_id)} />
+        {job.started_at && <KV label={t('tools.debug.started')} value={new Date(job.started_at).toLocaleTimeString(i18n.language)} />}
+        {job.finished_at && <KV label={t('tools.debug.finished')} value={new Date(job.finished_at).toLocaleTimeString(i18n.language)} />}
+        {job.error_msg && <KV label={t('pipeline.toolNode.error')} value={job.error_msg} color="text-destructive" />}
       </div>
 
       {/* ── Job 调用上下文（worker 填入）── */}
       {debug && (debug.job_type || debug.job_model_def_id || debug.job_resolved_prompt || (debug.job_input_resource_ids?.length ?? 0) > 0) && (
-        <Section title="调用上下文">
-          {debug.job_type && <KV label="输出类型" value={debug.job_type} />}
-          {debug.job_model_def_id && <KV label="模型定义" value={debug.job_model_def_id} />}
+        <Section title={t('tools.debug.callContext')}>
+          {debug.job_type && <KV label={t('tools.debug.outputType')} value={debug.job_type} />}
+          {debug.job_model_def_id && <KV label={t('tools.debug.modelDefinition')} value={debug.job_model_def_id} />}
           {(debug.job_input_resource_ids?.length ?? 0) > 0 && (
-            <KV label="输入资源" value={debug.job_input_resource_ids!.join(', ')} />
+            <KV label={t('tools.debug.inputResources')} value={debug.job_input_resource_ids!.join(', ')} />
           )}
           {debug.job_resolved_prompt && (
             <div className="flex gap-2 min-w-0">
-              <span className="text-muted-foreground w-24 shrink-0">发送提示词</span>
+              <span className="text-muted-foreground w-24 shrink-0">{t('tools.debug.sentPrompt')}</span>
               <span className="text-foreground break-all whitespace-pre-wrap">{debug.job_resolved_prompt}</span>
             </div>
           )}
@@ -125,7 +128,7 @@ function DebugPanel({ job }: { job: GenJob }) {
 
       {/* ── 生成参数 ── */}
       {Object.keys(params).length > 0 && (
-        <Section title="生成参数">
+        <Section title={t('admin.params.title')}>
           {Object.entries(params).map(([k, v]) => (
             <KV key={k} label={k} value={String(v)} />
           ))}
@@ -134,7 +137,7 @@ function DebugPanel({ job }: { job: GenJob }) {
 
       {/* ── HTTP 请求 ── */}
       {debug && debug.endpoint && (
-        <Section title={`请求 ${debug.latency_ms ? `· ${debug.latency_ms}ms` : ''}`}>
+        <Section title={`${t('tools.debug.request')} ${debug.latency_ms ? `· ${debug.latency_ms}ms` : ''}`}>
           <div className="flex items-center gap-1.5">
             <span className="text-blue-400 shrink-0">{debug.method}</span>
             <span className="text-foreground break-all">{debug.endpoint}</span>
@@ -161,7 +164,7 @@ function DebugPanel({ job }: { job: GenJob }) {
 
       {/* ── HTTP 响应 ── */}
       {debug && debug.response_status > 0 && (
-        <Section title="响应">
+        <Section title={t('tools.debug.response')}>
           <span className={debug.response_status < 400 ? 'text-green-400' : 'text-destructive'}>
             {debug.response_status}
           </span>
@@ -171,7 +174,7 @@ function DebugPanel({ job }: { job: GenJob }) {
 
       {/* ── 错误（来自 adapter）── */}
       {debug?.error && (
-        <Section title="Adapter 错误">
+        <Section title={t('tools.debug.adapterError')}>
           <span className="text-destructive break-all">{debug.error}</span>
         </Section>
       )}
@@ -229,6 +232,7 @@ export function ToolDialog({
   outputType,
   promptPlaceholder,
 }: ToolDialogDef) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [prompt, setPrompt] = useState('')
@@ -317,10 +321,10 @@ export function ToolDialog({
     const acceptsVideo = caps.includes('video_v2v')
     for (const a of attachments) {
       if (a.type === 'image' && !acceptsImage) {
-        warnings.push(`当前模型不支持图片参考，图片「${a.name}」将被忽略`)
+        warnings.push(t('tools.page.imageUnsupportedWarning', { name: a.name }))
       }
       if (a.type === 'video' && !acceptsVideo) {
-        warnings.push(`当前模型不支持视频参考，视频「${a.name}」将被忽略`)
+        warnings.push(t('tools.page.videoUnsupportedWarning', { name: a.name }))
       }
     }
     return warnings
@@ -436,7 +440,7 @@ export function ToolDialog({
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="text-sm font-medium text-muted-foreground">工具</span>
+        <span className="text-sm font-medium text-muted-foreground">{t('sidebar.sections.tools')}</span>
         <span className="text-muted-foreground/40">/</span>
         <span className="text-sm font-semibold text-foreground">{toolName}</span>
       </div>
@@ -479,7 +483,7 @@ export function ToolDialog({
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setDebugMode((d) => !d)}
-                    title="调试模式"
+                    title={t('tools.debug.mode')}
                     className={cn(
                       'p-1.5 rounded-md transition-colors',
                       debugMode
@@ -536,7 +540,7 @@ export function ToolDialog({
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
               <History size={13} className="text-muted-foreground" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">生成历史</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('shared.toolNode.generationHistory')}</span>
               {historyTotal > 0 && (
                 <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
                   {historyTotal}
@@ -565,7 +569,7 @@ export function ToolDialog({
             {jobs.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40 select-none">
                 <Wand2 size={28} className="opacity-30" />
-                <p className="text-xs">还没有生成记录</p>
+                <p className="text-xs">{t('pages.jobs.empty')}</p>
               </div>
             ) : (
               <div className="space-y-3">

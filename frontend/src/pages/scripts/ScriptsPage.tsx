@@ -13,21 +13,22 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ScriptDetail, ReviewStatusBadge } from '@/components/detail'
+import { useTranslation } from 'react-i18next'
 
 type ScriptType = 'main' | 'episode' | 'scene'
 type SettingType = 'character' | 'scene' | 'prop'
 type PageTab = 'scripts' | 'settings'
 
-const SCRIPT_TYPES: { type: ScriptType; label: string; color: string }[] = [
-  { type: 'main',    label: '主剧本',   color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400' },
-  { type: 'episode', label: '分集剧本', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
-  { type: 'scene',   label: '分场剧本', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
+const SCRIPT_TYPES: { type: ScriptType; labelKey: string; color: string }[] = [
+  { type: 'main',    labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400' },
+  { type: 'episode', labelKey: 'domain.scriptTypes.episode', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
+  { type: 'scene',   labelKey: 'domain.scriptTypes.scene',   color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
 ]
 
-const SETTING_TYPES: { type: SettingType; label: string; color: string }[] = [
-  { type: 'character', label: '人物', color: 'bg-muted text-muted-foreground' },
-  { type: 'scene',     label: '场景', color: 'bg-muted text-muted-foreground' },
-  { type: 'prop',      label: '道具', color: 'bg-muted text-muted-foreground' },
+const SETTING_TYPES: { type: SettingType; labelKey: string; color: string }[] = [
+  { type: 'character', labelKey: 'domain.settingTypes.character', color: 'bg-muted text-muted-foreground' },
+  { type: 'scene',     labelKey: 'domain.settingTypes.scene',     color: 'bg-muted text-muted-foreground' },
+  { type: 'prop',      labelKey: 'domain.settingTypes.prop',      color: 'bg-muted text-muted-foreground' },
 ]
 
 const SCRIPT_TYPE_MAP = Object.fromEntries(SCRIPT_TYPES.map((t) => [t.type, t]))
@@ -36,6 +37,7 @@ const SETTING_TYPE_MAP = Object.fromEntries(SETTING_TYPES.map((t) => [t.type, t]
 // ─── Scripts Section ────────────────────────────────────────────────────────
 
 function ScriptsSection({ projectId }: { projectId: number }) {
+  const { t } = useTranslation()
   const [filterType, setFilterType] = useState<ScriptType | ''>('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -58,8 +60,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const detailOpen = selectedId !== null
 
   const filterTabs = [
-    { value: '' as const, label: '全部' },
-    ...SCRIPT_TYPES.map((t) => ({ value: t.type, label: t.label })),
+    { value: '' as const, label: t('common.all') },
+    ...SCRIPT_TYPES.map((type) => ({ value: type.type, label: t(type.labelKey) })),
   ]
 
   return (
@@ -91,12 +93,12 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+            <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
           ) : scripts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <FileText size={32} className="opacity-30" />
-              <p className="text-sm">暂无剧本</p>
-              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline-offset-4">新建一个</button>
+              <p className="text-sm">{t('pages.scripts.empty')}</p>
+              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground underline-offset-4">{t('pages.scripts.createOne')}</button>
             </div>
           ) : detailOpen ? (
             scripts.map((s) => (
@@ -110,7 +112,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
               >
                 <div className="flex items-center gap-2">
                   <span className={cn('text-xs px-1.5 py-0.5 rounded shrink-0 font-medium', SCRIPT_TYPE_MAP[s.script_type]?.color ?? 'bg-muted text-muted-foreground')}>
-                    {SCRIPT_TYPE_MAP[s.script_type]?.label ?? s.script_type}
+                    {SCRIPT_TYPE_MAP[s.script_type] ? t(SCRIPT_TYPE_MAP[s.script_type].labelKey) : s.script_type}
                   </span>
                   {s.script_type === 'episode' && (
                     <span className="text-xs text-muted-foreground font-mono shrink-0">#{s.order || '—'}</span>
@@ -130,7 +132,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', SCRIPT_TYPE_MAP[s.script_type]?.color ?? 'bg-muted text-muted-foreground')}>
-                      {SCRIPT_TYPE_MAP[s.script_type]?.label ?? s.script_type}
+                      {SCRIPT_TYPE_MAP[s.script_type] ? t(SCRIPT_TYPE_MAP[s.script_type].labelKey) : s.script_type}
                     </span>
                     <ReviewStatusBadge status={s.review_status} />
                   </div>
@@ -158,7 +160,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
         </div>
       )}
 
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建剧本">
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.scripts.createTitle')}>
         <ScriptCreateForm projectId={projectId} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </CreateDialog>
     </div>
@@ -168,6 +170,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 // ─── Settings Section ────────────────────────────────────────────────────────
 
 function SettingsSection({ projectId }: { projectId: number }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [filterType, setFilterType] = useState<SettingType | ''>('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -211,7 +214,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
       setDraft((d) => ({ ...d, [key]: e.target.value }))
   }
 
-  const filterTabs = [{ value: '' as const, label: '全部' }, ...SETTING_TYPES.map((t) => ({ value: t.type, label: t.label }))]
+  const filterTabs = [{ value: '' as const, label: t('common.all') }, ...SETTING_TYPES.map((type) => ({ value: type.type, label: t(type.labelKey) }))]
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -228,18 +231,18 @@ function SettingsSection({ projectId }: { projectId: number }) {
           <Button variant="default" size="icon" onClick={() => setShowCreate(true)} className="ml-2 shrink-0 h-7 w-7"><Plus size={14} /></Button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? <p className="p-4 text-xs text-muted-foreground text-center">加载中…</p>
+          {isLoading ? <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
             : settings.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                <Users size={32} className="opacity-30" /><p className="text-sm">暂无设定</p>
-                <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground">新建一个</button>
+                <Users size={32} className="opacity-30" /><p className="text-sm">{t('pages.scripts.settingsEmpty')}</p>
+                <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground">{t('pages.scripts.createOne')}</button>
               </div>
             ) : detailOpen ? (
               settings.map((s) => (
                 <button key={s.ID} onClick={() => selectSetting(s)}
                   className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
                   <div className="flex items-center gap-2">
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded shrink-0', SETTING_TYPE_MAP[s.type]?.color ?? 'bg-muted text-muted-foreground')}>{SETTING_TYPE_MAP[s.type]?.label ?? s.type}</span>
+                    <span className={cn('text-xs px-1.5 py-0.5 rounded shrink-0', SETTING_TYPE_MAP[s.type]?.color ?? 'bg-muted text-muted-foreground')}>{SETTING_TYPE_MAP[s.type] ? t(SETTING_TYPE_MAP[s.type].labelKey) : s.type}</span>
                     <span className="text-sm font-medium truncate flex-1">{s.name}</span>
                   </div>
                 </button>
@@ -249,7 +252,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
                 {settings.map((s) => (
                   <button key={s.ID} onClick={() => selectSetting(s)} className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
                     <div className="flex items-start justify-between mb-2">
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full', SETTING_TYPE_MAP[s.type]?.color ?? 'bg-muted text-muted-foreground')}>{SETTING_TYPE_MAP[s.type]?.label ?? s.type}</span>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full', SETTING_TYPE_MAP[s.type]?.color ?? 'bg-muted text-muted-foreground')}>{SETTING_TYPE_MAP[s.type] ? t(SETTING_TYPE_MAP[s.type].labelKey) : s.type}</span>
                     </div>
                     <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.name}</h3>
                     {s.description && <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>}
@@ -264,66 +267,66 @@ function SettingsSection({ projectId }: { projectId: number }) {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-3 min-w-0">
-              <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0', SETTING_TYPE_MAP[selected.type]?.color ?? '')}>{SETTING_TYPE_MAP[selected.type]?.label ?? selected.type}</span>
+              <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0', SETTING_TYPE_MAP[selected.type]?.color ?? '')}>{SETTING_TYPE_MAP[selected.type] ? t(SETTING_TYPE_MAP[selected.type].labelKey) : selected.type}</span>
               <h2 className="text-sm font-semibold text-foreground truncate">{selected.name}</h2>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setSelectedId(null)}>关闭</Button>
-              <button onClick={() => remove.mutate(selected.ID)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">删除</button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedId(null)}>{t('common.close')}</Button>
+              <button onClick={() => remove.mutate(selected.ID)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">{t('common.delete')}</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div><Label className="text-xs font-medium text-muted-foreground mb-1">名称</Label><Input value={draft.name ?? ''} onChange={field('name')} /></div>
+              <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.name')}</Label><Input value={draft.name ?? ''} onChange={field('name')} /></div>
               <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">类型</Label>
+                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.type')}</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {SETTING_TYPES.map((t) => (
-                    <button key={t.type} onClick={() => setDraft((d) => ({ ...d, type: t.type }))}
-                      className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', draft.type === t.type ? cn(t.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
-                      {t.label}
+                  {SETTING_TYPES.map((type) => (
+                    <button key={type.type} onClick={() => setDraft((d) => ({ ...d, type: type.type }))}
+                      className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', draft.type === type.type ? cn(type.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
+                      {t(type.labelKey)}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
-            <div><Label className="text-xs font-medium text-muted-foreground mb-1">简介</Label><Input value={draft.description ?? ''} onChange={field('description')} /></div>
+            <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label><Input value={draft.description ?? ''} onChange={field('description')} /></div>
             <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">详细内容</Label>
-              <Textarea className="resize-none" rows={12} placeholder="详细描述此设定的内容…" value={draft.content ?? ''} onChange={field('content')} />
+              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.scripts.settingContent')}</Label>
+              <Textarea className="resize-none" rows={12} placeholder={t('pages.scripts.settingContentPlaceholder')} value={draft.content ?? ''} onChange={field('content')} />
             </div>
             <div className="pt-1 border-t border-border">
               <Button onClick={() => update.mutate({ id: selected.ID, data: draft })} disabled={update.isPending} className="gap-1.5">
-                <Save size={13} /> {update.isPending ? '保存中…' : '保存'}
+                <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title="新建设定">
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.scripts.settingsCreateTitle')}>
         <div className="space-y-4">
-          <div><Label className="text-xs font-medium text-muted-foreground mb-1">名称 *</Label>
-            <Input autoFocus placeholder="设定名称" value={newName} onChange={(e) => setNewName(e.target.value)}
+          <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.nameRequired')}</Label>
+            <Input autoFocus placeholder={t('pages.scripts.settingName')} value={newName} onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate({ name: newName, description: newDesc, type: newType })} />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">类型 *</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.typeRequired')}</Label>
             <div className="flex flex-wrap gap-2">
-              {SETTING_TYPES.map((t) => (
-                <button key={t.type} onClick={() => setNewType(t.type)}
-                  className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', newType === t.type ? cn(t.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
-                  {t.label}
+              {SETTING_TYPES.map((type) => (
+                <button key={type.type} onClick={() => setNewType(type.type)}
+                  className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', newType === type.type ? cn(type.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
+                  {t(type.labelKey)}
                 </button>
               ))}
             </div>
           </div>
-          <div><Label className="text-xs font-medium text-muted-foreground mb-1">简介（可选）</Label><Textarea className="resize-none" rows={2} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} /></div>
+          <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label><Textarea className="resize-none" rows={2} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} /></div>
           <div className="flex gap-2 pt-1">
             <Button onClick={() => create.mutate({ name: newName, description: newDesc, type: newType })} disabled={!newName.trim() || create.isPending} className="flex-1">
-              {create.isPending ? '创建中…' : '创建设定'}
+              {create.isPending ? t('common.creating') : t('pages.scripts.createSetting')}
             </Button>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>{t('common.cancel')}</Button>
           </div>
         </div>
       </CreateDialog>
@@ -334,6 +337,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ScriptsPage() {
+  const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [pageTab, setPageTab] = useState<PageTab>('scripts')
 
@@ -343,10 +347,10 @@ export default function ScriptsPage() {
     <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as PageTab)} className="flex flex-col h-full overflow-hidden">
       <TabsList className="shrink-0 w-full justify-start rounded-none border-b bg-background px-4 h-auto py-0">
         <TabsTrigger value="scripts" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3">
-          <BookOpen size={14} /> 剧本
+          <BookOpen size={14} /> {t('entities.scripts')}
         </TabsTrigger>
         <TabsTrigger value="settings" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3">
-          <Users size={14} /> 设定
+          <Users size={14} /> {t('entities.settings')}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="scripts" className="flex-1 overflow-hidden mt-0">

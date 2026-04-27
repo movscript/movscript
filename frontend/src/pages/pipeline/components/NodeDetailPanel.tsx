@@ -13,47 +13,49 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
 interface EntityDef {
   entityType: string
   label: string
   apiPath: (pid: number) => string
-  defaultBody: (pid: number) => object
+  defaultBody: (t: TFunction) => object
 }
 
 // Node type → entity mapping
 const NODE_TYPE_TO_ENTITY: Record<string, EntityDef> = {
   episode_script: {
     entityType: 'episode',
-    label: '分集',
+    label: 'Episode',
     apiPath: (pid) => `/projects/${pid}/episodes`,
-    defaultBody: () => ({ title: '新分集', synopsis: '' }),
+    defaultBody: (t) => ({ title: t('pipeline.detail.defaultTitles.episode'), synopsis: '' }),
   },
   scene_script: {
     entityType: 'scene',
-    label: '分场',
+    label: 'Scene',
     apiPath: (pid) => `/projects/${pid}/scenes`,
-    defaultBody: () => ({ title: '新分场', location: '' }),
+    defaultBody: (t) => ({ title: t('pipeline.detail.defaultTitles.scene'), location: '' }),
   },
   storyboard_script: {
     entityType: 'storyboard',
-    label: '分镜',
+    label: 'Storyboard',
     apiPath: (pid) => `/projects/${pid}/storyboards`,
-    defaultBody: () => ({ title: '新分镜' }),
+    defaultBody: (t) => ({ title: t('pipeline.detail.defaultTitles.storyboard') }),
   },
   shot_production: {
     entityType: 'shot',
-    label: '镜头',
+    label: 'Shot',
     apiPath: (pid) => `/projects/${pid}/shots`,
     defaultBody: () => ({ description: '' }),
   },
 }
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
-  draft:        { label: '草稿',   className: 'bg-muted text-muted-foreground' },
-  under_review: { label: '审核中', className: 'bg-amber-100 text-amber-700' },
-  rejected:     { label: '已拒绝', className: 'bg-red-100 text-red-700' },
-  final:        { label: '已定稿', className: 'bg-green-100 text-green-700' },
+  draft:        { label: 'Draft', className: 'bg-muted text-muted-foreground' },
+  under_review: { label: 'In Review', className: 'bg-amber-100 text-amber-700' },
+  rejected:     { label: 'Rejected', className: 'bg-red-100 text-red-700' },
+  final:        { label: 'Final', className: 'bg-green-100 text-green-700' },
 }
 
 interface Props {
@@ -63,6 +65,7 @@ interface Props {
 }
 
 export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
   const currentUser = useUserStore((s) => s.currentUser)
@@ -109,7 +112,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
       if (!project) return
       const def = NODE_TYPE_TO_ENTITY[node.type]
       if (!def) return
-      const entity = await api.post(def.apiPath(project.ID), def.defaultBody(project.ID)).then((r) => r.data)
+      const entity = await api.post(def.apiPath(project.ID), def.defaultBody(t)).then((r) => r.data)
       const updated = await api.put(`/pipeline/nodes/${node.ID}`, {
         entity_type: def.entityType,
         entity_id: entity.ID,
@@ -131,6 +134,8 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
 
   const statusMeta = STATUS_META[node.status] ?? STATUS_META.draft
   const entityDef = NODE_TYPE_TO_ENTITY[node.type]
+  const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: statusMeta.label })
+  const entityLabel = entityDef ? t(`pipeline.detail.entities.${entityDef.entityType}`, { defaultValue: entityDef.label }) : ''
 
   return (
     <div className="w-80 bg-card border-l border-border flex flex-col h-full shrink-0">
@@ -138,7 +143,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span className={`text-xs px-2 py-0.5 rounded font-medium ${statusMeta.className}`}>
-            {statusMeta.label}
+            {statusLabel}
           </span>
           <span className="text-xs text-muted-foreground">{node.name}</span>
         </div>
@@ -150,7 +155,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Name */}
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">节点名称</Label>
+          <Label className="text-xs text-muted-foreground">{t('pipeline.detail.nodeName')}</Label>
           <EditableField
             key={node.ID + '-name'}
             value={node.name}
@@ -160,30 +165,30 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
 
         {/* Description */}
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">描述</Label>
+          <Label className="text-xs text-muted-foreground">{t('forms.description')}</Label>
           <EditableTextarea
             key={node.ID + '-desc'}
             value={node.description ?? ''}
-            placeholder="添加描述..."
+            placeholder={t('pipeline.detail.addDescription')}
             onSave={(v) => handleSaveField('description', v)}
           />
         </div>
 
         {/* Assignee */}
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">负责人</Label>
+          <Label className="text-xs text-muted-foreground">{t('pipeline.detail.assignee')}</Label>
           <Select
             value={node.assignee_id?.toString() ?? '__none__'}
             onValueChange={(v) => handleSaveField('assignee_id', v === '__none__' ? null : parseInt(v))}
           >
             <SelectTrigger className="h-8 text-sm">
-              <SelectValue placeholder="未分配" />
+              <SelectValue placeholder={t('pipeline.detail.unassigned')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">未分配</SelectItem>
+              <SelectItem value="__none__">{t('pipeline.detail.unassigned')}</SelectItem>
               {members.map((m) => (
                 <SelectItem key={m.user_id} value={m.user_id.toString()}>
-                  {m.user?.username ?? `用户 ${m.user_id}`}
+                  {m.user?.username ?? t('pages.resources.userFallback', { id: m.user_id })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -193,7 +198,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
         {/* Due date */}
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground flex items-center gap-1">
-            <CalendarDays size={11} /> 截止日期
+            <CalendarDays size={11} /> {t('pipeline.detail.dueDate')}
           </Label>
           <Input
             key={node.ID + '-date'}
@@ -208,20 +213,20 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
         {entityDef && (
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground flex items-center gap-1">
-              <Link2 size={11} /> 关联{entityDef.label}
+              <Link2 size={11} /> {t('pipeline.detail.linkEntity', { entity: entityLabel })}
             </Label>
             {node.entity_id ? (
               <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-green-200 bg-green-50">
                 <CheckCircle2 size={13} className="text-green-600 shrink-0" />
                 <span className="text-xs text-green-700 flex-1">
-                  已关联 {entityDef.label} #{node.entity_id}
+                  {t('pipeline.detail.linkedEntity', { entity: entityLabel, id: node.entity_id })}
                 </span>
                 <a
                   href={`/${entityDef.entityType}s`}
                   className="text-[10px] text-green-600 hover:underline flex items-center gap-0.5"
                   target="_self"
                 >
-                  查看 <ExternalLink size={10} />
+                  {t('pipeline.detail.view')} <ExternalLink size={10} />
                 </a>
               </div>
             ) : (
@@ -237,7 +242,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
                 ) : (
                   <Plus size={12} className="mr-1.5" />
                 )}
-                创建并关联{entityDef.label}
+                {t('pipeline.detail.createAndLink', { entity: entityLabel })}
               </Button>
             )}
           </div>
@@ -247,7 +252,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
         {node.status === 'rejected' && node.review_note && (
           <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-medium text-red-700">
-              <FileWarning size={13} /> 拒绝原因
+              <FileWarning size={13} /> {t('pipeline.detail.rejectReason')}
             </div>
             <p className="text-xs text-red-600">{node.review_note}</p>
           </div>
@@ -264,7 +269,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
             disabled={transitionMutation.isPending}
           >
             <Clock size={14} className="mr-1.5" />
-            {node.status === 'rejected' ? '重新提交' : '提交审核'}
+            {node.status === 'rejected' ? t('pipeline.detail.resubmit') : t('review.submit')}
           </Button>
         )}
 
@@ -274,10 +279,10 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
               className="w-full bg-green-600 hover:bg-green-700 text-white"
               size="sm"
               onClick={() => transitionMutation.mutate({ action: 'approve' })}
-              disabled={transitionMutation.isPending}
-            >
-              <CheckCircle2 size={14} className="mr-1.5" />
-              批准定稿
+            disabled={transitionMutation.isPending}
+          >
+            <CheckCircle2 size={14} className="mr-1.5" />
+              {t('pipeline.detail.approveFinal')}
             </Button>
 
             {!showRejectInput ? (
@@ -288,12 +293,12 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
                 onClick={() => setShowRejectInput(true)}
               >
                 <AlertCircle size={14} className="mr-1.5" />
-                拒绝
+                {t('pipeline.detail.reject')}
               </Button>
             ) : (
               <div className="space-y-2">
                 <Textarea
-                  placeholder="请填写拒绝原因..."
+                  placeholder={t('pipeline.detail.rejectPlaceholder')}
                   className="text-sm resize-none"
                   rows={2}
                   value={rejectNote}
@@ -306,7 +311,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
                     className="flex-1"
                     onClick={() => { setShowRejectInput(false); setRejectNote('') }}
                   >
-                    取消
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     size="sm"
@@ -315,7 +320,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
                     onClick={() => transitionMutation.mutate({ action: 'reject', body: { note: rejectNote } })}
                     disabled={transitionMutation.isPending}
                   >
-                    确认拒绝
+                    {t('pipeline.detail.confirmReject')}
                   </Button>
                 </div>
               </div>
@@ -331,7 +336,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
             onClick={() => transitionMutation.mutate({ action: 'reopen' })}
             disabled={transitionMutation.isPending}
           >
-            重新开放（级联回退下游）
+            {t('pipeline.detail.reopen')}
           </Button>
         )}
       </div>
@@ -342,6 +347,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
 // ── Inline editable field ──────────────────────────────────────────────────
 
 function EditableField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
 
@@ -362,7 +368,7 @@ function EditableField({ value, onSave }: { value: string; onSave: (v: string) =
       className="text-sm text-foreground px-2 py-1.5 rounded border border-transparent hover:border-border cursor-text truncate"
       onClick={() => { setDraft(value); setEditing(true) }}
     >
-      {value || <span className="text-muted-foreground">点击编辑...</span>}
+      {value || <span className="text-muted-foreground">{t('pipeline.detail.clickToEdit')}</span>}
     </p>
   )
 }

@@ -4,24 +4,26 @@ import type { ReviewStatus } from '@/types'
 import { cn } from '@/lib/utils'
 import { Send, CheckCircle, RotateCcw, FileEdit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from 'react-i18next'
 
 export const REVIEW_STATUS_CONFIG: Record<ReviewStatus, {
-  label: string
+  labelKey: string
   color: string
   bg: string
 }> = {
-  draft:        { label: '草稿',   color: 'text-muted-foreground', bg: 'bg-muted' },
-  under_review: { label: '提审中', color: 'text-amber-600',        bg: 'bg-amber-50 dark:bg-amber-950/30' },
-  approved:     { label: '审核定稿', color: 'text-emerald-600',    bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
-  revision:     { label: '重改中', color: 'text-rose-600',         bg: 'bg-rose-50 dark:bg-rose-950/30' },
+  draft:        { labelKey: 'domain.reviewStatus.draft',        color: 'text-muted-foreground', bg: 'bg-muted' },
+  under_review: { labelKey: 'domain.reviewStatus.under_review', color: 'text-amber-600',        bg: 'bg-amber-50 dark:bg-amber-950/30' },
+  approved:     { labelKey: 'domain.reviewStatus.approved',     color: 'text-emerald-600',    bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
+  revision:     { labelKey: 'domain.reviewStatus.revision',     color: 'text-rose-600',         bg: 'bg-rose-50 dark:bg-rose-950/30' },
 }
 
 export function ReviewStatusBadge({ status }: { status?: ReviewStatus }) {
+  const { t } = useTranslation()
   const s = status ?? 'draft'
   const cfg = REVIEW_STATUS_CONFIG[s]
   return (
     <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium', cfg.bg, cfg.color)}>
-      {cfg.label}
+      {t(cfg.labelKey)}
     </span>
   )
 }
@@ -34,6 +36,7 @@ interface ReviewActionsProps {
 }
 
 export function ReviewActions({ status, apiUrl, queryKey, extraPayload }: ReviewActionsProps) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const s = status ?? 'draft'
 
@@ -54,7 +57,7 @@ export function ReviewActions({ status, apiUrl, queryKey, extraPayload }: Review
           onClick={() => update.mutate('under_review')}
           disabled={update.isPending}
         >
-          <Send size={12} /> 提交审核
+          <Send size={12} /> {t('review.submit')}
         </Button>
       )}
       {s === 'under_review' && (
@@ -66,7 +69,7 @@ export function ReviewActions({ status, apiUrl, queryKey, extraPayload }: Review
             onClick={() => update.mutate('approved')}
             disabled={update.isPending}
           >
-            <CheckCircle size={12} /> 审核通过
+            <CheckCircle size={12} /> {t('review.approve')}
           </Button>
           <Button
             size="sm"
@@ -75,7 +78,7 @@ export function ReviewActions({ status, apiUrl, queryKey, extraPayload }: Review
             onClick={() => update.mutate('revision')}
             disabled={update.isPending}
           >
-            <RotateCcw size={12} /> 打回重改
+            <RotateCcw size={12} /> {t('review.requestRevision')}
           </Button>
         </>
       )}
@@ -87,7 +90,7 @@ export function ReviewActions({ status, apiUrl, queryKey, extraPayload }: Review
           onClick={() => update.mutate('draft')}
           disabled={update.isPending}
         >
-          <FileEdit size={12} /> 重置草稿
+          <FileEdit size={12} /> {t('review.resetDraft')}
         </Button>
       )}
     </div>

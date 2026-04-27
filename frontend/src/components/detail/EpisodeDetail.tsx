@@ -10,10 +10,15 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
+import { useTranslation } from 'react-i18next'
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: '草稿', scripted: '已编剧', storyboarded: '已分镜',
-  generating: '生成中', editing: '剪辑中', done: '完成',
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  draft: 'domain.episodeStatus.draft',
+  scripted: 'domain.episodeStatus.scripted',
+  storyboarded: 'domain.episodeStatus.storyboarded',
+  generating: 'domain.episodeStatus.generating',
+  editing: 'domain.episodeStatus.editing',
+  done: 'domain.episodeStatus.done',
 }
 
 interface Props {
@@ -23,6 +28,7 @@ interface Props {
 }
 
 export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Episode>>({ ...episode })
@@ -91,7 +97,7 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ReviewStatusBadge status={episode.review_status} />
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>}
+          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
         </div>
       </div>
 
@@ -104,7 +110,7 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
         />
         {onDelete && (
           <button onClick={() => remove.mutate()} className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors">
-            删除
+            {t('common.delete')}
           </button>
         )}
       </div>
@@ -112,60 +118,60 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">标题</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('forms.title')}</Label>
             <Input value={draft.title ?? ''} onChange={field('title')} />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">集数编号</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.episodeNumber')}</Label>
             <Input type="number" value={draft.number ?? ''} onChange={(e) => setDraft((d) => ({ ...d, number: Number(e.target.value) }))} />
           </div>
         </div>
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1 block">关联剧本（可选）</Label>
+          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('forms.linkedScriptOptional')}</Label>
           <select
             className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
             value={draft.script_id ?? ''}
             onChange={(e) => setDraft((d) => ({ ...d, script_id: Number(e.target.value) || undefined }))}
           >
-            <option value="">无（直接制作）</option>
+            <option value="">{t('forms.noScriptDirect')}</option>
             {scripts.map((s) => <option key={s.ID} value={s.ID}>{s.title}</option>)}
           </select>
         </div>
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1 block">剧情概要</Label>
+          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.episodeSynopsis')}</Label>
           <Textarea className="resize-none" rows={4} value={draft.synopsis ?? ''} onChange={field('synopsis')} />
         </div>
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1 block">制作状态</Label>
+          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.productionStatus')}</Label>
           <select
             className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
             value={draft.status ?? ''}
             onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}
           >
-            {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            {Object.entries(STATUS_LABEL_KEYS).map(([v, labelKey]) => <option key={v} value={v}>{t(labelKey)}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">目标分镜数</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.targetStoryboards')}</Label>
             <Input type="number" min={0} value={draft.target_storyboards ?? ''} onChange={(e) => setDraft((d) => ({ ...d, target_storyboards: Number(e.target.value) || 0 }))} />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">目标分场数</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.targetScenes')}</Label>
             <Input type="number" min={0} value={draft.target_scenes ?? ''} onChange={(e) => setDraft((d) => ({ ...d, target_scenes: Number(e.target.value) || 0 }))} />
           </div>
         </div>
         <div className="pt-1 border-t border-border">
           <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="gap-1.5" size="sm">
-            <Save size={13} /> {update.isPending ? '保存中…' : '保存'}
+            <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
           </Button>
         </div>
 
         {/* Linked scenes */}
         <div className="border-t border-border pt-4 space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">关联分场</p>
+          <p className="text-xs font-medium text-muted-foreground">{t('details.linkedScenes')}</p>
           {linkedScenes.length === 0 ? (
-            <p className="text-xs text-muted-foreground">暂无关联分场</p>
+            <p className="text-xs text-muted-foreground">{t('details.noLinkedScenes')}</p>
           ) : (
             <div className="space-y-1">
               {linkedScenes.map(({ scene, scene_id, order: sceneOrder }) => (
@@ -173,11 +179,11 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
                   <span className="text-xs text-muted-foreground font-mono shrink-0">{sceneOrder + 1}</span>
                   {scene ? (
                     <>
-                      <span className="text-xs font-mono text-muted-foreground shrink-0">场{scene.number}</span>
+                      <span className="text-xs font-mono text-muted-foreground shrink-0">{t('details.sceneLabel', { number: scene.number })}</span>
                       <span className="text-sm text-foreground truncate flex-1">{scene.title}</span>
                     </>
                   ) : (
-                    <span className="text-xs text-muted-foreground flex-1">场景 #{scene_id}</span>
+                    <span className="text-xs text-muted-foreground flex-1">{t('details.sceneFallback', { id: scene_id })}</span>
                   )}
                   <button onClick={() => unlinkScene.mutate(scene_id)} className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors">
                     <X size={12} />
@@ -193,15 +199,15 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
                 value={linkSceneId ?? ''}
                 onChange={(e) => setLinkSceneId(Number(e.target.value) || null)}
               >
-                <option value="">选择分场关联</option>
-                {availableScenes.map((s) => <option key={s.ID} value={s.ID}>场{s.number} {s.title}</option>)}
+                <option value="">{t('details.selectSceneLink')}</option>
+                {availableScenes.map((s) => <option key={s.ID} value={s.ID}>{t('details.sceneLabel', { number: s.number })} {s.title}</option>)}
               </select>
               <button
                 onClick={() => linkSceneId && linkScene.mutate(linkSceneId)}
                 disabled={!linkSceneId || linkScene.isPending}
                 className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs hover:bg-primary/90 disabled:opacity-40"
               >
-                <Link size={12} /> 关联
+                <Link size={12} /> {t('details.link')}
               </button>
             </div>
           )}

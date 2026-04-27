@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useTranslation } from 'react-i18next'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ function extractBase64Images(jsonStr: string): string[] {
 }
 
 function CopyButton({ text, className }: { text: string; className?: string }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   function copy() {
     navigator.clipboard.writeText(text).then(() => {
@@ -105,7 +107,7 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
       className={cn('flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors', className)}
     >
       {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
-      {copied ? '已复制' : '复制'}
+      {copied ? t('admin.debug.copied') : t('admin.debug.copy')}
     </button>
   )
 }
@@ -117,17 +119,17 @@ const STATUS_COLOR: Record<string, string> = {
   failed:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 }
 
-const STATE_LABEL: Record<string, string> = {
-  claimed: '已领取',
-  resolving_inputs: '解析输入',
-  loading_inputs: '加载素材',
-  preparing_request: '准备请求',
-  calling_provider: '调用模型',
-  validating_provider_data: '校验结果',
-  saving_result: '保存结果',
-  persisting_success: '写入成功',
-  succeeded: '完成',
-  failed: '失败',
+const STATE_LABEL_KEYS: Record<string, string> = {
+  claimed: 'admin.debug.states.claimed',
+  resolving_inputs: 'admin.debug.states.resolvingInputs',
+  loading_inputs: 'admin.debug.states.loadingInputs',
+  preparing_request: 'admin.debug.states.preparingRequest',
+  calling_provider: 'admin.debug.states.callingProvider',
+  validating_provider_data: 'admin.debug.states.validatingProviderData',
+  saving_result: 'admin.debug.states.savingResult',
+  persisting_success: 'admin.debug.states.persistingSuccess',
+  succeeded: 'admin.debug.states.succeeded',
+  failed: 'admin.debug.states.failed',
 }
 
 function parseStateTrace(trace?: string): GenJobStateTraceEntry[] {
@@ -141,8 +143,9 @@ function parseStateTrace(trace?: string): GenJobStateTraceEntry[] {
 }
 
 function StateTimeline({ trace }: { trace: GenJobStateTraceEntry[] }) {
+  const { t } = useTranslation()
   if (trace.length === 0) {
-    return <p className="text-xs text-muted-foreground">暂无状态机记录</p>
+    return <p className="text-xs text-muted-foreground">{t('admin.debug.noStateTrace')}</p>
   }
   return (
     <div className="space-y-2">
@@ -157,7 +160,7 @@ function StateTimeline({ trace }: { trace: GenJobStateTraceEntry[] }) {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="font-medium text-foreground">{STATE_LABEL[entry.state] ?? entry.state}</span>
+                <span className="font-medium text-foreground">{STATE_LABEL_KEYS[entry.state] ? t(STATE_LABEL_KEYS[entry.state]) : entry.state}</span>
                 <span className="font-mono text-muted-foreground truncate">{entry.state}</span>
               </div>
               {(entry.message || entry.error) && (
@@ -192,6 +195,7 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
   latencyMs?: number
   error?: string
 }) {
+  const { t } = useTranslation()
   const curlCmd = (method && url && headers)
     ? buildCurlCommand(method, url, headers, body)
     : null
@@ -214,7 +218,7 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
 
       {headers && Object.keys(headers).length > 0 && (
         <div>
-          <p className="text-muted-foreground font-sans mb-0.5">请求头</p>
+          <p className="text-muted-foreground font-sans mb-0.5">{t('admin.debug.requestHeaders')}</p>
           <pre className="bg-muted rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-32">
             {Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\n')}
           </pre>
@@ -223,7 +227,7 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
 
       {body && body !== '(no body)' && (
         <div>
-          <p className="text-muted-foreground font-sans mb-0.5">请求体</p>
+          <p className="text-muted-foreground font-sans mb-0.5">{t('admin.debug.requestBody')}</p>
           <pre className="bg-muted rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
             {tryFormatJSON(body)}
           </pre>
@@ -233,7 +237,7 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
       {curlCmd && (
         <div>
           <div className="flex items-center justify-between mb-0.5">
-            <p className="text-muted-foreground font-sans">curl 命令</p>
+            <p className="text-muted-foreground font-sans">{t('admin.debug.curlCommand')}</p>
             <CopyButton text={curlCmd} />
           </div>
           <pre className="bg-zinc-900 text-zinc-100 dark:bg-zinc-950 rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
@@ -245,7 +249,7 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
       {responseBody && (
         <div>
           <div className="flex items-center justify-between mb-0.5">
-            <p className="text-muted-foreground font-sans">响应体</p>
+            <p className="text-muted-foreground font-sans">{t('admin.debug.responseBody')}</p>
             <CopyButton text={tryFormatJSON(responseBody)} />
           </div>
           <pre className={cn('rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-60', (responseStatus ?? 0) < 400 ? 'bg-muted' : 'bg-red-50 dark:bg-red-900/10')}>
@@ -256,13 +260,13 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
 
       {b64Images.length > 0 && (
         <div>
-          <p className="text-muted-foreground font-sans mb-1.5">图片预览 ({b64Images.length})</p>
+          <p className="text-muted-foreground font-sans mb-1.5">{t('admin.debug.imagePreview', { count: b64Images.length })}</p>
           <div className="flex flex-wrap gap-2">
             {b64Images.map((src, i) => (
               <a key={i} href={src} target="_blank" rel="noreferrer">
                 <img
                   src={src}
-                  alt={`生成图片 ${i + 1}`}
+                  alt={t('admin.debug.generatedImageAlt', { number: i + 1 })}
                   className="max-h-64 max-w-xs rounded border border-border object-contain bg-muted/30 hover:opacity-90 transition-opacity"
                 />
               </a>
@@ -277,6 +281,7 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
 // ── Section 1: Raw API Call ───────────────────────────────────────────────────
 
 function RawCallSection() {
+  const { t } = useTranslation()
   const [credId, setCredId] = useState<string>('')
   const [url, setUrl] = useState('')
   const [method, setMethod] = useState('POST')
@@ -316,26 +321,26 @@ function RawCallSection() {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-medium text-foreground">Raw API 调用</p>
-        <p className="text-xs text-muted-foreground mt-0.5">由后端发出 HTTP 请求，返回完整的请求头、请求体和响应详情。</p>
+        <p className="text-sm font-medium text-foreground">{t('admin.debug.rawCall.title')}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.debug.rawCall.description')}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">凭据（可选，自动填充 Auth 头）</Label>
+          <Label className="text-xs">{t('admin.debug.rawCall.credentialLabel')}</Label>
           <select
             value={credId}
             onChange={(e) => setCredId(e.target.value)}
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
-            <option value="">不使用凭据</option>
+            <option value="">{t('admin.debug.rawCall.noCredential')}</option>
             {credentials.map((c) => (
               <option key={c.ID} value={c.ID}>{c.display_name} ({c.adapter_type})</option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Method</Label>
+          <Label className="text-xs">{t('common.method')}</Label>
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
@@ -347,13 +352,13 @@ function RawCallSection() {
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs">URL</Label>
+        <Label className="text-xs">{t('common.url')}</Label>
         <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.example.com/v1/..." className="font-mono text-xs" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">请求头 (JSON)</Label>
+          <Label className="text-xs">{t('admin.debug.requestHeadersJson')}</Label>
           <textarea
             value={headersText}
             onChange={(e) => setHeadersText(e.target.value)}
@@ -362,7 +367,7 @@ function RawCallSection() {
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">请求体 (JSON)</Label>
+          <Label className="text-xs">{t('admin.debug.requestBodyJson')}</Label>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -374,7 +379,7 @@ function RawCallSection() {
 
       <Button onClick={send} disabled={loading || !url} size="sm" className="gap-1.5">
         <Send size={13} />
-        {loading ? '发送中…' : '发送请求'}
+        {loading ? t('admin.debug.rawCall.sending') : t('admin.debug.rawCall.send')}
       </Button>
 
       {result && (
@@ -401,6 +406,7 @@ function RawCallSection() {
 const JOB_MONITOR_PAGE_SIZE = 25
 
 function JobMonitorSection() {
+  const { t } = useTranslation()
   const [statusFilter, setStatusFilter] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
@@ -436,13 +442,13 @@ function JobMonitorSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-foreground">任务监控</p>
-          <p className="text-xs text-muted-foreground mt-0.5">按页查看生成任务的状态和完整 HTTP 交换记录，共 {total} 条。</p>
+          <p className="text-sm font-medium text-foreground">{t('admin.debug.jobs.title')}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.debug.jobs.description', { total })}</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="rounded" />
-            自动刷新
+            {t('admin.debug.jobs.autoRefresh')}
           </label>
           <button onClick={() => refetch()} disabled={isFetching} className="p-1.5 rounded hover:bg-muted transition-colors">
             <RefreshCw size={13} className={cn('text-muted-foreground', isFetching && 'animate-spin')} />
@@ -457,27 +463,27 @@ function JobMonitorSection() {
             onClick={() => setStatusFilter(s)}
             className={cn('text-xs px-2.5 py-1 rounded-full border transition-colors', statusFilter === s ? 'border-ring bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:text-foreground')}
           >
-            {s === '' ? '全部' : s}
+            {s === '' ? t('common.all') : t(`pages.jobs.status.${s}`, { defaultValue: s })}
           </button>
         ))}
       </div>
 
       {total > JOB_MONITOR_PAGE_SIZE && (
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">第 {page} / {pageCount} 页</span>
+          <span className="text-xs text-muted-foreground">{t('admin.debug.jobs.pageStatus', { page, pageCount })}</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-              上一页
+              {t('admin.logs.previousPage')}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
-              下一页
+              {t('admin.logs.nextPage')}
             </Button>
           </div>
         </div>
       )}
 
       {jobs.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">暂无任务记录</p>
+        <p className="text-sm text-muted-foreground text-center py-8">{t('admin.debug.jobs.empty')}</p>
       )}
 
       <div className="space-y-2">
@@ -499,13 +505,13 @@ function JobMonitorSection() {
                     </span>
                     {job.execution_state && (
                       <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-                        {STATE_LABEL[job.execution_state] ?? job.execution_state}
+                        {STATE_LABEL_KEYS[job.execution_state] ? t(STATE_LABEL_KEYS[job.execution_state]) : job.execution_state}
                       </span>
                     )}
                     <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">{job.job_type}</span>
-                    {hasDebug && <span className="text-xs text-amber-500 flex items-center gap-0.5"><Bug size={10} /> debug</span>}
+                    {hasDebug && <span className="text-xs text-amber-500 flex items-center gap-0.5"><Bug size={10} /> {t('admin.debug.debugMark')}</span>}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{job.prompt || '(no prompt)'}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{job.prompt || t('admin.debug.noPrompt')}</p>
                   {job.error_msg && <p className="text-xs text-destructive mt-0.5 truncate">{job.error_msg}</p>}
                 </div>
                 <div className="text-right shrink-0">
@@ -519,15 +525,15 @@ function JobMonitorSection() {
                 <div className="border-t border-border px-4 py-3 bg-card space-y-3">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     {[
-                      ['Job ID', String(job.ID)],
-                      ['Model Config ID', String(job.model_config_id)],
-                      ['Job Type', job.job_type],
-                      ['Status', job.status],
-                      ['Execution State', job.execution_state ? (STATE_LABEL[job.execution_state] ?? job.execution_state) : '—'],
-                      ['Provider Task ID', job.provider_task_id || '—'],
-                      ['Started', job.started_at ? new Date(job.started_at).toLocaleString() : '—'],
-                      ['Finished', job.finished_at ? new Date(job.finished_at).toLocaleString() : '—'],
-                      ['Output Resource', job.output_resource_id ? `#${job.output_resource_id}` : '—'],
+                      [t('admin.debug.jobs.fields.jobId'), String(job.ID)],
+                      [t('admin.debug.jobs.fields.modelConfigId'), String(job.model_config_id)],
+                      [t('admin.debug.jobs.fields.jobType'), job.job_type],
+                      [t('admin.debug.jobs.fields.status'), t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })],
+                      [t('admin.debug.jobs.fields.executionState'), job.execution_state ? (STATE_LABEL_KEYS[job.execution_state] ? t(STATE_LABEL_KEYS[job.execution_state]) : job.execution_state) : '—'],
+                      [t('admin.debug.jobs.fields.providerTaskId'), job.provider_task_id || '—'],
+                      [t('admin.debug.jobs.fields.started'), job.started_at ? new Date(job.started_at).toLocaleString() : '—'],
+                      [t('admin.debug.jobs.fields.finished'), job.finished_at ? new Date(job.finished_at).toLocaleString() : '—'],
+                      [t('admin.debug.jobs.fields.outputResource'), job.output_resource_id ? `#${job.output_resource_id}` : '—'],
                     ].map(([k, v]) => (
                       <div key={k} className="flex gap-2">
                         <span className="text-muted-foreground w-28 shrink-0">{k}</span>
@@ -537,7 +543,7 @@ function JobMonitorSection() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-medium text-foreground mb-1.5">执行状态机</p>
+                    <p className="text-xs font-medium text-foreground mb-1.5">{t('admin.debug.jobs.stateMachine')}</p>
                     <div className="bg-background border border-border rounded-md p-2">
                       <StateTimeline trace={stateTrace} />
                     </div>
@@ -545,12 +551,12 @@ function JobMonitorSection() {
 
                   {job.output_resource && (
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">输出资源</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('admin.debug.jobs.outputResource')}</p>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="font-mono">{job.output_resource.name}</span>
                         <span className="text-muted-foreground">{job.output_resource.type}</span>
                         {job.output_resource.url && (
-                          <a href={job.output_resource.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">查看</a>
+                          <a href={job.output_resource.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{t('admin.debug.view')}</a>
                         )}
                       </div>
                     </div>
@@ -558,7 +564,7 @@ function JobMonitorSection() {
 
                   {job.extra_params && (
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">生成参数</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('admin.params.title')}</p>
                       <pre className="bg-muted rounded p-2 text-xs font-mono overflow-x-auto">
                         {tryFormatJSON(job.extra_params)}
                       </pre>
@@ -567,22 +573,22 @@ function JobMonitorSection() {
 
                   {job.debug_detail && (
                     <div>
-                      <p className="text-xs font-medium text-foreground mb-1.5">Debug 上下文</p>
+                      <p className="text-xs font-medium text-foreground mb-1.5">{t('admin.debug.jobs.debugContext')}</p>
                       <div className="bg-background border border-border rounded-md p-2 mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                         {[
-                          ['Model Def', job.debug_detail.job_model_def_id || '—'],
-                          ['Job Type', job.debug_detail.job_type || job.job_type],
-                          ['Input Resources', job.debug_detail.job_input_resource_ids?.length ? job.debug_detail.job_input_resource_ids.map((id) => `#${id}`).join(', ') : '—'],
-                          ['Resolved Prompt', job.debug_detail.job_resolved_prompt || job.prompt || '—'],
+                          [t('admin.debug.jobs.fields.modelDef'), job.debug_detail.job_model_def_id || '—'],
+                          [t('admin.debug.jobs.fields.jobType'), job.debug_detail.job_type || job.job_type],
+                          [t('admin.debug.jobs.fields.inputResources'), job.debug_detail.job_input_resource_ids?.length ? job.debug_detail.job_input_resource_ids.map((id) => `#${id}`).join(', ') : '—'],
+                          [t('admin.debug.jobs.fields.resolvedPrompt'), job.debug_detail.job_resolved_prompt || job.prompt || '—'],
                         ].map(([k, v]) => (
-                          <div key={k} className={cn('flex gap-2', k === 'Resolved Prompt' && 'col-span-2')}>
+                          <div key={k} className={cn('flex gap-2', k === t('admin.debug.jobs.fields.resolvedPrompt') && 'col-span-2')}>
                             <span className="text-muted-foreground w-28 shrink-0">{k}</span>
                             <span className="font-mono break-all">{v}</span>
                           </div>
                         ))}
                       </div>
 
-                      <p className="text-xs font-medium text-foreground mb-1.5">HTTP 交换记录 ({getDebugCalls(job.debug_detail).length})</p>
+                      <p className="text-xs font-medium text-foreground mb-1.5">{t('admin.debug.jobs.httpExchanges', { count: getDebugCalls(job.debug_detail).length })}</p>
                       <div className="space-y-3">
                         {getDebugCalls(job.debug_detail).map((call, index) => (
                           <div key={`${call.method}-${call.endpoint}-${index}`} className="bg-background border border-border rounded-md p-2">
@@ -602,7 +608,7 @@ function JobMonitorSection() {
                           </div>
                         ))}
                         {getDebugCalls(job.debug_detail).length === 0 && (
-                          <p className="text-xs text-muted-foreground">没有捕获到 provider HTTP 调用，查看上方状态机和错误信息。</p>
+                          <p className="text-xs text-muted-foreground">{t('admin.debug.jobs.noProviderCalls')}</p>
                         )}
                       </div>
                     </div>
@@ -610,7 +616,7 @@ function JobMonitorSection() {
 
                   {!job.debug_detail && job.debug_info && (
                     <div>
-                      <p className="text-xs font-medium text-foreground mb-1.5">Debug Info (raw)</p>
+                      <p className="text-xs font-medium text-foreground mb-1.5">{t('admin.debug.jobs.debugInfoRaw')}</p>
                       <pre className="bg-muted rounded p-2 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all max-h-60">
                         {tryFormatJSON(job.debug_info)}
                       </pre>
@@ -632,6 +638,7 @@ function JobMonitorSection() {
 interface ModelDebugState { loading: boolean; result: DebugCallResult | null }
 
 function ModelConnectivitySection() {
+  const { t } = useTranslation()
   const [states, setStates] = useState<Record<string, ModelDebugState>>({})
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
@@ -662,15 +669,15 @@ function ModelConnectivitySection() {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-medium text-foreground">模型连通性测试</p>
+        <p className="text-sm font-medium text-foreground">{t('admin.debug.connectivity.title')}</p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          对每个已配置模型发送真实 API 请求，验证凭据和网络连通性。
-          <span className="text-amber-600 dark:text-amber-400 ml-1">图像模型调试会实际调用生成接口，可能产生少量费用。</span>
+          {t('admin.debug.connectivity.description')}
+          <span className="text-amber-600 dark:text-amber-400 ml-1">{t('admin.debug.connectivity.costWarning')}</span>
         </p>
       </div>
 
       {allModels.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">暂无已配置的模型</p>
+        <p className="text-sm text-muted-foreground text-center py-8">{t('admin.debug.connectivity.empty')}</p>
       )}
 
       <div className="space-y-2">
@@ -699,7 +706,7 @@ function ModelConnectivitySection() {
                   disabled={state?.loading}
                   className="text-xs border border-border rounded px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-ring transition-colors disabled:opacity-50 shrink-0"
                 >
-                  {state?.loading ? '调试中…' : '测试'}
+                  {state?.loading ? t('admin.debug.connectivity.debugging') : t('admin.models.test')}
                 </button>
               </div>
 
@@ -707,7 +714,7 @@ function ModelConnectivitySection() {
                 <div className="border-t border-border px-4 py-3 bg-card">
                   <div className="flex items-center gap-2 mb-2">
                     <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', state.result.success ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
-                      {state.result.success ? '成功' : '失败'}
+                      {state.result.success ? t('admin.debug.success') : t('admin.debug.failed')}
                     </span>
                     {state.result.response_status > 0 && (
                       <span className={cn('text-xs px-1.5 py-0.5 rounded', state.result.response_status < 400 ? 'bg-muted' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
@@ -731,7 +738,7 @@ function ModelConnectivitySection() {
               )}
               {isExpanded && state?.loading && (
                 <div className="border-t border-border px-4 py-3 bg-card">
-                  <p className="text-xs text-muted-foreground">正在调用 API…</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.debug.callingApi')}</p>
                 </div>
               )}
             </div>
@@ -744,62 +751,67 @@ function ModelConnectivitySection() {
 
 // ── Section 4: Provider Sandbox ───────────────────────────────────────────────
 
-const CAPABILITY_LABEL: Record<string, string> = {
-  text: '文生文', image: '文生图', image_edit: '图像编辑', video: '文生视频', video_i2v: '图生视频',
+const CAPABILITY_LABEL_KEYS: Record<string, string> = {
+  text: 'admin.debug.capabilities.text',
+  image: 'admin.debug.capabilities.image',
+  image_edit: 'admin.capabilities.imageEdit',
+  video: 'admin.capabilities.video',
+  video_i2v: 'admin.capabilities.videoI2V',
 }
 
 // Quick endpoint URL suggestions per adapter type.
-const ADAPTER_ENDPOINT_SUGGESTIONS: Record<string, { label: string; url: string }[]> = {
+const ADAPTER_ENDPOINT_SUGGESTIONS: Record<string, { labelKey: string; url: string }[]> = {
   openai_compat: [
-    { label: '文生文', url: '/v1/chat/completions' },
-    { label: '文生图', url: '/v1/images/generations' },
-    { label: '图像编辑', url: '/v1/images/edits' },
+    { labelKey: 'admin.debug.capabilities.text', url: '/v1/chat/completions' },
+    { labelKey: 'admin.debug.capabilities.image', url: '/v1/images/generations' },
+    { labelKey: 'admin.capabilities.imageEdit', url: '/v1/images/edits' },
   ],
   anthropic: [
-    { label: '文生文', url: 'https://api.anthropic.com/v1/messages' },
+    { labelKey: 'admin.debug.capabilities.text', url: 'https://api.anthropic.com/v1/messages' },
   ],
   gemini: [
-    { label: '文生文 (gemini-*)', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent' },
-    { label: '文生图 (gemini-*)', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent' },
-    { label: '文生图 (imagen-*)', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:predict' },
-    { label: '文生视频 (veo-*)', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:predictLongRunning' },
+    { labelKey: 'admin.debug.endpointLabels.geminiText', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent' },
+    { labelKey: 'admin.debug.endpointLabels.geminiImage', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent' },
+    { labelKey: 'admin.debug.endpointLabels.imagenImage', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:predict' },
+    { labelKey: 'admin.debug.endpointLabels.veoVideo', url: 'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:predictLongRunning' },
   ],
   kling: [
-    { label: '文生图', url: 'https://api.klingai.com/v1/images/generations' },
-    { label: '文生视频', url: 'https://api.klingai.com/v1/videos/text2video' },
-    { label: '图生视频', url: 'https://api.klingai.com/v1/videos/image2video' },
+    { labelKey: 'admin.debug.capabilities.image', url: 'https://api.klingai.com/v1/images/generations' },
+    { labelKey: 'admin.capabilities.video', url: 'https://api.klingai.com/v1/videos/text2video' },
+    { labelKey: 'admin.capabilities.videoI2V', url: 'https://api.klingai.com/v1/videos/image2video' },
   ],
   volcen: [
-    { label: '文生文', url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
-    { label: '文生图', url: 'https://ark.cn-beijing.volces.com/api/v3/images/generations' },
-    { label: '文生视频', url: 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks' },
+    { labelKey: 'admin.debug.capabilities.text', url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' },
+    { labelKey: 'admin.debug.capabilities.image', url: 'https://ark.cn-beijing.volces.com/api/v3/images/generations' },
+    { labelKey: 'admin.capabilities.video', url: 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks' },
   ],
 }
 
 // Default param schemas for each capability, used in direct debug calls.
 const DEFAULT_PARAMS: Record<string, ParamDef[]> = {
   text: [
-    { key: 'max_tokens', label: '最大 Token 数', type: 'number', default: 256, min: 1, max: 32768 },
-    { key: 'temperature', label: '温度 (Temperature)', type: 'number', default: 0.7, min: 0, max: 2, step: 0.1 },
+    { key: 'max_tokens', label: 'admin.debug.params.maxTokens', type: 'number', default: 256, min: 1, max: 32768 },
+    { key: 'temperature', label: 'admin.debug.params.temperature', type: 'number', default: 0.7, min: 0, max: 2, step: 0.1 },
   ],
   image: [
-    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
-    { key: 'quality', label: '质量', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'standard' },
+    { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
+    { key: 'quality', label: 'admin.params.templates.quality', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'standard' },
   ],
   image_edit: [
-    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['1:1', '16:9', '9:16'], default: '1:1' },
+    { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['1:1', '16:9', '9:16'], default: '1:1' },
   ],
   video: [
-    { key: 'duration', label: '时长(秒)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
-    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
+    { key: 'duration', label: 'admin.params.templates.duration', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
+    { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
   ],
   video_i2v: [
-    { key: 'duration', label: '时长(秒)', type: 'select', options: ['5', '6', '8', '10', '15'], default: '5' },
-    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1'], default: '16:9' },
+    { key: 'duration', label: 'admin.params.templates.duration', type: 'select', options: ['5', '6', '8', '10', '15'], default: '5' },
+    { key: 'aspect_ratio', label: 'admin.params.templates.aspect_ratio', type: 'select', options: ['16:9', '9:16', '1:1'], default: '16:9' },
   ],
 }
 
 function ParamField({ def: p, value, onChange }: { def: ParamDef; value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation()
   if (p.type === 'select') {
     return (
       <select
@@ -815,7 +827,7 @@ function ParamField({ def: p, value, onChange }: { def: ParamDef; value: string;
     return (
       <div className="flex items-center gap-2 h-9">
         <input type="checkbox" checked={value === 'true'} onChange={(e) => onChange(e.target.checked ? 'true' : 'false')} className="rounded" />
-        <span className="text-sm text-muted-foreground">{p.label}</span>
+        <span className="text-sm text-muted-foreground">{t(p.label)}</span>
       </div>
     )
   }
@@ -833,6 +845,7 @@ function ParamField({ def: p, value, onChange }: { def: ParamDef; value: string;
 }
 
 function ProviderSandboxSection() {
+  const { t } = useTranslation()
   const [adapterType, setAdapterType] = useState('openai_compat')
   const [baseURL, setBaseURL] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -947,8 +960,8 @@ function ProviderSandboxSection() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-sm font-medium text-foreground">服务商沙盒</p>
-        <p className="text-xs text-muted-foreground mt-0.5">直接输入凭据和参数，对任意服务商接口进行调试。凭据不会存储，仅用于本次请求。</p>
+        <p className="text-sm font-medium text-foreground">{t('admin.debug.sandbox.title')}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.debug.sandbox.description')}</p>
       </div>
 
       {/* ── Two-column: form left, live preview right ── */}
@@ -957,11 +970,10 @@ function ProviderSandboxSection() {
         {/* ── Left: form ── */}
         <div className="space-y-3">
 
-          {/* 凭据配置 */}
           <div className="border border-border rounded-lg p-4 space-y-3 bg-card">
-            <p className="text-xs font-medium text-foreground">凭据配置</p>
+            <p className="text-xs font-medium text-foreground">{t('admin.debug.sandbox.credentialConfig')}</p>
             <div className="space-y-1">
-              <Label className="text-xs">适配器类型</Label>
+              <Label className="text-xs">{t('admin.debug.sandbox.adapterType')}</Label>
               <select value={adapterType} onChange={(e) => setAdapterType(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
                 {adapters.map((a) => <option key={a.adapter_type} value={a.adapter_type}>{a.display_name}</option>)}
@@ -969,8 +981,8 @@ function ProviderSandboxSection() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">
-                Endpoint URL
-                <span className="ml-1.5 text-muted-foreground font-normal">（能力类型从 URL 路径自动推断）</span>
+                {t('common.endpointUrl')}
+                <span className="ml-1.5 text-muted-foreground font-normal">{t('admin.debug.sandbox.endpointHint')}</span>
               </Label>
               <div className="flex items-center gap-2">
                 <Input value={endpointURL} onChange={(e) => setEndpointURL(e.target.value)}
@@ -978,7 +990,7 @@ function ProviderSandboxSection() {
                   className="font-mono text-xs flex-1" />
                 {endpointURL && (
                   <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                    {CAPABILITY_LABEL[capability] ?? capability}
+                    {CAPABILITY_LABEL_KEYS[capability] ? t(CAPABILITY_LABEL_KEYS[capability]) : capability}
                   </span>
                 )}
               </div>
@@ -991,21 +1003,21 @@ function ProviderSandboxSection() {
                       onClick={() => setEndpointURL(s.url)}
                       className="text-xs px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground hover:border-ring transition-colors font-mono"
                     >
-                      {s.label}
+                      {t(s.labelKey)}
                     </button>
                   ))}
                 </div>
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Base URL <span className="text-muted-foreground font-normal">（适配器内部构建请求时使用）</span></Label>
+              <Label className="text-xs">{t('common.baseUrl')} <span className="text-muted-foreground font-normal">{t('admin.debug.sandbox.baseUrlHint')}</span></Label>
               <Input value={baseURL} onChange={(e) => setBaseURL(e.target.value)}
                 placeholder="https://api.openai.com/v1" className="font-mono text-xs" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">
-                API Key
-                {adapterType === 'kling' && <span className="ml-1 text-muted-foreground">(格式: access_key:secret_key)</span>}
+                {t('common.apiKey')}
+                {adapterType === 'kling' && <span className="ml-1 text-muted-foreground">{t('admin.debug.sandbox.klingKeyFormat')}</span>}
               </Label>
               <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                 placeholder={adapterType === 'kling' ? 'access_key:secret_key' : 'sk-...'}
@@ -1013,28 +1025,27 @@ function ProviderSandboxSection() {
             </div>
           </div>
 
-          {/* 请求参数 */}
           <div className="border border-border rounded-lg p-4 space-y-3 bg-card">
-            <p className="text-xs font-medium text-foreground">请求参数</p>
+            <p className="text-xs font-medium text-foreground">{t('admin.debug.sandbox.requestParams')}</p>
             <div className="space-y-1">
-              <Label className="text-xs">模型 ID</Label>
+              <Label className="text-xs">{t('admin.debug.sandbox.modelId')}</Label>
               <div className="flex gap-2">
                 <Input value={model} onChange={(e) => setModel(e.target.value)}
                   placeholder="gpt-4o" className="font-mono text-xs flex-1" />
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Prompt</Label>
+              <Label className="text-xs">{t('common.prompt')}</Label>
               <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-y" />
             </div>
             {paramDefs.length > 0 && (
               <div>
-                <p className="text-xs text-muted-foreground mb-2">生成参数</p>
+                <p className="text-xs text-muted-foreground mb-2">{t('admin.params.title')}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {paramDefs.map((p) => (
                     <div key={p.key} className="space-y-1">
-                      <Label className="text-xs">{p.label}</Label>
+                      <Label className="text-xs">{t(p.label)}</Label>
                       <ParamField def={p} value={paramValues[p.key] ?? String(p.default ?? '')} onChange={(v) => setParam(p.key, v)} />
                     </div>
                   ))}
@@ -1042,7 +1053,7 @@ function ProviderSandboxSection() {
               </div>
             )}
             <div className="space-y-1">
-              <Label className="text-xs">额外参数 (JSON，可选)</Label>
+              <Label className="text-xs">{t('admin.debug.sandbox.extraParams')}</Label>
               <textarea value={extraParamsText} onChange={(e) => setExtraParamsText(e.target.value)} rows={3}
                 placeholder={'{\n  "reasoning_effort": "high"\n}'}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono resize-y" />
@@ -1051,7 +1062,7 @@ function ProviderSandboxSection() {
 
           <Button onClick={send} disabled={loading || !model} size="sm" className="gap-1.5">
             <Zap size={13} />
-            {loading ? '调用中…' : '发起调试调用'}
+            {loading ? t('admin.debug.sandbox.calling') : t('admin.debug.sandbox.startDebugCall')}
           </Button>
         </div>
 
@@ -1062,28 +1073,28 @@ function ProviderSandboxSection() {
           <div className="border border-border rounded-lg bg-card overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/40">
               <p className="text-xs font-medium text-foreground">
-                请求预览 <span className="text-muted-foreground font-normal">(实时)</span>
-                {previewLoading && <span className="ml-2 text-muted-foreground/60">更新中…</span>}
+                {t('admin.debug.sandbox.requestPreview')} <span className="text-muted-foreground font-normal">{t('admin.debug.sandbox.live')}</span>
+                {previewLoading && <span className="ml-2 text-muted-foreground/60">{t('admin.debug.sandbox.updating')}</span>}
               </p>
               {previewCurl && <CopyButton text={previewCurl} className="text-xs" />}
             </div>
             <div className="p-4 space-y-3 text-xs font-mono">
               {/* Method + URL */}
               <div>
-                <p className="text-muted-foreground font-sans text-xs mb-1">端点</p>
+                <p className="text-muted-foreground font-sans text-xs mb-1">{t('admin.debug.sandbox.endpoint')}</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium text-xs font-sans">
                     {preview?.method || 'POST'}
                   </span>
                   <span className="text-foreground break-all">
-                    {preview?.endpoint || <span className="text-muted-foreground italic">填写模型 ID 后显示</span>}
+                    {preview?.endpoint || <span className="text-muted-foreground italic">{t('admin.debug.sandbox.endpointAfterModel')}</span>}
                   </span>
                 </div>
               </div>
 
               {/* Headers */}
               <div>
-                <p className="text-muted-foreground font-sans text-xs mb-1">请求头</p>
+                <p className="text-muted-foreground font-sans text-xs mb-1">{t('admin.debug.requestHeaders')}</p>
                 <pre className="bg-muted rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all">
                   {preview?.request_headers
                     ? Object.entries(preview.request_headers).map(([k, v]) => `${k}: ${v}`).join('\n')
@@ -1093,7 +1104,7 @@ function ProviderSandboxSection() {
 
               {/* Body */}
               <div>
-                <p className="text-muted-foreground font-sans text-xs mb-1">请求体</p>
+                <p className="text-muted-foreground font-sans text-xs mb-1">{t('admin.debug.requestBody')}</p>
                 <pre className="bg-muted rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-72">
                   {preview?.request_body ? tryFormatJSON(preview.request_body) : '(no body)'}
                 </pre>
@@ -1103,7 +1114,7 @@ function ProviderSandboxSection() {
               {previewCurl && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-muted-foreground font-sans text-xs">curl 命令</p>
+                    <p className="text-muted-foreground font-sans text-xs">{t('admin.debug.curlCommand')}</p>
                     <CopyButton text={previewCurl} />
                   </div>
                   <pre className="bg-zinc-900 text-zinc-100 dark:bg-zinc-950 rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
@@ -1121,7 +1132,7 @@ function ProviderSandboxSection() {
                 <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
                   result.success ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                     : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
-                  {result.success ? '成功' : '失败'}
+                  {result.success ? t('admin.debug.success') : t('admin.debug.failed')}
                 </span>
                 {result.response_status > 0 && (
                   <span className={cn('text-xs px-1.5 py-0.5 rounded',
@@ -1151,19 +1162,20 @@ function ProviderSandboxSection() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export function DebugPage() {
+  const { t } = useTranslation()
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Bug size={16} className="text-muted-foreground" />
-        <h2 className="text-base font-semibold text-foreground">调试</h2>
+        <h2 className="text-base font-semibold text-foreground">{t('admin.tabs.debug')}</h2>
       </div>
 
       <Tabs defaultValue="provider-sandbox">
         <TabsList>
-          <TabsTrigger value="provider-sandbox">服务商沙盒</TabsTrigger>
-          <TabsTrigger value="raw-call">Raw 调用</TabsTrigger>
-          <TabsTrigger value="jobs">任务监控</TabsTrigger>
-          <TabsTrigger value="connectivity">连通性测试</TabsTrigger>
+          <TabsTrigger value="provider-sandbox">{t('admin.debug.tabs.providerSandbox')}</TabsTrigger>
+          <TabsTrigger value="raw-call">{t('admin.debug.tabs.rawCall')}</TabsTrigger>
+          <TabsTrigger value="jobs">{t('admin.debug.tabs.jobs')}</TabsTrigger>
+          <TabsTrigger value="connectivity">{t('admin.debug.tabs.connectivity')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="provider-sandbox" className="mt-4">

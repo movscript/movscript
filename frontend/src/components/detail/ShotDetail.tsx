@@ -7,12 +7,13 @@ import { Save, Camera } from 'lucide-react'
 import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
 import { cn } from '@/lib/utils'
 import {
-  SHOT_STATUS_LABELS, SHOT_STATUS_COLORS, SHOT_STATUS_NEXT, SHOT_STATUS_STEPS,
+  SHOT_STATUS_LABEL_KEYS, SHOT_STATUS_COLORS, SHOT_STATUS_NEXT, SHOT_STATUS_STEPS,
 } from '@/constants/shot'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   shot: Shot
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function ShotDetail({ shot, onClose, onDelete }: Props) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Shot>>({ ...shot })
@@ -46,14 +48,14 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs text-muted-foreground shrink-0">镜头 {shot.order}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{t('details.shotLabel', { order: shot.order })}</span>
           <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', SHOT_STATUS_COLORS[shot.status])}>
-            {SHOT_STATUS_LABELS[shot.status]}
+            {t(SHOT_STATUS_LABEL_KEYS[shot.status])}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ReviewStatusBadge status={shot.review_status} />
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>}
+          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
         </div>
       </div>
 
@@ -66,7 +68,7 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
         />
         {onDelete && (
           <button onClick={() => remove.mutate()} className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors">
-            删除
+            {t('common.delete')}
           </button>
         )}
       </div>
@@ -86,21 +88,21 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
             ))}
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">描述</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
             <Textarea rows={2} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">AI 提示词</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.prompt')}</Label>
             <Textarea
               className="font-mono"
               rows={6}
-              placeholder="描述镜头视觉内容…"
+              placeholder={t('details.promptPlaceholder')}
               value={draft.prompt ?? ''}
               onChange={(e) => setDraft((d) => ({ ...d, prompt: e.target.value }))}
             />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">参考素材</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.referenceAssets')}</Label>
             <ResourceAttachments
               resourceIds={draft.ref_resource_ids ? JSON.parse(draft.ref_resource_ids) : []}
               onChange={(ids) => setDraft((d) => ({ ...d, ref_resource_ids: JSON.stringify(ids) }))}
@@ -108,14 +110,14 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
           </div>
           <div className="flex gap-2 pt-1">
             <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="flex-1 gap-1.5" size="sm">
-              <Save size={13} /> {update.isPending ? '保存中…' : '保存'}
+              <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
             </Button>
             {SHOT_STATUS_NEXT[shot.status] && (
               <button
                 onClick={() => update.mutate({ status: SHOT_STATUS_NEXT[shot.status]! })}
                 className="text-xs text-muted-foreground border border-border px-3 py-2 rounded hover:bg-muted whitespace-nowrap"
               >
-                → {SHOT_STATUS_LABELS[SHOT_STATUS_NEXT[shot.status]!]}
+                → {t(SHOT_STATUS_LABEL_KEYS[SHOT_STATUS_NEXT[shot.status]!])}
               </button>
             )}
           </div>
@@ -124,22 +126,22 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
         {/* Right: video output */}
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">生成视频</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('details.generatedVideo')}</h3>
             <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium', SHOT_STATUS_COLORS[shot.status])}>
-              {SHOT_STATUS_LABELS[shot.status]}
+              {t(SHOT_STATUS_LABEL_KEYS[shot.status])}
             </span>
           </div>
           <div className="bg-muted rounded-xl aspect-video flex items-center justify-center">
             <div className="text-center text-muted-foreground">
               <Camera size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-medium">暂无生成视频</p>
-              <p className="text-xs mt-1 mb-3">填写 AI 提示词后开始生成</p>
+              <p className="text-sm font-medium">{t('details.noGeneratedVideo')}</p>
+              <p className="text-xs mt-1 mb-3">{t('details.generateHint')}</p>
               <Button
                 onClick={() => update.mutate({ status: 'generating' })}
                 disabled={!shot.prompt || shot.status === 'generating'}
                 size="sm"
               >
-                {shot.status === 'generating' ? '生成中…' : '开始生成'}
+                {shot.status === 'generating' ? t('domain.shotStatus.generating') + '…' : t('details.startGenerate')}
               </Button>
             </div>
           </div>

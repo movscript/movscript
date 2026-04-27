@@ -15,12 +15,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useTranslation } from 'react-i18next'
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: '负责人', director: '导演', writer: '编剧', generator: '生成工程师', viewer: '查看者',
+const ROLE_LABEL_KEYS: Record<string, string> = {
+  owner: 'pages.collaboration.roles.owner',
+  director: 'pages.collaboration.roles.director',
+  writer: 'pages.collaboration.roles.writer',
+  generator: 'pages.collaboration.roles.generator',
+  viewer: 'pages.collaboration.roles.viewer',
 }
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  pending: '待处理', in_progress: '进行中', review: '待审核', done: '已完成',
+const STATUS_LABEL_KEYS: Record<TaskStatus, string> = {
+  pending: 'pages.collaboration.status.pending',
+  in_progress: 'pages.collaboration.status.in_progress',
+  review: 'pages.collaboration.status.review',
+  done: 'pages.collaboration.status.done',
 }
 const STATUS_BADGE_VARIANT: Record<TaskStatus, string> = {
   pending: 'secondary',
@@ -34,12 +42,19 @@ const STATUS_BADGE_CLASS: Record<TaskStatus, string> = {
   review: 'bg-muted text-muted-foreground',
   done: 'bg-muted text-foreground',
 }
-const PRIORITY_LABELS: Record<TaskPriority, string> = { low: '低', medium: '中', high: '高' }
+const PRIORITY_LABEL_KEYS: Record<TaskPriority, string> = {
+  low: 'pages.collaboration.priority.low',
+  medium: 'pages.collaboration.priority.medium',
+  high: 'pages.collaboration.priority.high',
+}
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
   low: 'text-muted-foreground', medium: 'text-muted-foreground', high: 'text-destructive',
 }
-const REF_TYPE_LABELS: Record<string, string> = {
-  episode: '分集', scene: '分场', storyboard: '分镜', shot: '镜头',
+const REF_TYPE_LABEL_KEYS: Record<string, string> = {
+  episode: 'entities.episodes',
+  scene: 'entities.scenes',
+  storyboard: 'entities.storyboards',
+  shot: 'entities.shots',
 }
 
 // ── WorkingCard ─────────────────────────────────────────────────────────────
@@ -53,6 +68,8 @@ function WorkingCard({
   onClose: () => void
   onComplete: () => void
 }) {
+  const { t, i18n } = useTranslation()
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-background rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
@@ -62,13 +79,13 @@ function WorkingCard({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-xs font-bold ${PRIORITY_COLORS[task.priority]}`}>
-                  {PRIORITY_LABELS[task.priority]}优先级
+                  {t('pages.collaboration.priorityLabel', { priority: t(PRIORITY_LABEL_KEYS[task.priority]) })}
                 </span>
                 <Badge className={STATUS_BADGE_CLASS[task.status]}>
-                  {STATUS_LABELS[task.status]}
+                  {t(STATUS_LABEL_KEYS[task.status])}
                 </Badge>
                 {task.ref_type && (
-                  <span className="text-xs text-muted-foreground">{REF_TYPE_LABELS[task.ref_type] ?? task.ref_type}</span>
+                  <span className="text-xs text-muted-foreground">{REF_TYPE_LABEL_KEYS[task.ref_type] ? t(REF_TYPE_LABEL_KEYS[task.ref_type]) : task.ref_type}</span>
                 )}
               </div>
               <h2 className="text-lg font-semibold text-foreground leading-snug">{task.title}</h2>
@@ -81,34 +98,34 @@ function WorkingCard({
             </Button>
           </div>
           <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
-            <span>负责人：{task.assignee?.username ?? '未分配'}</span>
+            <span>{t('pages.collaboration.assigneeValue', { assignee: task.assignee?.username ?? t('pages.collaboration.unassigned') })}</span>
             {task.deadline && (
-              <span>截止：{new Date(task.deadline).toLocaleDateString('zh-CN')}</span>
+              <span>{t('pages.collaboration.deadlineValue', { date: new Date(task.deadline).toLocaleDateString(i18n.language) })}</span>
             )}
           </div>
         </div>
 
         {/* Work notes area */}
         <div className="px-6 py-4">
-          <Label className="block text-xs font-medium text-muted-foreground mb-2">工作记录（可选）</Label>
+          <Label className="block text-xs font-medium text-muted-foreground mb-2">{t('pages.collaboration.workNotesOptional')}</Label>
           <Textarea
             className="w-full resize-none text-sm leading-relaxed"
             rows={4}
-            placeholder="记录你的工作进展、遇到的问题或完成说明…"
+            placeholder={t('pages.collaboration.workNotesPlaceholder')}
           />
         </div>
 
         {/* Actions */}
         <div className="px-6 pb-5 flex items-center justify-between">
           <Button variant="ghost" onClick={onClose} className="text-sm text-muted-foreground">
-            稍后再说
+            {t('pages.collaboration.later')}
           </Button>
           <Button
             onClick={onComplete}
             className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 text-sm font-medium"
           >
             <CheckCircle size={15} />
-            标记完成
+            {t('pages.collaboration.markDone')}
           </Button>
         </div>
       </div>
@@ -133,6 +150,7 @@ function TaskCard({
   onDelete: (id: number) => void
   onWork: (task: Task) => void
 }) {
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [expanded, setExpanded] = useState(false)
@@ -160,24 +178,24 @@ function TaskCard({
     <div className={`border border-border rounded-lg bg-background shadow-sm text-sm ${isAssignedToMe ? 'border-primary/30' : ''}`}>
       <div className="flex items-center gap-2 px-3 py-2.5">
         <span className={`text-xs font-bold shrink-0 ${PRIORITY_COLORS[task.priority]}`}>
-          {PRIORITY_LABELS[task.priority]}
+          {t(PRIORITY_LABEL_KEYS[task.priority])}
         </span>
         <span className="flex-1 font-medium truncate">{task.title}</span>
         {task.ref_type && (
-          <span className="text-xs text-muted-foreground shrink-0">{REF_TYPE_LABELS[task.ref_type] ?? task.ref_type}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{REF_TYPE_LABEL_KEYS[task.ref_type] ? t(REF_TYPE_LABEL_KEYS[task.ref_type]) : task.ref_type}</span>
         )}
         <Badge className={`${STATUS_BADGE_CLASS[task.status]} shrink-0`}>
-          {STATUS_LABELS[task.status]}
+          {t(STATUS_LABEL_KEYS[task.status])}
         </Badge>
 
-        {/* 去完成 button — shown only when assigned to current user and not done */}
+        {/* Work button, shown only when assigned to the current user and not done */}
         {isAssignedToMe && canWork && (
           <button
             onClick={() => onWork(task)}
             className="flex items-center gap-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-2.5 py-0.5 rounded-full shrink-0 transition-colors"
           >
             <Play size={10} />
-            去完成
+            {t('pages.collaboration.goWork')}
           </button>
         )}
 
@@ -192,8 +210,8 @@ function TaskCard({
       {expanded && (
         <div className="border-t border-border px-3 py-3 space-y-3">
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span>负责人：{task.assignee?.username ?? '未分配'}</span>
-            {task.deadline && <span>截止：{new Date(task.deadline).toLocaleDateString('zh-CN')}</span>}
+            <span>{t('pages.collaboration.assigneeValue', { assignee: task.assignee?.username ?? t('pages.collaboration.unassigned') })}</span>
+            {task.deadline && <span>{t('pages.collaboration.deadlineValue', { date: new Date(task.deadline).toLocaleDateString(i18n.language) })}</span>}
           </div>
           {task.description && <p className="text-foreground text-xs">{task.description}</p>}
 
@@ -203,7 +221,7 @@ function TaskCard({
               value={task.assignee_id ?? ''}
               onChange={(e) => onUpdate(task.ID, { assignee_id: Number(e.target.value) || undefined })}
             >
-              <option value="">未分配</option>
+              <option value="">{t('pages.collaboration.unassigned')}</option>
               {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
             </select>
             <select
@@ -211,33 +229,33 @@ function TaskCard({
               value={task.priority}
               onChange={(e) => onUpdate(task.ID, { priority: e.target.value as TaskPriority })}
             >
-              {Object.entries(PRIORITY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}优先级</option>)}
+              {Object.entries(PRIORITY_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t('pages.collaboration.priorityLabel', { priority: t(key) })}</option>)}
             </select>
             <select
               className="border border-border rounded-md px-2 py-1 text-xs bg-background text-foreground"
               value={task.status}
               onChange={(e) => onUpdate(task.ID, { status: e.target.value as TaskStatus })}
             >
-              {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {Object.entries(STATUS_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t(key)}</option>)}
             </select>
           </div>
 
           {/* Comments */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              <MessageSquare size={12} /> 评论
+              <MessageSquare size={12} /> {t('pages.collaboration.comments')}
             </p>
             {comments.map((c: { ID: number; user?: User; content: string; CreatedAt: string }) => (
               <div key={c.ID} className="text-xs bg-card rounded p-2">
                 <span className="font-medium text-foreground">{c.user?.username ?? '?'}</span>
-                <span className="text-muted-foreground ml-2">{new Date(c.CreatedAt).toLocaleString('zh-CN')}</span>
+                <span className="text-muted-foreground ml-2">{new Date(c.CreatedAt).toLocaleString(i18n.language)}</span>
                 <p className="mt-1 text-muted-foreground">{c.content}</p>
               </div>
             ))}
             <div className="flex gap-2">
               <Input
                 className="flex-1 text-xs"
-                placeholder="添加评论…"
+                placeholder={t('pages.collaboration.addCommentPlaceholder')}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && comment.trim() && addComment.mutate(comment)}
@@ -247,7 +265,7 @@ function TaskCard({
                 onClick={() => comment.trim() && addComment.mutate(comment)}
                 className="text-xs"
               >
-                发送
+                {t('pages.collaboration.send')}
               </Button>
             </div>
           </div>
@@ -274,6 +292,7 @@ function TasksTab({
   onUpdate: (id: number, data: Partial<Task>) => void
   onDelete: (id: number) => void
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [myTasksOnly, setMyTasksOnly] = useState(false)
@@ -314,9 +333,9 @@ function TasksTab({
     <>
       {/* Create task */}
       <div className="border border-border rounded-lg p-3 bg-background shadow-sm space-y-2 mb-4">
-        <p className="text-xs font-medium text-muted-foreground">新建任务</p>
+        <p className="text-xs font-medium text-muted-foreground">{t('pages.collaboration.newTask')}</p>
         <Input
-          placeholder="任务标题 *"
+          placeholder={t('pages.collaboration.taskTitleRequired')}
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={(e) => {
@@ -336,22 +355,22 @@ function TasksTab({
             value={newPriority}
             onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
           >
-            {Object.entries(PRIORITY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}优先级</option>)}
+            {Object.entries(PRIORITY_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t('pages.collaboration.priorityLabel', { priority: t(key) })}</option>)}
           </select>
           <select
             className="border border-border rounded-md px-2 py-1.5 text-xs bg-background text-foreground"
             value={newRefType}
             onChange={(e) => setNewRefType(e.target.value)}
           >
-            <option value="">关联类型</option>
-            {Object.entries(REF_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            <option value="">{t('pages.collaboration.refType')}</option>
+            {Object.entries(REF_TYPE_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t(key)}</option>)}
           </select>
           <select
             className="border border-border rounded-md px-2 py-1.5 text-xs flex-1 bg-background text-foreground"
             value={newAssigneeId}
             onChange={(e) => setNewAssigneeId(Number(e.target.value) || '')}
           >
-            <option value="">分配给…</option>
+            <option value="">{t('pages.collaboration.assignTo')}</option>
             {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
           </select>
           <Button
@@ -365,7 +384,7 @@ function TasksTab({
             disabled={!newTitle.trim() || createTask.isPending}
             className="flex items-center gap-1 text-xs"
           >
-            <Plus size={12} /> 创建
+            <Plus size={12} /> {t('common.create')}
           </Button>
         </div>
       </div>
@@ -376,13 +395,13 @@ function TasksTab({
           onClick={() => setMyTasksOnly(false)}
           className={`text-xs px-3 py-1 rounded-full border transition-colors ${!myTasksOnly ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:bg-muted/50'}`}
         >
-          全部 ({tasks.length})
+          {t('pages.collaboration.allTasksFilter', { count: tasks.length })}
         </button>
         <button
           onClick={() => setMyTasksOnly(true)}
           className={`text-xs px-3 py-1 rounded-full border transition-colors ${myTasksOnly ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:bg-muted/50'}`}
         >
-          我的任务 ({myCount})
+          {t('pages.collaboration.myTasksFilter', { count: myCount })}
         </button>
         <div className="h-4 w-px bg-border mx-1" />
         {(['', 'pending', 'in_progress', 'review', 'done'] as const).map((s) => (
@@ -391,16 +410,16 @@ function TasksTab({
             onClick={() => setStatusFilter(s)}
             className={`text-xs px-3 py-1 rounded-full border transition-colors ${statusFilter === s ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:bg-muted/50'}`}
           >
-            {s === '' ? '全状态' : STATUS_LABELS[s]}
+            {s === '' ? t('pages.collaboration.allStatuses') : t(STATUS_LABEL_KEYS[s])}
           </button>
         ))}
       </div>
 
       {/* Task list */}
       {tasksLoading ? (
-        <p className="text-sm text-muted-foreground">加载中…</p>
+        <p className="text-sm text-muted-foreground">{t('common.loadingShort')}</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">暂无任务</p>
+        <p className="text-sm text-muted-foreground">{t('pages.collaboration.noTasks')}</p>
       ) : (
         <div className="space-y-2">
           {filtered.map((t) => (
@@ -442,6 +461,7 @@ function ManagementTab({
   canManageMembers: boolean
   projectId?: number
 }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [selectedUser, setSelectedUser] = useState('')
   const [role, setRole] = useState('viewer')
@@ -459,7 +479,7 @@ function ManagementTab({
 
   return (
     <div>
-      <h2 className="text-sm font-semibold mb-3 text-muted-foreground">团队成员</h2>
+      <h2 className="text-sm font-semibold mb-3 text-muted-foreground">{t('pages.collaboration.teamMembers')}</h2>
       {canManageMembers && (
         <div className="flex gap-2 mb-4 flex-wrap">
           <select
@@ -467,7 +487,7 @@ function ManagementTab({
             value={selectedUser}
             onChange={(e) => setSelectedUser(e.target.value)}
           >
-            <option value="">选择用户</option>
+            <option value="">{t('pages.collaboration.selectUser')}</option>
             {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
           </select>
           <select
@@ -475,10 +495,10 @@ function ManagementTab({
             value={role}
             onChange={(e) => setRole(e.target.value)}
           >
-            <option value="director">导演</option>
-            <option value="writer">编剧</option>
-            <option value="generator">生成工程师</option>
-            <option value="viewer">查看者</option>
+            <option value="director">{t('pages.collaboration.roles.director')}</option>
+            <option value="writer">{t('pages.collaboration.roles.writer')}</option>
+            <option value="generator">{t('pages.collaboration.roles.generator')}</option>
+            <option value="viewer">{t('pages.collaboration.roles.viewer')}</option>
           </select>
           <Button
             onClick={() => {
@@ -488,7 +508,7 @@ function ManagementTab({
             }}
             className="flex items-center gap-1"
           >
-            <Plus size={14} /> 添加
+            <Plus size={14} /> {t('pages.collaboration.add')}
           </Button>
         </div>
       )}
@@ -502,7 +522,7 @@ function ManagementTab({
               <p className="text-sm font-medium">{m.user?.username}</p>
             </div>
             <Badge className="bg-muted text-muted-foreground">
-              {ROLE_LABELS[m.role] ?? m.role}
+              {ROLE_LABEL_KEYS[m.role] ? t(ROLE_LABEL_KEYS[m.role]) : m.role}
             </Badge>
             {canManageMembers && m.role !== 'owner' && (
               <Button
@@ -510,14 +530,14 @@ function ManagementTab({
                 size="icon"
                 onClick={() => removeMember.mutate(m.ID)}
                 className="text-muted-foreground hover:text-destructive transition-colors h-7 w-7"
-                aria-label="移除"
+                aria-label={t('pages.collaboration.remove')}
               >
                 <Trash2 size={14} />
               </Button>
             )}
           </div>
         ))}
-        {members.length === 0 && <p className="text-sm text-muted-foreground">暂无成员</p>}
+        {members.length === 0 && <p className="text-sm text-muted-foreground">{t('pages.collaboration.noMembers')}</p>}
       </div>
     </div>
   )
@@ -526,6 +546,7 @@ function ManagementTab({
 // ── CollaborationPage ────────────────────────────────────────────────────────
 
 export default function CollaborationPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
@@ -568,14 +589,14 @@ export default function CollaborationPage() {
       <Tabs defaultValue="tasks">
         <TabsList className="mb-6">
           <TabsTrigger value="tasks">
-            任务
+            {t('pages.collaboration.tasks')}
             {tasks.length > 0 && (
               <Badge className="ml-1.5 bg-muted text-muted-foreground text-xs px-1.5 py-0.5">
                 {tasks.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="management">管理</TabsTrigger>
+          <TabsTrigger value="management">{t('pages.collaboration.management')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tasks">

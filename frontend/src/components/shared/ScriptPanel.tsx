@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import type { Script } from '@/types'
 import { BookOpen, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -11,6 +12,7 @@ interface Props {
 // ScriptPanel shows the main script(s) as a collapsible side panel.
 // Intended to be embedded in work pages so collaborators always have context.
 export function ScriptPanel({ projectId }: Props) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
@@ -30,7 +32,7 @@ export function ScriptPanel({ projectId }: Props) {
       <button
         onClick={() => setOpen(true)}
         className="fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-foreground text-background px-1.5 py-3 rounded-l-lg flex flex-col items-center gap-1 hover:bg-muted hover:text-foreground transition-colors"
-        title="展开总剧本"
+        title={t('shared.scriptPanel.expandMainScript')}
       >
         <BookOpen size={14} />
         <ChevronLeft size={12} />
@@ -42,7 +44,7 @@ export function ScriptPanel({ projectId }: Props) {
     <div className="fixed right-0 top-0 h-full w-80 bg-background border-l border-border shadow-xl z-40 flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/50">
         <BookOpen size={15} className="text-muted-foreground shrink-0" />
-        <span className="text-sm font-semibold flex-1">总剧本</span>
+        <span className="text-sm font-semibold flex-1">{t('domain.scriptTypes.mainAlt')}</span>
         <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
           <ChevronRight size={16} />
         </button>
@@ -64,7 +66,7 @@ export function ScriptPanel({ projectId }: Props) {
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {!selected ? (
-          <p className="text-xs text-muted-foreground">暂无总剧本</p>
+          <p className="text-xs text-muted-foreground">{t('shared.scriptPanel.noMainScript')}</p>
         ) : (
           <div className="space-y-3">
             <div>
@@ -78,7 +80,7 @@ export function ScriptPanel({ projectId }: Props) {
                 {selected.content}
               </pre>
             ) : (
-              <p className="text-xs text-muted-foreground italic">剧本内容为空</p>
+              <p className="text-xs text-muted-foreground italic">{t('shared.scriptPanel.emptyContent')}</p>
             )}
           </div>
         )}
