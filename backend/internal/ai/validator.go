@@ -102,6 +102,7 @@ func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio s
 	if duration != 0 {
 		params["duration"] = duration
 	}
+	params = NormalizeGenerationParams(params)
 	if len(params) == 0 {
 		return nil
 	}
@@ -112,6 +113,9 @@ func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio s
 	supported := make(map[string]ParamDef, len(def.SupportedParams))
 	for _, p := range def.SupportedParams {
 		supported[p.Key] = p
+		for _, alias := range paramKeyAliases(p.Key) {
+			supported[alias] = p
+		}
 	}
 
 	for key, val := range params {
@@ -125,6 +129,41 @@ func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio s
 	}
 
 	return validateCrossParamRules(params)
+}
+
+func paramKeyAliases(key string) []string {
+	switch key {
+	case "aspect_ratio":
+		return []string{"ratio"}
+	case "ratio":
+		return []string{"aspect_ratio"}
+	case "duration":
+		return []string{"duration_seconds"}
+	case "duration_seconds":
+		return []string{"duration"}
+	case "image_size":
+		return []string{"size"}
+	case "size":
+		return []string{"image_size"}
+	case "prompt_strength":
+		return []string{"guidance_scale"}
+	case "guidance_scale":
+		return []string{"prompt_strength"}
+	case "image_count":
+		return []string{"max_images"}
+	case "max_images":
+		return []string{"image_count"}
+	case "fixed_camera":
+		return []string{"camera_fixed"}
+	case "camera_fixed":
+		return []string{"fixed_camera"}
+	case "audio":
+		return []string{"generate_audio"}
+	case "generate_audio":
+		return []string{"audio"}
+	default:
+		return nil
+	}
 }
 
 func parseExtraParams(raw string) (map[string]any, error) {

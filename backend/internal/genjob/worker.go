@@ -328,6 +328,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	if extra == nil {
 		extra = map[string]interface{}{}
 	}
+	extra = ai.NormalizeGenerationParams(extra)
 
 	getString := func(key string) string {
 		if v, ok := extra[key]; ok {
@@ -551,16 +552,12 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		if len(videoData) > 0 {
 			req.InputVideoData = &videoData[0]
 		}
-		if len(req.InputImageDataList) > 0 {
-			for i := range req.InputImageDataList {
-				if cloudResult, _ := w.ensureCloudUpload(job, req.InputImageDataList[i], true); cloudResult.URL != "" {
-					req.InputImageDataList[i].PresignedURL = cloudResult.URL
-				}
-			}
-		}
+		w.attachPublicInputURLs(job, req.InputImageDataList)
 		if req.InputVideoData != nil {
 			if cloudResult, _ := w.ensureCloudUpload(job, *req.InputVideoData, true); cloudResult.URL != "" {
 				req.InputVideoData.PresignedURL = cloudResult.URL
+			} else {
+				req.InputVideoData.PresignedURL = ""
 			}
 		}
 		if job.ProviderTaskID != "" {
@@ -827,6 +824,16 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, re
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
+}
+
+func (w *Worker) attachPublicInputURLs(job *model.GenJob, mediaList []ai.MediaData) {
+	for i := range mediaList {
+		if cloudResult, _ := w.ensureCloudUpload(job, mediaList[i], true); cloudResult.URL != "" {
+			mediaList[i].PresignedURL = cloudResult.URL
+			continue
+		}
+		mediaList[i].PresignedURL = ""
+	}
 }
 
 // ensureCloudUpload checks the resource's CloudUploads cache; if no valid entry exists,
@@ -1132,7 +1139,9 @@ func (w *Worker) loadInputResources(job *model.GenJob) (imageData, videoData []a
 	return imageData, videoData
 }
 
-// readResourceBytes reads a resource's bytes directly from storage and generates a presigned URL.
+// readResourceBytes reads a resource's bytes directly from the internal resource store.
+// The returned URL is intentionally empty: storage DirectURL may point at a private
+// MinIO hostname and must not be passed to external AI providers.
 func (w *Worker) readResourceBytes(r model.RawResource) ([]byte, string, string, error) {
 	if r.StorageKey == "" {
 		return nil, "", "", fmt.Errorf("resource #%d has no storage key", r.ID)
@@ -1151,8 +1160,7 @@ func (w *Worker) readResourceBytes(r model.RawResource) ([]byte, string, string,
 	if mimeType == "" {
 		mimeType = r.MimeType
 	}
-	presigned, _ := w.store.DirectURL(ctx, r.StorageKey)
-	return data, mimeType, presigned, nil
+	return data, mimeType, "", nil
 }
 
 func parseResourceIDs(s string) []uint {

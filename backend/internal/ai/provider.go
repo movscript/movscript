@@ -97,11 +97,12 @@ type VideoRequest struct {
 
 // MediaData holds raw bytes for a media resource passed to AI adapters.
 // Using bytes directly avoids re-fetching from storage URLs that may require auth.
-// PresignedURL is set when available, for adapters that accept a URL in JSON body (e.g. Kling, Ark).
+// PresignedURL is set only when the worker has prepared an externally reachable
+// URL for the provider call, not for private internal resource storage URLs.
 type MediaData struct {
 	Bytes        []byte
 	MimeType     string // e.g. "image/png", "video/mp4"
-	PresignedURL string // public URL valid for the duration of the call; may be empty
+	PresignedURL string // provider-readable URL valid for the duration of the call; may be empty
 	ResourceID   uint   // RawResource ID, used for provider/cloud upload caching
 }
 

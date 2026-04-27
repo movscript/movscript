@@ -156,10 +156,10 @@ var AdapterDefs = []AdapterDef{
 
 func volcenSeedream3Params() []ParamDef {
 	return []ParamDef{
-		{Key: "size", Label: "尺寸", Type: "select",
-			Options: []string{"1024x1024", "512x512", "864x1152", "1152x864", "1280x720", "720x1280", "832x1248", "1248x832", "1512x648"}, Default: "1024x1024"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"1:1", "16:9", "9:16", "4:3", "3:4"}, Default: "1:1"},
 		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 2147483647, Step: 1},
-		{Key: "guidance_scale", Label: "文本权重", Type: "number", Default: 2.5, Min: 1, Max: 10, Step: 0.1},
+		{Key: "prompt_strength", Label: "提示词强度", Type: "number", Default: 2.5, Min: 1, Max: 10, Step: 0.1},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: true},
 	}
 }
@@ -171,11 +171,11 @@ func volcenSeedream4Params(resolutionOptions []string) []ParamDef {
 		"2848x1600", "1600x2848", "4096x4096", "5504x3040", "3040x5504",
 	)
 	return []ParamDef{
-		{Key: "size", Label: "尺寸", Type: "select", Options: sizeOptions, Default: "2048x2048"},
+		{Key: "image_size", Label: "画面尺寸", Type: "select", Options: sizeOptions, Default: "2048x2048"},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: true},
 		{Key: "sequential_image_generation", Label: "组图", Type: "select",
 			Options: []string{"disabled", "auto"}, Default: "disabled"},
-		{Key: "max_images", Label: "最多张数", Type: "number", Min: 1, Max: 15, Step: 1},
+		{Key: "image_count", Label: "生成张数", Type: "number", Min: 1, Max: 15, Step: 1},
 		{Key: "optimize_prompt_mode", Label: "提示词优化", Type: "select",
 			Options: []string{"standard", "fast"}, Default: "standard"},
 	}
@@ -193,16 +193,16 @@ func volcenSeedream5LiteParams() []ParamDef {
 func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []string, withAudio, withCameraFixed, withServiceTier, withWebSearch, withDraft bool) []ParamDef {
 	params := []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select", Options: durationOptions, Default: "5"},
-		{Key: "ratio", Label: "画面比例", Type: "select", Options: ratioOptions, Default: ratioOptions[0]},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select", Options: ratioOptions, Default: ratioOptions[0]},
 		{Key: "resolution", Label: "分辨率", Type: "select", Options: resolutionOptions, Default: "720p"},
 		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
 	}
 	if withAudio {
-		params = append(params, ParamDef{Key: "generate_audio", Label: "生成音频", Type: "boolean", Default: true})
+		params = append(params, ParamDef{Key: "audio", Label: "生成音频", Type: "boolean", Default: true})
 	}
 	if withCameraFixed {
-		params = append(params, ParamDef{Key: "camera_fixed", Label: "固定镜头", Type: "boolean", Default: false})
+		params = append(params, ParamDef{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false})
 	}
 	params = append(params, ParamDef{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false})
 	if withServiceTier {
@@ -819,7 +819,7 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 	if customSupportedParams != "" {
 		var params []ParamDef
 		if err := json.Unmarshal([]byte(customSupportedParams), &params); err == nil {
-			def.SupportedParams = params
+			def.SupportedParams = NormalizeParamDefsForUI(params)
 		}
 	}
 	return def

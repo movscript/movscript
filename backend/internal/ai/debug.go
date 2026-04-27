@@ -65,6 +65,22 @@ func takeDebug(ctx context.Context) *DebugCallResult {
 	return &cp
 }
 
+func annotateDebugError(ctx context.Context, message string) {
+	if message == "" {
+		return
+	}
+	ptr, ok := ctx.Value(debugContextKey{}).(*DebugCallResult)
+	if !ok || ptr == nil {
+		return
+	}
+	ptr.Success = false
+	ptr.Error = message
+	if len(ptr.Calls) > 0 {
+		ptr.Calls[len(ptr.Calls)-1].Success = false
+		ptr.Calls[len(ptr.Calls)-1].Error = message
+	}
+}
+
 func maskKey(key string) string {
 	if len(key) <= 8 {
 		return strings.Repeat("*", len(key))

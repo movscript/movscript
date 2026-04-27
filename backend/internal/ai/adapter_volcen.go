@@ -25,7 +25,7 @@ func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 	}
 	c := arkruntime.NewClientWithApiKey(apiKey,
 		arkruntime.WithBaseUrl(baseURL),
-		arkruntime.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}),
+		arkruntime.WithHTTPClient(debugHTTPClient(apiKey, 30*time.Second)),
 	)
 	return &VolcenAdapter{baseURL: baseURL, client: c}
 }
@@ -158,7 +158,7 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	resp, err := a.client.GenerateImages(ctx, arkReq)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Model,
 			Endpoint: debugEndpoint, Method: "POST",
 			RequestBody: string(debugBodyJSON),
@@ -167,7 +167,7 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 		return ImageResponse{}, fmt.Errorf("volcen image: %w", err)
 	}
 	if resp.Error != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Model,
 			Endpoint: debugEndpoint, Method: "POST",
 			RequestBody:    string(debugBodyJSON),
@@ -185,7 +185,7 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 			urls = append(urls, "data:image/png;base64,"+*img.B64Json)
 		}
 	}
-	recordDebug(ctx, DebugCallResult{
+	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model,
 		Endpoint: debugEndpoint, Method: "POST",
 		RequestBody:    string(debugBodyJSON),
@@ -245,7 +245,7 @@ func (a *VolcenAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 	taskResp, err := a.client.CreateContentGenerationTask(ctx, createReq)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Model,
 			Endpoint: debugEndpoint, Method: "POST",
 			RequestBody: string(debugBodyJSON),
@@ -254,7 +254,7 @@ func (a *VolcenAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 		return VideoResponse{}, fmt.Errorf("volcen create task: %w", err)
 	}
 	taskID := taskResp.ID
-	recordDebug(ctx, DebugCallResult{
+	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model,
 		Endpoint: debugEndpoint, Method: "POST",
 		RequestBody:    string(debugBodyJSON),
@@ -278,7 +278,7 @@ func (a *VolcenAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 	pollResp, err := a.client.GetContentGenerationTask(ctx, arkmodel.GetContentGenerationTaskRequest{ID: req.TaskID})
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.TaskID,
 			Endpoint: debugEndpoint, Method: "GET",
 			LatencyMs: latency, Error: err.Error(),
@@ -300,7 +300,7 @@ func (a *VolcenAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (Vi
 		responseBody["error"] = pollResp.Error
 	}
 	responseBodyJSON, _ := json.Marshal(responseBody)
-	recordDebug(ctx, DebugCallResult{
+	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: req.TaskID,
 		Endpoint: debugEndpoint, Method: "GET",
 		ResponseStatus: http.StatusOK, ResponseBody: string(responseBodyJSON),

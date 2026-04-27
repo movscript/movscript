@@ -15,7 +15,7 @@ type ProviderDebugCallRequest struct {
 	// EndpointURL is the full API endpoint URL (e.g. https://api.openai.com/v1/images/generations).
 	// When set, Capability is inferred from the URL path. Takes precedence over Capability.
 	EndpointURL string
-	Capability  string         // text | image | image_edit | video | video_i2v | video_v2v; inferred from EndpointURL if empty
+	Capability  string // text | image | image_edit | video | video_i2v | video_v2v; inferred from EndpointURL if empty
 	Model       string
 	Prompt      string
 	Params      map[string]any // capability-specific extra params (size, duration, aspect_ratio, etc.)
@@ -70,6 +70,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 	if params == nil {
 		params = map[string]any{}
 	}
+	params = NormalizeGenerationParams(params)
 
 	adapter, err := buildDebugAdapter(req.AdapterType, req.APIKey, baseURL)
 	if err != nil {
@@ -86,11 +87,21 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 	switch req.Capability {
 	case CapabilityImage, CapabilityImageEdit:
 		ireq := ImageRequest{
-			Model:       model,
-			Prompt:      prompt,
-			Size:        providerStringParam(params, "size", ""),
-			AspectRatio: providerStringParam(params, "aspect_ratio", ""),
+			Model:              model,
+			Prompt:             prompt,
+			Size:               providerStringParam(params, "size", ""),
+			AspectRatio:        providerStringParam(params, "aspect_ratio", ""),
+			Quality:            providerStringParam(params, "quality", ""),
+			Style:              providerStringParam(params, "style", ""),
+			OutputFormat:       providerStringParam(params, "output_format", ""),
+			OptimizePromptMode: providerStringParam(params, "optimize_prompt_mode", ""),
 		}
+		ireq.Seed = providerInt64PtrParam(params, "seed")
+		ireq.GuidanceScale = providerFloatParam(params, "guidance_scale", 0)
+		ireq.Watermark = providerBoolPtrParam(params, "watermark")
+		ireq.SequentialMode = providerStringParam(params, "sequential_image_generation", "")
+		ireq.SequentialMaxImages = providerIntParam(params, "max_images", 0)
+		ireq.WebSearch = providerBoolParam(params, "web_search", false)
 		resp, callErr := adapter.ImageGenerate(debugCtx, ireq)
 		if callErr != nil {
 			result := takeDebug(debugCtx)
@@ -111,11 +122,23 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 
 	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
 		vreq := VideoRequest{
-			Model:       model,
-			Prompt:      prompt,
-			Duration:    providerIntParam(params, "duration", 5),
-			AspectRatio: providerStringParam(params, "aspect_ratio", "16:9"),
+			Model:          model,
+			Prompt:         prompt,
+			Duration:       providerIntParam(params, "duration", 5),
+			Frames:         providerIntParam(params, "frames", 0),
+			AspectRatio:    providerStringParam(params, "aspect_ratio", "16:9"),
+			Quality:        providerStringParam(params, "quality", ""),
+			Size:           providerStringParam(params, "size", ""),
+			ResolutionName: providerStringParam(params, "resolution", ""),
+			ServiceTier:    providerStringParam(params, "service_tier", ""),
 		}
+		vreq.Seed = providerInt64PtrParam(params, "seed")
+		vreq.CameraFixed = providerBoolPtrParam(params, "camera_fixed")
+		vreq.Watermark = providerBoolPtrParam(params, "watermark")
+		vreq.GenerateAudio = providerBoolPtrParam(params, "generate_audio")
+		vreq.ReturnLastFrame = providerBoolPtrParam(params, "return_last_frame")
+		vreq.Draft = providerBoolPtrParam(params, "draft")
+		vreq.WebSearch = providerBoolParam(params, "web_search", false)
 		resp, callErr := adapter.VideoGenerate(debugCtx, vreq)
 		if callErr != nil {
 			result := takeDebug(debugCtx)
@@ -242,4 +265,70 @@ func providerStringParam(params map[string]any, key string, def string) string {
 		return s
 	}
 	return def
+}
+
+func providerFloatParam(params map[string]any, key string, def float64) float64 {
+	v, ok := params[key]
+	if !ok {
+		return def
+	}
+	if f, ok := toFloat64(v); ok {
+		return f
+	}
+	if s, ok := v.(string); ok {
+		var f float64
+		if err := json.Unmarshal([]byte(s), &f); err == nil {
+			return f
+		}
+	}
+	return def
+}
+
+func providerInt64PtrParam(params map[string]any, key string) *int64 {
+	v, ok := params[key]
+	if !ok {
+		return nil
+	}
+	switch t := v.(type) {
+	case int64:
+		return &t
+	case int:
+		n := int64(t)
+		return &n
+	case float64:
+		n := int64(t)
+		return &n
+	case json.Number:
+		if n, err := t.Int64(); err == nil {
+			return &n
+		}
+	case string:
+		var n int64
+		if err := json.Unmarshal([]byte(t), &n); err == nil {
+			return &n
+		}
+	}
+	return nil
+}
+
+func providerBoolParam(params map[string]any, key string, def bool) bool {
+	v, ok := params[key]
+	if !ok {
+		return def
+	}
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		return t == "true" || t == "1"
+	}
+	return def
+}
+
+func providerBoolPtrParam(params map[string]any, key string) *bool {
+	if _, ok := params[key]; !ok {
+		return nil
+	}
+	b := providerBoolParam(params, key, false)
+	return &b
 }

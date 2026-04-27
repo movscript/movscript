@@ -346,15 +346,38 @@ function parseParamDefs(value: string): ParamDef[] {
   try {
     const parsed = JSON.parse(value)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((p) => p && typeof p.key === 'string' && typeof p.label === 'string')
+    return parsed
+      .filter((p) => p && typeof p.key === 'string' && typeof p.label === 'string')
+      .map(normalizeParamDefForAdmin)
   } catch {
     return []
+  }
+}
+
+function normalizeParamDefForAdmin(p: ParamDef): ParamDef {
+  const alias: Record<string, string> = {
+    ratio: 'aspect_ratio',
+    size: 'image_size',
+    guidance_scale: 'prompt_strength',
+    max_images: 'image_count',
+    camera_fixed: 'fixed_camera',
+    generate_audio: 'audio',
+  }
+  const key = alias[p.key] ?? p.key
+  const tmpl = PARAM_TEMPLATES[key]
+  if (!tmpl) return p
+  return {
+    ...tmpl,
+    ...p,
+    key,
+    label: p.label || tmpl.label,
   }
 }
 
 function serializeParamDefs(params: ParamDef[]): string {
   const normalized = params
     .map((p) => {
+      p = normalizeParamDefForAdmin(p)
       const key = p.key.trim()
       if (!key) return null
       const label = (p.label || key).trim()
@@ -382,6 +405,30 @@ function splitOptions(value: string): string[] {
   return value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
 }
 
+const PARAM_TEMPLATES: Record<string, ParamDef> = {
+  aspect_ratio: { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
+  duration: { key: 'duration', label: '时长(秒)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
+  image_size: { key: 'image_size', label: '画面尺寸', type: 'select', options: ['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280'], default: '1024x1024' },
+  resolution: { key: 'resolution', label: '清晰度', type: 'select', options: ['480p', '720p', '1080p'], default: '720p' },
+  quality: { key: 'quality', label: '质量', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'auto' },
+  style: { key: 'style', label: '风格', type: 'select', options: ['vivid', 'natural'], default: 'vivid' },
+  seed: { key: 'seed', label: '种子', type: 'number', default: -1, min: -1, max: 2147483647, step: 1 },
+  prompt_strength: { key: 'prompt_strength', label: '提示词强度', type: 'number', default: 2.5, min: 1, max: 10, step: 0.1 },
+  watermark: { key: 'watermark', label: '水印', type: 'boolean', default: false },
+  image_count: { key: 'image_count', label: '生成张数', type: 'number', default: 1, min: 1, max: 15, step: 1 },
+  output_format: { key: 'output_format', label: '输出格式', type: 'select', options: ['jpeg', 'png', 'webp'], default: 'jpeg' },
+  web_search: { key: 'web_search', label: '联网搜索', type: 'boolean', default: false },
+  fixed_camera: { key: 'fixed_camera', label: '固定镜头', type: 'boolean', default: false },
+  audio: { key: 'audio', label: '生成音频', type: 'boolean', default: true },
+  return_last_frame: { key: 'return_last_frame', label: '返回尾帧', type: 'boolean', default: false },
+  service_tier: { key: 'service_tier', label: '服务等级', type: 'select', options: ['default', 'flex'], default: 'default' },
+  draft: { key: 'draft', label: '样片模式', type: 'boolean', default: false },
+}
+
+function paramTemplateFor(key: string): ParamDef | null {
+  return PARAM_TEMPLATES[key] ?? null
+}
+
 function ParamBuilder({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   const params = parseParamDefs(value)
   const update = (index: number, patch: Partial<ParamDef>) => {
@@ -391,7 +438,7 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
   const remove = (index: number) => onChange(serializeParamDefs(params.filter((_, i) => i !== index)))
   const add = () => onChange(serializeParamDefs([
     ...params,
-    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1'], default: '16:9' },
+    PARAM_TEMPLATES.aspect_ratio,
   ]))
 
   return (
@@ -411,8 +458,20 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
         <div key={`${param.key}-${index}`} className="rounded border border-border bg-background p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs text-muted-foreground block mb-0.5">参数名</Label>
-              <Input className="text-xs font-mono" value={param.key} onChange={(e) => update(index, { key: e.target.value })} placeholder="duration" />
+              <Label className="text-xs text-muted-foreground block mb-0.5">抽象参数</Label>
+              <select
+                value={paramTemplateFor(param.key) ? param.key : '__custom'}
+                onChange={(e) => {
+                  const tmpl = PARAM_TEMPLATES[e.target.value]
+                  if (tmpl) update(index, { ...tmpl })
+                }}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+              >
+                {Object.values(PARAM_TEMPLATES).map((tmpl) => (
+                  <option key={tmpl.key} value={tmpl.key}>{tmpl.label}</option>
+                ))}
+                {!paramTemplateFor(param.key) && <option value="__custom">{param.label || param.key}</option>}
+              </select>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground block mb-0.5">显示名称</Label>
@@ -2097,9 +2156,24 @@ function StorageTab() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="border border-border rounded-lg bg-card p-4">
+          <p className="text-sm font-semibold">内部资源存储</p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+            存放用户上传、画布中间产物和模型输出结果。这里的 URL 只保证 MovScript 后端可读，不作为服务商输入 URL。
+          </p>
+        </div>
+        <div className="border border-border rounded-lg bg-card p-4">
+          <p className="text-sm font-semibold">模型输入中转</p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+            需要把本地素材交给 OpenAI、Volcen、Kling 等服务商时，Worker 会使用服务商 Files API 或公网对象中转配置。
+          </p>
+        </div>
+      </div>
+
       {/* Backend status */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">存储后端</h3>
+        <h3 className="text-sm font-semibold mb-3">内部资源存储后端</h3>
         <div className="flex gap-3 flex-wrap">
           {(backends?.backends ?? []).map(b => (
             <div key={b.name} className="flex items-center gap-2 border border-border rounded-lg px-4 py-2.5 text-sm">
@@ -2119,7 +2193,7 @@ function StorageTab() {
 
       {/* Per-user stats */}
       <div>
-        <h3 className="text-sm font-semibold mb-3">用户存储用量</h3>
+        <h3 className="text-sm font-semibold mb-3">用户资源占用</h3>
         {Object.keys(byUser).length === 0 ? (
           <p className="text-sm text-muted-foreground">暂无资源数据</p>
         ) : (
@@ -2128,7 +2202,7 @@ function StorageTab() {
               <thead className="bg-muted/30">
                 <tr>
                   <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">用户</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">存储后端</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">内部后端</th>
                   <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">文件数</th>
                   <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">占用空间</th>
                 </tr>
@@ -2273,16 +2347,37 @@ function CloudFileConfigTab() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="border border-border rounded-lg bg-card p-4">
+          <p className="text-sm font-semibold">公网对象中转</p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+            S3、OSS、TOS 桶必须能被服务商公网访问，用于只接受 URL 的图生视频、视频参考输入。
+          </p>
+        </div>
+        <div className="border border-border rounded-lg bg-card p-4">
+          <p className="text-sm font-semibold">服务商 Files API</p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+            OpenAI、Volcen 等服务商自己的文件空间，在“模型管理”的凭据里启用，传给模型的是 file_id。
+          </p>
+        </div>
+        <div className="border border-border rounded-lg bg-card p-4">
+          <p className="text-sm font-semibold">内部 MinIO</p>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+            只负责 MovScript 持久化资源。Worker 不会再把 MinIO 私网 presigned URL 发给外部服务商。
+          </p>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold">云端文件存储</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">配置云端存储后端，Worker 在执行 image_edit 等任务时会按优先级上传文件，避免大文件 multipart 传输失败。</p>
+          <h3 className="text-sm font-semibold">公网对象中转配置</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">配置 S3、OSS、TOS 后，Worker 会按优先级上传输入素材，并把公网 URL 传给只接受 URL 的服务商接口。</p>
         </div>
         <Button size="sm" onClick={openCreate}>添加配置</Button>
       </div>
 
       {configs.length === 0 && !showForm && (
-        <p className="text-sm text-muted-foreground text-center py-8">暂无云端存储配置</p>
+        <p className="text-sm text-muted-foreground text-center py-8">暂无公网对象中转配置</p>
       )}
 
       <div className="space-y-2">
@@ -2329,7 +2424,7 @@ function CloudFileConfigTab() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">名称</Label>
-              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="xAI Files API" className="text-sm" />
+              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="TOS public relay" className="text-sm" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">类型</Label>
@@ -2413,8 +2508,8 @@ export default function AdminPage() {
           <TabsTrigger value="users">用户管理</TabsTrigger>
           <TabsTrigger value="logs">用量日志</TabsTrigger>
           <TabsTrigger value="debug">调试</TabsTrigger>
-          <TabsTrigger value="storage">存储</TabsTrigger>
-          <TabsTrigger value="cloud-files">云端文件</TabsTrigger>
+          <TabsTrigger value="storage">资源存储</TabsTrigger>
+          <TabsTrigger value="cloud-files">输入中转</TabsTrigger>
         </TabsList>
         <TabsContent value="models" className="mt-6">
           <ModelManagementTab />

@@ -35,6 +35,7 @@ func NewOpenAIAdapter(baseURL, apiKey string) *OpenAIAdapter {
 		client: openai.NewClient(
 			option.WithAPIKey(apiKey),
 			option.WithBaseURL(baseURL),
+			option.WithMiddleware(debugOpenAIMiddleware(apiKey)),
 		),
 		rawHTTP: &http.Client{},
 	}
@@ -119,6 +120,11 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	}
 	if req.Size != "" {
 		params.Size = openai.ImageGenerateParamsSize(req.Size)
+	} else if req.AspectRatio != "" {
+		if size := aspectRatioToOpenAIImageSize(req.Model, req.AspectRatio); size != "" {
+			params.Size = openai.ImageGenerateParamsSize(size)
+			req.Size = size
+		}
 	}
 	if req.Quality != "" {
 		params.Quality = openai.ImageGenerateParamsQuality(req.Quality)
@@ -155,7 +161,7 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	resp, err := a.client.Images.Generate(ctx, params, reqOpts2...)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			Success: false, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 			RequestBody: mustJSON(debugBody), LatencyMs: latency, Error: err.Error(),
 		})
@@ -167,7 +173,7 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 			urls = append(urls, result)
 		}
 	}
-	recordDebug(ctx, DebugCallResult{
+	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 		RequestBody:    mustJSON(debugBody),
 		ResponseStatus: http.StatusOK,
@@ -186,6 +192,9 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageResponse, error) {
 	if req.CloudFileID != "" {
 		return a.imageEditByFileID(ctx, req)
+	}
+	if req.Size == "" && req.AspectRatio != "" {
+		req.Size = aspectRatioToOpenAIImageSize(req.Model, req.AspectRatio)
 	}
 
 	var imgData []byte
@@ -219,6 +228,11 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 	}
 	if req.Size != "" {
 		params.Size = openai.ImageEditParamsSize(req.Size)
+	} else if req.AspectRatio != "" {
+		if size := aspectRatioToOpenAIImageSize(req.Model, req.AspectRatio); size != "" {
+			params.Size = openai.ImageEditParamsSize(size)
+			req.Size = size
+		}
 	}
 
 	endpoint := a.BaseURL + "/images/edits"
@@ -234,14 +248,14 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 	resp, err := a.client.Images.Edit(ctx, params)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 			RequestBody: mustJSON(debugBody),
 			LatencyMs:   latency, Error: err.Error(),
 		})
 		return ImageResponse{}, err
 	}
-	recordDebug(ctx, DebugCallResult{
+	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 		RequestBody:    mustJSON(debugBody),
 		ResponseStatus: http.StatusOK,
@@ -268,6 +282,11 @@ func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest)
 	}
 	if req.Size != "" {
 		params.Size = openai.ImageEditParamsSize(req.Size)
+	} else if req.AspectRatio != "" {
+		if size := aspectRatioToOpenAIImageSize(req.Model, req.AspectRatio); size != "" {
+			params.Size = openai.ImageEditParamsSize(size)
+			req.Size = size
+		}
 	}
 	reqOpts := []option.RequestOption{
 		option.WithJSONSet("image[]", req.CloudFileID),
@@ -285,14 +304,14 @@ func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest)
 	resp, err := a.client.Images.Edit(ctx, params, reqOpts...)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		recordDebug(ctx, DebugCallResult{
+		recordDebugIfEmpty(ctx, DebugCallResult{
 			ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 			RequestBody: mustJSON(debugBody),
 			LatencyMs:   latency, Error: err.Error(),
 		})
 		return ImageResponse{}, err
 	}
-	recordDebug(ctx, DebugCallResult{
+	recordDebugIfEmpty(ctx, DebugCallResult{
 		Success: true, ModelID: req.Model, Endpoint: endpoint, Method: "POST",
 		RequestBody:    mustJSON(debugBody),
 		ResponseStatus: http.StatusOK,
@@ -403,6 +422,25 @@ func openAIImageResult(rawURL, b64JSON, outputFormat string) string {
 		mimeType = "image/webp"
 	}
 	return "data:" + mimeType + ";base64," + b64
+}
+
+func aspectRatioToOpenAIImageSize(model, ratio string) string {
+	switch ratio {
+	case "1:1":
+		return "1024x1024"
+	case "16:9", "4:3":
+		if strings.Contains(model, "gpt-image") {
+			return "1536x1024"
+		}
+		return "1792x1024"
+	case "9:16", "3:4":
+		if strings.Contains(model, "gpt-image") {
+			return "1024x1536"
+		}
+		return "1024x1792"
+	default:
+		return ""
+	}
 }
 
 func (a *OpenAIAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {

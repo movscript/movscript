@@ -783,11 +783,11 @@ const DEFAULT_PARAMS: Record<string, ParamDef[]> = {
     { key: 'temperature', label: '温度 (Temperature)', type: 'number', default: 0.7, min: 0, max: 2, step: 0.1 },
   ],
   image: [
-    { key: 'size', label: '尺寸', type: 'select', options: ['1024x1024', '1792x1024', '1024x1792', '1280x720', '720x1280', '1536x1024', '1024x1536'], default: '1024x1024' },
+    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
     { key: 'quality', label: '质量', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'standard' },
   ],
   image_edit: [
-    { key: 'size', label: '尺寸', type: 'select', options: ['1024x1024', '1792x1024', '1024x1792', '1536x1024', '1024x1536'], default: '1024x1024' },
+    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['1:1', '16:9', '9:16'], default: '1:1' },
   ],
   video: [
     { key: 'duration', label: '时长(秒)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
