@@ -90,7 +90,7 @@ func (r *Registry) buildProvider(cred model.AICredential, def *ModelDef) (Provid
 // GetFileUploader returns a FileUploader configured for the credential associated with a model config.
 // Returns nil if FilesAPIEnabled is not set on the credential.
 // Uses the independent Files API key/URL when configured, falling back to the main credential.
-func (r *Registry) GetFileUploader(cfg model.AIModelConfig) *FileUploader {
+func (r *Registry) GetFileUploader(cfg model.AIModelConfig) FileUploader {
 	var cred model.AICredential
 	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
 		return nil
@@ -127,6 +127,9 @@ func (r *Registry) GetFileUploader(cfg model.AIModelConfig) *FileUploader {
 	}
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
+	}
+	if cred.AdapterType == AdapterVolcen {
+		return NewVolcenFileUploader(baseURL, apiKey)
 	}
 	return NewFileUploader(baseURL, apiKey)
 }

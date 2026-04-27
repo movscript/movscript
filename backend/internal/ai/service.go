@@ -447,6 +447,15 @@ func (s *AIService) CallVideoPoll(ctx context.Context, userID, modelConfigID uin
 	return resp, nil
 }
 
+// GetFileUploader returns the provider-side Files API uploader configured for a model.
+func (s *AIService) GetFileUploader(modelConfigID uint) FileUploader {
+	var cfg model.AIModelConfig
+	if err := s.db.First(&cfg, modelConfigID).Error; err != nil {
+		return nil
+	}
+	return s.registry.GetFileUploader(cfg)
+}
+
 func (s *AIService) loadVideoConfig(modelConfigID uint) (model.AIModelConfig, Provider, *ModelDef, error) {
 	// Try all video capability variants — any one makes the model eligible.
 	videoCaps := []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}
@@ -467,7 +476,7 @@ func (s *AIService) loadVideoConfig(modelConfigID uint) (model.AIModelConfig, Pr
 
 func prepareVideoRequest(req *VideoRequest, cfg model.AIModelConfig, def *ModelDef) {
 	req.Model = resolveModelID(cfg, def)
-	if req.Duration <= 0 && def.DefaultDurSec > 0 {
+	if req.Duration == 0 && def.DefaultDurSec > 0 {
 		req.Duration = def.DefaultDurSec
 	}
 }

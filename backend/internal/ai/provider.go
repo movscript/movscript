@@ -32,18 +32,26 @@ type TokenUsage struct {
 }
 
 type ImageRequest struct {
-	Model              string
-	Prompt             string
-	Size               string
-	N                  int
-	Quality            string      // "standard" | "hd"
-	Style              string      // "vivid" | "natural" (DALL-E 3)
-	AspectRatio        string      // "16:9" | "9:16" | "1:1" etc.
-	InputImage         string      // presigned URL; when set, routes to /images/edits
-	InputImageBytes    []byte      // raw image bytes; takes precedence over InputImage when non-nil
-	InputImageMime     string      // MIME type for InputImageBytes (e.g. "image/png")
-	InputImageDataList []MediaData // ordered image inputs; takes precedence over the legacy single-image fields
-	ImageFieldName     string      // multipart field name for the image; empty defaults to "image" (xAI uses "image[]")
+	Model               string
+	Prompt              string
+	Size                string
+	N                   int
+	Quality             string      // "standard" | "hd"
+	Style               string      // "vivid" | "natural" (DALL-E 3)
+	AspectRatio         string      // "16:9" | "9:16" | "1:1" etc.
+	Seed                *int64      // nil = provider default; -1 = provider random when supported
+	GuidanceScale       float64     // prompt adherence for models that support it
+	Watermark           *bool       // nil = provider default
+	OutputFormat        string      // "jpeg" | "png" for providers that support it
+	SequentialMode      string      // "disabled" | "auto" for Seedream group images
+	SequentialMaxImages int         // max generated images when SequentialMode="auto"
+	WebSearch           bool        // provider tool toggle
+	OptimizePromptMode  string      // "standard" | "fast"
+	InputImage          string      // presigned URL; when set, routes to /images/edits
+	InputImageBytes     []byte      // raw image bytes; takes precedence over InputImage when non-nil
+	InputImageMime      string      // MIME type for InputImageBytes (e.g. "image/png")
+	InputImageDataList  []MediaData // ordered image inputs; takes precedence over the legacy single-image fields
+	ImageFieldName      string      // multipart field name for the image; empty defaults to "image" (xAI uses "image[]")
 	// CloudFileID is the provider-issued file ID from the Files API.
 	// When set, imageEdit passes the file ID via JSON body instead of multipart bytes.
 	CloudFileID string
@@ -63,17 +71,28 @@ type VideoRequest struct {
 	Image       string   // URL for single image-to-video reference (deprecated: prefer InputImageDataList)
 	InputImages []string // Multiple image URLs (deprecated: prefer InputImageDataList)
 	// InputImageDataList holds pre-fetched image bytes; takes precedence over Image/InputImages.
-	InputImageDataList []MediaData
-	InputVideo         string     // URL for video-to-video reference (deprecated: prefer InputVideoData)
-	InputVideoData     *MediaData // pre-fetched video bytes
-	Duration           int        // requested duration in seconds (0 = model default)
-	Width              int
-	Height             int
-	AspectRatio        string // "16:9" | "9:16" | "1:1"
-	Quality            string // "standard" | "pro"
-	Size               string // pixel dimensions e.g. "720x1280"
-	ResolutionName     string // "480p" | "720p"
-	Preset             string // "normal" | "fun" | "spicy" | "custom"
+	InputImageDataList    []MediaData
+	InputVideo            string     // URL for video-to-video reference (deprecated: prefer InputVideoData)
+	InputVideoData        *MediaData // pre-fetched video bytes
+	Duration              int        // requested duration in seconds (0 = model default)
+	Frames                int        // requested frame count; provider-specific, mutually exclusive with Duration
+	Seed                  *int64     // nil = provider default; -1 = provider random when supported
+	Width                 int
+	Height                int
+	AspectRatio           string // "16:9" | "9:16" | "1:1"
+	Ratio                 string // provider-native ratio; takes precedence over AspectRatio when set
+	Quality               string // "standard" | "pro"
+	Size                  string // pixel dimensions e.g. "720x1280"
+	ResolutionName        string // "480p" | "720p"
+	Preset                string // "normal" | "fun" | "spicy" | "custom"
+	CameraFixed           *bool  // nil = provider default
+	Watermark             *bool  // nil = provider default
+	GenerateAudio         *bool  // nil = provider default
+	ReturnLastFrame       *bool  // nil = provider default
+	ServiceTier           string // "default" | "flex"
+	ExecutionExpiresAfter int    // seconds; 0 = provider default
+	Draft                 *bool  // nil = provider default
+	WebSearch             bool   // provider tool toggle
 }
 
 // MediaData holds raw bytes for a media resource passed to AI adapters.
@@ -83,6 +102,7 @@ type MediaData struct {
 	Bytes        []byte
 	MimeType     string // e.g. "image/png", "video/mp4"
 	PresignedURL string // public URL valid for the duration of the call; may be empty
+	ResourceID   uint   // RawResource ID, used for provider/cloud upload caching
 }
 
 type VideoResponse struct {

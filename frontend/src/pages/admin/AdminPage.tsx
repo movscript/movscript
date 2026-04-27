@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelDef, UsageLog, FeatureConfig, PublicModel } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelDef, UsageLog, FeatureConfig, PublicModel, ParamDef } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,15 @@ import { DebugPage } from './DebugPage'
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 interface TestResult { success: boolean; message: string; latency_ms: number }
+
+type ModelEditForm = {
+  display_name: string
+  model_id_override: string
+  priority: string
+  capabilities: string[]
+  billing_mode: string
+  supported_params: string
+}
 
 const BILLING_LABELS: Record<string, string> = {
   per_token: '按 token',
@@ -332,6 +341,145 @@ function PriceFields({ def, form, onChange }: { def: ModelDef; form: PriceForm; 
   )
 }
 
+function parseParamDefs(value: string): ParamDef[] {
+  if (!value.trim()) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((p) => p && typeof p.key === 'string' && typeof p.label === 'string')
+  } catch {
+    return []
+  }
+}
+
+function serializeParamDefs(params: ParamDef[]): string {
+  const normalized = params
+    .map((p) => {
+      const key = p.key.trim()
+      if (!key) return null
+      const label = (p.label || key).trim()
+      const next: ParamDef = { key, label, type: p.type || 'select' }
+      if (next.type === 'select') {
+        next.options = (p.options ?? []).map(String).map((s) => s.trim()).filter(Boolean)
+        if (p.default !== undefined && p.default !== '') next.default = String(p.default)
+      }
+      if (next.type === 'number') {
+        if (p.default !== undefined && p.default !== '') next.default = Number(p.default)
+        if (p.min !== undefined && String(p.min) !== '') next.min = Number(p.min)
+        if (p.max !== undefined && String(p.max) !== '') next.max = Number(p.max)
+        if (p.step !== undefined && String(p.step) !== '') next.step = Number(p.step)
+      }
+      if (next.type === 'boolean') {
+        next.default = Boolean(p.default)
+      }
+      return next
+    })
+    .filter(Boolean) as ParamDef[]
+  return normalized.length ? JSON.stringify(normalized) : ''
+}
+
+function splitOptions(value: string): string[] {
+  return value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+}
+
+function ParamBuilder({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const params = parseParamDefs(value)
+  const update = (index: number, patch: Partial<ParamDef>) => {
+    const next = params.map((p, i) => i === index ? { ...p, ...patch } : p)
+    onChange(serializeParamDefs(next))
+  }
+  const remove = (index: number) => onChange(serializeParamDefs(params.filter((_, i) => i !== index)))
+  const add = () => onChange(serializeParamDefs([
+    ...params,
+    { key: 'aspect_ratio', label: '画面比例', type: 'select', options: ['16:9', '9:16', '1:1'], default: '16:9' },
+  ]))
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">生成参数</p>
+        <button onClick={add} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+          <Plus size={11} /> 添加参数
+        </button>
+      </div>
+      {params.length === 0 && (
+        <p className="text-xs text-muted-foreground/70 rounded border border-dashed border-border px-3 py-2">
+          未配置生成参数。添加后用户会在生成面板看到对应的选择框、数字输入或开关。
+        </p>
+      )}
+      {params.map((param, index) => (
+        <div key={`${param.key}-${index}`} className="rounded border border-border bg-background p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-0.5">参数名</Label>
+              <Input className="text-xs font-mono" value={param.key} onChange={(e) => update(index, { key: e.target.value })} placeholder="duration" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-0.5">显示名称</Label>
+              <Input className="text-xs" value={param.label} onChange={(e) => update(index, { label: e.target.value })} placeholder="视频时长" />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-0.5">控件类型</Label>
+              <select
+                value={param.type}
+                onChange={(e) => update(index, { type: e.target.value as ParamDef['type'], options: e.target.value === 'select' ? (param.options?.length ? param.options : ['16:9', '9:16']) : undefined })}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              >
+                <option value="select">下拉选项</option>
+                <option value="number">数字输入</option>
+                <option value="boolean">开关</option>
+              </select>
+            </div>
+            {param.type === 'select' && (
+              <>
+                <div className="flex-1 min-w-48">
+                  <Label className="text-xs text-muted-foreground block mb-0.5">可选值</Label>
+                  <Input
+                    className="text-xs font-mono"
+                    value={(param.options ?? []).join(', ')}
+                    onChange={(e) => update(index, { options: splitOptions(e.target.value) })}
+                    placeholder="16:9, 9:16, 1:1"
+                  />
+                </div>
+                <div className="w-32">
+                  <Label className="text-xs text-muted-foreground block mb-0.5">默认值</Label>
+                  <Input className="text-xs font-mono" value={String(param.default ?? '')} onChange={(e) => update(index, { default: e.target.value })} />
+                </div>
+              </>
+            )}
+            {param.type === 'number' && (
+              <>
+                {(['default', 'min', 'max', 'step'] as const).map((key) => (
+                  <div key={key} className="w-20">
+                    <Label className="text-xs text-muted-foreground block mb-0.5">{key}</Label>
+                    <Input
+                      type="number"
+                      className="text-xs"
+                      value={String(param[key] ?? '')}
+                      onChange={(e) => update(index, { [key]: e.target.value === '' ? undefined : Number(e.target.value) } as Partial<ParamDef>)}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+            {param.type === 'boolean' && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer h-8">
+                <input type="checkbox" checked={Boolean(param.default)} onChange={(e) => update(index, { default: e.target.checked })} className="rounded" />
+                默认开启
+              </label>
+            )}
+            <button onClick={() => remove(index)} className="text-xs text-muted-foreground hover:text-destructive h-8 px-2">
+              删除
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Model Management Tab ──────────────────────────────────────────────────────
 
 function ModelManagementTab() {
@@ -361,8 +509,8 @@ function ModelManagementTab() {
   const [remoteError, setRemoteError] = useState('')
   // Editing existing model config
   const [editingConfig, setEditingConfig] = useState<AIModelConfig | null>(null)
-  const [editForm, setEditForm] = useState<{ display_name: string; model_id_override: string; priority: string; capabilities: string[]; billing_mode: string }>({
-    display_name: '', model_id_override: '', priority: '0', capabilities: [], billing_mode: 'per_token',
+  const [editForm, setEditForm] = useState<ModelEditForm>({
+    display_name: '', model_id_override: '', priority: '0', capabilities: [], billing_mode: 'per_token', supported_params: '',
   })
   // Files API editing state
   const [filesAPIEditFor, setFilesAPIEditFor] = useState<number | null>(null)
@@ -464,6 +612,7 @@ function ModelManagementTab() {
         custom_capabilities: data.capabilities.join(','),
         custom_billing_mode: data.billing_mode,
         custom_accepts_image: data.capabilities.includes('image_edit') || data.capabilities.includes('video_i2v') || data.capabilities.includes('video_v2v'),
+        custom_supported_params: data.supported_params,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
@@ -784,7 +933,7 @@ function ModelManagementTab() {
                       setAddMaxInputImages(def.MaxInputImages ?? 0)
                       setAddMaxInputVideos(def.MaxInputVideos ?? 0)
                       setAddImageEditField('')
-                      setAddSupportedParams(def.SupportedParams ? JSON.stringify(def.SupportedParams) : '')
+                      setAddSupportedParams(def.SupportedParams ? serializeParamDefs(def.SupportedParams) : '')
                       setShowSuggestions(false)
                     }
 
@@ -955,20 +1104,7 @@ function ModelManagementTab() {
                           </div>
                         </div>
 
-                        {/* Supported params JSON */}
-                        <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">
-                            生成参数（JSON，可选）
-                            <span className="ml-1 text-muted-foreground/50 font-normal">— 控制前端显示哪些参数选项（尺寸、时长等）</span>
-                          </Label>
-                          <textarea
-                            className="w-full text-xs font-mono border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-                            rows={3}
-                            value={addSupportedParams}
-                            onChange={e => setAddSupportedParams(e.target.value)}
-                            placeholder='[{"key":"aspect_ratio","label":"画面比例","type":"select","options":["16:9","9:16","1:1"],"default":"16:9"}]'
-                          />
-                        </div>
+                        <ParamBuilder value={addSupportedParams} onChange={setAddSupportedParams} />
 
                         {(() => {
                           const fakeDef = { BillingMode: addBillingMode, AllowModelIDOverride: false } as any
@@ -1053,6 +1189,7 @@ function ModelManagementTab() {
                                 priority: String(cfg.priority ?? 0),
                                 capabilities: cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : [],
                                 billing_mode: cfg.custom_billing_mode || 'per_token',
+                                supported_params: cfg.custom_supported_params || '',
                               })
                             }}
                             className="text-muted-foreground/50 hover:text-foreground"
@@ -1132,6 +1269,10 @@ function ModelManagementTab() {
                                 ))}
                               </div>
                             </div>
+                            <ParamBuilder
+                              value={editForm.supported_params}
+                              onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
+                            />
                             <div className="flex gap-2">
                               <Button
                                 onClick={() => updateModelConfig.mutate({ modelId: cfg.ID, data: editForm })}
@@ -2087,7 +2228,12 @@ function CloudFileConfigTab() {
     setFormPriority(cfg.priority)
     setFormEnabled(cfg.is_enabled)
     const masked = cfg.masked_config ? JSON.parse(cfg.masked_config) : {}
-    setFormFields(masked)
+    const secretKeys = new Set((CONFIG_TYPE_FIELDS[cfg.config_type] ?? []).filter((f) => f.secret).map((f) => f.key))
+    const next: Record<string, string> = {}
+    Object.entries(masked).forEach(([key, value]) => {
+      next[key] = secretKeys.has(key) ? '' : String(value ?? '')
+    })
+    setFormFields(next)
     setShowForm(true)
   }
 
@@ -2206,7 +2352,7 @@ function CloudFileConfigTab() {
                   type={f.secret ? 'password' : 'text'}
                   value={formFields[f.key] ?? ''}
                   onChange={e => setFormFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
+                  placeholder={editingId && f.secret ? '留空不修改' : f.placeholder}
                   className="text-sm font-mono"
                 />
               </div>

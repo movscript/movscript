@@ -344,9 +344,55 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 				return int(n)
 			case int:
 				return n
+			case string:
+				i, err := strconv.Atoi(strings.TrimSpace(n))
+				if err == nil {
+					return i
+				}
 			}
 		}
 		return 0
+	}
+	getInt64Ptr := func(key string) *int64 {
+		if v, ok := extra[key]; ok {
+			switch n := v.(type) {
+			case float64:
+				i := int64(n)
+				return &i
+			case int:
+				i := int64(n)
+				return &i
+			case int64:
+				i := n
+				return &i
+			case string:
+				i, err := strconv.ParseInt(strings.TrimSpace(n), 10, 64)
+				if err == nil {
+					return &i
+				}
+			}
+		}
+		return nil
+	}
+	getFloat := func(key string) float64 {
+		if v, ok := extra[key]; ok {
+			switch n := v.(type) {
+			case float64:
+				return n
+			case int:
+				return float64(n)
+			case string:
+				f, err := strconv.ParseFloat(strings.TrimSpace(n), 64)
+				if err == nil {
+					return f
+				}
+			}
+		}
+		return 0
+	}
+	getBool := func(key string) bool {
+		p := getBoolPtr(extra, key)
+		return p != nil && *p
 	}
 	sm.succeed("job params parsed")
 
@@ -392,13 +438,21 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	switch outputType {
 	case ai.CapabilityImage:
 		req := ai.ImageRequest{
-			Prompt:             job.Prompt,
-			N:                  1,
-			Size:               getString("size"),
-			Quality:            getString("quality"),
-			Style:              getString("style"),
-			AspectRatio:        firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
-			InputImageDataList: imageData,
+			Prompt:              job.Prompt,
+			N:                   1,
+			Size:                getString("size"),
+			Quality:             getString("quality"),
+			Style:               getString("style"),
+			AspectRatio:         firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			Seed:                getInt64Ptr("seed"),
+			GuidanceScale:       getFloat("guidance_scale"),
+			Watermark:           getBoolPtr(extra, "watermark"),
+			OutputFormat:        getString("output_format"),
+			SequentialMode:      getString("sequential_image_generation"),
+			SequentialMaxImages: getInt("max_images"),
+			WebSearch:           getBool("web_search"),
+			OptimizePromptMode:  getString("optimize_prompt_mode"),
+			InputImageDataList:  imageData,
 		}
 		if len(imageData) > 0 {
 			req.InputImageBytes = imageData[0].Bytes
@@ -424,18 +478,26 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			return fmt.Errorf("image_edit job requires an image input but none was found (job #%d)", job.ID)
 		}
 		req := ai.ImageRequest{
-			Prompt:             job.Prompt,
-			N:                  1,
-			Size:               getString("size"),
-			Quality:            getString("quality"),
-			Style:              getString("style"),
-			AspectRatio:        firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
-			InputImageDataList: imageData,
+			Prompt:              job.Prompt,
+			N:                   1,
+			Size:                getString("size"),
+			Quality:             getString("quality"),
+			Style:               getString("style"),
+			AspectRatio:         firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
+			Seed:                getInt64Ptr("seed"),
+			GuidanceScale:       getFloat("guidance_scale"),
+			Watermark:           getBoolPtr(extra, "watermark"),
+			OutputFormat:        getString("output_format"),
+			SequentialMode:      getString("sequential_image_generation"),
+			SequentialMaxImages: getInt("max_images"),
+			WebSearch:           getBool("web_search"),
+			OptimizePromptMode:  getString("optimize_prompt_mode"),
+			InputImageDataList:  imageData,
 		}
 
 		// Try cloud upload first (avoids large multipart body that causes EOF on some providers).
 		firstImage := imageData[0]
-		if cloudResult, configID := w.ensureCloudUpload(job, firstImage); cloudResult.FileID != "" {
+		if cloudResult, configID := w.ensureCloudUpload(job, firstImage, false); cloudResult.FileID != "" {
 			req.CloudFileID = cloudResult.FileID
 			_ = configID
 		} else if cloudResult.URL != "" {
@@ -466,17 +528,40 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			dur = getInt("duration")
 		}
 		req := ai.VideoRequest{
-			Prompt:             job.Prompt,
-			Duration:           dur,
-			AspectRatio:        firstNonEmpty(job.AspectRatio, getString("aspect_ratio")),
-			Quality:            getString("quality"),
-			Size:               getString("size"),
-			ResolutionName:     getString("resolution_name"),
-			Preset:             getString("preset"),
-			InputImageDataList: imageData,
+			Prompt:                job.Prompt,
+			Duration:              dur,
+			Frames:                getInt("frames"),
+			Seed:                  getInt64Ptr("seed"),
+			AspectRatio:           firstNonEmpty(job.AspectRatio, getString("aspect_ratio"), getString("ratio")),
+			Ratio:                 firstNonEmpty(getString("ratio"), job.AspectRatio, getString("aspect_ratio")),
+			Quality:               getString("quality"),
+			Size:                  getString("size"),
+			ResolutionName:        firstNonEmpty(getString("resolution"), getString("resolution_name")),
+			Preset:                getString("preset"),
+			CameraFixed:           getBoolPtr(extra, "camera_fixed"),
+			Watermark:             getBoolPtr(extra, "watermark"),
+			GenerateAudio:         getBoolPtr(extra, "generate_audio"),
+			ReturnLastFrame:       getBoolPtr(extra, "return_last_frame"),
+			ServiceTier:           getString("service_tier"),
+			ExecutionExpiresAfter: getInt("execution_expires_after"),
+			Draft:                 getBoolPtr(extra, "draft"),
+			WebSearch:             getBool("web_search"),
+			InputImageDataList:    imageData,
 		}
 		if len(videoData) > 0 {
 			req.InputVideoData = &videoData[0]
+		}
+		if len(req.InputImageDataList) > 0 {
+			for i := range req.InputImageDataList {
+				if cloudResult, _ := w.ensureCloudUpload(job, req.InputImageDataList[i], true); cloudResult.URL != "" {
+					req.InputImageDataList[i].PresignedURL = cloudResult.URL
+				}
+			}
+		}
+		if req.InputVideoData != nil {
+			if cloudResult, _ := w.ensureCloudUpload(job, *req.InputVideoData, true); cloudResult.URL != "" {
+				req.InputVideoData.PresignedURL = cloudResult.URL
+			}
 		}
 		if job.ProviderTaskID != "" {
 			sm.enter(StatePollingProviderTask, fmt.Sprintf("poll provider task %s", job.ProviderTaskID))
@@ -745,18 +830,21 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, re
 }
 
 // ensureCloudUpload checks the resource's CloudUploads cache; if no valid entry exists,
-// uploads via the configured cloud backends and caches the result.
-// Returns zero-value UploadResult if no cloud configs are enabled or upload fails.
-func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData) (cloudup.UploadResult, uint) {
+// uploads via the provider Files API or configured cloud backends and caches the result.
+// Returns zero-value UploadResult if no uploader is enabled or upload fails.
+func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData, requirePublicURL bool) (cloudup.UploadResult, uint) {
 	// Find the resource ID for this media data (first input resource).
-	ids := parseResourceIDs(job.InputResourceIDs)
-	if job.InputResourceID != nil && len(ids) == 0 {
-		ids = []uint{*job.InputResourceID}
+	resourceID := media.ResourceID
+	if resourceID == 0 {
+		ids := parseResourceIDs(job.InputResourceIDs)
+		if job.InputResourceID != nil && len(ids) == 0 {
+			ids = []uint{*job.InputResourceID}
+		}
+		if len(ids) == 0 {
+			return cloudup.UploadResult{}, 0
+		}
+		resourceID = ids[0]
 	}
-	if len(ids) == 0 {
-		return cloudup.UploadResult{}, 0
-	}
-	resourceID := ids[0]
 
 	var resource model.RawResource
 	if err := w.db.First(&resource, resourceID).Error; err != nil {
@@ -777,17 +865,12 @@ func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData) (cloud
 	// Check if any cached entry is still valid (not older than 24h for file IDs, 7 days for URLs).
 	for _, entry := range cache {
 		age := time.Since(entry.UploadedAt)
-		if entry.FileID != "" && age < 24*time.Hour {
+		if !requirePublicURL && entry.FileID != "" && age < 24*time.Hour {
 			return cloudup.UploadResult{FileID: entry.FileID}, 0
 		}
 		if entry.URL != "" && age < 7*24*time.Hour {
 			return cloudup.UploadResult{URL: entry.URL}, 0
 		}
-	}
-
-	svc := w.cloudupService()
-	if svc == nil || !svc.HasUploaders() {
-		return cloudup.UploadResult{}, 0
 	}
 
 	filename := resource.Name
@@ -801,6 +884,28 @@ func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData) (cloud
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+
+	if !requirePublicURL {
+		if uploader := w.aiService.GetFileUploader(job.ModelConfigID); uploader != nil {
+			fileID, err := uploader.UploadFile(ctx, media.Bytes, filename, mimeType, "")
+			if err == nil && fileID != "" {
+				key := fmt.Sprintf("ai_model_config:%d", job.ModelConfigID)
+				cache[key] = cacheEntry{FileID: fileID, UploadedAt: time.Now()}
+				if b, err := json.Marshal(cache); err == nil {
+					w.db.Model(&resource).Update("cloud_uploads", string(b))
+				}
+				return cloudup.UploadResult{FileID: fileID}, 0
+			}
+			if err != nil {
+				log.Printf("[genjob] provider file upload for resource #%d failed: %v", resourceID, err)
+			}
+		}
+	}
+
+	svc := w.cloudupService()
+	if svc == nil || !svc.HasUploaders() {
+		return cloudup.UploadResult{}, 0
+	}
 
 	configID, result, err := svc.UploadWithFallback(ctx, media.Bytes, filename, mimeType)
 	if err != nil {
@@ -1016,7 +1121,7 @@ func (w *Worker) loadInputResources(job *model.GenJob) (imageData, videoData []a
 			log.Printf("[genjob] failed to read resource #%d: %v", r.ID, err)
 			continue
 		}
-		md := ai.MediaData{Bytes: data, MimeType: mime, PresignedURL: presigned}
+		md := ai.MediaData{Bytes: data, MimeType: mime, PresignedURL: presigned, ResourceID: r.ID}
 		switch r.Type {
 		case "image":
 			imageData = append(imageData, md)
@@ -1133,6 +1238,28 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+func getBoolPtr(values map[string]interface{}, key string) *bool {
+	v, ok := values[key]
+	if !ok {
+		return nil
+	}
+	switch t := v.(type) {
+	case bool:
+		b := t
+		return &b
+	case string:
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "true", "1", "yes", "on":
+			b := true
+			return &b
+		case "false", "0", "no", "off":
+			b := false
+			return &b
+		}
+	}
+	return nil
 }
 
 func typeFromMime(mime string) string {

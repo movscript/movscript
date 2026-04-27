@@ -90,6 +90,10 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": valErr.Error()})
 		return
 	}
+	if valErr := ai.ValidateGenerationParams(def, jobType, req.ExtraParams, req.AspectRatio, req.Duration); valErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": valErr.Error()})
+		return
+	}
 
 	// Encode input resource IDs array.
 	inputResourceIDsJSON := ""

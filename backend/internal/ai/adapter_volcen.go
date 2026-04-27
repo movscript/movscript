@@ -76,6 +76,9 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 		Model:  req.Model,
 		Prompt: req.Prompt,
 	}
+	if imageInput := buildVolcenImageInput(req); imageInput != nil {
+		arkReq.Image = imageInput
+	}
 	if req.Size != "" {
 		s := req.Size
 		arkReq.Size = &s
@@ -88,10 +91,65 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	}
 	urlFmt := arkmodel.GenerateImagesResponseFormatURL
 	arkReq.ResponseFormat = &urlFmt
+	if req.Seed != nil {
+		arkReq.Seed = req.Seed
+	}
+	if req.GuidanceScale > 0 {
+		arkReq.GuidanceScale = &req.GuidanceScale
+	}
+	if req.Watermark != nil {
+		arkReq.Watermark = req.Watermark
+	}
+	if req.SequentialMode != "" {
+		mode := arkmodel.SequentialImageGeneration(req.SequentialMode)
+		arkReq.SequentialImageGeneration = &mode
+	}
+	if req.SequentialMaxImages > 0 {
+		maxImages := req.SequentialMaxImages
+		arkReq.SequentialImageGenerationOptions = &arkmodel.SequentialImageGenerationOptions{MaxImages: &maxImages}
+	}
+	if req.OutputFormat != "" {
+		format := arkmodel.OutputFormat(req.OutputFormat)
+		arkReq.OutputFormat = &format
+	}
+	if req.OptimizePromptMode != "" {
+		mode := arkmodel.OptimizePromptMode(req.OptimizePromptMode)
+		arkReq.OptimizePromptOptions = &arkmodel.OptimizePromptOptions{Mode: &mode}
+	}
+	if req.WebSearch {
+		arkReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
+	}
 
 	debugBody := map[string]any{"model": req.Model, "prompt": req.Prompt}
+	if arkReq.Image != nil {
+		debugBody["image"] = "[media]"
+	}
 	if arkReq.Size != nil {
 		debugBody["size"] = *arkReq.Size
+	}
+	if arkReq.Seed != nil {
+		debugBody["seed"] = *arkReq.Seed
+	}
+	if arkReq.GuidanceScale != nil {
+		debugBody["guidance_scale"] = *arkReq.GuidanceScale
+	}
+	if arkReq.Watermark != nil {
+		debugBody["watermark"] = *arkReq.Watermark
+	}
+	if arkReq.SequentialImageGeneration != nil {
+		debugBody["sequential_image_generation"] = *arkReq.SequentialImageGeneration
+	}
+	if req.SequentialMaxImages > 0 {
+		debugBody["sequential_image_generation_options"] = map[string]any{"max_images": req.SequentialMaxImages}
+	}
+	if arkReq.OutputFormat != nil {
+		debugBody["output_format"] = *arkReq.OutputFormat
+	}
+	if req.OptimizePromptMode != "" {
+		debugBody["optimize_prompt_options"] = map[string]any{"mode": req.OptimizePromptMode}
+	}
+	if req.WebSearch {
+		debugBody["tools"] = []map[string]any{{"type": "web_search"}}
 	}
 	debugBodyJSON, _ := json.Marshal(debugBody)
 	debugEndpoint := a.baseURL + "/images/generations"
@@ -319,12 +377,50 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		Model:   req.Model,
 		Content: content,
 	}
-	if req.Duration > 0 {
+	if req.Frames > 0 {
+		frames := int64(req.Frames)
+		createReq.Frames = &frames
+	} else if req.Duration != 0 {
 		dur := int64(req.Duration)
 		createReq.Duration = &dur
 	}
-	if req.AspectRatio != "" {
-		createReq.Ratio = &req.AspectRatio
+	if req.Seed != nil {
+		createReq.Seed = req.Seed
+	}
+	ratio := req.Ratio
+	if ratio == "" {
+		ratio = req.AspectRatio
+	}
+	if ratio != "" {
+		createReq.Ratio = &ratio
+	}
+	if req.ResolutionName != "" {
+		createReq.Resolution = &req.ResolutionName
+	}
+	if req.CameraFixed != nil {
+		createReq.CameraFixed = req.CameraFixed
+	}
+	if req.Watermark != nil {
+		createReq.Watermark = req.Watermark
+	}
+	if req.GenerateAudio != nil {
+		createReq.GenerateAudio = req.GenerateAudio
+	}
+	if req.ReturnLastFrame != nil {
+		createReq.ReturnLastFrame = req.ReturnLastFrame
+	}
+	if req.ServiceTier != "" {
+		createReq.ServiceTier = &req.ServiceTier
+	}
+	if req.ExecutionExpiresAfter > 0 {
+		expires := int64(req.ExecutionExpiresAfter)
+		createReq.ExecutionExpiresAfter = &expires
+	}
+	if req.Draft != nil {
+		createReq.Draft = req.Draft
+	}
+	if req.WebSearch {
+		createReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
 	}
 
 	debugBody := map[string]any{
@@ -337,13 +433,83 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 	if videoURL != "" {
 		debugBody["video_url"] = videoURL
 	}
-	if req.Duration > 0 {
+	if req.Frames > 0 {
+		debugBody["frames"] = req.Frames
+	} else if req.Duration != 0 {
 		debugBody["duration"] = req.Duration
 	}
-	if req.AspectRatio != "" {
-		debugBody["aspect_ratio"] = req.AspectRatio
+	if req.Seed != nil {
+		debugBody["seed"] = *req.Seed
+	}
+	if ratio != "" {
+		debugBody["ratio"] = ratio
+	}
+	if req.ResolutionName != "" {
+		debugBody["resolution"] = req.ResolutionName
+	}
+	if req.CameraFixed != nil {
+		debugBody["camera_fixed"] = *req.CameraFixed
+	}
+	if req.Watermark != nil {
+		debugBody["watermark"] = *req.Watermark
+	}
+	if req.GenerateAudio != nil {
+		debugBody["generate_audio"] = *req.GenerateAudio
+	}
+	if req.ReturnLastFrame != nil {
+		debugBody["return_last_frame"] = *req.ReturnLastFrame
+	}
+	if req.ServiceTier != "" {
+		debugBody["service_tier"] = req.ServiceTier
+	}
+	if req.ExecutionExpiresAfter > 0 {
+		debugBody["execution_expires_after"] = req.ExecutionExpiresAfter
+	}
+	if req.Draft != nil {
+		debugBody["draft"] = *req.Draft
+	}
+	if req.WebSearch {
+		debugBody["tools"] = []map[string]any{{"type": "web_search"}}
 	}
 	return createReq, debugBody
+}
+
+func buildVolcenImageInput(req ImageRequest) any {
+	if len(req.InputImageDataList) > 0 {
+		images := make([]string, 0, len(req.InputImageDataList))
+		for _, img := range req.InputImageDataList {
+			if img.PresignedURL != "" {
+				images = append(images, img.PresignedURL)
+				continue
+			}
+			if len(img.Bytes) > 0 {
+				mimeType := img.MimeType
+				if mimeType == "" {
+					mimeType = "image/png"
+				}
+				images = append(images, "data:"+mimeType+";base64,"+base64Encode(img.Bytes))
+			}
+		}
+		switch len(images) {
+		case 0:
+			return nil
+		case 1:
+			return images[0]
+		default:
+			return images
+		}
+	}
+	if len(req.InputImageBytes) > 0 {
+		mimeType := req.InputImageMime
+		if mimeType == "" {
+			mimeType = "image/png"
+		}
+		return "data:" + mimeType + ";base64," + base64Encode(req.InputImageBytes)
+	}
+	if req.InputImage != "" {
+		return req.InputImage
+	}
+	return nil
 }
 
 func (a *VolcenAdapter) Ping(ctx context.Context) error {

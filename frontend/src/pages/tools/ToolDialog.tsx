@@ -394,13 +394,14 @@ export function ToolDialog({
 
     // Extract aspect_ratio and duration as top-level fields; keep remaining params in extra_params.
     const { aspect_ratio, duration, ...remainingParams } = extraParams as Record<string, string | number | boolean>
+    const durationValue = duration === undefined || duration === '' ? undefined : Number(duration)
     try {
       const job = await api.post('/gen-jobs', {
         model_config_id: selectedModelId,
         job_type: effectiveJobType,
         prompt: prompt.trim(),
         aspect_ratio: aspect_ratio ?? undefined,
-        duration: duration ?? undefined,
+        duration: Number.isFinite(durationValue) ? durationValue : undefined,
         extra_params: Object.keys(remainingParams).length > 0 ? JSON.stringify(remainingParams) : undefined,
         input_resource_ids: attachments.map((a) => a.ID),
         feature_key: _nodeType,

@@ -132,10 +132,11 @@ var AdapterDefs = []AdapterDef{
 		},
 	},
 	{
-		AdapterType:    AdapterVolcen,
-		DisplayName:    "火山引擎 Ark",
-		Description:    "字节跳动 Ark 平台：豆包文本、Seedream 图像生成、Seedance 视频生成（原生 Ark SDK）",
-		DefaultBaseURL: "https://ark.cn-beijing.volces.com/api/v3",
+		AdapterType:      AdapterVolcen,
+		DisplayName:      "火山引擎 Ark",
+		Description:      "字节跳动 Ark 平台：豆包文本、Seedream 图像生成、Seedance 视频生成（原生 Ark SDK）",
+		DefaultBaseURL:   "https://ark.cn-beijing.volces.com/api/v3",
+		SupportsFilesAPI: true,
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选）", Required: false},
@@ -151,6 +152,69 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 	},
+}
+
+func volcenSeedream3Params() []ParamDef {
+	return []ParamDef{
+		{Key: "size", Label: "尺寸", Type: "select",
+			Options: []string{"1024x1024", "512x512", "864x1152", "1152x864", "1280x720", "720x1280", "832x1248", "1248x832", "1512x648"}, Default: "1024x1024"},
+		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 2147483647, Step: 1},
+		{Key: "guidance_scale", Label: "文本权重", Type: "number", Default: 2.5, Min: 1, Max: 10, Step: 0.1},
+		{Key: "watermark", Label: "水印", Type: "boolean", Default: true},
+	}
+}
+
+func volcenSeedream4Params(resolutionOptions []string) []ParamDef {
+	sizeOptions := append([]string{}, resolutionOptions...)
+	sizeOptions = append(sizeOptions,
+		"1024x1024", "2048x2048", "2304x1728", "1728x2304",
+		"2848x1600", "1600x2848", "4096x4096", "5504x3040", "3040x5504",
+	)
+	return []ParamDef{
+		{Key: "size", Label: "尺寸", Type: "select", Options: sizeOptions, Default: "2048x2048"},
+		{Key: "watermark", Label: "水印", Type: "boolean", Default: true},
+		{Key: "sequential_image_generation", Label: "组图", Type: "select",
+			Options: []string{"disabled", "auto"}, Default: "disabled"},
+		{Key: "max_images", Label: "最多张数", Type: "number", Min: 1, Max: 15, Step: 1},
+		{Key: "optimize_prompt_mode", Label: "提示词优化", Type: "select",
+			Options: []string{"standard", "fast"}, Default: "standard"},
+	}
+}
+
+func volcenSeedream5LiteParams() []ParamDef {
+	params := volcenSeedream4Params([]string{"2K", "3K", "4K"})
+	params = append(params,
+		ParamDef{Key: "output_format", Label: "格式", Type: "select", Options: []string{"jpeg", "png"}, Default: "jpeg"},
+		ParamDef{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false},
+	)
+	return params
+}
+
+func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []string, withAudio, withCameraFixed, withServiceTier, withWebSearch, withDraft bool) []ParamDef {
+	params := []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select", Options: durationOptions, Default: "5"},
+		{Key: "ratio", Label: "画面比例", Type: "select", Options: ratioOptions, Default: ratioOptions[0]},
+		{Key: "resolution", Label: "分辨率", Type: "select", Options: resolutionOptions, Default: "720p"},
+		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
+		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
+	}
+	if withAudio {
+		params = append(params, ParamDef{Key: "generate_audio", Label: "生成音频", Type: "boolean", Default: true})
+	}
+	if withCameraFixed {
+		params = append(params, ParamDef{Key: "camera_fixed", Label: "固定镜头", Type: "boolean", Default: false})
+	}
+	params = append(params, ParamDef{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false})
+	if withServiceTier {
+		params = append(params, ParamDef{Key: "service_tier", Label: "服务等级", Type: "select", Options: []string{"default", "flex"}, Default: "default"})
+	}
+	if withWebSearch {
+		params = append(params, ParamDef{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false})
+	}
+	if withDraft {
+		params = append(params, ParamDef{Key: "draft", Label: "样片模式", Type: "boolean", Default: false})
+	}
+	return params
 }
 
 // ModelSuggestions is a read-only list of well-known models used only as UI hints.
@@ -333,44 +397,56 @@ var ModelSuggestions = []ModelDef{
 		DisplayName: "Seedream 3.0 图像", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterOpenAICompat,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.002},
+		RefUSDPerImage:       0.002,
+		SupportedParams:      volcenSeedream3Params()},
 
 	{ID: "volcengine:seedream-4-0", ModelID: "doubao-seedream-4-0-250828",
 		DisplayName: "Seedream 4.0 图像", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterOpenAICompat,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.020},
+		AcceptsImageInput:    true, MaxInputImages: 14,
+		RefUSDPerImage:  0.020,
+		SupportedParams: volcenSeedream4Params([]string{"1K", "2K", "4K"})},
 
 	{ID: "volcengine:seedream-4-5", ModelID: "doubao-seedream-4-5-251128",
 		DisplayName: "Seedream 4.5 图像", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterOpenAICompat,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.040},
+		AcceptsImageInput:    true, MaxInputImages: 14,
+		RefUSDPerImage:  0.040,
+		SupportedParams: volcenSeedream4Params([]string{"2K", "4K"})},
 
 	{ID: "volcengine:seedream-5-0", ModelID: "doubao-seedream-5-0-260128",
 		DisplayName: "Seedream 5.0 图像", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterOpenAICompat,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.050},
+		AcceptsImageInput:    true, MaxInputImages: 14,
+		RefUSDPerImage:  0.050,
+		SupportedParams: volcenSeedream5LiteParams()},
 
 	{ID: "volcengine:seedream-5-0-lite", ModelID: "doubao-seedream-5-0-lite-260128",
 		DisplayName: "Seedream 5.0 Lite 图像", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterOpenAICompat,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.035},
+		AcceptsImageInput:    true, MaxInputImages: 14,
+		RefUSDPerImage:  0.035,
+		SupportedParams: volcenSeedream5LiteParams()},
 
 	// Seedream image generation — native Ark SDK (volcen adapter).
 	{ID: "volcengine-ark:seedream-3-0", ModelID: "doubao-seedream-3-0-t2i-250415",
 		DisplayName: "Seedream 3.0 图像 (Ark 原生)", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.002},
+		RefUSDPerImage:       0.002,
+		SupportedParams:      volcenSeedream3Params()},
 
 	{ID: "volcengine-ark:seedream-5-0", ModelID: "doubao-seedream-5-0-260128",
 		DisplayName: "Seedream 5.0 图像 (Ark 原生)", Capabilities: []string{"image"},
 		BillingMode: BillingPerImage, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true,
-		RefUSDPerImage:       0.050},
+		AcceptsImageInput:    true, MaxInputImages: 14,
+		RefUSDPerImage:  0.050,
+		SupportedParams: volcenSeedream5LiteParams()},
 
 	// Seedance video generation (async task API — uses volcen adapter).
 	{ID: "volcengine:seedance-1-0-lite-t2v", ModelID: "doubao-seedance-1.0-lite-t2v-250428",
@@ -379,23 +455,25 @@ var ModelSuggestions = []ModelDef{
 		AllowModelIDOverride: true,
 		MaxInputImages:       0,
 		RefUSDPerSecond:      0.028, DefaultDurSec: 5, MaxDurSec: 12,
-		SupportedParams: []ParamDef{
-			{Key: "duration", Label: "时长(秒)", Type: "select",
-				Options: []string{"5", "10"}, Default: "5"},
-			{Key: "aspect_ratio", Label: "画面比例", Type: "select",
-				Options: []string{"16:9", "9:16", "1:1", "4:3", "3:4"}, Default: "16:9"},
-		}},
+		SupportedParams: volcenSeedanceParams(
+			[]string{"2", "5", "10", "12"},
+			[]string{"16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
+			[]string{"480p", "720p", "1080p"},
+			false, true, true, false, false,
+		)},
 
 	{ID: "volcengine:seedance-1-0-lite-i2v", ModelID: "doubao-seedance-1.0-lite-i2v-250428",
 		DisplayName: "Seedance 1.0 Lite 图生视频", Capabilities: []string{CapabilityVideoI2V},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true, AcceptsImageInput: true,
-		MaxInputImages:  1,
+		MaxInputImages:  4,
 		RefUSDPerSecond: 0.028, DefaultDurSec: 5, MaxDurSec: 12,
-		SupportedParams: []ParamDef{
-			{Key: "duration", Label: "时长(秒)", Type: "select",
-				Options: []string{"5", "10"}, Default: "5"},
-		}},
+		SupportedParams: volcenSeedanceParams(
+			[]string{"2", "5", "10", "12"},
+			[]string{"16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
+			[]string{"480p", "720p"},
+			false, false, true, false, false,
+		)},
 
 	{ID: "volcengine:seedance-1-0-pro-fast", ModelID: "doubao-seedance-1.0-pro-fast-251015",
 		DisplayName: "Seedance 1.0 Pro Fast 视频", Capabilities: []string{CapabilityVideo},
@@ -403,12 +481,12 @@ var ModelSuggestions = []ModelDef{
 		AllowModelIDOverride: true,
 		MaxInputImages:       0,
 		RefUSDPerSecond:      0.042, DefaultDurSec: 5, MaxDurSec: 12,
-		SupportedParams: []ParamDef{
-			{Key: "duration", Label: "时长(秒)", Type: "select",
-				Options: []string{"5", "10"}, Default: "5"},
-			{Key: "aspect_ratio", Label: "画面比例", Type: "select",
-				Options: []string{"16:9", "9:16", "1:1", "4:3", "3:4"}, Default: "16:9"},
-		}},
+		SupportedParams: volcenSeedanceParams(
+			[]string{"2", "5", "10", "12"},
+			[]string{"16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
+			[]string{"480p", "720p", "1080p"},
+			false, true, true, false, false,
+		)},
 
 	{ID: "volcengine:seedance-1-5-pro", ModelID: "doubao-seedance-1.5-pro-251215",
 		DisplayName: "Seedance 1.5 Pro 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V},
@@ -416,12 +494,12 @@ var ModelSuggestions = []ModelDef{
 		AllowModelIDOverride: true, AcceptsImageInput: true,
 		MaxInputImages:  1,
 		RefUSDPerSecond: 0.090, DefaultDurSec: 5, MaxDurSec: 12,
-		SupportedParams: []ParamDef{
-			{Key: "duration", Label: "时长(秒)", Type: "select",
-				Options: []string{"5", "10"}, Default: "5"},
-			{Key: "aspect_ratio", Label: "画面比例", Type: "select",
-				Options: []string{"16:9", "9:16", "1:1", "4:3", "3:4"}, Default: "16:9"},
-		}},
+		SupportedParams: volcenSeedanceParams(
+			[]string{"-1", "4", "5", "10", "12"},
+			[]string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
+			[]string{"480p", "720p", "1080p"},
+			true, true, true, false, true,
+		)},
 
 	{ID: "volcengine:seedance-2-0", ModelID: "doubao-seedance-2.0-260128",
 		DisplayName: "Seedance 2.0 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V},
@@ -429,12 +507,12 @@ var ModelSuggestions = []ModelDef{
 		AllowModelIDOverride: true, AcceptsImageInput: true,
 		MaxInputImages: 1, MaxInputVideos: 1,
 		RefUSDPerSecond: 0.140, DefaultDurSec: 5, MaxDurSec: 15,
-		SupportedParams: []ParamDef{
-			{Key: "duration", Label: "时长(秒)", Type: "select",
-				Options: []string{"5", "10", "15"}, Default: "5"},
-			{Key: "aspect_ratio", Label: "画面比例", Type: "select",
-				Options: []string{"16:9", "9:16", "1:1", "4:3", "3:4"}, Default: "16:9"},
-		}},
+		SupportedParams: volcenSeedanceParams(
+			[]string{"-1", "4", "5", "10", "15"},
+			[]string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
+			[]string{"480p", "720p", "1080p"},
+			true, false, false, true, false,
+		)},
 
 	{ID: "volcengine:seedance-2-0-fast", ModelID: "doubao-seedance-2.0-fast-260128",
 		DisplayName: "Seedance 2.0 Fast 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V},
@@ -442,12 +520,12 @@ var ModelSuggestions = []ModelDef{
 		AllowModelIDOverride: true, AcceptsImageInput: true,
 		MaxInputImages: 1, MaxInputVideos: 1,
 		RefUSDPerSecond: 0.070, DefaultDurSec: 5, MaxDurSec: 15,
-		SupportedParams: []ParamDef{
-			{Key: "duration", Label: "时长(秒)", Type: "select",
-				Options: []string{"5", "10", "15"}, Default: "5"},
-			{Key: "aspect_ratio", Label: "画面比例", Type: "select",
-				Options: []string{"16:9", "9:16", "1:1", "4:3", "3:4"}, Default: "16:9"},
-		}},
+		SupportedParams: volcenSeedanceParams(
+			[]string{"-1", "4", "5", "10", "15"},
+			[]string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"},
+			[]string{"480p", "720p"},
+			true, false, false, true, false,
+		)},
 
 	// ─── Kling (Kuaishou) ──────────────────────────────────────────────────────
 

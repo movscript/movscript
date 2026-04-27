@@ -373,6 +373,13 @@ function InlineToolCard({
                     min={p.min} max={p.max} step={p.step ?? 1}
                     onChange={e => setExtraParams(prev => ({ ...prev, [p.key]: Number(e.target.value) }))}
                   />
+                ) : p.type === 'boolean' ? (
+                  <input
+                    type="checkbox"
+                    checked={Boolean(val)}
+                    onChange={e => setExtraParams(prev => ({ ...prev, [p.key]: e.target.checked }))}
+                    className="rounded"
+                  />
                 ) : null}
               </div>
             )

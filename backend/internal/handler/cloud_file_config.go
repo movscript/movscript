@@ -88,7 +88,8 @@ func (h *CloudFileConfigHandler) Update(c *gin.Context) {
 		cfg.Name = *req.Name
 	}
 	if req.Config != nil {
-		encJSON, err := h.encryptConfig(req.Config)
+		merged := h.mergeConfigUpdate(cfg.ConfigJSON, req.Config)
+		encJSON, err := h.encryptConfig(merged)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "encrypt config: " + err.Error()})
 			return
@@ -124,6 +125,37 @@ func (h *CloudFileConfigHandler) encryptConfig(cfg map[string]any) (string, erro
 	return crypto.Encrypt(string(raw), h.encryptionKey)
 }
 
+func (h *CloudFileConfigHandler) mergeConfigUpdate(existingEncJSON string, incoming map[string]any) map[string]any {
+	existing := h.decryptConfig(existingEncJSON)
+	for k, v := range incoming {
+		if isSensitiveConfigKey(k) {
+			if s, ok := v.(string); ok && (s == "" || isMaskedSecret(s)) {
+				if old, exists := existing[k]; exists {
+					incoming[k] = old
+				}
+			}
+		}
+	}
+	return incoming
+}
+
+func (h *CloudFileConfigHandler) decryptConfig(encJSON string) map[string]any {
+	if encJSON == "" {
+		return map[string]any{}
+	}
+	raw := encJSON
+	if len(h.encryptionKey) > 0 {
+		if plain, err := crypto.Decrypt(encJSON, h.encryptionKey); err == nil {
+			raw = plain
+		}
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return map[string]any{}
+	}
+	return m
+}
+
 // maskConfig decrypts and redacts sensitive fields for display.
 func (h *CloudFileConfigHandler) maskConfig(configType, encJSON string) string {
 	if encJSON == "" {
@@ -145,12 +177,8 @@ func (h *CloudFileConfigHandler) maskConfig(configType, encJSON string) string {
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return "{}"
 	}
-	sensitiveKeys := map[string]bool{
-		"api_key": true, "secret_key": true, "access_key": true,
-		"access_key_id": true, "access_key_secret": true,
-	}
 	for k, v := range m {
-		if sensitiveKeys[k] {
+		if isSensitiveConfigKey(k) {
 			if s, ok := v.(string); ok && len(s) > 4 {
 				m[k] = s[:4] + "****"
 			} else {
@@ -160,6 +188,18 @@ func (h *CloudFileConfigHandler) maskConfig(configType, encJSON string) string {
 	}
 	b, _ := json.Marshal(m)
 	return string(b)
+}
+
+func isSensitiveConfigKey(k string) bool {
+	switch k {
+	case "api_key", "secret_key", "access_key", "access_key_id", "access_key_secret":
+		return true
+	}
+	return false
+}
+
+func isMaskedSecret(s string) bool {
+	return s == "****" || (len(s) >= 4 && s[len(s)-4:] == "****")
 }
 
 func validConfigType(t string) bool {
