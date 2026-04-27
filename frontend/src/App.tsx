@@ -23,6 +23,7 @@ import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import BrainstormPage from './pages/tools/BrainstormPage'
 import CreationPage from './pages/work/CreationPage'
+import ProductionFramePage from './pages/production/ProductionFramePage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
@@ -163,6 +164,7 @@ export default function App() {
                     <Route path="/tools/brainstorm"          element={<BrainstormPage />} />
 
                     {/* 工作模块 */}
+                    <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                     <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
                     <Route path="/creation"      element={<ProjectGuard><CreationPage /></ProjectGuard>} />
 

@@ -7,7 +7,7 @@ import {
   FileText, Image, ImagePlus, Film, Clapperboard, Layers, Camera,
   LayoutTemplate, Video, Move, Palette, Box,
   Users, PenLine, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
-  HardDrive, Wand2, Network, MessageSquare, BotMessageSquare,
+  HardDrive, Wand2, Network, MessageSquare, BotMessageSquare, LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -180,6 +180,7 @@ export function Sidebar() {
               {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} />}
               {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} />}
               <div className="border-t border-border mx-3 my-1.5" />
+              <NavItem to="/production" icon={LayoutDashboard} label={t('sidebar.items.production')} />
               <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} />
               <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} />
               <NavItem to="/creation" icon={PenLine} label={t('sidebar.items.creation')} />

@@ -1715,6 +1715,7 @@
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "myAgents": "My Agents",
+      "production": "Production Hub",
       "pipeline": "Pipeline",
       "creation": "Creation",
       "collaboration": "Collaboration",
