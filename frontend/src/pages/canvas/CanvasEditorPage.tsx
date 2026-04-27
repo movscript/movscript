@@ -115,10 +115,13 @@ function ResourceThumb({ resource }: { resource: RawResource }) {
 
 function CanvasResourceShelf({
   projectId,
+  variant = 'floating',
 }: {
   projectId?: number
+  variant?: 'floating' | 'panel'
 }) {
   const [tab, setTab] = useState<'resources' | 'assets'>('resources')
+  const isPanel = variant === 'panel'
   const { data: resourcePage } = useQuery<PaginatedResponse<RawResource>>({
     queryKey: ['canvas-resource-shelf', 'resources'],
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((r) => r.data),
@@ -137,7 +140,11 @@ function CanvasResourceShelf({
   }
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-4 right-24 z-10 overflow-hidden rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur">
+    <div className={cn(
+      isPanel
+        ? 'flex h-full flex-col overflow-hidden bg-background'
+        : 'pointer-events-auto absolute bottom-4 left-4 right-24 z-10 overflow-hidden rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur'
+    )}>
       <div className="flex h-9 items-center gap-2 border-b border-border px-3">
         <HardDrive size={14} className="text-muted-foreground" />
         <span className="text-xs font-semibold text-foreground">资源 / 素材</span>
@@ -157,7 +164,10 @@ function CanvasResourceShelf({
         </div>
         <span className="ml-auto text-[11px] text-muted-foreground">拖入画布创建节点</span>
       </div>
-      <div className="flex h-24 gap-2 overflow-x-auto p-2">
+      <div className={cn(
+        'flex gap-2 overflow-x-auto p-2',
+        isPanel ? 'min-h-0 flex-1' : 'h-24'
+      )}>
         {tab === 'resources' && resources.map((resource) => (
           <button
             key={resource.ID}
@@ -277,6 +287,7 @@ function WorkflowRunHistory({
   statusFilter,
   activeRunId,
   isLoading,
+  embedded = false,
   onStatusFilterChange,
   onPageChange,
   onSelectRun,
@@ -288,12 +299,15 @@ function WorkflowRunHistory({
   statusFilter: 'all' | CanvasRun['status']
   activeRunId: number | null
   isLoading: boolean
+  embedded?: boolean
   onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
   onPageChange: (page: number) => void
   onSelectRun: (runId: number) => void
 }) {
   return (
-    <section className="h-52 shrink-0 border-t border-border bg-background">
+    <section className={cn(
+      embedded ? 'flex h-full flex-col bg-background' : 'h-52 shrink-0 border-t border-border bg-background'
+    )}>
       <div className="flex h-11 items-center gap-3 border-b border-border px-4">
         <History size={15} className="text-muted-foreground" />
         <div className="min-w-0 flex-1">
@@ -324,7 +338,7 @@ function WorkflowRunHistory({
         </div>
       </div>
 
-      <div className="h-[calc(100%-2.75rem)] overflow-auto">
+      <div className={cn(embedded ? 'min-h-0 flex-1 overflow-auto' : 'h-[calc(100%-2.75rem)] overflow-auto')}>
         <div className="grid grid-cols-[96px_104px_112px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
           <span>运行</span>
           <span>状态</span>
@@ -369,6 +383,81 @@ function WorkflowRunHistory({
   )
 }
 
+function WorkflowBottomPanel({
+  projectId,
+  activeTab,
+  runs,
+  total,
+  page,
+  pageCount,
+  statusFilter,
+  activeRunId,
+  isLoading,
+  onTabChange,
+  onStatusFilterChange,
+  onPageChange,
+  onSelectRun,
+}: {
+  projectId?: number
+  activeTab: 'resources' | 'history'
+  runs: CanvasRun[]
+  total: number
+  page: number
+  pageCount: number
+  statusFilter: 'all' | CanvasRun['status']
+  activeRunId: number | null
+  isLoading: boolean
+  onTabChange: (tab: 'resources' | 'history') => void
+  onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
+  onPageChange: (page: number) => void
+  onSelectRun: (runId: number) => void
+}) {
+  return (
+    <section className="h-52 shrink-0 border-t border-border bg-background">
+      <div className="flex h-10 items-center gap-2 border-b border-border px-4">
+        <div className="flex overflow-hidden rounded-md border border-border text-xs">
+          <button
+            onClick={() => onTabChange('resources')}
+            className={cn('flex items-center gap-1.5 px-3 py-1.5 transition-colors', activeTab === 'resources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+          >
+            <HardDrive size={12} />
+            资源库
+          </button>
+          <button
+            onClick={() => onTabChange('history')}
+            className={cn('flex items-center gap-1.5 border-l border-border px-3 py-1.5 transition-colors', activeTab === 'history' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+          >
+            <History size={12} />
+            运行历史
+          </button>
+        </div>
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          {activeTab === 'resources' ? '拖入画布创建节点' : `${total} 次运行`}
+        </span>
+      </div>
+      <div className="h-[calc(100%-2.5rem)] overflow-hidden">
+        {activeTab === 'resources' ? (
+          <CanvasResourceShelf projectId={projectId} variant="panel" />
+        ) : (
+          <WorkflowRunHistory
+            embedded
+            runs={runs}
+            total={total}
+            page={page}
+            pageCount={pageCount}
+            statusFilter={statusFilter}
+            activeRunId={activeRunId}
+            isLoading={isLoading}
+            onStatusFilterChange={onStatusFilterChange}
+            onPageChange={onPageChange}
+            onSelectRun={onSelectRun}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
 function CanvasEditorInner() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -392,8 +481,10 @@ function CanvasEditorInner() {
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [runHistoryPage, setRunHistoryPage] = useState(1)
   const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
+  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
 
   const fitViewCalledRef = useRef(false)
+  const finalizedRunInvalidatedRef = useRef<number | null>(null)
   const canvasPaneRef = useRef<HTMLDivElement>(null)
   const runHistoryPageSize = 8
 
@@ -424,7 +515,7 @@ function CanvasEditorInner() {
     queryKey: ['canvas-run-tasks', id, activeRunId],
     queryFn: () => api.get(`/canvases/${id}/runs/${activeRunId}/tasks`).then((r) => r.data),
     enabled: !!id && !!activeRunId,
-    refetchInterval: activeRunId ? 2000 : false,
+    refetchInterval: activeRunId && workflowRuns.find((run) => run.ID === activeRunId && (run.status === 'done' || run.status === 'failed')) ? false : activeRunId ? 2000 : false,
   })
 
   useEffect(() => {
@@ -449,10 +540,14 @@ function CanvasEditorInner() {
         },
       }
     }))
-    if (activeRunTasks.every((t) => t.status === 'done' || t.status === 'failed')) {
+    const isTerminal = activeRunTasks.every((t) => t.status === 'done' || t.status === 'failed')
+    if (isTerminal && activeRunId && finalizedRunInvalidatedRef.current !== activeRunId) {
+      finalizedRunInvalidatedRef.current = activeRunId
       qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
+    } else if (!isTerminal && activeRunId) {
+      finalizedRunInvalidatedRef.current = null
     }
-  }, [activeRunTasks, canvas, id, qc, setNodes])
+  }, [activeRunId, activeRunTasks, canvas, id, qc, setNodes])
 
   useEffect(() => {
     if (!canvas) return
@@ -563,6 +658,7 @@ function CanvasEditorInner() {
       if (runId) setActiveRunId(runId)
       setRunStatusFilter('all')
       setRunHistoryPage(1)
+      setWorkflowPanelTab('history')
       qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
       setNodes((prev) => prev.map((n) => {
         const d = n.data as unknown as CanvasNodeData
@@ -1098,7 +1194,9 @@ function CanvasEditorInner() {
           </div>
 
           {canvasType === 'workflow' && (
-            <WorkflowRunHistory
+            <WorkflowBottomPanel
+              projectId={canvas?.project_id}
+              activeTab={workflowPanelTab}
               runs={workflowRuns}
               total={workflowRunTotal}
               page={runHistoryPage}
@@ -1106,6 +1204,7 @@ function CanvasEditorInner() {
               statusFilter={runStatusFilter}
               activeRunId={activeRunId}
               isLoading={workflowRunsLoading}
+              onTabChange={setWorkflowPanelTab}
               onStatusFilterChange={setRunStatusFilter}
               onPageChange={setRunHistoryPage}
               onSelectRun={setActiveRunId}

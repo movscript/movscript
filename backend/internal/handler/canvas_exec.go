@@ -320,7 +320,11 @@ func buildCanvasRunSnapshot(cv model.Canvas) (string, string, int, int) {
 	if err != nil {
 		return "", "", len(cv.Nodes), len(cv.Edges)
 	}
-	sum := sha256.Sum256(b)
+	hashPayload, _ := json.Marshal(struct {
+		Nodes []model.CanvasNode `json:"nodes"`
+		Edges []model.CanvasEdge `json:"edges"`
+	}{Nodes: cv.Nodes, Edges: cv.Edges})
+	sum := sha256.Sum256(hashPayload)
 	return string(b), hex.EncodeToString(sum[:]), len(cv.Nodes), len(cv.Edges)
 }
 

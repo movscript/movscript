@@ -17,6 +17,7 @@ import (
 
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/cloudup"
+	"github.com/movscript/movscript/internal/media"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/storage"
 	"gorm.io/gorm"
@@ -834,6 +835,12 @@ func (w *Worker) saveDebugInfo(job *model.GenJob, result *ai.DebugCallResult) {
 
 // saveBytes stores raw bytes directly (used when the adapter downloads auth-gated content).
 func (w *Worker) saveBytes(ctx context.Context, job *model.GenJob, data []byte, mimeType string) (uint, error) {
+	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
+		log.Printf("[genjob] video normalization skipped for job #%d: %v", job.ID, err)
+	} else if changed {
+		data = normalized
+		mimeType = normalizedMime
+	}
 	resType := typeFromMime(mimeType)
 	name := fmt.Sprintf("genjob_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
@@ -900,6 +907,13 @@ func (w *Worker) saveResult(ctx context.Context, job *model.GenJob, providerURL,
 		if err != nil {
 			return 0, fmt.Errorf("read response body: %w", err)
 		}
+	}
+
+	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
+		log.Printf("[genjob] video normalization skipped for job #%d: %v", job.ID, err)
+	} else if changed {
+		data = normalized
+		mimeType = normalizedMime
 	}
 
 	resType := typeFromMime(mimeType)

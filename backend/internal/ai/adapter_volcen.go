@@ -138,8 +138,145 @@ func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
 }
 
-// VideoGenerate creates an async Seedance video task and polls until completion.
 func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	startResp, err := a.VideoStart(ctx, req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	if startResp.URL != "" || len(startResp.ContentBytes) > 0 || startResp.TaskID == "" {
+		return startResp, nil
+	}
+
+	// Legacy synchronous path for direct callers. The genjob worker uses
+	// VideoStart/VideoPoll so submitted task IDs are persisted before polling.
+	for i := 0; i < 60; i++ {
+		select {
+		case <-ctx.Done():
+			return VideoResponse{TaskID: startResp.TaskID, TaskKind: startResp.TaskKind, Status: VideoStatusProcessing}, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+
+		pollResp, err := a.VideoPoll(ctx, VideoPollRequest{
+			Model:    req.Model,
+			TaskID:   startResp.TaskID,
+			TaskKind: startResp.TaskKind,
+		})
+		if err != nil {
+			return pollResp, err
+		}
+		if pollResp.Status == VideoStatusSucceeded {
+			return pollResp, nil
+		}
+		if pollResp.Status == VideoStatusFailed {
+			msg := pollResp.Message
+			if msg == "" {
+				msg = "video generation failed"
+			}
+			return pollResp, fmt.Errorf("video task %s failed: %s", startResp.TaskID, msg)
+		}
+	}
+	return VideoResponse{TaskID: startResp.TaskID, TaskKind: startResp.TaskKind, Status: VideoStatusProcessing}, fmt.Errorf("video generation timed out (task %s)", startResp.TaskID)
+}
+
+func (a *VolcenAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	createReq, debugBody := buildVolcenVideoTaskRequest(req)
+	debugBodyJSON, _ := json.Marshal(debugBody)
+	debugEndpoint := a.baseURL + "/content_generation/tasks"
+
+	start := time.Now()
+	taskResp, err := a.client.CreateContentGenerationTask(ctx, createReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model,
+			Endpoint: debugEndpoint, Method: "POST",
+			RequestBody: string(debugBodyJSON),
+			LatencyMs:   latency, Error: err.Error(),
+		})
+		return VideoResponse{}, fmt.Errorf("volcen create task: %w", err)
+	}
+	taskID := taskResp.ID
+	recordDebug(ctx, DebugCallResult{
+		Success: true, ModelID: req.Model,
+		Endpoint: debugEndpoint, Method: "POST",
+		RequestBody:    string(debugBodyJSON),
+		ResponseStatus: http.StatusOK,
+		ResponseBody:   fmt.Sprintf(`{"task_id":%q,"status":"submitted"}`, taskID),
+		LatencyMs:      latency,
+	})
+	if taskID == "" {
+		return VideoResponse{}, fmt.Errorf("volcen create task: no task id returned")
+	}
+	return VideoResponse{TaskID: taskID, TaskKind: "content_generation", Status: VideoStatusSubmitted, Debug: takeDebug(ctx)}, nil
+}
+
+func (a *VolcenAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
+	if req.TaskID == "" {
+		return VideoResponse{}, fmt.Errorf("volcen poll task: task id is required")
+	}
+
+	debugEndpoint := a.baseURL + "/content_generation/tasks/" + req.TaskID
+	start := time.Now()
+	pollResp, err := a.client.GetContentGenerationTask(ctx, arkmodel.GetContentGenerationTaskRequest{ID: req.TaskID})
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebug(ctx, DebugCallResult{
+			Success: false, ModelID: req.TaskID,
+			Endpoint: debugEndpoint, Method: "GET",
+			LatencyMs: latency, Error: err.Error(),
+		})
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind}, fmt.Errorf("volcen poll task: %w", err)
+	}
+
+	responseBody := map[string]any{
+		"task_id": pollResp.ID,
+		"status":  pollResp.Status,
+	}
+	if pollResp.Content.VideoURL != "" {
+		responseBody["video_url"] = pollResp.Content.VideoURL
+	}
+	if pollResp.Content.FileURL != "" {
+		responseBody["file_url"] = pollResp.Content.FileURL
+	}
+	if pollResp.Error != nil {
+		responseBody["error"] = pollResp.Error
+	}
+	responseBodyJSON, _ := json.Marshal(responseBody)
+	recordDebug(ctx, DebugCallResult{
+		Success: true, ModelID: req.TaskID,
+		Endpoint: debugEndpoint, Method: "GET",
+		ResponseStatus: http.StatusOK, ResponseBody: string(responseBodyJSON),
+		LatencyMs: latency,
+	})
+
+	switch pollResp.Status {
+	case arkmodel.StatusSucceeded:
+		url := pollResp.Content.VideoURL
+		if url == "" {
+			url = pollResp.Content.FileURL
+		}
+		if url == "" {
+			return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusFailed, Message: "task succeeded but no video URL in response", Debug: takeDebug(ctx)}, fmt.Errorf("task succeeded but no video URL in response")
+		}
+		durSec := 0
+		if pollResp.Duration != nil {
+			durSec = int(*pollResp.Duration)
+		}
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusSucceeded, URL: url, DurationSec: durSec, Debug: takeDebug(ctx)}, nil
+	case arkmodel.StatusFailed, arkmodel.StatusCancelled:
+		msg := "video generation failed"
+		if pollResp.Error != nil && pollResp.Error.Message != "" {
+			msg = pollResp.Error.Message
+		}
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusFailed, Message: msg, Debug: takeDebug(ctx)}, fmt.Errorf("video task %s failed: %s", req.TaskID, msg)
+	case arkmodel.StatusQueued:
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusQueued, Debug: takeDebug(ctx)}, nil
+	default:
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusProcessing, Debug: takeDebug(ctx)}, nil
+	}
+}
+
+func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenerationTaskRequest, map[string]any) {
 	prompt := req.Prompt
 	content := []*arkmodel.CreateContentGenerationContentItem{
 		{Type: arkmodel.ContentGenerationContentItemTypeText, Text: &prompt},
@@ -190,7 +327,6 @@ func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 		createReq.Ratio = &req.AspectRatio
 	}
 
-	// Build synthetic debug body: represent what was sent to the SDK.
 	debugBody := map[string]any{
 		"model":  req.Model,
 		"prompt": req.Prompt,
@@ -207,64 +343,7 @@ func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 	if req.AspectRatio != "" {
 		debugBody["aspect_ratio"] = req.AspectRatio
 	}
-	debugBodyJSON, _ := json.Marshal(debugBody)
-	debugEndpoint := a.baseURL + "/content_generation/tasks"
-
-	start := time.Now()
-	taskResp, err := a.client.CreateContentGenerationTask(ctx, createReq)
-	latency := time.Since(start).Milliseconds()
-	if err != nil {
-		recordDebug(ctx, DebugCallResult{
-			Success: false, ModelID: req.Model,
-			Endpoint: debugEndpoint, Method: "POST",
-			RequestBody: string(debugBodyJSON),
-			LatencyMs:   latency, Error: err.Error(),
-		})
-		return VideoResponse{}, fmt.Errorf("volcen create task: %w", err)
-	}
-	taskID := taskResp.ID
-	recordDebug(ctx, DebugCallResult{
-		Success: true, ModelID: req.Model,
-		Endpoint: debugEndpoint, Method: "POST",
-		RequestBody:    string(debugBodyJSON),
-		ResponseStatus: http.StatusOK,
-		ResponseBody:   fmt.Sprintf(`{"task_id":%q,"status":"running"}`, taskID),
-		LatencyMs:      latency,
-	})
-
-	// Poll: 5s × 24 = up to 2 minutes.
-	for i := 0; i < 24; i++ {
-		select {
-		case <-ctx.Done():
-			return VideoResponse{}, ctx.Err()
-		case <-time.After(5 * time.Second):
-		}
-
-		pollResp, pollErr := a.client.GetContentGenerationTask(ctx, arkmodel.GetContentGenerationTaskRequest{ID: taskID})
-		if pollErr != nil {
-			return VideoResponse{}, fmt.Errorf("volcen poll task: %w", pollErr)
-		}
-
-		switch pollResp.Status {
-		case arkmodel.StatusSucceeded:
-			url := pollResp.Content.VideoURL
-			if url == "" {
-				return VideoResponse{}, fmt.Errorf("task succeeded but no video URL in response")
-			}
-			durSec := 0
-			if pollResp.Duration != nil {
-				durSec = int(*pollResp.Duration)
-			}
-			return VideoResponse{URL: url, DurationSec: durSec, TaskID: taskID, Debug: takeDebug(ctx)}, nil
-		case arkmodel.StatusFailed, arkmodel.StatusCancelled:
-			msg := "video generation failed"
-			if pollResp.Error != nil {
-				msg = pollResp.Error.Message
-			}
-			return VideoResponse{}, fmt.Errorf("%s", msg)
-		}
-	}
-	return VideoResponse{}, fmt.Errorf("video generation timed out (task %s)", taskID)
+	return createReq, debugBody
 }
 
 func (a *VolcenAdapter) Ping(ctx context.Context) error {

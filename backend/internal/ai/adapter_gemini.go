@@ -286,6 +286,46 @@ func (a *GeminiAdapter) imageGenerateViaImagen(ctx context.Context, client *gena
 }
 
 func (a *GeminiAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error) {
+	startResp, err := a.VideoStart(ctx, req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+	if startResp.URL != "" || len(startResp.ContentBytes) > 0 || startResp.TaskID == "" {
+		return startResp, nil
+	}
+
+	// Legacy synchronous path for direct callers. The genjob worker uses
+	// VideoStart/VideoPoll so submitted operation names are persisted first.
+	for i := 0; i < 60; i++ {
+		select {
+		case <-ctx.Done():
+			return VideoResponse{TaskID: startResp.TaskID, TaskKind: startResp.TaskKind, Status: VideoStatusProcessing}, ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+
+		pollResp, err := a.VideoPoll(ctx, VideoPollRequest{
+			Model:    req.Model,
+			TaskID:   startResp.TaskID,
+			TaskKind: startResp.TaskKind,
+		})
+		if err != nil {
+			return pollResp, err
+		}
+		if pollResp.Status == VideoStatusSucceeded {
+			return pollResp, nil
+		}
+		if pollResp.Status == VideoStatusFailed {
+			msg := pollResp.Message
+			if msg == "" {
+				msg = "video generation failed"
+			}
+			return pollResp, fmt.Errorf("video task %s failed: %s", startResp.TaskID, msg)
+		}
+	}
+	return VideoResponse{TaskID: startResp.TaskID, TaskKind: startResp.TaskKind, Status: VideoStatusProcessing}, fmt.Errorf("gemini veo: operation timed out")
+}
+
+func (a *GeminiAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
 	client, err := a.newClient(ctx)
 	if err != nil {
 		return VideoResponse{}, fmt.Errorf("gemini: create client: %w", err)
@@ -300,8 +340,59 @@ func (a *GeminiAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 		cfg.DurationSeconds = &dur
 	}
 
-	// Build optional reference image.
-	var refImage *genai.Image
+	refImage, err := geminiVideoReferenceImage(ctx, req)
+	if err != nil {
+		return VideoResponse{}, err
+	}
+
+	operation, err := client.Models.GenerateVideos(ctx, req.Model, req.Prompt, refImage, cfg)
+	if err != nil {
+		return VideoResponse{}, fmt.Errorf("gemini veo: start generation: %w", err)
+	}
+	if operation == nil || operation.Name == "" {
+		return VideoResponse{}, fmt.Errorf("gemini veo: start generation returned no operation name")
+	}
+	status := VideoStatusSubmitted
+	if operation.Done {
+		resp, err := geminiVideoOperationResponse(ctx, operation, operation.Name, "generate_videos")
+		if err != nil {
+			return resp, err
+		}
+		return resp, nil
+	}
+	dbg := takeDebug(ctx)
+	if dbg != nil {
+		dbg.Success = true
+		dbg.ModelID = req.Model
+	}
+	return VideoResponse{TaskID: operation.Name, TaskKind: "generate_videos", Status: status, Debug: dbg}, nil
+}
+
+func (a *GeminiAdapter) VideoPoll(ctx context.Context, req VideoPollRequest) (VideoResponse, error) {
+	if req.TaskID == "" {
+		return VideoResponse{}, fmt.Errorf("gemini veo: operation name is required")
+	}
+	client, err := a.newClient(ctx)
+	if err != nil {
+		return VideoResponse{}, fmt.Errorf("gemini: create client: %w", err)
+	}
+	operation := &genai.GenerateVideosOperation{Name: req.TaskID}
+	operation, err = client.Operations.GetVideosOperation(ctx, operation, nil)
+	if err != nil {
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind}, fmt.Errorf("gemini veo: poll operation: %w", err)
+	}
+	if !operation.Done {
+		dbg := takeDebug(ctx)
+		if dbg != nil {
+			dbg.Success = true
+			dbg.ModelID = req.TaskID
+		}
+		return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusProcessing, Debug: dbg}, nil
+	}
+	return geminiVideoOperationResponse(ctx, operation, req.TaskID, req.TaskKind)
+}
+
+func geminiVideoReferenceImage(ctx context.Context, req VideoRequest) (*genai.Image, error) {
 	var imgBytes []byte
 	var imgMime string
 	if len(req.InputImageDataList) > 0 {
@@ -311,49 +402,60 @@ func (a *GeminiAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 		var fetchErr error
 		imgBytes, imgMime, fetchErr = fetchURLBytes(ctx, req.Image, "")
 		if fetchErr != nil {
-			return VideoResponse{}, fmt.Errorf("gemini veo: fetch reference image: %w", fetchErr)
+			return nil, fmt.Errorf("gemini veo: fetch reference image: %w", fetchErr)
 		}
 	}
-	if len(imgBytes) > 0 {
-		refImage = &genai.Image{ImageBytes: imgBytes, MIMEType: imgMime}
+	if len(imgBytes) == 0 {
+		return nil, nil
 	}
+	return &genai.Image{ImageBytes: imgBytes, MIMEType: imgMime}, nil
+}
 
-	operation, err := client.Models.GenerateVideos(ctx, req.Model, req.Prompt, refImage, cfg)
-	if err != nil {
-		return VideoResponse{}, fmt.Errorf("gemini veo: start generation: %w", err)
+func geminiVideoOperationResponse(ctx context.Context, operation *genai.GenerateVideosOperation, taskID, taskKind string) (VideoResponse, error) {
+	dbg := takeDebug(ctx)
+	if dbg != nil {
+		dbg.ModelID = taskID
 	}
-
-	// Poll until done (5s intervals, up to 5 minutes).
-	for i := 0; i < 60; i++ {
-		select {
-		case <-ctx.Done():
-			return VideoResponse{}, ctx.Err()
-		case <-time.After(5 * time.Second):
-		}
-
-		operation, err = client.Operations.GetVideosOperation(ctx, operation, nil)
-		if err != nil {
-			return VideoResponse{}, fmt.Errorf("gemini veo: poll operation: %w", err)
-		}
-		if !operation.Done {
-			continue
-		}
-
-		if operation.Response == nil || len(operation.Response.GeneratedVideos) == 0 {
-			return VideoResponse{}, fmt.Errorf("gemini veo: operation done but no videos in response")
-		}
-		video := operation.Response.GeneratedVideos[0].Video
-		if video == nil {
-			return VideoResponse{}, fmt.Errorf("gemini veo: nil video in response")
-		}
-		dbg := takeDebug(ctx)
+	if len(operation.Error) > 0 {
+		msg := fmt.Sprintf("%v", operation.Error)
 		if dbg != nil {
-			dbg.Success = true
-			dbg.ModelID = req.Model
+			dbg.Success = false
+			dbg.Error = msg
 		}
-		return VideoResponse{URL: video.URI, Debug: dbg}, nil
+		return VideoResponse{TaskID: taskID, TaskKind: taskKind, Status: VideoStatusFailed, Message: msg, Debug: dbg}, fmt.Errorf("gemini veo: operation failed: %s", msg)
 	}
-	return VideoResponse{}, fmt.Errorf("gemini veo: operation timed out")
+	if operation.Response == nil || len(operation.Response.GeneratedVideos) == 0 {
+		msg := "operation done but no videos in response"
+		if dbg != nil {
+			dbg.Success = false
+			dbg.Error = msg
+		}
+		return VideoResponse{TaskID: taskID, TaskKind: taskKind, Status: VideoStatusFailed, Message: msg, Debug: dbg}, fmt.Errorf("gemini veo: %s", msg)
+	}
+	video := operation.Response.GeneratedVideos[0].Video
+	if video == nil {
+		msg := "nil video in response"
+		if dbg != nil {
+			dbg.Success = false
+			dbg.Error = msg
+		}
+		return VideoResponse{TaskID: taskID, TaskKind: taskKind, Status: VideoStatusFailed, Message: msg, Debug: dbg}, fmt.Errorf("gemini veo: %s", msg)
+	}
+	if dbg != nil {
+		dbg.Success = true
+	}
+	if video.URI != "" {
+		return VideoResponse{TaskID: taskID, TaskKind: taskKind, Status: VideoStatusSucceeded, URL: video.URI, Debug: dbg}, nil
+	}
+	if len(video.VideoBytes) > 0 {
+		return VideoResponse{TaskID: taskID, TaskKind: taskKind, Status: VideoStatusSucceeded, ContentBytes: video.VideoBytes, Debug: dbg}, nil
+	}
+	msg := "video response has no URI or bytes"
+	if dbg != nil {
+		dbg.Success = false
+		dbg.Error = msg
+	}
+	return VideoResponse{TaskID: taskID, TaskKind: taskKind, Status: VideoStatusFailed, Message: msg, Debug: dbg}, fmt.Errorf("gemini veo: %s", msg)
 }
 
 func (a *GeminiAdapter) Ping(ctx context.Context) error {

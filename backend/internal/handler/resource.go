@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/media"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/storage"
@@ -42,7 +43,7 @@ func (h *ResourceHandler) List(c *gin.Context) {
 		return
 	}
 
-	q := h.db.Where("owner_id = ?", user.ID)
+	q := h.db.Model(&model.RawResource{}).Where("owner_id = ?", user.ID)
 
 	switch c.Query("folder_id") {
 	case "", "all":
@@ -86,7 +87,7 @@ func (h *ResourceHandler) listShared(c *gin.Context, user *model.User) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 			return
 		}
-		q := applyResourceListFilters(h.db.Where("folder_id = ?", folder.ID).Preload("Owner"), c)
+		q := applyResourceListFilters(h.db.Model(&model.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), c)
 		if c.Query("page") != "" || c.Query("page_size") != "" {
 			h.respondResourcePage(c, q)
 			return
@@ -101,7 +102,7 @@ func (h *ResourceHandler) listShared(c *gin.Context, user *model.User) {
 		return
 	}
 
-	q := applyResourceListFilters(h.db.Where("owner_id != ? AND is_shared = true", user.ID).Preload("Owner"), c)
+	q := applyResourceListFilters(h.db.Model(&model.RawResource{}).Where("owner_id != ? AND is_shared = true", user.ID).Preload("Owner"), c)
 	if c.Query("page") != "" || c.Query("page_size") != "" {
 		h.respondResourcePage(c, q)
 		return
@@ -176,6 +177,16 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
 		return
 	}
+	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(c.Request.Context(), data, mimeType); err != nil {
+		fmt.Printf("[resource] video normalization skipped for %q: %v\n", header.Filename, err)
+	} else if changed {
+		data = normalized
+		mimeType = normalizedMime
+		r.Type = mimeToType(mimeType, header.Filename)
+		r.MimeType = mimeType
+		r.Name = media.MP4Name(r.Name)
+		r.Size = int64(len(data))
+	}
 
 	if err := h.store.Put(c.Request.Context(), key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
 		h.db.Delete(&r)
@@ -187,6 +198,10 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 		"file_path":       key,
 		"storage_key":     key,
 		"storage_backend": h.store.Backend(),
+		"type":            r.Type,
+		"name":            r.Name,
+		"mime_type":       r.MimeType,
+		"size":            r.Size,
 	})
 	r.StorageKey = key
 	r.StorageBackend = h.store.Backend()
@@ -448,9 +463,15 @@ func (h *ResourceHandler) respondResourcePage(c *gin.Context, q *gorm.DB) {
 	}
 	offset := (page - 1) * pageSize
 	var total int64
-	q.Count(&total)
+	if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	resources := make([]model.RawResource, 0)
-	q.Order("created_at desc").Limit(pageSize).Offset(offset).Find(&resources)
+	if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(pageSize).Offset(offset).Find(&resources).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	for i := range resources {
 		resources[i].URL = resourceURL(c, resources[i].ID)
 		h.populateDirectURL(c, &resources[i])
