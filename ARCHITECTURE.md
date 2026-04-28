@@ -1,120 +1,130 @@
-# Movscript — Architecture Guide
+# Movscript Architecture Guide
 
-> AI 快速定向文档。修改功能前先读本文，找到正确的文件范围。
+This is the short orientation document for contributors. The broader architecture index is in [docs/architecture.md](docs/architecture.md).
 
----
+## Stack
 
-## 技术栈
+| Layer | Technology |
+| --- | --- |
+| Desktop shell | Electron 33, Electron Vite |
+| Frontend | React 18, React Router v6, TanStack Query v5, Zustand, Tailwind CSS |
+| Backend | Go 1.25, Gin, GORM, PostgreSQL |
+| Storage | MinIO/S3-compatible object storage |
+| AI | Adapter layer for OpenAI-compatible APIs, Anthropic, Gemini, Kling, Volcengine, and dry-run |
+| Agent | Standalone TypeScript HTTP service using MCP-shaped client tools |
+| Plugins | Backend-stored plugin manifests plus frontend/runtime plugin surfaces |
 
-| 层 | 技术 |
-|----|------|
-| 桌面壳 | Electron 33 (main: `apps/frontend/electron/main.ts`) |
-| 前端 | React 18 + React Router v6 + Zustand + TanStack Query v5 + Tailwind CSS |
-| 后端 | Go 1.25 + Gin + GORM + PostgreSQL |
-| AI | 多 provider 适配层（Anthropic / OpenAI-compatible / Kling） |
+Default backend origin: `http://localhost:8765`. The frontend builds API v1 URLs from `VITE_API_BASE_URL`.
 
-API 基地址：默认 `http://localhost:8765/api/v1`，前端通过 `VITE_API_BASE_URL` 配置后端 origin。
+## Main Process Boundaries
 
----
+```text
+Electron frontend
+  -> Axios client
+  -> Go Gin API
+  -> PostgreSQL relational state
+  -> MinIO-compatible object storage for media
+  -> AI provider adapters and async generation worker
 
-## 目录职责
-
-```
-movscript/
-├── apps/backend/
-│   └── internal/
-│       ├── ai/           AI provider 接口 + 各 provider 适配器
-│       ├── config/       环境变量加载
-│       ├── crypto/       AES-256-GCM 加密（用于 API key 存储）
-│       ├── db/           GORM 连接 + AutoMigrate
-│       ├── handler/      HTTP 处理层（无 service 层，直接操作 DB）
-│       │   ├── canvas.go       Canvas CRUD
-│       │   ├── canvas_exec.go  Canvas 节点执行、AI 调度、拓扑排序
-│       │   └── *.go            各实体 handler（project/script/asset/…）
-│       ├── middleware/   CORS + X-User-ID 身份中间件
-│       ├── model/        GORM 模型（每个实体一个文件）
-│       └── router/       路由注册
-│
-└── apps/frontend/src/
-    ├── constants/        跨页面共享常量（shot.ts 等）
-    ├── components/
-    │   ├── layout/       Sidebar / Header / MasterDetail
-    │   └── shared/       CreateDialog / ResourceAttachments / ScriptPanel
-    ├── hooks/            usePermissions / useToolCanvas
-    ├── lib/              api.ts（axios 实例）/ queryClient / utils
-    ├── pages/
-    │   ├── work/                 创作工作区（CreationPage shell）
-    │   │   ├── config.ts         EntityKind / KIND_CONFIG / 各实体颜色配置
-    │   │   └── workspaces/       每个实体一个 Workspace 组件（~100-150 行）
-    │   ├── canvas/               Canvas 编辑器（XYFlow）
-    │   ├── shots/ scenes/ …      各实体的管理页（Master-Detail 双模布局）
-    │   └── tools/                AI 工具独立页面
-    ├── store/            projectStore / userStore（Zustand）
-    └── types/            index.ts — 所有 TS 接口定义
+Local agent server
+  -> MCP-shaped endpoint exposed by the desktop side
+  -> local thread/run/memory files
+  -> optional Movscript model gateway or OpenAI-compatible model endpoint
 ```
 
----
+## Directory Responsibilities
 
-## 数据层次
+```text
+apps/backend/
+  cmd/server/              Backend entry point
+  internal/ai/             Provider interfaces, adapters, catalogs, feature routing
+  internal/config/         Environment loading
+  internal/crypto/         AES-256-GCM helpers for provider credentials
+  internal/db/             GORM connection and AutoMigrate
+  internal/genjob/         Async generation state machine and worker
+  internal/handler/        HTTP handlers
+  internal/model/          GORM models
+  internal/pluginkit/      Plugin manifest parsing and import logic
+  internal/router/         Route registration
+  internal/storage/        Object storage abstraction
 
+apps/frontend/
+  electron/                Electron main, preload, backend helper, MCP bridge
+  src/components/          Layout, shared components, detail panels, forms
+  src/i18n/                i18next setup and locale JSON files
+  src/lib/                 API client, plugin bridge, config, utilities
+  src/pages/               Product pages and workspaces
+  src/store/               Zustand stores
+  src/types/               Frontend API and domain types
+
+apps/agent/
+  src/server.ts            Local agent HTTP server
+  src/runtime/             Thread/run lifecycle, planner, policy, memory, manifest logic
+
+apps/movcli/
+  src/commands/            CLI commands for plugins and local agent smoke tests
 ```
+
+## Core Domain Model
+
+```text
 Project
- ├── Scripts   (type: main | episode | setting | character | background)
- ├── Assets    (type: character | scene | prop，含多视角图 AssetView)
- ├── Episodes  ←→ Scenes (many-to-many via EpisodeScene)
- └── Scenes
-      └── Storyboards
-           └── Shots     (可执行单元，关联 Canvas)
+  ├─ Scripts
+  ├─ Settings
+  ├─ Assets
+  │   └─ AssetViews
+  ├─ Episodes
+  │   └─ EpisodeScene links
+  ├─ Scenes
+  │   └─ Storyboards
+  │       └─ Shots
+  ├─ PipelineNodes and PipelineEdges
+  └─ Canvases
+      ├─ CanvasNodes
+      ├─ CanvasEdges
+      └─ CanvasRuns / CanvasTasks
 ```
 
----
+Raw media is stored as `RawResource` rows with object-storage keys and optional folder permissions.
 
-## 关键模式
+## Key Patterns
 
-### 前端：Master-Detail 页面
-所有实体管理页（`/scripts`、`/shots` 等）均遵循：
-- 无选中 → 全宽卡片网格
-- 有选中 → 左侧紧凑列表（w-72）+ 右侧详情面板
-- 新建用 `CreateDialog`（Radix Dialog）
+### Backend Handlers
 
-### 前端：API 调用
-```ts
-// 查询
-const { data } = useQuery({
-  queryKey: ['shots-project', projectId],
-  queryFn: () => api.get(`/projects/${projectId}/shots`).then(r => r.data),
-  enabled: !!projectId,
-})
-// 变更
-const mutation = useMutation({
-  mutationFn: (data) => api.put(`/storyboards/${boardId}/shots/${id}`, data),
-  onSuccess: () => qc.invalidateQueries({ queryKey: ['shots-project', projectId] }),
-})
-```
+Handlers live in `apps/backend/internal/handler/`. Most handlers directly use `h.db` and GORM models. If you add a route, update the handler and `apps/backend/internal/router/router.go`.
 
-### 后端：handler 模式
-每个 handler 文件只有 struct + 若干 HTTP 方法，直接读写 `h.db`，无 service 层。
+### AI Routing
 
-### 后端：AI provider 注册
-`ai/registry.go` 从 DB 加载 `AIProvider` 记录，解密 API key，实例化对应 adapter。
-调用入口：`h.registry.Get(providerName)` → `provider.TextGenerate / ImageGenerate / VideoGenerate`
+AI feature keys and capability constants live in `apps/backend/internal/ai/feature.go`. Admin model configuration resolves into runtime `ModelDef` values. Generation jobs go through `apps/backend/internal/genjob` and provider implementations in `apps/backend/internal/ai`.
 
-### 前端：本机插件
-插件安装和脚本执行在客户端完成，入口是 `apps/frontend/src/pages/plugins/ClientPluginsPage.tsx`。后端不保存插件注册表、不调用插件 runtime，也不把插件并入 MCP；插件通过 `/models`、`/resources`、`/gen-jobs` 等稳定模型能力 API 调用后端。详见 `docs/plugins.md`。
+### Frontend API Access
 
----
+Use the shared Axios client from `apps/frontend/src/lib/api.ts`. Keep query keys stable and invalidate the narrowest relevant key after mutations.
 
-## 修改指南
+### Frontend Workspace Pages
 
-| 目标 | 改哪里 |
-|------|--------|
-| 修改某实体的创作工作区 UI | `apps/frontend/src/pages/work/workspaces/<Entity>Workspace.tsx` |
-| 修改创作页实体标签/颜色 | `apps/frontend/src/pages/work/config.ts` |
-| 修改 Shot 状态标签/颜色 | `apps/frontend/src/constants/shot.ts` |
-| 修改某实体的管理页 | `apps/frontend/src/pages/<entity>/<Entity>Page.tsx` |
-| 添加新 API 端点 | `apps/backend/internal/handler/<entity>.go` + `router/router.go` |
-| 添加新 AI provider | `apps/backend/internal/ai/<provider>.go`，实现 `Provider` 接口，注册到 registry |
-| 修改 Canvas 执行逻辑 | `apps/backend/internal/handler/canvas_exec.go` |
-| 修改 Canvas CRUD | `apps/backend/internal/handler/canvas.go` |
-| 修改本机插件 manifest / runtime | `apps/frontend/src/lib/clientPlugins.ts` + `apps/frontend/src/pages/plugins/ClientPluginsPage.tsx` |
-| 添加新实体类型 | model + handler + router + `apps/frontend/src/types/index.ts` |
+Entity management and creation pages are in `apps/frontend/src/pages/`. Shared creation forms, resource attachments, model selectors, and generation cards live in `apps/frontend/src/components/shared/`.
+
+### Plugins
+
+Plugin manifests are parsed by `apps/backend/internal/pluginkit` and stored by `/api/v1/plugins`. Frontend plugin pages and runtime helpers live in `apps/frontend/src/pages/plugins/` and `apps/frontend/src/lib/`.
+
+### Agent Runtime
+
+The local agent server owns thread/run lifecycle, policy checks, tool metadata, skill catalog loading, and local memory. It should be treated as an HTTP service by Electron and CLI callers.
+
+## Where To Change Things
+
+| Goal | Main files |
+| --- | --- |
+| Add or change a backend route | `apps/backend/internal/handler/*`, `apps/backend/internal/router/router.go` |
+| Add a database-backed entity | `apps/backend/internal/model/*`, handler, router, frontend types |
+| Add an AI provider | `apps/backend/internal/ai/adapter_*.go`, `registry.go`, catalog/debug tests |
+| Change model/feature configuration | `apps/backend/internal/ai/feature.go`, `catalog.go`, admin frontend pages |
+| Change generation job behavior | `apps/backend/internal/genjob/*`, `apps/backend/internal/ai/*` |
+| Change object storage behavior | `apps/backend/internal/storage/*`, `internal/cloudup/*` |
+| Change frontend API types | `apps/frontend/src/types/index.ts` |
+| Change i18n copy | `apps/frontend/src/i18n/locales/*.json` |
+| Change canvas behavior | `apps/frontend/src/pages/canvas/*`, `apps/backend/internal/handler/canvas*.go` |
+| Change plugin manifest/runtime behavior | `apps/backend/internal/pluginkit/*`, `apps/frontend/src/lib/*Plugin*`, `docs/plugins.md` |
+| Change local agent behavior | `apps/agent/src/runtime/*`, `apps/agent/src/server.ts` |

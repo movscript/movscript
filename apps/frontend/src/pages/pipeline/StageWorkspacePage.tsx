@@ -3,8 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package, Film, Clapperboard, CalendarDays } from 'lucide-react'
 import { api } from '@/lib/api'
+import {
+  canManagePipelineNodeAssignment,
+  canReviewPipelineNode,
+  canSubmitPipelineNode,
+  effectiveLeadId,
+} from '@/lib/pipelinePermissions'
 import { useProjectStore } from '@/store/projectStore'
-import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, PipelineContentType, ProjectMember } from '@/types'
+import { useUserStore } from '@/store/userStore'
+import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, FinalVideo, PipelineContentType, Project, ProjectMember } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ScriptWorkspace } from '@/pages/work/workspaces/ScriptWorkspace'
@@ -13,13 +20,14 @@ import { ShotWorkspace } from '@/pages/work/workspaces/ShotWorkspace'
 import { AssetWorkspace } from '@/pages/work/workspaces/AssetWorkspace'
 import { EpisodeWorkspace } from '@/pages/work/workspaces/EpisodeWorkspace'
 import { SceneWorkspace } from '@/pages/work/workspaces/SceneWorkspace'
+import { MediaViewer } from '@/components/shared/MediaViewer'
 import { useTranslation } from 'react-i18next'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { getPipelineNodeSpec, scriptTypeForPipelineNode, type PipelineEntityType } from './nodeSpec'
 
 // ── Content type config ───────────────────────────────────────────────────────
 
-type ContentItem = Script | Storyboard | Shot | Asset | Episode | Scene
+type ContentItem = Script | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
 
 interface ContentTypeCfg {
   icon: React.ElementType
@@ -124,12 +132,18 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
   },
   final_video: {
     icon: Film,
+    entityType: 'final_video',
     listKey: (pid) => ['final-video', pid],
-    listFn: async () => [],
-    createFn: async () => ({ ID: 0 } as unknown as ContentItem),
-    getLabel: () => '',
-    getSub: () => '',
-    getPatchUrl: () => '',
+    listFn: (pid, nodeId) =>
+      api.get(`/projects/${pid}/final-videos?pipeline_node_id=${nodeId}`).then((r) => r.data),
+    createFn: (pid, node) =>
+      api.post(`/projects/${pid}/final-videos`, {
+        title: node.name || '成片',
+        pipeline_node_id: node.ID,
+      }).then((r) => r.data),
+    getLabel: (item) => (item as FinalVideo).title || `成片 #${item.ID}`,
+    getSub: (item) => (item as FinalVideo).status ?? '',
+    getPatchUrl: (item) => `/final-videos/${item.ID}`,
     getAssigneeId: () => undefined,
   },
   scene: {
@@ -290,7 +304,30 @@ function DetailPanel({
   if (contentType === 'asset') return <AssetWorkspace asset={item as Asset} />
   if (contentType === 'episode') return <EpisodeWorkspace episode={item as Episode} />
   if (contentType === 'scene') return <SceneWorkspace scene={item as Scene} />
+  if (contentType === 'final_video') return <FinalVideoWorkspace video={item as FinalVideo} />
   return null
+}
+
+function FinalVideoWorkspace({ video }: { video: FinalVideo }) {
+  const { t } = useTranslation()
+  return (
+    <div className="h-full overflow-y-auto p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-foreground truncate">{video.title || t('pages.finalVideos.defaultTitle')}</h2>
+          {video.description && <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{video.description}</p>}
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">{video.status}</span>
+      </div>
+      {video.resource ? (
+        <MediaViewer resource={video.resource} fit="contain" className="aspect-video w-full rounded-lg" />
+      ) : (
+        <div className="aspect-video rounded-lg bg-muted flex items-center justify-center text-sm text-muted-foreground">
+          {t('pages.finalVideos.noMedia')}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ArtifactDetailArea({
@@ -402,12 +439,18 @@ function ChildNodeListItem({
 
 function NodeOwnershipPanel({
   projectId,
+  project,
   node,
   members,
+  currentUserId,
+  pipeline,
 }: {
   projectId?: number
+  project?: Project | null
   node: PipelineNode | null
   members: ProjectMember[]
+  currentUserId?: number
+  pipeline?: Pipeline
 }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -424,6 +467,11 @@ function NodeOwnershipPanel({
 
   const assignee = members.find((member) => member.user_id === node.assignee_id)?.user?.username ?? '未分配'
   const lead = members.find((member) => member.user_id === node.lead_id)?.user?.username ?? '未指定'
+  const fallbackLead = effectiveLeadId(node, project, pipeline)
+  const fallbackLeadName = fallbackLead
+    ? members.find((member) => member.user_id === fallbackLead)?.user?.username ?? `用户 ${fallbackLead}`
+    : undefined
+  const canManageAssignment = canManagePipelineNodeAssignment({ node, project, members, currentUserId, pipeline })
   const dueDateValue = node.due_date ? node.due_date.slice(0, 10) : ''
 
   function updateUserField(field: 'assignee_id' | 'lead_id', value: string) {
@@ -444,7 +492,7 @@ function NodeOwnershipPanel({
           <p className="font-medium text-foreground line-clamp-2">{node.name}</p>
           {node.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-4">{node.description}</p>}
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span>执行：{assignee}</span>
+            <span>执行：{node.assignee_id ? assignee : fallbackLeadName ? `未分配（${fallbackLeadName} 兜底）` : assignee}</span>
             <span>负责：{lead}</span>
             {node.entity_type && <span>{node.entity_type} #{node.entity_id ?? '-'}</span>}
           </div>
@@ -456,7 +504,7 @@ function NodeOwnershipPanel({
             className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
             value={node.assignee_id ?? ''}
             onChange={(event) => updateUserField('assignee_id', event.target.value)}
-            disabled={updateNode.isPending}
+            disabled={updateNode.isPending || !canManageAssignment}
           >
             <option value="">未分配</option>
             {members.map((member) => (
@@ -471,7 +519,7 @@ function NodeOwnershipPanel({
             className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
             value={node.lead_id ?? ''}
             onChange={(event) => updateUserField('lead_id', event.target.value)}
-            disabled={updateNode.isPending}
+            disabled={updateNode.isPending || !canManageAssignment}
           >
             <option value="">未指定</option>
             {members.map((member) => (
@@ -489,7 +537,7 @@ function NodeOwnershipPanel({
               className="w-full h-8 rounded-md border border-border bg-background pl-7 pr-2 text-xs"
               value={dueDateValue}
               onChange={(event) => updateNode.mutate({ due_date: event.target.value ? new Date(`${event.target.value}T00:00:00`).toISOString() : null })}
-              disabled={updateNode.isPending}
+              disabled={updateNode.isPending || !canManageAssignment}
             />
           </div>
         </label>
@@ -522,6 +570,7 @@ export function StageWorkspaceContent({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
+  const currentUser = useUserStore((s) => s.currentUser)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [selectedChildNodeId, setSelectedChildNodeId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
@@ -547,7 +596,7 @@ export function StageWorkspaceContent({
   const { data: pipeline, isLoading: pipelineLoading } = useQuery<Pipeline>({
     queryKey: ['pipeline', project?.ID],
     queryFn: () => api.get(`/projects/${project!.ID}/pipeline`).then((r) => r.data),
-    enabled: !!project?.ID && !!nodeId && isWorkNode,
+    enabled: !!project?.ID && !!nodeId,
   })
 
   const childNodes = useMemo(() => {
@@ -573,6 +622,16 @@ export function StageWorkspaceContent({
     queryKey: listQueryKey,
     queryFn: () => cfg.listFn(project!.ID, detailNodeId),
     enabled: !!project && !!detailNodeId && contentType !== 'custom',
+  })
+
+  const linkedScriptId =
+    contentType === 'script' && detailNode?.entity_type === 'script' && detailNode.entity_id
+      ? detailNode.entity_id
+      : null
+  const { data: linkedScript, isLoading: linkedScriptLoading } = useQuery<Script>({
+    queryKey: ['script-linked-entity', project?.ID, linkedScriptId],
+    queryFn: () => api.get(`/projects/${project!.ID}/scripts/${linkedScriptId}`).then((r) => r.data),
+    enabled: !!project && !!linkedScriptId && !items.some((item) => item.ID === linkedScriptId),
   })
 
   const createMutation = useMutation({
@@ -630,7 +689,8 @@ export function StageWorkspaceContent({
   const linkedItem = detailNode?.entity_id
     ? items.find((item) => item.ID === detailNode.entity_id)
     : undefined
-  const selected = linkedItem ?? items.find((i) => i.ID === selectedId) ?? items[0] ?? null
+  const selected = linkedItem ?? linkedScript ?? items.find((i) => i.ID === selectedId) ?? items[0] ?? null
+  const isLoadingSelectedItem = itemsLoading || linkedScriptLoading
 
   if (nodeLoading) {
     return (
@@ -643,6 +703,8 @@ export function StageWorkspaceContent({
   const headerContentType: PipelineContentType = (node?.content_type as PipelineContentType) ?? 'custom'
   const HeaderIcon = CONTENT_TYPE_CONFIG[headerContentType].icon
   const nodeStatus = node?.status ?? 'draft'
+  const canSubmitNode = node ? canSubmitPipelineNode({ node, project, members, currentUserId: currentUser?.ID, pipeline }) : false
+  const canReviewNode = node ? canReviewPipelineNode({ node, project, members, currentUserId: currentUser?.ID, pipeline }) : false
 
   const NODE_STATUS_BADGE: Record<string, string> = {
     draft:        'bg-muted text-muted-foreground',
@@ -675,7 +737,7 @@ export function StageWorkspaceContent({
         </span>
 
         {/* Node state-machine actions */}
-        {nodeStatus === 'draft' && (
+        {nodeStatus === 'draft' && canSubmitNode && (
           <button
             onClick={() => submitNode.mutate()}
             disabled={submitNode.isPending}
@@ -685,7 +747,7 @@ export function StageWorkspaceContent({
             {t('pipeline.node.actions.submit')}
           </button>
         )}
-        {nodeStatus === 'under_review' && (
+        {nodeStatus === 'under_review' && canReviewNode && (
           <>
             <button
               onClick={() => approveNode.mutate()}
@@ -705,7 +767,7 @@ export function StageWorkspaceContent({
             </button>
           </>
         )}
-        {(nodeStatus === 'rejected' || nodeStatus === 'final') && (
+        {(nodeStatus === 'rejected' || nodeStatus === 'final') && canReviewNode && (
           <button
             onClick={() => reopenNode.mutate()}
             disabled={reopenNode.isPending}
@@ -716,7 +778,7 @@ export function StageWorkspaceContent({
           </button>
         )}
 
-        {isArtifactNode && contentType !== 'custom' && cfg.entityType && (
+        {isArtifactNode && contentType !== 'custom' && cfg.entityType && !node?.entity_id && (
           <Button
             size="sm"
             className="h-7 text-xs"
@@ -763,15 +825,18 @@ export function StageWorkspaceContent({
               contentType={contentType}
               cfg={cfg}
               item={selected}
-              itemsLoading={itemsLoading}
-              canCreate={!!selectedChildNode && contentType !== 'custom'}
+              itemsLoading={isLoadingSelectedItem}
+              canCreate={!!selectedChildNode && contentType !== 'custom' && !detailNode?.entity_id}
               creating={creating || createMutation.isPending}
               onCreate={() => { setCreating(true); createMutation.mutate() }}
             />
             <NodeOwnershipPanel
               projectId={project?.ID}
+              project={project}
               node={detailNode}
               members={members}
+              currentUserId={currentUser?.ID}
+              pipeline={pipeline}
             />
           </>
         ) : (
@@ -780,15 +845,18 @@ export function StageWorkspaceContent({
               contentType={contentType}
               cfg={cfg}
               item={selected}
-              itemsLoading={itemsLoading}
-              canCreate={isArtifactNode && contentType !== 'custom'}
+              itemsLoading={isLoadingSelectedItem}
+              canCreate={isArtifactNode && contentType !== 'custom' && !detailNode?.entity_id}
               creating={creating || createMutation.isPending}
               onCreate={() => { setCreating(true); createMutation.mutate() }}
             />
             <NodeOwnershipPanel
               projectId={project?.ID}
+              project={project}
               node={detailNode}
               members={members}
+              currentUserId={currentUser?.ID}
+              pipeline={pipeline}
             />
           </>
         )}

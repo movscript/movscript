@@ -1,8 +1,17 @@
-import type { MovRuntime, ToolResult, AnyPluginManifest, PluginInputSchema, PluginWebview } from './types'
+import type { MovRuntime, ToolResult, AnyPluginManifest, PluginInputSchema, PluginWebview, ExecutableSpec } from './types'
 
 export function definePlugin<TArgs = Record<string, unknown>>(config: {
   manifest: AnyPluginManifest
   run: (mov: MovRuntime, args: TArgs) => Promise<ToolResult>
+  compile?: (args: TArgs) => ExecutableSpec
+}): typeof config {
+  return config
+}
+
+export function defineCanvasPlugin<TArgs = Record<string, unknown>>(config: {
+  manifest: AnyPluginManifest
+  compile: (args: TArgs) => ExecutableSpec
+  run?: (mov: MovRuntime, args: TArgs) => Promise<ToolResult>
 }): typeof config {
   return config
 }
@@ -28,12 +37,15 @@ export function inlinePlugin(options: {
   homepage?: string
   permissions?: string[]
   inputSchema?: PluginInputSchema
+  contributes?: AnyPluginManifest['contributes']
   run: (mov: MovRuntime, args: Record<string, unknown>) => Promise<ToolResult>
+  compile?: (args: Record<string, unknown>) => ExecutableSpec
 }) {
-  const { run, ...rest } = options
+  const { run, compile, ...rest } = options
   return {
     schema: 'movscript.clientPlugin.v1' as const,
     ...rest,
+    ...(compile ? { hasCompile: true } : {}),
     script: run.toString().replace(/^[^{]+\{/, '').replace(/\}$/, '').trim(),
   }
 }

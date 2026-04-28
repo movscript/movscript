@@ -1,19 +1,40 @@
 # Deployment
 
-Movscript can run as separate backend and desktop frontend builds. The included `docker-compose.yml` is intended for local infrastructure and backend deployment.
+Movscript currently separates the backend API from the desktop frontend build. The included `docker-compose.yml` is suitable for local infrastructure and simple backend deployments, not a hardened production stack.
 
-## Backend with Docker Compose
+## Backend With Docker Compose
 
-Create an environment file or export variables before running Compose:
+Set a unique encryption key before starting the backend:
 
 ```bash
-export ENCRYPTION_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY="$(openssl rand -hex 32)"
 docker compose up -d
 ```
 
-The backend listens on `SERVER_PORT`, defaulting to `8765`.
+Compose starts:
 
-## Frontend build
+- PostgreSQL
+- MinIO
+- a bucket bootstrap job
+- the Go backend on `SERVER_PORT`, default `8765`
+
+For real deployments, override database and object-storage credentials through environment variables rather than relying on local defaults.
+
+## Backend Binary
+
+Build the server:
+
+```bash
+make build-backend
+```
+
+Run it with the required environment variables from [configuration.md](configuration.md):
+
+```bash
+apps/backend/bin/server
+```
+
+## Desktop Frontend
 
 Configure the backend origin before packaging:
 
@@ -23,11 +44,20 @@ pnpm install
 pnpm --filter movscript-frontend build
 ```
 
-Set `VITE_API_BASE_URL` to the backend origin visible from the packaged app.
+Set `VITE_API_BASE_URL` to the backend origin visible from the packaged app. It should be an origin such as `https://api.example.com`, not a path under `/api/v1`.
 
-## Security notes
+## Security Notes
 
-- Use a unique `ENCRYPTION_KEY` in every environment.
-- Set `MCP_TOKEN` if `/mcp` is reachable outside trusted local networks.
-- Keep PostgreSQL and MinIO behind private networking.
-- Rotate provider keys if logs, `.env` files, or database backups are exposed.
+- Use a unique `ENCRYPTION_KEY` per environment and keep it out of source control.
+- Keep PostgreSQL and object storage on private networks where possible.
+- Review MinIO bucket policy before exposing media to public networks.
+- Store provider API keys only through the admin credential flow.
+- Avoid enabling provider debug calls outside trusted environments.
+- Rotate provider credentials if `.env` files, logs, databases, or backups are exposed.
+
+## Current Limitations
+
+- There is no migration framework beyond GORM AutoMigrate.
+- The Compose file does not configure TLS.
+- The desktop app is built separately from backend deployment.
+- The local agent service is not required for backend deployment.

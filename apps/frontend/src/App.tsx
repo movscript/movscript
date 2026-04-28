@@ -12,6 +12,7 @@ import EpisodesPage from './pages/episodes/EpisodesPage'
 import ScenesPage from './pages/scenes/ScenesPage'
 import StoryboardsPage from './pages/storyboards/StoryboardsPage'
 import ShotsPage from './pages/shots/ShotsPage'
+import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
 import AuthPage from './pages/AuthPage'
 import CanvasListPage from './pages/canvas/CanvasListPage'
@@ -22,7 +23,6 @@ import MotionImitationPage from './pages/tools/MotionImitationPage'
 import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import BrainstormPage from './pages/tools/BrainstormPage'
-import CreationPage from './pages/work/CreationPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
@@ -31,7 +31,7 @@ import GenJobsPage from './pages/jobs/GenJobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import PipelineEditorPage from './pages/pipeline/PipelineEditorPage'
-import StageWorkspacePage from './pages/pipeline/StageWorkspacePage'
+import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentSettingsPage from './pages/agent/AgentSettingsPage'
 import AgentsPage from './pages/agent/AgentsPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
@@ -159,7 +159,8 @@ export default function App() {
                     <Route path="/scenes"      element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
                     <Route path="/storyboards" element={<ProjectGuard><StoryboardsPage /></ProjectGuard>} />
                     <Route path="/shots"       element={<ProjectGuard><ShotsPage /></ProjectGuard>} />
-                    <Route path="/pipeline/nodes/:nodeId" element={<ProjectGuard><StageWorkspacePage /></ProjectGuard>} />
+                    <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
+                    <Route path="/pipeline/nodes/:nodeId" element={<ProjectGuard><WorkbenchPage mode="pipeline-node" /></ProjectGuard>} />
 
                     {/* 工具模块 */}
                     <Route path="/canvases"                  element={<Padded><CanvasListPage /></Padded>} />
@@ -174,7 +175,7 @@ export default function App() {
                     {/* 工作模块 */}
                     <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                     <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
-                    <Route path="/creation"      element={<ProjectGuard><CreationPage /></ProjectGuard>} />
+                    <Route path="/creation"      element={<ProjectGuard><WorkbenchPage mode="free" /></ProjectGuard>} />
 
                     {/* 用户 */}
                     <Route path="/user" element={<Padded><UserProfilePage /></Padded>} />

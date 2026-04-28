@@ -53,13 +53,43 @@ type CardContribution struct {
 	Description string          `json:"description,omitempty"`
 }
 
+type CanvasPortDef struct {
+	ID          string `json:"id"`
+	Label       string `json:"label,omitempty"`
+	Type        string `json:"type"`
+	Required    bool   `json:"required,omitempty"`
+	MaxCount    int    `json:"maxCount,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+func (p *CanvasPortDef) UnmarshalJSON(raw []byte) error {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		p.ID = strings.TrimSpace(text)
+		p.Type = inferCanvasPortType(p.ID)
+		return nil
+	}
+	type portAlias CanvasPortDef
+	var item portAlias
+	if err := json.Unmarshal(raw, &item); err != nil {
+		return err
+	}
+	*p = CanvasPortDef(item)
+	p.ID = strings.TrimSpace(p.ID)
+	p.Type = strings.TrimSpace(p.Type)
+	if p.Type == "" {
+		p.Type = inferCanvasPortType(p.ID)
+	}
+	return nil
+}
+
 type CanvasNodeContribution struct {
 	Type        string          `json:"type"`
 	Title       string          `json:"title"`
 	Description string          `json:"description,omitempty"`
 	Tool        string          `json:"tool,omitempty"`
-	Inputs      []string        `json:"inputs,omitempty"`
-	Outputs     []string        `json:"outputs,omitempty"`
+	Inputs      []CanvasPortDef `json:"inputs,omitempty"`
+	Outputs     []CanvasPortDef `json:"outputs,omitempty"`
 	Card        string          `json:"card,omitempty"`
 	Icon        string          `json:"icon,omitempty"`
 	Category    string          `json:"category,omitempty"`
@@ -158,8 +188,50 @@ func ValidateManifest(m *Manifest) error {
 		if node.Tool != "" && !seenTools[node.Tool] {
 			return fmt.Errorf("canvas node %q references unknown tool %q", node.Type, node.Tool)
 		}
+		if err := validateCanvasPorts(node.Type, "input", node.Inputs); err != nil {
+			return err
+		}
+		if err := validateCanvasPorts(node.Type, "output", node.Outputs); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func validateCanvasPorts(nodeType, direction string, ports []CanvasPortDef) error {
+	seen := map[string]bool{}
+	for _, port := range ports {
+		if strings.TrimSpace(port.ID) == "" {
+			return fmt.Errorf("canvas node %q %s port id is required", nodeType, direction)
+		}
+		if seen[port.ID] {
+			return fmt.Errorf("canvas node %q has duplicate %s port %q", nodeType, direction, port.ID)
+		}
+		seen[port.ID] = true
+		if !isCanvasPortType(port.Type) {
+			return fmt.Errorf("canvas node %q %s port %q has unsupported type %q", nodeType, direction, port.ID, port.Type)
+		}
+		if port.MaxCount < 0 {
+			return fmt.Errorf("canvas node %q %s port %q maxCount must be >= 0", nodeType, direction, port.ID)
+		}
+	}
+	return nil
+}
+
+func inferCanvasPortType(id string) string {
+	if isCanvasPortType(id) {
+		return id
+	}
+	return "resource"
+}
+
+func isCanvasPortType(value string) bool {
+	switch value {
+	case "text", "image", "video", "audio", "resource", "json", "number", "boolean":
+		return true
+	default:
+		return false
+	}
 }
 
 func ToolKey(pluginID, toolID string) string {

@@ -4,14 +4,23 @@ import { api } from '@/lib/api'
 import type { Script, Episode, Scene } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { ScriptForm } from '@/components/forms/ScriptForm'
+import { ArtifactWorkspaceFrame } from '../ArtifactWorkspaceFrame'
+import type { WorkspaceFrameProps } from './types'
 
-interface ScriptWorkspaceProps {
+interface ScriptWorkspaceProps extends WorkspaceFrameProps {
   script: Script
   episodes?: Episode[]
   scenes?: Scene[]
 }
 
-export function ScriptWorkspace({ script, episodes = [], scenes = [] }: ScriptWorkspaceProps) {
+export function ScriptWorkspace({
+  script,
+  episodes = [],
+  node,
+  pipeline,
+  members,
+  onNodeUpdated,
+}: ScriptWorkspaceProps) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Script>>({ ...script })
@@ -39,21 +48,33 @@ export function ScriptWorkspace({ script, episodes = [], scenes = [] }: ScriptWo
   const ctx = renderContext()
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {ctx && (
-        <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 border-b border-border bg-muted/20 text-xs text-muted-foreground">
-          {ctx}
+    <ArtifactWorkspaceFrame
+      kind="script"
+      title={script.title}
+      subtitle={ctx ? undefined : script.script_type}
+      node={node}
+      pipeline={pipeline}
+      members={members}
+      isSaving={update.isPending}
+      onNodeUpdated={onNodeUpdated}
+    >
+      <div className="flex flex-col h-full overflow-hidden">
+        {ctx && (
+          <div className="shrink-0 flex items-center gap-2 px-4 py-1.5 border-b border-border bg-muted/20 text-xs text-muted-foreground">
+            {ctx}
+          </div>
+        )}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ScriptForm
+            script={script}
+            draft={draft}
+            onChange={setDraft}
+            onSave={(data) => update.mutate(data)}
+            isSaving={update.isPending}
+            projectId={projectId}
+          />
         </div>
-      )}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <ScriptForm
-          script={script}
-          draft={draft}
-          onChange={setDraft}
-          onSave={(data) => update.mutate(data)}
-          isSaving={update.isPending}
-        />
       </div>
-    </div>
+    </ArtifactWorkspaceFrame>
   )
 }

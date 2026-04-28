@@ -1,136 +1,94 @@
 # movscript-agent
 
-Local Agent server for MovScript.
+`movscript-agent` is the local Movscript agent server. It is intentionally separate from the Electron frontend and the Go backend.
 
-This project is intentionally separate from the Electron frontend. The frontend
-exposes MovScript context and draft tools through a local MCP-shaped JSON-RPC
-server. The agent process owns identity, planning, memory, run lifecycle, model
-calls, and tool orchestration.
-
-First-version scope:
-
-- read MovScript context through MCP resources/tools
-- create local draft artifacts through MCP tools
-- avoid direct database writes
-- avoid generation/cost actions
+The frontend/desktop side exposes Movscript context through an MCP-shaped local endpoint. The agent process owns thread/run lifecycle, planning, memory, tool metadata, manifest policy, approval gates, and optional model calls.
 
 ## Development
 
-Start MovScript Electron first so the frontend MCP server is available at:
+Start the Electron app first if you need live Movscript context from:
 
-```bash
+```text
 http://127.0.0.1:18765/mcp
 ```
 
-Then run the local agent server:
+Then run:
 
 ```bash
 pnpm install
 pnpm --filter movscript-agent dev
 ```
 
-Default endpoint:
+Default agent endpoint:
 
 ```text
 http://127.0.0.1:28765
 ```
 
-The CLI remains as a development smoke-test helper:
+Health check:
 
 ```bash
-pnpm --filter movscript-agent dev:cli -- inspect
-pnpm --filter movscript-agent dev:cli -- context
+curl http://127.0.0.1:28765/health
 ```
 
-## CLI Commands
+## Environment
 
-- `inspect`: list MCP resources and tools
-- `context`: read the current MovScript context pack
-- `draft`: create a test draft artifact
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MOVSCRIPT_AGENT_PORT` | `28765` | Local HTTP port. |
+| `MOVSCRIPT_MCP_ENDPOINT` | `http://127.0.0.1:18765/mcp` | Desktop MCP-shaped endpoint. |
+| `MOVSCRIPT_AGENT_SKILLS_DIR` | derived from state path | Skill metadata directory. |
+| `MOVSCRIPT_AGENT_TOOLS_DIR` | derived from state path | Tool metadata directory. |
+| `MOVSCRIPT_AGENT_GATEWAY_BASE_URL` | `http://127.0.0.1:8080/v1` | Optional OpenAI-compatible gateway URL. |
+| `MOVSCRIPT_AGENT_GATEWAY_MODEL` | `movscript-default-chat` | Gateway model. |
+| `MOVSCRIPT_AGENT_GATEWAY_USER_ID` | unset | Enables backend gateway identity shim. |
+| `MOVSCRIPT_AGENT_OPENAI_API_KEY` | unset | Direct OpenAI-compatible API key. |
+| `MOVSCRIPT_AGENT_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Direct provider base URL. |
+| `MOVSCRIPT_AGENT_OPENAI_MODEL` | `gpt-4o-mini` | Direct provider model. |
 
-Example:
+## HTTP API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Server health and plugin catalog metadata. |
+| `GET` | `/inspect` | MCP resources/tools plus registered agent tools and skills. |
+| `GET` | `/capabilities` | Runtime capabilities, optionally for a project. |
+| `GET` | `/tools` | Registered tool metadata. |
+| `GET` | `/skills` | Loaded skill catalog. |
+| `GET` | `/agent-manifest/default` | Built-in/default agent manifest. |
+| `GET` | `/context` | Current Movscript context pack from MCP. |
+| `POST` | `/draft` | Create a draft through MCP. |
+| `POST` | `/chat` | Simple chat endpoint. |
+| `POST` | `/threads` | Create a thread. |
+| `GET` | `/threads` | List thread summaries. |
+| `GET` | `/threads/:id` | Read one thread. |
+| `PATCH` | `/threads/:id` | Update thread metadata. |
+| `POST` | `/threads/:id/messages` | Add thread message. |
+| `POST` | `/runs` | Create and execute a run. |
+| `POST` | `/runs/preview` | Preview a run plan. |
+| `GET` | `/runs` | List runs. |
+| `GET` | `/runs/:id` | Read one run. |
+| `POST` | `/runs/:id/approve` | Approve pending tool calls and resume. |
+| `POST` | `/runs/:id/reject` | Reject pending tool calls. |
+| `GET` | `/memories` | List memories. |
+| `POST` | `/memories` | Create memory. |
+| `DELETE` | `/memories/:id` | Delete memory. |
+
+## CLI Smoke Tests
+
+`movcli` can talk to the local agent:
 
 ```bash
-pnpm --filter movscript-agent dev:cli -- draft --kind note --title "Test draft" --content "Hello from movscript-agent"
+pnpm --filter movcli dev -- agent status
+pnpm --filter movcli dev -- agent chat "Help summarize the current project"
+pnpm --filter movcli dev -- agent run "Create a planning note" --json
 ```
 
-## Server API v0
+## Skills and Tools
 
-- `GET /health`
-- `GET /inspect`
-- `GET /context`
-- `GET /tools`
-- `GET /skills`
-- `GET /agent-manifest/default`
-- `POST /chat`
-- `POST /draft`
-- `POST /runs/:id/approve`
-- `POST /runs/:id/reject`
+The agent reads local JSON metadata from skills and tools directories at startup.
 
-These are not the final product API. They are a minimal local control surface for
-the Electron app while the runtime, memory, and planning layers are introduced.
-
-`POST /chat` accepts:
-
-```json
-{
-  "message": "帮我看一下当前项目接下来该做什么",
-  "includeContext": true
-}
-```
-
-By default the chat runtime returns a local fallback response so the client/server
-path can be tested without model credentials.
-
-To use the MovScript backend model gateway, start the backend and run:
-
-```bash
-MOVSCRIPT_AGENT_GATEWAY_USER_ID=1 pnpm --filter movscript-agent dev
-```
-
-Optional gateway settings:
-
-- `MOVSCRIPT_AGENT_GATEWAY_MODEL` defaults to `movscript-default-chat`
-- `MOVSCRIPT_AGENT_GATEWAY_BASE_URL` defaults to `http://127.0.0.1:8080/v1`
-
-Until backend Gateway API keys are implemented, `MOVSCRIPT_AGENT_GATEWAY_USER_ID`
-is sent as `Authorization: Bearer <user id>` and maps to the existing MovScript
-user identity.
-
-To bypass the MovScript backend and use a generic OpenAI-compatible provider
-directly, start the server with:
-
-```bash
-MOVSCRIPT_AGENT_OPENAI_API_KEY=... pnpm --filter movscript-agent dev
-```
-
-Optional settings:
-
-- `MOVSCRIPT_AGENT_OPENAI_MODEL` defaults to `gpt-4o-mini`
-- `MOVSCRIPT_AGENT_OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`
-
-## Plugin Folders
-
-`movscript-agent` reads installable skills and tool metadata from local folders at
-startup:
-
-```text
-.movscript-agent/skills
-.movscript-agent/tools
-```
-
-Override them with:
-
-```bash
-MOVSCRIPT_AGENT_SKILLS_DIR=/path/to/skills \
-MOVSCRIPT_AGENT_TOOLS_DIR=/path/to/tools \
-pnpm --filter movscript-agent dev
-```
-
-Each folder accepts `.json` files. A plugin subfolder can also contain
-`manifest.json`, `skill.json`, `skills.json`, `tool.json`, or `tools.json`.
-
-Skill file example:
+Skill example:
 
 ```json
 {
@@ -145,7 +103,7 @@ Skill file example:
 }
 ```
 
-Tool metadata file example:
+Tool metadata example:
 
 ```json
 {
@@ -163,22 +121,11 @@ Tool metadata file example:
 }
 ```
 
-Installed skills are merged into the default agent manifest. Installed tools are
-merged into the runtime registry; a tool still needs a matching MCP tool at
-runtime before it becomes executable.
+Installed skills are merged into the default agent manifest. Installed tools are merged into the runtime registry, but a matching MCP tool must exist before execution can succeed.
 
-## Agent Manifest v1
+## Agent Manifest
 
-`POST /runs` accepts an optional `agentManifest` using schema
-`movscript.agent.v1`. The runtime checks planned tool calls against:
-
-- registered tool metadata
-- manifest tool grants
-- manifest permissions
-- project scope
-- approval requirements
-
-Minimal example:
+Runs may include a `movscript.agent.v1` manifest:
 
 ```json
 {
@@ -197,39 +144,4 @@ Minimal example:
 }
 ```
 
-`GET /tools` returns the runtime tool registry and
-`GET /agent-manifest/default` returns the built-in local-agent manifest.
-
-If a planned tool call needs approval, the run stops with:
-
-```json
-{
-  "status": "requires_action",
-  "pendingApprovals": [
-    {
-      "id": "approval_...",
-      "toolName": "movscript.create_generation_job",
-      "reason": "movscript.create_generation_job 需要用户确认后才能执行",
-      "risk": "generate",
-      "permission": "generation.create",
-      "status": "pending"
-    }
-  ]
-}
-```
-
-Approve and resume the same run:
-
-```bash
-curl -X POST http://127.0.0.1:28765/runs/run_.../approve \
-  -H 'Content-Type: application/json' \
-  -d '{"approvalIds":["approval_..."]}'
-```
-
-Reject and finish the run without executing the pending tool:
-
-```bash
-curl -X POST http://127.0.0.1:28765/runs/run_.../reject \
-  -H 'Content-Type: application/json' \
-  -d '{"approvalIds":["approval_..."]}'
-```
+The runtime checks tool registration, manifest grants, permissions, project scope, and approval requirements before execution.

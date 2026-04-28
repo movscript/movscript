@@ -1,61 +1,149 @@
-# Client Plugin Architecture
+# Plugins
 
-Movscript plugins are installed and executed in the frontend. The backend does
-not keep a plugin registry, call plugin runtimes, or expose installed plugins to
-MCP. Its responsibility is the stable capability surface used by plugins:
+Movscript has two plugin-related layers:
 
-- `GET /api/v1/models?capability=image`
-- `GET /api/v1/resources`
-- `POST /api/v1/resources/upload`
-- `POST /api/v1/gen-jobs`
-- `GET /api/v1/gen-jobs/:id`
+- Backend plugin manifests: stored in the database and exposed as tool/card/canvas-node catalogs.
+- Frontend/plugin runtime surfaces: pages and helpers that render plugin tools and invoke platform APIs.
 
-This keeps plugin installation on the user's personal host and avoids making the
-shared backend aware of arbitrary plugin code.
+The current implementation is still evolving. Treat plugin manifest contracts as pre-stable.
 
-## Manifest
+## Backend Manifest Format
 
-Client plugins use a JSON manifest pasted into the Local Plugins page:
+The backend plugin parser lives in `apps/backend/internal/pluginkit`.
+
+Minimal manifest:
 
 ```json
 {
-  "schema": "movscript.clientPlugin.v1",
-  "id": "local.ref-image-generator",
-  "name": "Local Reference Image",
-  "version": "1.0.0",
-  "description": "Submit an image generation job from a local script.",
-  "permissions": ["model.image.generate", "resource.read"],
-  "inputSchema": {
-    "type": "object",
-    "required": ["prompt"],
-    "properties": {
-      "prompt": { "type": "string", "title": "Prompt" },
-      "reference_resource_ids": { "type": "string", "title": "Reference resource IDs" }
-    }
-  },
-  "script": "async function run(mov, args) { return mov.generateImage({ model_config_id: 1, prompt: args.prompt }) }"
+  "schema": "movscript.plugin.v1",
+  "id": "com.example.scene-helper",
+  "name": "Scene Helper",
+  "version": "0.1.0",
+  "description": "Adds a scene planning tool.",
+  "permissions": ["project.read"],
+  "contributes": {
+    "tools": [
+      {
+        "id": "outline",
+        "title": "Create Scene Outline",
+        "description": "Create a draft outline from scene inputs.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "scene_id": { "type": "number", "title": "Scene ID" }
+          },
+          "required": ["scene_id"]
+        },
+        "runtime": {
+          "kind": "http",
+          "endpoint": "http://127.0.0.1:39000/tools/outline",
+          "method": "POST",
+          "timeout": 30
+        }
+      }
+    ],
+    "cards": [
+      {
+        "id": "outline-card",
+        "title": "Scene Outline",
+        "tool": "outline"
+      }
+    ],
+    "canvasNodes": [
+      {
+        "type": "com.example.scene-helper.outline",
+        "title": "Scene Outline",
+        "tool": "outline",
+        "category": "writing"
+      }
+    ]
+  }
 }
 ```
 
-The script must define `async function run(mov, args)`. The `mov` runtime
-object provides:
+Validation rules include:
 
-- `mov.get(path)` and `mov.post(path, body)`
-- `mov.models(capability)`
-- `mov.resources()`
-- `mov.generateImage(request)`
-- `mov.sleep(ms)`
+- `id`, `name`, and `version` are required.
+- `id` cannot contain whitespace or path separators.
+- Tool IDs must be unique within a manifest.
+- Cards and canvas nodes that reference tools must reference tools declared in the same manifest.
 
-## Runtime Boundary
+## Import API
 
-Scripts run in the frontend process and are stored in `localStorage` under
-`movscript.clientPlugins.v1`. They can call backend APIs through the same
-authenticated Axios client as the rest of the app.
+Use:
 
-The backend generation flow remains asynchronous: plugins create a generation
-job and poll it until it succeeds, fails, is cancelled, or times out.
+```http
+POST /api/v1/plugins
+```
 
-## Marketplace
+Request body options:
 
-The Local Plugins page does not ship built-in marketplace entries. Users can
-install custom plugins from a `.movpkg` file or from a URL.
+```json
+{
+  "manifest": {
+    "schema": "movscript.plugin.v1",
+    "id": "com.example.scene-helper",
+    "name": "Scene Helper",
+    "version": "0.1.0",
+    "contributes": {}
+  },
+  "source": "manifest",
+  "trusted": false,
+  "enabled": true
+}
+```
+
+Or, when the backend process can read a local path:
+
+```json
+{
+  "path": "/absolute/path/to/plugin/folder",
+  "source": "local_path",
+  "trusted": true,
+  "enabled": true
+}
+```
+
+Path imports search for `movplugin.json` or `plugin.json`. Zip imports currently recognize `.zip` and `.movplugin` files when read from a backend-local path.
+
+## Catalog APIs
+
+Enabled plugin contributions are exposed through:
+
+```text
+GET /api/v1/plugins/tools
+GET /api/v1/plugins/cards
+GET /api/v1/plugins/canvas-nodes
+```
+
+Registry proxy endpoints:
+
+```text
+GET /api/v1/registry/plugins
+GET /api/v1/registry/plugins/:id
+```
+
+The proxy base URL defaults to `https://registry.movscript.com` and can be overridden with `PLUGIN_REGISTRY_URL`.
+
+## CLI Status
+
+`apps/movcli` can scaffold and build plugin projects:
+
+```bash
+pnpm --filter movcli dev -- init my-plugin
+pnpm --filter movcli dev -- build --cwd ./my-plugin
+```
+
+The CLI currently builds `.movpkg` archives containing `bundle.js`, `manifest.json`, optional `ui.js`, and assets. Its install command posts to `/api/v1/plugins/upload`, but the backend currently exposes `/api/v1/plugins` for JSON/path imports and does not register `/plugins/upload`. Until that route is implemented, use the JSON/path import API or the frontend pages that target the implemented backend routes.
+
+## Frontend Runtime Notes
+
+Frontend plugin-related code lives primarily in:
+
+- `apps/frontend/src/pages/plugins/`
+- `apps/frontend/src/lib/clientPlugins.ts`
+- `apps/frontend/src/lib/pluginMarketplace.ts`
+- `apps/frontend/src/lib/usePluginBridge.ts`
+- `packages/plugin-sdk/`
+
+Older client-plugin types (`movscript.clientPlugin.v1` and `movscript.clientPlugin.v2`) still exist in the SDK for frontend/runtime experimentation. The backend manifest format described above is the source of truth for persisted plugin catalog data.

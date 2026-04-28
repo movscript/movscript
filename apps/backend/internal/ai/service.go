@@ -15,6 +15,7 @@ type PublicModel struct {
 	ID                uint       `json:"id"`            // AIModelConfig primary key
 	CredentialID      uint       `json:"credential_id"` // parent AICredential ID (for admin edit)
 	DisplayName       string     `json:"display_name"`
+	ShortName         string     `json:"short_name,omitempty"`
 	ProviderName      string     `json:"provider_name"`        // credential display_name (e.g. "我的 OpenAI")
 	Capabilities      []string   `json:"capabilities"`         // e.g. ["text"], ["image"], ["video_i2v"]
 	AcceptsImageInput bool       `json:"accepts_image_input"`  // true for image_edit and i2v models
@@ -68,6 +69,7 @@ func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, err
 			ID:                row.ID,
 			CredentialID:      row.CredentialID,
 			DisplayName:       def.DisplayName,
+			ShortName:         row.ShortName,
 			ProviderName:      row.ProviderName,
 			Capabilities:      def.Capabilities,
 			AcceptsImageInput: def.AcceptsImageInput,

@@ -7,11 +7,13 @@
     "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
+    "collapse": "Collapse",
     "create": "Create",
     "creating": "Creating...",
     "delete": "Delete",
     "emptyTitle": "(Untitled)",
     "emptyDescription": "(No description)",
+    "expand": "Expand",
     "itemsCount": "{{count}} items",
     "save": "Save",
     "saving": "Saving...",
@@ -62,6 +64,7 @@
     "failedRetrieveFile": "Failed to retrieve file",
     "failedStoreFile": "Failed to store file",
     "featureNotFound": "Feature not found",
+    "finalVideoNotFound": "Final video not found",
     "fileRequired": "File is required",
     "folderNotFound": "Folder not found",
     "forbidden": "Forbidden",
@@ -90,7 +93,12 @@
     "permissionDenied": "Permission denied",
     "pipelineAlreadyDraft": "The node is already in draft state",
     "pipelineApproveState": "Only nodes in review can be approved",
+    "pipelineAssigneeMemberRequired": "Executor must be a project member",
+    "pipelineLeadMemberRequired": "Lead must be a project member",
+    "pipelineManageAssignmentRequired": "Owner, director, or node lead permission is required",
     "pipelineRejectState": "Only nodes in review can be rejected",
+    "pipelineReviewPermissionRequired": "Owner, director, or non-self-review lead permission is required",
+    "pipelineSubmitPermissionRequired": "Executor, lead, director, or owner permission is required",
     "pipelineSubmitState": "Only draft or rejected nodes can be submitted for review",
     "projectNotFound": "Project not found",
     "providerCancellationFailed": "Provider cancellation failed: {{detail}}",
@@ -156,7 +164,8 @@
     "settingTypes": {
       "character": "Character",
       "scene": "Scene",
-      "prop": "Prop"
+      "prop": "Prop",
+      "worldRule": "World Rule"
     },
     "shotStatus": {
       "draft": "Draft",
@@ -195,7 +204,8 @@
     "episodes": "Episodes",
     "scenes": "Scenes",
     "storyboards": "Storyboards",
-    "shots": "Shots"
+    "shots": "Shots",
+    "finalVideos": "Final Videos"
   },
   "forms": {
     "name": "Name",
@@ -218,10 +228,16 @@
     "locationOptional": "Location (optional)",
     "shootingLocation": "Shooting location",
     "linkedScriptOptional": "Linked script (optional)",
+    "linkedEpisodeScript": "Linked episode script",
+    "noLinkedEpisodeScript": "No linked episode script",
     "noScriptDirect": "None (produce directly)",
     "parentSceneOptional": "Parent scene (optional)",
     "parentEpisodeOptional": "Parent episode (optional)",
+    "parentEpisodeRequired": "Parent episode *",
+    "selectEpisodeFirst": "Select an episode",
+    "createEpisodeBeforeEpisodeScript": "Create an episode entity before creating its episode script.",
     "parentStoryboardOptional": "Parent storyboard (optional)",
+    "parentShotOptional": "Parent shot (optional)",
     "unlinked": "Not linked",
     "independentShot": "Independent shot"
   },
@@ -260,7 +276,7 @@
     "generateDraft": "AI Generate Draft",
     "contentManagement": "Content Management",
     "scriptBody": "Script Body",
-    "scriptSummary": "Script Summary",
+    "scriptSummary": "Script Outline",
     "characters": "Characters",
     "actions": "Actions",
     "dialogue": "Dialogue",
@@ -272,16 +288,57 @@
     "sceneSpecific": "Scene Specific",
     "episodeOrder": "Episode Order",
     "hook": "Hook",
-    "plotSummary": "Plot Summary",
-    "scriptSummaryPlaceholder": "Summarize the core script content...",
-    "charactersPlaceholder": "Main character names, identities, and traits...",
-    "coreSettingsPlaceholder": "Worldbuilding, rules, special settings...",
-    "backgroundPlaceholder": "Story period, background, environment...",
-    "scenesPlaceholder": "Describe the main filming scenes...",
+    "plotSummary": "Plot Outline",
+    "scriptSummaryPlaceholder": "Outline the core script content...",
+    "charactersPlaceholder": "Character notes...",
+    "characterProfiles": "Structured Character Profiles",
+    "characterFreeform": "Unstructured Character Notes",
+    "characterFreeformPlaceholder": "Add motives, secrets, arcs, catchphrases, performance notes, or anything that does not fit fixed fields...",
+    "characterRelationshipGraph": "Character Relationship Graph",
+    "addCharacter": "Add Character",
+    "addRelationship": "Add Relation",
+    "characterName": "Name",
+    "characterIdentity": "Identity",
+    "characterTraits": "Traits",
+    "characterGoal": "Goal",
+    "characterStructuredNotes": "Structured notes",
+    "relationshipLabel": "Relation label",
+    "unnamedCharacter": "Unnamed Character",
+    "noCharacterProfiles": "No structured character profiles yet.",
+    "noCharacterGraph": "Add characters to show the graph.",
+    "relationshipTypes": {
+      "alliance": "Alliance",
+      "family": "Family",
+      "love": "Love",
+      "conflict": "Conflict",
+      "secret": "Secret",
+      "other": "Other"
+    },
+    "coreSettingsPlaceholder": "One core rule, relationship, or constraint per item...",
+    "backgroundPlaceholder": "Describe the period in one short sentence...",
+    "scenesPlaceholder": "One detailed scene per item: space, time, mood, visible elements, and blocking...",
     "episodeHookPlaceholder": "Core hook or highlight of this episode...",
     "plotSummaryPlaceholder": "Briefly describe this episode's plot direction...",
     "sceneHookPlaceholder": "Core purpose or content of this scene...",
     "scriptBodyPlaceholder": "Enter the script body here...",
+    "episodeBodyWorkspace": "Episode Body Workspace",
+    "structureSidebar": "Structure Sidebar",
+    "generatePoints": "Generate Points",
+    "beatPositions": "Beat Positions",
+    "notMarked": "Not marked",
+    "tagsOnly": "Tags Only",
+    "zoomIn": "Zoom in body",
+    "zoomOut": "Zoom out body",
+    "noPointTags": "No tags yet. Add tags to points in the sidebar first.",
+    "noScriptPoints": "No points yet. Enter body text, then generate points.",
+    "pointTagsPlaceholder": "Tags, comma separated",
+    "pointTypes": {
+      "hook": "Hook",
+      "reversal": "Reversal",
+      "conflict": "Conflict",
+      "release": "Release",
+      "none": "Unmarked"
+    },
     "episodeNumber": "Episode Number",
     "episodeSynopsis": "Synopsis",
     "productionStatus": "Production Status",
@@ -586,6 +643,38 @@
       "independent": "Independent Shot",
       "noVideo": "This shot has no generated video",
       "createTitle": "New Shot"
+    },
+    "finalVideos": {
+      "gridTitle": "Thumbnails",
+      "listTitle": "List",
+      "empty": "No final videos",
+      "createOne": "Create one",
+      "createTitle": "New Final Video",
+      "defaultTitle": "Final Video",
+      "titlePlaceholder": "Final video title",
+      "projectLevel": "Project-level final video",
+      "boundEpisode": "Episode #{{id}}",
+      "boundScene": "Scene #{{id}}",
+      "boundShot": "Shot #{{id}}",
+      "mediaResource": "Media resource",
+      "statusLabel": "Status",
+      "order": "Order",
+      "bindings": "Bindings",
+      "preview": "Final video preview",
+      "noMedia": "No media resource",
+      "filters": {
+        "all": "All",
+        "episode": "Episode",
+        "scene": "Scene",
+        "storyboard": "Storyboard",
+        "shot": "Shot"
+      },
+      "status": {
+        "draft": "Draft",
+        "editing": "Editing",
+        "ready": "Ready",
+        "approved": "Approved"
+      }
     }
   },
   "agents": {
@@ -1001,11 +1090,13 @@
         "scene": "Scene",
         "storyboard": "Storyboard",
         "shot": "Shot",
-        "asset": "Asset"
+        "asset": "Asset",
+        "final_video": "Final Video"
       },
       "entityFallback": {
         "script": "Script #{{id}}",
-        "asset": "Asset #{{id}}"
+        "asset": "Asset #{{id}}",
+        "finalVideo": "Final Video #{{id}}"
       },
       "defaultTitles": {
         "episode": "New Episode",
@@ -1015,6 +1106,7 @@
       "nodeName": "Node Name",
       "addDescription": "Add description...",
       "assignee": "Executor",
+      "assigneeFallback": "Falls back to {{name}} when no executor is assigned",
       "lead": "Stage Lead",
       "unassigned": "Unassigned",
       "dueDate": "Due Date",
@@ -1060,8 +1152,12 @@
   "work": {
     "creationCanvas": "Creation Canvas",
     "collapseCanvas": "Collapse Canvas",
+    "pipeline": "Pipeline",
+    "searchPlaceholder": "Search {{entity}}...",
+    "noSearchResults": "No matching artifacts",
     "emptyKindHint": "No {{entity}} yet. Create one on the right.",
     "createEntityTitle": "New {{entity}}",
+    "createArtifactTitle": "New {{artifact}}",
     "emptyWorkspace": "Select a {{entity}} from the list above"
   },
   "canvas": {
@@ -1123,7 +1219,18 @@
       "approval": "Manual Approval",
       "text_gen": "AI Text Generation",
       "ai_gen": "AI Generation",
-      "group": "Group"
+      "group": "Group",
+      "plugin_card": "Plugin Card",
+      "artifact_card": "Artifact Card"
+    },
+    "artifactTypes": {
+      "script": "Script",
+      "asset": "Asset",
+      "episode": "Episode",
+      "scene": "Scene",
+      "storyboard": "Storyboard",
+      "shot": "Shot",
+      "final_video": "Final Video"
     },
     "catalog": {
       "categories": {
@@ -1142,6 +1249,10 @@
         "organization": {
           "title": "Organization",
           "description": "Organize complex canvases with regions and semantic groups."
+        },
+        "plugins": {
+          "title": "Local Plugins",
+          "description": "Place plugins installed in this client as local cards on the canvas."
         }
       },
       "nodes": {
@@ -1210,6 +1321,14 @@
           "description": "Select and organize a group of nodes."
         }
       }
+    },
+    "pluginCard": {
+      "waiting": "Waiting for local call",
+      "noPlugins": "No plugins are installed in this client",
+      "localRuntime": "Local plugin runtime",
+      "localRuntimeDescription": "This card runs in the current client and writes results back to node state.",
+      "missingPlugin": "This plugin is not available in the current client. Reinstall or enable it first.",
+      "executableReady": "Backend executable spec ready"
     },
     "contextMenu": {
       "groupSelected": "Group {{count}} nodes",
@@ -1677,6 +1796,8 @@
       "modelIdLabel": "Model ID (identifier sent to the API)",
       "modelIdPlaceholder": "e.g. gpt-4o, gemini-2.0-flash, doubao-seed-2-0-pro-260215",
       "displayNamePlaceholder": "Optional. Leave blank to use Model ID.",
+      "shortName": "Short Name",
+      "shortNamePlaceholder": "Optional. Used in model selectors.",
       "capabilitiesLabel": "Capabilities (required, multiple allowed)",
       "billingMode": "Billing Mode",
       "acceptsImageInput": "Accepts image input",
@@ -2043,6 +2164,7 @@
       "scenes": "Scenes",
       "storyboards": "Storyboards",
       "shots": "Shots",
+      "finalVideos": "Final Videos",
       "canvas": "Canvas",
       "refImageGen": "Reference Image",
       "refVideoGen": "Reference Video",
@@ -2057,7 +2179,7 @@
       "agentDebug": "Agent Debug",
       "production": "Production Hub",
       "pipeline": "Pipeline",
-      "creation": "Creation",
+      "creation": "Workbench",
       "collaboration": "Collaboration",
       "user": "User Profile",
       "admin": "Admin",

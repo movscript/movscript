@@ -317,7 +317,11 @@ function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]
   return { items: positionedItems, itemById, edges: validEdges, width, height }
 }
 
-export default function PipelineEditorPage() {
+interface PipelineEditorPageProps {
+  embedded?: boolean
+}
+
+export default function PipelineEditorPage({ embedded = false }: PipelineEditorPageProps = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -341,7 +345,6 @@ export default function PipelineEditorPage() {
   })
 
   const layout = useMemo(() => buildPipelineLayout(pipeline?.nodes ?? [], pipeline?.edges ?? []), [pipeline])
-  const canAddRootNode = (pipeline?.nodes.length ?? 0) === 0
 
   useEffect(() => {
     if (!pipeline) return
@@ -490,7 +493,16 @@ export default function PipelineEditorPage() {
 
   function openWorkspace(node: PipelineNode) {
     setSelectedNode(node)
+    if (embedded) return
     setWorkspaceNode(node)
+  }
+
+  function enterNodeWorkspace(node: PipelineNode) {
+    if (embedded) {
+      navigate(`/pipeline/nodes/${node.ID}`)
+      return
+    }
+    openWorkspace(node)
   }
 
   function canDropOnNode(target: PipelineNode, draggedId: number | null) {
@@ -551,7 +563,7 @@ export default function PipelineEditorPage() {
             blockedArtifactNames={blockedArtifactNames(item.node, pipeline)}
             onSelect={() => openWorkspace(item.node)}
             onToggle={() => toggleNode(item.node.ID)}
-            onEnterWorkspace={() => openWorkspace(item.node)}
+            onEnterWorkspace={() => enterNodeWorkspace(item.node)}
             onAddChild={() => {}}
             canAddChild={false}
             onDelete={() => setPendingDelete(item.node)}
@@ -598,15 +610,17 @@ export default function PipelineEditorPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground">
-      <div className="flex items-center px-4 py-2.5 border-b border-border bg-card shrink-0">
-        <div className="flex items-center gap-3 w-64 shrink-0">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(-1)}>
-            <ArrowLeft size={15} />
-          </Button>
+    <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'h-full' : 'h-screen')}>
+      <div className={cn('flex items-center border-b border-border bg-card shrink-0', embedded ? 'px-3 py-2' : 'px-4 py-2.5')}>
+        <div className={cn('flex items-center gap-3 shrink-0', embedded ? 'w-48' : 'w-64')}>
+          {!embedded ? (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(-1)}>
+              <ArrowLeft size={15} />
+            </Button>
+          ) : null}
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">{project.name}</p>
-            <p className="text-xs text-muted-foreground">{t('pipeline.editor.subtitle')}</p>
+            {!embedded ? <p className="text-xs text-muted-foreground">{t('pipeline.editor.subtitle')}</p> : null}
           </div>
         </div>
 
@@ -618,13 +632,11 @@ export default function PipelineEditorPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-64 shrink-0 justify-end">
+        <div className={cn('flex items-center gap-2 shrink-0 justify-end', embedded ? 'w-48' : 'w-64')}>
           <Button
             size="sm"
             className="h-8 text-xs"
             onClick={() => setAddNodeState({ parentId: null })}
-            disabled={!canAddRootNode}
-            title={!canAddRootNode ? t('pipeline.tree.singleRootHint', { defaultValue: '管线只能有一个根节点' }) : undefined}
           >
             <Plus size={13} className="mr-1.5" />
             {t('pipeline.tree.addRoot')}
@@ -668,7 +680,7 @@ export default function PipelineEditorPage() {
                               blockedArtifactNames={blockedArtifactNames(column.node, pipeline)}
                               onSelect={() => setSelectedNode(column.node)}
                               onToggle={() => toggleNode(column.node.ID)}
-                              onEnterWorkspace={() => openWorkspace(column.node)}
+                              onEnterWorkspace={() => enterNodeWorkspace(column.node)}
                               onAddChild={() => setAddNodeState({ parentId: column.node.ID })}
                               canAddChild
                               onDelete={() => setPendingDelete(column.node)}
@@ -713,7 +725,7 @@ export default function PipelineEditorPage() {
                   <div className="flex h-[320px] flex-col items-center justify-center gap-3 text-center">
                     <TreePine size={28} className="text-muted-foreground/60" />
                     <p className="text-sm text-muted-foreground">{t('pipeline.editor.empty')}</p>
-                    <Button size="sm" onClick={() => setAddNodeState({ parentId: null })} disabled={!canAddRootNode}>
+                    <Button size="sm" onClick={() => setAddNodeState({ parentId: null })}>
                       <Plus size={13} className="mr-1.5" />
                       {t('pipeline.tree.addRoot')}
                     </Button>
@@ -721,34 +733,38 @@ export default function PipelineEditorPage() {
                 )}
               </div>
 
-              <div
-                className={cn(
-                  'flex h-2 shrink-0 cursor-ns-resize items-center justify-center border-y border-border bg-background hover:bg-muted',
-                  isWorkspaceResizing && 'bg-muted',
-                )}
-                onMouseDown={onWorkspaceResizeMouseDown}
-                title={t('pipeline.workspace.resizeHandle', { defaultValue: '拖动调整工作区高度' })}
-              >
-                <GripHorizontal size={14} className="text-muted-foreground/70" />
-              </div>
-
-              <div
-                className="shrink-0 border-t border-border bg-card/30"
-                style={{ height: workspaceHeight }}
-              >
-                {workspaceNode ? (
-                  <StageWorkspaceContent
-                    key={workspaceNode.ID}
-                    nodeId={workspaceNode.ID}
-                    embedded
-                    onBack={() => setWorkspaceNode(null)}
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    {t('pipeline.workspace.inlineEmpty', { defaultValue: '选择一个节点后，工作区会在这里展示。' })}
+              {!embedded ? (
+                <>
+                  <div
+                    className={cn(
+                      'flex h-2 shrink-0 cursor-ns-resize items-center justify-center border-y border-border bg-background hover:bg-muted',
+                      isWorkspaceResizing && 'bg-muted',
+                    )}
+                    onMouseDown={onWorkspaceResizeMouseDown}
+                    title={t('pipeline.workspace.resizeHandle', { defaultValue: '拖动调整工作区高度' })}
+                  >
+                    <GripHorizontal size={14} className="text-muted-foreground/70" />
                   </div>
-                )}
-              </div>
+
+                  <div
+                    className="shrink-0 border-t border-border bg-card/30"
+                    style={{ height: workspaceHeight }}
+                  >
+                    {workspaceNode ? (
+                      <StageWorkspaceContent
+                        key={workspaceNode.ID}
+                        nodeId={workspaceNode.ID}
+                        embedded
+                        onBack={() => setWorkspaceNode(null)}
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                        {t('pipeline.workspace.inlineEmpty', { defaultValue: '选择一个节点后，工作区会在这里展示。' })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : activeTab === 'dependencies' ? (
             <DependencyGraph
@@ -776,7 +792,7 @@ export default function PipelineEditorPage() {
             node={selectedNode}
             onClose={() => setSelectedNode(null)}
             onNodeUpdated={(updated) => setSelectedNode(updated)}
-            onOpenWorkspace={openWorkspace}
+            onOpenWorkspace={enterNodeWorkspace}
           />
         ) : null}
       </div>

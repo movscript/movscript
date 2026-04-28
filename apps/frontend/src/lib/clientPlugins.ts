@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import type { PublicModel, RawResource } from '@/types'
+import type { CanvasExecutableSpec, CanvasPortDef, PublicModel, RawResource } from '@/types'
 import { createMcpTools, type McpTools } from '@/lib/mcpTools'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -24,6 +24,26 @@ export interface ClientPluginInputSchema {
   required?: string[]
 }
 
+export interface ClientPluginCanvasNodeContribution {
+  type: string
+  title: string
+  description?: string
+  tool?: string
+  inputs?: CanvasPortDef[]
+  outputs?: CanvasPortDef[]
+  card?: string
+  icon?: string
+  category?: string
+  defaultData?: Record<string, unknown>
+}
+
+export interface ClientPluginContributions {
+  canvasNodes?: ClientPluginCanvasNodeContribution[]
+  tools?: unknown[]
+  cards?: unknown[]
+  commands?: unknown[]
+}
+
 export interface ClientPluginManifest {
   schema: 'movscript.clientPlugin.v1' | 'movscript.clientPlugin.v2' | string
   id: string
@@ -34,6 +54,8 @@ export interface ClientPluginManifest {
   homepage?: string
   permissions?: string[]
   inputSchema?: ClientPluginInputSchema
+  contributes?: ClientPluginContributions
+  hasCompile?: boolean
   /** Inline script (legacy / simple plugins) */
   script?: string
   /** Compiled bundle source (installed from URL, v1) */
@@ -306,6 +328,32 @@ export async function runClientPlugin(plugin: ClientPluginManifest, args: Record
   return { content: [{ type: 'text', text: String(result ?? '') }], data: result }
 }
 
+export async function compileClientPlugin(plugin: ClientPluginManifest, args: Record<string, unknown>): Promise<CanvasExecutableSpec | undefined> {
+  const src = plugin.bundle ?? plugin.script ?? ''
+  if (!src) return undefined
+
+  let compileFn: ((args: Record<string, unknown>) => CanvasExecutableSpec | Promise<CanvasExecutableSpec>) | undefined
+
+  if (src.includes('export{') || src.includes('export {') || /export\s+\{/.test(src)) {
+    const blob = new Blob([src], { type: 'text/javascript' })
+    const url = URL.createObjectURL(blob)
+    try {
+      const mod = await import(/* @vite-ignore */ url)
+      compileFn = mod.compile
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  } else {
+    const fn = new Function('args', `"use strict";\n${src}\nreturn typeof compile === 'function' ? compile(args) : undefined;`)
+    const result = await fn(args)
+    return isCanvasExecutableSpec(result) ? result : undefined
+  }
+
+  if (typeof compileFn !== 'function') return undefined
+  const result = await compileFn(args)
+  return isCanvasExecutableSpec(result) ? result : undefined
+}
+
 // ── Validation ────────────────────────────────────────────────────────────────
 
 function isClientPluginManifest(value: unknown): value is ClientPluginManifest {
@@ -317,6 +365,12 @@ function isClientPluginManifest(value: unknown): value is ClientPluginManifest {
     typeof item.version === 'string' && item.version.trim().length > 0 &&
     (typeof item.script === 'string' || typeof item.bundle === 'string' || typeof item.bundleUrl === 'string')
   )
+}
+
+function isCanvasExecutableSpec(value: unknown): value is CanvasExecutableSpec {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<CanvasExecutableSpec>
+  return item.executor === 'ai_model' && typeof item.capability === 'string'
 }
 
 // ── Runtime ───────────────────────────────────────────────────────────────────

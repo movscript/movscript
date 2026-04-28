@@ -7,11 +7,13 @@
     "back": "返回",
     "cancel": "取消",
     "close": "关闭",
+    "collapse": "收起",
     "create": "创建",
     "creating": "创建中…",
     "delete": "删除",
     "emptyTitle": "（无标题）",
     "emptyDescription": "（无描述）",
+    "expand": "展开",
     "itemsCount": "{{count}} 项",
     "save": "保存",
     "saving": "保存中…",
@@ -62,6 +64,7 @@
     "failedRetrieveFile": "获取文件失败",
     "failedStoreFile": "存储文件失败",
     "featureNotFound": "功能不存在",
+    "finalVideoNotFound": "成片不存在",
     "fileRequired": "请选择文件",
     "folderNotFound": "文件夹不存在",
     "forbidden": "无权限",
@@ -90,7 +93,12 @@
     "permissionDenied": "权限不足",
     "pipelineAlreadyDraft": "节点已经是草稿状态",
     "pipelineApproveState": "只有审核中的节点可以批准",
+    "pipelineAssigneeMemberRequired": "执行者必须是项目成员",
+    "pipelineLeadMemberRequired": "负责人必须是项目成员",
+    "pipelineManageAssignmentRequired": "需要所有者、导演或节点负责人权限",
     "pipelineRejectState": "只有审核中的节点可以拒绝",
+    "pipelineReviewPermissionRequired": "需要所有者、导演或非自审负责人权限",
+    "pipelineSubmitPermissionRequired": "需要执行者、负责人、导演或所有者权限",
     "pipelineSubmitState": "只有草稿或被拒绝的节点可以提交审核",
     "projectNotFound": "项目不存在",
     "providerCancellationFailed": "服务商取消失败：{{detail}}",
@@ -156,7 +164,8 @@
     "settingTypes": {
       "character": "人物",
       "scene": "场景",
-      "prop": "道具"
+      "prop": "道具",
+      "worldRule": "世界规则"
     },
     "shotStatus": {
       "draft": "草稿",
@@ -195,7 +204,8 @@
     "episodes": "分集",
     "scenes": "分场",
     "storyboards": "分镜",
-    "shots": "镜头"
+    "shots": "镜头",
+    "finalVideos": "成片"
   },
   "forms": {
     "name": "名称",
@@ -218,10 +228,16 @@
     "locationOptional": "地点（可选）",
     "shootingLocation": "拍摄地点",
     "linkedScriptOptional": "关联剧本（可选）",
+    "linkedEpisodeScript": "关联分集剧本",
+    "noLinkedEpisodeScript": "暂无关联分集剧本",
     "noScriptDirect": "无（直接制作）",
     "parentSceneOptional": "所属分场（可选）",
     "parentEpisodeOptional": "所属分集（可选）",
+    "parentEpisodeRequired": "所属分集 *",
+    "selectEpisodeFirst": "请选择分集",
+    "createEpisodeBeforeEpisodeScript": "请先创建分集实体，再创建对应的分集剧本。",
     "parentStoryboardOptional": "所属分镜（可选）",
+    "parentShotOptional": "所属镜头（可选）",
     "unlinked": "不关联",
     "independentShot": "独立镜头"
   },
@@ -260,7 +276,7 @@
     "generateDraft": "AI 生成底稿",
     "contentManagement": "内容管理",
     "scriptBody": "剧本正文",
-    "scriptSummary": "剧本总结",
+    "scriptSummary": "剧本提纲",
     "characters": "人物",
     "actions": "动作",
     "dialogue": "对白",
@@ -272,16 +288,57 @@
     "sceneSpecific": "分场特有",
     "episodeOrder": "集数顺序",
     "hook": "钩子",
-    "plotSummary": "剧情推演总结",
-    "scriptSummaryPlaceholder": "剧本核心内容概括…",
-    "charactersPlaceholder": "主要角色姓名、身份、性格特点…",
-    "coreSettingsPlaceholder": "世界观、规则、特殊设定…",
-    "backgroundPlaceholder": "故事时代背景、环境…",
-    "scenesPlaceholder": "主要拍摄场景描述…",
+    "plotSummary": "剧情推演提纲",
+    "scriptSummaryPlaceholder": "用提纲概括剧本核心内容…",
+    "charactersPlaceholder": "人物补充说明…",
+    "characterProfiles": "结构化人物档案",
+    "characterFreeform": "非结构化人物补充",
+    "characterFreeformPlaceholder": "写无法放入固定字段的动机、秘密、弧光、口头禅、表演备注等…",
+    "characterRelationshipGraph": "人物关系图",
+    "addCharacter": "添加人物",
+    "addRelationship": "添加关系",
+    "characterName": "姓名",
+    "characterIdentity": "身份",
+    "characterTraits": "性格/特征",
+    "characterGoal": "欲望/目标",
+    "characterStructuredNotes": "结构化补充",
+    "relationshipLabel": "关系说明",
+    "unnamedCharacter": "未命名人物",
+    "noCharacterProfiles": "暂无结构化人物档案。",
+    "noCharacterGraph": "添加人物后显示关系图。",
+    "relationshipTypes": {
+      "alliance": "同盟",
+      "family": "亲属",
+      "love": "情感",
+      "conflict": "冲突",
+      "secret": "秘密",
+      "other": "其他"
+    },
+    "coreSettingsPlaceholder": "每条写一个核心规则、关系或限制…",
+    "backgroundPlaceholder": "一句话说明时代背景…",
+    "scenesPlaceholder": "每条详细描述一个场景的空间、时间、氛围和调度重点…",
     "episodeHookPlaceholder": "本集核心钩子/看点…",
     "plotSummaryPlaceholder": "本集剧情走向简要描述…",
     "sceneHookPlaceholder": "本场核心内容或目的…",
     "scriptBodyPlaceholder": "在此输入剧本正文内容…",
+    "episodeBodyWorkspace": "分集正文工作区",
+    "structureSidebar": "结构侧栏",
+    "generatePoints": "正文生成点位",
+    "beatPositions": "位置标注",
+    "notMarked": "未标注",
+    "tagsOnly": "只看标签顺序",
+    "zoomIn": "放大正文",
+    "zoomOut": "缩小正文",
+    "noPointTags": "暂无标签。请先在右侧为点位添加标签。",
+    "noScriptPoints": "暂无点位。可以先输入正文，再生成点位。",
+    "pointTagsPlaceholder": "标签，用逗号分隔",
+    "pointTypes": {
+      "hook": "钩子",
+      "reversal": "反转",
+      "conflict": "冲突",
+      "release": "释放",
+      "none": "未标注"
+    },
     "episodeNumber": "集数编号",
     "episodeSynopsis": "剧情概要",
     "productionStatus": "制作状态",
@@ -586,6 +643,38 @@
       "independent": "独立镜头",
       "noVideo": "该镜头暂无生成视频",
       "createTitle": "新建镜头"
+    },
+    "finalVideos": {
+      "gridTitle": "缩略图",
+      "listTitle": "列表",
+      "empty": "暂无成片",
+      "createOne": "新建一个",
+      "createTitle": "新建成片",
+      "defaultTitle": "成片",
+      "titlePlaceholder": "成片标题",
+      "projectLevel": "项目级成片",
+      "boundEpisode": "分集 #{{id}}",
+      "boundScene": "分场 #{{id}}",
+      "boundShot": "镜头 #{{id}}",
+      "mediaResource": "媒体资源",
+      "statusLabel": "状态",
+      "order": "排序",
+      "bindings": "绑定关系",
+      "preview": "成片预览",
+      "noMedia": "暂无媒体资源",
+      "filters": {
+        "all": "全部",
+        "episode": "分集",
+        "scene": "分场",
+        "storyboard": "分镜",
+        "shot": "镜头"
+      },
+      "status": {
+        "draft": "草稿",
+        "editing": "剪辑中",
+        "ready": "待审核",
+        "approved": "已定稿"
+      }
     }
   },
   "agents": {
@@ -1001,11 +1090,13 @@
         "scene": "分场",
         "storyboard": "分镜",
         "shot": "镜头",
-        "asset": "素材"
+        "asset": "素材",
+        "final_video": "成片"
       },
       "entityFallback": {
         "script": "剧本 #{{id}}",
-        "asset": "素材 #{{id}}"
+        "asset": "素材 #{{id}}",
+        "finalVideo": "成片 #{{id}}"
       },
       "defaultTitles": {
         "episode": "新分集",
@@ -1015,6 +1106,7 @@
       "nodeName": "节点名称",
       "addDescription": "添加描述...",
       "assignee": "执行者",
+      "assigneeFallback": "未分配执行者时由 {{name}} 兜底",
       "lead": "阶段负责人",
       "unassigned": "未分配",
       "dueDate": "截止日期",
@@ -1060,8 +1152,12 @@
   "work": {
     "creationCanvas": "创作画布",
     "collapseCanvas": "收起画布",
+    "pipeline": "管线",
+    "searchPlaceholder": "搜索{{entity}}…",
+    "noSearchResults": "没有匹配的产物",
     "emptyKindHint": "暂无{{entity}}，点击右侧新建",
     "createEntityTitle": "新建{{entity}}",
+    "createArtifactTitle": "新建{{artifact}}",
     "emptyWorkspace": "从上方列表选择一个{{entity}}"
   },
   "canvas": {
@@ -1123,7 +1219,18 @@
       "approval": "人工确认",
       "text_gen": "AI 文本生成",
       "ai_gen": "AI 生成",
-      "group": "分组"
+      "group": "分组",
+      "plugin_card": "插件卡片",
+      "artifact_card": "产物卡片"
+    },
+    "artifactTypes": {
+      "script": "剧本",
+      "asset": "素材",
+      "episode": "分集",
+      "scene": "分场",
+      "storyboard": "分镜",
+      "shot": "镜头",
+      "final_video": "成片"
     },
     "catalog": {
       "categories": {
@@ -1142,6 +1249,10 @@
         "organization": {
           "title": "组织",
           "description": "整理复杂画布的区域与语义分组"
+        },
+        "plugins": {
+          "title": "本机插件",
+          "description": "把当前客户端安装的插件作为本地卡片放入画布"
         }
       },
       "nodes": {
@@ -1210,6 +1321,14 @@
           "description": "框选并整理一组节点"
         }
       }
+    },
+    "pluginCard": {
+      "waiting": "等待本地调用",
+      "noPlugins": "当前客户端还没有安装插件",
+      "localRuntime": "本地插件运行时",
+      "localRuntimeDescription": "该卡片在当前客户端运行，结果会写回节点状态。",
+      "missingPlugin": "当前客户端找不到这个插件，请先重新安装或启用。",
+      "executableReady": "已生成后端执行描述"
     },
     "contextMenu": {
       "groupSelected": "将 {{count}} 个节点分组",
@@ -1677,6 +1796,8 @@
       "modelIdLabel": "Model ID（发给 API 的模型标识）",
       "modelIdPlaceholder": "如 gpt-4o、gemini-2.0-flash、doubao-seed-2-0-pro-260215",
       "displayNamePlaceholder": "可选，留空使用 Model ID",
+      "shortName": "短名称",
+      "shortNamePlaceholder": "可选，用于模型选择器展示",
       "capabilitiesLabel": "能力类型（必填，可多选）",
       "billingMode": "计费模式",
       "acceptsImageInput": "接受图像输入",
@@ -2043,6 +2164,7 @@
       "scenes": "分场",
       "storyboards": "分镜",
       "shots": "镜头",
+      "finalVideos": "成片",
       "canvas": "画布",
       "refImageGen": "参考生图",
       "refVideoGen": "参考生视频",
@@ -2057,7 +2179,7 @@
       "agentDebug": "Agent 调试",
       "production": "生产中台",
       "pipeline": "管线",
-      "creation": "创作",
+      "creation": "工作台",
       "collaboration": "协作",
       "user": "用户资料",
       "admin": "管理后台",

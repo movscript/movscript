@@ -33,6 +33,7 @@ export default function CanvasListPage() {
   const currentProject = useProjectStore((s) => s.current)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newCanvasType, setNewCanvasType] = useState<CanvasType>('inspiration')
 
   const { data: canvases = [], isLoading } = useQuery<Canvas[]>({
     queryKey: ['canvases', currentProject?.ID],
@@ -50,6 +51,7 @@ export default function CanvasListPage() {
       qc.invalidateQueries({ queryKey: ['canvases'] })
       setShowCreate(false)
       setNewName('')
+      setNewCanvasType('inspiration')
       navigate(`/canvases/${cv.ID}`)
     },
   })
@@ -61,7 +63,7 @@ export default function CanvasListPage() {
 
   function handleCreate() {
     if (!newName.trim()) return
-    create.mutate({ name: newName.trim(), canvas_type: 'workflow', project_id: currentProject?.ID })
+    create.mutate({ name: newName.trim(), canvas_type: newCanvasType, project_id: currentProject?.ID })
   }
 
   return (
@@ -134,7 +136,7 @@ export default function CanvasListPage() {
       {/* Create dialog */}
       <CreateDialog
         open={showCreate}
-        onClose={() => { setShowCreate(false); setNewName('') }}
+        onClose={() => { setShowCreate(false); setNewName(''); setNewCanvasType('inspiration') }}
         title={t('pages.canvases.newCanvas')}
       >
         <div className="space-y-4">
@@ -149,8 +151,31 @@ export default function CanvasListPage() {
             />
           </div>
 
-          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            {t('pages.canvases.workflowCreateHint')}
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.keys(TYPE_META) as CanvasType[]).map((type) => {
+              const meta = TYPE_META[type]
+              const selected = newCanvasType === type
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setNewCanvasType(type)}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                    selected
+                      ? 'border-foreground bg-foreground text-background'
+                      : 'border-border bg-muted/30 text-foreground hover:border-foreground/40'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-medium">
+                    {meta.icon}
+                    {t(meta.labelKey)}
+                  </span>
+                  <span className={`mt-1 block text-[11px] leading-relaxed ${selected ? 'text-background/75' : 'text-muted-foreground'}`}>
+                    {t(meta.descKey)}
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
           <div className="flex gap-2 pt-1">
@@ -163,7 +188,7 @@ export default function CanvasListPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => { setShowCreate(false); setNewName('') }}
+              onClick={() => { setShowCreate(false); setNewName(''); setNewCanvasType('inspiration') }}
             >
               {t('common.cancel')}
             </Button>

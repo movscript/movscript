@@ -14,6 +14,8 @@ export interface MovJson {
   main?: string
   /** UI entry point for webview mode. If set, plugin renders in an iframe. */
   ui?: string
+  /** Logic bundle exports compile(args), which produces a canvas executable spec. */
+  hasCompile?: boolean
   /** Path to logo image relative to project root. */
   logo?: string
   inputSchema?: {

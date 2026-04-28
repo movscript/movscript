@@ -70,6 +70,10 @@ export interface Script {
   status: string
   review_status?: ReviewStatus
   script_type: 'main' | 'episode' | 'scene'
+  source_type?: 'raw' | 'adapted' | 'revised'
+  version?: number
+  parent_script_id?: number
+  analysis_status?: 'pending' | 'analyzing' | 'analyzed' | 'failed'
   episode_id?: number
   pipeline_node_id?: number
   assignee_id?: number
@@ -80,11 +84,35 @@ export interface Script {
   // content management fields (内容管理)
   summary: string
   characters: string
+  character_profiles?: string
+  character_relationships?: string
   core_settings: string
   background: string
   scenes_desc: string
   hook: string        // 钩子（分集剧本）
   plot_summary: string // 剧情推演总结（分集剧本）
+  script_points?: string // JSON array of structured episode script points
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface ScriptAnalysis {
+  ID: number
+  project_id: number
+  script_id: number
+  status: 'draft' | 'confirmed'
+  summary: string
+  world_setting: string
+  character_extract_json: string
+  scene_extract_json: string
+  prop_extract_json: string
+  relationship_json: string
+  core_setting_json: string
+  script_point_json: string
+  source_model_config_id?: number
+  prompt: string
+  raw_response: string
+  normalized_response_json: string
   CreatedAt: string
   UpdatedAt: string
 }
@@ -94,10 +122,54 @@ export interface Setting {
   ID: number
   project_id: number
   script_id?: number // optional link to a script
-  type: 'character' | 'scene' | 'prop'
+  source_script_id?: number
+  source_analysis_id?: number
+  type: 'character' | 'scene' | 'prop' | 'world_rule'
   name: string
+  alias?: string
   description: string
   content: string
+  status?: 'extracted' | 'confirmed' | 'locked'
+  importance?: 'main' | 'supporting' | 'background'
+  tags?: string
+  profile_json?: string
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface ScriptSettingRef {
+  ID: number
+  project_id: number
+  script_id: number
+  setting_id: number
+  setting?: Setting
+  role?: string
+  scope?: 'main' | 'episode' | 'scene'
+  first_mention?: string
+  evidence?: string
+  note?: string
+  emotion?: string
+  state?: string
+  purpose?: string
+  order?: number
+  source?: 'ai' | 'manual'
+  confidence?: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface SettingRelationship {
+  ID: number
+  project_id: number
+  source_setting_id: number
+  source_setting?: Setting
+  target_setting_id: number
+  target_setting?: Setting
+  scope_script_id?: number
+  type?: 'alliance' | 'family' | 'love' | 'conflict' | 'secret' | 'other'
+  label?: string
+  description?: string
+  source?: 'ai' | 'manual'
   CreatedAt: string
   UpdatedAt: string
 }
@@ -107,10 +179,15 @@ export interface AssetView {
   asset_id: number
   view_type: string // front|back|left|right|detail|custom
   label: string
+  shot_type?: string // full_body|half_body|closeup|environment|prop_detail
   resource_id?: number
   resource?: RawResource
   canvas_id?: number
   image_url?: string
+  prompt?: string
+  seed?: string
+  generation_meta_json?: string
+  quality_status?: 'draft' | 'selected' | 'rejected' | 'final'
   CreatedAt: string
   UpdatedAt: string
 }
@@ -122,6 +199,17 @@ export interface Asset {
   name: string
   type: 'character' | 'scene' | 'prop' | 'draft'
   description: string
+  variant_type?: 'base' | 'costume' | 'time_of_day' | 'period' | 'state' | 'expression' | 'custom'
+  variant_name?: string
+  costume?: string
+  time_of_day?: string
+  period?: string
+  state?: string
+  style_profile?: string
+  prompt?: string
+  negative_prompt?: string
+  reference_ids?: string
+  is_primary?: boolean
   review_status?: ReviewStatus
   setting_id?: number // optional link to a Setting
   setting?: Setting
@@ -235,6 +323,48 @@ export interface Shot {
   UpdatedAt: string
 }
 
+export type FinalVideoStatus = 'draft' | 'editing' | 'ready' | 'approved'
+
+export interface FinalVideo {
+  ID: number
+  project_id: number
+  episode_id?: number | null
+  scene_id?: number | null
+  storyboard_id?: number | null
+  shot_id?: number | null
+  pipeline_node_id?: number
+  title: string
+  description: string
+  resource_id?: number | null
+  resource?: RawResource
+  status: FinalVideoStatus
+  order: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export type ArtifactKind = 'script' | 'asset' | 'storyboard' | 'shot' | 'final_video'
+
+export interface ArtifactEntityContext {
+  episode_id?: number | null
+  scene_id?: number | null
+  storyboard_id?: number | null
+  setting_id?: number | null
+}
+
+export interface ArtifactRef {
+  kind: ArtifactKind
+  id: number
+  title: string
+  subtitle?: string
+  status?: string
+  pipeline_node_id?: number
+  entity_context: ArtifactEntityContext
+  resource?: RawResource
+  created_at: string
+  updated_at: string
+}
+
 export interface User {
   ID: number
   username: string
@@ -282,6 +412,7 @@ export interface AIModelConfig {
   credits_per_second: number
   credits_per_call: number
   custom_display_name: string
+  short_name: string
   custom_capabilities: string    // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
   custom_billing_mode: string    // "per_token"|"per_image"|"per_second"|"per_call"
   custom_accepts_image: boolean
@@ -354,6 +485,7 @@ export interface PublicModel {
   id: number
   credential_id: number        // parent AICredential ID (for admin inline edit)
   display_name: string
+  short_name?: string
   provider_name: string        // credential display_name, e.g. "我的 OpenAI"
   capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
   accepts_image_input: boolean // true for image_edit and i2v models
@@ -568,7 +700,8 @@ export interface GenJob {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
-export type SpecialNodeType = 'input' | 'output' | 'approval' | 'text_gen' | 'ai_gen' | 'group'
+export type CanvasArtifactKind = 'script' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
+export type SpecialNodeType = 'input' | 'output' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'artifact_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
 export type NodeSource = 'upload' | 'ai' | 'manual'
@@ -576,8 +709,32 @@ export type CanvasTaskStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed
 export type CanvasType = 'inspiration' | 'workflow'
 export type CanvasParamType = 'text' | 'image' | 'video' | 'audio' | 'json' | 'number' | 'boolean' | 'resource'
 export type CanvasRunStatus = 'pending' | 'running' | 'done' | 'failed'
+export type CanvasPortType = CanvasParamType
+
+export interface CanvasPortDef {
+  id: string
+  label?: string
+  type: CanvasPortType
+  required?: boolean
+  maxCount?: number
+  description?: string
+}
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
+
+export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio'
+
+export interface CanvasExecutableSpec {
+  executor: 'ai_model'
+  capability: CanvasExecutableCapability
+  featureKey?: string
+  modelDbId?: number
+  prompt?: string
+  inputResourceIds?: number[]
+  aspectRatio?: string
+  duration?: number
+  params?: Record<string, unknown>
+}
 
 export interface CanvasNodeData {
   source: NodeSource
@@ -606,6 +763,21 @@ export interface CanvasNodeData {
   groupHeight?: number
   // display mode
   cardMode?: 'compact' | 'detail' | 'full'
+  // local plugin card fields
+  pluginId?: string
+  pluginName?: string
+  pluginVersion?: string
+  pluginArgs?: Record<string, unknown>
+  pluginResultText?: string
+  pluginResultData?: unknown
+  pluginLastRunAt?: string
+  executableSpec?: CanvasExecutableSpec
+  inputPorts?: CanvasPortDef[]
+  outputPorts?: CanvasPortDef[]
+  // reusable project artifact card fields
+  artifactKind?: CanvasArtifactKind
+  artifactId?: number
+  artifactTitle?: string
   // injected at runtime by CanvasEditorPage (not persisted)
   canvasId?: string
   rfNodeId?: string
@@ -665,12 +837,12 @@ export interface PluginCardContribution {
 export interface PluginCanvasNodeContribution {
   plugin_id: number
   plugin_key: string
-  type: NodeType
+  type: string
   title: string
   description?: string
   tool?: string
-  inputs?: string[]
-  outputs?: string[]
+  inputs?: CanvasPortDef[]
+  outputs?: CanvasPortDef[]
   card?: string
   icon?: string
   category?: string
@@ -712,6 +884,8 @@ export interface CanvasEdgeModel {
   edge_id: string
   source: string
   target: string
+  source_handle?: string
+  target_handle?: string
 }
 
 export interface Canvas {

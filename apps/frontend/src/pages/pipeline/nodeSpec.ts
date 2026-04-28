@@ -1,7 +1,7 @@
 import type { PipelineContentType } from '@/types'
 
 export type PipelineNodeCategory = 'work' | 'artifact' | 'custom'
-export type PipelineEntityType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene'
+export type PipelineEntityType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video'
 export type PipelineScriptType = 'main' | 'episode' | 'scene'
 
 export interface PipelineNodeSpec {
@@ -32,7 +32,7 @@ export const PIPELINE_NODE_SPECS: Record<string, PipelineNodeSpec> = {
   storyboard:        { type: 'storyboard',        category: 'artifact', contentType: 'storyboard', entityType: 'storyboard', canCreateEntity: true, canLinkEntity: true },
   asset:             { type: 'asset',             category: 'artifact', contentType: 'asset',      entityType: 'asset',      canCreateEntity: true, canLinkEntity: true },
   shot:              { type: 'shot',              category: 'artifact', contentType: 'shot',       entityType: 'shot',       canCreateEntity: true, canLinkEntity: true },
-  final_video:       { type: 'final_video',       category: 'artifact', contentType: 'final_video',                       canCreateEntity: false, canLinkEntity: false },
+  final_video:       { type: 'final_video',       category: 'artifact', contentType: 'final_video', entityType: 'final_video', canCreateEntity: true, canLinkEntity: true },
 
   custom: { type: 'custom', category: 'custom', contentType: 'custom', canCreateEntity: false, canLinkEntity: false },
 }

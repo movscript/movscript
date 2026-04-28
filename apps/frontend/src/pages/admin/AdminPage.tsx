@@ -14,6 +14,7 @@ import { AgentConfigTab } from './AgentConfigTab'
 import { DebugPage } from './DebugPage'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
+import { publicModelLabel } from '@/lib/modelDisplay'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ function featureDescription(feature: FeatureConfig, t: (key: string, options?: R
 
 type ModelEditForm = {
   display_name: string
+  short_name: string
   model_id_override: string
   priority: string
   capabilities: string[]
@@ -592,6 +594,7 @@ function ModelManagementTab() {
   const [addingFor, setAddingFor] = useState<number | null>(null)
   const [addModelId, setAddModelId] = useState('')
   const [addDisplayName, setAddDisplayName] = useState('')
+  const [addShortName, setAddShortName] = useState('')
   const [addCapabilities, setAddCapabilities] = useState<string[]>(['text'])
   const [addBillingMode, setAddBillingMode] = useState('per_token')
   const [addAcceptsImage, setAddAcceptsImage] = useState(false)
@@ -608,7 +611,7 @@ function ModelManagementTab() {
   // Editing existing model config
   const [editingConfig, setEditingConfig] = useState<AIModelConfig | null>(null)
   const [editForm, setEditForm] = useState<ModelEditForm>({
-    display_name: '', model_id_override: '', priority: '0', capabilities: [], billing_mode: 'per_token', supported_params: '',
+    display_name: '', short_name: '', model_id_override: '', priority: '0', capabilities: [], billing_mode: 'per_token', supported_params: '',
   })
   // Files API editing state
   const [filesAPIEditFor, setFilesAPIEditFor] = useState<number | null>(null)
@@ -674,14 +677,15 @@ function ModelManagementTab() {
   })
 
   const addModel = useMutation({
-    mutationFn: ({ credId, modelId, displayName, capabilities, billingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, data }: {
-      credId: number; modelId: string; displayName: string; capabilities: string[]
+    mutationFn: ({ credId, modelId, displayName, shortName, capabilities, billingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, data }: {
+      credId: number; modelId: string; displayName: string; shortName: string; capabilities: string[]
       billingMode: string; acceptsImage: boolean; maxInputImages: number; maxInputVideos: number
       imageEditField: string; supportedParams: string; data: PriceForm
     }) =>
       api.post(`/admin/credentials/${credId}/models`, {
         model_def_id: modelId,
         custom_display_name: displayName || modelId,
+        short_name: shortName,
         custom_capabilities: capabilities.join(','),
         custom_billing_mode: billingMode,
         custom_accepts_image: acceptsImage,
@@ -705,6 +709,7 @@ function ModelManagementTab() {
     mutationFn: ({ modelId, data }: { modelId: number; data: typeof editForm }) =>
       api.patch(`/admin/model-configs/${modelId}`, {
         custom_display_name: data.display_name,
+        short_name: data.short_name,
         model_id_override: data.model_id_override,
         priority: parseInt(data.priority, 10) || 0,
         custom_capabilities: data.capabilities.join(','),
@@ -731,6 +736,7 @@ function ModelManagementTab() {
     setAddingFor(credId)
     setAddModelId('')
     setAddDisplayName('')
+    setAddShortName('')
     setAddCapabilities(defaultCaps)
     setAddBillingMode('per_token')
     setAddAcceptsImage(false)
@@ -1029,6 +1035,7 @@ function ModelManagementTab() {
                     function applyPreset(preset: ModelPreset) {
                       setAddModelId(preset.model_id)
                       setAddDisplayName(preset.display_name)
+                      setAddShortName('')
                       setAddCapabilities(preset.capabilities)
                       setAddBillingMode(preset.billing_mode)
                       setAddAcceptsImage(preset.accepts_image_input ?? false)
@@ -1118,6 +1125,16 @@ function ModelManagementTab() {
                             value={addDisplayName}
                             onChange={(e) => setAddDisplayName(e.target.value)}
                             placeholder={addModelId || t('admin.models.displayNamePlaceholder')}
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.shortName')}</Label>
+                          <input
+                            className="w-full text-xs border border-border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                            value={addShortName}
+                            onChange={(e) => setAddShortName(e.target.value)}
+                            placeholder={t('admin.models.shortNamePlaceholder')}
                           />
                         </div>
 
@@ -1224,6 +1241,7 @@ function ModelManagementTab() {
                               credId: cred.ID,
                               modelId: addModelId.trim(),
                               displayName: addDisplayName.trim(),
+                              shortName: addShortName.trim(),
                               capabilities: addCapabilities,
                               billingMode: addBillingMode,
                               acceptsImage: addAcceptsImage,
@@ -1251,6 +1269,7 @@ function ModelManagementTab() {
                     const modelTestRes = testResults[modelTestKey]
                     const isEditing = editingConfig?.ID === cfg.ID
                     const displayName = cfg.custom_display_name || cfg.model_def_id
+                    const selectorName = cfg.short_name || displayName
                     const caps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
                     const billing = cfg.custom_billing_mode
 
@@ -1258,7 +1277,10 @@ function ModelManagementTab() {
                       <div key={cfg.ID} className="border border-border rounded bg-background">
                         <div className="flex items-center gap-2 px-3 py-2 text-xs">
                           <div className="flex-1 min-w-0">
-                            <span className="font-medium text-foreground">{displayName}</span>
+                            <span className="font-medium text-foreground">{selectorName}</span>
+                            {cfg.short_name && cfg.short_name !== displayName && (
+                              <span className="ml-2 text-muted-foreground">{displayName}</span>
+                            )}
                             {cfg.model_id_override && (
                               <span className="ml-2 font-mono text-muted-foreground text-xs">{cfg.model_id_override}</span>
                             )}
@@ -1289,6 +1311,7 @@ function ModelManagementTab() {
                               setEditingConfig(cfg)
                               setEditForm({
                                 display_name: cfg.custom_display_name,
+                                short_name: cfg.short_name,
                                 model_id_override: cfg.model_id_override,
                                 priority: String(cfg.priority ?? 0),
                                 capabilities: nextCaps,
@@ -1310,7 +1333,7 @@ function ModelManagementTab() {
 
                         {isEditing && (
                           <div className="border-t border-border px-3 py-2 space-y-2 bg-card">
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                               <div>
                                 <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
                                 <Input
@@ -1318,6 +1341,15 @@ function ModelManagementTab() {
                                   value={editForm.display_name}
                                   onChange={(e) => setEditForm((f) => ({ ...f, display_name: e.target.value }))}
                                   placeholder={cfg.model_def_id}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.shortName')}</Label>
+                                <Input
+                                  className="text-xs"
+                                  value={editForm.short_name}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, short_name: e.target.value }))}
+                                  placeholder={t('admin.models.shortNamePlaceholder')}
                                 />
                               </div>
                               <div>
@@ -1665,7 +1697,7 @@ function UsageLogsTab() {
 
   function modelName(log: UsageLog): string {
     const cfg = log.ai_model_config
-    if (cfg) return cfg.custom_display_name || cfg.model_def_id
+    if (cfg) return cfg.short_name || cfg.custom_display_name || cfg.model_def_id
     return String(log.ai_model_config_id)
   }
 
@@ -1717,7 +1749,7 @@ function UsageLogsTab() {
             .filter(model => !providerFilter || String(model.credential_id) === providerFilter)
             .map(model => (
               <option key={model.ID} value={model.ID}>
-                {(model.custom_display_name || model.model_def_id)} · {model.providerName}
+                {(model.short_name || model.custom_display_name || model.model_def_id)} · {model.providerName}
               </option>
             ))}
         </select>
@@ -1813,8 +1845,8 @@ function FeatureRow({
   const [promptSaved, setPromptSaved] = useState(false)
   // Inline model editing state: modelId → edit form open
   const [editingModelId, setEditingModelId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<{ custom_display_name: string; model_id_override: string; priority: string }>({
-    custom_display_name: '', model_id_override: '', priority: '0',
+  const [editForm, setEditForm] = useState<{ custom_display_name: string; short_name: string; model_id_override: string; priority: string }>({
+    custom_display_name: '', short_name: '', model_id_override: '', priority: '0',
   })
 
   // Query models for this specific feature — backend decides which capabilities are compatible.
@@ -1846,6 +1878,7 @@ function FeatureRow({
     setEditingModelId(m.id)
     setEditForm({
       custom_display_name: m.display_name,
+      short_name: m.short_name ?? '',
       model_id_override: m.model_id_override ?? '',
       priority: '0',
     })
@@ -1856,6 +1889,7 @@ function FeatureRow({
       id,
       data: {
         custom_display_name: editForm.custom_display_name,
+        short_name: editForm.short_name,
         model_id_override: editForm.model_id_override,
         priority: Number(editForm.priority),
       },
@@ -1994,8 +2028,7 @@ function FeatureRow({
                         : 'border-border bg-background text-muted-foreground hover:border-ring/50 hover:text-foreground'
                     )}
                   >
-                    {m.provider_name && <span className="text-muted-foreground/70">{m.provider_name} / </span>}
-                    {m.display_name}
+                    {publicModelLabel(m, true)}
                     {m.model_id_override && (
                       <span className="ml-1.5 font-mono text-muted-foreground/50">{m.model_id_override}</span>
                     )}
@@ -2015,7 +2048,7 @@ function FeatureRow({
                 {/* Inline edit panel */}
                 {editingModelId === m.id && (
                   <div className="ml-0 mt-1 border border-border rounded bg-muted/30 p-3 space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div>
                         <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
                         <Input
@@ -2023,6 +2056,15 @@ function FeatureRow({
                           value={editForm.custom_display_name}
                           onChange={(e) => setEditForm((f) => ({ ...f, custom_display_name: e.target.value }))}
                           placeholder={t('admin.features.leaveBlankUseModelId')}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.shortName')}</Label>
+                        <Input
+                          className="text-xs h-7"
+                          value={editForm.short_name}
+                          onChange={(e) => setEditForm((f) => ({ ...f, short_name: e.target.value }))}
+                          placeholder={t('admin.models.shortNamePlaceholder')}
                         />
                       </div>
                       <div>
@@ -2088,7 +2130,7 @@ function FeatureRow({
               <option value="">{t('admin.features.autoHighestPriority')}</option>
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.provider_name ? `${m.provider_name} / ${m.display_name}` : m.display_name}
+                  {publicModelLabel(m, true)}
                 </option>
               ))}
             </select>

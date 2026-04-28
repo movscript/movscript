@@ -1,5 +1,7 @@
 # 模型网关架构设计
 
+> 状态：设计与实现说明。当前代码已经提供非流式 Chat Completions 网关路由：`GET /v1/models`、`POST /v1/chat/completions`、`GET /api/v1/model-gateway/models`、`POST /api/v1/model-gateway/chat/completions`。后端默认端口是 `8765`。
+
 ## 背景
 
 当前系统已经有一层 `apps/backend/internal/ai` Provider 抽象，用于屏蔽 OpenAI-compatible、Anthropic、Gemini、Kling、Volcengine 等供应商差异。业务侧接口例如 `/api/v1/ai/chat`、画布节点、生成任务、脚本分析等，直接调用 `AIService.CallText`、`CallImage`、`CallVideo`。
@@ -135,7 +137,7 @@ GET /v1/models
 这个路径可以作为“标准模型网关入口”，让 Agent 只需要配置：
 
 ```text
-OPENAI_API_BASE=http://localhost:8080/v1
+OPENAI_API_BASE=http://localhost:8765/v1
 OPENAI_API_KEY=<MovScript gateway key>
 ```
 
@@ -350,7 +352,7 @@ TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error)
 `movscript-agent` 不再直接读取 `MOVSCRIPT_AGENT_OPENAI_API_KEY` 调供应商，而是默认调用后端模型网关：
 
 ```text
-MOVSCRIPT_AGENT_OPENAI_BASE_URL=http://localhost:8080/v1
+MOVSCRIPT_AGENT_OPENAI_BASE_URL=http://localhost:8765/v1
 MOVSCRIPT_AGENT_OPENAI_API_KEY=<MovScript gateway key>
 MOVSCRIPT_AGENT_OPENAI_MODEL=movscript-default-chat
 ```
@@ -360,7 +362,7 @@ MOVSCRIPT_AGENT_OPENAI_MODEL=movscript-default-chat
 第三方 Agent 接入同理：
 
 ```text
-base_url = http://localhost:8080/v1
+base_url = http://localhost:8765/v1
 api_key = <MovScript gateway key>
 model = movscript-default-chat
 ```

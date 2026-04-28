@@ -2,8 +2,10 @@ import { useEffect, useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Node, Edge } from '@xyflow/react'
 import { api } from '@/lib/api'
+import { publicModelLabel } from '@/lib/modelDisplay'
+import { loadClientPlugins, type ClientPluginInputProperty, type ClientPluginManifest } from '@/lib/clientPlugins'
 import type { Canvas, CanvasNodeData, CanvasParamType, NodeType, RawResource, PublicModel } from '@/types'
-import { Upload, Wand2, Check, X } from 'lucide-react'
+import { Upload, Wand2, Check, X, Loader2 } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -147,6 +149,12 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     queryFn: () => api.get('/canvases', { params: { type: 'workflow' } }).then((r) => r.data),
     enabled: nodeType === 'canvas',
     select: (items) => items.filter((canvas) => canvas.canvas_type === 'workflow' && canvas.ID !== canvasId),
+  })
+
+  const { data: clientPlugins = [] } = useQuery<ClientPluginManifest[]>({
+    queryKey: ['client-plugins'],
+    queryFn: loadClientPlugins,
+    enabled: nodeType === 'plugin_card',
   })
 
   const upload = useMutation({
@@ -336,6 +344,21 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     )
   }
 
+  if (nodeType === 'plugin_card') {
+    const plugin = clientPlugins.find((item) => item.id === data.pluginId)
+    return (
+      <PluginCardPanel
+        plugin={plugin}
+        data={data}
+        label={label}
+        isRunning={isRunning}
+        allowRun={allowRun}
+        onUpdate={(patch) => onUpdate(nodeId, patch)}
+        onRun={() => onRun(nodeId)}
+      />
+    )
+  }
+
   // ── Standard media / tool nodes ────────────────────────────────────────────
 
   const isToolNode = ['ref_image_gen', 'ref_video_gen', 'multi_angle', 'style_transfer', 'motion_imitation', 'canvas'].includes(nodeType)
@@ -504,6 +527,208 @@ function ParamFields({
   )
 }
 
+function PluginCardPanel({
+  plugin,
+  data,
+  label,
+  isRunning,
+  allowRun,
+  onUpdate,
+  onRun,
+}: {
+  plugin?: ClientPluginManifest
+  data: CanvasNodeData
+  label: string
+  isRunning: boolean
+  allowRun: boolean
+  onUpdate: (patch: Partial<CanvasNodeData & { label: string }>) => void
+  onRun: () => void
+}) {
+  const { t } = useTranslation()
+  const schema = plugin?.inputSchema
+  const properties = schema?.properties ?? {}
+  const required = schema?.required ?? []
+  const args = (data.pluginArgs ?? {}) as Record<string, unknown>
+  const canRun = allowRun && !!plugin && !isRunning && required.every((key) => {
+    const value = args[key] ?? properties[key]?.default
+    return value !== undefined && value !== null && String(value).trim() !== ''
+  })
+
+  function updateArg(name: string, value: unknown) {
+    onUpdate({ pluginArgs: { ...args, [name]: value } })
+  }
+
+  return (
+    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <LabelField label={label} onUpdate={(v) => onUpdate({ label: v } as any)} />
+
+      <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+        <p className="text-xs font-medium text-foreground">{data.pluginName || plugin?.name || t('plugins.notFound')}</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          {plugin?.description || t('canvas.pluginCard.localRuntimeDescription')}
+        </p>
+      </div>
+
+      {((data.inputPorts?.length ?? 0) > 0 || (data.outputPorts?.length ?? 0) > 0) && (
+        <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
+          {(data.inputPorts?.length ?? 0) > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.inputs', { defaultValue: 'Inputs' })}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {data.inputPorts?.map((port) => (
+                  <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    {port.label ?? port.id} · {port.type}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {(data.outputPorts?.length ?? 0) > 0 && (
+            <div className={(data.inputPorts?.length ?? 0) > 0 ? 'mt-2' : ''}>
+              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.outputs', { defaultValue: 'Outputs' })}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {data.outputPorts?.map((port) => (
+                  <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    {port.label ?? port.id} · {port.type}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!plugin && (
+        <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{t('canvas.pluginCard.missingPlugin')}</p>
+      )}
+
+      {Object.entries(properties).length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{t('plugins.parameters')}</p>
+          {Object.entries(properties).map(([name, prop]) => (
+            <PluginArgField
+              key={name}
+              name={name}
+              prop={prop}
+              value={args[name] ?? prop.default ?? ''}
+              onChange={(value) => updateArg(name, value)}
+            />
+          ))}
+        </div>
+      )}
+
+      {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+
+      <Button onClick={onRun} disabled={!canRun} className="w-full" size="sm">
+        {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+        {isRunning ? t('plugins.running') : t('plugins.run')}
+      </Button>
+
+      {data.pluginResultText && (
+        <div className="rounded-md border border-border bg-muted/25 p-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase text-muted-foreground">{t('plugins.result')}</p>
+          <p className="whitespace-pre-wrap break-words text-xs text-foreground">{data.pluginResultText}</p>
+        </div>
+      )}
+
+      {data.executableSpec && (
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
+          <p className="text-[10px] font-semibold uppercase text-emerald-700">{t('canvas.pluginCard.executableReady')}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{data.executableSpec.capability}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PluginArgField({
+  name,
+  prop,
+  value,
+  onChange,
+}: {
+  name: string
+  prop: ClientPluginInputProperty
+  value: unknown
+  onChange: (value: unknown) => void
+}) {
+  const label = prop.title ?? name
+  const stringValue = value === undefined || value === null ? '' : String(value)
+
+  if (prop.enum && prop.enum.length > 0) {
+    return (
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1">{label}</Label>
+        <select
+          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+          value={stringValue}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value=""></option>
+          {prop.enum.map((option) => (
+            <option key={String(option)} value={String(option)}>{String(option)}</option>
+          ))}
+        </select>
+        {prop.description && <p className="mt-1 text-[11px] text-muted-foreground">{prop.description}</p>}
+      </div>
+    )
+  }
+
+  if (prop.type === 'number') {
+    return (
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1">{label}</Label>
+        <Input
+          type="number"
+          value={stringValue}
+          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
+          className="text-sm"
+        />
+        {prop.description && <p className="mt-1 text-[11px] text-muted-foreground">{prop.description}</p>}
+      </div>
+    )
+  }
+
+  if (prop.type === 'boolean') {
+    return (
+      <label className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-xs">
+        <input
+          type="checkbox"
+          checked={value === true || value === 'true'}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block font-medium text-foreground">{label}</span>
+          {prop.description && <span className="mt-1 block text-[11px] text-muted-foreground">{prop.description}</span>}
+        </span>
+      </label>
+    )
+  }
+
+  const isLong = name === 'prompt' || name.includes('prompt') || name.includes('description')
+  return (
+    <div>
+      <Label className="text-xs text-muted-foreground mb-1">{label}</Label>
+      {isLong ? (
+        <Textarea
+          rows={4}
+          value={stringValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="text-sm"
+        />
+      ) : (
+        <Input
+          value={stringValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="text-sm"
+        />
+      )}
+      {prop.description && <p className="mt-1 text-[11px] text-muted-foreground">{prop.description}</p>}
+    </div>
+  )
+}
+
 function AIConfigSection({
   data,
   models,
@@ -527,7 +752,7 @@ function AIConfigSection({
         >
           {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
           {models.map((m) => (
-            <option key={m.id} value={m.id}>{m.display_name}</option>
+            <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>
           ))}
         </select>
       </div>

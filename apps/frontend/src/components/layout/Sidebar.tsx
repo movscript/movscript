@@ -6,9 +6,9 @@ import type { LucideIcon } from 'lucide-react'
 import {
   FileText, Image, ImagePlus, Film, Clapperboard, Layers, Camera,
   LayoutTemplate, Video, Move, Palette, Box,
-  Users, PenLine, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
-  HardDrive, Wand2, Network, MessageSquare, BotMessageSquare, LayoutDashboard,
-  Puzzle, Settings2, Bug,
+  Users, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
+  HardDrive, Wand2, MessageSquare, BotMessageSquare, LayoutDashboard,
+  Puzzle, Bug, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -20,31 +20,50 @@ import { Progress as ProgressBar } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
 
-function NavItem({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
+const SIDEBAR_COLLAPSED_KEY = 'movscript-sidebar-collapsed'
+
+function NavItem({
+  to,
+  icon: Icon,
+  label,
+  collapsed = false,
+}: {
+  to: string
+  icon: LucideIcon
+  label: string
+  collapsed?: boolean
+}) {
   return (
     <NavLink
       to={to}
+      title={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors',
+          'flex items-center rounded-md text-sm transition-colors',
+          collapsed ? 'h-9 justify-center px-0' : 'gap-2.5 px-3 py-1.5',
           isActive
             ? 'bg-accent text-accent-foreground'
             : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
         )
       }
     >
-      <Icon size={15} className="shrink-0" />
-      <span>{label}</span>
+      <Icon size={collapsed ? 16 : 15} className="shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
   )
 }
 
-function Section({ title, defaultOpen = true, children }: {
+function Section({ title, defaultOpen = true, children, collapsed = false }: {
   title: string
   defaultOpen?: boolean
   children: React.ReactNode
+  collapsed?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  if (collapsed) {
+    return <div className="mb-1 space-y-0.5">{children}</div>
+  }
+
   return (
     <div className="mb-1">
       <button
@@ -124,7 +143,18 @@ export function Sidebar() {
   const { pathname } = useLocation()
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/lib/clientPlugins').ClientPluginManifest[]>([])
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true' } catch { return false }
+  })
   useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
+
+  function toggleCollapsed() {
+    setCollapsed((value) => {
+      const next = !value
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next)) } catch {}
+      return next
+    })
+  }
 
   const { data: projectDetail, isError: projectNotFound } = useQuery({
     queryKey: ['project', current?.ID],
@@ -145,61 +175,86 @@ export function Sidebar() {
   const showStoryboards = !current || ['owner', 'director'].includes(projectRole)
 
   return (
-    <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col shrink-0">
-      <div className="px-4 py-3.5 border-b border-sidebar-border shrink-0">
-        <p className="text-xs font-bold text-foreground tracking-widest uppercase">Movscript</p>
+    <aside className={cn(
+      'bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 overflow-hidden transition-all duration-200',
+      collapsed ? 'w-14' : 'w-56'
+    )}>
+      <div className="flex h-12 items-center gap-2 border-b border-sidebar-border px-2 shrink-0">
+        {!collapsed && (
+          <p className="flex-1 truncate px-2 text-xs font-bold text-foreground tracking-widest uppercase">Movscript</p>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={toggleCollapsed}
+          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+          title={collapsed ? t('common.expand') : t('common.collapse')}
+        >
+          {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </Button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
+      <nav className={cn('flex-1 overflow-y-auto py-3', collapsed ? 'px-1.5' : 'px-2')}>
 
         {/* Project */}
-        <Section title={t('sidebar.sections.project')}>
-          <div className="px-3 py-1 mb-0.5">
-            {current ? (
-              <div className="flex items-center gap-2">
-                <FolderOpen size={13} className="text-muted-foreground shrink-0" />
-                <span className="text-sm text-foreground truncate flex-1">{current.name}</span>
+        <Section title={t('sidebar.sections.project')} collapsed={collapsed}>
+          {collapsed ? (
+            <NavItem
+              to="/projects"
+              icon={FolderOpen}
+              label={current ? current.name : t('common.selectProject')}
+              collapsed
+            />
+          ) : (
+            <div className="px-3 py-1 mb-0.5">
+              {current ? (
+                <div className="flex items-center gap-2">
+                  <FolderOpen size={13} className="text-muted-foreground shrink-0" />
+                  <span className="text-sm text-foreground truncate flex-1">{current.name}</span>
+                  <NavLink
+                    to="/projects"
+                    className="text-xs text-muted-foreground hover:text-muted-foreground shrink-0 transition-colors"
+                  >
+                    {t('common.switch')}
+                  </NavLink>
+                </div>
+              ) : (
                 <NavLink
                   to="/projects"
-                  className="text-xs text-muted-foreground hover:text-muted-foreground shrink-0 transition-colors"
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {t('common.switch')}
+                  <FolderOpen size={13} className="shrink-0" />
+                  <span>{t('common.selectProject')}</span>
                 </NavLink>
-              </div>
-            ) : (
-              <NavLink
-                to="/projects"
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <FolderOpen size={13} className="shrink-0" />
-                <span>{t('common.selectProject')}</span>
-              </NavLink>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {current && (
             <>
-              <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} />
-              <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} />
-              <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} />
-              <div className="border-t border-border mx-3 my-1.5" />
+              <NavItem to="/creation" icon={LayoutDashboard} label={t('sidebar.items.creation')} collapsed={collapsed} />
+              <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} collapsed={collapsed} />
+              <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} collapsed={collapsed} />
+              {!collapsed && <div className="border-t border-border mx-3 my-1.5" />}
             </>
           )}
         </Section>
 
         {/* Content library — kept for cross-stage browsing */}
         {current && (
-          <Section title={t('sidebar.sections.contentLibrary')} defaultOpen={false}>
-            {showScripts && <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} />}
-            <NavItem to="/episodes" icon={Film} label={t('sidebar.items.episodes')} />
-            <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} />
-            {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} />}
-            {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} />}
+          <Section title={t('sidebar.sections.contentLibrary')} defaultOpen={false} collapsed={collapsed}>
+            {showScripts && <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} collapsed={collapsed} />}
+            <NavItem to="/episodes" icon={Film} label={t('sidebar.items.episodes')} collapsed={collapsed} />
+            <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} collapsed={collapsed} />
+            {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} collapsed={collapsed} />}
+            {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} collapsed={collapsed} />}
+            {showStoryboards && <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />}
           </Section>
         )}
 
         {/* Progress */}
-        {current && (
+        {current && !collapsed && (
           <>
             <div className="border-t border-border my-2" />
             <Section title={t('sidebar.sections.progress')} defaultOpen={true}>
@@ -208,39 +263,39 @@ export function Sidebar() {
           </>
         )}
 
-        <div className="border-t border-border my-2" />
+        <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
 
         {/* Tools */}
-        <Section title={t('sidebar.sections.tools')}>
-          <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} />
-          <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label={t('sidebar.items.refImageGen')} />
-          <NavItem to="/tools/ref-video-gen" icon={Video} label={t('sidebar.items.refVideoGen')} />
-          <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} />
-          <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} />
-          <NavItem to="/tools/multi-angle" icon={Box} label={t('sidebar.items.multiAngle')} />
-          <NavItem to="/tools/brainstorm" icon={MessageSquare} label={t('sidebar.items.brainstorm')} />
+        <Section title={t('sidebar.sections.tools')} collapsed={collapsed}>
+          <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} collapsed={collapsed} />
+          <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
+          <NavItem to="/tools/ref-video-gen" icon={Video} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
+          <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
+          <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
+          <NavItem to="/tools/multi-angle" icon={Box} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
+          <NavItem to="/tools/brainstorm" icon={MessageSquare} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
           {installedPlugins.map((plugin) => (
-            <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={Puzzle} label={plugin.name} />
+            <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={Puzzle} label={plugin.name} collapsed={collapsed} />
           ))}
         </Section>
 
-        <div className="border-t border-border my-2" />
+        <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
 
         {/* Files */}
-        <Section title={t('sidebar.sections.files')}>
-          <NavItem to="/resources" icon={HardDrive} label={t('sidebar.items.resources')} />
-          <NavItem to="/jobs" icon={Wand2} label={t('sidebar.items.jobs')} />
+        <Section title={t('sidebar.sections.files')} collapsed={collapsed}>
+          <NavItem to="/resources" icon={HardDrive} label={t('sidebar.items.resources')} collapsed={collapsed} />
+          <NavItem to="/jobs" icon={Wand2} label={t('sidebar.items.jobs')} collapsed={collapsed} />
         </Section>
 
-        <div className="border-t border-border my-2" />
+        <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
 
         {/* Manage */}
-        <Section title={t('sidebar.sections.manage')}>
-          <NavItem to="/plugins" icon={Puzzle} label={t('sidebar.items.plugins')} />
-          <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} />
-          <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} />
+        <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
+          <NavItem to="/plugins" icon={Puzzle} label={t('sidebar.items.plugins')} collapsed={collapsed} />
+          <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} collapsed={collapsed} />
+          <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
           {currentUser?.system_role === 'super_admin' && (
-            <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
+            <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} collapsed={collapsed} />
           )}
         </Section>
 
@@ -249,21 +304,25 @@ export function Sidebar() {
       {/* User footer */}
       {currentUser && (
         <div
-          className="px-3 py-3 border-t border-sidebar-border flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0"
+          className={cn(
+            'border-t border-sidebar-border flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0',
+            collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'
+          )}
           onClick={() => navigate('/user')}
+          title={collapsed ? currentUser.username : undefined}
         >
           <Avatar className="w-7 h-7 shrink-0">
             <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
               {currentUser.username[0]?.toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
+          {!collapsed && <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-foreground truncate">{currentUser.username}</p>
             <p className="text-xs text-muted-foreground truncate">
               {currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
             </p>
-          </div>
-          <Button
+          </div>}
+          {!collapsed && <Button
             variant="ghost"
             size="icon"
             onClick={(e) => { e.stopPropagation(); setCurrentUser(null) }}
@@ -271,7 +330,7 @@ export function Sidebar() {
             title={t('sidebar.logout')}
           >
             <LogOut size={14} />
-          </Button>
+          </Button>}
         </div>
       )}
     </aside>

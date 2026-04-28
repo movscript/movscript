@@ -32,6 +32,8 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	storyboards := handler.NewStoryboardHandler(db)
 	scenes := handler.NewSceneHandler(db)
 	shots := handler.NewShotHandler(db)
+	finalVideos := handler.NewFinalVideoHandler(db)
+	artifactRefs := handler.NewArtifactRefHandler(db)
 	settings := handler.NewSettingHandler(db)
 	users := handler.NewUserHandler(db)
 	authH := handler.NewAuthHandler(db)
@@ -151,6 +153,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.PUT("/projects/:id", projects.Update)
 		v1.DELETE("/projects/:id", projects.Delete)
 		v1.GET("/projects/:id/progress", projects.Progress)
+		v1.GET("/projects/:id/artifact-refs", artifactRefs.ListByProject)
 		v1.GET("/projects/:id/members", projects.ListMembers)
 		v1.POST("/projects/:id/members", projects.AddMember)
 		v1.DELETE("/projects/:id/members/:memberId", projects.RemoveMember)
@@ -177,14 +180,21 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.GET("/projects/:id/episodes", episodes.ListByProject)
 		v1.GET("/projects/:id/shots", shots.ListByProject)
 		v1.POST("/projects/:id/shots", shots.CreateByProject)
+		v1.GET("/projects/:id/final-videos", finalVideos.ListByProject)
+		v1.POST("/projects/:id/final-videos", finalVideos.CreateByProject)
 
 		// settings nested under project
 		v1.GET("/projects/:id/settings", settings.List)
 		v1.POST("/projects/:id/settings", settings.Create)
+		v1.GET("/projects/:id/setting-refs", settings.ListRefs)
+		v1.POST("/projects/:id/setting-refs", settings.CreateRef)
+		v1.GET("/projects/:id/setting-relationships", settings.ListRelationships)
+		v1.POST("/projects/:id/setting-relationships", settings.CreateRelationship)
 
 		// scripts nested under project
 		v1.GET("/projects/:id/scripts", scripts.List)
 		v1.POST("/projects/:id/scripts", scripts.Create)
+		v1.GET("/projects/:id/script-analyses", scripts.ListAnalyses)
 		v1.GET("/projects/:id/scripts/:scriptId", scripts.Get)
 		v1.PUT("/projects/:id/scripts/:scriptId", scripts.Update)
 		v1.DELETE("/projects/:id/scripts/:scriptId", scripts.Delete)
@@ -237,6 +247,11 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.PATCH("/shots/:id", shots.Patch)
 		v1.DELETE("/shots/:id", shots.Delete)
 
+		// final videos (flat routes by final video ID)
+		v1.PUT("/final-videos/:id", finalVideos.Update)
+		v1.PATCH("/final-videos/:id", finalVideos.Patch)
+		v1.DELETE("/final-videos/:id", finalVideos.Delete)
+
 		// shots nested under storyboard (kept for listing)
 		v1.GET("/storyboards/:id/shots", shots.List)
 		v1.POST("/storyboards/:id/shots", shots.Create)
@@ -244,6 +259,10 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		// settings (update/delete by setting id)
 		v1.PUT("/settings/:id", settings.Update)
 		v1.DELETE("/settings/:id", settings.Delete)
+		v1.PUT("/setting-refs/:id", settings.UpdateRef)
+		v1.DELETE("/setting-refs/:id", settings.DeleteRef)
+		v1.PUT("/setting-relationships/:id", settings.UpdateRelationship)
+		v1.DELETE("/setting-relationships/:id", settings.DeleteRelationship)
 
 		// agent templates (public read, admin write)
 		v1.GET("/agents", agentDefH.List)

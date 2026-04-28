@@ -295,6 +295,7 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		CreditsPerCall     float64 `json:"credits_per_call"`
 		// Custom metadata — always used at runtime.
 		CustomDisplayName     string `json:"custom_display_name"`
+		ShortName             string `json:"short_name"`
 		CustomCapabilities    string `json:"custom_capabilities"`     // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
 		CustomBillingMode     string `json:"custom_billing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
 		CustomAcceptsImage    bool   `json:"custom_accepts_image"`    // true for image_edit / i2v models
@@ -326,6 +327,7 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		CreditsPerSecond:      req.CreditsPerSecond,
 		CreditsPerCall:        req.CreditsPerCall,
 		CustomDisplayName:     req.CustomDisplayName,
+		ShortName:             req.ShortName,
 		CustomCapabilities:    req.CustomCapabilities,
 		CustomBillingMode:     req.CustomBillingMode,
 		CustomAcceptsImage:    req.CustomAcceptsImage,
@@ -379,6 +381,7 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 		CreditsPerSecond      *float64 `json:"credits_per_second"`
 		CreditsPerCall        *float64 `json:"credits_per_call"`
 		CustomDisplayName     *string  `json:"custom_display_name"`
+		ShortName             *string  `json:"short_name"`
 		CustomCapabilities    *string  `json:"custom_capabilities"`
 		CustomBillingMode     *string  `json:"custom_billing_mode"`
 		CustomAcceptsImage    *bool    `json:"custom_accepts_image"`
@@ -396,6 +399,9 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 	}
 	if req.CustomDisplayName != nil {
 		cfg.CustomDisplayName = *req.CustomDisplayName
+	}
+	if req.ShortName != nil {
+		cfg.ShortName = *req.ShortName
 	}
 	if req.CustomCapabilities != nil {
 		cfg.CustomCapabilities = *req.CustomCapabilities

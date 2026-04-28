@@ -1,51 +1,74 @@
 # Contributing to Movscript
 
-Thanks for helping improve Movscript. This project aims to keep changes easy to review, reproducible, and well documented.
+Thanks for helping improve Movscript. The project values focused changes, reproducible validation, and documentation that matches the code being shipped.
 
-## Development setup
+## Development Setup
 
-1. Install Go 1.25+, Node.js 20+, Docker, and Docker Compose.
-2. Start infrastructure:
+Install Go 1.25+, Node.js 20+, pnpm 10+, Docker, and Docker Compose.
 
 ```bash
+pnpm install
 docker compose up -d db minio createbuckets
-```
-
-3. Configure the backend:
-
-```bash
-cp backend/.env.example backend/.env
+cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
 ```
 
-Paste the generated value into `ENCRYPTION_KEY`.
+Paste the generated value into `ENCRYPTION_KEY` in `apps/backend/.env`.
 
-4. Start services:
+Run the main development services:
 
 ```bash
 make dev-backend
 make dev-frontend
 ```
 
-## Before opening a pull request
+Optional local agent server:
 
-Run:
+```bash
+make dev-agent
+```
+
+## Before Opening a Pull Request
+
+Run the relevant checks:
 
 ```bash
 make test
 make build
 ```
 
-Update docs when you change setup, configuration, API behavior, user-facing text, or release behavior.
+For small frontend-only changes, at minimum run:
 
-## Pull request expectations
+```bash
+pnpm --filter movscript-frontend typecheck
+```
 
-- Keep changes focused.
-- Explain the user-facing behavior and validation steps.
-- Add tests for backend behavior, shared logic, and bug fixes.
-- For frontend text, add translation keys to both `zh-CN` and `en-US` locale files.
-- Do not commit local secrets, generated binaries, or private provider credentials.
+For backend changes, run:
+
+```bash
+cd apps/backend
+go test ./...
+```
+
+## Pull Request Expectations
+
+- Keep changes focused and explain the user-facing behavior.
+- Include validation steps in the PR description.
+- Add or update tests for backend behavior, shared logic, and bug fixes.
+- Update documentation when setup, configuration, API behavior, release behavior, or user-facing workflows change.
+- Do not commit local secrets, generated binaries, private provider credentials, or local database/object-storage data.
+
+## Documentation Standards
+
+- Keep public docs in `docs/`; keep design-history and maintainer context in `memory/`.
+- Prefer linking to existing docs instead of duplicating long explanations.
+- Document current behavior first. If a section describes a proposal, label it as a proposal or plan.
+- When routes, environment variables, or commands change, update `docs/api.md`, `docs/configuration.md`, and `docs/development.md` as needed.
 
 ## Internationalization
 
-Use `react-i18next` for user-facing frontend text. Prefer stable, descriptive keys such as `sidebar.items.scripts`. Backend API errors should expose stable machine-readable codes where possible; the frontend can localize those codes.
+The frontend uses `react-i18next`.
+
+- Add user-facing frontend strings to both `apps/frontend/src/i18n/locales/zh-CN.json` and `apps/frontend/src/i18n/locales/en-US.json`.
+- Use stable keys grouped by product area, for example `sidebar.items.scripts`.
+- Keep backend API errors machine-readable where possible; localize display text in the frontend.

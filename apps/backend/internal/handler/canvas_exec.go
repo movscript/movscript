@@ -33,19 +33,56 @@ type canvasRunSnapshot struct {
 
 // nodeData mirrors the JSON stored in CanvasNode.Data.
 type nodeData struct {
-	Source             string `json:"source"`
-	ResourceID         *uint  `json:"resourceId,omitempty"`
-	ReferencedCanvasID *uint  `json:"referencedCanvasId,omitempty"`
-	Prompt             string `json:"prompt,omitempty"`
-	ProviderName       string `json:"providerName,omitempty"`
-	ModelID            string `json:"modelId,omitempty"`
-	ModelDbID          uint   `json:"modelDbId,omitempty"` // AIModel primary key (preferred over ProviderName+ModelID)
-	InputResourceIDs   []uint `json:"inputResourceIds,omitempty"`
-	Status             string `json:"status,omitempty"`
-	TaskID             *uint  `json:"taskId,omitempty"`
-	Error              string `json:"error,omitempty"`
-	TextContent        string `json:"textContent,omitempty"`
-	InputValue         string `json:"inputValue,omitempty"`
+	Source             string                `json:"source"`
+	ResourceID         *uint                 `json:"resourceId,omitempty"`
+	ReferencedCanvasID *uint                 `json:"referencedCanvasId,omitempty"`
+	Prompt             string                `json:"prompt,omitempty"`
+	ProviderName       string                `json:"providerName,omitempty"`
+	ModelID            string                `json:"modelId,omitempty"`
+	ModelDbID          uint                  `json:"modelDbId,omitempty"` // AIModel primary key (preferred over ProviderName+ModelID)
+	InputResourceIDs   []uint                `json:"inputResourceIds,omitempty"`
+	Status             string                `json:"status,omitempty"`
+	TaskID             *uint                 `json:"taskId,omitempty"`
+	Error              string                `json:"error,omitempty"`
+	TextContent        string                `json:"textContent,omitempty"`
+	InputValue         string                `json:"inputValue,omitempty"`
+	ExecutableSpec     *canvasExecutableSpec `json:"executableSpec,omitempty"`
+	InputPorts         []canvasPortDef       `json:"inputPorts,omitempty"`
+	OutputPorts        []canvasPortDef       `json:"outputPorts,omitempty"`
+}
+
+type canvasPortDef struct {
+	ID   string `json:"id"`
+	Type string `json:"type,omitempty"`
+}
+
+type canvasExecutableSpec struct {
+	Executor         string         `json:"executor"`
+	Capability       string         `json:"capability"`
+	FeatureKey       string         `json:"featureKey,omitempty"`
+	ModelDbID        uint           `json:"modelDbId,omitempty"`
+	Prompt           string         `json:"prompt,omitempty"`
+	InputResourceIDs []uint         `json:"inputResourceIds,omitempty"`
+	AspectRatio      string         `json:"aspectRatio,omitempty"`
+	Duration         int            `json:"duration,omitempty"`
+	Params           map[string]any `json:"params,omitempty"`
+}
+
+type canvasPortInputMap map[string][]*uint
+
+func (m canvasPortInputMap) flatten() []*uint {
+	var out []*uint
+	seen := map[uint]bool{}
+	for _, resources := range m {
+		for _, ptr := range resources {
+			if ptr == nil || *ptr == 0 || seen[*ptr] {
+				continue
+			}
+			seen[*ptr] = true
+			out = append(out, ptr)
+		}
+	}
+	return out
 }
 
 // RunNode executes a single AI node and returns a pending CanvasTask.
@@ -144,7 +181,7 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		node := nodeMap[nid]
 		var nd nodeData
 		json.Unmarshal([]byte(node.Data), &nd)
-		if nd.Source != "ai" && node.Type != "output" {
+		if nd.Source != "ai" && node.Type != "output" && nd.ExecutableSpec == nil {
 			continue
 		}
 		task := model.CanvasTask{
@@ -196,9 +233,9 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		}
 	}
 
-	upstream := map[string][]string{}
+	upstream := map[string][]model.CanvasEdge{}
 	for _, e := range cv.Edges {
-		upstream[e.Target] = append(upstream[e.Target], e.Source)
+		upstream[e.Target] = append(upstream[e.Target], e)
 	}
 	nodeMap := map[string]*model.CanvasNode{}
 	for i := range cv.Nodes {
@@ -219,7 +256,7 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		}
 		var nd nodeData
 		json.Unmarshal([]byte(node.Data), &nd)
-		if nd.Source != "ai" && node.Type != "output" {
+		if nd.Source != "ai" && node.Type != "output" && nd.ExecutableSpec == nil {
 			continue
 		}
 		if taskIndex >= len(runTasks) {
@@ -229,7 +266,49 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		taskIndex++
 	}
 
-	produced := map[string]*uint{}
+	produced := map[string]map[string]*uint{}
+	setProduced := func(nodeID string, handle string, rid *uint) {
+		if rid == nil {
+			return
+		}
+		if produced[nodeID] == nil {
+			produced[nodeID] = map[string]*uint{}
+		}
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			handle = "result"
+		}
+		produced[nodeID][handle] = rid
+		produced[nodeID][""] = rid
+	}
+	resourceForEdge := func(edge model.CanvasEdge) *uint {
+		byHandle := produced[edge.Source]
+		if len(byHandle) == 0 {
+			return nil
+		}
+		if edge.SourceHandle != "" {
+			if rid := byHandle[edge.SourceHandle]; rid != nil {
+				return rid
+			}
+		}
+		return byHandle[""]
+	}
+	portInputsForNode := func(nodeID string) canvasPortInputMap {
+		inputs := canvasPortInputMap{}
+		for _, edge := range upstream[nodeID] {
+			rid := resourceForEdge(edge)
+			if rid == nil {
+				continue
+			}
+			handle := strings.TrimSpace(edge.TargetHandle)
+			if handle == "" {
+				handle = "input"
+			}
+			inputs[handle] = append(inputs[handle], rid)
+			inputs[""] = append(inputs[""], rid)
+		}
+		return inputs
+	}
 	for _, nid := range order {
 		node := nodeMap[nid]
 		if node == nil {
@@ -244,15 +323,15 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 			}
 			if r, err := h.createCanvasTextResource(context.Background(), user.ID, fmt.Sprintf("input_%s_%d.txt", nid, runID), text); err == nil {
 				rid := r.ID
-				produced[nid] = &rid
+				setProduced(nid, "value", &rid)
 			}
 			continue
 		}
 		if node.Type == "output" {
 			task := taskMap[nid]
 			var outputResource *uint
-			for _, uid := range upstream[nid] {
-				if rid := produced[uid]; rid != nil {
+			for _, edge := range upstream[nid] {
+				if rid := resourceForEdge(edge); rid != nil {
 					outputResource = rid
 					break
 				}
@@ -262,19 +341,19 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 					h.failTask(task, node, nd, "output node has no upstream resource")
 				} else {
 					h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *outputResource})
-					produced[nid] = outputResource
+					setProduced(nid, "value", outputResource)
 					h.updateRunStatus(task.CanvasRunID)
 				}
 			}
 			continue
 		}
-		if nd.Source != "ai" {
+		if nd.Source != "ai" && nd.ExecutableSpec == nil {
 			if nd.ResourceID != nil {
-				produced[nid] = nd.ResourceID
+				setProduced(nid, defaultCanvasSourceHandleForNode(node.Type, nd), nd.ResourceID)
 			} else if node.Type == "text" {
 				if r, err := h.createCanvasTextResource(context.Background(), user.ID, fmt.Sprintf("text_%s_%d.txt", nid, runID), nd.TextContent); err == nil {
 					rid := r.ID
-					produced[nid] = &rid
+					setProduced(nid, defaultCanvasSourceHandleForNode(node.Type, nd), &rid)
 				}
 			}
 			continue
@@ -283,26 +362,24 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		if task == nil {
 			continue
 		}
-		promptOptionalTypes := map[string]bool{
-			"motion_imitation": true,
-			"canvas":           true,
-		}
-		if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
-			h.failTask(task, node, nd, "prompt is required")
-			continue
-		}
-
-		var upstreamResources []*uint
-		for _, uid := range upstream[nid] {
-			if rid := produced[uid]; rid != nil {
-				upstreamResources = append(upstreamResources, rid)
+		portInputs := portInputsForNode(nid)
+		upstreamResources := portInputs.flatten()
+		h.applyPromptPortInputs(context.Background(), &nd, portInputs)
+		if nd.ExecutableSpec == nil {
+			promptOptionalTypes := map[string]bool{
+				"motion_imitation": true,
+				"canvas":           true,
+			}
+			if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
+				h.failTask(task, node, nd, "prompt is required")
+				continue
 			}
 		}
 		h.executeTask(user, node, task, nd, upstreamResources)
 
 		var updated model.CanvasTask
 		if err := h.db.First(&updated, task.ID).Error; err == nil && updated.Status == "done" && updated.ResourceID != nil {
-			produced[nid] = updated.ResourceID
+			setProduced(nid, defaultCanvasSourceHandleForNode(node.Type, nd), updated.ResourceID)
 		}
 	}
 	h.updateRunStatus(&runID)
@@ -501,14 +578,14 @@ func (h *CanvasHandler) startNodeTask(user *model.User, node *model.CanvasNode, 
 	if err := json.Unmarshal([]byte(node.Data), &nd); err != nil {
 		return nil, fmt.Errorf("invalid node data")
 	}
-	if nd.Source != "ai" {
+	if nd.Source != "ai" && nd.ExecutableSpec == nil {
 		return nil, fmt.Errorf("node is not an AI node")
 	}
 	promptOptionalTypes := map[string]bool{
 		"motion_imitation": true,
 		"canvas":           true,
 	}
-	if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
+	if nd.ExecutableSpec == nil && nd.Prompt == "" && !promptOptionalTypes[node.Type] {
 		return nil, fmt.Errorf("prompt is required")
 	}
 
@@ -546,6 +623,11 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 
 	var resultURL, mimeType, resType string
 	imageData, videoData := h.loadCanvasInputResources(ctx, nd, upstreamResources)
+
+	if nd.ExecutableSpec != nil {
+		h.executeExecutableSpec(ctx, user, node, task, nd, upstreamResources)
+		return
+	}
 
 	if node.Type == "canvas" {
 		h.completeCanvasReferenceTask(task, node, nd, user)
@@ -638,6 +720,264 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 		h.updateNodeData(node, nd)
 	}
 	h.updateRunStatus(task.CanvasRunID)
+}
+
+func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, upstreamResources []*uint) {
+	spec := nd.ExecutableSpec
+	if spec == nil {
+		h.failTask(task, node, nd, "missing executable spec")
+		return
+	}
+	if spec.Executor != "ai_model" {
+		h.failTask(task, node, nd, "unsupported executable executor")
+		return
+	}
+	modelDbID := spec.ModelDbID
+	if modelDbID == 0 && strings.TrimSpace(spec.FeatureKey) != "" {
+		resolvedID, _, err := h.svc.GetForFeature(spec.FeatureKey)
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		modelDbID = resolvedID
+	}
+	if modelDbID == 0 {
+		h.failTask(task, node, nd, "no model selected for executable spec")
+		return
+	}
+
+	specData := nodeData{
+		InputResourceIDs: spec.InputResourceIDs,
+	}
+	imageData, videoData := h.loadCanvasInputResources(ctx, specData, upstreamResources)
+	prompt := strings.TrimSpace(spec.Prompt)
+	if prompt == "" && spec.Params != nil {
+		if v, ok := spec.Params["prompt"].(string); ok {
+			prompt = strings.TrimSpace(v)
+		}
+	}
+	params := spec.Params
+	if params == nil {
+		params = map[string]any{}
+	}
+
+	var resultURL, mimeType, resType string
+	switch spec.Capability {
+	case "text":
+		if prompt == "" {
+			h.failTask(task, node, nd, "prompt is required")
+			return
+		}
+		maxTokens := intParam(params, "max_tokens", 2048)
+		resp, err := h.svc.CallText(ctx, user.ID, modelDbID, ai.TextRequest{
+			Messages:    []ai.Message{{Role: "user", Content: prompt}},
+			MaxTokens:   maxTokens,
+			ExtraParams: params,
+		})
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		filename := fmt.Sprintf("%d_text_%d.txt", user.ID, task.ID)
+		_ = os.MkdirAll(h.uploadDir, 0755)
+		path := filepath.Join(h.uploadDir, filename)
+		os.WriteFile(path, []byte(resp.Content), 0644)
+		resultURL, mimeType, resType = path, "text/plain", "text"
+
+	case "image", "image_edit":
+		if prompt == "" {
+			h.failTask(task, node, nd, "prompt is required")
+			return
+		}
+		seed := int64PtrParam(params, "seed")
+		watermark := boolPtrParam(params, "watermark")
+		resp, err := h.svc.CallImage(ctx, user.ID, modelDbID, ai.ImageRequest{
+			Prompt:              prompt,
+			N:                   intParam(params, "n", 1),
+			Quality:             stringParam(params, "quality", ""),
+			Size:                stringParam(params, "size", stringParam(params, "image_size", "")),
+			Style:               stringParam(params, "style", ""),
+			AspectRatio:         spec.AspectRatio,
+			Seed:                seed,
+			GuidanceScale:       floatParam(params, "guidance_scale", 0),
+			Watermark:           watermark,
+			OutputFormat:        stringParam(params, "output_format", ""),
+			SequentialMode:      stringParam(params, "sequential_mode", ""),
+			SequentialMaxImages: intParam(params, "sequential_max_images", 0),
+			WebSearch:           boolParam(params, "web_search", false),
+			OptimizePromptMode:  stringParam(params, "optimize_prompt_mode", ""),
+			InputImageDataList:  imageData,
+			EditOnly:            spec.Capability == "image_edit",
+		})
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		if len(resp.URLs) == 0 {
+			h.failTask(task, node, nd, "no image returned")
+			return
+		}
+		resultURL, mimeType, resType = resp.URLs[0], "image/png", "image"
+
+	case "video", "video_i2v", "video_v2v":
+		if prompt == "" {
+			h.failTask(task, node, nd, "prompt is required")
+			return
+		}
+		videoReq := ai.VideoRequest{
+			Prompt:                prompt,
+			InputImageDataList:    imageData,
+			Duration:              firstPositive(spec.Duration, intParam(params, "duration", 0)),
+			Frames:                intParam(params, "frames", 0),
+			Seed:                  int64PtrParam(params, "seed"),
+			Width:                 intParam(params, "width", 0),
+			Height:                intParam(params, "height", 0),
+			AspectRatio:           spec.AspectRatio,
+			Ratio:                 stringParam(params, "ratio", ""),
+			Quality:               stringParam(params, "quality", ""),
+			Size:                  stringParam(params, "size", ""),
+			ResolutionName:        stringParam(params, "resolution", stringParam(params, "resolution_name", "")),
+			Preset:                stringParam(params, "preset", ""),
+			CameraFixed:           boolPtrParam(params, "camera_fixed"),
+			Watermark:             boolPtrParam(params, "watermark"),
+			GenerateAudio:         boolPtrParam(params, "generate_audio"),
+			ReturnLastFrame:       boolPtrParam(params, "return_last_frame"),
+			ServiceTier:           stringParam(params, "service_tier", ""),
+			ExecutionExpiresAfter: intParam(params, "execution_expires_after", 0),
+			Draft:                 boolPtrParam(params, "draft"),
+			WebSearch:             boolParam(params, "web_search", false),
+		}
+		if len(videoData) > 0 {
+			videoReq.InputVideoData = &videoData[0]
+		}
+		resp, err := h.svc.CallVideo(ctx, user.ID, modelDbID, videoReq)
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		resultURL = resp.URL
+		if resultURL == "" {
+			resultURL = resp.TaskID
+		}
+		mimeType, resType = "video/mp4", "video"
+
+	default:
+		h.failTask(task, node, nd, "unsupported executable capability")
+		return
+	}
+
+	r, err := h.createCanvasResourceFromSource(ctx, user.ID, fmt.Sprintf("generated_%s_%d.%s", resType, task.ID, canvasExtFromMime(mimeType)), resultURL, mimeType)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
+	}
+
+	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
+	nd.Status = "done"
+	nd.ResourceID = &r.ID
+	nd.TaskID = &task.ID
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
+	h.updateRunStatus(task.CanvasRunID)
+}
+
+func defaultCanvasSourceHandle(nodeType string) string {
+	switch nodeType {
+	case "input", "output":
+		return "value"
+	case "text", "text_gen":
+		return "text"
+	case "image", "ref_image_gen":
+		return "image"
+	case "video", "ref_video_gen", "motion_imitation":
+		return "video"
+	case "audio":
+		return "audio"
+	case "multi_angle":
+		return "multi_angle_image"
+	case "style_transfer":
+		return "styled_image"
+	default:
+		return "result"
+	}
+}
+
+func defaultCanvasSourceHandleForNode(nodeType string, nd nodeData) string {
+	for _, port := range nd.OutputPorts {
+		if strings.TrimSpace(port.ID) != "" {
+			return strings.TrimSpace(port.ID)
+		}
+	}
+	return defaultCanvasSourceHandle(nodeType)
+}
+
+func (h *CanvasHandler) applyPromptPortInputs(ctx context.Context, nd *nodeData, portInputs canvasPortInputMap) {
+	if nd == nil || len(portInputs) == 0 {
+		return
+	}
+	promptTexts := h.readCanvasTextInputs(ctx, portInputs["prompt"])
+	if len(promptTexts) > 0 {
+		if strings.TrimSpace(nd.Prompt) == "" {
+			nd.Prompt = strings.Join(promptTexts, "\n\n")
+		} else {
+			nd.Prompt = strings.TrimSpace(nd.Prompt + "\n\n" + strings.Join(promptTexts, "\n\n"))
+		}
+	}
+	if nd.ExecutableSpec != nil {
+		specPrompt := strings.TrimSpace(nd.ExecutableSpec.Prompt)
+		if len(promptTexts) > 0 {
+			if specPrompt == "" {
+				nd.ExecutableSpec.Prompt = strings.Join(promptTexts, "\n\n")
+			} else {
+				nd.ExecutableSpec.Prompt = strings.TrimSpace(specPrompt + "\n\n" + strings.Join(promptTexts, "\n\n"))
+			}
+		}
+	}
+}
+
+func (h *CanvasHandler) readCanvasTextInputs(ctx context.Context, resourcePtrs []*uint) []string {
+	if len(resourcePtrs) == 0 {
+		return nil
+	}
+	ids := make([]uint, 0, len(resourcePtrs))
+	seen := map[uint]bool{}
+	for _, ptr := range resourcePtrs {
+		if ptr == nil || *ptr == 0 || seen[*ptr] {
+			continue
+		}
+		seen[*ptr] = true
+		ids = append(ids, *ptr)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var resources []model.RawResource
+	if err := h.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
+		return nil
+	}
+	byID := make(map[uint]model.RawResource, len(resources))
+	for _, r := range resources {
+		byID[r.ID] = r
+	}
+	texts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		r, ok := byID[id]
+		if !ok {
+			continue
+		}
+		if r.Type != "text" && !strings.HasPrefix(strings.ToLower(r.MimeType), "text/") {
+			continue
+		}
+		data, _, err := h.readCanvasResourceBytes(ctx, r)
+		if err != nil {
+			continue
+		}
+		if text := strings.TrimSpace(string(data)); text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return texts
 }
 
 func (h *CanvasHandler) createCanvasTextResource(ctx context.Context, ownerID uint, name string, text string) (*model.RawResource, error) {
@@ -740,6 +1080,121 @@ func canvasExtFromMime(mimeType string) string {
 	default:
 		return "bin"
 	}
+}
+
+func stringParam(params map[string]any, key string, fallback string) string {
+	if params == nil {
+		return fallback
+	}
+	if v, ok := params[key]; ok {
+		switch value := v.(type) {
+		case string:
+			if strings.TrimSpace(value) != "" {
+				return value
+			}
+		case fmt.Stringer:
+			return value.String()
+		}
+	}
+	return fallback
+}
+
+func intParam(params map[string]any, key string, fallback int) int {
+	if params == nil {
+		return fallback
+	}
+	if v, ok := params[key]; ok {
+		switch value := v.(type) {
+		case int:
+			return value
+		case int64:
+			return int(value)
+		case float64:
+			return int(value)
+		case json.Number:
+			if n, err := value.Int64(); err == nil {
+				return int(n)
+			}
+		case string:
+			if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil {
+				return n
+			}
+		}
+	}
+	return fallback
+}
+
+func floatParam(params map[string]any, key string, fallback float64) float64 {
+	if params == nil {
+		return fallback
+	}
+	if v, ok := params[key]; ok {
+		switch value := v.(type) {
+		case float64:
+			return value
+		case float32:
+			return float64(value)
+		case int:
+			return float64(value)
+		case json.Number:
+			if n, err := value.Float64(); err == nil {
+				return n
+			}
+		case string:
+			if n, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil {
+				return n
+			}
+		}
+	}
+	return fallback
+}
+
+func boolParam(params map[string]any, key string, fallback bool) bool {
+	if params == nil {
+		return fallback
+	}
+	if v, ok := params[key]; ok {
+		switch value := v.(type) {
+		case bool:
+			return value
+		case string:
+			if b, err := strconv.ParseBool(strings.TrimSpace(value)); err == nil {
+				return b
+			}
+		}
+	}
+	return fallback
+}
+
+func boolPtrParam(params map[string]any, key string) *bool {
+	if params == nil {
+		return nil
+	}
+	if _, ok := params[key]; !ok {
+		return nil
+	}
+	value := boolParam(params, key, false)
+	return &value
+}
+
+func int64PtrParam(params map[string]any, key string) *int64 {
+	if params == nil {
+		return nil
+	}
+	if _, ok := params[key]; !ok {
+		return nil
+	}
+	value := int64(intParam(params, key, 0))
+	return &value
+}
+
+func firstPositive(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User) {

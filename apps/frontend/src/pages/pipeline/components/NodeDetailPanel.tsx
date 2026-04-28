@@ -7,9 +7,15 @@ import {
   Unlink2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import {
+  canManagePipelineNodeAssignment,
+  canReviewPipelineNode,
+  canSubmitPipelineNode,
+  effectiveLeadId,
+} from '@/lib/pipelinePermissions'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
-import type { Asset, Episode, PipelineNode, ProjectMember, Scene, Script, Shot, Storyboard } from '@/types'
+import type { Asset, Episode, FinalVideo, Pipeline, PipelineNode, ProjectMember, Scene, Script, Shot, Storyboard } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -19,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { entityTypeForNode, getPipelineNodeSpec, scriptTypeForPipelineNode, type PipelineEntityType } from '../nodeSpec'
 
-type ContentEntity = Script | Storyboard | Shot | Asset | Episode | Scene
+type ContentEntity = Script | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
 
 interface EntityOption {
   id: number
@@ -82,6 +88,13 @@ const ENTITY_DEFS: Record<PipelineEntityType, EntityDef> = {
     listPath: (pid) => `/projects/${pid}/scenes`,
     defaultBody: (t, node) => ({ title: node.name || t('pipeline.detail.defaultTitles.scene'), location: '', pipeline_node_id: node.ID }),
   },
+  final_video: {
+    entityType: 'final_video',
+    label: 'Final Video',
+    apiPath: (pid) => `/projects/${pid}/final-videos`,
+    listPath: (pid) => `/projects/${pid}/final-videos`,
+    defaultBody: (t, node) => ({ title: node.name || t('pages.finalVideos.defaultTitle'), pipeline_node_id: node.ID }),
+  },
 }
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
@@ -116,9 +129,28 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
 
   const members: ProjectMember[] = projectDetail?.members ?? []
 
-  const userRole = members.find((m) => m.user_id === currentUser?.ID)?.role
-    ?? (project?.owner_id === currentUser?.ID ? 'owner' : 'viewer')
-  const canReview = userRole === 'owner' || userRole === 'director'
+  const { data: pipeline } = useQuery<Pipeline>({
+    queryKey: ['pipeline', project?.ID],
+    queryFn: () => api.get(`/projects/${project!.ID}/pipeline`).then((r) => r.data),
+    enabled: !!project,
+  })
+
+  const currentUserId = currentUser?.ID
+  const canManageAssignment = canManagePipelineNodeAssignment({
+    node,
+    project,
+    members,
+    currentUserId,
+    pipeline,
+  })
+  const canReview = canReviewPipelineNode({ node, project, members, currentUserId, pipeline })
+  const canSubmit = canSubmitPipelineNode({ node, project, members, currentUserId, pipeline })
+  const fallbackLeadId = effectiveLeadId(node, project, pipeline)
+  const fallbackLeadName = fallbackLeadId
+    ? members.find((m) => m.user_id === fallbackLeadId)?.user?.username
+      ?? (project?.owner_id === fallbackLeadId ? project.owner?.username : undefined)
+      ?? t('pages.resources.userFallback', { id: fallbackLeadId })
+    : undefined
 
   const updateMutation = useMutation({
     mutationFn: (body: Partial<PipelineNode>) =>
@@ -164,9 +196,9 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
     [entityDef?.entityType, entityCandidates, node.type, t],
   )
 
-  function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
+function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
     qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
-    qc.invalidateQueries({ queryKey: [entityTypeToInvalidate + 's', project?.ID] })
+    qc.invalidateQueries({ queryKey: [entityTypeToInvalidate === 'final_video' ? 'final-videos' : entityTypeToInvalidate + 's', project?.ID] })
     if (entityTypeToInvalidate === 'episode') {
       qc.invalidateQueries({ queryKey: ['episodes-project', project?.ID] })
     }
@@ -274,6 +306,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
           <Select
             value={node.assignee_id?.toString() ?? '__none__'}
             onValueChange={(v) => handleSaveField('assignee_id', v === '__none__' ? null : parseInt(v))}
+            disabled={!canManageAssignment || updateMutation.isPending}
           >
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder={t('pipeline.detail.unassigned')} />
@@ -287,6 +320,11 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
               ))}
             </SelectContent>
           </Select>
+          {!node.assignee_id && fallbackLeadName && (
+            <p className="text-[11px] text-muted-foreground">
+              {t('pipeline.detail.assigneeFallback', { name: fallbackLeadName })}
+            </p>
+          )}
         </div>
 
         {/* Lead */}
@@ -295,6 +333,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
           <Select
             value={node.lead_id?.toString() ?? '__none__'}
             onValueChange={(v) => handleSaveField('lead_id', v === '__none__' ? null : parseInt(v))}
+            disabled={!canManageAssignment || updateMutation.isPending}
           >
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder={t('pipeline.detail.unassigned')} />
@@ -321,6 +360,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
             className="h-8 text-sm"
             defaultValue={node.due_date ? node.due_date.substring(0, 10) : ''}
             onBlur={(e) => handleSaveField('due_date', e.target.value || null as unknown as string)}
+            disabled={!canManageAssignment || updateMutation.isPending}
           />
         </div>
 
@@ -356,7 +396,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
                   {t('pipeline.detail.linkedEntity', { entity: entityLabel, id: node.entity_id })}
                 </span>
                 <a
-                  href={`/${entityDef.entityType}s`}
+                  href={entityRoute(entityDef.entityType)}
                   className="text-[10px] text-green-600 hover:underline flex items-center gap-0.5"
                   target="_self"
                 >
@@ -449,7 +489,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
 
       {/* Status action buttons */}
       <div className="px-4 py-3 border-t border-border space-y-2">
-        {(node.status === 'draft' || node.status === 'rejected') && (
+        {(node.status === 'draft' || node.status === 'rejected') && canSubmit && (
           <Button
             className="w-full"
             size="sm"
@@ -516,7 +556,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
           </>
         )}
 
-        {node.status === 'final' && (
+        {node.status === 'final' && canReview && (
           <Button
             variant="outline"
             className="w-full"
@@ -530,6 +570,11 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
       </div>
     </div>
   )
+}
+
+function entityRoute(entityType: PipelineEntityType): string {
+  if (entityType === 'final_video') return '/final-videos'
+  return `/${entityType}s`
 }
 
 function buildEntityOptions(
@@ -590,6 +635,14 @@ function buildEntityOptions(
           id: scene.ID,
           label: t('pipeline.entities.sceneTitle', { number: scene.number, title: scene.title ? ` · ${scene.title}` : '' }),
           subtitle: scene.location,
+        }
+      }
+      case 'final_video': {
+        const finalVideo = item as FinalVideo
+        return {
+          id: finalVideo.ID,
+          label: finalVideo.title || t('pipeline.detail.entityFallback.finalVideo', { id: finalVideo.ID }),
+          subtitle: finalVideo.status,
         }
       }
       default:

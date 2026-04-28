@@ -4,6 +4,7 @@ import { Loader2, Wand2 } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import { cn } from '@/lib/utils'
 import type { PublicModel, RawResource } from '@/types'
 
@@ -57,7 +58,7 @@ export function CanvasGenBody({
           onChange={e => onUpdateModelId?.(Number(e.target.value))}
           onClick={e => e.stopPropagation()}
         >
-          {models.map(m => <option key={m.id} value={m.id}>{m.provider_name ? `${m.provider_name} / ${m.display_name}` : m.display_name}</option>)}
+          {models.map(m => <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>)}
         </select>
       )}
 

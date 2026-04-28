@@ -8,6 +8,7 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { cn } from '@/lib/utils'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import type { PublicModel } from '@/types'
 import type { UserAgent, AgentTemplate, AgentSkill, CustomModel } from '@/store/agentStore'
 
@@ -138,7 +139,7 @@ function AgentForm({
           >
             <option value="">{t('agents.useDefaultModel')}</option>
             {textModels.map((m) => (
-              <option key={m.id} value={m.id}>{m.display_name}</option>
+              <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>
             ))}
           </select>
         ) : (
@@ -251,8 +252,9 @@ function AgentCard({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
+  const platformModel = agent.platform_model_id ? textModels.find((m) => m.id === agent.platform_model_id) : undefined
   const modelName = agent.platform_model_id
-    ? (textModels.find((m) => m.id === agent.platform_model_id)?.display_name ?? t('agents.modelFallback', { id: agent.platform_model_id }))
+    ? (platformModel ? publicModelLabel(platformModel) : t('agents.modelFallback', { id: agent.platform_model_id }))
     : agent.custom_model
       ? (agent.custom_model.name || agent.custom_model.model_id)
       : t('agents.unspecified')

@@ -50,6 +50,7 @@ type AIModelConfig struct {
 
 	// Custom metadata — admin-declared capabilities and routing hints.
 	CustomDisplayName     string `gorm:"default:''" json:"custom_display_name"`     // human-readable name shown in UI
+	ShortName             string `gorm:"default:''" json:"short_name"`              // concise name shown in selectors when set
 	CustomCapabilities    string `gorm:"default:''" json:"custom_capabilities"`     // comma-separated: "text", "image", "image_edit", "video", "video_i2v", "video_v2v"
 	CustomBillingMode     string `gorm:"default:''" json:"custom_billing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
 	CustomAcceptsImage    bool   `gorm:"default:false" json:"custom_accepts_image"` // true for image_edit / i2v models

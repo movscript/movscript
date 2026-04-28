@@ -23,15 +23,16 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
-import type { Asset, Canvas, CanvasNodeData, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, RawResource } from '@/types'
+import type { Asset, Canvas, CanvasArtifactKind, CanvasNodeData, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, RawResource } from '@/types'
 import {
   TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
-  InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode,
+  InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode, ArtifactCardNode,
 } from './components/CanvasNodes'
 import { ContextMenu } from './components/ContextMenu'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { NodePanel } from './components/NodePanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
+import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
 import {
   CANVAS_NODE_CATALOG,
   CANVAS_NODE_CATEGORIES,
@@ -65,6 +66,7 @@ import {
   Music,
   File,
   Package,
+  Puzzle,
   History,
   ListFilter,
   Clock3,
@@ -89,6 +91,21 @@ const nodeTypes = {
   text_gen: TextGenNode,
   ai_gen: AIGenNode,
   group: GroupNode,
+  plugin_card: PluginCardNode,
+  artifact_card: ArtifactCardNode,
+}
+
+export interface CanvasPushTarget {
+  kind: 'asset' | 'storyboard' | 'scene' | 'final_video'
+  id: number
+  label: string
+}
+
+interface CanvasWorkspaceProps {
+  canvasId: number | string
+  embedded?: boolean
+  onClose?: () => void
+  pushTargets?: CanvasPushTarget[]
 }
 
 function genId() {
@@ -99,6 +116,40 @@ function createNodeData(type: NodeType, t: (key: string) => string): Partial<Can
   const meta = CANVAS_NODE_META[type]
   const data = { ...(meta?.defaultData ?? { source: 'upload', label: NODE_LABELS[type] }) }
   return { ...data, label: meta ? t(meta.defaultLabelKey) : t(`canvas.nodeLabels.${type}`) }
+}
+
+function defaultHandleForType(type: string | undefined, side: 'source' | 'target') {
+  if (!type) return undefined
+  const meta = CANVAS_NODE_META[type as NodeType]
+  const ports = side === 'source' ? meta?.outputs : meta?.inputs
+  return ports?.[0]?.id
+}
+
+function defaultHandleForNode(node: Node | undefined, side: 'source' | 'target') {
+  const data = node?.data as Partial<CanvasNodeData> | undefined
+  const ports = side === 'source' ? data?.outputPorts : data?.inputPorts
+  return ports?.[0]?.id ?? defaultHandleForType(node?.type, side)
+}
+
+export function createCanvasEntityNodeData({
+  entityType,
+  entityId,
+  label,
+  title,
+}: {
+  entityType: CanvasArtifactKind
+  entityId: number
+  label: string
+  title: string
+}): Partial<CanvasNodeData> & { label: string } {
+  return {
+    source: 'manual',
+    label,
+    artifactKind: entityType,
+    artifactId: entityId,
+    artifactTitle: title,
+    textContent: label,
+  }
 }
 
 function resourceToNodeType(resource: RawResource): NodeType {
@@ -466,12 +517,12 @@ function WorkflowBottomPanel({
   )
 }
 
-function CanvasEditorInner() {
+export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTargets = [] }: CanvasWorkspaceProps) {
   const { t } = useTranslation()
-  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { screenToFlowPosition, fitView } = useReactFlow()
+  const id = String(canvasId)
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -491,6 +542,7 @@ function CanvasEditorInner() {
   const [runHistoryPage, setRunHistoryPage] = useState(1)
   const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
   const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
+  const [clientPlugins, setClientPlugins] = useState<ClientPluginManifest[]>([])
 
   const fitViewCalledRef = useRef(false)
   const finalizedRunInvalidatedRef = useRef<number | null>(null)
@@ -519,6 +571,12 @@ function CanvasEditorInner() {
   const workflowRuns = workflowRunsPage?.items ?? []
   const workflowRunTotal = workflowRunsPage?.total ?? 0
   const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
+
+  useEffect(() => {
+    loadClientPlugins()
+      .then(setClientPlugins)
+      .catch(() => setClientPlugins([]))
+  }, [])
 
   const { data: activeRunTasks = [] } = useQuery<CanvasTask[]>({
     queryKey: ['canvas-run-tasks', id, activeRunId],
@@ -580,10 +638,13 @@ function CanvasEditorInner() {
     // Groups must appear before their children in the array
     const groupNodes = loadedNodes.filter(n => n.type === 'group')
     const childNodes = loadedNodes.filter(n => n.type !== 'group')
+    const loadedNodeById = new Map(loadedNodes.map((node) => [node.id, node]))
     const loadedEdges: Edge[] = (canvas.edges ?? []).map((e) => ({
       id: e.edge_id,
       source: e.source,
       target: e.target,
+      sourceHandle: e.source_handle ?? defaultHandleForNode(loadedNodeById.get(e.source), 'source'),
+      targetHandle: e.target_handle ?? defaultHandleForNode(loadedNodeById.get(e.target), 'target'),
     }))
     setNodes([...groupNodes, ...childNodes])
     setEdges(loadedEdges)
@@ -652,6 +713,8 @@ function CanvasEditorInner() {
           edge_id: e.id,
           source: e.source,
           target: e.target,
+          source_handle: e.sourceHandle,
+          target_handle: e.targetHandle,
         })),
       }
       return api.put(`/canvases/${id}`, payload)
@@ -686,6 +749,61 @@ function CanvasEditorInner() {
       return { ...n, data: { ...n.data, status: 'pending' } }
     }))
   }, [id, save])
+
+  const runLocalPluginNode = useCallback(async (nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    const data = node?.data as unknown as CanvasNodeData | undefined
+    if (!node || !data?.pluginId) return
+
+    setNodes((prev) => prev.map((n) => n.id === nodeId
+      ? { ...n, data: { ...n.data, status: 'running', error: undefined } }
+      : n
+    ))
+
+    try {
+      let plugin = clientPlugins.find((p) => p.id === data.pluginId)
+      if (!plugin) {
+        const plugins = await loadClientPlugins()
+        setClientPlugins(plugins)
+        plugin = plugins.find((p) => p.id === data.pluginId)
+      }
+      if (!plugin) throw new Error(t('plugins.notFound'))
+
+      const defaultArgs = Object.fromEntries(
+        Object.entries(plugin.inputSchema?.properties ?? {})
+          .filter(([, prop]) => prop.default !== undefined)
+          .map(([key, prop]) => [key, prop.default])
+      )
+      const pluginArgs = {
+        ...defaultArgs,
+        ...((data.pluginArgs ?? {}) as Record<string, unknown>),
+      }
+      const executableSpec = await compileClientPlugin(plugin, pluginArgs)
+      const result = await runClientPlugin(plugin, pluginArgs)
+      const resultText = result.content?.map((item) => item.text ?? '').filter(Boolean).join('\n')
+        || JSON.stringify(result.data ?? '')
+      setNodes((prev) => prev.map((n) => n.id === nodeId
+        ? {
+            ...n,
+            data: {
+              ...n.data,
+              status: result.isError ? 'failed' : 'done',
+              error: result.isError ? resultText : undefined,
+              pluginResultText: resultText,
+              pluginResultData: result.data,
+              pluginLastRunAt: new Date().toISOString(),
+              executableSpec,
+            },
+          }
+        : n
+      ))
+    } catch (err: any) {
+      setNodes((prev) => prev.map((n) => n.id === nodeId
+        ? { ...n, data: { ...n.data, status: 'failed', error: err?.message ?? String(err) } }
+        : n
+      ))
+    }
+  }, [clientPlugins, nodes, setNodes, t])
 
   // Handle workflow run: save first to ensure all nodes are persisted, then show input dialog if needed
   async function handleRunWorkflow() {
@@ -722,6 +840,39 @@ function CanvasEditorInner() {
   }
   function handleReject(nodeId: string) {
     updateNodeData(nodeId, { approvalStatus: 'rejected' })
+  }
+
+  async function handlePushResource(target: CanvasPushTarget, resourceId: number) {
+    if (!canvas?.project_id) return
+    try {
+      if (target.kind === 'storyboard') {
+        const storyboard = await api.get(`/storyboards/${target.id}`).then((r) => r.data)
+        const existing: number[] = storyboard.resource_ids ? JSON.parse(storyboard.resource_ids) : []
+        if (!existing.includes(resourceId)) {
+          await api.put(`/storyboards/${target.id}`, { resource_ids: JSON.stringify([...existing, resourceId]) })
+          qc.invalidateQueries({ queryKey: ['storyboards-project', canvas.project_id] })
+        }
+      } else if (target.kind === 'scene') {
+        const scene = await api.get(`/scenes/${target.id}`).then((r) => r.data)
+        const existing: number[] = scene.resource_ids ? JSON.parse(scene.resource_ids) : []
+        if (!existing.includes(resourceId)) {
+          await api.put(`/scenes/${target.id}`, { resource_ids: JSON.stringify([...existing, resourceId]) })
+          qc.invalidateQueries({ queryKey: ['scenes', canvas.project_id] })
+        }
+      } else if (target.kind === 'asset') {
+        await api.post(`/projects/${canvas.project_id}/assets/${target.id}/views`, {
+          view_type: 'custom',
+          label: t('canvas.generatedByCanvas'),
+          resource_id: resourceId,
+        })
+        qc.invalidateQueries({ queryKey: ['assets', canvas.project_id] })
+      } else if (target.kind === 'final_video') {
+        await api.patch(`/final-videos/${target.id}`, { resource_id: resourceId })
+        qc.invalidateQueries({ queryKey: ['final-videos', canvas.project_id] })
+      }
+    } catch {
+      // Keep node execution state intact; users can retry pushing from the node.
+    }
   }
 
   const addNodeAt = useCallback((type: NodeType, clientPosition?: { x: number; y: number }) => {
@@ -765,6 +916,35 @@ function CanvasEditorInner() {
     }
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, setNodes, t])
+
+  const addPluginNodeAt = useCallback((plugin: ClientPluginManifest, clientPosition?: { x: number; y: number }) => {
+    const contribution = plugin.contributes?.canvasNodes?.[0]
+    const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
+    const screenPosition = clientPosition ?? (
+      fallbackRect
+        ? { x: fallbackRect.left + fallbackRect.width / 2, y: fallbackRect.top + fallbackRect.height / 2 }
+        : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    )
+    const position = screenToFlowPosition(screenPosition)
+    const newNode: Node = {
+      id: genId(),
+      type: 'plugin_card',
+      position,
+      data: {
+        source: 'manual',
+        ...(contribution?.defaultData ?? {}),
+        label: contribution?.title ?? plugin.name,
+        pluginId: plugin.id,
+        pluginName: plugin.name,
+        pluginVersion: plugin.version,
+        pluginArgs: {},
+        inputPorts: contribution?.inputs,
+        outputPorts: contribution?.outputs,
+      },
+      style: { width: 240 },
+    }
+    setNodes((prev) => [...prev, newNode])
+  }, [screenToFlowPosition, setNodes])
 
   // Add node from context menu
   const addNode = useCallback((type: NodeType) => {
@@ -880,8 +1060,14 @@ function CanvasEditorInner() {
   }, [])
 
   const onConnect = useCallback((params: Connection) => {
-    setEdges((eds) => addEdge(params, eds))
-  }, [])
+    const sourceNode = nodes.find((node) => node.id === params.source)
+    const targetNode = nodes.find((node) => node.id === params.target)
+    setEdges((eds) => addEdge({
+      ...params,
+      sourceHandle: params.sourceHandle ?? defaultHandleForNode(sourceNode, 'source') ?? null,
+      targetHandle: params.targetHandle ?? defaultHandleForNode(targetNode, 'target') ?? null,
+    }, eds))
+  }, [nodes, setEdges])
 
   // Single click — selection only, mode cycling is handled by the node's own button
   const onNodeClick = useCallback((_: React.MouseEvent, _node: Node) => {
@@ -918,13 +1104,47 @@ function CanvasEditorInner() {
       }
       return
     }
+    const pluginPayload = e.dataTransfer.getData('application/canvas-plugin')
+    if (pluginPayload) {
+      try {
+        const plugin = JSON.parse(pluginPayload) as ClientPluginManifest
+        addPluginNodeAt(plugin, { x: e.clientX, y: e.clientY })
+      } catch {
+        // Ignore malformed drag data from outside the app.
+      }
+      return
+    }
+    const entityPayload = e.dataTransfer.getData('application/entity-node')
+    if (entityPayload) {
+      try {
+        const entity = JSON.parse(entityPayload) as { kind: CanvasArtifactKind; id: number; label: string; title?: string }
+        const supportedKinds: CanvasArtifactKind[] = ['script', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'final_video']
+        if (!supportedKinds.includes(entity.kind)) return
+        const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        setNodes((prev) => [...prev, {
+          id: genId(),
+          type: 'artifact_card',
+          position,
+          data: createCanvasEntityNodeData({
+            entityType: entity.kind,
+            entityId: entity.id,
+            label: entity.label,
+            title: entity.title || entity.kind,
+          }),
+          style: { width: 260 },
+        }])
+      } catch {
+        // Ignore malformed drag data from outside the app.
+      }
+      return
+    }
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt, addResourceNodeAt])
+  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, screenToFlowPosition, setNodes])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource')) {
+    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/entity-node')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -945,29 +1165,39 @@ function CanvasEditorInner() {
   }, [onNodeDragStop])
 
   const canRunSingleNode = canvasType === 'inspiration'
-  const nodesWithHandlers = nodes.map((n) => ({
-    ...n,
-    data: {
-      ...n.data,
-      canvasId: id,
-      rfNodeId: n.id,
-      onRun: canRunSingleNode ? () => runNode(n.id) : undefined,
-      onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
-      onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
-      onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
-      onUpdateModelId: (modelDbId: number) => updateNodeData(n.id, { modelDbId }),
-      onUpdateAttachments: (ids: number[]) => updateNodeData(n.id, { inputResourceIds: ids }),
-      onApprove: () => handleApprove(n.id),
-      onReject: () => handleReject(n.id),
-      onCycleMode: () => {
-        if (n.type === 'group') return
-        const modes: Array<'compact' | 'detail' | 'full'> = ['compact', 'detail', 'full']
-        const current = (n.data as any).cardMode ?? 'detail'
-        const next = modes[(modes.indexOf(current) + 1) % modes.length]
-        updateNodeData(n.id, { cardMode: next })
-      },
+  const nodesWithHandlers = nodes.map((n) => {
+    const data = n.data as unknown as CanvasNodeData
+    const hasPushableOutput = pushTargets.length > 0
+      && (n.type === 'image' || n.type === 'video' || n.type === 'output')
+      && data.status === 'done'
+      && !!data.resourceId
+    return {
+      ...n,
+      data: {
+        ...n.data,
+        canvasId: id,
+        rfNodeId: n.id,
+        onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : canRunSingleNode ? () => runNode(n.id) : undefined,
+        onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
+        onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
+        onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
+        onUpdateModelId: (modelDbId: number) => updateNodeData(n.id, { modelDbId }),
+        onUpdateAttachments: (ids: number[]) => updateNodeData(n.id, { inputResourceIds: ids }),
+        onApprove: () => handleApprove(n.id),
+        onReject: () => handleReject(n.id),
+        ...(hasPushableOutput && {
+          onPush: () => handlePushResource(pushTargets[0], data.resourceId!),
+        }),
+        onCycleMode: () => {
+          if (n.type === 'group') return
+          const modes: Array<'compact' | 'detail' | 'full'> = ['compact', 'detail', 'full']
+          const current = (n.data as any).cardMode ?? 'detail'
+          const next = modes[(modes.indexOf(current) + 1) % modes.length]
+          updateNodeData(n.id, { cardMode: next })
+        },
+      }
     }
-  }))
+  })
 
   const inputNodes = nodes.filter((n) => n.type === 'input')
   const selectedNode = selectedNodeIds.length > 0
@@ -990,12 +1220,19 @@ function CanvasEditorInner() {
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
-      <div className="h-14 shrink-0 border-b border-border bg-card/95 px-3">
+    <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'h-full' : 'h-screen')}>
+      <div className={cn('shrink-0 border-b border-border bg-card/95 px-3', embedded ? 'h-11' : 'h-14')}>
         <div className="flex h-full items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/canvases')} className="h-8 w-8 shrink-0">
-            <ArrowLeft size={16} />
-          </Button>
+          {embedded ? (
+            <Badge variant="outline" className="h-7 shrink-0 gap-1.5 px-2 text-[11px] font-medium">
+              {canvasType === 'workflow' ? <Zap size={11} /> : <Lightbulb size={11} />}
+              {t(`canvas.editor.canvasType.${canvasType}`)}
+            </Badge>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={() => navigate('/canvases')} className="h-8 w-8 shrink-0">
+              <ArrowLeft size={16} />
+            </Button>
+          )}
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -1038,10 +1275,12 @@ function CanvasEditorInner() {
             </div>
           </div>
 
-          <Badge variant="outline" className="h-8 shrink-0 gap-1.5 px-3 text-xs font-medium">
-            {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
-            {t(`canvas.editor.canvasType.${canvasType}`)}
-          </Badge>
+          {!embedded && (
+            <Badge variant="outline" className="h-8 shrink-0 gap-1.5 px-3 text-xs font-medium">
+              {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
+              {t(`canvas.editor.canvasType.${canvasType}`)}
+            </Badge>
+          )}
 
           {canvasType === 'workflow' && (
             <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
@@ -1053,6 +1292,12 @@ function CanvasEditorInner() {
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
             {save.isPending ? t('common.saving') : t('common.save')}
           </Button>
+
+          {embedded && onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 shrink-0">
+              <PanelRightClose size={14} />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1078,7 +1323,64 @@ function CanvasEditorInner() {
               </Button>
             </div>
 
-            {!libraryCollapsed && (
+            {libraryCollapsed ? (
+              <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-2">
+                <div className="space-y-2">
+                  {CANVAS_NODE_CATEGORIES.map((category, index) => {
+                    const items = CANVAS_NODE_CATALOG.filter((item) => item.category === category.id)
+                    return (
+                      <div key={category.id} className={cn(index > 0 && 'border-t border-sidebar-border pt-2')}>
+                        <div className="grid gap-1">
+                          {items.map((item) => {
+                            const Icon = item.icon
+                            return (
+                              <button
+                                key={item.type}
+                                type="button"
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('application/canvas-node-type', item.type)
+                                  e.dataTransfer.effectAllowed = 'copy'
+                                }}
+                                onClick={() => addNodeAt(item.type)}
+                                className="flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                                title={t(item.labelKey)}
+                                aria-label={t(item.labelKey)}
+                              >
+                                <Icon size={15} />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {clientPlugins.length > 0 && (
+                    <div className="border-t border-sidebar-border pt-2">
+                      <div className="grid gap-1">
+                        {clientPlugins.map((plugin) => (
+                          <button
+                            key={plugin.id}
+                            type="button"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/canvas-plugin', JSON.stringify(plugin))
+                              e.dataTransfer.effectAllowed = 'copy'
+                            }}
+                            onClick={() => addPluginNodeAt(plugin)}
+                            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                            title={plugin.name}
+                            aria-label={plugin.name}
+                          >
+                            <Puzzle size={15} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
               <div className="min-h-0 flex-1 overflow-y-auto p-3">
                 <div className="mb-3 flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground">
                   <Search size={12} />
@@ -1122,6 +1424,40 @@ function CanvasEditorInner() {
                       </section>
                     )
                   })}
+                  <section>
+                    <div className="mb-2">
+                      <p className="text-[11px] font-semibold text-foreground">{t('canvas.catalog.categories.plugins.title')}</p>
+                      <p className="text-[10px] leading-relaxed text-muted-foreground">{t('canvas.catalog.categories.plugins.description')}</p>
+                    </div>
+                    <div className="grid gap-1.5">
+                      {clientPlugins.length === 0 && (
+                        <div className="rounded-md border border-dashed border-border bg-muted/25 px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                          {t('canvas.pluginCard.noPlugins')}
+                        </div>
+                      )}
+                      {clientPlugins.map((plugin) => (
+                        <button
+                          key={plugin.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/canvas-plugin', JSON.stringify(plugin))
+                            e.dataTransfer.effectAllowed = 'copy'
+                          }}
+                          onClick={() => addPluginNodeAt(plugin)}
+                          className="group flex min-h-[54px] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-left transition-colors hover:border-foreground/25 hover:bg-background"
+                        >
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+                            <Puzzle size={15} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium text-foreground">{plugin.name}</span>
+                            <span className="block truncate text-[10px] text-muted-foreground">{plugin.description || t('canvas.pluginCard.localRuntime')}</span>
+                          </span>
+                          <GripVertical size={13} className="shrink-0 text-muted-foreground/45" />
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 </div>
               </div>
             )}
@@ -1250,8 +1586,8 @@ function CanvasEditorInner() {
                   allNodes={nodes}
                   edges={edges}
                   onUpdate={updateNodeData}
-                  onRun={runNode}
-                  allowRun={canRunSingleNode}
+                  onRun={selectedNode.type === 'plugin_card' ? runLocalPluginNode : runNode}
+                  allowRun={selectedNode.type === 'plugin_card' ? true : canRunSingleNode}
                 />
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col p-4 text-sm">
@@ -1334,9 +1670,11 @@ function CanvasEditorInner() {
 }
 
 export default function CanvasEditorPage() {
+  const { id } = useParams<{ id: string }>()
+  if (!id) return null
   return (
     <ReactFlowProvider>
-      <CanvasEditorInner />
+      <CanvasWorkspace canvasId={id} />
     </ReactFlowProvider>
   )
 }

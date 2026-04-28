@@ -30,6 +30,7 @@ export interface EntityFormProps {
 }
 
 function workNodeTypeForArtifact(nodeType: string, entityType: PipelineEntityType) {
+  if (entityType === 'final_video') return 'episode_edit'
   if (nodeType === 'episode_script') return 'episode_writing'
   if (nodeType === 'scene_script') return 'scene_writing'
   if (entityType === 'script') return 'script_writing'
@@ -64,12 +65,29 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
   const [title, setTitle] = useState('')
   const [type, setType] = useState<Script['script_type']>('main')
   const [desc, setDesc] = useState('')
+  const [episodeId, setEpisodeId] = useState<number | null>(null)
+
+  const { data: rawEpisodes } = useQuery<Episode[]>({
+    queryKey: ['episodes-project', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/episodes`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const episodes = rawEpisodes ?? []
+  const needsEpisode = type === 'episode'
+  const canCreate = !!title.trim() && (!needsEpisode || !!episodeId)
 
   const create = useMutation({
     mutationFn: () =>
-      api.post(`/projects/${projectId}/scripts`, { title, description: desc || undefined, script_type: type }).then((r) => r.data),
+      api.post(`/projects/${projectId}/scripts`, {
+        title,
+        description: desc || undefined,
+        script_type: type,
+        episode_id: episodeId ?? undefined,
+      }).then((r) => r.data),
     onSuccess: (created: Script) => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+      qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       spawnPipelineNode(projectId, nodeTypeForEntity('script', type), 'script', created.ID, created.title)
       onSuccess()
@@ -85,7 +103,7 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
           placeholder={t('forms.scriptTitle')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && title.trim() && create.mutate()}
+          onKeyDown={(e) => e.key === 'Enter' && canCreate && create.mutate()}
         />
       </div>
       <div>
@@ -94,7 +112,10 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
           {SCRIPT_TYPES.map((scriptType) => (
             <button
               key={scriptType.type}
-              onClick={() => setType(scriptType.type)}
+              onClick={() => {
+                setType(scriptType.type)
+                if (scriptType.type === 'main') setEpisodeId(null)
+              }}
               className={cn(
                 'px-3 py-1.5 text-xs rounded-full border transition-colors',
                 type === scriptType.type ? cn(scriptType.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring'
@@ -105,12 +126,30 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
           ))}
         </div>
       </div>
+      {type !== 'main' && (
+        <div>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">
+            {type === 'episode' ? t('forms.parentEpisodeRequired') : t('forms.parentEpisodeOptional')}
+          </Label>
+          <select
+            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+            value={episodeId ?? ''}
+            onChange={(e) => setEpisodeId(Number(e.target.value) || null)}
+          >
+            <option value="">{type === 'episode' ? t('forms.selectEpisodeFirst') : t('forms.unlinked')}</option>
+            {episodes.map((e) => <option key={e.ID} value={e.ID}>EP{e.number} {e.title}</option>)}
+          </select>
+          {type === 'episode' && episodes.length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">{t('forms.createEpisodeBeforeEpisodeScript')}</p>
+          )}
+        </div>
+      )}
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
         <Textarea className="resize-none" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} />
       </div>
       <div className="flex gap-2 pt-1">
-        <Button onClick={() => create.mutate()} disabled={!title.trim() || create.isPending} className="flex-1">
+        <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending} className="flex-1">
           {create.isPending ? t('common.creating') : t('common.create')}
         </Button>
         <Button variant="outline" onClick={onCancel}>{t('common.cancel')}</Button>
@@ -125,12 +164,21 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const [name, setName] = useState('')
   const [type, setType] = useState('character')
   const [desc, setDesc] = useState('')
+  const [variantName, setVariantName] = useState('')
+  const [variantType, setVariantType] = useState('base')
 
   const create = useMutation({
     mutationFn: () =>
-      api.post(`/projects/${projectId}/assets`, { name, type, description: desc || undefined }).then((r) => r.data),
+      api.post(`/projects/${projectId}/assets`, {
+        name,
+        type,
+        description: desc || undefined,
+        variant_type: variantType || 'base',
+        variant_name: variantName || undefined,
+      }).then((r) => r.data),
     onSuccess: (created: { ID: number; name: string }) => {
       qc.invalidateQueries({ queryKey: ['assets', projectId] })
+      qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       spawnPipelineNode(projectId, 'asset', 'asset', created.ID, created.name)
       onSuccess()
@@ -172,6 +220,16 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
         <Textarea className="resize-none" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} />
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">变体类型</Label>
+          <Input value={variantType} onChange={(e) => setVariantType(e.target.value)} />
+        </div>
+        <div>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">变体名称</Label>
+          <Input value={variantName} onChange={(e) => setVariantName(e.target.value)} />
+        </div>
+      </div>
       <div className="flex gap-2 pt-1">
         <Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending} className="flex-1">
           {create.isPending ? t('common.creating') : t('common.create')}
@@ -186,15 +244,7 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [title, setTitle] = useState('')
-  const [scriptId, setScriptId] = useState<number | null>(null)
   const [sceneIds, setSceneIds] = useState<number[]>([])
-
-  const { data: rawScripts } = useQuery<Script[]>({
-    queryKey: ['scripts', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),
-    enabled: !!projectId,
-  })
-  const scripts = rawScripts ?? []
 
   const { data: rawScenes } = useQuery<Scene[]>({
     queryKey: ['scenes', projectId],
@@ -205,7 +255,7 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
 
   const create = useMutation({
     mutationFn: () =>
-      api.post(`/projects/${projectId}/episodes`, { title, script_id: scriptId ?? undefined }).then((r) => r.data),
+      api.post(`/projects/${projectId}/episodes`, { title }).then((r) => r.data),
     onSuccess: async (created: Episode) => {
       if (sceneIds.length > 0) {
         await Promise.all(sceneIds.map((sceneId, order) =>
@@ -233,19 +283,6 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
           onKeyDown={(e) => e.key === 'Enter' && title.trim() && create.mutate()}
         />
       </div>
-      {scripts.length > 0 && (
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedScriptOptional')}</Label>
-          <select
-            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
-            value={scriptId ?? ''}
-            onChange={(e) => setScriptId(Number(e.target.value) || null)}
-          >
-            <option value="">{t('forms.noScriptDirect')}</option>
-            {scripts.map((s) => <option key={s.ID} value={s.ID}>{s.title}</option>)}
-          </select>
-        </div>
-      )}
       {scenes.length > 0 && (
         <div>
           <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.linkedScenes')}</Label>
@@ -356,6 +393,7 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
       }).then((r) => r.data),
     onSuccess: (created: Storyboard) => {
       qc.invalidateQueries({ queryKey: ['storyboards-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       spawnPipelineNode(projectId, 'storyboard', 'storyboard', created.ID, created.title || created.description || `#${created.ID}`)
       onSuccess()
@@ -436,6 +474,7 @@ export function ShotCreateForm({ projectId, onSuccess, onCancel }: EntityFormPro
     },
     onSuccess: (created: { ID: number; description?: string }) => {
       qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       spawnPipelineNode(projectId, 'shot', 'shot', created.ID, created.description || `Shot #${created.ID}`)
       onSuccess()

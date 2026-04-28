@@ -17,7 +17,7 @@ import {
   Video,
   Wand2,
 } from 'lucide-react'
-import type { CanvasNodeData, NodeType } from '@/types'
+import type { CanvasNodeData, CanvasPortDef, NodeType } from '@/types'
 
 export type CanvasNodeCategory = 'flow' | 'media' | 'ai' | 'organization'
 
@@ -30,6 +30,8 @@ export interface CanvasNodeCatalogItem {
   defaultLabelKey: string
   category: CanvasNodeCategory
   icon: LucideIcon
+  inputs: CanvasPortDef[]
+  outputs: CanvasPortDef[]
   defaultData: Partial<CanvasNodeData> & { label: string }
 }
 
@@ -46,6 +48,12 @@ export const CANVAS_NODE_CATEGORIES: Array<{
   { id: 'organization', title: 'Organization', titleKey: 'canvas.catalog.categories.organization.title', description: 'Organize complex canvases with regions and semantic groups.', descriptionKey: 'canvas.catalog.categories.organization.description' },
 ]
 
+const port = (id: string, type: CanvasPortDef['type'], extra?: Omit<CanvasPortDef, 'id' | 'type'>): CanvasPortDef => ({
+  id,
+  type,
+  ...extra,
+})
+
 export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
   {
     type: 'input',
@@ -56,6 +64,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.input',
     category: 'flow',
     icon: LogIn,
+    inputs: [],
+    outputs: [port('value', 'text')],
     defaultData: { source: 'manual', label: 'Input', inputValue: '', paramName: 'input', paramType: 'text' },
   },
   {
@@ -67,6 +77,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.output',
     category: 'flow',
     icon: LogOut,
+    inputs: [port('value', 'resource')],
+    outputs: [],
     defaultData: { source: 'upload', label: 'Output', paramName: 'output', paramType: 'resource' },
   },
   {
@@ -78,6 +90,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.approval',
     category: 'flow',
     icon: UserCheck,
+    inputs: [port('review_item', 'resource')],
+    outputs: [port('approved_item', 'resource')],
     defaultData: { source: 'manual', label: 'Manual Approval', approvalStatus: 'waiting' },
   },
   {
@@ -89,6 +103,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.text',
     category: 'media',
     icon: FileText,
+    inputs: [port('input', 'text')],
+    outputs: [port('text', 'text')],
     defaultData: { source: 'manual', label: 'Text', textContent: '' },
   },
   {
@@ -100,6 +116,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.image',
     category: 'media',
     icon: Image,
+    inputs: [port('input', 'image')],
+    outputs: [port('image', 'image')],
     defaultData: { source: 'upload', label: 'Image' },
   },
   {
@@ -111,6 +129,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.video',
     category: 'media',
     icon: Video,
+    inputs: [port('input', 'video')],
+    outputs: [port('video', 'video')],
     defaultData: { source: 'upload', label: 'Video' },
   },
   {
@@ -122,6 +142,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.audio',
     category: 'media',
     icon: Music,
+    inputs: [port('input', 'audio')],
+    outputs: [port('audio', 'audio')],
     defaultData: { source: 'upload', label: 'Audio' },
   },
   {
@@ -133,6 +155,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.ai_gen',
     category: 'ai',
     icon: Wand2,
+    inputs: [port('prompt', 'text'), port('references', 'resource')],
+    outputs: [port('result', 'resource')],
     defaultData: { source: 'ai', label: 'AI Generation', outputType: 'image' },
   },
   {
@@ -144,6 +168,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.text_gen',
     category: 'ai',
     icon: Sparkles,
+    inputs: [port('prompt', 'text'), port('context', 'text')],
+    outputs: [port('text', 'text')],
     defaultData: { source: 'ai', label: 'AI Text Generation' },
   },
   {
@@ -155,6 +181,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.ref_image_gen',
     category: 'ai',
     icon: Palette,
+    inputs: [port('references', 'image', { required: true, maxCount: 8 }), port('prompt', 'text')],
+    outputs: [port('image', 'image')],
     defaultData: { source: 'ai', label: 'Reference Image', outputType: 'image' },
   },
   {
@@ -166,6 +194,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.ref_video_gen',
     category: 'ai',
     icon: Camera,
+    inputs: [port('references', 'resource', { required: true }), port('prompt', 'text')],
+    outputs: [port('video', 'video')],
     defaultData: { source: 'ai', label: 'Reference Video', outputType: 'video' },
   },
   {
@@ -177,6 +207,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.multi_angle',
     category: 'ai',
     icon: RotateCw,
+    inputs: [port('character_or_object', 'image', { required: true }), port('prompt', 'text')],
+    outputs: [port('multi_angle_image', 'image')],
     defaultData: { source: 'ai', label: 'Multi-angle Image', outputType: 'image' },
   },
   {
@@ -188,6 +220,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.style_transfer',
     category: 'ai',
     icon: Brush,
+    inputs: [port('target', 'image', { required: true }), port('style_reference', 'image', { required: true }), port('prompt', 'text')],
+    outputs: [port('styled_image', 'image')],
     defaultData: { source: 'ai', label: 'Style Transfer', outputType: 'image' },
   },
   {
@@ -199,6 +233,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.motion_imitation',
     category: 'ai',
     icon: PersonStanding,
+    inputs: [port('character', 'image', { required: true }), port('motion_reference', 'video', { required: true }), port('prompt', 'text')],
+    outputs: [port('video', 'video')],
     defaultData: { source: 'ai', label: 'Motion Imitation', outputType: 'video' },
   },
   {
@@ -210,6 +246,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.canvas',
     category: 'ai',
     icon: Layers3,
+    inputs: [],
+    outputs: [port('result', 'resource')],
     defaultData: { source: 'ai', label: 'Canvas Reference', outputType: 'image' },
   },
   {
@@ -221,6 +259,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultLabelKey: 'canvas.nodeLabels.group',
     category: 'organization',
     icon: Boxes,
+    inputs: [],
+    outputs: [],
     defaultData: { source: 'manual', label: 'Group', isGroup: true, groupWidth: 320, groupHeight: 240 },
   },
 ]

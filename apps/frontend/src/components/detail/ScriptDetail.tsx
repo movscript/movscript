@@ -31,7 +31,13 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   const update = useMutation({
     mutationFn: (data: Partial<Script>) =>
       api.put(`/projects/${projectId}/scripts/${script.ID}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['scripts', projectId] }),
+    onSuccess: (updated: Script) => {
+      setDraft((d) => ({ ...d, ...updated }))
+      qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+      qc.invalidateQueries({ queryKey: ['settings', projectId] })
+      qc.invalidateQueries({ queryKey: ['setting-refs', projectId, script.ID] })
+      qc.invalidateQueries({ queryKey: ['setting-relationships', projectId, script.ID] })
+    },
   })
 
   const remove = useMutation({
@@ -53,13 +59,19 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
         ...d,
         summary: updated.summary,
         characters: updated.characters,
+        character_profiles: updated.character_profiles,
+        character_relationships: updated.character_relationships,
         core_settings: updated.core_settings,
         background: updated.background,
         scenes_desc: updated.scenes_desc,
         hook: updated.hook,
         plot_summary: updated.plot_summary,
+        script_points: updated.script_points,
       }))
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+      qc.invalidateQueries({ queryKey: ['settings', projectId] })
+      qc.invalidateQueries({ queryKey: ['setting-refs', projectId, script.ID] })
+      qc.invalidateQueries({ queryKey: ['setting-relationships', projectId, script.ID] })
     } catch {
       // ignore
     } finally {
@@ -96,6 +108,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
 
       <ScriptForm
         script={script}
+        projectId={projectId}
         draft={draft}
         onChange={setDraft}
         onSave={(data) => update.mutate(data)}

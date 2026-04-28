@@ -24,9 +24,10 @@ interface Props {
   episode: Episode
   onClose?: () => void
   onDelete?: () => void
+  showHeader?: boolean
 }
 
-export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
+export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -38,6 +39,7 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
     queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),
     enabled: !!projectId,
   })
+  const episodeScripts = scripts.filter((script) => script.script_type === 'episode')
   const { data: allScenes = [] } = useQuery<Scene[]>({
     queryKey: ['scenes', projectId],
     queryFn: () => api.get(`/projects/${projectId}/scenes`).then((r) => r.data),
@@ -50,9 +52,14 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
   })
 
   const update = useMutation({
-    mutationFn: (data: Partial<Episode>) =>
-      api.put(`/episodes/${episode.ID}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['episodes-project', projectId] }),
+    mutationFn: (data: Partial<Episode>) => {
+      const { script_id: _scriptId, ...episodeData } = data
+      return api.put(`/episodes/${episode.ID}`, episodeData).then((r) => r.data)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+    },
   })
 
   const remove = useMutation({
@@ -93,23 +100,24 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base font-bold text-muted-foreground font-mono shrink-0">
-            EP{String(episode.number).padStart(2, '0')}
-          </span>
-          <h2 className="text-sm font-semibold text-foreground truncate">{episode.title}</h2>
+      {showHeader && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base font-bold text-muted-foreground font-mono shrink-0">
+              EP{String(episode.number).padStart(2, '0')}
+            </span>
+            <h2 className="text-sm font-semibold text-foreground truncate">{episode.title}</h2>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onDelete && (
+              <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                {t('common.delete')}
+              </button>
+            )}
+            {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onDelete && (
-            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-              {t('common.delete')}
-            </button>
-          )}
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-        </div>
-      </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -123,15 +131,20 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
           </div>
         </div>
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('forms.linkedScriptOptional')}</Label>
-          <select
-            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
-            value={draft.script_id ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, script_id: Number(e.target.value) || undefined }))}
-          >
-            <option value="">{t('forms.noScriptDirect')}</option>
-            {scripts.map((s) => <option key={s.ID} value={s.ID}>{s.title}</option>)}
-          </select>
+          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('forms.linkedEpisodeScript')}</Label>
+          <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-foreground">
+            {episodeScripts.filter((script) => script.episode_id === episode.ID || script.ID === episode.script_id).length > 0 ? (
+              <div className="space-y-1">
+                {episodeScripts
+                  .filter((script) => script.episode_id === episode.ID || script.ID === episode.script_id)
+                  .map((script) => (
+                    <div key={script.ID} className="truncate">{script.title}</div>
+                  ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">{t('forms.noLinkedEpisodeScript')}</span>
+            )}
+          </div>
         </div>
         <div>
           <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.episodeSynopsis')}</Label>

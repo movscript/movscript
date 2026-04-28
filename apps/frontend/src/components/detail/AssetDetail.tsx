@@ -30,18 +30,33 @@ const ASSET_TYPE_MAP: Record<string, { labelKey: string; color: string }> = {
   draft:     { labelKey: 'domain.assetTypes.draft',     color: 'bg-muted text-muted-foreground' },
 }
 
+function editableAssetPayload(draft: Partial<Asset>): Partial<Asset> {
+  return {
+    name: draft.name,
+    description: draft.description,
+    variant_type: draft.variant_type,
+    variant_name: draft.variant_name,
+    costume: draft.costume,
+    time_of_day: draft.time_of_day,
+    period: draft.period,
+    state: draft.state,
+    style_profile: draft.style_profile,
+    prompt: draft.prompt,
+  }
+}
+
 interface Props {
   asset: Asset
   onClose?: () => void
   onDelete?: () => void
+  showHeader?: boolean
 }
 
-export function AssetDetail({ asset, onClose, onDelete }: Props) {
+export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
-  const [draftName, setDraftName] = useState(asset.name)
-  const [draftDesc, setDraftDesc] = useState(asset.description ?? '')
+  const [draft, setDraft] = useState<Partial<Asset>>({ ...asset })
 
   const update = useMutation({
     mutationFn: (data: Partial<Asset>) =>
@@ -61,37 +76,76 @@ export function AssetDetail({ asset, onClose, onDelete }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0 font-medium', typeCfg.color)}>
-            {t(typeCfg.labelKey)}
-          </span>
-          <h2 className="text-sm font-semibold text-foreground truncate">{asset.name}</h2>
+      {showHeader && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0 font-medium', typeCfg.color)}>
+              {t(typeCfg.labelKey)}
+            </span>
+            <h2 className="text-sm font-semibold text-foreground truncate">{asset.name}</h2>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onDelete && (
+              <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                {t('common.delete')}
+              </button>
+            )}
+            {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onDelete && (
-            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-              {t('common.delete')}
-            </button>
-          )}
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-        </div>
-      </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: edit form */}
         <div className="w-72 shrink-0 border-r border-border overflow-y-auto p-5 space-y-3">
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.name')}</Label>
-            <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+            <Input value={draft.name ?? ''} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
           </div>
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
-            <Textarea rows={5} value={draftDesc} onChange={(e) => setDraftDesc(e.target.value)} />
+            <Textarea rows={4} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">变体类型</Label>
+              <Input value={draft.variant_type ?? ''} onChange={(e) => setDraft((d) => ({ ...d, variant_type: e.target.value as Asset['variant_type'] }))} />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">变体名称</Label>
+              <Input value={draft.variant_name ?? ''} onChange={(e) => setDraft((d) => ({ ...d, variant_name: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">服装</Label>
+              <Input value={draft.costume ?? ''} onChange={(e) => setDraft((d) => ({ ...d, costume: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">时间</Label>
+              <Input value={draft.time_of_day ?? ''} onChange={(e) => setDraft((d) => ({ ...d, time_of_day: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">时期</Label>
+              <Input value={draft.period ?? ''} onChange={(e) => setDraft((d) => ({ ...d, period: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">状态</Label>
+              <Input value={draft.state ?? ''} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">风格</Label>
+            <Input value={draft.style_profile ?? ''} onChange={(e) => setDraft((d) => ({ ...d, style_profile: e.target.value }))} />
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">生成提示词</Label>
+            <Textarea rows={4} value={draft.prompt ?? ''} onChange={(e) => setDraft((d) => ({ ...d, prompt: e.target.value }))} />
           </div>
           <Button
-            onClick={() => update.mutate({ name: draftName, description: draftDesc })}
+            onClick={() => update.mutate(editableAssetPayload(draft))}
             disabled={update.isPending}
             className="w-full gap-1.5"
             size="sm"

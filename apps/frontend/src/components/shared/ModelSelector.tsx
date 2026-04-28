@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import type { PublicModel } from '@/types'
 import {
   Select,
@@ -66,7 +67,7 @@ export function ModelSelector({ capability, feature, value, onChange, onModelCha
         <SelectContent>
           {models.map((m) => (
             <SelectItem key={m.id} value={m.id.toString()}>
-              {m.provider_name ? `${m.provider_name} / ${m.display_name}` : m.display_name}
+              {publicModelLabel(m)}
             </SelectItem>
           ))}
         </SelectContent>

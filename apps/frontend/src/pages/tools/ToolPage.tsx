@@ -3,6 +3,7 @@ import { Upload, Wand2, Download, Loader2, AlertCircle, X, Plus } from 'lucide-r
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import type { RawResource, PublicModel } from '@/types'
 import type { ToolCanvasState } from '@/hooks/useToolCanvas'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
@@ -151,7 +152,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                 value={state.modelDbId || models[0]?.id || ''}
                 onChange={(e) => update({ modelDbId: Number(e.target.value) })}
               >
-                {models.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
+                {models.map((m) => <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>)}
                 {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
               </select>
               <div className="flex-1" />

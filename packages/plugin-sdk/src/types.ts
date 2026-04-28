@@ -15,6 +15,90 @@ export interface GenerateImageRequest {
   timeout_ms?: number
 }
 
+export type ExecutableCapability =
+  | 'text'
+  | 'image'
+  | 'image_edit'
+  | 'video'
+  | 'video_i2v'
+  | 'video_v2v'
+  | 'audio'
+
+export interface ExecutableSpec {
+  executor: 'ai_model'
+  capability: ExecutableCapability
+  featureKey?: string
+  modelDbId?: number
+  prompt?: string
+  inputResourceIds?: number[]
+  aspectRatio?: string
+  duration?: number
+  params?: Record<string, unknown>
+}
+
+export type CanvasPortType =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'resource'
+  | 'json'
+  | 'number'
+  | 'boolean'
+
+export interface CanvasPortDef {
+  /** Stable handle id used by canvas edges, e.g. "prompt" or "result". */
+  id: string
+  /** Human-readable label shown by the host UI. */
+  label?: string
+  /** Payload type accepted or produced by this port. */
+  type: CanvasPortType
+  /** Required input ports must be satisfied before execution. */
+  required?: boolean
+  /** Maximum resources/items accepted by this port. 0 or undefined means unlimited. */
+  maxCount?: number
+  /** Optional description for tooltips and inspectors. */
+  description?: string
+}
+
+export interface PluginToolContribution {
+  id: string
+  title: string
+  description?: string
+  inputSchema?: PluginInputSchema
+  outputSchema?: unknown
+  permissions?: string[]
+}
+
+export interface PluginCardContribution {
+  id: string
+  title?: string
+  tool?: string
+  view?: string
+  schema?: unknown
+  description?: string
+}
+
+export interface CanvasNodeContribution {
+  type: string
+  title: string
+  description?: string
+  tool?: string
+  inputs?: CanvasPortDef[]
+  outputs?: CanvasPortDef[]
+  card?: string
+  icon?: string
+  category?: string
+  defaultData?: Record<string, unknown>
+}
+
+export interface PluginContributions {
+  tools?: PluginToolContribution[]
+  cards?: PluginCardContribution[]
+  canvasNodes?: CanvasNodeContribution[]
+  commands?: Array<{ id: string; title: string; tool?: string }>
+}
+
 export interface McpTools {
   listProjects: () => Promise<unknown[]>
   getProject: (id: number) => Promise<unknown>
@@ -88,6 +172,7 @@ export interface PluginManifest {
   homepage?: string
   permissions?: string[]
   inputSchema?: PluginInputSchema
+  contributes?: PluginContributions
   script: string
 }
 
@@ -102,8 +187,11 @@ export interface PluginBundle {
   homepage?: string
   permissions?: string[]
   inputSchema?: PluginInputSchema
+  contributes?: PluginContributions
   /** Compiled JS source. Must export/define a `run(mov, args)` function. */
   bundle: string
+  /** True when the bundle also exports/defines `compile(args)`. */
+  hasCompile?: boolean
   /** Source URL this bundle was installed from. */
   sourceUrl?: string
 }
@@ -131,6 +219,7 @@ export interface PluginWebview {
   author?: string
   homepage?: string
   permissions?: string[]
+  contributes?: PluginContributions
   /** URL of the compiled JS bundle to load inside the iframe. */
   bundleUrl: string
   /** Source URL this manifest was installed from. */

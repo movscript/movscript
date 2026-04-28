@@ -42,7 +42,7 @@ export async function cmdBuild(options: BuildOptions) {
     outfile: join(outDir, 'bundle.js'),
     minify: true,
     banner: { js: `/* movscript-plugin: ${manifest.id} */` },
-    footer: { js: 'var run = __movPlugin__.run;' },
+    footer: { js: 'var run = __movPlugin__.run; var compile = __movPlugin__.compile;' },
     external: [],
   })
 
@@ -91,6 +91,7 @@ function buildOutputManifest(m: MovJson, hasUi: boolean) {
     ...(m.homepage ? { homepage: m.homepage } : {}),
     ...(m.permissions?.length ? { permissions: m.permissions } : {}),
     ...(m.inputSchema ? { inputSchema: m.inputSchema } : {}),
+    ...(m.hasCompile ? { hasCompile: true } : {}),
   }
   return base
 }

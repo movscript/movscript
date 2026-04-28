@@ -16,7 +16,7 @@ import { ScriptDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 type ScriptType = 'main' | 'episode' | 'scene'
-type SettingType = 'character' | 'scene' | 'prop'
+type SettingType = 'character' | 'scene' | 'prop' | 'world_rule'
 type PageTab = 'scripts' | 'settings'
 
 const SCRIPT_TYPES: { type: ScriptType; labelKey: string; color: string }[] = [
@@ -29,6 +29,7 @@ const SETTING_TYPES: { type: SettingType; labelKey: string; color: string }[] = 
   { type: 'character', labelKey: 'domain.settingTypes.character', color: 'bg-muted text-muted-foreground' },
   { type: 'scene',     labelKey: 'domain.settingTypes.scene',     color: 'bg-muted text-muted-foreground' },
   { type: 'prop',      labelKey: 'domain.settingTypes.prop',      color: 'bg-muted text-muted-foreground' },
+  { type: 'world_rule', labelKey: 'domain.settingTypes.worldRule', color: 'bg-muted text-muted-foreground' },
 ]
 
 const SCRIPT_TYPE_MAP = Object.fromEntries(SCRIPT_TYPES.map((t) => [t.type, t]))
@@ -276,6 +277,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.name')}</Label><Input value={draft.name ?? ''} onChange={field('name')} /></div>
+              <div><Label className="text-xs font-medium text-muted-foreground mb-1">别名</Label><Input value={draft.alias ?? ''} onChange={field('alias')} /></div>
               <div>
                 <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.type')}</Label>
                 <div className="flex gap-2 flex-wrap">
@@ -287,11 +289,19 @@ function SettingsSection({ projectId }: { projectId: number }) {
                   ))}
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label className="text-xs font-medium text-muted-foreground mb-1">状态</Label><Input value={draft.status ?? ''} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as Setting['status'] }))} /></div>
+                <div><Label className="text-xs font-medium text-muted-foreground mb-1">重要性</Label><Input value={draft.importance ?? ''} onChange={(e) => setDraft((d) => ({ ...d, importance: e.target.value as Setting['importance'] }))} /></div>
+              </div>
             </div>
             <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label><Input value={draft.description ?? ''} onChange={field('description')} /></div>
             <div>
               <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.scripts.settingContent')}</Label>
               <Textarea className="resize-none" rows={12} placeholder={t('pages.scripts.settingContentPlaceholder')} value={draft.content ?? ''} onChange={field('content')} />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1">结构化设定 JSON</Label>
+              <Textarea className="resize-none font-mono text-xs" rows={8} value={draft.profile_json ?? ''} onChange={field('profile_json')} />
             </div>
             <div className="pt-1 border-t border-border">
               <Button onClick={() => update.mutate({ id: selected.ID, data: draft })} disabled={update.isPending} className="gap-1.5">

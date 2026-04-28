@@ -26,9 +26,10 @@ interface Props {
   scene: Scene
   onClose?: () => void
   onDelete?: () => void
+  showHeader?: boolean
 }
 
-export function SceneDetail({ scene, onClose, onDelete }: Props) {
+export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -50,21 +51,22 @@ export function SceneDetail({ scene, onClose, onDelete }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base font-mono text-muted-foreground shrink-0">{t('details.sceneLabel', { number: scene.number })}</span>
-          <h2 className="text-sm font-semibold text-foreground truncate">{scene.title}</h2>
+      {showHeader && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base font-mono text-muted-foreground shrink-0">{t('details.sceneLabel', { number: scene.number })}</span>
+            <h2 className="text-sm font-semibold text-foreground truncate">{scene.title}</h2>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onDelete && (
+              <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                {t('common.delete')}
+              </button>
+            )}
+            {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onDelete && (
-            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-              {t('common.delete')}
-            </button>
-          )}
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-        </div>
-      </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: settings */}

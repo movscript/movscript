@@ -1,4 +1,4 @@
-import type { MovRuntime, ToolResult } from '@movscript/plugin-sdk'
+import type { ExecutableSpec, MovRuntime, ToolResult } from '@movscript/plugin-sdk'
 
 interface PluginArgs {
   prompt: string
@@ -13,7 +13,7 @@ interface PluginArgs {
   timeout_ms?: number | string
 }
 
-export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult> {
+function buildRequest(args: PluginArgs) {
   const prompt = String(args.prompt ?? '').trim()
   if (!prompt) throw new Error('prompt 不能为空')
 
@@ -23,6 +23,36 @@ export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult
     .filter((id) => Number.isFinite(id) && id > 0)
 
   const isEdit = refIds.length > 0
+  const aspectRatio = String(args.aspect_ratio ?? '1:1')
+  const imageSize = String(args.image_size ?? '1024x1024')
+  const quality = String(args.quality ?? 'standard')
+  const timeoutMs = Number(args.timeout_ms ?? 180_000)
+
+  const extraParams: Record<string, unknown> = { image_size: imageSize, quality }
+  if (args.negative_prompt) extraParams.negative_prompt = String(args.negative_prompt)
+  if (args.steps) extraParams.steps = Number(args.steps)
+  if (args.seed) extraParams.seed = Number(args.seed)
+
+  return { prompt, refIds, isEdit, aspectRatio, timeoutMs, extraParams }
+}
+
+export function compile(args: PluginArgs): ExecutableSpec {
+  const { prompt, refIds, isEdit, aspectRatio, extraParams } = buildRequest(args)
+  const modelConfigId = Number(args.model_config_id)
+  return {
+    executor: 'ai_model',
+    capability: isEdit ? 'image_edit' : 'image',
+    featureKey: 'plugin.image_generator',
+    modelDbId: Number.isFinite(modelConfigId) ? modelConfigId : undefined,
+    prompt,
+    inputResourceIds: refIds,
+    aspectRatio,
+    params: extraParams,
+  }
+}
+
+export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult> {
+  const { prompt, refIds, isEdit, aspectRatio, timeoutMs, extraParams } = buildRequest(args)
 
   let modelConfigId = Number(args.model_config_id)
   if (!modelConfigId || !Number.isFinite(modelConfigId)) {
@@ -36,16 +66,6 @@ export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult
       modelConfigId = models[0].id
     }
   }
-
-  const aspectRatio = String(args.aspect_ratio ?? '1:1')
-  const imageSize = String(args.image_size ?? '1024x1024')
-  const quality = String(args.quality ?? 'standard')
-  const timeoutMs = Number(args.timeout_ms ?? 180_000)
-
-  const extraParams: Record<string, unknown> = { image_size: imageSize, quality }
-  if (args.negative_prompt) extraParams.negative_prompt = String(args.negative_prompt)
-  if (args.steps) extraParams.steps = Number(args.steps)
-  if (args.seed) extraParams.seed = Number(args.seed)
 
   const job = await mov.generateImage({
     model_config_id: modelConfigId,

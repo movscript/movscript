@@ -4,15 +4,22 @@ import { api } from '@/lib/api'
 import type { Shot, Storyboard } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { ShotForm } from '@/components/forms/ShotForm'
-import type { EntityKind } from '../config'
+import { ArtifactWorkspaceFrame } from '../ArtifactWorkspaceFrame'
+import type { WorkspaceFrameProps } from './types'
 
-interface ShotWorkspaceProps {
+interface ShotWorkspaceProps extends WorkspaceFrameProps {
   shot: Shot
   storyboards?: Storyboard[]
-  onOpenTab?: (kind: EntityKind, id: number, label: string) => void
 }
 
-export function ShotWorkspace({ shot, storyboards = [], onOpenTab }: ShotWorkspaceProps) {
+export function ShotWorkspace({
+  shot,
+  storyboards = [],
+  node,
+  pipeline,
+  members,
+  onNodeUpdated,
+}: ShotWorkspaceProps) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Shot>>({ ...shot })
@@ -26,19 +33,16 @@ export function ShotWorkspace({ shot, storyboards = [], onOpenTab }: ShotWorkspa
   const storyboard = shot.storyboard_id ? storyboards.find((b) => b.ID === shot.storyboard_id) : null
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {storyboard && (
-        <div className="shrink-0 flex items-center gap-1.5 px-4 py-1.5 border-b border-border bg-muted/20 text-xs text-muted-foreground">
-          <span className="text-muted-foreground/50">分镜</span>
-          <span className="text-muted-foreground/30">/</span>
-          <button
-            onClick={() => onOpenTab?.('storyboard', storyboard.ID, storyboard.title || `#${storyboard.order}`)}
-            className="hover:text-foreground hover:underline transition-colors"
-          >
-            #{storyboard.order}{storyboard.title ? ` ${storyboard.title}` : ''}
-          </button>
-        </div>
-      )}
+    <ArtifactWorkspaceFrame
+      kind="shot"
+      title={`镜头 #${shot.order}`}
+      subtitle={storyboard ? `来自 ${storyboard.title || `分镜 #${storyboard.order}`}` : '独立镜头'}
+      node={node}
+      pipeline={pipeline}
+      members={members}
+      isSaving={update.isPending}
+      onNodeUpdated={onNodeUpdated}
+    >
       <div className="flex-1 min-h-0 overflow-hidden">
         <ShotForm
           shot={shot}
@@ -48,6 +52,6 @@ export function ShotWorkspace({ shot, storyboards = [], onOpenTab }: ShotWorkspa
           isSaving={update.isPending}
         />
       </div>
-    </div>
+    </ArtifactWorkspaceFrame>
   )
 }

@@ -1,11 +1,11 @@
 import { Handle, Position, NodeResizer, useStore, useNodeId } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import type { CanvasNodeData } from '@/types'
+import type { CanvasArtifactKind, CanvasNodeData } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
   Image, Video, Music, ChevronDown, Brush, Camera, Layers3,
-  Palette, PersonStanding, RotateCw, Wrench,
+  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
@@ -13,6 +13,17 @@ import { CanvasGenBody } from '@/components/shared/CanvasGenBody'
 import { ToolNodeFullCard } from '@/components/shared/ToolNodeFullCard'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
+import { CANVAS_NODE_META } from '../nodeCatalog'
+
+const ARTIFACT_ICONS: Record<CanvasArtifactKind, React.ReactNode> = {
+  script: <FileText size={12} />,
+  asset: <Image size={12} />,
+  episode: <Video size={12} />,
+  scene: <Camera size={12} />,
+  storyboard: <Layers3 size={12} />,
+  shot: <Video size={12} />,
+  final_video: <Video size={12} />,
+}
 
 type CardMode = 'compact' | 'detail' | 'full'
 
@@ -31,6 +42,61 @@ const sourceHandleStyle: React.CSSProperties = {
   top: '50%', transform: 'translateY(-50%)',
   zIndex: 30,
   pointerEvents: 'auto',
+}
+
+function handleOffset(index: number, count: number) {
+  if (count <= 1) return '50%'
+  return `${((index + 1) * 100) / (count + 1)}%`
+}
+
+function NodePortHandles({
+  nodeType,
+  inputPorts: customInputPorts,
+  outputPorts: customOutputPorts,
+  inputs = true,
+  outputs = true,
+}: {
+  nodeType: string
+  inputPorts?: CanvasNodeData['inputPorts']
+  outputPorts?: CanvasNodeData['outputPorts']
+  inputs?: boolean
+  outputs?: boolean
+}) {
+  const meta = CANVAS_NODE_META[nodeType as keyof typeof CANVAS_NODE_META]
+  const inputPorts = customInputPorts ?? meta?.inputs
+  const outputPorts = customOutputPorts ?? meta?.outputs
+  if (!inputPorts && !outputPorts) {
+    return (
+      <>
+        {inputs && <Handle type="target" position={Position.Left} style={targetHandleStyle} />}
+        {outputs && <Handle type="source" position={Position.Right} style={sourceHandleStyle} />}
+      </>
+    )
+  }
+  return (
+    <>
+      {inputs && inputPorts?.map((port, index) => (
+        <Handle
+          key={`in-${port.id}`}
+          id={port.id}
+          type="target"
+          position={Position.Left}
+          title={port.label ?? port.id}
+          style={{ ...targetHandleStyle, top: handleOffset(index, inputPorts.length) }}
+        />
+      ))}
+      {outputs && outputPorts?.map((port, index) => (
+        <Handle
+          key={`out-${port.id}`}
+          id={port.id}
+          type="source"
+          position={Position.Right}
+          title={port.label ?? port.id}
+          style={{ ...sourceHandleStyle, top: handleOffset(index, outputPorts.length) }}
+        />
+      ))}
+    </>
+  )
 }
 
 type NodeDataWithHandlers = CanvasNodeData & {
@@ -179,7 +245,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
   const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="text" />
       <NodeHeader
         icon={<FileText size={12} />}
         label={data.label || t('canvas.nodeLabels.text')}
@@ -206,7 +272,6 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
           </div>
         )
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -221,7 +286,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const imgUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="image" />
       <NodeHeader
         icon={<Image size={12} />}
         label={data.label || t('canvas.nodeLabels.image')}
@@ -241,7 +306,6 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
             : <Image size={24} className="text-muted-foreground/20" />}
         </div>
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -256,7 +320,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const videoUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="video" />
       <NodeHeader
         icon={<Video size={12} />}
         label={data.label || t('canvas.nodeLabels.video')}
@@ -276,7 +340,6 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
             : <Video size={24} className="text-white/20" />}
         </div>
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -291,7 +354,7 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const audioUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="audio" />
       <NodeHeader
         icon={<Music size={12} />}
         label={data.label || t('canvas.nodeLabels.audio')}
@@ -308,7 +371,6 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
             : <span className="text-muted-foreground/40 italic">{t('canvas.emptyAudio')}</span>}
         </div>
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -400,7 +462,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
   if (mode === 'full') {
     return (
       <div style={{ position: 'relative', display: 'inline-block' }}>
-        <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+        <NodePortHandles nodeType={type} />
         <ToolNodeFullCard
           toolName={data.label || metaLabel}
           capability={meta.capability}
@@ -421,14 +483,13 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
           canvasId={data.canvasId}
           rfNodeId={data.rfNodeId}
         />
-        <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
       </div>
     )
   }
 
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType={type} />
       <NodeHeader
         icon={meta.icon}
         label={data.label || metaLabel}
@@ -447,7 +508,46 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
           error={data.error}
         />
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
+    </NodeCard>
+  )
+}
+
+export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
+  const status = data.status ?? 'idle'
+  const declaredMode: CardMode = data.cardMode ?? 'detail'
+  const measuredWidth = useNodeWidth()
+  const mode = effectiveMode(declaredMode, measuredWidth)
+  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
+  return (
+    <NodeCard selected={selected}>
+      <NodePortHandles nodeType="plugin_card" inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
+      <NodeHeader
+        icon={<Puzzle size={12} />}
+        label={data.label || data.pluginName || t('canvas.nodeLabels.plugin_card')}
+        status={status}
+        hideLabel={hideLabel}
+        mode={declaredMode}
+        onCycleMode={data.onCycleMode}
+        actions={mode !== 'compact' && status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+      />
+      {mode !== 'compact' && (
+        <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
+          <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
+            <span className="truncate font-medium text-foreground">{data.pluginName || data.pluginId || t('plugins.notFound')}</span>
+            {data.pluginVersion && (
+              <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 leading-none">
+                v{data.pluginVersion}
+              </span>
+            )}
+          </div>
+          {data.pluginResultText ? (
+            <p className="line-clamp-4 whitespace-pre-wrap break-words text-xs text-muted-foreground">{data.pluginResultText}</p>
+          ) : (
+            <span className="italic text-muted-foreground/40">{t('canvas.pluginCard.waiting')}</span>
+          )}
+        </div>
+      )}
     </NodeCard>
   )
 }
@@ -462,6 +562,7 @@ export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
+      <NodePortHandles nodeType="input" inputs={false} />
       <NodeHeader
         icon={<LogIn size={12} />}
         label={data.label || t('canvas.nodeLabels.input')}
@@ -478,7 +579,6 @@ export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHa
             : <span className="italic text-muted-foreground/40">{t('canvas.fillAtRuntime')}</span>}
         </div>
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -493,7 +593,7 @@ export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithH
   const hasOutput = !!data.resource || status === 'done'
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="output" outputs={false} />
       <NodeHeader
         icon={<LogOut size={12} />}
         label={data.label || t('canvas.nodeLabels.output')}
@@ -526,7 +626,7 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
   const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="approval" />
       <NodeHeader
         icon={<UserCheck size={12} />}
         label={data.label || t('canvas.nodeLabels.approval')}
@@ -554,7 +654,6 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
           )}
         </div>
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -568,7 +667,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
   const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="text_gen" />
       <NodeHeader
         icon={<Sparkles size={12} />}
         label={data.label || t('canvas.nodeLabels.text_gen')}
@@ -602,7 +701,6 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
           textContent={data.textContent}
         />
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -630,7 +728,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 
   return (
     <NodeCard selected={selected}>
-      <Handle type="target" position={Position.Left} style={targetHandleStyle} />
+      <NodePortHandles nodeType="ai_gen" />
       <NodeHeader
         icon={<Sparkles size={12} />}
         label={data.label || t('canvas.nodeLabels.ai_gen')}
@@ -684,7 +782,6 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
           textContent={data.textContent}
         />
       )}
-      <Handle type="source" position={Position.Right} style={sourceHandleStyle} />
     </NodeCard>
   )
 }
@@ -708,5 +805,50 @@ export function GroupNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         <span className="text-xs font-medium text-muted-foreground">{data.groupLabel || data.label || t('canvas.nodeLabels.group')}</span>
       </div>
     </div>
+  )
+}
+
+export function ArtifactCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
+  const kind = data.artifactKind
+  const declaredMode: CardMode = data.cardMode ?? 'detail'
+  const measuredWidth = useNodeWidth()
+  const mode = effectiveMode(declaredMode, measuredWidth)
+  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
+  const label = data.label || data.artifactTitle || t('canvas.nodeLabels.artifact_card')
+  const kindLabel = kind ? t(`canvas.artifactTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.artifact_card')
+
+  return (
+    <NodeCard selected={selected}>
+      <NodePortHandles nodeType="artifact_card" />
+      <NodeHeader
+        icon={kind ? ARTIFACT_ICONS[kind] : <FileText size={12} />}
+        label={label}
+        hideLabel={hideLabel}
+        mode={declaredMode}
+        onCycleMode={data.onCycleMode}
+        accent="bg-slate-50 dark:bg-slate-950/35"
+      />
+      {mode !== 'compact' && (
+        <div className="space-y-2 px-3 py-2">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span className="rounded border border-border bg-background px-1.5 py-0.5 leading-none">{kindLabel}</span>
+            {data.artifactId && <span className="font-mono">#{data.artifactId}</span>}
+          </div>
+          {mode === 'detail' && data.textContent && (
+            <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.textContent}</p>
+          )}
+          {mode === 'full' && (
+            <textarea
+              className="nodrag nowheel min-h-[96px] w-full resize-none rounded-md border border-border bg-background px-2.5 py-2 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
+              value={data.textContent ?? ''}
+              onChange={(e) => data.onUpdateContent?.(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              placeholder={t('canvas.emptyContent')}
+            />
+          )}
+        </div>
+      )}
+    </NodeCard>
   )
 }

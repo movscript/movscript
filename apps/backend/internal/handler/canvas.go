@@ -96,7 +96,7 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 			{CanvasID: cv.ID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
 			{CanvasID: cv.ID, NodeID: "output", Type: "output", Label: "输出", PosX: 460, PosY: 160, Data: string(outputData)},
 		})
-		h.db.Create(&model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "output"})
+		h.db.Create(&model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "output", SourceHandle: "value", TargetHandle: "value"})
 		h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID)
 	}
 	c.JSON(http.StatusCreated, cv)

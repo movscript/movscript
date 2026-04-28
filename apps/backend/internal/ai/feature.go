@@ -74,7 +74,7 @@ var FeatureCatalog = []FeatureDef{
 		Description:  "对剧本内容进行智能分析，提取人物、背景、场景等关键信息",
 		RequiredCap:  CapabilityText,
 		SystemPrompt: `你是专业剧本编辑助手，分析用户提供的剧本内容。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
-		OutputSchema: `{"summary":"剧本总结","characters":"主要人物","core_settings":"核心设定","background":"故事背景","scenes_desc":"主要场景","hook":"核心钩子","plot_summary":"情节走向"}`,
+		OutputSchema: `{"summary":"剧本提纲","characters":"人物补充说明","character_profiles":[{"id":"c1","name":"姓名","identity":"身份","traits":"性格/特征","goal":"欲望/目标","notes":"补充"}],"character_relationships":[{"id":"r1","source":"c1","target":"c2","label":"关系","type":"alliance|family|love|conflict|secret|other"}],"core_settings":["核心设定"],"background":"一句话时代背景","scenes_desc":["详细场景说明"],"hook":"核心钩子","plot_summary":"剧情推演提纲","script_points":[{"id":"p1","content":"关键点","beat_type":"hook|reversal|conflict|release|none","tags":["标签"]}]}`,
 		MaxTokens:    2000, Temperature: 0,
 	},
 	{

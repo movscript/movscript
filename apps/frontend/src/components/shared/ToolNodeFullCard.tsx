@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { XCircle, Loader2, ChevronDown, History, ChevronUp } from 'lucide-react'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import type { RawResource, PublicModel, CanvasTask } from '@/types'
 import { Card, CardHeader, CardTitle, CardContent } from '@movscript/ui'
 import { GenInputCard } from './GenInputCard'
@@ -162,7 +163,7 @@ export function ToolNodeFullCard({
               onChange={e => onUpdateModelId?.(Number(e.target.value))}
               onClick={e => e.stopPropagation()}
             >
-              {models.map(m => <option key={m.id} value={m.id}>{m.display_name}</option>)}
+              {models.map(m => <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>)}
             </select>
           )}
           {onCycleMode && (

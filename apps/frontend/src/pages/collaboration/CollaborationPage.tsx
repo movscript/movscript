@@ -12,10 +12,11 @@ import {
   UserRound,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { canManagePipelineNodeAssignment, effectiveLeadId } from '@/lib/pipelinePermissions'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { usePermissions } from '@/hooks/usePermissions'
-import type { Pipeline, PipelineNode, PipelineNodeStatus, ProjectMember, User } from '@/types'
+import type { Pipeline, PipelineNode, PipelineNodeStatus, Project, ProjectMember, User } from '@/types'
 import { Badge } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@movscript/ui'
@@ -54,14 +55,23 @@ function dueDatePayload(value: string) {
 function NodeCard({
   node,
   members,
+  pipeline,
+  project,
+  currentUserId,
   onUpdate,
 }: {
   node: PipelineNode
   members: ProjectMember[]
+  pipeline?: Pipeline
+  project?: Project | null
+  currentUserId?: number
   onUpdate: (nodeId: number, body: Record<string, unknown>) => void
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canManageAssignment = canManagePipelineNodeAssignment({ node, project, members, currentUserId, pipeline })
+  const fallbackLead = effectiveLeadId(node, project, pipeline)
+  const fallbackLeadName = fallbackLead ? assigneeName(members, fallbackLead) : undefined
 
   return (
     <div className="rounded-lg border border-border bg-background p-3 shadow-sm">
@@ -79,7 +89,7 @@ function NodeCard({
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <UserRound size={12} />
-              执行：{assigneeName(members, node.assignee_id)}
+              执行：{node.assignee_id ? assigneeName(members, node.assignee_id) : fallbackLeadName ? `未分配（${fallbackLeadName} 兜底）` : '未分配'}
             </span>
             <span>负责：{assigneeName(members, node.lead_id)}</span>
             {node.due_date && (
@@ -102,6 +112,7 @@ function NodeCard({
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
           value={node.assignee_id ?? ''}
           onChange={(event) => onUpdate(node.ID, { assignee_id: event.target.value ? Number(event.target.value) : null })}
+          disabled={!canManageAssignment}
         >
           <option value="">未分配执行者</option>
           {members.map((member) => (
@@ -112,6 +123,7 @@ function NodeCard({
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
           value={node.lead_id ?? ''}
           onChange={(event) => onUpdate(node.ID, { lead_id: event.target.value ? Number(event.target.value) : null })}
+          disabled={!canManageAssignment}
         >
           <option value="">未指定负责人</option>
           {members.map((member) => (
@@ -123,6 +135,7 @@ function NodeCard({
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
           value={dateInputValue(node.due_date)}
           onChange={(event) => onUpdate(node.ID, { due_date: dueDatePayload(event.target.value) })}
+          disabled={!canManageAssignment}
         />
       </div>
     </div>
@@ -132,11 +145,15 @@ function NodeCard({
 function PipelinePeopleView({
   nodes,
   members,
+  pipeline,
+  project,
   currentUserId,
   onUpdate,
 }: {
   nodes: PipelineNode[]
   members: ProjectMember[]
+  pipeline?: Pipeline
+  project?: Project | null
   currentUserId?: number
   onUpdate: (nodeId: number, body: Record<string, unknown>) => void
 }) {
@@ -193,7 +210,15 @@ function PipelinePeopleView({
       ) : (
         <div className="space-y-2">
           {visible.map((node) => (
-            <NodeCard key={node.ID} node={node} members={members} onUpdate={onUpdate} />
+            <NodeCard
+              key={node.ID}
+              node={node}
+              members={members}
+              pipeline={pipeline}
+              project={project}
+              currentUserId={currentUserId}
+              onUpdate={onUpdate}
+            />
           ))}
         </div>
       )}
@@ -352,6 +377,8 @@ export default function CollaborationPage() {
             <PipelinePeopleView
               nodes={nodes}
               members={members}
+              pipeline={pipeline}
+              project={project}
               currentUserId={currentUser?.ID}
               onUpdate={(nodeId, body) => updateNode.mutate({ nodeId, body })}
             />

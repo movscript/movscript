@@ -74,10 +74,6 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("根节点只能是工作节点"))
 		return
 	}
-	if body.ParentID == nil && h.visibleNodeCount(pid) > 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线只能有一个根节点，请从现有节点添加子节点或依赖"))
-		return
-	}
 	var parent model.PipelineNode
 	if body.ParentID != nil {
 		if err := h.db.First(&parent, *body.ParentID).Error; err != nil || parent.ProjectID != pid {
@@ -87,6 +83,9 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		if !isPipelineWorkNode(parent.Type) {
 			c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有工作节点可以创建子节点"))
 			return
+		}
+		if node.LeadID == nil && parent.LeadID != nil {
+			node.LeadID = parent.LeadID
 		}
 	}
 	node.ContentType = pipelineContentTypeForNode(node.Type)
@@ -149,6 +148,13 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	}
 	if err := json.Unmarshal(payload, &body); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+
+	userID := currentUserID(c)
+	assignmentTouched := hasJSONField(raw, "assignee_id", "lead_id", "due_date")
+	if assignmentTouched && !h.canManageNodeAssignment(node, userID) {
+		c.JSON(http.StatusForbidden, apierr.Forbidden("需要所有者、导演或节点负责人权限"))
 		return
 	}
 
@@ -215,6 +221,18 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	if body.PosY != nil {
 		node.PosY = *body.PosY
 	}
+	if rawAssigneeID, ok := raw["assignee_id"]; ok && string(rawAssigneeID) != "null" {
+		if node.AssigneeID == nil || !h.isProjectMember(node.ProjectID, *node.AssigneeID) {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("执行者必须是项目成员"))
+			return
+		}
+	}
+	if rawLeadID, ok := raw["lead_id"]; ok && string(rawLeadID) != "null" {
+		if node.LeadID == nil || !h.isProjectMember(node.ProjectID, *node.LeadID) {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("负责人必须是项目成员"))
+			return
+		}
+	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		entityChanged := previous.EntityType != node.EntityType ||
@@ -247,10 +265,6 @@ func (h *PipelineHandler) DeleteNode(c *gin.Context) {
 	var node model.PipelineNode
 	if err := h.db.First(&node, nid).Error; err != nil {
 		c.JSON(http.StatusNotFound, apierr.NotFound("节点不存在"))
-		return
-	}
-	if h.wouldDeleteNodeBreakSingleRoot(node.ProjectID, node.ID) {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("删除该节点会产生多个根节点，请先调整父子关系"))
 		return
 	}
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
@@ -373,6 +387,11 @@ func (h *PipelineHandler) Submit(c *gin.Context) {
 			return
 		}
 	}
+	userID := currentUserID(c)
+	if !h.canSubmitNode(node, userID) {
+		c.JSON(http.StatusForbidden, apierr.Forbidden("需要执行者、负责人、导演或所有者权限"))
+		return
+	}
 
 	node.Status = "under_review"
 	node.ReviewNote = ""
@@ -394,8 +413,8 @@ func (h *PipelineHandler) Approve(c *gin.Context) {
 	}
 
 	userID := currentUserID(c)
-	if !hasProjectRole(h.db, node.ProjectID, userID, "owner", "director") {
-		c.JSON(http.StatusForbidden, apierr.Forbidden("需要导演或所有者权限"))
+	if !h.canReviewNode(node, userID) {
+		c.JSON(http.StatusForbidden, apierr.Forbidden("需要所有者、导演或非自审负责人权限"))
 		return
 	}
 
@@ -421,8 +440,8 @@ func (h *PipelineHandler) Reject(c *gin.Context) {
 	}
 
 	userID := currentUserID(c)
-	if !hasProjectRole(h.db, node.ProjectID, userID, "owner", "director") {
-		c.JSON(http.StatusForbidden, apierr.Forbidden("需要导演或所有者权限"))
+	if !h.canReviewNode(node, userID) {
+		c.JSON(http.StatusForbidden, apierr.Forbidden("需要所有者、导演或非自审负责人权限"))
 		return
 	}
 
@@ -450,6 +469,11 @@ func (h *PipelineHandler) Reopen(c *gin.Context) {
 	}
 	if node.Status == "draft" {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("节点已经是草稿状态"))
+		return
+	}
+	userID := currentUserID(c)
+	if !h.canReviewNode(node, userID) {
+		c.JSON(http.StatusForbidden, apierr.Forbidden("需要所有者、导演或非自审负责人权限"))
 		return
 	}
 
@@ -553,15 +577,21 @@ func (h *PipelineHandler) wouldDeleteNodeBreakSingleRoot(projectID, nodeID uint)
 	h.db.Select("id, type").Where("project_id = ?", projectID).Find(&nodes)
 	h.db.Select("from_node_id, to_node_id, relation_type").Where("project_id = ?", projectID).Find(&edges)
 
+	before := visibleHierarchyRootCount(nodes, edges, 0)
+	after := visibleHierarchyRootCount(nodes, edges, nodeID)
+	return after > 1 && after > before
+}
+
+func visibleHierarchyRootCount(nodes []model.PipelineNode, edges []model.PipelineEdge, excludedNodeID uint) int {
 	remaining := map[uint]bool{}
 	for _, node := range nodes {
-		if node.ID == nodeID || isPipelineToolNode(node.Type) {
+		if node.ID == excludedNodeID || isPipelineToolNode(node.Type) {
 			continue
 		}
 		remaining[node.ID] = true
 	}
 	if len(remaining) <= 1 {
-		return false
+		return len(remaining)
 	}
 
 	hasParent := map[uint]bool{}
@@ -569,7 +599,7 @@ func (h *PipelineHandler) wouldDeleteNodeBreakSingleRoot(projectID, nodeID uint)
 		if edge.RelationType != "" && edge.RelationType != "hierarchy" {
 			continue
 		}
-		if edge.FromNodeID == nodeID || edge.ToNodeID == nodeID {
+		if edge.FromNodeID == excludedNodeID || edge.ToNodeID == excludedNodeID {
 			continue
 		}
 		if remaining[edge.FromNodeID] && remaining[edge.ToNodeID] {
@@ -581,12 +611,9 @@ func (h *PipelineHandler) wouldDeleteNodeBreakSingleRoot(projectID, nodeID uint)
 	for id := range remaining {
 		if !hasParent[id] {
 			rootCount++
-			if rootCount > 1 {
-				return true
-			}
 		}
 	}
-	return false
+	return rootCount
 }
 
 func (h *PipelineHandler) wouldCreateCycle(projectID, parentID, childID uint) bool {
@@ -622,17 +649,108 @@ func currentUserID(c *gin.Context) uint {
 
 // hasProjectRole checks if a user has one of the given roles in a project.
 func hasProjectRole(db *gorm.DB, projectID, userID uint, roles ...string) bool {
-	if userID == 0 {
-		return false
-	}
-	var member model.ProjectMember
-	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
+	role, ok := projectRole(db, projectID, userID)
+	if !ok {
 		return false
 	}
 	for _, r := range roles {
-		if member.Role == r {
+		if role == r {
 			return true
 		}
 	}
 	return false
+}
+
+func projectRole(db *gorm.DB, projectID, userID uint) (string, bool) {
+	if userID == 0 {
+		return "", false
+	}
+	var member model.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err == nil {
+		return member.Role, true
+	}
+	var project model.Project
+	if err := db.Select("owner_id").First(&project, projectID).Error; err == nil && project.OwnerID == userID {
+		return "owner", true
+	}
+	return "", false
+}
+
+func hasJSONField(raw map[string]json.RawMessage, fields ...string) bool {
+	for _, field := range fields {
+		if _, ok := raw[field]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *PipelineHandler) isProjectMember(projectID, userID uint) bool {
+	if userID == 0 {
+		return false
+	}
+	if _, ok := projectRole(h.db, projectID, userID); ok {
+		return true
+	}
+	return false
+}
+
+func (h *PipelineHandler) canManageNodeAssignment(node model.PipelineNode, userID uint) bool {
+	if hasProjectRole(h.db, node.ProjectID, userID, "owner", "director") {
+		return true
+	}
+	if leadID, ok := h.effectiveLeadID(node); ok && leadID == userID {
+		return true
+	}
+	return false
+}
+
+func (h *PipelineHandler) canSubmitNode(node model.PipelineNode, userID uint) bool {
+	if hasProjectRole(h.db, node.ProjectID, userID, "owner", "director") {
+		return true
+	}
+	if node.AssigneeID != nil && *node.AssigneeID == userID {
+		return true
+	}
+	if leadID, ok := h.effectiveLeadID(node); ok && leadID == userID {
+		return true
+	}
+	return false
+}
+
+func (h *PipelineHandler) canReviewNode(node model.PipelineNode, userID uint) bool {
+	if hasProjectRole(h.db, node.ProjectID, userID, "owner", "director") {
+		return true
+	}
+	if node.AssigneeID != nil && *node.AssigneeID == userID {
+		return false
+	}
+	if leadID, ok := h.effectiveLeadID(node); ok && leadID == userID {
+		return true
+	}
+	return false
+}
+
+func (h *PipelineHandler) effectiveLeadID(node model.PipelineNode) (uint, bool) {
+	visited := map[uint]bool{}
+	current := node
+	for {
+		if current.LeadID != nil {
+			return *current.LeadID, true
+		}
+		if visited[current.ID] {
+			return 0, false
+		}
+		visited[current.ID] = true
+
+		var edge model.PipelineEdge
+		if err := h.db.
+			Where("project_id = ? AND to_node_id = ? AND (relation_type = ? OR relation_type = '' OR relation_type IS NULL)", current.ProjectID, current.ID, "hierarchy").
+			First(&edge).Error; err != nil {
+			return 0, false
+		}
+		if err := h.db.Select("id, project_id, lead_id").First(&current, edge.FromNodeID).Error; err != nil {
+			return 0, false
+		}
+	}
 }

@@ -1,89 +1,115 @@
 # Movscript
 
-Movscript is an open-source desktop production workspace for short drama and AI-assisted video workflows. It combines script, asset, episode, scene, storyboard, shot, resource, pipeline, canvas, and generation-job management in one Electron application.
+Movscript is an open-source desktop production workspace for short drama and AI-assisted video creation. It combines story planning, production assets, episode and scene breakdowns, storyboards, shots, canvas workflows, generation jobs, model administration, and plugin/agent experiments in one local-first application.
 
-## Highlights
+> The project is still early. APIs, plugin manifests, and agent runtime contracts may change before a stable release.
 
-- Project workspace for scripts, assets, episodes, scenes, storyboards, and shots
-- AI generation tools for text, image, video, reference image, reference video, motion imitation, style transfer, multi-angle views, and brainstorming
-- Provider abstraction for OpenAI-compatible, Anthropic, Gemini, Volcengine, Kling, and dry-run adapters
-- Local-first desktop frontend built with Electron, Vite, React, TypeScript, Tailwind CSS, and shadcn/ui primitives
-- Go API server with Gin, GORM, PostgreSQL, MinIO-compatible object storage, and MCP endpoint support
-- Internationalization foundation for Simplified Chinese and English
+## What You Can Build With It
+
+- Organize short-drama projects with scripts, assets, episodes, scenes, storyboards, and shots.
+- Attach media resources to project entities and store files through MinIO/S3-compatible object storage.
+- Configure AI credentials, model capabilities, feature routing, credit pricing, and debug calls from the admin UI.
+- Run text, image, image-edit, video, image-to-video, and video-to-video generation jobs asynchronously.
+- Compose reusable canvas workflows with manual media nodes, AI nodes, tool nodes, approvals, and plugin-provided nodes.
+- Extend the desktop experience with local plugins and a standalone local agent runtime.
+
+## Repository Layout
+
+```text
+movscript/
+├── apps/backend/          Go API server, database models, AI adapters, job worker
+├── apps/frontend/         Electron + Vite + React desktop application
+├── apps/agent/            Local agent HTTP service and runtime experiments
+├── apps/movcli/           CLI for plugin packaging and local agent smoke tests
+├── packages/plugin-sdk/   TypeScript plugin SDK
+├── packages/tokens/       Shared design tokens
+├── packages/ui/           Shared React UI primitives
+├── plugins/               First-party plugin examples
+├── docs/                  User, operator, developer, API, plugin, and agent docs
+├── memory/                Maintainer notes and design-history records
+└── docker-compose.yml     Local PostgreSQL, MinIO, and backend stack
+```
 
 ## Quick Start
 
-### Prerequisites
+### Requirements
 
 - Go 1.25+
 - Node.js 20+
+- pnpm 10+
 - Docker and Docker Compose
 
-### Start infrastructure
+### 1. Install Node Dependencies
+
+```bash
+pnpm install
+```
+
+### 2. Start Local Infrastructure
 
 ```bash
 docker compose up -d db minio createbuckets
 ```
 
-### Configure and run the backend
+This starts PostgreSQL on `localhost:5432`, MinIO on `localhost:9000`, and the MinIO console on `localhost:9001`.
+
+### 3. Configure the Backend
 
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
-# paste the generated value into ENCRYPTION_KEY
+```
+
+Paste the generated 64-character value into `ENCRYPTION_KEY` in `apps/backend/.env`.
+
+### 4. Run the Backend and Frontend
+
+```bash
 make dev-backend
 ```
 
-The health endpoint is available at `http://localhost:8765/health`.
-
-### Configure and run the frontend
+In another terminal:
 
 ```bash
 cp apps/frontend/.env.example apps/frontend/.env
-pnpm install
-pnpm dev:frontend
+make dev-frontend
 ```
 
-### Build
+Backend health check:
 
 ```bash
-make build
+curl http://localhost:8765/health
 ```
 
-### Validate
+## Common Commands
 
 ```bash
-make test
+make dev-backend          # Go API server
+make dev-frontend         # Electron desktop app
+make dev-agent            # Local agent server
+make test                 # Backend tests + workspace typechecks
+make build                # Backend, packages, apps, and plugins
+pnpm run typecheck        # TypeScript typechecks where available
 ```
 
 ## Documentation
 
+Start with the documentation index: [docs/README.md](docs/README.md).
+
+Primary guides:
+
 - [Getting started](docs/getting-started.md)
 - [Configuration](docs/configuration.md)
 - [Development](docs/development.md)
-- [Deployment](docs/deployment.md)
 - [Architecture](docs/architecture.md)
 - [API reference](docs/api.md)
 - [AI providers](docs/ai-providers.md)
-- [Internationalization](docs/internationalization.md)
+- [Plugins](docs/plugins.md)
+- [Deployment](docs/deployment.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
-Chinese documentation entry: [README.zh-CN.md](README.zh-CN.md)
-
-## Project Structure
-
-```text
-movscript/
-├── apps/backend/          Go API server
-├── apps/frontend/         Electron + Vite + React application
-├── apps/agent/            Local agent runtime
-├── apps/movcli/           MovScript CLI
-├── packages/              Shared workspace packages
-├── plugins/               First-party plugins
-├── docs/             User, developer, and deployment documentation
-└── docker-compose.yml
-```
+Chinese entry point: [README.zh-CN.md](README.zh-CN.md).
 
 ## Open Source
 
-Movscript is released under the [MIT License](LICENSE). Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before participating.
+Movscript is released under the [MIT License](LICENSE). Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

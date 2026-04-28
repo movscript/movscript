@@ -9,6 +9,14 @@ export type {
   PluginInputSchema,
   PluginInputProperty,
   GenerateImageRequest,
+  ExecutableCapability,
+  ExecutableSpec,
+  CanvasPortType,
+  CanvasPortDef,
+  CanvasNodeContribution,
+  PluginToolContribution,
+  PluginCardContribution,
+  PluginContributions,
   PublicModel,
 } from './types'
-export { definePlugin, defineWebviewPlugin, inlinePlugin } from './definePlugin'
+export { definePlugin, defineCanvasPlugin, defineWebviewPlugin, inlinePlugin } from './definePlugin'

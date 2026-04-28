@@ -12,6 +12,7 @@ import {
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
 import { API_V1_BASE_URL } from '@/lib/config'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import {
   canStartLocalAgentFromClient,
   localAgentClient,
@@ -1719,7 +1720,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       attachments: sentAttachments,
       model: {
         id: modelId,
-        ...(activeModel?.display_name ? { name: activeModel.display_name } : {}),
+        ...(activeModel ? { name: publicModelLabel(activeModel) } : {}),
         ...(activeModel?.provider_name ? { provider: activeModel.provider_name } : {}),
       },
       agent: {
@@ -2024,7 +2025,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             <SelectContent>
               {textModels.map((m) => (
                 <SelectItem key={m.id} value={String(m.id)}>
-                  {m.provider_name ? `${m.provider_name} / ${m.display_name}` : m.display_name}
+                  {publicModelLabel(m)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -2078,7 +2079,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         {activeModel && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
             <Wand2 size={10} />
-            <span className="truncate">{activeModel.provider_name} · {activeModel.display_name}</span>
+            <span className="truncate">{publicModelLabel(activeModel, true)}</span>
           </div>
         )}
         <div className="grid grid-cols-4 gap-1">

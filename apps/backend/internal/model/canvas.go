@@ -39,10 +39,12 @@ type CanvasNode struct {
 
 type CanvasEdge struct {
 	gorm.Model
-	CanvasID uint   `gorm:"not null" json:"canvas_id"`
-	EdgeID   string `gorm:"not null" json:"edge_id"`
-	Source   string `gorm:"not null" json:"source"` // source node_id
-	Target   string `gorm:"not null" json:"target"` // target node_id
+	CanvasID     uint   `gorm:"not null" json:"canvas_id"`
+	EdgeID       string `gorm:"not null" json:"edge_id"`
+	Source       string `gorm:"not null" json:"source"`  // source node_id
+	Target       string `gorm:"not null" json:"target"`  // target node_id
+	SourceHandle string `json:"source_handle,omitempty"` // output port id
+	TargetHandle string `json:"target_handle,omitempty"` // input port id
 }
 
 type CanvasRun struct {

@@ -45,12 +45,38 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		WHERE episodes.script_id = s.id AND (episodes.project_id = 0 OR episodes.project_id IS NULL)
 	`)
 
+	// Canonical relation: episode scripts point to their Episode via scripts.episode_id.
+	// Keep episodes.script_id as a legacy compatibility mirror for existing clients.
+	db.Exec(`
+		UPDATE scripts s
+		SET episode_id = e.id
+		FROM episodes e
+		WHERE e.script_id = s.id
+			AND s.script_type = 'episode'
+			AND (s.episode_id IS NULL OR s.episode_id = 0)
+	`)
+	db.Exec(`
+		UPDATE episodes e
+		SET script_id = s.id
+		FROM (
+			SELECT DISTINCT ON (episode_id) id, episode_id
+			FROM scripts
+			WHERE script_type = 'episode' AND episode_id IS NOT NULL
+			ORDER BY episode_id, updated_at DESC, id DESC
+		) s
+		WHERE e.id = s.episode_id
+			AND (e.script_id IS NULL OR e.script_id = 0)
+	`)
+
 	if err := db.AutoMigrate(
 		&model.User{},
 		&model.Project{},
 		&model.ProjectMember{},
 		&model.Script{},
+		&model.ScriptAnalysis{},
 		&model.Setting{},
+		&model.ScriptSettingRef{},
+		&model.SettingRelationship{},
 		&model.Asset{},
 		&model.AssetView{},
 		&model.Episode{},
@@ -58,6 +84,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&model.EpisodeScene{},
 		&model.Storyboard{},
 		&model.Shot{},
+		&model.FinalVideo{},
 		&model.AICredential{},
 		&model.AIModelConfig{},
 		&model.UserQuota{},

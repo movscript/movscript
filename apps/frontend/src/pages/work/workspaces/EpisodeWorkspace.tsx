@@ -1,6 +1,33 @@
 import { EpisodeDetail } from '@/components/detail'
-import type { Episode } from '@/types'
+import type { Episode, Scene, Script, Storyboard } from '@/types'
+import { ArtifactWorkspaceFrame } from '../ArtifactWorkspaceFrame'
+import type { WorkspaceFrameProps } from './types'
 
-export function EpisodeWorkspace({ episode }: { episode: Episode }) {
-  return <EpisodeDetail episode={episode} />
+interface EpisodeWorkspaceProps extends WorkspaceFrameProps {
+  episode: Episode
+  scripts?: Script[]
+  scenes?: Scene[]
+  storyboards?: Storyboard[]
+}
+
+export function EpisodeWorkspace({
+  episode,
+  node,
+  pipeline,
+  members,
+  onNodeUpdated,
+}: EpisodeWorkspaceProps) {
+  return (
+    <ArtifactWorkspaceFrame
+      kind="episode"
+      title={episode.title}
+      subtitle={`EP${String(episode.number).padStart(2, '0')}`}
+      node={node}
+      pipeline={pipeline}
+      members={members}
+      onNodeUpdated={onNodeUpdated}
+    >
+      <EpisodeDetail episode={episode} showHeader={false} />
+    </ArtifactWorkspaceFrame>
+  )
 }

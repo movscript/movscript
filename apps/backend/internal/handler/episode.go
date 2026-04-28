@@ -77,16 +77,9 @@ func (h *EpisodeHandler) CreateUnderProject(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	e.ProjectID = projectID
 
-	// If script_id is provided, validate it belongs to this project
-	if e.ScriptID != nil && *e.ScriptID != 0 {
-		var script model.Script
-		if err := h.db.First(&script, *e.ScriptID).Error; err != nil || script.ProjectID != projectID {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("剧本不存在或不属于该项目"))
-			return
-		}
-	} else {
-		e.ScriptID = nil
-	}
+	// Episode is the structure entity. Episode scripts should link back via
+	// Script.episode_id; script_id is kept only for legacy rows.
+	e.ScriptID = nil
 
 	if e.Number == 0 {
 		var count int64
@@ -106,6 +99,11 @@ func (h *EpisodeHandler) Update(c *gin.Context) {
 	if err := c.ShouldBindJSON(&e); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
+	}
+	e.ScriptID = nil
+	var script model.Script
+	if err := h.db.Where("project_id = ? AND episode_id = ? AND script_type = ?", e.ProjectID, e.ID, "episode").Order("updated_at desc, id desc").First(&script).Error; err == nil {
+		e.ScriptID = &script.ID
 	}
 	h.db.Save(&e)
 	c.JSON(http.StatusOK, e)

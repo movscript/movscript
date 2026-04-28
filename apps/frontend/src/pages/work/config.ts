@@ -1,6 +1,7 @@
-import { FileText, Image, Film, Clapperboard, Layers, Camera } from 'lucide-react'
+import { FileText, Image, Film, Clapperboard, Layers, Camera, Video } from 'lucide-react'
 
-export type EntityKind = 'script' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot'
+export type EntityKind = 'script' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
+export type WorkArtifactKind = 'script' | 'asset' | 'storyboard' | 'shot' | 'final_video'
 
 export const KIND_CONFIG: Record<EntityKind, {
   labelKey: string
@@ -16,7 +17,10 @@ export const KIND_CONFIG: Record<EntityKind, {
   scene:      { labelKey: 'entities.scenes', icon: Clapperboard, color: 'text-muted-foreground', activeColor: 'text-blue-600',   accent: 'bg-blue-500',   accentSoft: 'bg-blue-500/10' },
   storyboard: { labelKey: 'entities.storyboards', icon: Layers,      color: 'text-muted-foreground', activeColor: 'text-indigo-600',  accent: 'bg-indigo-500', accentSoft: 'bg-indigo-500/10' },
   shot:       { labelKey: 'entities.shots', icon: Camera,      color: 'text-muted-foreground', activeColor: 'text-orange-600',  accent: 'bg-orange-500', accentSoft: 'bg-orange-500/10' },
+  final_video:{ labelKey: 'entities.finalVideos', icon: Video,       color: 'text-muted-foreground', activeColor: 'text-rose-600',    accent: 'bg-rose-500',   accentSoft: 'bg-rose-500/10' },
 }
+
+export const WORK_ARTIFACT_KINDS: WorkArtifactKind[] = ['script', 'asset', 'storyboard', 'shot', 'final_video']
 
 export const ASSET_COLORS: Record<string, string> = {
   character: 'bg-muted text-muted-foreground',
