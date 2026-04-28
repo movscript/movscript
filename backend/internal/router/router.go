@@ -79,6 +79,10 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.POST("/ai/chat", chatH.Chat)
 		v1.GET("/model-gateway/models", modelGatewayH.ListModels)
 		v1.POST("/model-gateway/chat/completions", modelGatewayH.ChatCompletions)
+		v1.GET("/model-gateway/api-keys", modelGatewayH.ListAPIKeys)
+		v1.POST("/model-gateway/api-keys", modelGatewayH.CreateAPIKey)
+		v1.PATCH("/model-gateway/api-keys/:id", modelGatewayH.UpdateAPIKey)
+		v1.DELETE("/model-gateway/api-keys/:id", modelGatewayH.DeleteAPIKey)
 
 		// user quota & usage (requires login)
 		v1.GET("/user/quota", aiH.GetMyQuota)

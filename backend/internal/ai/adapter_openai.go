@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -14,7 +16,6 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
-	"github.com/openai/openai-go/shared"
 )
 
 // OpenAIAdapter handles OpenAI and any OpenAI-compatible API via the official openai-go SDK.
@@ -42,62 +43,252 @@ func NewOpenAIAdapter(baseURL, apiKey string) *OpenAIAdapter {
 }
 
 func (a *OpenAIAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
-	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(req.Messages))
-	for _, m := range req.Messages {
-		switch m.Role {
-		case "system":
-			msgs = append(msgs, openai.SystemMessage(m.Content))
-		case "assistant":
-			msgs = append(msgs, openai.AssistantMessage(m.Content))
-		default:
-			msgs = append(msgs, openai.UserMessage(m.Content))
-		}
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:    shared.ChatModel(req.Model),
-		Messages: msgs,
-	}
-
-	if req.MaxTokens > 0 {
-		if isOSeriesModel(req.Model) {
-			params.MaxCompletionTokens = param.NewOpt(int64(req.MaxTokens))
-		} else {
-			params.MaxTokens = param.NewOpt(int64(req.MaxTokens))
-		}
-	}
-
-	if req.Temperature >= 0 && !isOSeriesModel(req.Model) {
-		params.Temperature = param.NewOpt(float64(req.Temperature))
-	}
-
-	if req.JSONMode && !isOSeriesModel(req.Model) {
-		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONObject: &shared.ResponseFormatJSONObjectParam{},
-		}
-	}
-
-	// Build per-request options for ExtraParams (provider-specific fields like reasoning_effort, deepsearch).
-	var reqOpts []option.RequestOption
-	for k, v := range req.ExtraParams {
-		reqOpts = append(reqOpts, option.WithJSONSet(k, v))
-	}
-
-	resp, err := a.client.Chat.Completions.New(ctx, params, reqOpts...)
+	body, err := buildOpenAIChatBody(req, false)
 	if err != nil {
 		return TextResponse{}, err
 	}
-	if len(resp.Choices) == 0 {
+	respBody, status, latency, err := a.postOpenAIJSON(ctx, "/chat/completions", body)
+	if err != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model, Endpoint: a.chatEndpoint(), Method: "POST",
+			RequestBody: mustJSON(body), ResponseStatus: status, ResponseBody: string(respBody),
+			LatencyMs: latency, Error: err.Error(),
+		})
+		return TextResponse{}, err
+	}
+	var parsed openAIChatCompletionResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return TextResponse{}, fmt.Errorf("decode chat completion: %w", err)
+	}
+	if len(parsed.Choices) == 0 {
 		return TextResponse{}, fmt.Errorf("no choices returned")
 	}
+	choice := parsed.Choices[0]
+	recordDebugIfEmpty(ctx, DebugCallResult{
+		Success: true, ModelID: req.Model, Endpoint: a.chatEndpoint(), Method: "POST",
+		RequestBody:    mustJSON(body),
+		ResponseStatus: status,
+		ResponseBody:   string(respBody),
+		LatencyMs:      latency,
+	})
 	return TextResponse{
-		Content: resp.Choices[0].Message.Content,
+		Content:      stringPtrValue(choice.Message.Content),
+		ToolCalls:    choice.Message.ToolCalls,
+		FinishReason: choice.FinishReason,
 		Usage: TokenUsage{
-			InputTokens:  int(resp.Usage.PromptTokens),
-			OutputTokens: int(resp.Usage.CompletionTokens),
+			InputTokens:  parsed.Usage.PromptTokens,
+			OutputTokens: parsed.Usage.CompletionTokens,
 		},
 		Debug: takeDebug(ctx),
 	}, nil
+}
+
+func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
+	body, err := buildOpenAIChatBody(req, true)
+	if err != nil {
+		return nil, err
+	}
+	httpReqBody, _ := json.Marshal(body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.chatEndpoint(), bytes.NewReader(httpReqBody))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model, Endpoint: a.chatEndpoint(), Method: "POST",
+			RequestBody: mustJSON(body), LatencyMs: latency, Error: err.Error(),
+		})
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		err := fmt.Errorf("openai chat stream HTTP %d: %s", resp.StatusCode, string(respBody))
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model, Endpoint: a.chatEndpoint(), Method: "POST",
+			RequestBody: mustJSON(body), ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
+			LatencyMs: latency, Error: err.Error(),
+		})
+		return nil, err
+	}
+
+	out := make(chan TextStreamEvent)
+	go func() {
+		defer close(out)
+		defer resp.Body.Close()
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, ":") {
+				continue
+			}
+			if !strings.HasPrefix(line, "data:") {
+				continue
+			}
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if data == "[DONE]" {
+				out <- TextStreamEvent{Done: true}
+				return
+			}
+			var chunk openAIChatCompletionChunk
+			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				continue
+			}
+			event := TextStreamEvent{}
+			if len(chunk.Choices) > 0 {
+				choice := chunk.Choices[0]
+				event.Role = choice.Delta.Role
+				event.ContentDelta = choice.Delta.Content
+				event.ToolCallDeltas = choice.Delta.ToolCalls
+				event.FinishReason = choice.FinishReason
+			}
+			event.Usage = TokenUsage{
+				InputTokens:  chunk.Usage.PromptTokens,
+				OutputTokens: chunk.Usage.CompletionTokens,
+			}
+			out <- event
+		}
+	}()
+	return out, nil
+}
+
+type openAIChatCompletionResponse struct {
+	Choices []struct {
+		Message struct {
+			Content   *string    `json:"content"`
+			ToolCalls []ToolCall `json:"tool_calls"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+type openAIChatCompletionChunk struct {
+	Choices []struct {
+		Delta struct {
+			Role      string          `json:"role"`
+			Content   string          `json:"content"`
+			ToolCalls []ToolCallDelta `json:"tool_calls"`
+		} `json:"delta"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+func buildOpenAIChatBody(req TextRequest, stream bool) (map[string]any, error) {
+	messages := make([]map[string]any, 0, len(req.Messages))
+	for _, m := range req.Messages {
+		msg := map[string]any{"role": m.Role}
+		if m.Role == "tool" {
+			msg["content"] = m.Content
+			msg["tool_call_id"] = m.ToolCallID
+		} else {
+			if len(m.ToolCalls) > 0 && m.Content == "" {
+				msg["content"] = nil
+			} else {
+				msg["content"] = m.Content
+			}
+			if len(m.ToolCalls) > 0 {
+				msg["tool_calls"] = m.ToolCalls
+			}
+		}
+		messages = append(messages, msg)
+	}
+
+	body := map[string]any{
+		"model":    req.Model,
+		"messages": messages,
+	}
+	if stream {
+		body["stream"] = true
+		body["stream_options"] = map[string]any{"include_usage": true}
+	}
+	if req.MaxTokens > 0 {
+		if isOSeriesModel(req.Model) {
+			body["max_completion_tokens"] = req.MaxTokens
+		} else {
+			body["max_tokens"] = req.MaxTokens
+		}
+	}
+	if req.Temperature >= 0 && !isOSeriesModel(req.Model) {
+		body["temperature"] = req.Temperature
+	}
+	if req.JSONMode && !isOSeriesModel(req.Model) {
+		body["response_format"] = map[string]any{"type": "json_object"}
+	}
+	for k, v := range req.ExtraParams {
+		body[k] = v
+	}
+	if rawJSONPresentAI(req.Tools) {
+		var tools any
+		if err := json.Unmarshal(req.Tools, &tools); err != nil {
+			return nil, fmt.Errorf("tools must be valid JSON: %w", err)
+		}
+		body["tools"] = tools
+	}
+	if rawJSONPresentAI(req.ToolChoice) {
+		var toolChoice any
+		if err := json.Unmarshal(req.ToolChoice, &toolChoice); err != nil {
+			return nil, fmt.Errorf("tool_choice must be valid JSON: %w", err)
+		}
+		body["tool_choice"] = toolChoice
+	}
+	return body, nil
+}
+
+func rawJSONPresentAI(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s != "" && s != "null" && s != "[]"
+}
+
+func (a *OpenAIAdapter) postOpenAIJSON(ctx context.Context, path string, body map[string]any) ([]byte, int, int64, error) {
+	reqBody, _ := json.Marshal(body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(a.BaseURL, "/")+path, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
+	start := time.Now()
+	resp, err := a.rawHTTP.Do(httpReq)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return nil, 0, latency, err
+	}
+	defer resp.Body.Close()
+	respBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return respBody, resp.StatusCode, latency, readErr
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return respBody, resp.StatusCode, latency, fmt.Errorf("openai chat HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	return respBody, resp.StatusCode, latency, nil
+}
+
+func (a *OpenAIAdapter) chatEndpoint() string {
+	return strings.TrimRight(a.BaseURL, "/") + "/chat/completions"
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {

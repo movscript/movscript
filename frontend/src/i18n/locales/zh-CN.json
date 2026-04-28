@@ -938,6 +938,7 @@
       "empty": "暂无内容，点击右上角新建",
       "customHint": "自定义阶段，请在内容库中管理相关内容",
       "createFirst": "新建第一个{{type}}",
+      "inlineEmpty": "选择一个节点后，工作区会在这里展示。",
       "resizeHandle": "拖动调整工作区高度"
     }
   },

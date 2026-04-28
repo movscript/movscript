@@ -275,20 +275,12 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 		return
 	}
 	if !isPipelineWorkNode(parent.Type) {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有工作节点可以创建子节点"))
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有工作节点可以挂载子节点"))
 		return
 	}
 	var child model.PipelineNode
 	if err := h.db.First(&child, edge.ToNodeID).Error; err != nil || child.ProjectID != pid {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("子节点不存在"))
-		return
-	}
-
-	// A tree node can have only one parent.
-	var parentCount int64
-	h.db.Model(&model.PipelineEdge{}).Where("project_id = ? AND to_node_id = ?", pid, edge.ToNodeID).Count(&parentCount)
-	if parentCount > 0 {
-		c.JSON(http.StatusConflict, apierr.Conflict("树形管线中每个节点只能有一个父节点"))
 		return
 	}
 
@@ -304,7 +296,15 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 		return
 	}
 
-	h.db.Create(&edge)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ? AND to_node_id = ?", pid, edge.ToNodeID).Delete(&model.PipelineEdge{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&edge).Error
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
 	c.JSON(http.StatusCreated, edge)
 }
 

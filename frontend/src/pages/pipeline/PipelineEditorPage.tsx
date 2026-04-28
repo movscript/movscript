@@ -194,6 +194,10 @@ function blockedArtifactNames(node: PipelineNode, pipeline?: Pipeline) {
     .map((candidate) => candidate.name)
 }
 
+function countTreeItems(item: TreeItem): number {
+  return 1 + item.children.reduce((total, child) => total + countTreeItems(child), 0)
+}
+
 function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]): DependencyGraphLayout {
   const nodeMap = new Map(nodes.map((node) => [node.ID, node]))
   const validEdges = edges.filter((edge) => nodeMap.has(edge.from_node_id) && nodeMap.has(edge.to_node_id))
@@ -281,6 +285,8 @@ export default function PipelineEditorPage() {
   const [pendingDelete, setPendingDelete] = useState<PipelineNode | null>(null)
   const [workspaceHeight, setWorkspaceHeight] = useState(INLINE_WORKSPACE_DEFAULT_HEIGHT)
   const [isWorkspaceResizing, setIsWorkspaceResizing] = useState(false)
+  const [draggedNodeId, setDraggedNodeId] = useState<number | null>(null)
+  const [dropTargetNodeId, setDropTargetNodeId] = useState<number | null>(null)
 
   const { data: pipeline, isLoading } = useQuery<Pipeline>({
     queryKey: ['pipeline', project?.ID],
@@ -321,10 +327,30 @@ export default function PipelineEditorPage() {
     },
     onSuccess: (node, variables) => {
       qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
-      if (variables.parentId) setExpandedIds((prev) => new Set(prev).add(variables.parentId!))
+      if (variables.parentId) {
+        setExpandedIds((prev) => new Set(prev).add(variables.parentId!))
+      }
       setSelectedNode(node)
       if (!isPipelineWorkNode(node.type) && node.content_type !== 'custom') setWorkspaceNode(node)
       setAddNodeState(null)
+    },
+  })
+
+  const reparentNode = useMutation({
+    mutationFn: ({ parentId, childId }: { parentId: number; childId: number }) =>
+      api.post(`/projects/${project!.ID}/pipeline/edges`, {
+        from_node_id: parentId,
+        to_node_id: childId,
+      }).then((r) => r.data as PipelineEdge),
+    onSuccess: (_edge, variables) => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+      setExpandedIds((prev) => new Set(prev).add(variables.parentId))
+      setDraggedNodeId(null)
+      setDropTargetNodeId(null)
+    },
+    onError: () => {
+      setDraggedNodeId(null)
+      setDropTargetNodeId(null)
     },
   })
 
@@ -377,6 +403,22 @@ export default function PipelineEditorPage() {
     setWorkspaceNode(node)
   }
 
+  function canDropOnNode(target: PipelineNode, draggedId: number | null) {
+    if (!draggedId || target.ID === draggedId || !isPipelineWorkNode(target.type)) return false
+    const dragged = pipeline?.nodes.find((node) => node.ID === draggedId)
+    if (!dragged || isPipelineWorkNode(dragged.type)) return false
+    return !pipeline?.edges.some((edge) => edge.from_node_id === target.ID && edge.to_node_id === draggedId)
+  }
+
+  function handleNodeDrop(target: PipelineNode) {
+    if (!canDropOnNode(target, draggedNodeId) || !draggedNodeId) {
+      setDraggedNodeId(null)
+      setDropTargetNodeId(null)
+      return
+    }
+    reparentNode.mutate({ parentId: target.ID, childId: draggedNodeId })
+  }
+
   const onWorkspaceResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsWorkspaceResizing(true)
@@ -418,11 +460,46 @@ export default function PipelineEditorPage() {
             onAddChild={() => {}}
             canAddChild={false}
             onDelete={() => setPendingDelete(item.node)}
+            draggable={!isPipelineWorkNode(item.node.type)}
+            onDragStart={() => setDraggedNodeId(item.node.ID)}
+            onDragEnd={() => { setDraggedNodeId(null); setDropTargetNodeId(null) }}
           />
           {expanded && item.children.length > 0 ? renderArtifactTree(item.children, depth + 1) : null}
         </div>
       )
     })
+  }
+
+  function renderUnassignedShelf() {
+    if (layout.looseArtifacts.length === 0) return null
+
+    return (
+      <div className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 shadow-sm backdrop-blur">
+        <div className="flex min-w-max items-center gap-3">
+          <div className="w-36 shrink-0">
+            <p className="text-xs font-semibold text-foreground">
+              {t('pipeline.tree.unassignedArtifacts', { defaultValue: '未挂载产物' })}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {t('pipeline.tree.dragToRootHint', { defaultValue: '拖到根节点挂载' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {layout.looseArtifacts.map((item) => (
+              <UnassignedArtifactCard
+                key={item.node.ID}
+                item={item}
+                selected={selectedNode?.ID === item.node.ID}
+                workspaceActive={workspaceNode?.ID === item.node.ID}
+                onSelect={() => openWorkspace(item.node)}
+                onDragStart={() => setDraggedNodeId(item.node.ID)}
+                onDragEnd={() => { setDraggedNodeId(null); setDropTargetNodeId(null) }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -464,60 +541,64 @@ export default function PipelineEditorPage() {
             <div className="h-full flex flex-col overflow-hidden bg-background">
               <div className="flex-[1_1_0] min-h-[320px] overflow-auto">
                 {layout.workColumns.length > 0 || layout.looseArtifacts.length > 0 ? (
-                  <div className="flex min-w-max items-start gap-4 p-4">
-                    {layout.workColumns.map((column, index) => (
-                      <div key={column.node.ID} className="w-72 shrink-0">
-                        <div className="relative">
-                          {index < layout.workColumns.length - 1 ? (
-                            <div className="absolute left-[calc(100%+16px)] top-10 h-px w-4 bg-border" />
-                          ) : null}
-                          <PipelineFlowCard
-                            node={column.node}
-                            depth={0}
-                            selected={selectedNode?.ID === column.node.ID}
-                            workspaceActive={workspaceNode?.ID === column.node.ID}
-                            expanded={expandedIds.has(column.node.ID)}
-                            childCount={column.artifacts.length}
-                            blockedArtifactNames={blockedArtifactNames(column.node, pipeline)}
-                            onSelect={() => setSelectedNode(column.node)}
-                            onToggle={() => toggleNode(column.node.ID)}
-                            onEnterWorkspace={() => openWorkspace(column.node)}
-                            onAddChild={() => setAddNodeState({ parentId: column.node.ID })}
-                            canAddChild
-                            onDelete={() => setPendingDelete(column.node)}
-                            onMoveBefore={index > 0 ? () => moveWorkNode(index, -1) : undefined}
-                            onMoveAfter={index < layout.workColumns.length - 1 ? () => moveWorkNode(index, 1) : undefined}
-                            variant="work"
-                          />
-                        </div>
-
-                        {expandedIds.has(column.node.ID) ? (
-                          <div className="mt-3 space-y-2 border-l border-border pl-3">
-                            {column.artifacts.length > 0 ? renderArtifactTree(column.artifacts) : (
-                              <button
-                                type="button"
-                                className="w-full rounded-md border border-dashed border-border px-3 py-6 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                                onClick={() => setAddNodeState({ parentId: column.node.ID })}
-                              >
-                                <Plus size={13} className="mx-auto mb-1.5" />
-                                {t('pipeline.tree.addChild')}
-                              </button>
-                            )}
+                  <div className="min-w-max">
+                    {renderUnassignedShelf()}
+                    <div className="flex min-w-max items-start gap-4 p-4">
+                      {layout.workColumns.map((column, index) => (
+                        <div key={column.node.ID} className="w-72 shrink-0">
+                          <div className="relative">
+                            {index < layout.workColumns.length - 1 ? (
+                              <div className="absolute left-[calc(100%+16px)] top-10 h-px w-4 bg-border" />
+                            ) : null}
+                            <PipelineFlowCard
+                              node={column.node}
+                              depth={0}
+                              selected={selectedNode?.ID === column.node.ID}
+                              workspaceActive={workspaceNode?.ID === column.node.ID}
+                              expanded={expandedIds.has(column.node.ID)}
+                              childCount={column.artifacts.length}
+                              blockedArtifactNames={blockedArtifactNames(column.node, pipeline)}
+                              onSelect={() => setSelectedNode(column.node)}
+                              onToggle={() => toggleNode(column.node.ID)}
+                              onEnterWorkspace={() => openWorkspace(column.node)}
+                              onAddChild={() => setAddNodeState({ parentId: column.node.ID })}
+                              canAddChild
+                              onDelete={() => setPendingDelete(column.node)}
+                              onMoveBefore={index > 0 ? () => moveWorkNode(index, -1) : undefined}
+                              onMoveAfter={index < layout.workColumns.length - 1 ? () => moveWorkNode(index, 1) : undefined}
+                              isDropTarget={dropTargetNodeId === column.node.ID}
+                              onDragOver={(e) => {
+                                if (!canDropOnNode(column.node, draggedNodeId)) return
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                setDropTargetNodeId(column.node.ID)
+                              }}
+                              onDragLeave={() => setDropTargetNodeId((current) => current === column.node.ID ? null : current)}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                handleNodeDrop(column.node)
+                              }}
+                              variant="work"
+                            />
                           </div>
-                        ) : null}
-                      </div>
-                    ))}
 
-                    {layout.looseArtifacts.length > 0 ? (
-                      <div className="w-72 shrink-0">
-                        <div className="mb-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
-                          {t('pipeline.tree.unassignedArtifacts', { defaultValue: '未挂载产物' })}
+                          {expandedIds.has(column.node.ID) ? (
+                            <div className="mt-3 space-y-2 border-l border-border pl-3">
+                              {column.artifacts.length > 0 ? renderArtifactTree(column.artifacts) : (
+                                <button
+                                  type="button"
+                                  className="w-full rounded-md border border-dashed border-border px-3 py-6 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                  onClick={() => setAddNodeState({ parentId: column.node.ID })}
+                                >
+                                  <Plus size={13} className="mx-auto mb-1.5" />
+                                  {t('pipeline.tree.addChild')}
+                                </button>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
-                        <div className="space-y-2 border-l border-border pl-3">
-                          {renderArtifactTree(layout.looseArtifacts)}
-                        </div>
-                      </div>
-                    ) : null}
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex h-[320px] flex-col items-center justify-center gap-3 text-center">
@@ -836,6 +917,71 @@ function DependencyGraph({
   )
 }
 
+function UnassignedArtifactCard({
+  item,
+  selected,
+  workspaceActive,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+}: {
+  item: TreeItem
+  selected?: boolean
+  workspaceActive?: boolean
+  onSelect: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+}) {
+  const { t } = useTranslation()
+  const meta = getPipelineNodeMeta(item.node.type)
+  const status = NODE_STATUS_META[item.node.status] ?? NODE_STATUS_META.draft
+  const Icon = meta.icon
+  const typeLabel = t(`pipeline.nodeTypes.${item.node.type}.label`, { defaultValue: meta.label })
+  const statusLabel = t(`pipeline.status.${item.node.status}`, { defaultValue: status.label })
+  const nestedCount = countTreeItems(item) - 1
+
+  return (
+    <button
+      type="button"
+      draggable
+      className={cn(
+        'flex h-16 w-56 cursor-grab items-center gap-2 rounded-md border bg-card px-2.5 text-left shadow-sm transition-colors active:cursor-grabbing',
+        selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/40',
+        workspaceActive && 'ring-1 ring-primary/40',
+      )}
+      onClick={onSelect}
+      onDragStart={(e) => {
+        e.stopPropagation()
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('application/pipeline-node-id', String(item.node.ID))
+        onDragStart()
+      }}
+      onDragEnd={(e) => {
+        e.stopPropagation()
+        onDragEnd()
+      }}
+      title={item.node.name}
+    >
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${meta.accent}`}>
+        <Icon size={16} className={meta.iconColor} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold text-foreground">{item.node.name}</p>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{typeLabel}</p>
+        <div className="mt-1 flex min-w-0 items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+          <span className="truncate text-[10px] text-muted-foreground">{statusLabel}</span>
+          {nestedCount > 0 ? (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              +{nestedCount}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </button>
+  )
+}
+
 function PipelineFlowCard({
   node,
   depth,
@@ -853,6 +999,13 @@ function PipelineFlowCard({
   onMoveBefore,
   onMoveAfter,
   variant = 'artifact',
+  draggable,
+  isDropTarget,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: {
   node: PipelineNode
   depth: number
@@ -870,6 +1023,13 @@ function PipelineFlowCard({
   onMoveBefore?: () => void
   onMoveAfter?: () => void
   variant?: 'work' | 'artifact'
+  draggable?: boolean
+  isDropTarget?: boolean
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDrop?: (e: React.DragEvent<HTMLDivElement>) => void
 }) {
   const { t, i18n } = useTranslation()
   const meta = getPipelineNodeMeta(node.type)
@@ -885,14 +1045,30 @@ function PipelineFlowCard({
     <div
       className={cn(
         'group relative rounded-md border bg-card text-left shadow-sm transition-colors',
+        draggable && 'cursor-grab active:cursor-grabbing',
         isWork ? 'min-h-[116px] p-3' : 'min-h-[96px] p-2.5',
         selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/40',
         workspaceActive && 'ring-1 ring-primary/40',
+        isDropTarget && 'border-primary bg-primary/10 ring-2 ring-primary/30',
       )}
       style={!isWork ? { marginLeft: `${depth * 18}px` } : undefined}
       onClick={onSelect}
       role="button"
       tabIndex={0}
+      draggable={draggable}
+      onDragStart={(e) => {
+        e.stopPropagation()
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('application/pipeline-node-id', String(node.ID))
+        onDragStart?.(e)
+      }}
+      onDragEnd={(e) => {
+        e.stopPropagation()
+        onDragEnd?.(e)
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

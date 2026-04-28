@@ -76,6 +76,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&model.PipelineEdge{},
 		&model.AgentTemplate{},
 		&model.UserAgent{},
+		&model.GatewayAPIKey{},
 		&model.CloudFileConfig{},
 	); err != nil {
 		return nil, err

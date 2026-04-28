@@ -938,6 +938,7 @@
       "empty": "No content yet, click the button to create",
       "customHint": "Custom stage — manage content in the Content Library",
       "createFirst": "Create first {{type}}",
+      "inlineEmpty": "Select a node to show its workspace here.",
       "resizeHandle": "Drag to resize workspace"
     }
   },

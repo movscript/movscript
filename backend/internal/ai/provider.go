@@ -1,6 +1,9 @@
 package ai
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 type TextRequest struct {
 	Model       string
@@ -13,17 +16,50 @@ type TextRequest struct {
 	// Used for grok2api/grop2api extensions: reasoning_effort, deepsearch, etc.
 	// Keys here take precedence over any auto-derived fields with the same name.
 	ExtraParams map[string]any
+	Tools       json.RawMessage
+	ToolChoice  json.RawMessage
 }
 
 type Message struct {
-	Role    string // system | user | assistant
-	Content string
+	Role       string // system | user | assistant | tool
+	Content    string
+	ToolCallID string
+	ToolCalls  []ToolCall
 }
 
 type TextResponse struct {
-	Content string
-	Usage   TokenUsage
-	Debug   *DebugCallResult
+	Content      string
+	ToolCalls    []ToolCall
+	FinishReason string
+	Usage        TokenUsage
+	Debug        *DebugCallResult
+}
+
+type ToolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function ToolFunction `json:"function"`
+}
+
+type ToolCallDelta struct {
+	Index    int          `json:"index"`
+	ID       string       `json:"id,omitempty"`
+	Type     string       `json:"type,omitempty"`
+	Function ToolFunction `json:"function,omitempty"`
+}
+
+type ToolFunction struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
+type TextStreamEvent struct {
+	Role           string
+	ContentDelta   string
+	ToolCallDeltas []ToolCallDelta
+	FinishReason   string
+	Usage          TokenUsage
+	Done           bool
 }
 
 type TokenUsage struct {
@@ -159,6 +195,10 @@ type Provider interface {
 	VideoGenerate(ctx context.Context, req VideoRequest) (VideoResponse, error)
 	// Ping tests connectivity without generating content (used for admin key validation).
 	Ping(ctx context.Context) error
+}
+
+type TextStreamProvider interface {
+	TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error)
 }
 
 // VideoTaskProvider exposes platforms whose video APIs are inherently async.

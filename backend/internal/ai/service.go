@@ -340,6 +340,43 @@ func (s *AIService) CallText(ctx context.Context, userID, modelConfigID uint, re
 	return resp, nil
 }
 
+// CallTextStream calls a text model through a provider streaming API.
+// Usage is logged after the provider closes the stream. If the provider does
+// not report usage in the stream, the gateway still emits chunks but records
+// zero token usage.
+func (s *AIService) CallTextStream(ctx context.Context, userID, modelConfigID uint, req TextRequest) (<-chan TextStreamEvent, error) {
+	cfg, provider, def, err := s.loadConfig(modelConfigID, "text")
+	if err != nil {
+		return nil, err
+	}
+	streamer, ok := provider.(TextStreamProvider)
+	if !ok {
+		return nil, fmt.Errorf("streaming is not supported by provider for model config %d", modelConfigID)
+	}
+	req.Model = resolveModelID(cfg, def)
+	upstream, err := streamer.TextStream(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(chan TextStreamEvent)
+	go func() {
+		defer close(out)
+		var usage TokenUsage
+		for event := range upstream {
+			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
+				usage = event.Usage
+			}
+			out <- event
+		}
+		if usage.InputTokens > 0 || usage.OutputTokens > 0 {
+			cost := calcCost(cfg, def, usage.InputTokens, usage.OutputTokens, 0, 1)
+			s.logUsage(userID, modelConfigID, "text", usage.InputTokens, usage.OutputTokens, 0, 1, cost)
+		}
+	}()
+	return out, nil
+}
+
 // CallImage calls an image generation model by AIModelConfig DB ID.
 // It accepts models with either "image" (text-to-image) or "image_edit" (image-to-image) capability.
 // When the model has only "image_edit" capability, req.EditOnly is set automatically.
