@@ -9,7 +9,6 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
-import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
@@ -65,13 +64,20 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
   })
 
   const linkScene = useMutation({
-    mutationFn: (sceneId: number) => api.post(`/episodes/${episode.ID}/scenes`, { scene_id: sceneId }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['episode-scenes', episode.ID] }); setLinkSceneId(null) },
+    mutationFn: (sceneId: number) => api.post(`/episodes/${episode.ID}/scenes`, { scene_id: sceneId, order: episodeScenes.length }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['episode-scenes', episode.ID] })
+      qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
+      setLinkSceneId(null)
+    },
   })
 
   const unlinkScene = useMutation({
     mutationFn: (sceneId: number) => api.delete(`/episodes/${episode.ID}/scenes/${sceneId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['episode-scenes', episode.ID] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['episode-scenes', episode.ID] })
+      qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
+    },
   })
 
   function field<K extends keyof Episode>(key: K) {
@@ -96,23 +102,13 @@ export function EpisodeDetail({ episode, onClose, onDelete }: Props) {
           <h2 className="text-sm font-semibold text-foreground truncate">{episode.title}</h2>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ReviewStatusBadge status={episode.review_status} />
+          {onDelete && (
+            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+              {t('common.delete')}
+            </button>
+          )}
           {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
         </div>
-      </div>
-
-      {/* Review actions */}
-      <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-muted/30 shrink-0">
-        <ReviewActions
-          status={episode.review_status}
-          apiUrl={`/episodes/${episode.ID}`}
-          queryKey={['episodes-project', projectId]}
-        />
-        {onDelete && (
-          <button onClick={() => remove.mutate()} className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors">
-            {t('common.delete')}
-          </button>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">

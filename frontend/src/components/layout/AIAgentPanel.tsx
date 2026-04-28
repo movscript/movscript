@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
+import { API_V1_BASE_URL } from '@/lib/config'
 import {
   canStartLocalAgentFromClient,
   localAgentClient,
@@ -20,6 +21,7 @@ import {
   type AgentMemoryScope,
   type AgentManifest,
   type AgentRun,
+  type AgentRunPreview,
   type AgentThread as LocalAgentThread,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
@@ -69,6 +71,7 @@ import {
   type UserAgent,
   type AgentTemplate,
   type AgentAttachment,
+  type AgentSettings,
   type AgentWorkMode,
   type AgentPermissionMode,
 } from '@/store/agentStore'
@@ -238,13 +241,25 @@ function buildAgentContext(options: {
 
 function buildLocalAgentManifest(agent: (UserAgent | AgentTemplate) | null): AgentManifest | undefined {
   if (!agent) return undefined
+  const skills = (agent.skills ?? []).map((skill, index) => ({
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    enabled: true,
+    priority: (agent.skills?.length ?? 0) - index,
+    instruction: skill.description,
+    metadata: {
+      source: 'movscript-ui',
+    },
+  }))
   return {
-    schema: 'movscript.agent.v1',
+    schema: 'movscript.agent.v2',
     id: `movscript.ui-agent.${agent.id}`,
     version: String(agent.updated_at || 1),
     name: agent.name,
     description: agent.soul || undefined,
     soul: agent.soul || undefined,
+    skills,
     permissions: ['project.read', 'draft.read', 'draft.write', 'ui.navigate'],
     tools: [
       { name: 'movscript.search_entities', mode: 'allow', approval: 'never' },
@@ -258,6 +273,200 @@ function buildLocalAgentManifest(agent: (UserAgent | AgentTemplate) | null): Age
       skillIds: (agent.skills ?? []).map((skill) => skill.id),
     },
   }
+}
+
+type AgentSendRoute = 'cloud-chat' | 'local-runtime'
+
+interface AgentSendDraft {
+  id: string
+  createdAt: number
+  route: AgentSendRoute
+  visibleUserContent: string
+  attachments: AgentAttachment[]
+  model: {
+    id: number | null
+    name?: string
+    provider?: string
+  }
+  agent: {
+    id: number | null
+    name?: string
+    soul?: string
+  }
+  settings: Pick<AgentSettings, 'mode' | 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoPlan'>
+  contextLabels: string[]
+  context: {
+    project?: Pick<Project, 'ID' | 'name' | 'status' | 'description'>
+    recentResources: Array<Pick<RawResource, 'ID' | 'name' | 'type' | 'mime_type' | 'size'>>
+  }
+  outbound: {
+    systemPrompt: string
+    agentContext: string
+    enrichedUserContent: string
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  }
+  httpRequests: DebugHttpRequest[]
+  localRuntime?: {
+    threadId?: string
+    projectId?: number
+    title: string
+    agentManifest?: AgentManifest
+    preview?: AgentRunPreview
+    previewError?: string
+  }
+  warnings: string[]
+}
+
+interface DebugHttpRequest {
+  id: string
+  label: string
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  url: string
+  headers?: Record<string, string>
+  body?: unknown
+  note?: string
+  conditional?: boolean
+}
+
+function makeTraceId() {
+  return `trace_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function compactProject(project: Project | null): AgentSendDraft['context']['project'] | undefined {
+  if (!project) return undefined
+  return {
+    ID: project.ID,
+    name: project.name,
+    status: project.status,
+    description: project.description,
+  }
+}
+
+function compactResource(resource: RawResource): Pick<RawResource, 'ID' | 'name' | 'type' | 'mime_type' | 'size'> {
+  return {
+    ID: resource.ID,
+    name: resource.name,
+    type: resource.type,
+    mime_type: resource.mime_type,
+    size: resource.size,
+  }
+}
+
+function safeJSONStringify(value: unknown) {
+  return JSON.stringify(value, null, 2)
+}
+
+function buildDebugHttpRequests(options: {
+  route: AgentSendRoute
+  modelId: number | null
+  userId: string
+  messages: AgentSendDraft['outbound']['messages']
+  localRuntime?: AgentSendDraft['localRuntime']
+}): DebugHttpRequest[] {
+  if (options.route === 'cloud-chat') {
+    return [{
+      id: 'cloud-chat',
+      label: 'Cloud chat completion',
+      method: 'POST',
+      url: `${API_V1_BASE_URL}/ai/chat`,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': options.userId,
+      },
+      body: {
+        model_config_id: options.modelId,
+        messages: options.messages,
+      },
+    }]
+  }
+
+  const baseURL = localAgentClient.baseURL
+  const threadId = options.localRuntime?.threadId
+  const resolvedThreadId = threadId ?? '{threadId from POST /threads}'
+  const requests: DebugHttpRequest[] = threadId
+    ? [{
+      id: 'local-get-thread',
+      label: 'Load existing local thread',
+      method: 'GET',
+      url: `${baseURL}/threads/${encodeURIComponent(threadId)}`,
+      note: 'If this saved thread is missing, the client creates a new local thread instead.',
+    }]
+    : [{
+      id: 'local-create-thread',
+      label: 'Create local thread',
+      method: 'POST',
+      url: `${baseURL}/threads`,
+      headers: { 'Content-Type': 'application/json' },
+      body: {
+        title: options.localRuntime?.title,
+        ...(options.localRuntime?.projectId ? { projectId: options.localRuntime.projectId } : {}),
+      },
+    }]
+
+  requests.push(
+    {
+      id: 'local-add-message',
+      label: 'Append user message',
+      method: 'POST',
+      url: `${baseURL}/threads/${resolvedThreadId}/messages`,
+      headers: { 'Content-Type': 'application/json' },
+      body: {
+        role: 'user',
+        content: options.messages.at(-1)?.content ?? '',
+      },
+    },
+    {
+      id: 'local-create-run',
+      label: 'Create local agent run',
+      method: 'POST',
+      url: `${baseURL}/runs`,
+      headers: { 'Content-Type': 'application/json' },
+      body: {
+        threadId: resolvedThreadId,
+        ...(options.localRuntime?.agentManifest ? { agentManifest: options.localRuntime.agentManifest } : {}),
+      },
+    },
+    {
+      id: 'local-poll-run',
+      label: 'Poll run status',
+      method: 'GET',
+      url: `${baseURL}/runs/{runId}`,
+      note: 'Repeated until completed, completed_with_warnings, requires_action, or failed.',
+    },
+    {
+      id: 'local-final-thread',
+      label: 'Fetch final local thread',
+      method: 'GET',
+      url: `${baseURL}/threads/${resolvedThreadId}`,
+    },
+    {
+      id: 'local-synthesize',
+      label: 'Synthesize final assistant reply',
+      method: 'POST',
+      url: `${API_V1_BASE_URL}/ai/chat`,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': options.userId,
+      },
+      conditional: true,
+      note: 'Sent after the local run completes without pending approvals. The final system message is filled with runtime result details at execution time.',
+      body: {
+        model_config_id: options.modelId,
+        messages: [
+          {
+            role: 'system',
+            content: '你是 MovScript Agent 的最终回复模型。请基于 Local Agent Runtime 的工具执行结果，用用户语言给出简洁、可执行的回复。不要声称执行了 runtime 没有完成的动作。',
+          },
+          ...options.messages.filter((message) => message.role !== 'system'),
+          {
+            role: 'system',
+            content: '[Local Agent Runtime Result]\\n{run status, plan, steps, warnings, runtime reply}',
+          },
+        ],
+      },
+    },
+  )
+  return requests
 }
 
 function formatLocalAgentAssistantContent(run: AgentRun, thread: LocalAgentThread) {
@@ -274,6 +483,44 @@ function formatLocalAgentAssistantContent(run: AgentRun, thread: LocalAgentThrea
   const missing = run.warnings.filter((warning) => !content.includes(warning))
   if (missing.length === 0) return content
   return `${content}\n\nWarnings:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
+}
+
+async function synthesizeLocalAgentReply(input: {
+  modelId: number | null
+  messages: Array<{ role: ChatMessage['role']; content: string }>
+  run: AgentRun
+  thread: LocalAgentThread
+  fallback: string
+}) {
+  if (!input.modelId) return input.fallback
+
+  const pendingApprovals = (input.run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
+  if (input.run.status === 'requires_action' && pendingApprovals.length > 0) {
+    return input.fallback
+  }
+
+  const workflowContext = [
+    '[Local Agent Runtime Result]',
+    `run_status: ${input.run.status}`,
+    input.run.plan ? `objective: ${input.run.plan.objective}` : null,
+    input.run.plan?.tasks.length ? `tasks:\n${input.run.plan.tasks.map((task) => `- ${task.title}: ${task.status}`).join('\n')}` : null,
+    input.run.steps.length ? `steps:\n${input.run.steps.map((step) => `- ${workflowStepTitle(step)} (${step.type}, ${step.status})${step.error ? ` error=${step.error}` : ''}`).join('\n')}` : null,
+    input.run.warnings?.length ? `warnings:\n${input.run.warnings.map((warning) => `- ${warning}`).join('\n')}` : null,
+    `runtime_reply:\n${input.fallback}`,
+  ].filter(Boolean).join('\n\n')
+
+  const { data } = await api.post('/ai/chat', {
+    model_config_id: input.modelId,
+    messages: [
+      {
+        role: 'system',
+        content: '你是 MovScript Agent 的最终回复模型。请基于 Local Agent Runtime 的工具执行结果，用用户语言给出简洁、可执行的回复。不要声称执行了 runtime 没有完成的动作。',
+      },
+      ...input.messages,
+      { role: 'system', content: workflowContext },
+    ],
+  })
+  return typeof data?.content === 'string' && data.content.trim() ? data.content : input.fallback
 }
 
 function LocalAgentWorkflow({
@@ -389,6 +636,320 @@ function LocalAgentWorkflow({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function AgentDebugPreviewDialog({
+  draft,
+  sending,
+  onCancel,
+  onConfirm,
+}: {
+  draft: AgentSendDraft | null
+  sending: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  if (!draft) return null
+  const raw = safeJSONStringify(draft)
+  const preview = draft.localRuntime?.preview
+  const pendingApprovals = preview?.pendingApprovals.filter((approval) => approval.status === 'pending') ?? []
+  const primaryRequest = draft.httpRequests[0]
+
+  async function copyRaw() {
+    await navigator.clipboard.writeText(raw)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-3">
+      <div className="flex max-h-[90vh] w-[min(1040px,100%)] flex-col overflow-hidden rounded-md border border-border bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border bg-muted/20 px-4 py-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck size={15} />
+              <h2 className="text-sm font-semibold text-foreground">Send debug preview</h2>
+              <Badge variant="secondary" className="text-[10px]">{draft.route}</Badge>
+              {primaryRequest && <Badge variant="outline" className="text-[10px]">{primaryRequest.method}</Badge>}
+            </div>
+            <p className="mt-1 truncate text-[11px] text-muted-foreground">
+              {primaryRequest ? primaryRequest.url : draft.id}
+            </p>
+          </div>
+          <Button type="button" size="icon-sm" variant="ghost" onClick={onCancel} disabled={sending} aria-label="Close debug preview">
+            <X size={14} />
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <div className="grid gap-2 md:grid-cols-4">
+            <DebugSummaryItem label="Model" value={[draft.model.provider, draft.model.name ?? draft.model.id].filter(Boolean).join(' / ') || 'none'} />
+            <DebugSummaryItem label="Agent" value={draft.agent.name ?? 'No agent'} />
+            <DebugSummaryItem label="Mode" value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
+            <DebugSummaryItem label="Requests" value={String(draft.httpRequests.length)} />
+          </div>
+
+          {draft.warnings.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs">
+              <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">Warnings</div>
+              <ul className="space-y-1 text-[11px] text-muted-foreground">
+                {draft.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <DebugSection title="Final HTTP requests">
+            <div className="space-y-2">
+              {draft.httpRequests.map((request, index) => (
+                <DebugHttpRequestCard key={request.id} request={request} index={index} />
+              ))}
+            </div>
+          </DebugSection>
+
+          {preview?.context && (
+            <DebugSection title="Context">
+              <div className="grid gap-2 text-[11px] md:grid-cols-3">
+                <DebugSummaryItem label="Route" value={preview.context.route.pathname} />
+                <DebugSummaryItem label="Project" value={preview.context.project ? `#${preview.context.project.id} ${preview.context.project.name ?? ''}`.trim() : 'none'} />
+                <DebugSummaryItem label="Memories" value={String(preview.context.memories.length)} />
+              </div>
+              {(preview.context.recentResources.length > 0 || preview.context.attachments.length > 0) && (
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                  {safeJSONStringify({
+                    selection: preview.context.selection,
+                    recentResources: preview.context.recentResources,
+                    attachments: preview.context.attachments,
+                  })}
+                </pre>
+              )}
+            </DebugSection>
+          )}
+
+          {preview?.skills && (
+            <DebugSection title="Skills">
+              {preview.skills.length === 0 ? (
+                <div className="text-[11px] text-muted-foreground">No enabled skills.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {preview.skills.map((skill) => (
+                    <div key={skill.id} className="rounded-md border border-border bg-muted/20 p-2 text-[11px]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{skill.name}</span>
+                        <Badge variant="outline" className="text-[9px]">p{skill.resolvedPriority}</Badge>
+                      </div>
+                      <p className="mt-0.5 text-muted-foreground">{skill.description || skill.compiledInstruction || '(no instruction)'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DebugSection>
+          )}
+
+          {preview?.tools && (
+            <DebugSection title="Tools">
+              <div className="grid gap-2 md:grid-cols-3">
+                <DebugSummaryItem label="Available" value={String(preview.tools.available.length)} />
+                <DebugSummaryItem label="Blocked" value={String(preview.tools.blocked.length)} />
+                <DebugSummaryItem label="Discovered" value={String(preview.tools.discovered.length)} />
+              </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                  <div className="mb-1 text-[10px] font-medium text-foreground">Available tools</div>
+                  <div className="space-y-1 text-[10px] text-muted-foreground">
+                    {preview.tools.available.slice(0, 8).map((tool) => (
+                      <div key={tool.name}>{tool.name} · {tool.risk ?? 'unknown'} · {tool.approval}</div>
+                    ))}
+                    {preview.tools.available.length === 0 && <div>none</div>}
+                  </div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                  <div className="mb-1 text-[10px] font-medium text-foreground">Blocked tools</div>
+                  <div className="space-y-1 text-[10px] text-muted-foreground">
+                    {preview.tools.blocked.slice(0, 8).map((tool) => (
+                      <div key={tool.name}>{tool.name} · {tool.unavailableReason ?? 'blocked'}</div>
+                    ))}
+                    {preview.tools.blocked.length === 0 && <div>none</div>}
+                  </div>
+                </div>
+              </div>
+            </DebugSection>
+          )}
+
+          <DebugSection title="Outbound messages">
+            <div className="space-y-2">
+              {draft.outbound.messages.map((message, index) => (
+                <div key={`${message.role}-${index}`} className="rounded-md border border-border bg-muted/20">
+                  <div className="flex items-center justify-between border-b border-border/60 px-2 py-1">
+                    <Badge variant="outline" className="text-[9px]">{message.role}</Badge>
+                    <span className="text-[9px] text-muted-foreground">{message.content.length} chars</span>
+                  </div>
+                  <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] leading-relaxed text-foreground">
+                    {message.content || '(empty)'}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </DebugSection>
+
+          {draft.localRuntime && (
+            <DebugSection title="Local runtime dry-run">
+              <div className="space-y-2 text-[11px]">
+                <div className="grid gap-2 md:grid-cols-3">
+                  <DebugSummaryItem label="Thread" value={draft.localRuntime.threadId ?? 'new thread'} />
+                  <DebugSummaryItem label="Project" value={draft.localRuntime.projectId ? String(draft.localRuntime.projectId) : 'runtime context'} />
+                  <DebugSummaryItem label="Manifest" value={draft.localRuntime.agentManifest?.name ?? 'default'} />
+                </div>
+                {draft.localRuntime.previewError && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">
+                    {draft.localRuntime.previewError}
+                  </div>
+                )}
+                {preview && (
+                  <>
+                    <div className="rounded-md border border-border bg-muted/20 p-2">
+                      <div className="font-medium text-foreground">{preview.plan.objective}</div>
+                      <div className="mt-1 whitespace-pre-wrap text-muted-foreground">{preview.plan.strategy}</div>
+                      <div className="mt-1 text-muted-foreground">
+                        project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {preview.plan.tasks.map((task, index) => (
+                        <div key={task.id} className="rounded-md border border-border bg-background px-2 py-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground">{index + 1}. {task.title}</span>
+                            <Badge variant="outline" className="text-[9px]">{task.status}</Badge>
+                          </div>
+                          <p className="mt-0.5 text-muted-foreground">{task.description}</p>
+                          {task.toolCalls.length > 0 && (
+                            <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                              {safeJSONStringify(task.toolCalls)}
+                            </pre>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {pendingApprovals.length > 0 && (
+                      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
+                        <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">Approvals before execution</div>
+                        {pendingApprovals.map((approval) => (
+                          <div key={approval.id} className="text-muted-foreground">
+                            {approval.toolName}: {approval.reason}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </DebugSection>
+          )}
+
+          {preview?.promptPreview && (
+            <DebugSection title="Compiled prompt">
+              <div className="space-y-2">
+                {preview.promptPreview.debugParts.map((part) => (
+                  <div key={part.id} className="rounded-md border border-border bg-muted/20">
+                    <div className="flex items-center gap-2 border-b border-border/60 px-2 py-1">
+                      <Badge variant="outline" className="text-[9px]">{part.kind}</Badge>
+                      <span className="text-[10px] font-medium text-foreground">{part.title}</span>
+                    </div>
+                    <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] text-muted-foreground">
+                      {part.content || '(empty)'}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </DebugSection>
+          )}
+
+          <DebugSection title="Raw payload">
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/30 p-2 text-[10px] leading-relaxed">
+              {raw}
+            </pre>
+          </DebugSection>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+          <Button type="button" size="sm" variant="ghost" onClick={copyRaw} className="h-8 text-xs">
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? 'Copied' : 'Copy JSON'}
+          </Button>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={sending}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" onClick={onConfirm} disabled={sending}>
+              {sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              Send
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DebugSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-3">
+      <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; index: number }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-border bg-background">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-2.5 py-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded bg-background text-[10px] font-medium text-muted-foreground">
+          {index + 1}
+        </span>
+        <Badge variant={request.conditional ? 'secondary' : 'outline'} className="text-[9px]">
+          {request.conditional ? 'conditional' : request.method}
+        </Badge>
+        {request.conditional && <Badge variant="outline" className="text-[9px]">{request.method}</Badge>}
+        <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{request.label}</span>
+      </div>
+      <div className="space-y-2 p-2.5">
+        <div className="min-w-0 rounded border border-border/70 bg-muted/20 px-2 py-1.5 font-mono text-[10px] text-foreground">
+          <span className="font-semibold">{request.method}</span> <span className="break-all">{request.url}</span>
+        </div>
+        {request.note && (
+          <p className="text-[10px] leading-relaxed text-muted-foreground">{request.note}</p>
+        )}
+        <div className="grid gap-2 md:grid-cols-2">
+          {request.headers && (
+            <div>
+              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">Headers</div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 text-[10px]">
+                {safeJSONStringify(request.headers)}
+              </pre>
+            </div>
+          )}
+          {request.body !== undefined && (
+            <div className={request.headers ? '' : 'md:col-span-2'}>
+              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">Body</div>
+              <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 text-[10px]">
+                {safeJSONStringify(request.body)}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DebugSummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-muted/20 px-2 py-1.5">
+      <div className="text-[9px] uppercase tracking-normal text-muted-foreground">{label}</div>
+      <div className="truncate text-[11px] font-medium text-foreground" title={value}>{value}</div>
     </div>
   )
 }
@@ -850,8 +1411,14 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
   const { data: textModels = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', 'text'],
-    queryFn: () => api.get('/models?capability=text').then((r) => r.data),
+    queryKey: ['models', 'agent_chat'],
+    queryFn: async () => {
+      try {
+        return await api.get('/models?feature=agent_chat').then((r) => r.data)
+      } catch {
+        return await api.get('/models?capability=text').then((r) => r.data)
+      }
+    },
   })
   const { data: resourcesData } = useQuery<RawResource[] | { items: RawResource[] }>({
     queryKey: ['resources', 'agent-panel'],
@@ -894,6 +1461,15 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       return false
     }
   })
+  const [debugBeforeSend, setDebugBeforeSendState] = useState(() => {
+    try {
+      return localStorage.getItem(AGENT_DEBUG_PREVIEW_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [buildingSendDraft, setBuildingSendDraft] = useState(false)
+  const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
   const [localAgentThreadIds, setLocalAgentThreadIds] = useState<Record<string, string>>(() => readLocalAgentThreadIds())
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -933,7 +1509,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     attachments.length > 0 ? t('agents.chat.attachmentsCount', { count: attachments.length }) : null,
   ].filter(Boolean) as string[]
-  const canSend = (!!input.trim() || attachments.length > 0) && !loading && !uploading
+  const canSend = (!!input.trim() || attachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
@@ -942,6 +1518,11 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   function setLocalRuntimeEnabled(next: boolean) {
     setLocalRuntimeEnabledState(next)
     try { localStorage.setItem(LOCAL_AGENT_MODE_KEY, String(next)) } catch {}
+  }
+
+  function setDebugBeforeSend(next: boolean) {
+    setDebugBeforeSendState(next)
+    try { localStorage.setItem(AGENT_DEBUG_PREVIEW_KEY, String(next)) } catch {}
   }
 
   async function startLocalAgent() {
@@ -997,9 +1578,23 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       })
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
+        const fallback = formatLocalAgentAssistantContent(finalRun, thread)
+        let content = fallback
+        try {
+          content = await synthesizeLocalAgentReply({
+            modelId,
+            messages: conv.messages.map((m) => ({ role: m.role, content: m.content })),
+            run: finalRun,
+            thread,
+            fallback,
+          })
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e)
+          content = `${fallback}\n\n模型回复整合失败：${message}`
+        }
         addMessage(userId, conv.id, {
           role: 'assistant',
-          content: formatLocalAgentAssistantContent(finalRun, thread),
+          content,
           meta: { contextLabels: [`run ${finalRun.status}`] },
         })
       }
@@ -1013,7 +1608,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       setApprovingLocalRun(false)
       setLoading(false)
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, conv.messages, modelId, userId])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
@@ -1025,9 +1620,23 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       const rejectedRun = await localAgentClient.rejectRun(run.id, { approvalIds })
       setActiveLocalRun(rejectedRun)
       const thread = await localAgentClient.getThread(rejectedRun.threadId)
+      const fallback = formatLocalAgentAssistantContent(rejectedRun, thread)
+      let content = fallback
+      try {
+        content = await synthesizeLocalAgentReply({
+          modelId,
+          messages: conv.messages.map((m) => ({ role: m.role, content: m.content })),
+          run: rejectedRun,
+          thread,
+          fallback,
+        })
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        content = `${fallback}\n\n模型回复整合失败：${message}`
+      }
       addMessage(userId, conv.id, {
         role: 'assistant',
-        content: formatLocalAgentAssistantContent(rejectedRun, thread),
+        content,
         meta: { contextLabels: [`run ${rejectedRun.status}`] },
       })
     } catch (e) {
@@ -1040,38 +1649,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       setApprovingLocalRun(false)
       setLoading(false)
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, conv.messages, modelId, userId])
 
-  const send = useCallback(async () => {
+  const buildSendDraft = useCallback(async (options: { includeRuntimePreview?: boolean } = {}): Promise<AgentSendDraft> => {
     const text = input.trim()
-    if ((!text && attachments.length === 0) || loading || uploading) return
-    if (!localRuntimeEnabled && !modelId) {
-      addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
-      return
-    }
-    setInput('')
     const sentAttachments = attachments
-    setAttachments([])
-    setLoading(true)
-    setActiveLocalRun(null)
-
-    addMessage(userId, conv.id, {
-      role: 'user',
-      content: text || t('agents.chat.attachmentOnlyMessage'),
-      attachments: sentAttachments,
-      meta: {
-        modelId: localRuntimeEnabled ? null : modelId,
-        agentName: localRuntimeEnabled ? 'Local Agent Runtime' : effectiveAgent?.name,
-        mode: settings.mode,
-        permissionMode: settings.permissionMode,
-        contextLabels,
-      },
-    })
-    if (conv.messages.length === 0) {
-      const titleBase = text || sentAttachments[0]?.name || t('agents.chat.newConversation')
-      updateConversationTitle(userId, conv.id, titleBase.slice(0, 30) + (titleBase.length > 30 ? '…' : ''))
-    }
-
+    const visibleUserContent = text || t('agents.chat.attachmentOnlyMessage')
     const agentContext = buildAgentContext({
       mode: settings.mode,
       permissionMode: settings.permissionMode,
@@ -1081,45 +1664,192 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       includeProjectContext: settings.includeProjectContext,
       includeRecentResources: settings.includeRecentResources,
     })
-    const enrichedUserContent = `${text || t('agents.chat.attachmentOnlyMessage')}${attachmentPromptBlock(sentAttachments)}`
+    const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
     const messages = [
       { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
       ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: enrichedUserContent },
     ]
+    const warnings: string[] = []
+    const agentManifest = buildLocalAgentManifest(effectiveAgent)
+    let localRuntime: AgentSendDraft['localRuntime']
+
+    if (localRuntimeEnabled) {
+      const threadId = localAgentThreadIds[conv.id]
+      localRuntime = {
+        ...(threadId ? { threadId } : {}),
+        ...(currentProject?.ID ? { projectId: currentProject.ID } : {}),
+        title: conv.title,
+        ...(agentManifest ? { agentManifest } : {}),
+      }
+
+      if (options.includeRuntimePreview) {
+        try {
+          if (!localAgentOnline) {
+            await localAgentClient.ensureRunning()
+            await refetchLocalAgentHealth()
+          }
+          try {
+            localRuntime.preview = await localAgentClient.previewRun({
+              ...(threadId ? { threadId } : {}),
+              message: enrichedUserContent,
+              ...(agentManifest ? { agentManifest } : {}),
+            })
+          } catch (e) {
+            if (!threadId) throw e
+            warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
+            localRuntime.preview = await localAgentClient.previewRun({
+              message: enrichedUserContent,
+              ...(agentManifest ? { agentManifest } : {}),
+            })
+          }
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e)
+          localRuntime.previewError = message
+          warnings.push(`Local runtime dry-run failed: ${message}`)
+        }
+      }
+    }
+
+    return {
+      id: makeTraceId(),
+      createdAt: Date.now(),
+      route: localRuntimeEnabled ? 'local-runtime' : 'cloud-chat',
+      visibleUserContent,
+      attachments: sentAttachments,
+      model: {
+        id: modelId,
+        ...(activeModel?.display_name ? { name: activeModel.display_name } : {}),
+        ...(activeModel?.provider_name ? { provider: activeModel.provider_name } : {}),
+      },
+      agent: {
+        id: effectiveAgent?.id ?? null,
+        ...(effectiveAgent?.name ? { name: effectiveAgent.name } : {}),
+        ...(effectiveAgent?.soul ? { soul: effectiveAgent.soul } : {}),
+      },
+      settings: {
+        mode: settings.mode,
+        permissionMode: settings.permissionMode,
+        includeProjectContext: settings.includeProjectContext,
+        includeRecentResources: settings.includeRecentResources,
+        autoPlan: settings.autoPlan,
+      },
+      contextLabels,
+      context: {
+        ...(compactProject(currentProject) ? { project: compactProject(currentProject) } : {}),
+        recentResources: recentResources.slice(0, 8).map(compactResource),
+      },
+      outbound: {
+        systemPrompt,
+        agentContext,
+        enrichedUserContent,
+        messages,
+      },
+      httpRequests: buildDebugHttpRequests({
+        route: localRuntimeEnabled ? 'local-runtime' : 'cloud-chat',
+        modelId,
+        userId,
+        messages,
+        ...(localRuntime ? { localRuntime } : {}),
+      }),
+      ...(localRuntime ? { localRuntime } : {}),
+      warnings,
+    }
+  }, [
+    input,
+    attachments,
+    t,
+    settings,
+    currentProject,
+    recentResources,
+    systemPrompt,
+    conv.messages,
+    conv.id,
+    conv.title,
+    effectiveAgent,
+    localRuntimeEnabled,
+    localAgentThreadIds,
+    localAgentOnline,
+    refetchLocalAgentHealth,
+    modelId,
+    activeModel,
+    contextLabels,
+    userId,
+  ])
+
+  const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {
+    if (!draft.model.id) {
+      addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
+      return
+    }
+
+    setInput('')
+    setAttachments([])
+    setLoading(true)
+    setActiveLocalRun(null)
+    addMessage(userId, conv.id, {
+      role: 'user',
+      content: draft.visibleUserContent,
+      attachments: draft.attachments,
+      meta: {
+        modelId: draft.model.id,
+        agentName: draft.route === 'local-runtime' ? 'Local Agent Runtime' : draft.agent.name,
+        mode: draft.settings.mode,
+        permissionMode: draft.settings.permissionMode,
+        contextLabels: draft.contextLabels,
+      },
+    })
+    if (conv.messages.length === 0) {
+      const titleBase = draft.visibleUserContent || draft.attachments[0]?.name || t('agents.chat.newConversation')
+      updateConversationTitle(userId, conv.id, titleBase.slice(0, 30) + (titleBase.length > 30 ? '…' : ''))
+    }
 
     try {
-      if (localRuntimeEnabled) {
+      if (draft.route === 'local-runtime') {
         if (!localAgentOnline) {
           await localAgentClient.ensureRunning()
           await refetchLocalAgentHealth()
         }
         const { run, thread } = await localAgentClient.runMessage({
-          threadId: localAgentThreadIds[conv.id],
-          message: enrichedUserContent,
-          title: conv.title,
-          projectId: currentProject?.ID,
+          threadId: draft.localRuntime?.threadId,
+          message: draft.outbound.enrichedUserContent,
+          title: draft.localRuntime?.title ?? conv.title,
+          projectId: draft.localRuntime?.projectId,
         }, {
           onRunUpdate: setActiveLocalRun,
-          agentManifest: buildLocalAgentManifest(effectiveAgent),
+          agentManifest: draft.localRuntime?.agentManifest,
         })
         setLocalAgentThreadIds((cur) => {
           const next = { ...cur, [conv.id]: thread.id }
           writeLocalAgentThreadIds(next)
           return next
         })
+        const fallback = formatLocalAgentAssistantContent(run, thread)
+        let content = fallback
+        try {
+          content = await synthesizeLocalAgentReply({
+            modelId: draft.model.id,
+            messages: draft.outbound.messages.filter((message) => message.role !== 'system') as Array<{ role: ChatMessage['role']; content: string }>,
+            run,
+            thread,
+            fallback,
+          })
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e)
+          content = `${fallback}\n\n模型回复整合失败：${message}`
+        }
         addMessage(userId, conv.id, {
           role: 'assistant',
-          content: formatLocalAgentAssistantContent(run, thread),
+          content,
           meta: { contextLabels: [`run ${run.status}`] },
         })
         return
       }
 
-      const { data } = await api.post('/ai/chat', { model_config_id: modelId, messages })
+      const { data } = await api.post('/ai/chat', { model_config_id: draft.model.id, messages: draft.outbound.messages })
       addMessage(userId, conv.id, { role: 'assistant', content: data.content })
     } catch (e: any) {
-      if (localRuntimeEnabled) {
+      if (draft.route === 'local-runtime') {
         const message = e instanceof Error ? e.message : String(e)
         addMessage(userId, conv.id, {
           role: 'assistant',
@@ -1139,32 +1869,71 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       setLoading(false)
     }
   }, [
+    addMessage,
+    userId,
+    conv.id,
+    conv.messages.length,
+    conv.title,
+    t,
+    updateConversationTitle,
+    localAgentOnline,
+    refetchLocalAgentHealth,
+    setLocalAgentThreadIds,
+    updateSettings,
+  ])
+
+  const send = useCallback(async () => {
+    if ((!input.trim() && attachments.length === 0) || loading || uploading || buildingSendDraft) return
+    if (!modelId) {
+      addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
+      return
+    }
+
+    setBuildingSendDraft(true)
+    try {
+      const draft = await buildSendDraft({ includeRuntimePreview: debugBeforeSend })
+      if (debugBeforeSend) {
+        setPendingSendDraft(draft)
+        return
+      }
+      await commitSendDraft(draft)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `发送前调试构建失败：${message}` })
+    } finally {
+      setBuildingSendDraft(false)
+    }
+  }, [
     input,
     attachments,
     loading,
     uploading,
-    conv,
-    systemPrompt,
+    buildingSendDraft,
     modelId,
-    localRuntimeEnabled,
-    localAgentHealthError,
-    localAgentOnline,
-    refetchLocalAgentHealth,
-    localAgentThreadIds,
     userId,
+    conv.id,
     addMessage,
-    updateConversationTitle,
-    updateSettings,
     t,
-    effectiveAgent,
-    settings,
-    contextLabels,
-    currentProject,
-    recentResources,
+    buildSendDraft,
+    debugBeforeSend,
+    commitSendDraft,
   ])
+
+  const confirmPendingSendDraft = useCallback(async () => {
+    const draft = pendingSendDraft
+    if (!draft || loading) return
+    setPendingSendDraft(null)
+    await commitSendDraft(draft)
+  }, [pendingSendDraft, loading, commitSendDraft])
 
   return (
     <AgentMain>
+      <AgentDebugPreviewDialog
+        draft={pendingSendDraft}
+        sending={loading}
+        onCancel={() => setPendingSendDraft(null)}
+        onConfirm={confirmPendingSendDraft}
+      />
       <AgentHeader>
         <AgentHeaderContent>
           <AgentTitle>{conv.title}</AgentTitle>
@@ -1173,8 +1942,8 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           </AgentSubtitle>
         </AgentHeaderContent>
         <AgentHeaderActions>
-          <AgentStatus state={loading ? 'running' : 'ready'}>
-            {loading ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
+          <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
+            {loading || buildingSendDraft ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
           </AgentStatus>
           <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label="Back">
             <ArrowLeft size={14} />
@@ -1240,26 +2009,26 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             myAgents={myAgents}
             onChange={(id) => updateConversationAgent(userId, conv.id, id)}
           />
-          {textModels.length > 0 && (
-            <Select
-              value={selectedFallbackModelId === null ? undefined : String(selectedFallbackModelId)}
-              onValueChange={(next) => updateSettings({ modelId: Number(next) || null })}
-              disabled={localRuntimeEnabled || !!effectiveAgent?.platform_model_id}
+          <Select
+            value={selectedFallbackModelId === null ? undefined : String(selectedFallbackModelId)}
+            onValueChange={(next) => updateSettings({ modelId: Number(next) || null })}
+            disabled={textModels.length === 0 || !!effectiveAgent?.platform_model_id}
+          >
+            <SelectTrigger
+              size="sm"
+              className="min-w-0 flex-1"
+              title={effectiveAgent?.platform_model_id ? t('agents.chat.modelLockedByAgent') : t('agents.model')}
             >
-              <SelectTrigger
-                size="sm"
-                className="min-w-0 flex-1"
-                title={effectiveAgent?.platform_model_id ? t('agents.chat.modelLockedByAgent') : t('agents.model')}
-              >
-                <SelectValue placeholder={t('agents.model')} />
-              </SelectTrigger>
-              <SelectContent>
-                {textModels.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>{m.display_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+              <SelectValue placeholder={textModels.length === 0 ? t('shared.modelSelector.noModels') : t('agents.model')} />
+            </SelectTrigger>
+            <SelectContent>
+              {textModels.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {m.provider_name ? `${m.provider_name} / ${m.display_name}` : m.display_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             type="button"
             size="sm"
@@ -1306,7 +2075,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             )}
           </div>
         )}
-        {!localRuntimeEnabled && activeModel && (
+        {activeModel && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
             <Wand2 size={10} />
             <span className="truncate">{activeModel.provider_name} · {activeModel.display_name}</span>
@@ -1350,6 +2119,11 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
                 />
                 {t('agents.chat.autoPlan')}
               </label>
+              {debugBeforeSend && (
+                <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+                  Debug preview
+                </Badge>
+              )}
               <Select
                 value={settings.permissionMode}
                 onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
@@ -1419,13 +2193,13 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            disabled={loading}
+            disabled={loading || buildingSendDraft}
           />
           <AgentComposerToolbar>
             <div className="flex items-center gap-1">
               <AgentComposerAction
                 onClick={() => fileRef.current?.click()}
-                disabled={uploading || loading}
+                disabled={uploading || loading || buildingSendDraft}
                 aria-label={t('agents.chat.uploadAttachment')}
                 title={t('agents.chat.uploadAttachment')}
               >
@@ -1434,9 +2208,20 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
               {attachments.length > 0 && (
                 <Badge variant="secondary" className="text-[10px]">{t('agents.chat.attachmentsCount', { count: attachments.length })}</Badge>
               )}
+              <Button
+                type="button"
+                size="xs"
+                variant={debugBeforeSend ? 'secondary' : 'ghost'}
+                onClick={() => setDebugBeforeSend(!debugBeforeSend)}
+                className="h-7 px-2 text-[10px]"
+                title="Preview payload before sending"
+              >
+                <Eye size={11} />
+                Debug
+              </Button>
             </div>
-            <AgentComposerSubmit disabled={!canSend} label={t('common.send')}>
-              <Send size={15} />
+            <AgentComposerSubmit disabled={!canSend} label={debugBeforeSend ? 'Preview' : t('common.send')}>
+              {buildingSendDraft ? <Loader2 size={15} className="animate-spin" /> : debugBeforeSend ? <Eye size={15} /> : <Send size={15} />}
             </AgentComposerSubmit>
           </AgentComposerToolbar>
         </AgentComposer>
@@ -1666,6 +2451,7 @@ function BuiltinChat({ userId }: { userId: string }) {
 const PANEL_OPEN_KEY = 'ai-panel-open'
 const LOCAL_AGENT_MODE_KEY = 'ai-panel-local-agent-runtime'
 const LOCAL_AGENT_THREAD_IDS_KEY = 'ai-panel-local-agent-thread-ids'
+const AGENT_DEBUG_PREVIEW_KEY = 'ai-panel-debug-preview'
 
 function readLocalAgentThreadIds(): Record<string, string> {
   try {

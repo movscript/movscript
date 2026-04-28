@@ -82,19 +82,88 @@ export interface AgentToolCall {
 }
 
 export interface AgentManifest {
-  schema: 'movscript.agent.v1'
+  schema: 'movscript.agent.v1' | 'movscript.agent.v2'
   id: string
   version: string
   name: string
   description?: string
   soul?: string
+  skills?: AgentSkillManifest[]
   permissions: string[]
   tools: Array<{
     name: string
     mode: 'allow' | 'deny'
     approval?: 'never' | 'always' | 'on_write'
   }>
+  model?: {
+    provider?: string
+    modelId?: string
+    platformModelId?: number
+  }
   metadata?: Record<string, unknown>
+  sourceSchema?: 'movscript.agent.v1' | 'movscript.agent.v2'
+}
+
+export interface AgentSkillManifest {
+  id: string
+  name: string
+  description: string
+  version?: string
+  enabled: boolean
+  priority?: number
+  instruction: string
+  appliesWhen?: string
+  inputHints?: string[]
+  outputContract?: string
+  toolHints?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface AgentDebugContextPanel {
+  route: { pathname: string; search?: string; hash?: string }
+  project?: { id: number; name?: string; status?: string; description?: string }
+  user?: { id: number; username: string; systemRole?: string }
+  selection?: { entityType: string; entityId: number | string; label?: string } | null
+  recentResources: Array<{ id: number; name: string; type: string; mimeType?: string; size?: number }>
+  attachments: Array<{ id: string; name: string; type: string; resourceId?: number }>
+  memories: Array<{ id: string; scope: string; kind: string; content: string }>
+  labels: string[]
+}
+
+export interface ResolvedAgentSkill extends AgentSkillManifest {
+  resolvedPriority: number
+  activationReason: 'manifest' | 'applies_when' | 'user_selected' | 'default'
+  compiledInstruction: string
+  warnings: string[]
+}
+
+export interface AgentDebugTool {
+  name: string
+  description?: string
+  inputSchema?: unknown
+  source: 'mcp' | 'runtime' | 'plugin'
+  registered: boolean
+  granted: boolean
+  permission?: string
+  risk?: 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
+  projectScoped?: boolean
+  approval: 'never' | 'always' | 'on_write'
+  available: boolean
+  unavailableReason?: string
+  requiresApproval: boolean
+}
+
+export interface ResolvedToolCatalog {
+  discovered: AgentDebugTool[]
+  available: AgentDebugTool[]
+  blocked: AgentDebugTool[]
+  byName: Record<string, AgentDebugTool>
+}
+
+export interface CompiledPromptPreview {
+  system: string
+  messages: Array<{ role: string; content: string }>
+  debugParts: Array<{ id: string; kind: string; title: string; content: string }>
 }
 
 export interface AgentRun {
@@ -114,6 +183,47 @@ export interface AgentRun {
   warnings?: string[]
   assistantMessageId?: string
   steps: AgentRunStep[]
+}
+
+export interface AgentRunPreview {
+  id: string
+  threadId?: string
+  message: string
+  status: 'preview'
+  agentManifest?: AgentManifest
+  currentProjectId?: number
+  context?: AgentDebugContextPanel
+  skills?: ResolvedAgentSkill[]
+  tools?: ResolvedToolCatalog
+  promptPreview?: CompiledPromptPreview
+  debug?: Record<string, unknown>
+  plan: AgentTaskPlan
+  toolCalls: AgentToolCall[]
+  pendingApprovals: AgentApprovalRequest[]
+  warnings: string[]
+  memoryIds: string[]
+  memoryCount: number
+  createdAt: string
+}
+
+export interface AgentCapabilitiesResponse {
+  defaultAgentManifest: AgentManifest
+  mcp: {
+    connected: boolean
+    resources: Array<{ uri: string; name?: string; description?: string; mimeType?: string }>
+    tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
+    error?: string
+  }
+  registry: Array<{
+    name: string
+    description: string
+    permission: string
+    risk: string
+    projectScoped: boolean
+    requiresApprovalByDefault: boolean
+  }>
+  resolvedTools: ResolvedToolCatalog
+  warnings: string[]
 }
 
 export interface AgentApprovalRequest {
@@ -223,6 +333,16 @@ export class LocalAgentClient {
 
   createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[] } = {}): Promise<AgentRun> {
     return this.postJSON('/runs', { threadId, ...input })
+  }
+
+  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[] }): Promise<AgentRunPreview> {
+    return this.postJSON('/runs/preview', input)
+  }
+
+  getCapabilities(query: { projectId?: number } = {}): Promise<AgentCapabilitiesResponse> {
+    const params = new URLSearchParams()
+    if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
+    return this.getJSON(`/capabilities${params.size ? `?${params.toString()}` : ''}`)
   }
 
   approveRun(runId: string, input: { approvedToolNames?: string[]; approvalIds?: string[] } = {}): Promise<AgentRun> {

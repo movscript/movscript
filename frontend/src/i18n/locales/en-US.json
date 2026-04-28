@@ -240,6 +240,10 @@
     "generateHint": "Enter an AI prompt to start generating",
     "prompt": "AI Prompt",
     "promptPlaceholder": "Describe the shot visuals...",
+    "finalShot": "Final Shot",
+    "finalShotDescription": "Final Shot Description",
+    "finalShotDescriptionPlaceholder": "Describe the final delivered shot",
+    "finalPromptNotes": "Final Prompt / Delivery Notes",
     "referenceAssets": "Reference Assets",
     "assetViews": "Multi-view Images",
     "empty": "Empty",
@@ -295,6 +299,8 @@
     "sceneShotLabel": "Scene {{scene}} - Shot {{shot}}",
     "episodeShotLabel": "EP{{episode}} - Shot {{shot}}",
     "timeOfDay": "Time of Day",
+    "lighting": "Lighting",
+    "duration": "Duration (seconds)",
     "notes": "Notes"
   },
   "pages": {
@@ -802,6 +808,9 @@
       "dagView": "DAG View",
       "treeView": "Tree",
       "ganttView": "Gantt",
+      "taskLayer": "Tasks",
+      "dependencyLayer": "Dependencies",
+      "scheduleLayer": "Schedule",
       "fitView": "Fit View",
       "empty": "Pipeline is empty. Add a root node to start the production tree."
     },
@@ -826,6 +835,9 @@
     "gantt": {
       "empty": "No nodes",
       "noDueDate": "No due date"
+    },
+    "dependency": {
+      "empty": "No dependencies"
     },
     "node": {
       "fallbackName": "Node {{id}}",
@@ -870,10 +882,16 @@
     },
     "detail": {
       "entities": {
+        "script": "Script",
         "episode": "Episode",
         "scene": "Scene",
         "storyboard": "Storyboard",
-        "shot": "Shot"
+        "shot": "Shot",
+        "asset": "Asset"
+      },
+      "entityFallback": {
+        "script": "Script #{{id}}",
+        "asset": "Asset #{{id}}"
       },
       "defaultTitles": {
         "episode": "New Episode",
@@ -889,6 +907,12 @@
       "linkEntity": "Link {{entity}}",
       "linkedEntity": "Linked {{entity}} #{{id}}",
       "view": "View",
+      "loadingEntities": "Loading...",
+      "selectExistingEntity": "Select existing {{entity}}",
+      "noExistingEntity": "No {{entity}} available",
+      "linkSelected": "Link selected entity",
+      "changeLink": "Change link",
+      "unlinkEntity": "Unlink {{entity}}",
       "createAndLink": "Create and link {{entity}}",
       "rejectReason": "Rejection Reason",
       "resubmit": "Resubmit",
@@ -906,12 +930,15 @@
       "storyboard": "Storyboard",
       "shot": "Shot",
       "asset": "Asset",
+      "episode": "Episode",
+      "scene": "Scene",
       "custom": "Custom"
     },
     "workspace": {
       "empty": "No content yet, click the button to create",
       "customHint": "Custom stage — manage content in the Content Library",
-      "createFirst": "Create first {{type}}"
+      "createFirst": "Create first {{type}}",
+      "resizeHandle": "Drag to resize workspace"
     }
   },
   "work": {

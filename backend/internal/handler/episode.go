@@ -27,10 +27,17 @@ func (h *EpisodeHandler) ListByProject(c *gin.Context) {
 	h.db.Model(&model.Script{}).Where("project_id = ?", projectID).Pluck("id", &scriptIDs)
 
 	episodes := make([]model.Episode, 0)
+	q := h.db.Where("project_id = ?", projectID)
 	if len(scriptIDs) > 0 {
-		h.db.Where("project_id = ? OR script_id IN ?", projectID, scriptIDs).Order("number").Find(&episodes)
+		q = h.db.Where("project_id = ? OR script_id IN ?", projectID, scriptIDs)
+	}
+	if nid := c.Query("pipeline_node_id"); nid != "" {
+		q = q.Where("pipeline_node_id = ?", nid)
+	}
+	if len(scriptIDs) > 0 {
+		q.Order("number").Find(&episodes)
 	} else {
-		h.db.Where("project_id = ?", projectID).Order("number").Find(&episodes)
+		q.Order("number").Find(&episodes)
 	}
 	c.JSON(http.StatusOK, episodes)
 }
@@ -101,6 +108,25 @@ func (h *EpisodeHandler) Update(c *gin.Context) {
 		return
 	}
 	h.db.Save(&e)
+	c.JSON(http.StatusOK, e)
+}
+
+// Patch applies a partial update to an episode.
+// Note: review_status is retained for legacy compatibility but is not enabled
+// in the current frontend; pipeline node status owns review workflow.
+func (h *EpisodeHandler) Patch(c *gin.Context) {
+	var e model.Episode
+	if err := h.db.First(&e, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("分集不存在"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.db.Model(&e).Updates(body)
+	h.db.First(&e, e.ID)
 	c.JSON(http.StatusOK, e)
 }
 

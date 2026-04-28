@@ -10,7 +10,7 @@ import { AssetCreateForm } from '@/components/shared/EntityCreateForms'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { AssetDetail, ReviewStatusBadge } from '@/components/detail'
+import { AssetDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 const TYPES = ['character', 'scene', 'prop', 'draft'] as const
@@ -77,7 +77,6 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
           <span className={cn('text-xs px-1.5 py-0.5 rounded-full', TYPE_COLORS[asset.type] ?? 'bg-muted text-muted-foreground')}>
             {t(TYPE_LABEL_KEYS[asset.type] ?? asset.type)}
           </span>
-          <ReviewStatusBadge status={asset.review_status} />
         </div>
       </div>
     </button>
@@ -101,7 +100,6 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
         <p className="text-sm font-medium truncate">{asset.name}</p>
         <p className="text-xs text-muted-foreground">{t(TYPE_LABEL_KEYS[asset.type] ?? asset.type)}</p>
       </div>
-      <ReviewStatusBadge status={asset.review_status} />
     </button>
   )
 }

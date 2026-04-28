@@ -178,6 +178,25 @@ func (h *AssetHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, a)
 }
 
+// Patch applies a partial update to an asset.
+// Note: review_status is retained for legacy compatibility but is not enabled
+// in the current frontend; pipeline node status owns review workflow.
+func (h *AssetHandler) Patch(c *gin.Context) {
+	var a model.Asset
+	if err := h.db.First(&a, c.Param("assetId")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	h.db.Model(&a).Updates(body)
+	h.db.Preload("Views.Resource").First(&a, a.ID)
+	c.JSON(http.StatusOK, a)
+}
+
 func (h *AssetHandler) Delete(c *gin.Context) {
 	h.db.Delete(&model.Asset{}, c.Param("assetId"))
 	c.Status(http.StatusNoContent)

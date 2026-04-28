@@ -16,7 +16,11 @@ func NewSceneHandler(db *gorm.DB) *SceneHandler { return &SceneHandler{db: db} }
 // List returns all scenes for a project.
 func (h *SceneHandler) List(c *gin.Context) {
 	scenes := make([]model.Scene, 0)
-	h.db.Where("project_id = ?", c.Param("id")).Order("number").Preload("Storyboards").Find(&scenes)
+	q := h.db.Where("project_id = ?", c.Param("id"))
+	if nid := c.Query("pipeline_node_id"); nid != "" {
+		q = q.Where("pipeline_node_id = ?", nid)
+	}
+	q.Order("number").Preload("Storyboards").Find(&scenes)
 	c.JSON(http.StatusOK, scenes)
 }
 
@@ -52,6 +56,25 @@ func (h *SceneHandler) Update(c *gin.Context) {
 		return
 	}
 	h.db.Save(&s)
+	c.JSON(http.StatusOK, s)
+}
+
+// Patch applies a partial update to a scene.
+// Note: review_status is retained for legacy compatibility but is not enabled
+// in the current frontend; pipeline node status owns review workflow.
+func (h *SceneHandler) Patch(c *gin.Context) {
+	var s model.Scene
+	if err := h.db.First(&s, c.Param("sceneId")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("分场不存在"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.db.Model(&s).Updates(body)
+	h.db.First(&s, s.ID)
 	c.JSON(http.StatusOK, s)
 }
 

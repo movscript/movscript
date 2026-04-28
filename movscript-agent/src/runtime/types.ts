@@ -1,6 +1,7 @@
 import type { MCPClient } from '../mcpClient.js'
-import type { JSONValue } from '../types.js'
-import type { AgentManifest } from './agentManifest.js'
+import type { JSONValue, MCPResource, MCPTool } from '../types.js'
+import type { AgentManifest, AgentSkillManifest } from './agentManifest.js'
+import type { RegisteredTool, ToolRiskLevel } from './toolRegistry.js'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
@@ -86,6 +87,7 @@ export interface AgentRun {
   threadId: string
   status: AgentRunStatus
   agentManifest?: AgentManifest
+  envelope?: AgentInputEnvelope
   plan?: AgentTaskPlan
   pendingApprovals?: AgentApprovalRequest[]
   metadata?: Record<string, JSONValue>
@@ -98,6 +100,28 @@ export interface AgentRun {
   warnings?: string[]
   assistantMessageId?: string
   steps: AgentRunStep[]
+}
+
+export interface AgentRunPreview {
+  id: string
+  threadId?: string
+  message: string
+  status: 'preview'
+  agentManifest?: AgentManifest
+  currentProjectId?: number
+  context?: AgentDebugContextPanel
+  skills?: ResolvedAgentSkill[]
+  tools?: ResolvedToolCatalog
+  policy?: AgentRunPolicy
+  promptPreview?: CompiledPromptPreview
+  debug?: AgentRunDebugTrace
+  plan: AgentTaskPlan
+  toolCalls: ToolCall[]
+  pendingApprovals: AgentApprovalRequest[]
+  warnings: string[]
+  memoryIds: string[]
+  memoryCount: number
+  createdAt: string
 }
 
 export interface AgentApprovalRequest {
@@ -115,8 +139,177 @@ export interface AgentApprovalRequest {
   rejectedAt?: string
 }
 
+export interface AgentDebugContextPanel {
+  route: {
+    pathname: string
+    search?: string
+    hash?: string
+  }
+  project?: {
+    id: number
+    name?: string
+    status?: string
+    description?: string
+  }
+  user?: {
+    id: number
+    username: string
+    systemRole?: string
+  }
+  selection?: {
+    entityType: string
+    entityId: number | string
+    label?: string
+  } | null
+  recentResources: Array<{
+    id: number
+    name: string
+    type: string
+    mimeType?: string
+    size?: number
+  }>
+  attachments: Array<{
+    id: string
+    name: string
+    type: string
+    resourceId?: number
+  }>
+  memories: Array<{
+    id: string
+    scope: string
+    kind: string
+    content: string
+  }>
+  labels: string[]
+}
+
+export interface ResolvedAgentSkill extends AgentSkillManifest {
+  resolvedPriority: number
+  activationReason: 'manifest' | 'applies_when' | 'user_selected' | 'default'
+  compiledInstruction: string
+  warnings: string[]
+}
+
+export type ToolUnavailableReason =
+  | 'mcp_unavailable'
+  | 'unregistered'
+  | 'not_granted'
+  | 'denied'
+  | 'missing_permission'
+  | 'missing_project'
+  | 'approval_required'
+  | 'schema_invalid'
+
+export interface AgentDebugTool {
+  name: string
+  description?: string
+  inputSchema?: JSONValue
+  source: 'mcp' | 'runtime' | 'plugin'
+  registered: boolean
+  granted: boolean
+  permission?: string
+  risk?: ToolRiskLevel
+  projectScoped?: boolean
+  approval: 'never' | 'always' | 'on_write'
+  available: boolean
+  unavailableReason?: ToolUnavailableReason
+  requiresApproval: boolean
+}
+
+export interface ResolvedToolCatalog {
+  discovered: AgentDebugTool[]
+  available: AgentDebugTool[]
+  blocked: AgentDebugTool[]
+  byName: Record<string, AgentDebugTool>
+}
+
+export interface AgentRunPolicy {
+  approvalMode: 'interactive' | 'dry_run' | 'auto_readonly'
+  maxToolCalls: number
+  maxIterations: number
+  allowNetwork: false
+  allowFileBytes: false
+  costLimit?: {
+    currency: string
+    amount: number
+  }
+}
+
+export interface AgentInputEnvelope {
+  id: string
+  threadId?: string
+  runId?: string
+  mode: 'preview' | 'run'
+  message: {
+    role: 'user'
+    content: string
+  }
+  history: Array<{
+    id: string
+    role: AgentMessageRole
+    content: string
+    createdAt: string
+  }>
+  context: AgentDebugContextPanel
+  manifest: AgentManifest
+  skills: ResolvedAgentSkill[]
+  tools: ResolvedToolCatalog
+  policy: AgentRunPolicy
+  memories: Array<{
+    id: string
+    scope: string
+    kind: string
+    content: string
+  }>
+  model?: AgentManifest['model']
+  debug: {
+    source: 'frontend' | 'runtime'
+    warnings: string[]
+    compiledPrompt?: CompiledPromptPreview
+  }
+}
+
+export interface CompiledPromptPreview {
+  system: string
+  messages: Array<{ role: string; content: string }>
+  debugParts: Array<{
+    id: string
+    kind: 'soul' | 'skill' | 'context' | 'policy' | 'tool'
+    title: string
+    content: string
+  }>
+}
+
+export interface AgentRunDebugTrace {
+  envelopeId: string
+  manifestId: string
+  manifestVersion: string
+  skillIds: string[]
+  availableToolNames: string[]
+  blockedTools: Array<{
+    name: string
+    reason?: ToolUnavailableReason
+  }>
+  promptPartIds: string[]
+  planner: 'rule' | 'model'
+  model?: AgentManifest['model']
+}
+
+export interface AgentCapabilitiesResponse {
+  defaultAgentManifest: AgentManifest
+  mcp: {
+    connected: boolean
+    resources: MCPResource[]
+    tools: MCPTool[]
+    error?: string
+  }
+  registry: RegisteredTool[]
+  resolvedTools: ResolvedToolCatalog
+  warnings: string[]
+}
+
 export interface AgentRuntimeOptions {
-  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   store?: import('./store.js').AgentStore
   memoryStore?: import('./memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
@@ -137,6 +330,13 @@ export interface CreateMessageInput {
 
 export interface CreateRunInput {
   threadId?: unknown
+  agentManifest?: unknown
+  approvedToolNames?: unknown
+}
+
+export interface PreviewRunInput {
+  threadId?: unknown
+  message?: unknown
   agentManifest?: unknown
   approvedToolNames?: unknown
 }

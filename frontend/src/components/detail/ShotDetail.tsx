@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Shot } from '@/types'
+import type { RawResource, Shot } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SHOT_STATUS_LABEL_KEYS, SHOT_STATUS_COLORS } from '@/constants/shot'
 import { Button } from '@movscript/ui'
-import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
 import { ShotForm } from '@/components/forms/ShotForm'
+import { MediaViewer } from '@/components/shared/MediaViewer'
 
 interface Props {
   shot: Shot
@@ -26,7 +26,10 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
   const update = useMutation({
     mutationFn: (data: Partial<Shot>) =>
       api.put(`/shots/${shot.ID}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shots-project', projectId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['storyboards-project', projectId] })
+    },
   })
 
   const remove = useMutation({
@@ -35,6 +38,12 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
       qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
       onDelete?.()
     },
+  })
+
+  const { data: generatedResource } = useQuery<RawResource>({
+    queryKey: ['resource', draft.generated_res_id],
+    queryFn: () => api.get(`/resources/${draft.generated_res_id}`).then((r) => r.data),
+    enabled: !!draft.generated_res_id,
   })
 
   return (
@@ -48,23 +57,13 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ReviewStatusBadge status={shot.review_status} />
+          {onDelete && (
+            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+              {t('common.delete')}
+            </button>
+          )}
           {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
         </div>
-      </div>
-
-      {/* Review actions */}
-      <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-muted/30 shrink-0">
-        <ReviewActions
-          status={shot.review_status}
-          apiUrl={`/shots/${shot.ID}`}
-          queryKey={['shots-project', projectId]}
-        />
-        {onDelete && (
-          <button onClick={() => remove.mutate()} className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors">
-            {t('common.delete')}
-          </button>
-        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -79,28 +78,32 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
           />
         </div>
 
-        {/* Right: video output */}
+        {/* Right: final output */}
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">{t('details.generatedVideo')}</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('details.finalShot')}</h3>
             <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium', SHOT_STATUS_COLORS[shot.status])}>
               {t(SHOT_STATUS_LABEL_KEYS[shot.status])}
             </span>
           </div>
-          <div className="bg-muted rounded-xl aspect-video flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <Camera size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm font-medium">{t('details.noGeneratedVideo')}</p>
-              <p className="text-xs mt-1 mb-3">{t('details.generateHint')}</p>
-              <Button
-                onClick={() => update.mutate({ status: 'generating' })}
-                disabled={!shot.prompt || shot.status === 'generating'}
-                size="sm"
-              >
-                {shot.status === 'generating' ? t('domain.shotStatus.generating') + '…' : t('details.startGenerate')}
-              </Button>
+          {generatedResource ? (
+            <MediaViewer resource={generatedResource} fit="contain" className="aspect-video w-full rounded-lg" />
+          ) : (
+            <div className="bg-muted rounded-lg aspect-video flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <Camera size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">{t('details.noGeneratedVideo')}</p>
+                <p className="text-xs mt-1 mb-3">{t('details.generateHint')}</p>
+                <Button
+                  onClick={() => update.mutate({ status: 'generating' })}
+                  disabled={shot.status === 'generating'}
+                  size="sm"
+                >
+                  {shot.status === 'generating' ? t('domain.shotStatus.generating') + '…' : t('details.startGenerate')}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -79,8 +79,25 @@ the Electron app while the runtime, memory, and planning layers are introduced.
 ```
 
 By default the chat runtime returns a local fallback response so the client/server
-path can be tested without model credentials. To enable real model replies, start
-the server with:
+path can be tested without model credentials.
+
+To use the MovScript backend model gateway, start the backend and run:
+
+```bash
+MOVSCRIPT_AGENT_GATEWAY_USER_ID=1 npm run dev
+```
+
+Optional gateway settings:
+
+- `MOVSCRIPT_AGENT_GATEWAY_MODEL` defaults to `movscript-default-chat`
+- `MOVSCRIPT_AGENT_GATEWAY_BASE_URL` defaults to `http://127.0.0.1:8080/v1`
+
+Until backend Gateway API keys are implemented, `MOVSCRIPT_AGENT_GATEWAY_USER_ID`
+is sent as `Authorization: Bearer <user id>` and maps to the existing MovScript
+user identity.
+
+To bypass the MovScript backend and use a generic OpenAI-compatible provider
+directly, start the server with:
 
 ```bash
 MOVSCRIPT_AGENT_OPENAI_API_KEY=... npm run dev

@@ -37,7 +37,7 @@ export function ScriptForm({ script, draft, onChange, onSave, isSaving, analyzin
   }
 
   return (
-    <Tabs defaultValue="content" className="flex flex-col flex-1 overflow-hidden">
+    <Tabs defaultValue="content" className="flex h-full flex-col overflow-hidden">
       <TabsList className="shrink-0 w-full justify-start rounded-none border-b bg-background px-0 h-auto py-0">
         {onAnalyze && (
           <div className="ml-auto pr-3 flex items-center">
@@ -59,7 +59,7 @@ export function ScriptForm({ script, draft, onChange, onSave, isSaving, analyzin
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="content" className="flex-1 overflow-y-auto mt-0">
+      <TabsContent value="content" className="flex-1 min-h-0 overflow-y-auto mt-0">
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -139,7 +139,7 @@ export function ScriptForm({ script, draft, onChange, onSave, isSaving, analyzin
         </div>
       </TabsContent>
 
-      <TabsContent value="plot" className="flex-1 overflow-y-auto mt-0">
+      <TabsContent value="plot" className="flex-1 min-h-0 overflow-y-auto mt-0">
         <div className="p-5 space-y-4 h-full flex flex-col">
           <div className="flex-1 flex flex-col min-h-0">
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.scriptBody')}</Label>

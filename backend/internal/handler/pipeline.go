@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -14,64 +16,6 @@ import (
 type PipelineHandler struct{ db *gorm.DB }
 
 func NewPipelineHandler(db *gorm.DB) *PipelineHandler { return &PipelineHandler{db: db} }
-
-var pipelineWorkNodeTypes = map[string]bool{
-	"script_writing":      true,
-	"episode_writing":     true,
-	"scene_writing":       true,
-	"storyboard_creation": true,
-	"asset_creation":      true,
-	"raw_script":          true,
-	"shot_production":     true,
-	"episode_edit":        true,
-}
-
-var pipelineArtifactNodeTypes = map[string]bool{
-	"main_script":       true,
-	"episode_script":    true,
-	"scene_script":      true,
-	"storyboard_script": true,
-	"episode":           true,
-	"scene":             true,
-	"storyboard":        true,
-	"asset":             true,
-	"shot":              true,
-}
-
-var pipelineToolNodeTypes = map[string]bool{
-	"ref_image_gen":    true,
-	"ref_video_gen":    true,
-	"style_transfer":   true,
-	"motion_imitation": true,
-	"multi_angle":      true,
-}
-
-func isPipelineWorkNode(nodeType string) bool {
-	return pipelineWorkNodeTypes[nodeType]
-}
-
-func isPipelineArtifactNode(nodeType string) bool {
-	return pipelineArtifactNodeTypes[nodeType]
-}
-
-func isPipelineToolNode(nodeType string) bool {
-	return pipelineToolNodeTypes[nodeType]
-}
-
-func pipelineContentTypeForNode(nodeType string) string {
-	switch nodeType {
-	case "script_writing", "raw_script", "main_script", "episode_writing", "episode_script", "scene_writing", "scene_script":
-		return "script"
-	case "storyboard_creation", "storyboard_script", "storyboard":
-		return "storyboard"
-	case "shot_production", "shot":
-		return "shot"
-	case "asset_creation", "asset":
-		return "asset"
-	default:
-		return "custom"
-	}
-}
 
 // GetNode returns a single pipeline node by ID.
 func (h *PipelineHandler) GetNode(c *gin.Context) {
@@ -104,7 +48,19 @@ func (h *PipelineHandler) GetPipeline(c *gin.Context) {
 func (h *PipelineHandler) CreateNode(c *gin.Context) {
 	pid := parseID(c.Param("id"))
 	var node model.PipelineNode
-	if err := c.ShouldBindJSON(&node); err != nil {
+	payload, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if err := json.Unmarshal(payload, &node); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	var body struct {
+		ParentID *uint `json:"parent_id"`
+	}
+	if err := json.Unmarshal(payload, &body); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
@@ -114,8 +70,43 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
 		return
 	}
+	if body.ParentID == nil && !isPipelineWorkNode(node.Type) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("根节点只能是工作节点"))
+		return
+	}
+	var parent model.PipelineNode
+	if body.ParentID != nil {
+		if err := h.db.First(&parent, *body.ParentID).Error; err != nil || parent.ProjectID != pid {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("父节点不存在"))
+			return
+		}
+		if !isPipelineWorkNode(parent.Type) {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有工作节点可以创建子节点"))
+			return
+		}
+	}
 	node.ContentType = pipelineContentTypeForNode(node.Type)
-	h.db.Create(&node)
+	if node.EntityType == "" {
+		node.EntityType = pipelineEntityTypeForNode(node.Type)
+	}
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&node).Error; err != nil {
+			return err
+		}
+		if body.ParentID != nil {
+			if err := tx.Create(&model.PipelineEdge{
+				ProjectID:  pid,
+				FromNodeID: *body.ParentID,
+				ToNodeID:   node.ID,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return h.syncPipelineEntityBinding(tx, node)
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
 	h.db.Preload("Assignee").Preload("Lead").First(&node, node.ID)
 	c.JSON(http.StatusCreated, node)
 }
@@ -125,6 +116,17 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	var node model.PipelineNode
 	if err := h.db.First(&node, c.Param("nodeId")).Error; err != nil {
 		c.JSON(http.StatusNotFound, apierr.NotFound("节点不存在"))
+		return
+	}
+
+	payload, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
 
@@ -140,11 +142,12 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 		PosX        *float64   `json:"pos_x"`
 		PosY        *float64   `json:"pos_y"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := json.Unmarshal(payload, &body); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
 
+	previous := node
 	if body.Name != nil {
 		node.Name = *body.Name
 	}
@@ -161,11 +164,39 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 		node.DueDate = body.DueDate
 	}
 	node.ContentType = pipelineContentTypeForNode(node.Type)
-	if body.EntityType != nil {
-		node.EntityType = *body.EntityType
+	if rawEntityType, ok := raw["entity_type"]; ok {
+		if string(rawEntityType) == "null" {
+			node.EntityType = ""
+			node.EntityID = nil
+		} else {
+			var entityType string
+			if err := json.Unmarshal(rawEntityType, &entityType); err != nil {
+				c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+				return
+			}
+			node.EntityType = entityType
+			if entityType == "" {
+				node.EntityID = nil
+			}
+		}
 	}
-	if body.EntityID != nil {
-		node.EntityID = body.EntityID
+	if rawEntityID, ok := raw["entity_id"]; ok {
+		if string(rawEntityID) == "null" {
+			node.EntityID = nil
+			node.EntityType = ""
+		} else {
+			var entityID uint
+			if err := json.Unmarshal(rawEntityID, &entityID); err != nil {
+				c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+				return
+			}
+			node.EntityID = &entityID
+			if node.EntityType == "" {
+				node.EntityType = pipelineEntityTypeForNode(node.Type)
+			}
+		}
+	} else if node.EntityType == "" && body.EntityID != nil {
+		node.EntityType = pipelineEntityTypeForNode(node.Type)
 	}
 	if body.PosX != nil {
 		node.PosX = *body.PosX
@@ -174,7 +205,27 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 		node.PosY = *body.PosY
 	}
 
-	h.db.Save(&node)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		entityChanged := previous.EntityType != node.EntityType ||
+			(previous.EntityID == nil && node.EntityID != nil) ||
+			(previous.EntityID != nil && node.EntityID == nil) ||
+			(previous.EntityID != nil && node.EntityID != nil && *previous.EntityID != *node.EntityID)
+		if entityChanged {
+			if err := h.clearPipelineEntityBinding(tx, previous); err != nil {
+				return err
+			}
+		}
+		if err := tx.Save(&node).Error; err != nil {
+			return err
+		}
+		if entityChanged {
+			return h.syncPipelineEntityBinding(tx, node)
+		}
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
 	h.db.Preload("Assignee").Preload("Lead").First(&node, node.ID)
 	c.JSON(http.StatusOK, node)
 }
@@ -187,8 +238,18 @@ func (h *PipelineHandler) DeleteNode(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("节点不存在"))
 		return
 	}
-	h.db.Where("from_node_id = ? OR to_node_id = ?", nid, nid).Delete(&model.PipelineEdge{})
-	h.db.Delete(&node)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := h.clearPipelineEntityBinding(tx, node); err != nil {
+			return err
+		}
+		if err := tx.Where("from_node_id = ? OR to_node_id = ?", nid, nid).Delete(&model.PipelineEdge{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&node).Error
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
 
@@ -211,6 +272,10 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 	var parent model.PipelineNode
 	if err := h.db.First(&parent, edge.FromNodeID).Error; err != nil || parent.ProjectID != pid {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("父节点不存在"))
+		return
+	}
+	if !isPipelineWorkNode(parent.Type) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有工作节点可以创建子节点"))
 		return
 	}
 	var child model.PipelineNode

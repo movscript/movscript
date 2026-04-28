@@ -1,46 +1,44 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package, Film, Clapperboard } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
-import type { PipelineNode, Script, Storyboard, Shot, Asset, PipelineContentType, ReviewStatus, ProjectMember } from '@/types'
+import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, PipelineContentType, ProjectMember } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
-import { ReviewStatusBadge } from '@/components/detail'
 import { ScriptWorkspace } from '@/pages/work/workspaces/ScriptWorkspace'
 import { StoryboardWorkspace } from '@/pages/work/workspaces/StoryboardWorkspace'
 import { ShotWorkspace } from '@/pages/work/workspaces/ShotWorkspace'
 import { AssetWorkspace } from '@/pages/work/workspaces/AssetWorkspace'
+import { EpisodeWorkspace } from '@/pages/work/workspaces/EpisodeWorkspace'
+import { SceneWorkspace } from '@/pages/work/workspaces/SceneWorkspace'
 import { useTranslation } from 'react-i18next'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { getPipelineNodeSpec, scriptTypeForPipelineNode, type PipelineEntityType } from './nodeSpec'
 
 // ── Content type config ───────────────────────────────────────────────────────
 
-type ContentItem = Script | Storyboard | Shot | Asset
+type ContentItem = Script | Storyboard | Shot | Asset | Episode | Scene
 
 interface ContentTypeCfg {
   icon: React.ElementType
+  entityType?: PipelineEntityType
+  supportsAssignee?: boolean
   listKey: (pid: number) => (string | number)[]
   listFn: (pid: number, nodeId: string) => Promise<ContentItem[]>
   createFn: (pid: number, node: PipelineNode) => Promise<ContentItem>
   getLabel: (item: ContentItem) => string
   getSub: (item: ContentItem) => string
-  getReviewStatus: (item: ContentItem) => ReviewStatus | undefined
-  getApiUrl: (item: ContentItem) => string
   getPatchUrl: (item: ContentItem) => string
   getAssigneeId: (item: ContentItem) => number | undefined
-}
-
-function scriptTypeForPipelineNode(type: string): Script['script_type'] {
-  if (type === 'episode_writing' || type === 'episode_script') return 'episode'
-  if (type === 'scene_writing' || type === 'scene_script') return 'scene'
-  return 'main'
 }
 
 const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
   script: {
     icon: FileText,
+    entityType: 'script',
+    supportsAssignee: true,
     listKey: (pid) => ['scripts', pid],
     listFn: (pid, nodeId) =>
       api.get(`/projects/${pid}/scripts?pipeline_node_id=${nodeId}`).then((r) => r.data),
@@ -52,13 +50,13 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
       }).then((r) => r.data),
     getLabel: (item) => (item as Script).title,
     getSub: (item) => { const s = item as Script; return `${s.script_type} · ${s.status}` },
-    getReviewStatus: (item) => (item as Script).review_status,
-    getApiUrl: (item) => `/scripts/${item.ID}`,
     getPatchUrl: (item) => `/scripts/${item.ID}`,
     getAssigneeId: (item) => (item as Script).assignee_id,
   },
   storyboard: {
     icon: Layers,
+    entityType: 'storyboard',
+    supportsAssignee: true,
     listKey: (pid) => ['storyboards', pid],
     listFn: (pid, nodeId) =>
       api.get(`/projects/${pid}/storyboards?pipeline_node_id=${nodeId}`).then((r) => r.data),
@@ -69,13 +67,13 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
       }).then((r) => r.data),
     getLabel: (item) => { const s = item as Storyboard; return s.title || `分镜 #${s.ID}` },
     getSub: (item) => (item as Storyboard).status ?? '',
-    getReviewStatus: (item) => (item as Storyboard).review_status,
-    getApiUrl: (item) => `/storyboards/${item.ID}`,
     getPatchUrl: (item) => `/storyboards/${item.ID}`,
     getAssigneeId: (item) => (item as Storyboard).assignee_id,
   },
   shot: {
     icon: Camera,
+    entityType: 'shot',
+    supportsAssignee: true,
     listKey: (pid) => ['shots', pid],
     listFn: (pid, nodeId) =>
       api.get(`/projects/${pid}/shots?pipeline_node_id=${nodeId}`).then((r) => r.data),
@@ -86,13 +84,12 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
       }).then((r) => r.data),
     getLabel: (item) => { const s = item as Shot; return s.description || `镜头 #${s.ID}` },
     getSub: (item) => (item as Shot).status ?? '',
-    getReviewStatus: (item) => (item as Shot).review_status,
-    getApiUrl: (item) => `/shots/${item.ID}`,
     getPatchUrl: (item) => `/shots/${item.ID}`,
     getAssigneeId: (item) => (item as Shot).assignee_id,
   },
   asset: {
     icon: Package,
+    entityType: 'asset',
     listKey: (pid) => ['assets', pid],
     listFn: (pid, nodeId) =>
       api.get(`/projects/${pid}/assets?pipeline_node_id=${nodeId}`).then((r) => r.data),
@@ -105,9 +102,42 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
       }).then((r) => r.data),
     getLabel: (item) => (item as Asset).name,
     getSub: (item) => (item as Asset).type,
-    getReviewStatus: (item) => (item as Asset).review_status,
-    getApiUrl: (item) => `/projects/${(item as Asset).project_id}/assets/${item.ID}`,
-    getPatchUrl: () => '',
+    getPatchUrl: (item) => `/projects/${(item as Asset).project_id}/assets/${item.ID}`,
+    getAssigneeId: () => undefined,
+  },
+  episode: {
+    icon: Film,
+    entityType: 'episode',
+    listKey: (pid) => ['episodes-project', pid],
+    listFn: (pid, nodeId) =>
+      api.get(`/projects/${pid}/episodes?pipeline_node_id=${nodeId}`).then((r) => r.data),
+    createFn: (pid, node) =>
+      api.post(`/projects/${pid}/episodes`, {
+        title: node.name || '新剧集',
+        synopsis: '',
+        pipeline_node_id: node.ID,
+      }).then((r) => r.data),
+    getLabel: (item) => (item as Episode).title,
+    getSub: (item) => { const e = item as Episode; return `EP${e.number} · ${e.status}` },
+    getPatchUrl: (item) => `/episodes/${item.ID}`,
+    getAssigneeId: () => undefined,
+  },
+  scene: {
+    icon: Clapperboard,
+    entityType: 'scene',
+    listKey: (pid) => ['scenes', pid],
+    listFn: (pid, nodeId) =>
+      api.get(`/projects/${pid}/scenes?pipeline_node_id=${nodeId}`).then((r) => r.data),
+    createFn: (pid, node) =>
+      api.post(`/projects/${pid}/scenes`, {
+        title: node.name || '新分场',
+        location: '',
+        time_of_day: 'day',
+        pipeline_node_id: node.ID,
+      }).then((r) => r.data),
+    getLabel: (item) => (item as Scene).title,
+    getSub: (item) => { const s = item as Scene; return `${s.location || ''} · ${s.time_of_day || ''}` },
+    getPatchUrl: (item) => `/scenes/${item.ID}`,
     getAssigneeId: () => undefined,
   },
   custom: {
@@ -117,8 +147,6 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
     createFn: async () => ({ ID: 0 } as unknown as ContentItem),
     getLabel: () => '',
     getSub: () => '',
-    getReviewStatus: () => undefined,
-    getApiUrl: () => '',
     getPatchUrl: () => '',
     getAssigneeId: () => undefined,
   },
@@ -206,15 +234,8 @@ function ListItem({
   queryKey: unknown[]
   members: ProjectMember[]
 }) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const reviewStatus = cfg.getReviewStatus(item)
   const patchUrl = cfg.getPatchUrl(item)
-
-  const submitReview = useMutation({
-    mutationFn: () => api.patch(patchUrl, { review_status: 'under_review' }).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey }),
-  })
+  const assigneeId = cfg.getAssigneeId(item)
 
   return (
     <button
@@ -230,28 +251,14 @@ function ListItem({
           <p className="text-xs text-muted-foreground truncate">{cfg.getSub(item)}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {patchUrl ? (
+          {patchUrl && cfg.supportsAssignee ? (
             <AssigneePicker
-              assigneeId={cfg.getAssigneeId(item)}
+              assigneeId={assigneeId}
               members={members}
               patchUrl={patchUrl}
               queryKey={queryKey}
             />
           ) : null}
-          <ReviewStatusBadge status={reviewStatus} />
-          {patchUrl && (!reviewStatus || reviewStatus === 'draft') && (
-            <button
-              onClick={() => submitReview.mutate()}
-              disabled={submitReview.isPending}
-              className="flex items-center gap-0.5 text-[10px] text-amber-600 hover:text-amber-700 border border-amber-200 hover:bg-amber-50 rounded-full px-1.5 py-0.5 transition-colors"
-            >
-              {submitReview.isPending
-                ? <Loader2 size={9} className="animate-spin" />
-                : <Send size={9} />
-              }
-              {t('review.submit')}
-            </button>
-          )}
         </div>
       </div>
     </button>
@@ -271,7 +278,114 @@ function DetailPanel({
   if (contentType === 'storyboard') return <StoryboardWorkspace storyboard={item as Storyboard} />
   if (contentType === 'shot') return <ShotWorkspace shot={item as Shot} />
   if (contentType === 'asset') return <AssetWorkspace asset={item as Asset} />
+  if (contentType === 'episode') return <EpisodeWorkspace episode={item as Episode} />
+  if (contentType === 'scene') return <SceneWorkspace scene={item as Scene} />
   return null
+}
+
+function ArtifactDetailArea({
+  contentType,
+  cfg,
+  item,
+  itemsLoading,
+  canCreate,
+  creating,
+  onCreate,
+}: {
+  contentType: PipelineContentType
+  cfg: ContentTypeCfg
+  item: ContentItem | null
+  itemsLoading: boolean
+  canCreate: boolean
+  creating: boolean
+  onCreate: () => void
+}) {
+  const { t } = useTranslation()
+  const Icon = cfg.icon
+
+  if (itemsLoading) {
+    return (
+      <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center">
+        <Loader2 size={18} className="animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (contentType === 'custom') {
+    return (
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col items-center justify-center gap-2">
+        <Settings2 size={24} className="text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">{t('pipeline.workspace.customHint')}</p>
+      </div>
+    )
+  }
+
+  if (!item) {
+    return (
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col items-center justify-center gap-3">
+        <Icon size={28} className="text-muted-foreground/50" />
+        <p className="text-sm text-muted-foreground">{t('pipeline.workspace.empty')}</p>
+        {canCreate ? (
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            onClick={onCreate}
+            disabled={creating}
+          >
+            {creating ? (
+              <Loader2 size={12} className="animate-spin mr-1.5" />
+            ) : (
+              <Plus size={12} className="mr-1.5" />
+            )}
+            {t('pipeline.workspace.createFirst', { type: t(`pipeline.contentTypes.${contentType}`) })}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+      <DetailPanel contentType={contentType} item={item} />
+    </div>
+  )
+}
+
+function ChildNodeListItem({
+  node,
+  selected,
+  onClick,
+}: {
+  node: PipelineNode
+  selected: boolean
+  onClick: () => void
+}) {
+  const { t } = useTranslation()
+  const spec = getPipelineNodeSpec(node.type)
+  const cfg = CONTENT_TYPE_CONFIG[spec.contentType]
+  const Icon = cfg?.icon ?? Settings2
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors',
+        selected ? 'bg-background border-l-2 border-l-primary' : '',
+      )}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon size={14} className="text-muted-foreground shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground truncate">{node.name}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {t(`pipeline.contentTypes.${spec.contentType}`)}
+            {node.entity_id ? ` · #${node.entity_id}` : ''}
+          </p>
+        </div>
+      </div>
+    </button>
+  )
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -294,6 +408,7 @@ export function StageWorkspaceContent({
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedChildNodeId, setSelectedChildNodeId] = useState<number | null>(null)
   const [creating, setCreating] = useState(false)
 
   const nodeQueryKey = ['pipeline-node', nodeId]
@@ -310,20 +425,54 @@ export function StageWorkspaceContent({
     enabled: !!project?.ID,
   })
 
-  const contentType: PipelineContentType = (node?.content_type as PipelineContentType) ?? 'custom'
+  const nodeSpec = getPipelineNodeSpec(node?.type ?? 'custom')
+  const isWorkNode = nodeSpec.category === 'work'
+  const isArtifactNode = nodeSpec.category === 'artifact'
+
+  const { data: pipeline, isLoading: pipelineLoading } = useQuery<Pipeline>({
+    queryKey: ['pipeline', project?.ID],
+    queryFn: () => api.get(`/projects/${project!.ID}/pipeline`).then((r) => r.data),
+    enabled: !!project?.ID && !!nodeId && isWorkNode,
+  })
+
+  const childNodes = useMemo(() => {
+    if (!pipeline || !node) return []
+    const nodeMap = new Map(pipeline.nodes.map((item) => [item.ID, item]))
+    return pipeline.edges
+      .filter((edge) => edge.from_node_id === node.ID)
+      .map((edge) => nodeMap.get(edge.to_node_id))
+      .filter((item): item is PipelineNode => !!item && getPipelineNodeSpec(item.type).category === 'artifact')
+      .sort((a, b) => a.ID - b.ID)
+  }, [pipeline, node])
+
+  const selectedChildNode = isWorkNode
+    ? childNodes.find((item) => item.ID === selectedChildNodeId) ?? childNodes[0] ?? null
+    : null
+  const detailNode = isWorkNode ? selectedChildNode : node ?? null
+  const contentType: PipelineContentType = (detailNode?.content_type as PipelineContentType) ?? 'custom'
   const cfg = CONTENT_TYPE_CONFIG[contentType]
-  const listQueryKey = [...cfg.listKey(project?.ID ?? 0), nodeId]
+  const detailNodeId = detailNode?.ID ? String(detailNode.ID) : ''
+  const listQueryKey = [...cfg.listKey(project?.ID ?? 0), detailNodeId]
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<ContentItem[]>({
     queryKey: listQueryKey,
-    queryFn: () => cfg.listFn(project!.ID, nodeId!),
-    enabled: !!project && !!nodeId && contentType !== 'custom',
+    queryFn: () => cfg.listFn(project!.ID, detailNodeId),
+    enabled: !!project && !!detailNodeId && contentType !== 'custom',
   })
 
   const createMutation = useMutation({
-    mutationFn: () => cfg.createFn(project!.ID, node!),
+    mutationFn: () => cfg.createFn(project!.ID, detailNode!),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: listQueryKey })
+      if (cfg.entityType && created.ID) {
+        api.put(`/pipeline/nodes/${detailNode!.ID}`, {
+          entity_type: cfg.entityType,
+          entity_id: created.ID,
+        }).then((r) => {
+          if (detailNode?.ID === node?.ID) qc.setQueryData(nodeQueryKey, r.data)
+          qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+        }).catch(() => {/* keep the created content even if node link refresh fails */})
+      }
       setSelectedId(created.ID)
     },
     onSettled: () => setCreating(false),
@@ -358,7 +507,15 @@ export function StageWorkspaceContent({
     },
   })
 
-  const selected = items.find((i) => i.ID === selectedId) ?? null
+  useEffect(() => {
+    setSelectedId(null)
+    setSelectedChildNodeId(null)
+  }, [nodeId])
+
+  const linkedItem = detailNode?.entity_id
+    ? items.find((item) => item.ID === detailNode.entity_id)
+    : undefined
+  const selected = linkedItem ?? items.find((i) => i.ID === selectedId) ?? items[0] ?? null
 
   if (nodeLoading) {
     return (
@@ -368,7 +525,8 @@ export function StageWorkspaceContent({
     )
   }
 
-  const Icon = cfg.icon
+  const headerContentType: PipelineContentType = (node?.content_type as PipelineContentType) ?? 'custom'
+  const HeaderIcon = CONTENT_TYPE_CONFIG[headerContentType].icon
   const nodeStatus = node?.status ?? 'draft'
 
   const NODE_STATUS_BADGE: Record<string, string> = {
@@ -388,11 +546,11 @@ export function StageWorkspaceContent({
         >
           {embedded ? <XCircle size={15} /> : <ArrowLeft size={16} />}
         </button>
-        <Icon size={15} className="text-muted-foreground" />
+        <HeaderIcon size={15} className="text-muted-foreground" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">{node?.name}</p>
           <p className="text-xs text-muted-foreground">
-            {t(`pipeline.contentTypes.${contentType}`)}
+            {t(`pipeline.contentTypes.${headerContentType}`)}
           </p>
         </div>
 
@@ -443,7 +601,7 @@ export function StageWorkspaceContent({
           </button>
         )}
 
-        {contentType !== 'custom' && (
+        {isArtifactNode && contentType !== 'custom' && (
           <Button
             size="sm"
             className="h-7 text-xs"
@@ -460,75 +618,52 @@ export function StageWorkspaceContent({
         )}
       </div>
 
-      {/* Body: left list + right detail */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left list */}
-        <div className={cn(
-          'flex flex-col border-r border-border bg-card overflow-hidden shrink-0',
-          selected ? 'w-72' : 'flex-1'
-        )}>
-          <div className="flex-1 overflow-y-auto">
-            {itemsLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <Loader2 size={16} className="animate-spin text-muted-foreground" />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {isWorkNode ? (
+          <>
+            <div className="w-72 shrink-0 border-r border-border bg-card overflow-hidden">
+              <div className="h-full overflow-y-auto">
+                {pipelineLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 size={16} className="animate-spin text-muted-foreground" />
+                  </div>
+                ) : childNodes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-48 gap-2 px-4 text-center">
+                    <Layers size={26} className="text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">{t('pipeline.workspace.empty')}</p>
+                  </div>
+                ) : (
+                  childNodes.map((child) => (
+                    <ChildNodeListItem
+                      key={child.ID}
+                      node={child}
+                      selected={selectedChildNode?.ID === child.ID}
+                      onClick={() => { setSelectedChildNodeId(child.ID); setSelectedId(null) }}
+                    />
+                  ))
+                )}
               </div>
-            ) : contentType === 'custom' ? (
-              <div className="flex flex-col items-center justify-center h-32 gap-2">
-                <Settings2 size={24} className="text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{t('pipeline.workspace.customHint')}</p>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 gap-3">
-                <Icon size={28} className="text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">{t('pipeline.workspace.empty')}</p>
-                <Button
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => { setCreating(true); createMutation.mutate() }}
-                  disabled={creating || createMutation.isPending}
-                >
-                  {(creating || createMutation.isPending) ? (
-                    <Loader2 size={12} className="animate-spin mr-1.5" />
-                  ) : (
-                    <Plus size={12} className="mr-1.5" />
-                  )}
-                  {t('pipeline.workspace.createFirst', { type: t(`pipeline.contentTypes.${contentType}`) })}
-                </Button>
-              </div>
-            ) : (
-              items.map((item) => (
-                <ListItem
-                  key={item.ID}
-                  item={item}
-                  cfg={cfg}
-                  selected={selectedId === item.ID}
-                  onClick={() => setSelectedId(item.ID)}
-                  queryKey={listQueryKey}
-                  members={members}
-                />
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right detail panel */}
-        {selected && (
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-end px-3 py-1.5 border-b border-border shrink-0">
-              <button
-                onClick={() => setSelectedId(null)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ✕
-              </button>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <DetailPanel
-                contentType={contentType}
-                item={selected}
-              />
-            </div>
-          </div>
+            <ArtifactDetailArea
+              contentType={contentType}
+              cfg={cfg}
+              item={selected}
+              itemsLoading={itemsLoading}
+              canCreate={!!selectedChildNode && contentType !== 'custom'}
+              creating={creating || createMutation.isPending}
+              onCreate={() => { setCreating(true); createMutation.mutate() }}
+            />
+          </>
+        ) : (
+          <ArtifactDetailArea
+            contentType={contentType}
+            cfg={cfg}
+            item={selected}
+            itemsLoading={itemsLoading}
+            canCreate={isArtifactNode && contentType !== 'custom'}
+            creating={creating || createMutation.isPending}
+            onCreate={() => { setCreating(true); createMutation.mutate() }}
+          />
         )}
       </div>
     </div>

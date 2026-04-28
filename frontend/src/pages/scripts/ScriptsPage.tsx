@@ -12,7 +12,7 @@ import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
-import { ScriptDetail, ReviewStatusBadge } from '@/components/detail'
+import { ScriptDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 type ScriptType = 'main' | 'episode' | 'scene'
@@ -118,7 +118,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <span className="text-xs text-muted-foreground font-mono shrink-0">#{s.order || '—'}</span>
                   )}
                   <span className="text-sm font-medium truncate flex-1">{s.title}</span>
-                  <ReviewStatusBadge status={s.review_status} />
                 </div>
               </button>
             ))
@@ -134,7 +133,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', SCRIPT_TYPE_MAP[s.script_type]?.color ?? 'bg-muted text-muted-foreground')}>
                       {SCRIPT_TYPE_MAP[s.script_type] ? t(SCRIPT_TYPE_MAP[s.script_type].labelKey) : s.script_type}
                     </span>
-                    <ReviewStatusBadge status={s.review_status} />
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.title}</h3>
                   {s.summary ? (

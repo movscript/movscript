@@ -45,6 +45,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	featureH := handler.NewFeatureHandler(db, aiService)
 	genJobs := handler.NewGenJobHandler(db, aiService)
 	chatH := handler.NewChatHandler(db, aiService)
+	modelGatewayH := handler.NewModelGatewayHandler(db, aiService)
 	debugH := handler.NewDebugHandler(db, encKey, registry)
 	pipelineH := handler.NewPipelineHandler(db)
 	agentDefH := handler.NewAgentDefHandler(db)
@@ -55,6 +56,12 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	cloudFileCfgH := handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey)
 
 	// MCP endpoint removed — tools are now provided by the client.
+
+	openAIV1 := r.Group("/v1")
+	{
+		openAIV1.GET("/models", modelGatewayH.ListModels)
+		openAIV1.POST("/chat/completions", modelGatewayH.ChatCompletions)
+	}
 
 	v1 := r.Group("/api/v1")
 	{
@@ -70,6 +77,8 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 
 		// AI chat (brainstorm)
 		v1.POST("/ai/chat", chatH.Chat)
+		v1.GET("/model-gateway/models", modelGatewayH.ListModels)
+		v1.POST("/model-gateway/chat/completions", modelGatewayH.ChatCompletions)
 
 		// user quota & usage (requires login)
 		v1.GET("/user/quota", aiH.GetMyQuota)
@@ -155,6 +164,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.POST("/projects/:id/tasks/:taskId/comments", tasks.AddComment)
 
 		// pipeline DAG
+		v1.GET("/pipeline/node-specs", pipelineH.GetNodeSpecs)
 		v1.GET("/projects/:id/pipeline", pipelineH.GetPipeline)
 		v1.POST("/projects/:id/pipeline/nodes", pipelineH.CreateNode)
 		v1.GET("/pipeline/nodes/:nodeId", pipelineH.GetNode)
@@ -198,6 +208,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.POST("/projects/:id/assets/upload", assets.Upload)
 		v1.GET("/projects/:id/assets/:assetId", assets.Get)
 		v1.PUT("/projects/:id/assets/:assetId", assets.Update)
+		v1.PATCH("/projects/:id/assets/:assetId", assets.Patch)
 		v1.DELETE("/projects/:id/assets/:assetId", assets.Delete)
 		// asset views
 		v1.POST("/projects/:id/assets/:assetId/views", assets.AddView)
@@ -208,6 +219,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.GET("/scripts/:id/episodes", episodes.List)
 		v1.POST("/scripts/:id/episodes", episodes.Create)
 		v1.PUT("/episodes/:id", episodes.Update)
+		v1.PATCH("/episodes/:id", episodes.Patch)
 		v1.DELETE("/episodes/:id", episodes.Delete)
 
 		// episode ↔ scene links (many-to-many)
@@ -218,6 +230,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 
 		// scenes (update/delete by scene id)
 		v1.PUT("/scenes/:sceneId", scenes.Update)
+		v1.PATCH("/scenes/:sceneId", scenes.Patch)
 		v1.DELETE("/scenes/:sceneId", scenes.Delete)
 
 		// storyboards nested under scene

@@ -80,7 +80,9 @@ func (h *ScriptHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Patch applies a partial update (assignee_id, review_status, etc.) to a script.
+// Patch applies a partial update to a script.
+// Note: review_status is retained for legacy compatibility but is not enabled
+// in the current frontend; pipeline node status owns review workflow.
 func (h *ScriptHandler) Patch(c *gin.Context) {
 	var s model.Script
 	if err := h.db.First(&s, c.Param("id")).Error; err != nil {

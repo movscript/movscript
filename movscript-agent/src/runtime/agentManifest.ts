@@ -1,6 +1,6 @@
 import type { JSONValue } from '../types.js'
 
-export type AgentManifestSchema = 'movscript.agent.v1'
+export type AgentManifestSchema = 'movscript.agent.v1' | 'movscript.agent.v2'
 export type AgentToolGrantMode = 'allow' | 'deny'
 export type AgentToolApprovalMode = 'never' | 'always' | 'on_write'
 
@@ -10,6 +10,21 @@ export interface AgentToolGrant {
   approval?: AgentToolApprovalMode
 }
 
+export interface AgentSkillManifest {
+  id: string
+  name: string
+  description: string
+  version?: string
+  enabled: boolean
+  priority?: number
+  instruction: string
+  appliesWhen?: string
+  inputHints?: string[]
+  outputContract?: string
+  toolHints?: string[]
+  metadata?: Record<string, JSONValue>
+}
+
 export interface AgentManifest {
   schema: AgentManifestSchema
   id: string
@@ -17,17 +32,35 @@ export interface AgentManifest {
   name: string
   description?: string
   soul?: string
+  skills: AgentSkillManifest[]
   permissions: string[]
   tools: AgentToolGrant[]
+  model?: {
+    provider?: string
+    modelId?: string
+    platformModelId?: number
+  }
   metadata?: Record<string, JSONValue>
+  sourceSchema?: AgentManifestSchema
 }
 
 export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.v1',
+  schema: 'movscript.agent.v2',
   id: 'movscript.default.local-agent',
   version: '0.1.0',
   name: 'MovScript Local Agent',
   description: 'Default local agent with first-version read and draft permissions.',
+  skills: [
+    {
+      id: 'movscript.default.safe-project-assistant',
+      name: 'Safe Project Assistant',
+      description: 'Read project context, search entities, and create local drafts without changing project data.',
+      enabled: true,
+      priority: 100,
+      instruction: '优先读取当前项目上下文；需要产出内容时创建本地 draft，不直接修改正式项目实体。',
+      toolHints: ['movscript.search_entities', 'movscript.read_entity', 'movscript.create_draft'],
+    },
+  ],
   permissions: [
     'project.read',
     'draft.read',
@@ -45,24 +78,30 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
 
 export function normalizeAgentManifest(input: unknown): AgentManifest {
   if (!isRecord(input)) return DEFAULT_AGENT_MANIFEST
-  if (input.schema !== 'movscript.agent.v1') return DEFAULT_AGENT_MANIFEST
+  if (input.schema !== 'movscript.agent.v1' && input.schema !== 'movscript.agent.v2') return DEFAULT_AGENT_MANIFEST
 
   const id = nonEmptyString(input.id) ?? DEFAULT_AGENT_MANIFEST.id
   const version = nonEmptyString(input.version) ?? DEFAULT_AGENT_MANIFEST.version
   const name = nonEmptyString(input.name) ?? DEFAULT_AGENT_MANIFEST.name
   const permissions = stringArray(input.permissions)
   const tools = toolGrantArray(input.tools)
+  const skills = input.schema === 'movscript.agent.v2'
+    ? skillManifestArray(input.skills)
+    : legacySkillManifestArray(input)
 
   return {
-    schema: 'movscript.agent.v1',
+    schema: 'movscript.agent.v2',
     id,
     version,
     name,
     ...(nonEmptyString(input.description) ? { description: nonEmptyString(input.description) } : {}),
     ...(nonEmptyString(input.soul) ? { soul: nonEmptyString(input.soul) } : {}),
+    skills,
     permissions,
     tools,
+    ...(isRecord(input.model) ? { model: normalizeModelBinding(input.model) } : {}),
     ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
+    sourceSchema: input.schema,
   }
 }
 
@@ -88,6 +127,57 @@ function toolGrantArray(value: unknown): AgentToolGrant[] {
     grants.push({ name, mode, ...(approval ? { approval } : {}) })
   }
   return grants
+}
+
+function skillManifestArray(value: unknown): AgentSkillManifest[] {
+  if (!Array.isArray(value)) return []
+  const skills: AgentSkillManifest[] = []
+  for (const item of value) {
+    if (!isRecord(item)) continue
+    const id = nonEmptyString(item.id)
+    const name = nonEmptyString(item.name)
+    if (!id || !name) continue
+    const description = nonEmptyString(item.description) ?? ''
+    const instruction = nonEmptyString(item.instruction) ?? description
+    skills.push({
+      id,
+      name,
+      description,
+      enabled: item.enabled !== false,
+      ...(typeof item.priority === 'number' && Number.isFinite(item.priority) ? { priority: item.priority } : {}),
+      instruction,
+      ...(nonEmptyString(item.version) ? { version: nonEmptyString(item.version) } : {}),
+      ...(nonEmptyString(item.appliesWhen) ? { appliesWhen: nonEmptyString(item.appliesWhen) } : {}),
+      ...(stringArray(item.inputHints).length > 0 ? { inputHints: stringArray(item.inputHints) } : {}),
+      ...(nonEmptyString(item.outputContract) ? { outputContract: nonEmptyString(item.outputContract) } : {}),
+      ...(stringArray(item.toolHints).length > 0 ? { toolHints: stringArray(item.toolHints) } : {}),
+      ...(isJSONRecord(item.metadata) ? { metadata: item.metadata } : {}),
+    })
+  }
+  return skills
+}
+
+function legacySkillManifestArray(input: Record<string, unknown>): AgentSkillManifest[] {
+  if (Array.isArray(input.skills)) return skillManifestArray(input.skills)
+  const metadata = isRecord(input.metadata) ? input.metadata : undefined
+  const skillIds = stringArray(metadata?.skillIds)
+  return skillIds.map((id, index) => ({
+    id,
+    name: id,
+    description: '',
+    enabled: true,
+    priority: index,
+    instruction: '',
+    metadata: { source: 'legacy.metadata.skillIds' },
+  }))
+}
+
+function normalizeModelBinding(value: Record<string, unknown>): AgentManifest['model'] {
+  return {
+    ...(nonEmptyString(value.provider) ? { provider: nonEmptyString(value.provider) } : {}),
+    ...(nonEmptyString(value.modelId) ? { modelId: nonEmptyString(value.modelId) } : {}),
+    ...(typeof value.platformModelId === 'number' && Number.isFinite(value.platformModelId) ? { platformModelId: value.platformModelId } : {}),
+  }
 }
 
 function stringArray(value: unknown): string[] {

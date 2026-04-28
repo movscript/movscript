@@ -83,7 +83,9 @@ func (h *ShotHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Patch applies a partial update (assignee_id, review_status, etc.) to a shot.
+// Patch applies a partial update to a shot.
+// Note: review_status is retained for legacy compatibility but is not enabled
+// in the current frontend; pipeline node status owns review workflow.
 func (h *ShotHandler) Patch(c *gin.Context) {
 	var s model.Shot
 	if err := h.db.First(&s, c.Param("id")).Error; err != nil {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,8 +10,10 @@ import {
   ChevronLeft,
   ChevronRight,
   GanttChartSquare,
+  GripHorizontal,
   Loader2,
   MoreHorizontal,
+  Network,
   Plus,
   Trash2,
   TreePine,
@@ -21,15 +23,14 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import type { Pipeline, PipelineEdge, PipelineNode, PipelineContentType } from '@/types'
+import type { Pipeline, PipelineEdge, PipelineNode } from '@/types'
 import {
-  ARTIFACT_NODE_TYPES,
   NODE_TYPE_META,
-  WORK_NODE_TYPES,
   getPipelineNodeMeta,
   isPipelineArtifactNode,
   isPipelineWorkNode,
 } from './components/PipelineNodeComponent'
+import { NODE_TYPE_OPTIONS, WORK_NODE_TYPES, defaultContentType } from './nodeSpec'
 import { NodeDetailPanel } from './components/NodeDetailPanel'
 import { GanttChart } from './components/GanttChart'
 import { DeleteNodeDialog } from './components/DeleteNodeDialog'
@@ -55,7 +56,19 @@ interface PipelineLayout {
   looseArtifacts: TreeItem[]
 }
 
-const NODE_TYPE_OPTIONS = [...WORK_NODE_TYPES, ...ARTIFACT_NODE_TYPES, 'custom']
+interface DependencyGraphItem {
+  node: PipelineNode
+  x: number
+  y: number
+}
+
+interface DependencyGraphLayout {
+  items: DependencyGraphItem[]
+  itemById: Map<number, DependencyGraphItem>
+  edges: PipelineEdge[]
+  width: number
+  height: number
+}
 
 const FIXED_WORK_OUTPUT_TYPES: Record<string, string> = {
   script_writing: 'main_script',
@@ -64,19 +77,13 @@ const FIXED_WORK_OUTPUT_TYPES: Record<string, string> = {
   asset_creation: 'asset',
 }
 
+const INLINE_WORKSPACE_DEFAULT_HEIGHT = 480
+
 const NODE_STATUS_META: Record<string, { dot: string; badge: string; label: string }> = {
   draft:        { dot: 'bg-muted-foreground/40', badge: 'bg-muted text-muted-foreground', label: 'Draft' },
   under_review: { dot: 'bg-amber-500',           badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', label: 'In Review' },
   rejected:     { dot: 'bg-destructive',         badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400', label: 'Rejected' },
   final:        { dot: 'bg-green-500',           badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', label: 'Final' },
-}
-
-function defaultContentType(type: string): PipelineContentType {
-  if (type === 'script_writing' || type === 'raw_script' || type === 'main_script' || type === 'episode_writing' || type === 'episode_script' || type === 'scene_writing' || type === 'scene_script') return 'script'
-  if (type === 'storyboard_creation' || type === 'storyboard_script' || type === 'storyboard') return 'storyboard'
-  if (type === 'shot_production' || type === 'shot') return 'shot'
-  if (type === 'asset_creation' || type === 'asset') return 'asset'
-  return 'custom'
 }
 
 function defaultArtifactTypeForWork(type: string) {
@@ -85,7 +92,8 @@ function defaultArtifactTypeForWork(type: string) {
   if (type === 'scene_writing') return 'scene_script'
   if (type === 'storyboard_creation') return 'storyboard'
   if (type === 'asset_creation') return 'asset'
-  if (type === 'shot_production' || type === 'episode_edit') return 'shot'
+  if (type === 'shot_production') return 'shot'
+  if (type === 'episode_edit') return 'episode'
   return 'main_script'
 }
 
@@ -186,18 +194,93 @@ function blockedArtifactNames(node: PipelineNode, pipeline?: Pipeline) {
     .map((candidate) => candidate.name)
 }
 
+function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]): DependencyGraphLayout {
+  const nodeMap = new Map(nodes.map((node) => [node.ID, node]))
+  const validEdges = edges.filter((edge) => nodeMap.has(edge.from_node_id) && nodeMap.has(edge.to_node_id))
+  const incomingCount = new Map(nodes.map((node) => [node.ID, 0]))
+  const outgoing = new Map<number, PipelineEdge[]>()
+
+  for (const edge of validEdges) {
+    incomingCount.set(edge.to_node_id, (incomingCount.get(edge.to_node_id) ?? 0) + 1)
+    outgoing.set(edge.from_node_id, [...(outgoing.get(edge.from_node_id) ?? []), edge])
+  }
+
+  const sortNodes = (a: PipelineNode, b: PipelineNode) => {
+    const aw = isPipelineWorkNode(a.type) ? 0 : 1
+    const bw = isPipelineWorkNode(b.type) ? 0 : 1
+    if (aw !== bw) return aw - bw
+    const ax = Number.isFinite(a.pos_x) ? a.pos_x : 0
+    const bx = Number.isFinite(b.pos_x) ? b.pos_x : 0
+    if (ax !== bx) return ax - bx
+    return a.ID - b.ID
+  }
+
+  const queue = nodes.filter((node) => (incomingCount.get(node.ID) ?? 0) === 0).sort(sortNodes)
+  const levelById = new Map<number, number>()
+  for (const root of queue) levelById.set(root.ID, 0)
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index]
+    const currentLevel = levelById.get(current.ID) ?? 0
+    for (const edge of outgoing.get(current.ID) ?? []) {
+      const next = nodeMap.get(edge.to_node_id)
+      if (!next) continue
+      levelById.set(next.ID, Math.max(levelById.get(next.ID) ?? 0, currentLevel + 1))
+      incomingCount.set(next.ID, Math.max(0, (incomingCount.get(next.ID) ?? 0) - 1))
+      if ((incomingCount.get(next.ID) ?? 0) === 0) queue.push(next)
+    }
+  }
+
+  for (const node of nodes) {
+    if (!levelById.has(node.ID)) levelById.set(node.ID, 0)
+  }
+
+  const levels = new Map<number, PipelineNode[]>()
+  for (const node of nodes) {
+    const level = levelById.get(node.ID) ?? 0
+    levels.set(level, [...(levels.get(level) ?? []), node])
+  }
+
+  const cardWidth = 224
+  const cardHeight = 74
+  const gapX = 108
+  const gapY = 26
+  const padding = 28
+  const items: DependencyGraphItem[] = []
+
+  for (const [level, levelNodes] of [...levels.entries()].sort((a, b) => a[0] - b[0])) {
+    levelNodes.sort(sortNodes).forEach((node, row) => {
+      items.push({
+        node,
+        x: padding + level * (cardWidth + gapX),
+        y: padding + row * (cardHeight + gapY),
+      })
+    })
+  }
+
+  const maxLevel = Math.max(0, ...items.map((item) => Math.floor((item.x - padding) / (cardWidth + gapX))))
+  const maxRows = Math.max(1, ...[...levels.values()].map((levelNodes) => levelNodes.length))
+  const width = padding * 2 + (maxLevel + 1) * cardWidth + maxLevel * gapX
+  const height = padding * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY
+  const itemById = new Map(items.map((item) => [item.node.ID, item]))
+
+  return { items, itemById, edges: validEdges, width, height }
+}
+
 export default function PipelineEditorPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
 
-  const [activeTab, setActiveTab] = useState<'tree' | 'gantt'>('tree')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'dependencies' | 'schedule'>('tasks')
   const [selectedNode, setSelectedNode] = useState<PipelineNode | null>(null)
   const [workspaceNode, setWorkspaceNode] = useState<PipelineNode | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
   const [addNodeState, setAddNodeState] = useState<AddNodeState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PipelineNode | null>(null)
+  const [workspaceHeight, setWorkspaceHeight] = useState(INLINE_WORKSPACE_DEFAULT_HEIGHT)
+  const [isWorkspaceResizing, setIsWorkspaceResizing] = useState(false)
 
   const { data: pipeline, isLoading } = useQuery<Pipeline>({
     queryKey: ['pipeline', project?.ID],
@@ -231,14 +314,10 @@ export default function PipelineEditorPage() {
 
   const createNode = useMutation({
     mutationFn: async ({ parentId, body }: { parentId: number | null; body: Partial<PipelineNode> }) => {
-      const node = await api.post(`/projects/${project!.ID}/pipeline/nodes`, body).then((r) => r.data as PipelineNode)
-      if (parentId) {
-        await api.post(`/projects/${project!.ID}/pipeline/edges`, {
-          from_node_id: parentId,
-          to_node_id: node.ID,
-        })
-      }
-      return node
+      return api.post(`/projects/${project!.ID}/pipeline/nodes`, {
+        ...body,
+        parent_id: parentId ?? undefined,
+      }).then((r) => r.data as PipelineNode)
     },
     onSuccess: (node, variables) => {
       qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
@@ -298,6 +377,27 @@ export default function PipelineEditorPage() {
     setWorkspaceNode(node)
   }
 
+  const onWorkspaceResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsWorkspaceResizing(true)
+    const startY = e.clientY
+    const startHeight = workspaceHeight
+
+    function onMouseMove(ev: MouseEvent) {
+      const maxHeight = Math.max(320, window.innerHeight - 180)
+      setWorkspaceHeight(Math.max(280, Math.min(maxHeight, startHeight + startY - ev.clientY)))
+    }
+
+    function onMouseUp() {
+      setIsWorkspaceResizing(false)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [workspaceHeight])
+
   function renderArtifactTree(items: TreeItem[], depth = 0): React.ReactNode {
     return items.map((item) => {
       const expanded = expandedIds.has(item.node.ID)
@@ -315,7 +415,8 @@ export default function PipelineEditorPage() {
             onSelect={() => openWorkspace(item.node)}
             onToggle={() => toggleNode(item.node.ID)}
             onEnterWorkspace={() => openWorkspace(item.node)}
-            onAddChild={() => setAddNodeState({ parentId: item.node.ID })}
+            onAddChild={() => {}}
+            canAddChild={false}
             onDelete={() => setPendingDelete(item.node)}
           />
           {expanded && item.children.length > 0 ? renderArtifactTree(item.children, depth + 1) : null}
@@ -339,8 +440,9 @@ export default function PipelineEditorPage() {
 
         <div className="flex-1 flex justify-center">
           <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-            <TabBtn active={activeTab === 'tree'} icon={<TreePine size={13} />} label={t('pipeline.editor.treeView')} onClick={() => setActiveTab('tree')} />
-            <TabBtn active={activeTab === 'gantt'} icon={<GanttChartSquare size={13} />} label={t('pipeline.editor.ganttView')} onClick={() => setActiveTab('gantt')} />
+            <TabBtn active={activeTab === 'tasks'} icon={<TreePine size={13} />} label={t('pipeline.editor.taskLayer', { defaultValue: '任务层' })} onClick={() => setActiveTab('tasks')} />
+            <TabBtn active={activeTab === 'dependencies'} icon={<Network size={13} />} label={t('pipeline.editor.dependencyLayer', { defaultValue: '依赖层' })} onClick={() => setActiveTab('dependencies')} />
+            <TabBtn active={activeTab === 'schedule'} icon={<GanttChartSquare size={13} />} label={t('pipeline.editor.scheduleLayer', { defaultValue: '排期层' })} onClick={() => setActiveTab('schedule')} />
           </div>
         </div>
 
@@ -358,7 +460,7 @@ export default function PipelineEditorPage() {
             <div className="h-full flex items-center justify-center">
               <Loader2 size={24} className="animate-spin text-muted-foreground" />
             </div>
-          ) : activeTab === 'tree' ? (
+          ) : activeTab === 'tasks' ? (
             <div className="h-full flex flex-col overflow-hidden bg-background">
               <div className="flex-[1_1_0] min-h-[320px] overflow-auto">
                 {layout.workColumns.length > 0 || layout.looseArtifacts.length > 0 ? (
@@ -381,6 +483,7 @@ export default function PipelineEditorPage() {
                             onToggle={() => toggleNode(column.node.ID)}
                             onEnterWorkspace={() => openWorkspace(column.node)}
                             onAddChild={() => setAddNodeState({ parentId: column.node.ID })}
+                            canAddChild
                             onDelete={() => setPendingDelete(column.node)}
                             onMoveBefore={index > 0 ? () => moveWorkNode(index, -1) : undefined}
                             onMoveAfter={index < layout.workColumns.length - 1 ? () => moveWorkNode(index, 1) : undefined}
@@ -428,7 +531,21 @@ export default function PipelineEditorPage() {
                 )}
               </div>
 
-              <div className="h-[42vh] min-h-[320px] border-t border-border bg-card/30">
+              <div
+                className={cn(
+                  'flex h-2 shrink-0 cursor-ns-resize items-center justify-center border-y border-border bg-background hover:bg-muted',
+                  isWorkspaceResizing && 'bg-muted',
+                )}
+                onMouseDown={onWorkspaceResizeMouseDown}
+                title={t('pipeline.workspace.resizeHandle', { defaultValue: '拖动调整工作区高度' })}
+              >
+                <GripHorizontal size={14} className="text-muted-foreground/70" />
+              </div>
+
+              <div
+                className="shrink-0 border-t border-border bg-card/30"
+                style={{ height: workspaceHeight }}
+              >
                 {workspaceNode ? (
                   <StageWorkspaceContent
                     key={workspaceNode.ID}
@@ -438,11 +555,18 @@ export default function PipelineEditorPage() {
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    {t('pipeline.workspace.inlineEmpty', { defaultValue: '选择一个产物节点后，工作区会在这里展示。' })}
+                    {t('pipeline.workspace.inlineEmpty', { defaultValue: '选择一个节点后，工作区会在这里展示。' })}
                   </div>
                 )}
               </div>
             </div>
+          ) : activeTab === 'dependencies' ? (
+            <DependencyGraph
+              nodes={pipeline?.nodes ?? []}
+              edges={pipeline?.edges ?? []}
+              selectedNodeId={selectedNode?.ID}
+              onNodeClick={setSelectedNode}
+            />
           ) : (
             <GanttChart
               nodes={pipeline?.nodes ?? []}
@@ -498,6 +622,7 @@ function AddNodeDialog({
   const [type, setType] = useState<string>('script_writing')
   const [name, setName] = useState('')
   const fixedChildType = parent ? FIXED_WORK_OUTPUT_TYPES[parent.type] : undefined
+  const selectableTypes = parent ? NODE_TYPE_OPTIONS : WORK_NODE_TYPES
 
   useEffect(() => {
     if (!open) return
@@ -548,7 +673,7 @@ function AddNodeDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {NODE_TYPE_OPTIONS.map((option) => {
+                  {selectableTypes.map((option) => {
                     const meta = NODE_TYPE_META[option]
                     if (!meta) return null
                     return (
@@ -598,6 +723,119 @@ function TabBtn({ active, icon, label, onClick }: {
   )
 }
 
+function DependencyGraph({
+  nodes,
+  edges,
+  selectedNodeId,
+  onNodeClick,
+}: {
+  nodes: PipelineNode[]
+  edges: PipelineEdge[]
+  selectedNodeId?: number
+  onNodeClick: (node: PipelineNode) => void
+}) {
+  const { t } = useTranslation()
+  const layout = useMemo(() => buildDependencyGraphLayout(nodes, edges), [nodes, edges])
+  const cardWidth = 224
+  const cardHeight = 74
+
+  if (nodes.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-background text-center">
+        <Network size={28} className="text-muted-foreground/60" />
+        <p className="text-sm text-muted-foreground">{t('pipeline.dependency.empty', { defaultValue: '暂无依赖关系' })}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full overflow-auto bg-background p-4">
+      <div
+        className="relative min-h-full min-w-full"
+        style={{ width: layout.width, height: layout.height }}
+      >
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          width={layout.width}
+          height={layout.height}
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+        >
+          <defs>
+            <marker id="pipeline-dependency-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" className="fill-border" />
+            </marker>
+          </defs>
+          {layout.edges.map((edge) => {
+            const from = layout.itemById.get(edge.from_node_id)
+            const to = layout.itemById.get(edge.to_node_id)
+            if (!from || !to) return null
+            const startX = from.x + cardWidth
+            const startY = from.y + cardHeight / 2
+            const endX = to.x
+            const endY = to.y + cardHeight / 2
+            const bend = Math.max(40, (endX - startX) / 2)
+            return (
+              <path
+                key={edge.ID}
+                d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`}
+                className="fill-none stroke-border"
+                strokeWidth="1.5"
+                markerEnd="url(#pipeline-dependency-arrow)"
+              />
+            )
+          })}
+        </svg>
+
+        {layout.items.map((item) => {
+          const node = item.node
+          const meta = getPipelineNodeMeta(node.type)
+          const status = NODE_STATUS_META[node.status] ?? NODE_STATUS_META.draft
+          const Icon = meta.icon
+          const typeLabel = t(`pipeline.nodeTypes.${node.type}.label`, { defaultValue: meta.label })
+          const categoryLabel = t(`pipeline.categories.${meta.category}`, { defaultValue: meta.category })
+          const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: status.label })
+          const isWork = isPipelineWorkNode(node.type)
+
+          return (
+            <button
+              key={node.ID}
+              type="button"
+              className={cn(
+                'absolute rounded-md border bg-card p-2.5 text-left shadow-sm transition-colors hover:border-primary/40',
+                selectedNodeId === node.ID ? 'border-primary/60 bg-primary/5' : 'border-border',
+              )}
+              style={{ left: item.x, top: item.y, width: cardWidth, height: cardHeight }}
+              onClick={() => onNodeClick(node)}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${meta.accent}`}>
+                  <Icon size={15} className={meta.iconColor} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <p className="truncate text-[13px] font-semibold text-foreground">{node.name}</p>
+                    <span className={cn(
+                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase',
+                      isWork ? 'bg-primary/10 text-primary' : 'border border-border bg-muted text-muted-foreground',
+                    )}>
+                      {categoryLabel}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{typeLabel}</p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+                    <span className="truncate text-[11px] text-muted-foreground">{statusLabel}</span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function PipelineFlowCard({
   node,
   depth,
@@ -610,6 +848,7 @@ function PipelineFlowCard({
   onToggle,
   onEnterWorkspace,
   onAddChild,
+  canAddChild = true,
   onDelete,
   onMoveBefore,
   onMoveAfter,
@@ -626,6 +865,7 @@ function PipelineFlowCard({
   onToggle: () => void
   onEnterWorkspace: () => void
   onAddChild: () => void
+  canAddChild?: boolean
   onDelete: () => void
   onMoveBefore?: () => void
   onMoveAfter?: () => void
@@ -761,15 +1001,17 @@ function PipelineFlowCard({
               <ArrowRight size={14} />
             </Button>
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100"
-            onClick={(e) => { e.stopPropagation(); onAddChild() }}
-            title={t('pipeline.tree.addChild')}
-          >
-            <Plus size={14} />
-          </Button>
+          {canAddChild ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100"
+              onClick={(e) => { e.stopPropagation(); onAddChild() }}
+              title={t('pipeline.tree.addChild')}
+            >
+              <Plus size={14} />
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"

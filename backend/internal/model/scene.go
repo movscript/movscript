@@ -6,14 +6,18 @@ import "gorm.io/gorm"
 // independent of any Episode. Episodes reference Scenes via EpisodeScene.
 type Scene struct {
 	gorm.Model
-	ProjectID   uint         `gorm:"not null" json:"project_id"`
-	Number      int          `json:"number"`
-	Title       string       `json:"title"`
-	Location    string       `json:"location"`
-	TimeOfDay   string       `json:"time_of_day"` // day|night|dawn|dusk
-	Notes       string       `json:"notes"`
-	ResourceIDs string       `json:"resource_ids"` // JSON array of RawResource IDs (images/videos/sketches)
-	Storyboards []Storyboard `gorm:"foreignKey:SceneID" json:"storyboards,omitempty"`
+	ProjectID      uint   `gorm:"not null" json:"project_id"`
+	PipelineNodeID *uint  `json:"pipeline_node_id,omitempty"`
+	Number         int    `json:"number"`
+	Title          string `json:"title"`
+	Location       string `json:"location"`
+	TimeOfDay      string `json:"time_of_day"` // day|night|dawn|dusk
+	Notes          string `json:"notes"`
+	// Reserved for legacy entity-level review. Disabled in the frontend for now;
+	// pipeline node status is the active review source of truth.
+	ReviewStatus string       `gorm:"default:'draft'" json:"review_status"`
+	ResourceIDs  string       `json:"resource_ids"` // JSON array of RawResource IDs (images/videos/sketches)
+	Storyboards  []Storyboard `gorm:"foreignKey:SceneID" json:"storyboards,omitempty"`
 }
 
 // EpisodeScene is the join table linking Episodes to Scenes (many-to-many).

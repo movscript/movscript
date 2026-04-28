@@ -137,6 +137,36 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			migrator.DropColumn(&model.Shot{}, col)
 		}
 	}
+	shotParamCols := []string{"shot_size", "angle", "movement", "focal_length", "pacing", "intent"}
+	var legacyShotParamCount int64
+	db.Raw(`
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_name = 'shots' AND column_name IN ?
+	`, shotParamCols).Scan(&legacyShotParamCount)
+	if legacyShotParamCount == int64(len(shotParamCols)) {
+		db.Exec(`
+			UPDATE storyboards sb
+			SET
+				shot_size = COALESCE(NULLIF(sb.shot_size, ''), sh.shot_size),
+				angle = COALESCE(NULLIF(sb.angle, ''), sh.angle),
+				movement = COALESCE(NULLIF(sb.movement, ''), sh.movement),
+				focal_length = COALESCE(NULLIF(sb.focal_length, ''), sh.focal_length),
+				pacing = COALESCE(NULLIF(sb.pacing, ''), sh.pacing),
+				intent = COALESCE(NULLIF(sb.intent, ''), sh.intent)
+			FROM (
+				SELECT DISTINCT ON (storyboard_id)
+					storyboard_id, shot_size, angle, movement, focal_length, pacing, intent
+				FROM shots
+				WHERE storyboard_id IS NOT NULL
+				ORDER BY storyboard_id, "order", id
+			) sh
+			WHERE sb.id = sh.storyboard_id
+		`)
+		for _, col := range shotParamCols {
+			db.Exec("ALTER TABLE shots DROP COLUMN IF EXISTS " + col)
+		}
+	}
 
 	// Backfill pipeline_node.content_type from type field for existing data.
 	db.Exec(`
@@ -145,8 +175,42 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			WHEN type IN ('storyboard_creation','storyboard_script','storyboard') THEN 'storyboard'
 			WHEN type IN ('shot_production','shot') THEN 'shot'
 			WHEN type IN ('asset_creation','asset') THEN 'asset'
+			WHEN type IN ('episode_edit','episode') THEN 'episode'
+			WHEN type IN ('scene') THEN 'scene'
 			ELSE 'custom'
 		END
+	`)
+
+	// Backfill content entity pipeline links from existing pipeline node entity links.
+	db.Exec(`
+		UPDATE scripts e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'script' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+	`)
+	db.Exec(`
+		UPDATE storyboards e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'storyboard' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+	`)
+	db.Exec(`
+		UPDATE shots e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'shot' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+	`)
+	db.Exec(`
+		UPDATE assets e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'asset' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+	`)
+	db.Exec(`
+		UPDATE episodes e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'episode' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+	`)
+	db.Exec(`
+		UPDATE scenes e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'scene' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
 	`)
 
 	return db, nil

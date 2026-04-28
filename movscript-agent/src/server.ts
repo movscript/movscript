@@ -57,6 +57,16 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    if (req.method === 'GET' && url.pathname === '/capabilities') {
+      const projectId = url.searchParams.get('projectId')
+      const includeSchemas = url.searchParams.get('includeSchemas') !== 'false'
+      writeJSON(res, 200, await agentRuntime.getCapabilities({
+        ...(projectId !== null && Number.isFinite(Number(projectId)) ? { currentProjectId: Number(projectId) } : {}),
+        includeResources: includeSchemas,
+      }))
+      return
+    }
+
     if (req.method === 'GET' && url.pathname === '/tools') {
       writeJSON(res, 200, { tools: DEFAULT_TOOL_REGISTRY.list() })
       return
@@ -124,6 +134,12 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/runs') {
       const body = await readJSON(req)
       writeJSON(res, 201, agentRuntime.createRun(normalizeOptionalObject(body, 'run body')))
+      return
+    }
+
+    if (req.method === 'POST' && url.pathname === '/runs/preview') {
+      const body = await readJSON(req)
+      writeJSON(res, 200, await agentRuntime.previewRun(normalizeOptionalObject(body, 'run preview body')))
       return
     }
 

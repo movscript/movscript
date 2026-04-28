@@ -36,6 +36,8 @@ interface OpenAIChatResponse {
   }>
 }
 
+const DEFAULT_GATEWAY_MODEL = 'movscript-default-chat'
+const DEFAULT_GATEWAY_BASE_URL = 'http://127.0.0.1:8080/v1'
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
 
@@ -51,8 +53,22 @@ export class ChatRuntime {
     const conversationId = request.conversationId || `conv_${Date.now().toString(36)}`
     const includeContext = request.includeContext !== false
     const context = includeContext ? await this.readContextSafely() : undefined
-    const apiKey = process.env.MOVSCRIPT_AGENT_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+    const gatewayKey = process.env.MOVSCRIPT_AGENT_GATEWAY_API_KEY || process.env.MOVSCRIPT_AGENT_GATEWAY_USER_ID
 
+    if (gatewayKey) {
+      const model = process.env.MOVSCRIPT_AGENT_GATEWAY_MODEL || process.env.MOVSCRIPT_AGENT_OPENAI_MODEL || DEFAULT_GATEWAY_MODEL
+      const baseURL = process.env.MOVSCRIPT_AGENT_GATEWAY_BASE_URL || process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_GATEWAY_BASE_URL
+      return {
+        conversationId,
+        role: 'assistant',
+        content: await this.callOpenAICompatible(gatewayKey, model, messages, context, baseURL),
+        provider: 'movscript-model-gateway',
+        model,
+        contextIncluded: !!context,
+      }
+    }
+
+    const apiKey = process.env.MOVSCRIPT_AGENT_OPENAI_API_KEY || process.env.OPENAI_API_KEY
     if (apiKey) {
       const model = process.env.MOVSCRIPT_AGENT_OPENAI_MODEL || DEFAULT_OPENAI_MODEL
       return {
@@ -88,8 +104,8 @@ export class ChatRuntime {
     model: string,
     messages: ChatMessage[],
     context: JSONValue | undefined,
+    baseURL = process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL,
   ): Promise<string> {
-    const baseURL = process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL
     const system = [
       'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
       'Answer in the same language as the user unless they ask otherwise.',

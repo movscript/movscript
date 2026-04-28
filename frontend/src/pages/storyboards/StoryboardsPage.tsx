@@ -8,7 +8,7 @@ import { CreateDialog } from '@/components/shared/CreateDialog'
 import { StoryboardCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { StoryboardDetail, ReviewStatusBadge } from '@/components/detail'
+import { StoryboardDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 const ANGLE_LABEL_KEYS: Record<string, string> = {
@@ -130,7 +130,6 @@ export default function StoryboardsPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground font-mono shrink-0">#{b.order}</span>
                   <span className="text-sm font-medium truncate flex-1">{b.title || b.description || t('common.emptyTitle')}</span>
-                  <ReviewStatusBadge status={b.review_status} />
                 </div>
               </button>
             ))
@@ -144,7 +143,6 @@ export default function StoryboardsPage() {
                     className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-mono text-muted-foreground">#{b.order}</span>
-                      <ReviewStatusBadge status={b.review_status} />
                     </div>
                     <p className="text-sm font-medium text-foreground line-clamp-2 mb-1">{b.title || b.description || t('common.emptyTitle')}</p>
                     <div className="flex flex-wrap gap-1 mt-1">

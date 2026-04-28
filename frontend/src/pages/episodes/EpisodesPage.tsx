@@ -8,7 +8,7 @@ import { CreateDialog } from '@/components/shared/CreateDialog'
 import { EpisodeCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { EpisodeDetail, ReviewStatusBadge } from '@/components/detail'
+import { EpisodeDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
@@ -85,7 +85,6 @@ export default function EpisodesPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground shrink-0 font-mono">EP{e.number}</span>
                   <span className="text-sm font-medium truncate flex-1">{e.title}</span>
-                  <ReviewStatusBadge status={e.review_status} />
                 </div>
               </button>
             ))
@@ -100,9 +99,6 @@ export default function EpisodesPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-1">{e.title}</h3>
                   {e.synopsis && <p className="text-xs text-muted-foreground line-clamp-2">{e.synopsis}</p>}
-                  <div className="mt-2">
-                    <ReviewStatusBadge status={e.review_status} />
-                  </div>
                 </button>
               ))}
             </div>

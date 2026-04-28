@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   X, CalendarDays, AlertCircle, CheckCircle2, Clock,
   FileWarning, Link2, Plus, ExternalLink, Loader2, ArrowRight,
+  Unlink2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
-import type { PipelineNode, ProjectMember } from '@/types'
+import type { Asset, Episode, PipelineNode, ProjectMember, Scene, Script, Shot, Storyboard } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -16,45 +17,70 @@ import { Label } from '@movscript/ui'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
+import { entityTypeForNode, getPipelineNodeSpec, scriptTypeForPipelineNode, type PipelineEntityType } from '../nodeSpec'
 
-interface EntityDef {
-  entityType: string
+type ContentEntity = Script | Storyboard | Shot | Asset | Episode | Scene
+
+interface EntityOption {
+  id: number
   label: string
-  apiPath: (pid: number) => string
-  defaultBody: (t: TFunction) => object
+  subtitle?: string
 }
 
-// Node type → entity mapping
-const NODE_TYPE_TO_ENTITY: Record<string, EntityDef> = {
-  episode_script: {
-    entityType: 'episode',
-    label: 'Episode',
-    apiPath: (pid) => `/projects/${pid}/episodes`,
-    defaultBody: (t) => ({ title: t('pipeline.detail.defaultTitles.episode'), synopsis: '' }),
+interface EntityDef {
+  entityType: PipelineEntityType
+  label: string
+  apiPath: (pid: number) => string
+  listPath: (pid: number, node: PipelineNode) => string
+  defaultBody: (t: TFunction, node: PipelineNode) => object
+}
+
+const ENTITY_DEFS: Record<PipelineEntityType, EntityDef> = {
+  script: {
+    entityType: 'script',
+    label: 'Script',
+    apiPath: (pid) => `/projects/${pid}/scripts`,
+    listPath: (pid, node) => `/projects/${pid}/scripts?type=${scriptTypeForPipelineNode(node.type)}`,
+    defaultBody: (_t, node) => ({
+      title: node.name || '新剧本',
+      script_type: scriptTypeForPipelineNode(node.type),
+      pipeline_node_id: node.ID,
+    }),
   },
-  scene_script: {
-    entityType: 'scene',
-    label: 'Scene',
-    apiPath: (pid) => `/projects/${pid}/scenes`,
-    defaultBody: (t) => ({ title: t('pipeline.detail.defaultTitles.scene'), location: '' }),
-  },
-  storyboard_script: {
+  storyboard: {
     entityType: 'storyboard',
     label: 'Storyboard',
     apiPath: (pid) => `/projects/${pid}/storyboards`,
-    defaultBody: (t) => ({ title: t('pipeline.detail.defaultTitles.storyboard') }),
-  },
-  shot_production: {
-    entityType: 'shot',
-    label: 'Shot',
-    apiPath: (pid) => `/projects/${pid}/shots`,
-    defaultBody: () => ({ description: '' }),
+    listPath: (pid) => `/projects/${pid}/storyboards`,
+    defaultBody: (t, node) => ({ title: node.name || t('pipeline.detail.defaultTitles.storyboard'), pipeline_node_id: node.ID }),
   },
   shot: {
     entityType: 'shot',
     label: 'Shot',
     apiPath: (pid) => `/projects/${pid}/shots`,
-    defaultBody: () => ({ description: '' }),
+    listPath: (pid) => `/projects/${pid}/shots`,
+    defaultBody: (_t, node) => ({ description: node.name || '', pipeline_node_id: node.ID }),
+  },
+  asset: {
+    entityType: 'asset',
+    label: 'Asset',
+    apiPath: (pid) => `/projects/${pid}/assets`,
+    listPath: (pid) => `/projects/${pid}/assets`,
+    defaultBody: (_t, node) => ({ name: node.name || '新素材', type: 'draft', description: '', pipeline_node_id: node.ID }),
+  },
+  episode: {
+    entityType: 'episode',
+    label: 'Episode',
+    apiPath: (pid) => `/projects/${pid}/episodes`,
+    listPath: (pid) => `/projects/${pid}/episodes`,
+    defaultBody: (t, node) => ({ title: node.name || t('pipeline.detail.defaultTitles.episode'), synopsis: '', pipeline_node_id: node.ID }),
+  },
+  scene: {
+    entityType: 'scene',
+    label: 'Scene',
+    apiPath: (pid) => `/projects/${pid}/scenes`,
+    listPath: (pid) => `/projects/${pid}/scenes`,
+    defaultBody: (t, node) => ({ title: node.name || t('pipeline.detail.defaultTitles.scene'), location: '', pipeline_node_id: node.ID }),
   },
 }
 
@@ -80,6 +106,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
   const currentUser = useUserStore((s) => s.currentUser)
   const [rejectNote, setRejectNote] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
+  const [selectedEntityId, setSelectedEntityId] = useState('')
 
   const { data: projectDetail } = useQuery({
     queryKey: ['project', project?.ID],
@@ -115,13 +142,46 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
     },
   })
 
+  const nodeSpec = getPipelineNodeSpec(node.type)
+  const entityType = nodeSpec.category === 'artifact' ? entityTypeForNode(node.type) : undefined
+  const entityDef = entityType ? ENTITY_DEFS[entityType] : undefined
+
+  useEffect(() => {
+    setSelectedEntityId(node.entity_id?.toString() ?? '')
+  }, [node.ID, node.type, node.entity_id])
+
+  const { data: entityCandidates = [], isLoading: isLoadingEntities } = useQuery<ContentEntity[]>({
+    queryKey: ['pipeline-entity-candidates', project?.ID, entityDef?.entityType, node.type],
+    queryFn: async () => {
+      const res = await api.get(entityDef!.listPath(project!.ID, node))
+      return Array.isArray(res.data) ? res.data : (res.data.items ?? [])
+    },
+    enabled: !!project && !!entityDef,
+  })
+
+  const entityOptions = useMemo(
+    () => buildEntityOptions(entityDef?.entityType, entityCandidates, t, node.type),
+    [entityDef?.entityType, entityCandidates, node.type, t],
+  )
+
+  function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
+    qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+    qc.invalidateQueries({ queryKey: [entityTypeToInvalidate + 's', project?.ID] })
+    if (entityTypeToInvalidate === 'episode') {
+      qc.invalidateQueries({ queryKey: ['episodes-project', project?.ID] })
+    }
+    if (entityTypeToInvalidate === 'asset') {
+      qc.invalidateQueries({ queryKey: ['assets', project?.ID] })
+    }
+  }
+
   // Create entity and link to this node
   const createEntityMutation = useMutation({
     mutationFn: async () => {
-      if (!project) return
-      const def = NODE_TYPE_TO_ENTITY[node.type]
+      if (!project || !entityDef) return
+      const def = entityDef
       if (!def) return
-      const entity = await api.post(def.apiPath(project.ID), def.defaultBody(t)).then((r) => r.data)
+      const entity = await api.post(def.apiPath(project.ID), def.defaultBody(t, node)).then((r) => r.data)
       const updated = await api.put(`/pipeline/nodes/${node.ID}`, {
         entity_type: def.entityType,
         entity_id: entity.ID,
@@ -129,10 +189,36 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
       return updated
     },
     onSuccess: (updated) => {
-      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
       // Invalidate the related entity list
-      const def = NODE_TYPE_TO_ENTITY[node.type]
-      if (def) qc.invalidateQueries({ queryKey: [def.entityType + 's', project?.ID] })
+      if (entityDef) invalidateEntityQueries(entityDef.entityType)
+      if (updated) onNodeUpdated(updated as PipelineNode)
+    },
+  })
+
+  const linkEntityMutation = useMutation({
+    mutationFn: (entityId: number) => {
+      if (!entityDef) throw new Error('Unsupported entity type')
+      return api.put(`/pipeline/nodes/${node.ID}`, {
+        entity_type: entityDef.entityType,
+        entity_id: entityId,
+      }).then((r) => r.data)
+    },
+    onSuccess: (updated) => {
+      if (entityDef) invalidateEntityQueries(entityDef.entityType)
+      const updatedNode = updated as PipelineNode
+      setSelectedEntityId(updatedNode.entity_id?.toString() ?? '')
+      if (updated) onNodeUpdated(updated as PipelineNode)
+    },
+  })
+
+  const unlinkEntityMutation = useMutation({
+    mutationFn: () => api.put(`/pipeline/nodes/${node.ID}`, {
+      entity_type: '',
+      entity_id: null,
+    }).then((r) => r.data),
+    onSuccess: (updated) => {
+      if (entityDef) invalidateEntityQueries(entityDef.entityType)
+      setSelectedEntityId('')
       if (updated) onNodeUpdated(updated as PipelineNode)
     },
   })
@@ -142,7 +228,6 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
   }
 
   const statusMeta = STATUS_META[node.status] ?? STATUS_META.draft
-  const entityDef = NODE_TYPE_TO_ENTITY[node.type]
   const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: statusMeta.label })
   const entityLabel = entityDef ? t(`pipeline.detail.entities.${entityDef.entityType}`, { defaultValue: entityDef.label }) : ''
 
@@ -278,7 +363,61 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
                   {t('pipeline.detail.view')} <ExternalLink size={10} />
                 </a>
               </div>
-            ) : (
+            ) : null}
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Select value={selectedEntityId} onValueChange={setSelectedEntityId}>
+                  <SelectTrigger className="h-8 min-w-0 flex-1 text-xs">
+                    <SelectValue placeholder={isLoadingEntities ? t('pipeline.detail.loadingEntities') : t('pipeline.detail.selectExistingEntity', { entity: entityLabel })} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {entityOptions.length === 0 ? (
+                      <SelectItem value="__empty__" disabled>
+                        {t('pipeline.detail.noExistingEntity', { entity: entityLabel })}
+                      </SelectItem>
+                    ) : entityOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id.toString()}>
+                        {option.subtitle ? `${option.label} · ${option.subtitle}` : option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() => {
+                    const entityId = parseInt(selectedEntityId)
+                    if (Number.isFinite(entityId)) linkEntityMutation.mutate(entityId)
+                  }}
+                  disabled={
+                    !selectedEntityId ||
+                    selectedEntityId === '__empty__' ||
+                    selectedEntityId === node.entity_id?.toString() ||
+                    linkEntityMutation.isPending
+                  }
+                  title={node.entity_id ? t('pipeline.detail.changeLink') : t('pipeline.detail.linkSelected')}
+                >
+                  {linkEntityMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Link2 size={12} />}
+                </Button>
+              </div>
+              {node.entity_id ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => unlinkEntityMutation.mutate()}
+                  disabled={unlinkEntityMutation.isPending}
+                >
+                  {unlinkEntityMutation.isPending ? (
+                    <Loader2 size={12} className="animate-spin mr-1.5" />
+                  ) : (
+                    <Unlink2 size={12} className="mr-1.5" />
+                  )}
+                  {t('pipeline.detail.unlinkEntity', { entity: entityLabel })}
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"
@@ -293,7 +432,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
                 )}
                 {t('pipeline.detail.createAndLink', { entity: entityLabel })}
               </Button>
-            )}
+            </div>
           </div>
         )}
 
@@ -391,6 +530,72 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
       </div>
     </div>
   )
+}
+
+function buildEntityOptions(
+  entityType: PipelineEntityType | undefined,
+  items: ContentEntity[],
+  t: TFunction,
+  nodeType: string,
+): EntityOption[] {
+  if (!entityType) return []
+  const expectedScriptType = scriptTypeForPipelineNode(nodeType)
+  return items
+    .filter((item) => entityType !== 'script' || (item as Script).script_type === expectedScriptType)
+    .map((item) => {
+      switch (entityType) {
+      case 'script': {
+        const script = item as Script
+        return {
+          id: script.ID,
+          label: script.title || t('pipeline.detail.entityFallback.script', { id: script.ID }),
+          subtitle: t(`domain.scriptTypes.${script.script_type}`, { defaultValue: script.script_type }),
+        }
+      }
+      case 'storyboard': {
+        const storyboard = item as Storyboard
+        return {
+          id: storyboard.ID,
+          label: storyboard.title || t('details.storyboardLabel', { order: storyboard.order }),
+          subtitle: storyboard.description,
+        }
+      }
+      case 'shot': {
+        const shot = item as Shot
+        return {
+          id: shot.ID,
+          label: t('details.shotLabel', { order: shot.order }),
+          subtitle: shot.description,
+        }
+      }
+      case 'asset': {
+        const asset = item as Asset
+        return {
+          id: asset.ID,
+          label: asset.name || t('pipeline.detail.entityFallback.asset', { id: asset.ID }),
+          subtitle: asset.type,
+        }
+      }
+      case 'episode': {
+        const episode = item as Episode
+        return {
+          id: episode.ID,
+          label: t('pipeline.entities.episodeTitle', { number: episode.number, title: episode.title ? ` · ${episode.title}` : '' }),
+          subtitle: episode.synopsis,
+        }
+      }
+      case 'scene': {
+        const scene = item as Scene
+        return {
+          id: scene.ID,
+          label: t('pipeline.entities.sceneTitle', { number: scene.number, title: scene.title ? ` · ${scene.title}` : '' }),
+          subtitle: scene.location,
+        }
+      }
+      default:
+        return { id: item.ID, label: `#${item.ID}` }
+      }
+    })
 }
 
 // ── Inline editable field ──────────────────────────────────────────────────

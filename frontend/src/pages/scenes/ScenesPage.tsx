@@ -8,7 +8,7 @@ import { CreateDialog } from '@/components/shared/CreateDialog'
 import { SceneCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { SceneDetail, ReviewStatusBadge } from '@/components/detail'
+import { SceneDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 export default function ScenesPage() {
@@ -51,7 +51,6 @@ export default function ScenesPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground font-mono shrink-0">{t('details.sceneLabel', { number: s.number })}</span>
                   <span className="text-sm font-medium truncate flex-1">{s.title}</span>
-                  <ReviewStatusBadge status={s.review_status} />
                 </div>
               </button>
             ))
@@ -62,7 +61,6 @@ export default function ScenesPage() {
                   className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-mono text-muted-foreground">{t('details.sceneLabel', { number: String(s.number).padStart(2, '0') })}</span>
-                    <ReviewStatusBadge status={s.review_status} />
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.title}</h3>
                   {s.location && <p className="text-xs text-muted-foreground truncate">📍 {s.location}</p>}

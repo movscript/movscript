@@ -10,7 +10,6 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
-import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
 
 const TIME_LABEL_KEYS: Record<string, string> = {
@@ -58,23 +57,13 @@ export function SceneDetail({ scene, onClose, onDelete }: Props) {
           <h2 className="text-sm font-semibold text-foreground truncate">{scene.title}</h2>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ReviewStatusBadge status={scene.review_status} />
+          {onDelete && (
+            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+              {t('common.delete')}
+            </button>
+          )}
           {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
         </div>
-      </div>
-
-      {/* Review actions */}
-      <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-muted/30 shrink-0">
-        <ReviewActions
-          status={scene.review_status}
-          apiUrl={`/scenes/${scene.ID}`}
-          queryKey={['scenes', projectId]}
-        />
-        {onDelete && (
-          <button onClick={() => remove.mutate()} className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors">
-            {t('common.delete')}
-          </button>
-        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">

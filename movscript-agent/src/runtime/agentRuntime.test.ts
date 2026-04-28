@@ -23,6 +23,20 @@ class FakeMCPClient {
     return { ok: true }
   }
 
+  async listResources(): Promise<any[]> {
+    return []
+  }
+
+  async listTools(): Promise<any[]> {
+    return [
+      { name: 'movscript.search_entities', description: 'Search project entities by keyword.', inputSchema: {} },
+      { name: 'movscript.read_entity', description: 'Read a single project entity.', inputSchema: {} },
+      { name: 'movscript.create_draft', description: 'Create a local draft artifact.', inputSchema: {} },
+      { name: 'movscript.list_drafts', description: 'List local drafts.', inputSchema: {} },
+      { name: 'movscript.open_entity', description: 'Open an entity.', inputSchema: {} },
+    ]
+  }
+
   async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
     this.calls.push({ name, args })
     if (this.failTools.has(name)) {
@@ -76,6 +90,55 @@ test('adds current projectId to search and draft tool calls', async () => {
   assert.equal(run.status, 'completed')
   assert.equal(search?.args.projectId, 42)
   assert.equal(draft?.args.projectId, 42)
+})
+
+test('previews plan and policy without creating a run or executing planned tools', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const runtime = new AgentRuntime({ mcpClient: client })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
+
+  const preview = await runtime.previewRun({
+    threadId: thread.id,
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript.create_draft', mode: 'allow', approval: 'always' }],
+    },
+  })
+
+  assert.equal(preview.status, 'preview')
+  assert.equal(preview.threadId, thread.id)
+  assert.equal(preview.currentProjectId, 42)
+  assert.equal(preview.pendingApprovals[0]?.toolName, 'movscript.create_draft')
+  assert.equal(preview.agentManifest?.schema, 'movscript.agent.v2')
+  assert.ok(preview.context)
+  assert.ok(preview.skills)
+  assert.ok(preview.tools?.available.some((tool) => tool.name === 'movscript.create_draft'))
+  assert.ok(preview.promptPreview?.debugParts.some((part) => part.kind === 'tool'))
+  assert.equal(preview.toolCalls.length, 0)
+  assert.equal(runtime.listRuns().length, 0)
+  assert.equal(client.calls.some((call) => call.name === 'movscript.create_draft'), false)
+  assert.deepEqual(client.calls.map((call) => call.name), ['movscript.get_context_pack'])
+})
+
+test('capabilities distinguish available and blocked tools', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const runtime = new AgentRuntime({ mcpClient: client })
+
+  const capabilities = await runtime.getCapabilities({
+    currentProjectId: 42,
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['project.read'],
+      tools: [{ name: 'movscript.search_entities', mode: 'allow' }],
+    },
+  })
+
+  assert.equal(capabilities.mcp.connected, true)
+  assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript.search_entities'))
+  assert.equal(capabilities.resolvedTools.byName['movscript.create_draft']?.unavailableReason, 'not_granted')
 })
 
 test('run agentManifest limits tool execution', async () => {

@@ -6,6 +6,7 @@ import {
   type AgentManifest,
 } from './agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
+import type { ResolvedToolCatalog } from './types.js'
 
 export interface ToolPolicyResult {
   toolCalls: ToolCall[]
@@ -26,6 +27,7 @@ export function applyToolPolicy(
     currentProjectId?: number
     manifest?: AgentManifest
     registry?: ToolRegistry
+    catalog?: ResolvedToolCatalog
     approvedToolNames?: string[]
   },
 ): ToolPolicyResult {
@@ -38,6 +40,12 @@ export function applyToolPolicy(
 
   for (const call of requestedToolCalls) {
     const tool = registry.get(call.name)
+    const catalogTool = options.catalog?.byName[call.name]
+    if (catalogTool && !catalogTool.available) {
+      const reason = mapCatalogReason(catalogTool.unavailableReason)
+      block(call, reason, catalogWarningMessage(call.name, catalogTool.unavailableReason))
+      continue
+    }
     if (!tool) {
       block(call, 'unknown_tool', `${call.name} 未注册到当前 agent 工具表中`)
       continue
@@ -77,6 +85,20 @@ export function applyToolPolicy(
     const blockedTool = registry.get(call.name)
     blockedToolCalls.push({ call, reason, message, ...(blockedTool ? { tool: blockedTool } : {}) })
   }
+}
+
+function mapCatalogReason(reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): BlockedToolCall['reason'] {
+  if (reason === 'missing_project') return 'missing_project'
+  if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return 'not_granted'
+  return 'unknown_tool'
+}
+
+function catalogWarningMessage(toolName: string, reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): string {
+  if (reason === 'missing_project') return '当前没有选中项目'
+  if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return `${toolName} 未被当前 agent manifest 授权`
+  if (reason === 'unregistered') return `${toolName} 未注册到当前 agent 工具表中`
+  if (reason === 'mcp_unavailable') return `${toolName} 当前 MCP tools/list 不可用`
+  return `${toolName} 当前不可执行：${reason ?? 'unknown'}`
 }
 
 function withProjectId(call: ToolCall, projectId: number): ToolCall {

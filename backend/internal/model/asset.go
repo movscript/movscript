@@ -5,14 +5,17 @@ import "gorm.io/gorm"
 // AssetType: character | scene | prop
 type Asset struct {
 	gorm.Model
-	ProjectID      uint        `gorm:"not null" json:"project_id"`
-	PipelineNodeID *uint       `json:"pipeline_node_id,omitempty"`
-	Name           string      `gorm:"not null" json:"name"`
-	Type           string      `gorm:"not null" json:"type"`
-	Description    string      `json:"description"`
-	SettingID      *uint       `json:"setting_id,omitempty"` // optional link to a Setting
-	Setting        *Setting    `gorm:"foreignKey:SettingID" json:"setting,omitempty"`
-	Views          []AssetView `gorm:"foreignKey:AssetID" json:"views,omitempty"`
+	ProjectID      uint   `gorm:"not null" json:"project_id"`
+	PipelineNodeID *uint  `json:"pipeline_node_id,omitempty"`
+	Name           string `gorm:"not null" json:"name"`
+	Type           string `gorm:"not null" json:"type"`
+	Description    string `json:"description"`
+	// Reserved for legacy entity-level review. Disabled in the frontend for now;
+	// pipeline node status is the active review source of truth.
+	ReviewStatus string      `gorm:"default:'draft'" json:"review_status"`
+	SettingID    *uint       `json:"setting_id,omitempty"` // optional link to a Setting
+	Setting      *Setting    `gorm:"foreignKey:SettingID" json:"setting,omitempty"`
+	Views        []AssetView `gorm:"foreignKey:AssetID" json:"views,omitempty"`
 }
 
 // AssetView represents one visual angle/variant of an asset.

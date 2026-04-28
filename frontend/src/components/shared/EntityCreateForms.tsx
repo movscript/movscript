@@ -8,6 +8,7 @@ import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+import { defaultContentType, nodeTypeForEntity, type PipelineEntityType } from '@/pages/pipeline/nodeSpec'
 
 const SCRIPT_TYPES = [
   { type: 'main' as const, labelKey: 'domain.scriptTypes.mainAlt', color: 'bg-primary text-primary-foreground' },
@@ -28,13 +29,33 @@ export interface EntityFormProps {
   onCancel: () => void
 }
 
-function spawnPipelineNode(projectId: number, nodeType: string, entityType: string, entityId: number, name: string) {
-  const contentType = entityType === 'script' || entityType === 'storyboard' || entityType === 'shot'
-    ? entityType
-    : 'custom'
+function workNodeTypeForArtifact(nodeType: string, entityType: PipelineEntityType) {
+  if (nodeType === 'episode_script') return 'episode_writing'
+  if (nodeType === 'scene_script') return 'scene_writing'
+  if (entityType === 'script') return 'script_writing'
+  if (entityType === 'storyboard') return 'storyboard_creation'
+  if (entityType === 'shot') return 'shot_production'
+  if (entityType === 'asset') return 'asset_creation'
+  if (entityType === 'episode') return 'episode_edit'
+  if (entityType === 'scene') return 'scene_writing'
+  return 'script_writing'
+}
+
+function spawnPipelineNode(projectId: number, nodeType: string, entityType: PipelineEntityType, entityId: number, name: string) {
+  const contentType = defaultContentType(nodeType)
+  const workType = workNodeTypeForArtifact(nodeType, entityType)
   api.post(`/projects/${projectId}/pipeline/nodes`, {
-    type: nodeType, name, content_type: contentType, entity_type: entityType, entity_id: entityId, pos_x: 0, pos_y: 0,
-  }).catch(() => {/* fire-and-forget */})
+    type: workType, name, content_type: defaultContentType(workType), pos_x: 0, pos_y: 0,
+  }).then((r) => api.post(`/projects/${projectId}/pipeline/nodes`, {
+    type: nodeType,
+    name,
+    content_type: contentType,
+    entity_type: entityType,
+    entity_id: entityId,
+    parent_id: r.data.ID,
+    pos_x: 0,
+    pos_y: 0,
+  })).catch(() => {/* fire-and-forget */})
 }
 
 export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormProps) {
@@ -50,7 +71,7 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
     onSuccess: (created: Script) => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, type === 'main' ? 'main_script' : 'script_writing', 'script', created.ID, created.title)
+      spawnPipelineNode(projectId, nodeTypeForEntity('script', type), 'script', created.ID, created.title)
       onSuccess()
     },
   })
@@ -166,6 +187,7 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
   const qc = useQueryClient()
   const [title, setTitle] = useState('')
   const [scriptId, setScriptId] = useState<number | null>(null)
+  const [sceneIds, setSceneIds] = useState<number[]>([])
 
   const { data: rawScripts } = useQuery<Script[]>({
     queryKey: ['scripts', projectId],
@@ -174,11 +196,25 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
   })
   const scripts = rawScripts ?? []
 
+  const { data: rawScenes } = useQuery<Scene[]>({
+    queryKey: ['scenes', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/scenes`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const scenes = rawScenes ?? []
+
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/episodes`, { title, script_id: scriptId ?? undefined }).then((r) => r.data),
-    onSuccess: (created: Episode) => {
+    onSuccess: async (created: Episode) => {
+      if (sceneIds.length > 0) {
+        await Promise.all(sceneIds.map((sceneId, order) =>
+          api.post(`/episodes/${created.ID}/scenes`, { scene_id: sceneId, order })
+        ))
+        qc.invalidateQueries({ queryKey: ['episode-scenes', created.ID] })
+      }
       qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['scenes', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       spawnPipelineNode(projectId, 'episode', 'episode', created.ID, created.title)
       onSuccess()
@@ -208,6 +244,30 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
             <option value="">{t('forms.noScriptDirect')}</option>
             {scripts.map((s) => <option key={s.ID} value={s.ID}>{s.title}</option>)}
           </select>
+        </div>
+      )}
+      {scenes.length > 0 && (
+        <div>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.linkedScenes')}</Label>
+          <div className="max-h-40 overflow-y-auto rounded border border-border divide-y divide-border">
+            {scenes.map((scene) => {
+              const checked = sceneIds.includes(scene.ID)
+              return (
+                <label key={scene.ID} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5"
+                    checked={checked}
+                    onChange={(e) => {
+                      setSceneIds((ids) => e.target.checked ? [...ids, scene.ID] : ids.filter((id) => id !== scene.ID))
+                    }}
+                  />
+                  <span className="text-xs font-mono text-muted-foreground shrink-0">{t('details.sceneLabel', { number: scene.number })}</span>
+                  <span className="truncate">{scene.title}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
       )}
       <div className="flex gap-2 pt-1">

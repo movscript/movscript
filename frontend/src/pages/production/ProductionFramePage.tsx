@@ -142,9 +142,9 @@ export default function ProductionFramePage() {
 
   const metrics = useMemo(() => {
     const storyboardTotal = progress?.storyboards.total ?? safeCount(storyboards)
-    const storyboardApproved = progress?.storyboards.approved ?? (storyboards?.filter((x) => x.review_status === 'approved' || x.status === 'approved').length ?? 0)
+    const storyboardApproved = progress?.storyboards.approved ?? (storyboards?.filter((x) => x.status === 'approved').length ?? 0)
     const shotTotal = progress?.shots.total ?? safeCount(shots)
-    const shotApproved = progress?.shots.is_approved ?? (shots?.filter((x) => x.is_approved || x.review_status === 'approved').length ?? 0)
+    const shotApproved = progress?.shots.is_approved ?? (shots?.filter((x) => x.is_approved).length ?? 0)
     const reviewTasks = tasks?.filter((x) => x.status === 'review').length ?? 0
     const openTasks = tasks?.filter((x) => x.status !== 'done').length ?? 0
 

@@ -9,7 +9,7 @@ import { ShotCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { SHOT_STATUS_COLORS as STATUS_COLORS, SHOT_STATUS_LABEL_KEYS as STATUS_LABEL_KEYS } from '@/constants/shot'
 import { Button } from '@movscript/ui'
-import { ShotDetail, ReviewStatusBadge } from '@/components/detail'
+import { ShotDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
 type SortMode = 'scene' | 'episode'
@@ -129,6 +129,10 @@ export default function ShotsPage() {
     }
   }
 
+  function getShotDescription(s: Shot): string {
+    return s.final_description || s.description || t('common.emptyDescription')
+  }
+
   function playSingle(shot: Shot) {
     if (!shot.generated_res_id) return
     setPlayerQueue([shot])
@@ -206,8 +210,7 @@ export default function ShotsPage() {
                   className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono shrink-0">{getShotLabel(s)}</span>
-                    <span className="text-sm truncate flex-1">{s.description || t('common.emptyDescription')}</span>
-                    <ReviewStatusBadge status={s.review_status} />
+                    <span className="text-sm truncate flex-1">{getShotDescription(s)}</span>
                     <span className={cn('text-xs px-1.5 py-0.5 rounded-full shrink-0', STATUS_COLORS[s.status])}>
                       {t(STATUS_LABEL_KEYS[s.status])}
                     </span>
@@ -223,13 +226,12 @@ export default function ShotsPage() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-mono text-muted-foreground">{getShotLabel(s)}</span>
                         <div className="flex items-center gap-1">
-                          <ReviewStatusBadge status={s.review_status} />
                           <span className={cn('text-xs px-1.5 py-0.5 rounded-full', STATUS_COLORS[s.status])}>
                             {t(STATUS_LABEL_KEYS[s.status])}
                           </span>
                         </div>
                       </div>
-                      <p className="text-sm text-foreground line-clamp-3">{s.description || t('common.emptyDescription')}</p>
+                      <p className="text-sm text-foreground line-clamp-3">{getShotDescription(s)}</p>
                       {!s.storyboard_id && <span className="text-xs text-muted-foreground/50 mt-1 block">{t('pages.shots.independent')}</span>}
                     </button>
                     {s.generated_res_id && (
@@ -263,7 +265,7 @@ export default function ShotsPage() {
             </button>
             <div className="flex-1 min-w-0">
               <span className="text-xs text-background/60 font-mono mr-2">{getShotLabel(currentPlayerShot)}</span>
-              <span className="text-sm truncate">{currentPlayerShot?.description || t('common.emptyDescription')}</span>
+              <span className="text-sm truncate">{currentPlayerShot ? getShotDescription(currentPlayerShot) : t('common.emptyDescription')}</span>
             </div>
             <span className="text-xs text-background/60 shrink-0">{playerIndex + 1} / {playerQueue.length}</span>
             <button onClick={playerNext} className="p-1.5 rounded hover:bg-muted/20 transition-colors"><SkipForward size={16} /></button>

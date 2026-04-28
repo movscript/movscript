@@ -240,6 +240,10 @@
     "generateHint": "填写 AI 提示词后开始生成",
     "prompt": "AI 提示词",
     "promptPlaceholder": "描述镜头视觉内容…",
+    "finalShot": "成品镜头",
+    "finalShotDescription": "成品镜头说明",
+    "finalShotDescriptionPlaceholder": "最终交付镜头的内容说明",
+    "finalPromptNotes": "成品提示词 / 交付备注",
     "referenceAssets": "参考素材",
     "assetViews": "多视角图",
     "empty": "空",
@@ -295,6 +299,8 @@
     "sceneShotLabel": "场{{scene}}-镜{{shot}}",
     "episodeShotLabel": "EP{{episode}}-镜{{shot}}",
     "timeOfDay": "时间段",
+    "lighting": "光线",
+    "duration": "时长（秒）",
     "notes": "备注"
   },
   "pages": {
@@ -802,6 +808,9 @@
       "dagView": "DAG 视图",
       "treeView": "树形视图",
       "ganttView": "甘特图",
+      "taskLayer": "任务层",
+      "dependencyLayer": "依赖层",
+      "scheduleLayer": "排期层",
       "fitView": "适应画面",
       "empty": "管线为空 · 添加根节点开始组织生产树"
     },
@@ -826,6 +835,9 @@
     "gantt": {
       "empty": "暂无节点",
       "noDueDate": "未设置截止日期"
+    },
+    "dependency": {
+      "empty": "暂无依赖关系"
     },
     "node": {
       "fallbackName": "节点 {{id}}",
@@ -870,10 +882,16 @@
     },
     "detail": {
       "entities": {
+        "script": "剧本",
         "episode": "分集",
         "scene": "分场",
         "storyboard": "分镜",
-        "shot": "镜头"
+        "shot": "镜头",
+        "asset": "素材"
+      },
+      "entityFallback": {
+        "script": "剧本 #{{id}}",
+        "asset": "素材 #{{id}}"
       },
       "defaultTitles": {
         "episode": "新分集",
@@ -889,6 +907,12 @@
       "linkEntity": "关联{{entity}}",
       "linkedEntity": "已关联 {{entity}} #{{id}}",
       "view": "查看",
+      "loadingEntities": "加载中...",
+      "selectExistingEntity": "选择已有{{entity}}",
+      "noExistingEntity": "暂无可关联{{entity}}",
+      "linkSelected": "关联选中实体",
+      "changeLink": "更换关联",
+      "unlinkEntity": "取消关联{{entity}}",
       "createAndLink": "创建并关联{{entity}}",
       "rejectReason": "拒绝原因",
       "resubmit": "重新提交",
@@ -906,12 +930,15 @@
       "storyboard": "分镜",
       "shot": "镜头",
       "asset": "素材",
+      "episode": "分集",
+      "scene": "分场",
       "custom": "自定义"
     },
     "workspace": {
       "empty": "暂无内容，点击右上角新建",
       "customHint": "自定义阶段，请在内容库中管理相关内容",
-      "createFirst": "新建第一个{{type}}"
+      "createFirst": "新建第一个{{type}}",
+      "resizeHandle": "拖动调整工作区高度"
     }
   },
   "work": {

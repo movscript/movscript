@@ -8,6 +8,7 @@ import type { PipelineNode } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+import { ARTIFACT_NODE_TYPES, WORK_NODE_TYPES, getPipelineNodeSpec } from '../nodeSpec'
 
 export type NodeCategory = 'work' | 'artifact' | 'custom'
 
@@ -19,29 +20,6 @@ interface NodeTypeMeta {
   accent: string
   iconColor: string
 }
-
-export const WORK_NODE_TYPES = [
-  'script_writing',
-  'episode_writing',
-  'scene_writing',
-  'storyboard_creation',
-  'asset_creation',
-  'shot_production',
-  'episode_edit',
-  'raw_script',
-] as const
-
-export const ARTIFACT_NODE_TYPES = [
-  'main_script',
-  'episode_script',
-  'scene_script',
-  'storyboard_script',
-  'episode',
-  'scene',
-  'storyboard',
-  'asset',
-  'shot',
-] as const
 
 export const NODE_TYPE_META: Record<string, NodeTypeMeta> = {
   script_writing:       { label: 'Script Writing',         icon: PenLine,      category: 'work',     desc: 'Create the main script',               accent: 'bg-blue-500/10 text-blue-600',       iconColor: 'text-blue-500' },
@@ -86,12 +64,14 @@ export function getPipelineNodeMeta(type: string) {
 }
 
 export function isPipelineWorkNode(type: string) {
-  return getPipelineNodeMeta(type).category === 'work'
+  return getPipelineNodeSpec(type).category === 'work'
 }
 
 export function isPipelineArtifactNode(type: string) {
-  return getPipelineNodeMeta(type).category === 'artifact'
+  return getPipelineNodeSpec(type).category === 'artifact'
 }
+
+export { ARTIFACT_NODE_TYPES, WORK_NODE_TYPES }
 
 interface PipelineNodeCardProps {
   node: PipelineNode
@@ -128,6 +108,7 @@ export function PipelineNodeComponent({
   const categoryLabel = t(`pipeline.categories.${meta.category}`, { defaultValue: meta.category })
   const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: status.label })
   const isCustomContent = node.content_type === 'custom' || !node.content_type
+  const canAddChild = isPipelineWorkNode(node.type)
 
   return (
     <div
@@ -214,15 +195,17 @@ export function PipelineNodeComponent({
             <ArrowRight size={14} />
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100"
-          onClick={(e) => { e.stopPropagation(); onAddChild() }}
-          title={t('pipeline.tree.addChild')}
-        >
-          <Plus size={14} />
-        </Button>
+        {canAddChild ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100"
+            onClick={(e) => { e.stopPropagation(); onAddChild() }}
+            title={t('pipeline.tree.addChild')}
+          >
+            <Plus size={14} />
+          </Button>
+        ) : null}
         <Button
           variant="ghost"
           size="icon"

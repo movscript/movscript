@@ -6,7 +6,6 @@ import { useProjectStore } from '@/store/projectStore'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 
@@ -81,28 +80,18 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
           <h2 className="text-sm font-semibold text-foreground truncate">{script.title}</h2>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ReviewStatusBadge status={script.review_status} />
+          {onDelete && (
+            <button
+              onClick={() => remove.mutate()}
+              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+            >
+              {t('common.delete')}
+            </button>
+          )}
           {onClose && (
             <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>
           )}
         </div>
-      </div>
-
-      {/* Review actions bar */}
-      <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-muted/30 shrink-0">
-        <ReviewActions
-          status={script.review_status}
-          apiUrl={`/projects/${projectId}/scripts/${script.ID}`}
-          queryKey={['scripts', projectId]}
-        />
-        {onDelete && (
-          <button
-            onClick={() => remove.mutate()}
-            className="ml-auto text-xs text-muted-foreground hover:text-destructive transition-colors"
-          >
-            {t('common.delete')}
-          </button>
-        )}
       </div>
 
       <ScriptForm

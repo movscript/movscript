@@ -12,7 +12,7 @@ export interface Project {
 }
 
 export type PipelineNodeStatus = 'draft' | 'under_review' | 'rejected' | 'final'
-export type PipelineContentType = 'script' | 'storyboard' | 'shot' | 'asset' | 'custom'
+export type PipelineContentType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'custom'
 
 export interface PipelineNode {
   ID: number
@@ -134,6 +134,7 @@ export interface Asset {
 export interface Scene {
   ID: number
   project_id: number
+  pipeline_node_id?: number
   number: number
   title: string
   location: string
@@ -153,6 +154,7 @@ export interface EpisodeScene {
 export interface Episode {
   ID: number
   project_id: number
+  pipeline_node_id?: number
   title: string
   number: number
   synopsis: string
@@ -172,8 +174,8 @@ export interface Episode {
 export interface Storyboard {
   ID: number
   project_id: number
-  scene_id?: number
-  episode_id?: number
+  scene_id?: number | null
+  episode_id?: number | null
   pipeline_node_id?: number
   assignee_id?: number
   assignee?: User
@@ -191,6 +193,12 @@ export interface Storyboard {
   depth_of_field: string  // shallow|normal|deep
   lighting: string
   duration: number
+  shot_size?: string    // close_up|near|medium|full|wide|extreme_wide
+  angle?: string        // eye_level|overhead|low_angle|side|top|dutch
+  movement?: string     // push|pull|pan|dolly|follow|crane|handheld|static
+  focal_length?: string // wide|standard|telephoto
+  pacing?: string       // fast_cut|long_take|pause
+  intent?: string       // 镜头意图
   resource_ids: string // JSON array of RawResource IDs
   status: 'draft' | 'approved'
   review_status?: ReviewStatus
@@ -206,7 +214,7 @@ export type ShotStatus = 'draft' | 'prompt_ready' | 'generating' | 'generated' |
 export interface Shot {
   ID: number
   project_id: number
-  storyboard_id?: number
+  storyboard_id?: number | null
   pipeline_node_id?: number
   assignee_id?: number
   assignee?: User
@@ -221,13 +229,6 @@ export interface Shot {
   final_prompt?: string
   is_approved?: boolean
   review_status?: ReviewStatus
-  // Cinematography parameters
-  shot_size?: string    // close_up|near|medium|full|wide|extreme_wide
-  angle?: string        // eye_level|overhead|low_angle|side|top|dutch
-  movement?: string     // push|pull|pan|dolly|follow|crane|handheld|static
-  focal_length?: string // wide|standard|telephoto
-  pacing?: string       // fast_cut|long_take|pause
-  intent?: string       // 镜头意图
   status: ShotStatus
   CreatedAt: string
   UpdatedAt: string

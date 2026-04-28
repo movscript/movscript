@@ -2,11 +2,14 @@ import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from './agentManifest.js'
 import { buildAssistantContent } from './assistantMessage.js'
-import { extractAgentContext } from './context.js'
+import { extractAgentContext, parseToolResult } from './context.js'
+import { resolveAgentCapabilities } from './capabilityResolver.js'
 import { MemoryManager } from './memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from './memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from './memory/types.js'
 import { planAgentRun } from './planner.js'
+import { compilePromptPreview } from './promptCompiler.js'
+import { resolveAgentSkills } from './skillResolver.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
 import { applyToolPolicy } from './toolPolicy.js'
 import type { BlockedToolCall } from './toolPolicy.js'
@@ -15,15 +18,22 @@ import type {
   AgentMessage,
   AgentMessageRole,
   AgentPlanTask,
+  AgentRunPreview,
   AgentRun,
   AgentRunStep,
   AgentRuntimeOptions,
+  AgentCapabilitiesResponse,
+  AgentDebugContextPanel,
+  AgentInputEnvelope,
+  AgentRunDebugTrace,
+  AgentRunPolicy,
   AgentThread,
   AgentThreadSummary,
   ApproveRunInput,
   CreateMessageInput,
   CreateRunInput,
   CreateThreadInput,
+  PreviewRunInput,
   RejectRunInput,
   ToolCallOutcome,
   UpdateThreadInput,
@@ -34,11 +44,17 @@ export type {
   AgentMessageRole,
   AgentPlanTask,
   AgentRun,
+  AgentRunPreview,
   AgentRunStatus,
   AgentRunStep,
   AgentRuntimeOptions,
   AgentTaskPlan,
   AgentApprovalRequest,
+  AgentCapabilitiesResponse,
+  AgentDebugContextPanel,
+  AgentInputEnvelope,
+  AgentRunDebugTrace,
+  AgentRunPolicy,
   AgentStepStatus,
   AgentThread,
   AgentThreadSummary,
@@ -46,20 +62,21 @@ export type {
   CreateMessageInput,
   CreateRunInput,
   CreateThreadInput,
+  PreviewRunInput,
   RejectRunInput,
   UpdateThreadInput,
   ToolCall,
   ToolCallOutcome,
 } from './types.js'
 export type { AgentMemory, AgentMemoryKind, AgentMemoryScope, MemoryQuery } from './memory/types.js'
-export type { AgentManifest, AgentToolGrant } from './agentManifest.js'
+export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from './agentManifest.js'
 export { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from './agentManifest.js'
 export { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 export { InMemoryAgentStore } from './store.js'
 export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from './toolRegistry.js'
 
 export class AgentRuntime {
-  private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
+  private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   private readonly store: AgentStore
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
@@ -71,6 +88,16 @@ export class AgentRuntime {
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
     this.defaultAgentManifest = options.defaultAgentManifest ?? DEFAULT_AGENT_MANIFEST
+  }
+
+  async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {
+    const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    return resolveAgentCapabilities({
+      mcpClient: this.mcpClient,
+      manifest: agentManifest,
+      currentProjectId: input.currentProjectId,
+      includeResources: input.includeResources,
+    })
   }
 
   createThread(input: CreateThreadInput = {}): AgentThread {
@@ -164,6 +191,105 @@ export class AgentRuntime {
     this.store.updateThread(thread)
     void this.executeRun(run.id)
     return run
+  }
+
+  async previewRun(input: PreviewRunInput): Promise<AgentRunPreview> {
+    const thread = typeof input.threadId === 'string' && input.threadId
+      ? this.requireThread(input.threadId)
+      : undefined
+    const explicitMessage = typeof input.message === 'string' && input.message.trim().length > 0
+      ? input.message.trim()
+      : undefined
+    const lastUser = thread
+      ? [...thread.messages].reverse().find((message) => message.role === 'user')
+      : undefined
+    const message = explicitMessage ?? lastUser?.content
+    if (!message) throw new Error('preview requires a message or a thread with a user message')
+
+    const now = isoNow()
+    const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    await this.mcpClient.initialize()
+    const contextResult = await this.mcpClient.callTool('movscript.get_context_pack', {})
+    const context = extractAgentContext(contextResult)
+    const memories = this.memoryManager.loadRelevantMemories({
+      ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
+      threadId: thread?.id ?? 'preview',
+    })
+    const skills = resolveAgentSkills(agentManifest, message)
+    const capabilities = await resolveAgentCapabilities({
+      mcpClient: this.mcpClient,
+      manifest: agentManifest,
+      currentProjectId: context.currentProjectId,
+    })
+    const debugContext = buildDebugContext(contextResult, memories)
+    const policy = defaultRunPolicy('dry_run')
+    const envelope: AgentInputEnvelope = {
+      id: makeId('envelope'),
+      ...(thread ? { threadId: thread.id } : {}),
+      mode: 'preview',
+      message: { role: 'user', content: message },
+      history: thread?.messages ?? [],
+      context: debugContext,
+      manifest: agentManifest,
+      skills,
+      tools: capabilities.resolvedTools,
+      policy,
+      memories: memories.map(toMemoryRef),
+      ...(agentManifest.model ? { model: agentManifest.model } : {}),
+      debug: {
+        source: 'runtime',
+        warnings: [...capabilities.warnings],
+      },
+    }
+    const promptPreview = compilePromptPreview(envelope)
+    envelope.debug.compiledPrompt = promptPreview
+    const planned = planAgentRun(message, memories)
+    const warnings: string[] = [...capabilities.warnings]
+    const pendingApprovals: AgentApprovalRequest[] = []
+    const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
+
+    planned.plan.tasks = planned.plan.tasks.map((task) => {
+      const policy = applyToolPolicy(task.toolCalls, {
+        currentProjectId: context.currentProjectId,
+        manifest: agentManifest,
+        catalog: capabilities.resolvedTools,
+        approvedToolNames,
+      })
+      warnings.push(...policy.warnings.filter((warning) => !warnings.includes(warning)))
+      pendingApprovals.push(
+        ...policy.blockedToolCalls
+          .filter((blocked) => blocked.reason === 'approval_required')
+          .map((blocked) => toApprovalRequest('preview', blocked)),
+      )
+      return {
+        ...task,
+        toolCalls: policy.toolCalls,
+        status: task.toolCalls.length > 0 && policy.toolCalls.length === 0 ? 'skipped' : task.status,
+      }
+    })
+    planned.plan.updatedAt = isoNow()
+
+    return {
+      id: makeId('preview'),
+      ...(thread ? { threadId: thread.id } : {}),
+      message,
+      status: 'preview',
+      agentManifest,
+      ...(typeof context.currentProjectId === 'number' ? { currentProjectId: context.currentProjectId } : {}),
+      context: debugContext,
+      skills,
+      tools: capabilities.resolvedTools,
+      policy,
+      promptPreview,
+      debug: buildDebugTrace(envelope, promptPreview.debugParts.map((part) => part.id)),
+      plan: planned.plan,
+      toolCalls: planned.plan.tasks.flatMap((task) => task.toolCalls),
+      pendingApprovals,
+      warnings,
+      memoryIds: memories.map((memory) => memory.id),
+      memoryCount: memories.length,
+      createdAt: now,
+    }
   }
 
   listRuns(): AgentRun[] {
@@ -289,7 +415,8 @@ export class AgentRuntime {
       const lastUser = [...thread.messages].reverse().find((message) => message.role === 'user')
       if (!lastUser) throw new Error('run requires at least one user message')
 
-      const context = extractAgentContext(await this.callTool(run, 'movscript.get_context_pack'))
+      const contextResult = await this.callTool(run, 'movscript.get_context_pack')
+      const context = extractAgentContext(contextResult)
       if (typeof context.currentProjectId === 'number') {
         thread.projectId = context.currentProjectId
         this.store.updateThread(thread)
@@ -298,6 +425,35 @@ export class AgentRuntime {
         projectId: context.currentProjectId,
         threadId: thread.id,
       })
+      const capabilities = await resolveAgentCapabilities({
+        mcpClient: this.mcpClient,
+        manifest: run.agentManifest ?? this.defaultAgentManifest,
+        currentProjectId: context.currentProjectId,
+      })
+      const skills = resolveAgentSkills(run.agentManifest ?? this.defaultAgentManifest, lastUser.content)
+      const debugContext = buildDebugContext(contextResult, memories)
+      const envelope: AgentInputEnvelope = {
+        id: makeId('envelope'),
+        threadId: thread.id,
+        runId: run.id,
+        mode: 'run',
+        message: { role: 'user', content: lastUser.content },
+        history: thread.messages.filter((message) => message.id !== lastUser.id),
+        context: debugContext,
+        manifest: run.agentManifest ?? this.defaultAgentManifest,
+        skills,
+        tools: capabilities.resolvedTools,
+        policy: defaultRunPolicy('interactive'),
+        memories: memories.map(toMemoryRef),
+        ...((run.agentManifest ?? this.defaultAgentManifest).model ? { model: (run.agentManifest ?? this.defaultAgentManifest).model } : {}),
+        debug: {
+          source: 'runtime',
+          warnings: [...capabilities.warnings],
+        },
+      }
+      const promptPreview = compilePromptPreview(envelope)
+      envelope.debug.compiledPrompt = promptPreview
+      run.envelope = envelope
       const planned = planAgentRun(lastUser.content, memories)
       const planningStep = this.createStep(run, 'planning')
       planningStep.title = '任务规划'
@@ -312,12 +468,13 @@ export class AgentRuntime {
       run.updatedAt = planningStep.completedAt
       this.store.updateRun(run)
 
-      const warnings: string[] = []
+      const warnings: string[] = [...capabilities.warnings]
       const pendingApprovals: AgentApprovalRequest[] = []
       run.plan.tasks = run.plan.tasks.map((task) => {
         const policy = applyToolPolicy(task.toolCalls, {
           currentProjectId: context.currentProjectId,
           manifest: run.agentManifest,
+          catalog: capabilities.resolvedTools,
           approvedToolNames: getApprovedToolNames(run),
         })
         warnings.push(...policy.warnings.filter((warning) => !warnings.includes(warning)))
@@ -333,6 +490,10 @@ export class AgentRuntime {
         }
       })
       run.plan.updatedAt = isoNow()
+      run.metadata = {
+        ...(run.metadata ?? {}),
+        debugTrace: buildDebugTrace(envelope, promptPreview.debugParts.map((part) => part.id)) as unknown as JSONValue,
+      }
       this.store.updateRun(run)
 
       if (pendingApprovals.length > 0) {
@@ -592,6 +753,103 @@ function normalizeApprovedToolNames(value: unknown): string[] {
 
 function getApprovedToolNames(run: AgentRun): string[] {
   return normalizeApprovedToolNames(run.metadata?.approvedToolNames)
+}
+
+function defaultRunPolicy(approvalMode: AgentRunPolicy['approvalMode']): AgentRunPolicy {
+  return {
+    approvalMode,
+    maxToolCalls: 8,
+    maxIterations: 4,
+    allowNetwork: false,
+    allowFileBytes: false,
+  }
+}
+
+function buildDebugContext(contextResult: JSONValue, memories: AgentMemory[]): AgentDebugContextPanel {
+  const parsed = parseToolResult(contextResult)
+  const snapshot = isRecord(parsed) && isRecord(parsed.snapshot) ? parsed.snapshot : parsed
+  const project = isRecord(snapshot) && isRecord(snapshot.project) ? snapshot.project : undefined
+  const projectId = typeof project?.id === 'number' ? project.id : typeof project?.ID === 'number' ? project.ID : undefined
+  const route = isRecord(snapshot) && isRecord(snapshot.route) ? snapshot.route : undefined
+  const user = isRecord(snapshot) && isRecord(snapshot.user) ? snapshot.user : undefined
+  const selection = isRecord(snapshot) && isRecord(snapshot.selection) ? snapshot.selection : undefined
+  return {
+    route: {
+      pathname: typeof route?.pathname === 'string' ? route.pathname : '/',
+      ...(typeof route?.search === 'string' ? { search: route.search } : {}),
+      ...(typeof route?.hash === 'string' ? { hash: route.hash } : {}),
+    },
+    ...(project && projectId !== undefined ? {
+      project: {
+        id: projectId,
+        ...(typeof project.name === 'string' ? { name: project.name } : {}),
+        ...(typeof project.status === 'string' ? { status: project.status } : {}),
+        ...(typeof project.description === 'string' ? { description: project.description } : {}),
+      },
+    } : {}),
+    ...(user && typeof user.id === 'number' && typeof user.username === 'string' ? {
+      user: {
+        id: user.id,
+        username: user.username,
+        ...(typeof user.systemRole === 'string' ? { systemRole: user.systemRole } : {}),
+      },
+    } : {}),
+    ...(selection && typeof selection.entityType === 'string' && (typeof selection.entityId === 'number' || typeof selection.entityId === 'string') ? {
+      selection: {
+        entityType: selection.entityType,
+        entityId: selection.entityId,
+        ...(typeof selection.label === 'string' ? { label: selection.label } : {}),
+      },
+    } : { selection: null }),
+    recentResources: normalizeDebugResources(isRecord(snapshot) ? snapshot.recentResources : undefined),
+    attachments: [],
+    memories: memories.map(toMemoryRef),
+    labels: [],
+  }
+}
+
+function normalizeDebugResources(value: unknown): AgentDebugContextPanel['recentResources'] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const id = typeof item.id === 'number' ? item.id : typeof item.ID === 'number' ? item.ID : undefined
+    const name = typeof item.name === 'string' ? item.name : undefined
+    const type = typeof item.type === 'string' ? item.type : undefined
+    if (id === undefined || !name || !type) return []
+    return [{
+      id,
+      name,
+      type,
+      ...(typeof item.mimeType === 'string' ? { mimeType: item.mimeType } : typeof item.mime_type === 'string' ? { mimeType: item.mime_type } : {}),
+      ...(typeof item.size === 'number' ? { size: item.size } : {}),
+    }]
+  })
+}
+
+function toMemoryRef(memory: AgentMemory): AgentInputEnvelope['memories'][number] {
+  return {
+    id: memory.id,
+    scope: memory.scope,
+    kind: memory.kind,
+    content: memory.content,
+  }
+}
+
+function buildDebugTrace(envelope: AgentInputEnvelope, promptPartIds: string[]): AgentRunDebugTrace {
+  return {
+    envelopeId: envelope.id,
+    manifestId: envelope.manifest.id,
+    manifestVersion: envelope.manifest.version,
+    skillIds: envelope.skills.map((skill) => skill.id),
+    availableToolNames: envelope.tools.available.map((tool) => tool.name),
+    blockedTools: envelope.tools.blocked.map((tool) => ({
+      name: tool.name,
+      ...(tool.unavailableReason ? { reason: tool.unavailableReason } : {}),
+    })),
+    promptPartIds,
+    planner: 'rule',
+    ...(envelope.model ? { model: envelope.model } : {}),
+  }
 }
 
 function toApprovalRequest(runId: string, blocked: BlockedToolCall): AgentApprovalRequest {

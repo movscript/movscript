@@ -131,7 +131,9 @@ func (h *StoryboardHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Patch applies a partial update (assignee_id, review_status, etc.) to a storyboard.
+// Patch applies a partial update to a storyboard.
+// Note: review_status is retained for legacy compatibility but is not enabled
+// in the current frontend; pipeline node status owns review workflow.
 func (h *StoryboardHandler) Patch(c *gin.Context) {
 	var b model.Storyboard
 	if err := h.db.First(&b, c.Param("id")).Error; err != nil {
