@@ -166,7 +166,6 @@ function listResources(): MCPResource[] {
       resource(`movscript://project/${id}/storyboards`, 'Storyboards'),
       resource(`movscript://project/${id}/shots`, 'Shots'),
       resource(`movscript://project/${id}/pipeline`, 'Pipeline'),
-      resource(`movscript://project/${id}/tasks`, 'Tasks'),
       resource(`movscript://project/${id}/drafts`, 'Drafts')
     )
   }
@@ -228,7 +227,6 @@ function projectEndpoint(projectId: number, kind: string): string {
     case 'storyboards':
     case 'shots':
     case 'pipeline':
-    case 'tasks':
       return `/projects/${projectId}/${kind}`
     default:
       throw new Error(`Unsupported project resource kind: ${kind}`)
@@ -248,7 +246,7 @@ function listTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
-          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'task'] },
+          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
           entityId: { type: 'number' },
         },
         ['entityType', 'entityId']
@@ -273,7 +271,7 @@ function listTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
-          kind: { type: 'string', enum: ['script', 'setting', 'storyboard', 'shot', 'task', 'prompt', 'note'] },
+          kind: { type: 'string', enum: ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note'] },
           title: { type: 'string' },
           content: { type: 'string' },
           source: { type: 'object' },
@@ -291,7 +289,7 @@ function listTools(): MCPTool[] {
       description: 'Ask the MovScript UI to open a page for an entity type. This is navigation only.',
       inputSchema: objectSchema(
         {
-          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'task', 'pipeline'] },
+          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'pipeline'] },
           entityId: { type: 'number' },
         },
         ['entityType']
@@ -362,7 +360,7 @@ async function searchEntities(args: Record<string, unknown>): Promise<unknown> {
   const requestedTypes = getStringArray(args.entityTypes)
   const entityTypes = requestedTypes.length > 0
     ? requestedTypes
-    : ['script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'task']
+    : ['script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot']
 
   if (!projectId) throw new Error('projectId is required when no current project is selected')
 
@@ -446,8 +444,6 @@ function collectionForEntity(entityType: string): string {
       return 'storyboards'
     case 'shot':
       return 'shots'
-    case 'task':
-      return 'tasks'
     default:
       throw new Error(`Unsupported entity type: ${entityType}`)
   }
@@ -470,8 +466,6 @@ function routeForEntity(entityType: string): string {
       return '/storyboards'
     case 'shot':
       return '/shots'
-    case 'task':
-      return '/collaboration'
     case 'pipeline':
       return '/pipeline'
     default:

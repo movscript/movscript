@@ -159,13 +159,19 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	if body.Description != nil {
 		node.Description = *body.Description
 	}
-	if body.AssigneeID != nil {
+	if rawAssigneeID, ok := raw["assignee_id"]; ok && string(rawAssigneeID) == "null" {
+		node.AssigneeID = nil
+	} else if body.AssigneeID != nil {
 		node.AssigneeID = body.AssigneeID
 	}
-	if body.LeadID != nil {
+	if rawLeadID, ok := raw["lead_id"]; ok && string(rawLeadID) == "null" {
+		node.LeadID = nil
+	} else if body.LeadID != nil {
 		node.LeadID = body.LeadID
 	}
-	if body.DueDate != nil {
+	if rawDueDate, ok := raw["due_date"]; ok && string(rawDueDate) == "null" {
+		node.DueDate = nil
+	} else if body.DueDate != nil {
 		node.DueDate = body.DueDate
 	}
 	node.ContentType = pipelineContentTypeForNode(node.Type)
@@ -358,15 +364,6 @@ func (h *PipelineHandler) Submit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
 		return
 	}
-	if openTasks := h.openTaskCount(node.ID); openTasks > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "open_tasks",
-			"message": "该节点还有未完成协作任务，无法提交审核",
-			"count":   openTasks,
-		})
-		return
-	}
-
 	if isPipelineWorkNode(node.Type) {
 		if blocking, ok := h.findBlockingAdjacentArtifact(node); ok {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -513,12 +510,6 @@ func (h *PipelineHandler) findBlockingAdjacentArtifact(node model.PipelineNode) 
 		}
 	}
 	return model.PipelineNode{}, false
-}
-
-func (h *PipelineHandler) openTaskCount(nodeID uint) int64 {
-	var count int64
-	h.db.Model(&model.Task{}).Where("pipeline_node_id = ? AND status != ?", nodeID, "done").Count(&count)
-	return count
 }
 
 func visiblePipelineTree(nodes []model.PipelineNode, edges []model.PipelineEdge) ([]model.PipelineNode, []model.PipelineEdge) {

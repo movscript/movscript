@@ -27,6 +27,11 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	// PipelineNode is the only production task unit; remove the old standalone
+	// task tables instead of keeping compatibility shims.
+	db.Exec("DROP TABLE IF EXISTS task_comments")
+	db.Exec("DROP TABLE IF EXISTS tasks")
+
 	// Migrate: convert legacy 0 values to NULL now that FK columns are nullable.
 	// These 0 values were written by earlier NULL→0 patches; replace with proper NULLs.
 	db.Exec("UPDATE storyboards SET scene_id = NULL WHERE scene_id = 0")
@@ -53,8 +58,6 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&model.EpisodeScene{},
 		&model.Storyboard{},
 		&model.Shot{},
-		&model.Task{},
-		&model.TaskComment{},
 		&model.AICredential{},
 		&model.AIModelConfig{},
 		&model.UserQuota{},

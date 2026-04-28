@@ -18,5 +18,11 @@
     "test:backend": "cd apps/backend && go test ./...",
     "tidy": "cd apps/backend && go mod tidy",
     "release": "pnpm run build"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }

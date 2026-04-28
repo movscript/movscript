@@ -32,7 +32,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	storyboards := handler.NewStoryboardHandler(db)
 	scenes := handler.NewSceneHandler(db)
 	shots := handler.NewShotHandler(db)
-	tasks := handler.NewTaskHandler(db)
 	settings := handler.NewSettingHandler(db)
 	users := handler.NewUserHandler(db)
 	authH := handler.NewAuthHandler(db)
@@ -155,17 +154,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.GET("/projects/:id/members", projects.ListMembers)
 		v1.POST("/projects/:id/members", projects.AddMember)
 		v1.DELETE("/projects/:id/members/:memberId", projects.RemoveMember)
-
-		// collaboration dashboard
-		v1.GET("/projects/:id/collaboration", tasks.Collaboration)
-
-		// tasks nested under project
-		v1.GET("/projects/:id/tasks", tasks.List)
-		v1.POST("/projects/:id/tasks", tasks.Create)
-		v1.PUT("/projects/:id/tasks/:taskId", tasks.Update)
-		v1.DELETE("/projects/:id/tasks/:taskId", tasks.Delete)
-		v1.GET("/projects/:id/tasks/:taskId/comments", tasks.ListComments)
-		v1.POST("/projects/:id/tasks/:taskId/comments", tasks.AddComment)
 
 		// pipeline DAG
 		v1.GET("/pipeline/node-specs", pipelineH.GetNodeSpecs)

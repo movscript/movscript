@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package, Film, Clapperboard, Circle } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package, Film, Clapperboard, CalendarDays } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
-import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, PipelineContentType, ProjectMember, Task, TaskPriority, TaskStatus } from '@/types'
+import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, PipelineContentType, ProjectMember } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ScriptWorkspace } from '@/pages/work/workspaces/ScriptWorkspace'
@@ -398,151 +398,106 @@ function ChildNodeListItem({
   )
 }
 
-// ── Node tasks ────────────────────────────────────────────────────────────────
+// ── Node ownership ────────────────────────────────────────────────────────────
 
-const TASK_STATUS_CLASS: Record<TaskStatus, string> = {
-  pending: 'text-muted-foreground',
-  in_progress: 'text-sky-600',
-  review: 'text-amber-600',
-  done: 'text-green-600',
-}
-
-function NodeTasksPanel({
+function NodeOwnershipPanel({
   projectId,
   node,
   members,
-  linkedEntityType,
-  linkedEntityId,
 }: {
   projectId?: number
   node: PipelineNode | null
   members: ProjectMember[]
-  linkedEntityType?: string
-  linkedEntityId?: number
 }) {
   const qc = useQueryClient()
-  const [title, setTitle] = useState('')
-  const [priority, setPriority] = useState<TaskPriority>('medium')
-  const [assigneeId, setAssigneeId] = useState<number | ''>('')
-  const nodeId = node?.ID
-  const queryKey = ['tasks', projectId, 'pipeline-node', nodeId]
+  const navigate = useNavigate()
 
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
-    queryKey,
-    queryFn: () => api.get(`/projects/${projectId}/tasks?pipeline_node_id=${nodeId}`).then((r) => r.data),
-    enabled: !!projectId && !!nodeId,
-  })
-
-  const createTask = useMutation({
-    mutationFn: () => api.post(`/projects/${projectId}/tasks`, {
-      title: title.trim(),
-      priority,
-      status: 'pending',
-      pipeline_node_id: nodeId,
-      assignee_id: assigneeId || undefined,
-      ref_type: linkedEntityType,
-      ref_id: linkedEntityId,
-    }).then((r) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey })
-      qc.invalidateQueries({ queryKey: ['tasks', projectId] })
-      setTitle('')
-      setAssigneeId('')
-    },
-  })
-
-  const updateTask = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: TaskStatus }) =>
-      api.put(`/projects/${projectId}/tasks/${id}`, { status }).then((r) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey })
-      qc.invalidateQueries({ queryKey: ['tasks', projectId] })
+  const updateNode = useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.put(`/pipeline/nodes/${node!.ID}`, body).then((r) => r.data),
+    onSuccess: (updated) => {
+      qc.setQueryData(['pipeline-node', String(node?.ID)], updated)
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
     },
   })
 
   if (!node) return null
 
+  const assignee = members.find((member) => member.user_id === node.assignee_id)?.user?.username ?? '未分配'
+  const lead = members.find((member) => member.user_id === node.lead_id)?.user?.username ?? '未指定'
+  const dueDateValue = node.due_date ? node.due_date.slice(0, 10) : ''
+
+  function updateUserField(field: 'assignee_id' | 'lead_id', value: string) {
+    updateNode.mutate({ [field]: value ? Number(value) : null })
+  }
+
   return (
     <aside className="w-80 shrink-0 border-l border-border bg-card flex flex-col min-h-0">
       <div className="px-3 py-2.5 border-b border-border">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">协作任务</p>
-          <span className="text-xs text-muted-foreground">{tasks.filter((task) => task.status === 'done').length}/{tasks.length}</span>
+          <p className="text-sm font-medium text-foreground">节点协作</p>
+          <span className="text-xs text-muted-foreground">{node.status}</span>
         </div>
       </div>
 
-      <div className="p-3 border-b border-border space-y-2">
-        <input
-          className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && title.trim()) createTask.mutate()
-          }}
-          placeholder="新建节点任务"
-        />
-        <div className="flex gap-2">
+      <div className="p-3 space-y-3 text-sm">
+        <div className="rounded-md border border-border bg-background p-3">
+          <p className="font-medium text-foreground line-clamp-2">{node.name}</p>
+          {node.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-4">{node.description}</p>}
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span>执行：{assignee}</span>
+            <span>负责：{lead}</span>
+            {node.entity_type && <span>{node.entity_type} #{node.entity_id ?? '-'}</span>}
+          </div>
+        </div>
+
+        <label className="block space-y-1.5">
+          <span className="text-xs text-muted-foreground">执行者</span>
           <select
-            className="min-w-0 flex-1 h-8 rounded-md border border-border bg-background px-2 text-xs"
-            value={assigneeId}
-            onChange={(event) => setAssigneeId(Number(event.target.value) || '')}
+            className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
+            value={node.assignee_id ?? ''}
+            onChange={(event) => updateUserField('assignee_id', event.target.value)}
+            disabled={updateNode.isPending}
           >
             <option value="">未分配</option>
             {members.map((member) => (
               <option key={member.user_id} value={member.user_id}>{member.user?.username ?? `用户 ${member.user_id}`}</option>
             ))}
           </select>
-          <select
-            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-            value={priority}
-            onChange={(event) => setPriority(event.target.value as TaskPriority)}
-          >
-            <option value="low">低</option>
-            <option value="medium">中</option>
-            <option value="high">高</option>
-          </select>
-          <Button
-            size="sm"
-            className="h-8 px-2"
-            onClick={() => title.trim() && createTask.mutate()}
-            disabled={!title.trim() || createTask.isPending}
-          >
-            {createTask.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-          </Button>
-        </div>
-      </div>
+        </label>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {isLoading ? (
-          <div className="h-24 flex items-center justify-center">
-            <Loader2 size={16} className="animate-spin text-muted-foreground" />
+        <label className="block space-y-1.5">
+          <span className="text-xs text-muted-foreground">负责人</span>
+          <select
+            className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
+            value={node.lead_id ?? ''}
+            onChange={(event) => updateUserField('lead_id', event.target.value)}
+            disabled={updateNode.isPending}
+          >
+            <option value="">未指定</option>
+            {members.map((member) => (
+              <option key={member.user_id} value={member.user_id}>{member.user?.username ?? `用户 ${member.user_id}`}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="text-xs text-muted-foreground">截止日期</span>
+          <div className="relative">
+            <CalendarDays size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="date"
+              className="w-full h-8 rounded-md border border-border bg-background pl-7 pr-2 text-xs"
+              value={dueDateValue}
+              onChange={(event) => updateNode.mutate({ due_date: event.target.value ? new Date(`${event.target.value}T00:00:00`).toISOString() : null })}
+              disabled={updateNode.isPending}
+            />
           </div>
-        ) : tasks.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">暂无任务</p>
-        ) : (
-          tasks.map((task) => (
-            <div key={task.ID} className="px-3 py-2.5 border-b border-border">
-              <div className="flex items-start gap-2">
-                <button
-                  type="button"
-                  className="mt-0.5 text-muted-foreground hover:text-green-600"
-                  onClick={() => updateTask.mutate({ id: task.ID, status: task.status === 'done' ? 'pending' : 'done' })}
-                  title={task.status === 'done' ? '重新打开' : '标记完成'}
-                >
-                  {task.status === 'done' ? <CheckCircle size={14} /> : <Circle size={14} />}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
-                  <div className="mt-1 flex items-center gap-2 text-xs">
-                    <span className={TASK_STATUS_CLASS[task.status]}>{task.status}</span>
-                    <span className="text-muted-foreground">{task.assignee?.username ?? '未分配'}</span>
-                    <span className="text-muted-foreground">{task.priority}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+        </label>
+
+        <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => navigate(`/pipeline/nodes/${node.ID}`)}>
+          <CheckCircle size={14} />
+          打开节点工作台
+        </Button>
       </div>
     </aside>
   )
@@ -813,12 +768,10 @@ export function StageWorkspaceContent({
               creating={creating || createMutation.isPending}
               onCreate={() => { setCreating(true); createMutation.mutate() }}
             />
-            <NodeTasksPanel
+            <NodeOwnershipPanel
               projectId={project?.ID}
               node={detailNode}
               members={members}
-              linkedEntityType={cfg.entityType}
-              linkedEntityId={selected?.ID}
             />
           </>
         ) : (
@@ -832,12 +785,10 @@ export function StageWorkspaceContent({
               creating={creating || createMutation.isPending}
               onCreate={() => { setCreating(true); createMutation.mutate() }}
             />
-            <NodeTasksPanel
+            <NodeOwnershipPanel
               projectId={project?.ID}
               node={detailNode}
               members={members}
-              linkedEntityType={cfg.entityType}
-              linkedEntityId={selected?.ID}
             />
           </>
         )}

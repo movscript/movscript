@@ -1,21 +1,24 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  Play,
+  Plus,
+  Trash2,
+  UserRound,
+} from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Task, TaskStatus, TaskPriority, ProjectMember, User, Pipeline, PipelineNode } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  Plus, Trash2, MessageSquare, ChevronDown, ChevronUp,
-  CheckCircle, Play, X,
-} from 'lucide-react'
-import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
-import { Label } from '@movscript/ui'
+import type { Pipeline, PipelineNode, PipelineNodeStatus, ProjectMember, User } from '@/types'
 import { Badge } from '@movscript/ui'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
+import { Button } from '@movscript/ui'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 const ROLE_LABEL_KEYS: Record<string, string> = {
@@ -25,460 +28,178 @@ const ROLE_LABEL_KEYS: Record<string, string> = {
   generator: 'pages.collaboration.roles.generator',
   viewer: 'pages.collaboration.roles.viewer',
 }
-const STATUS_LABEL_KEYS: Record<TaskStatus, string> = {
-  pending: 'pages.collaboration.status.pending',
-  in_progress: 'pages.collaboration.status.in_progress',
-  review: 'pages.collaboration.status.review',
-  done: 'pages.collaboration.status.done',
-}
-const STATUS_BADGE_VARIANT: Record<TaskStatus, string> = {
-  pending: 'secondary',
-  in_progress: 'default',
-  review: 'outline',
-  done: 'secondary',
-}
-const STATUS_BADGE_CLASS: Record<TaskStatus, string> = {
-  pending: 'bg-muted text-muted-foreground',
-  in_progress: 'bg-muted text-muted-foreground',
-  review: 'bg-muted text-muted-foreground',
-  done: 'bg-muted text-foreground',
-}
-const PRIORITY_LABEL_KEYS: Record<TaskPriority, string> = {
-  low: 'pages.collaboration.priority.low',
-  medium: 'pages.collaboration.priority.medium',
-  high: 'pages.collaboration.priority.high',
-}
-const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  low: 'text-muted-foreground', medium: 'text-muted-foreground', high: 'text-destructive',
-}
-const REF_TYPE_LABEL_KEYS: Record<string, string> = {
-  episode: 'entities.episodes',
-  scene: 'entities.scenes',
-  storyboard: 'entities.storyboards',
-  shot: 'entities.shots',
+
+const STATUS_CLASS: Record<PipelineNodeStatus, string> = {
+  draft: 'bg-muted text-muted-foreground',
+  under_review: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+  rejected: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+  final: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
 }
 
-// ── WorkingCard ─────────────────────────────────────────────────────────────
+type NodeView = 'my_assigned' | 'my_lead' | 'review' | 'rejected' | 'final'
 
-function WorkingCard({
-  task,
-  onClose,
-  onComplete,
-}: {
-  task: Task
-  onClose: () => void
-  onComplete: () => void
-}) {
-  const { t, i18n } = useTranslation()
-
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-background rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-        {/* Task info header */}
-        <div className="px-6 py-5 border-b border-border">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-xs font-bold ${PRIORITY_COLORS[task.priority]}`}>
-                  {t('pages.collaboration.priorityLabel', { priority: t(PRIORITY_LABEL_KEYS[task.priority]) })}
-                </span>
-                <Badge className={STATUS_BADGE_CLASS[task.status]}>
-                  {t(STATUS_LABEL_KEYS[task.status])}
-                </Badge>
-                {task.ref_type && (
-                  <span className="text-xs text-muted-foreground">{REF_TYPE_LABEL_KEYS[task.ref_type] ? t(REF_TYPE_LABEL_KEYS[task.ref_type]) : task.ref_type}</span>
-                )}
-              </div>
-              <h2 className="text-lg font-semibold text-foreground leading-snug">{task.title}</h2>
-              {task.description && (
-                <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">{task.description}</p>
-              )}
-            </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-muted-foreground shrink-0 h-7 w-7">
-              <X size={16} />
-            </Button>
-          </div>
-          <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
-            <span>{t('pages.collaboration.assigneeValue', { assignee: task.assignee?.username ?? t('pages.collaboration.unassigned') })}</span>
-            {task.deadline && (
-              <span>{t('pages.collaboration.deadlineValue', { date: new Date(task.deadline).toLocaleDateString(i18n.language) })}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Work notes area */}
-        <div className="px-6 py-4">
-          <Label className="block text-xs font-medium text-muted-foreground mb-2">{t('pages.collaboration.workNotesOptional')}</Label>
-          <Textarea
-            className="w-full resize-none text-sm leading-relaxed"
-            rows={4}
-            placeholder={t('pages.collaboration.workNotesPlaceholder')}
-          />
-        </div>
-
-        {/* Actions */}
-        <div className="px-6 pb-5 flex items-center justify-between">
-          <Button variant="ghost" onClick={onClose} className="text-sm text-muted-foreground">
-            {t('pages.collaboration.later')}
-          </Button>
-          <Button
-            onClick={onComplete}
-            className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 text-sm font-medium"
-          >
-            <CheckCircle size={15} />
-            {t('pages.collaboration.markDone')}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
+function assigneeName(members: ProjectMember[], userId?: number) {
+  if (!userId) return '未分配'
+  return members.find((member) => member.user_id === userId)?.user?.username ?? `用户 ${userId}`
 }
 
-// ── TaskCard ─────────────────────────────────────────────────────────────────
+function dateInputValue(value?: string) {
+  return value ? value.slice(0, 10) : ''
+}
 
-function TaskCard({
-  task,
-  users,
-  pipelineNodes,
-  currentUserId,
+function dueDatePayload(value: string) {
+  return value ? new Date(`${value}T00:00:00`).toISOString() : null
+}
+
+function NodeCard({
+  node,
+  members,
   onUpdate,
-  onDelete,
-  onWork,
 }: {
-  task: Task
-  users: User[]
-  pipelineNodes: PipelineNode[]
-  currentUserId?: number
-  onUpdate: (id: number, data: Partial<Task>) => void
-  onDelete: (id: number) => void
-  onWork: (task: Task) => void
-}) {
-  const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
-  const qc = useQueryClient()
-  const projectId = useProjectStore((s) => s.current?.ID)
-  const [expanded, setExpanded] = useState(false)
-  const [comment, setComment] = useState('')
-
-  const { data: comments = [] } = useQuery({
-    queryKey: ['task-comments', task.ID],
-    queryFn: () => api.get(`/projects/${projectId}/tasks/${task.ID}/comments`).then((r) => r.data),
-    enabled: expanded,
-  })
-
-  const addComment = useMutation({
-    mutationFn: (content: string) =>
-      api.post(`/projects/${projectId}/tasks/${task.ID}/comments`, { content }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['task-comments', task.ID] })
-      setComment('')
-    },
-  })
-
-  const isAssignedToMe = task.assignee_id === currentUserId
-  const canWork = task.status !== 'done'
-  const pipelineNode = task.pipeline_node ?? pipelineNodes.find((node) => node.ID === task.pipeline_node_id)
-
-  return (
-    <div className={`border border-border rounded-lg bg-background shadow-sm text-sm ${isAssignedToMe ? 'border-primary/30' : ''}`}>
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <span className={`text-xs font-bold shrink-0 ${PRIORITY_COLORS[task.priority]}`}>
-          {t(PRIORITY_LABEL_KEYS[task.priority])}
-        </span>
-        <span className="flex-1 font-medium truncate">{task.title}</span>
-        {task.ref_type && (
-          <span className="text-xs text-muted-foreground shrink-0">{REF_TYPE_LABEL_KEYS[task.ref_type] ? t(REF_TYPE_LABEL_KEYS[task.ref_type]) : task.ref_type}</span>
-        )}
-        {pipelineNode && (
-          <button
-            type="button"
-            onClick={() => navigate(`/pipeline/nodes/${pipelineNode.ID}`)}
-            className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-2 py-0.5 shrink-0 max-w-[150px] truncate"
-            title={pipelineNode.name}
-          >
-            {pipelineNode.name}
-          </button>
-        )}
-        <Badge className={`${STATUS_BADGE_CLASS[task.status]} shrink-0`}>
-          {t(STATUS_LABEL_KEYS[task.status])}
-        </Badge>
-
-        {/* Work button, shown only when assigned to the current user and not done */}
-        {isAssignedToMe && canWork && (
-          <button
-            onClick={() => onWork(task)}
-            className="flex items-center gap-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-2.5 py-0.5 rounded-full shrink-0 transition-colors"
-          >
-            <Play size={10} />
-            {t('pages.collaboration.goWork')}
-          </button>
-        )}
-
-        <Button variant="ghost" size="icon" onClick={() => setExpanded((v) => !v)} className="text-muted-foreground hover:text-foreground shrink-0 h-6 w-6">
-          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </Button>
-        <Button variant="ghost" size="icon" onClick={() => onDelete(task.ID)} className="text-muted-foreground hover:text-destructive shrink-0 h-6 w-6">
-          <Trash2 size={13} />
-        </Button>
-      </div>
-
-      {expanded && (
-        <div className="border-t border-border px-3 py-3 space-y-3">
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span>{t('pages.collaboration.assigneeValue', { assignee: task.assignee?.username ?? t('pages.collaboration.unassigned') })}</span>
-            {pipelineNode && <span>管线：{pipelineNode.name}</span>}
-            {task.deadline && <span>{t('pages.collaboration.deadlineValue', { date: new Date(task.deadline).toLocaleDateString(i18n.language) })}</span>}
-          </div>
-          {task.description && <p className="text-foreground text-xs">{task.description}</p>}
-
-          <div className="flex gap-2 flex-wrap">
-            <select
-              className="border border-border rounded-md px-2 py-1 text-xs bg-background text-foreground"
-              value={task.assignee_id ?? ''}
-              onChange={(e) => onUpdate(task.ID, { assignee_id: Number(e.target.value) || undefined })}
-            >
-              <option value="">{t('pages.collaboration.unassigned')}</option>
-              {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
-            </select>
-            <select
-              className="border border-border rounded-md px-2 py-1 text-xs bg-background text-foreground"
-              value={task.priority}
-              onChange={(e) => onUpdate(task.ID, { priority: e.target.value as TaskPriority })}
-            >
-              {Object.entries(PRIORITY_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t('pages.collaboration.priorityLabel', { priority: t(key) })}</option>)}
-            </select>
-            <select
-              className="border border-border rounded-md px-2 py-1 text-xs bg-background text-foreground"
-              value={task.status}
-              onChange={(e) => onUpdate(task.ID, { status: e.target.value as TaskStatus })}
-            >
-              {Object.entries(STATUS_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t(key)}</option>)}
-            </select>
-          </div>
-
-          {/* Comments */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              <MessageSquare size={12} /> {t('pages.collaboration.comments')}
-            </p>
-            {comments.map((c: { ID: number; user?: User; content: string; CreatedAt: string }) => (
-              <div key={c.ID} className="text-xs bg-card rounded p-2">
-                <span className="font-medium text-foreground">{c.user?.username ?? '?'}</span>
-                <span className="text-muted-foreground ml-2">{new Date(c.CreatedAt).toLocaleString(i18n.language)}</span>
-                <p className="mt-1 text-muted-foreground">{c.content}</p>
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <Input
-                className="flex-1 text-xs"
-                placeholder={t('pages.collaboration.addCommentPlaceholder')}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && comment.trim() && addComment.mutate(comment)}
-              />
-              <Button
-                size="sm"
-                onClick={() => comment.trim() && addComment.mutate(comment)}
-                className="text-xs"
-              >
-                {t('pages.collaboration.send')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── TasksTab ──────────────────────────────────────────────────────────────────
-
-function TasksTab({
-  tasks,
-  users,
-  pipelineNodes,
-  currentUserId,
-  tasksLoading,
-  onUpdate,
-  onDelete,
-}: {
-  tasks: Task[]
-  users: User[]
-  pipelineNodes: PipelineNode[]
-  currentUserId?: number
-  tasksLoading: boolean
-  onUpdate: (id: number, data: Partial<Task>) => void
-  onDelete: (id: number) => void
+  node: PipelineNode
+  members: ProjectMember[]
+  onUpdate: (nodeId: number, body: Record<string, unknown>) => void
 }) {
   const { t } = useTranslation()
-  const qc = useQueryClient()
-  const projectId = useProjectStore((s) => s.current?.ID)
-  const [myTasksOnly, setMyTasksOnly] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
-  const [newTitle, setNewTitle] = useState('')
-  const [newPriority, setNewPriority] = useState<TaskPriority>('medium')
-  const [newRefType, setNewRefType] = useState('')
-  const [newPipelineNodeId, setNewPipelineNodeId] = useState<number | ''>('')
-  const [newAssigneeId, setNewAssigneeId] = useState<number | ''>('')
-  const [workingTask, setWorkingTask] = useState<Task | null>(null)
-
-  const createTask = useMutation({
-    mutationFn: (t: Partial<Task>) => api.post(`/projects/${projectId}/tasks`, t).then((r) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks', projectId] })
-      setNewTitle('')
-    },
-  })
-
-  const updateTask = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Task> }) =>
-      api.put(`/projects/${projectId}/tasks/${id}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', projectId] }),
-  })
-
-  function handleComplete() {
-    if (!workingTask) return
-    updateTask.mutate({ id: workingTask.ID, data: { status: 'done' } })
-    setWorkingTask(null)
-  }
-
-  const filtered = tasks
-    .filter((t) => (myTasksOnly ? t.assignee_id === currentUserId : true))
-    .filter((t) => (statusFilter ? t.status === statusFilter : true))
-
-  const myCount = tasks.filter((t) => t.assignee_id === currentUserId).length
+  const navigate = useNavigate()
 
   return (
-    <>
-      {/* Create task */}
-      <div className="border border-border rounded-lg p-3 bg-background shadow-sm space-y-2 mb-4">
-        <p className="text-xs font-medium text-muted-foreground">{t('pages.collaboration.newTask')}</p>
-        <Input
-          placeholder={t('pages.collaboration.taskTitleRequired')}
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && newTitle.trim()) {
-              createTask.mutate({
-                title: newTitle.trim(),
-                priority: newPriority,
-                ref_type: newRefType || undefined,
-                pipeline_node_id: newPipelineNodeId || undefined,
-                assignee_id: newAssigneeId || undefined,
-              })
-            }
-          }}
-        />
-        <div className="flex gap-2 flex-wrap">
-          <select
-            className="border border-border rounded-md px-2 py-1.5 text-xs bg-background text-foreground"
-            value={newPriority}
-            onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-          >
-            {Object.entries(PRIORITY_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t('pages.collaboration.priorityLabel', { priority: t(key) })}</option>)}
-          </select>
-          <select
-            className="border border-border rounded-md px-2 py-1.5 text-xs bg-background text-foreground"
-            value={newRefType}
-            onChange={(e) => setNewRefType(e.target.value)}
-          >
-            <option value="">{t('pages.collaboration.refType')}</option>
-            {Object.entries(REF_TYPE_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t(key)}</option>)}
-          </select>
-          <select
-            className="border border-border rounded-md px-2 py-1.5 text-xs bg-background text-foreground max-w-[220px]"
-            value={newPipelineNodeId}
-            onChange={(e) => setNewPipelineNodeId(Number(e.target.value) || '')}
-          >
-            <option value="">所属管线节点</option>
-            {pipelineNodes.map((node) => <option key={node.ID} value={node.ID}>{node.name}</option>)}
-          </select>
-          <select
-            className="border border-border rounded-md px-2 py-1.5 text-xs flex-1 bg-background text-foreground"
-            value={newAssigneeId}
-            onChange={(e) => setNewAssigneeId(Number(e.target.value) || '')}
-          >
-            <option value="">{t('pages.collaboration.assignTo')}</option>
-            {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
-          </select>
-          <Button
-            size="sm"
-            onClick={() => newTitle.trim() && createTask.mutate({
-              title: newTitle.trim(),
-              priority: newPriority,
-              ref_type: newRefType || undefined,
-              pipeline_node_id: newPipelineNodeId || undefined,
-              assignee_id: newAssigneeId || undefined,
-            })}
-            disabled={!newTitle.trim() || createTask.isPending}
-            className="flex items-center gap-1 text-xs"
-          >
-            <Plus size={12} /> {t('common.create')}
-          </Button>
+    <div className="rounded-lg border border-border bg-background p-3 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-medium text-foreground">{node.name}</h3>
+            <Badge className={STATUS_CLASS[node.status]}>
+              {t(`pipeline.status.${node.status}`)}
+            </Badge>
+          </div>
+          {node.description && (
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{node.description}</p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <UserRound size={12} />
+              执行：{assigneeName(members, node.assignee_id)}
+            </span>
+            <span>负责：{assigneeName(members, node.lead_id)}</span>
+            {node.due_date && (
+              <span className="inline-flex items-center gap-1">
+                <CalendarDays size={12} />
+                {new Date(node.due_date).toLocaleDateString()}
+              </span>
+            )}
+            {node.entity_type && <span>{node.entity_type} #{node.entity_id ?? '-'}</span>}
+          </div>
         </div>
+        <Button size="sm" className="gap-1.5" onClick={() => navigate(`/pipeline/nodes/${node.ID}`)}>
+          <Play size={13} />
+          去完成
+        </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <button
-          onClick={() => setMyTasksOnly(false)}
-          className={`text-xs px-3 py-1 rounded-full border transition-colors ${!myTasksOnly ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:bg-muted/50'}`}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <select
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          value={node.assignee_id ?? ''}
+          onChange={(event) => onUpdate(node.ID, { assignee_id: event.target.value ? Number(event.target.value) : null })}
         >
-          {t('pages.collaboration.allTasksFilter', { count: tasks.length })}
-        </button>
-        <button
-          onClick={() => setMyTasksOnly(true)}
-          className={`text-xs px-3 py-1 rounded-full border transition-colors ${myTasksOnly ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:bg-muted/50'}`}
+          <option value="">未分配执行者</option>
+          {members.map((member) => (
+            <option key={member.user_id} value={member.user_id}>{member.user?.username ?? `用户 ${member.user_id}`}</option>
+          ))}
+        </select>
+        <select
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          value={node.lead_id ?? ''}
+          onChange={(event) => onUpdate(node.ID, { lead_id: event.target.value ? Number(event.target.value) : null })}
         >
-          {t('pages.collaboration.myTasksFilter', { count: myCount })}
-        </button>
-        <div className="h-4 w-px bg-border mx-1" />
-        {(['', 'pending', 'in_progress', 'review', 'done'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`text-xs px-3 py-1 rounded-full border transition-colors ${statusFilter === s ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground border-border hover:bg-muted/50'}`}
-          >
-            {s === '' ? t('pages.collaboration.allStatuses') : t(STATUS_LABEL_KEYS[s])}
-          </button>
-        ))}
+          <option value="">未指定负责人</option>
+          {members.map((member) => (
+            <option key={member.user_id} value={member.user_id}>{member.user?.username ?? `用户 ${member.user_id}`}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          value={dateInputValue(node.due_date)}
+          onChange={(event) => onUpdate(node.ID, { due_date: dueDatePayload(event.target.value) })}
+        />
+      </div>
+    </div>
+  )
+}
+
+function PipelinePeopleView({
+  nodes,
+  members,
+  currentUserId,
+  onUpdate,
+}: {
+  nodes: PipelineNode[]
+  members: ProjectMember[]
+  currentUserId?: number
+  onUpdate: (nodeId: number, body: Record<string, unknown>) => void
+}) {
+  const navigate = useNavigate()
+  const [view, setView] = useState<NodeView>('my_assigned')
+
+  const groups = useMemo(() => ({
+    my_assigned: nodes.filter((node) => node.assignee_id === currentUserId),
+    my_lead: nodes.filter((node) => node.lead_id === currentUserId),
+    review: nodes.filter((node) => node.status === 'under_review'),
+    rejected: nodes.filter((node) => node.status === 'rejected'),
+    final: nodes.filter((node) => node.status === 'final'),
+  }), [currentUserId, nodes])
+
+  const viewMeta: Array<{ id: NodeView; label: string; icon: typeof Clock }> = [
+    { id: 'my_assigned', label: '我的任务', icon: Play },
+    { id: 'my_lead', label: '我负责的', icon: UserRound },
+    { id: 'review', label: '待审核', icon: Clock },
+    { id: 'rejected', label: '被打回', icon: AlertTriangle },
+    { id: 'final', label: '已完成', icon: CheckCircle2 },
+  ]
+
+  const visible = groups[view]
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {viewMeta.map((item) => {
+          const Icon = item.icon
+          const active = view === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setView(item.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${active ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:bg-muted/50'}`}
+            >
+              <Icon size={12} />
+              {item.label}
+              <span>{groups[item.id].length}</span>
+            </button>
+          )
+        })}
+        <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={() => navigate('/pipeline')}>
+          <Plus size={13} />
+          从管线创建节点
+        </Button>
       </div>
 
-      {/* Task list */}
-      {tasksLoading ? (
-        <p className="text-sm text-muted-foreground">{t('common.loadingShort')}</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('pages.collaboration.noTasks')}</p>
+      {visible.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-background p-8 text-center">
+          <p className="text-sm text-muted-foreground">当前视图没有节点</p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((t) => (
-            <TaskCard
-              key={t.ID}
-              task={t}
-              users={users}
-              pipelineNodes={pipelineNodes}
-              currentUserId={currentUserId}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-              onWork={setWorkingTask}
-            />
+          {visible.map((node) => (
+            <NodeCard key={node.ID} node={node} members={members} onUpdate={onUpdate} />
           ))}
         </div>
       )}
-
-      {/* WorkingCard modal */}
-      {workingTask && (
-        <WorkingCard
-          task={workingTask}
-          onClose={() => setWorkingTask(null)}
-          onComplete={handleComplete}
-        />
-      )}
-    </>
+    </div>
   )
 }
-
-// ── ManagementTab ─────────────────────────────────────────────────────────────
 
 function ManagementTab({
   members,
@@ -509,11 +230,11 @@ function ManagementTab({
 
   return (
     <div>
-      <h2 className="text-sm font-semibold mb-3 text-muted-foreground">{t('pages.collaboration.teamMembers')}</h2>
+      <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t('pages.collaboration.teamMembers')}</h2>
       {canManageMembers && (
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="mb-4 flex flex-wrap gap-2">
           <select
-            className="border border-border rounded-md px-3 py-2 text-sm flex-1 bg-background text-foreground"
+            className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
             value={selectedUser}
             onChange={(e) => setSelectedUser(e.target.value)}
           >
@@ -521,7 +242,7 @@ function ManagementTab({
             {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
           </select>
           <select
-            className="border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground"
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
             value={role}
             onChange={(e) => setRole(e.target.value)}
           >
@@ -536,7 +257,7 @@ function ManagementTab({
               addMember.mutate({ user_id: Number(selectedUser), role })
               setSelectedUser('')
             }}
-            className="flex items-center gap-1"
+            className="gap-1"
           >
             <Plus size={14} /> {t('pages.collaboration.add')}
           </Button>
@@ -544,8 +265,8 @@ function ManagementTab({
       )}
       <div className="space-y-2">
         {members.map((m) => (
-          <div key={m.ID} className="border border-border rounded-lg px-4 py-3 bg-background shadow-sm flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+          <div key={m.ID} className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
               {m.user?.username?.[0]?.toUpperCase() ?? '?'}
             </div>
             <div className="flex-1">
@@ -559,7 +280,7 @@ function ManagementTab({
                 variant="ghost"
                 size="icon"
                 onClick={() => removeMember.mutate(m.ID)}
-                className="text-muted-foreground hover:text-destructive transition-colors h-7 w-7"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 aria-label={t('pages.collaboration.remove')}
               >
                 <Trash2 size={14} />
@@ -572,8 +293,6 @@ function ManagementTab({
     </div>
   )
 }
-
-// ── CollaborationPage ────────────────────────────────────────────────────────
 
 export default function CollaborationPage() {
   const { t } = useTranslation()
@@ -593,59 +312,50 @@ export default function CollaborationPage() {
     queryFn: () => api.get('/users').then((r) => r.data),
   })
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
-    queryKey: ['tasks', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/tasks`).then((r) => r.data),
+  const { data: pipeline, isLoading } = useQuery<Pipeline>({
+    queryKey: ['pipeline', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/pipeline`).then((r) => r.data),
     enabled: !!projectId,
     refetchInterval: 30_000,
   })
 
-  const { data: pipeline } = useQuery<Pipeline>({
-    queryKey: ['pipeline', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/pipeline`).then((r) => r.data),
-    enabled: !!projectId,
-  })
-
   const members: ProjectMember[] = projectDetail?.members ?? []
-  const pipelineNodes = pipeline?.nodes ?? []
   const { canManageMembers } = usePermissions(members)
 
-  const updateTask = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Task> }) =>
-      api.put(`/projects/${projectId}/tasks/${id}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', projectId] }),
+  const updateNode = useMutation({
+    mutationFn: ({ nodeId, body }: { nodeId: number; body: Record<string, unknown> }) =>
+      api.put(`/pipeline/nodes/${nodeId}`, body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline', projectId] }),
   })
 
-  const deleteTask = useMutation({
-    mutationFn: (id: number) => api.delete(`/projects/${projectId}/tasks/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', projectId] }),
-  })
+  const nodes = pipeline?.nodes ?? []
 
   return (
-    <div className="max-w-3xl">
-      <Tabs defaultValue="tasks">
+    <div className="max-w-4xl">
+      <Tabs defaultValue="nodes">
         <TabsList className="mb-6">
-          <TabsTrigger value="tasks">
+          <TabsTrigger value="nodes">
             {t('pages.collaboration.tasks')}
-            {tasks.length > 0 && (
-              <Badge className="ml-1.5 bg-muted text-muted-foreground text-xs px-1.5 py-0.5">
-                {tasks.length}
+            {nodes.length > 0 && (
+              <Badge className="ml-1.5 bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                {nodes.length}
               </Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="management">{t('pages.collaboration.management')}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tasks">
-          <TasksTab
-            tasks={tasks}
-            users={users}
-            pipelineNodes={pipelineNodes}
-            currentUserId={currentUser?.ID}
-            tasksLoading={tasksLoading}
-            onUpdate={(id, data) => updateTask.mutate({ id, data })}
-            onDelete={(id) => deleteTask.mutate(id)}
-          />
+        <TabsContent value="nodes">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">{t('common.loadingShort')}</p>
+          ) : (
+            <PipelinePeopleView
+              nodes={nodes}
+              members={members}
+              currentUserId={currentUser?.ID}
+              onUpdate={(nodeId, body) => updateNode.mutate({ nodeId, body })}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="management">

@@ -241,38 +241,6 @@ export interface User {
   system_role: 'super_admin' | 'user'
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'review' | 'done'
-export type TaskPriority = 'low' | 'medium' | 'high'
-
-export interface Task {
-  ID: number
-  project_id: number
-  pipeline_node_id?: number
-  pipeline_node?: PipelineNode
-  assignee_id?: number
-  assignee?: User
-  creator_id: number
-  title: string
-  description: string
-  priority: TaskPriority
-  status: TaskStatus
-  ref_type: string // episode|scene|storyboard|shot
-  ref_id?: number
-  deadline?: string
-  comments?: TaskComment[]
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface TaskComment {
-  ID: number
-  task_id: number
-  user_id: number
-  user?: User
-  content: string
-  CreatedAt: string
-}
-
 export interface Progress {
   scripts: number
   episodes: number
