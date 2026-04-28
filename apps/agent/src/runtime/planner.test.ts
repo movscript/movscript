@@ -15,13 +15,14 @@ test('planner turns lookup text into search call without project policy', () => 
 test('planner infers read target and draft candidate calls', () => {
   const calls = planToolCalls('读取 shot #12，并帮我写一个镜头草稿')
 
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[0], {
+  assert.equal(calls.length, 3)
+  assert.equal(calls[0].name, 'movscript.read_project_structure')
+  assert.deepEqual(calls[1], {
     name: 'movscript.read_entity',
     args: { entityType: 'shot', entityId: 12 },
   })
-  assert.equal(calls[1].name, 'movscript.create_draft')
-  assert.equal(calls[1].args?.kind, 'shot')
+  assert.equal(calls[2].name, 'movscript.create_draft')
+  assert.equal(calls[2].args?.kind, 'shot')
 })
 
 test('planner builds structured plan tasks for research and draft work', () => {
@@ -30,5 +31,6 @@ test('planner builds structured plan tasks for research and draft work', () => {
   assert.equal(planned.plan.tasks.some((task) => task.agentRole === 'planner'), true)
   assert.equal(planned.plan.tasks.some((task) => task.agentRole === 'researcher'), true)
   assert.equal(planned.plan.tasks.some((task) => task.agentRole === 'creator'), true)
-  assert.equal(planned.toolCalls.length, 2)
+  assert.equal(planned.toolCalls.length, 3)
+  assert.equal(planned.toolCalls.some((call) => call.name === 'movscript.read_project_structure'), true)
 })

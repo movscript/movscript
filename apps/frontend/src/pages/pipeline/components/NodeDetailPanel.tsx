@@ -12,10 +12,11 @@ import {
   canReviewPipelineNode,
   canSubmitPipelineNode,
   effectiveLeadId,
+  projectRoleFor,
 } from '@/lib/pipelinePermissions'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
-import type { Asset, Episode, FinalVideo, Pipeline, PipelineNode, ProjectMember, Scene, Script, Shot, Storyboard } from '@/types'
+import type { Asset, Episode, FinalVideo, Pipeline, PipelineNode, Project, ProjectMember, Scene, Script, Shot, Storyboard } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -23,9 +24,22 @@ import { Label } from '@movscript/ui'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { entityTypeForNode, getPipelineNodeSpec, scriptTypeForPipelineNode, type PipelineEntityType } from '../nodeSpec'
+import { scriptTypeForPipelineNode, type PipelineEntityType } from '../nodeSpec'
+import { workbenchPathForPipelineNode } from '@/pages/work/workbenchNavigation'
 
 type ContentEntity = Script | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
+
+const ASSIGNMENT_LOG = '[movscript:pipeline-assignment]'
+
+console.log(ASSIGNMENT_LOG, 'node-detail-panel.module-loaded')
+
+function apiErrorPayload(error: unknown) {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { status?: number; data?: unknown } }).response
+    return { status: response?.status, data: response?.data }
+  }
+  return error
+}
 
 interface EntityOption {
   id: number
@@ -104,6 +118,22 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
   final:        { label: 'Final', className: 'bg-green-100 text-green-700' },
 }
 
+function projectMembersWithOwner(members: ProjectMember[], project?: Project | null) {
+  if (!project?.owner_id || members.some((member) => member.user_id === project.owner_id)) {
+    return members
+  }
+  return [
+    {
+      ID: 0,
+      project_id: project.ID,
+      user_id: project.owner_id,
+      user: project.owner,
+      role: 'owner',
+    } satisfies ProjectMember,
+    ...members,
+  ]
+}
+
 interface Props {
   node: PipelineNode
   onClose: () => void
@@ -127,7 +157,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
     enabled: !!project,
   })
 
-  const members: ProjectMember[] = projectDetail?.members ?? []
+  const members: ProjectMember[] = projectMembersWithOwner(projectDetail?.members ?? [], projectDetail ?? project)
 
   const { data: pipeline } = useQuery<Pipeline>({
     queryKey: ['pipeline', project?.ID],
@@ -143,6 +173,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
     currentUserId,
     pipeline,
   })
+  const projectRole = projectRoleFor(project, members, currentUserId)
   const canReview = canReviewPipelineNode({ node, project, members, currentUserId, pipeline })
   const canSubmit = canSubmitPipelineNode({ node, project, members, currentUserId, pipeline })
   const fallbackLeadId = effectiveLeadId(node, project, pipeline)
@@ -155,9 +186,24 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
   const updateMutation = useMutation({
     mutationFn: (body: Partial<PipelineNode>) =>
       api.put(`/pipeline/nodes/${node.ID}`, body).then((r) => r.data),
+    onMutate: (body) => {
+      console.log(ASSIGNMENT_LOG, 'detail-panel.update.request', {
+        nodeId: node.ID,
+        body,
+        currentUserId,
+      })
+    },
     onSuccess: (updated) => {
+      console.log(ASSIGNMENT_LOG, 'detail-panel.update.success', { nodeId: node.ID, updated })
       qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
       onNodeUpdated(updated as PipelineNode)
+    },
+    onError: (error, body) => {
+      console.error(ASSIGNMENT_LOG, 'detail-panel.update.error', {
+        nodeId: node.ID,
+        body,
+        error: apiErrorPayload(error),
+      })
     },
   })
 
@@ -174,8 +220,9 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace 
     },
   })
 
-  const nodeSpec = getPipelineNodeSpec(node.type)
-  const entityType = nodeSpec.category === 'artifact' ? entityTypeForNode(node.type) : undefined
+  const entityType =
+    pipelineEntityTypeFromString(node.entity_type) ??
+    pipelineEntityTypeFromString(node.content_type)
   const entityDef = entityType ? ENTITY_DEFS[entityType] : undefined
 
   useEffect(() => {
@@ -256,8 +303,59 @@ function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
   })
 
   function handleSaveField(field: string, value: string | number | null) {
+    console.log(ASSIGNMENT_LOG, 'detail-panel.field-change', {
+      nodeId: node.ID,
+      field,
+      value,
+      disabled: updateMutation.isPending || !canManageAssignment,
+    })
     updateMutation.mutate({ [field]: value } as Partial<PipelineNode>)
   }
+
+  useEffect(() => {
+    console.log(ASSIGNMENT_LOG, 'detail-panel.render', {
+      node: {
+        ID: node.ID,
+        project_id: node.project_id,
+        type: node.type,
+        status: node.status,
+        assignee_id: node.assignee_id,
+        lead_id: node.lead_id,
+        due_date: node.due_date,
+      },
+      project: project ? { ID: project.ID, owner_id: project.owner_id } : null,
+      currentUserId,
+      projectRole,
+      canManageAssignment,
+      canSubmit,
+      canReview,
+      fallbackLeadId,
+      members: members.map((member) => ({
+        ID: member.ID,
+        user_id: member.user_id,
+        role: member.role,
+        username: member.user?.username,
+      })),
+      pipelineLoaded: !!pipeline,
+    })
+  }, [
+    canManageAssignment,
+    canReview,
+    canSubmit,
+    currentUserId,
+    fallbackLeadId,
+    members,
+    node.ID,
+    node.assignee_id,
+    node.due_date,
+    node.lead_id,
+    node.project_id,
+    node.status,
+    node.type,
+    pipeline,
+    project,
+    projectRole,
+  ])
 
   const statusMeta = STATUS_META[node.status] ?? STATUS_META.draft
   const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: statusMeta.label })
@@ -377,7 +475,7 @@ function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
           variant="outline"
           size="sm"
           className="w-full h-8 text-xs"
-          onClick={() => onOpenWorkspace ? onOpenWorkspace(node) : navigate(`/pipeline/nodes/${node.ID}`)}
+          onClick={() => onOpenWorkspace ? onOpenWorkspace(node) : navigate(workbenchPathForPipelineNode(node))}
         >
           <ArrowRight size={12} className="mr-1.5" />
           {t('pipeline.detail.openWorkspace')}
@@ -575,6 +673,21 @@ function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
 function entityRoute(entityType: PipelineEntityType): string {
   if (entityType === 'final_video') return '/final-videos'
   return `/${entityType}s`
+}
+
+function pipelineEntityTypeFromString(value?: string): PipelineEntityType | undefined {
+  if (
+    value === 'script' ||
+    value === 'storyboard' ||
+    value === 'shot' ||
+    value === 'asset' ||
+    value === 'episode' ||
+    value === 'scene' ||
+    value === 'final_video'
+  ) {
+    return value
+  }
+  return undefined
 }
 
 function buildEntityOptions(

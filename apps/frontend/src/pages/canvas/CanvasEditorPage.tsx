@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -23,23 +23,27 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
-import type { Asset, Canvas, CanvasArtifactKind, CanvasNodeData, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, RawResource } from '@/types'
+import type { Asset, Canvas, CanvasEntityKind, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, EntityWorkflowSchema, NodeType, PaginatedResponse, RawResource } from '@/types'
 import {
   TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
-  InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode, ArtifactCardNode,
+  InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode, EntityCardNode,
 } from './components/CanvasNodes'
 import { ContextMenu } from './components/ContextMenu'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { NodePanel } from './components/NodePanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
+import { toast } from '@/store/toastStore'
 import {
   CANVAS_NODE_CATALOG,
   CANVAS_NODE_CATEGORIES,
   CANVAS_NODE_META,
   NODE_LABELS,
+  portsForEntityKind,
+  portsForEntitySchema,
 } from './nodeCatalog'
 import { Button } from '@movscript/ui'
+import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
@@ -92,7 +96,7 @@ const nodeTypes = {
   ai_gen: AIGenNode,
   group: GroupNode,
   plugin_card: PluginCardNode,
-  artifact_card: ArtifactCardNode,
+  entity_card: EntityCardNode,
 }
 
 export interface CanvasPushTarget {
@@ -122,13 +126,132 @@ function defaultHandleForType(type: string | undefined, side: 'source' | 'target
   if (!type) return undefined
   const meta = CANVAS_NODE_META[type as NodeType]
   const ports = side === 'source' ? meta?.outputs : meta?.inputs
-  return ports?.[0]?.id
+  return ports?.[0]?.id ?? (!meta ? (side === 'source' ? 'result' : 'input') : undefined)
 }
 
 function defaultHandleForNode(node: Node | undefined, side: 'source' | 'target') {
   const data = node?.data as Partial<CanvasNodeData> | undefined
-  const ports = side === 'source' ? data?.outputPorts : data?.inputPorts
-  return ports?.[0]?.id ?? defaultHandleForType(node?.type, side)
+  const customPorts = side === 'source' ? data?.outputPorts : data?.inputPorts
+  if (customPorts?.[0]) return customPorts[0].id
+  if (node?.type === 'entity_card') {
+    const entityPorts = portsForEntityKind(data?.entityKind)
+    const ports = side === 'source' ? entityPorts?.outputs : entityPorts?.inputs
+    if (ports?.[0]) return ports[0].id
+  }
+  return defaultHandleForType(node?.type, side)
+}
+
+function portsForNode(node: Node | undefined, side: 'source' | 'target'): CanvasPortDef[] {
+  if (!node) return []
+  const data = node.data as Partial<CanvasNodeData>
+  const customPorts = side === 'source' ? data.outputPorts : data.inputPorts
+  if (customPorts) return customPorts
+  if (node.type === 'entity_card') {
+    const entityPorts = portsForEntityKind(data.entityKind)
+    const ports = side === 'source' ? entityPorts?.outputs : entityPorts?.inputs
+    if (ports) return ports
+  }
+  const meta = CANVAS_NODE_META[node.type as NodeType]
+  const metaPorts = side === 'source' ? meta?.outputs : meta?.inputs
+  if (metaPorts) return metaPorts
+  return [{ id: side === 'source' ? 'result' : 'input', label: side === 'source' ? 'Result' : 'Input', type: 'resource' }]
+}
+
+function portForHandle(node: Node | undefined, side: 'source' | 'target', handle?: string | null) {
+  const ports = portsForNode(node, side)
+  if (ports.length === 0) return undefined
+  return ports.find((port) => port.id === handle) ?? ports[0]
+}
+
+function arePortTypesCompatible(sourceType?: string, targetType?: string) {
+  if (!sourceType || !targetType) return true
+  if (sourceType === targetType) return true
+  if (sourceType === 'resource' || targetType === 'resource') return true
+  return false
+}
+
+function portLabel(port?: CanvasPortDef) {
+  if (!port) return 'unknown'
+  return `${port.label ?? port.id} (${port.type})`
+}
+
+function resourceIdFromTask(task: CanvasTask) {
+  if (task.resource_id) return task.resource_id
+  if (!task.output_values) return undefined
+  try {
+    const outputs = JSON.parse(task.output_values) as Record<string, { resource_id?: number }>
+    return outputs.result?.resource_id
+      ?? outputs.value?.resource_id
+      ?? outputs['']?.resource_id
+      ?? Object.values(outputs).find((value) => value?.resource_id)?.resource_id
+  } catch {
+    return undefined
+  }
+}
+
+function hasValueForPort(values: CanvasPortValue[] | undefined) {
+  return (values ?? []).some((value) => {
+    if (!value) return false
+    return value.resource_id !== undefined
+      || value.text !== undefined
+      || value.json !== undefined
+      || value.number !== undefined
+      || value.boolean !== undefined
+  })
+}
+
+function connectedInputPortIds(nodeId: string, edges: Edge[]) {
+  const ids = new Set<string>()
+  edges.forEach((edge) => {
+    if (edge.target !== nodeId) return
+    ids.add(edge.targetHandle || 'input')
+  })
+  return ids
+}
+
+function runtimeInputPortsForNode(node: Node | undefined, edges: Edge[]) {
+  if (!node) return []
+  const connected = connectedInputPortIds(node.id, edges)
+  return portsForNode(node, 'target').filter((port) => port.required && !connected.has(port.id))
+}
+
+function defaultRuntimeValueForPort(port: CanvasPortDef) {
+  switch (port.type) {
+    case 'json':
+      return '{}'
+    case 'boolean':
+      return 'false'
+    default:
+      return ''
+  }
+}
+
+function encodeRuntimePortValue(port: CanvasPortDef, raw: string): CanvasPortValue | null {
+  switch (port.type) {
+    case 'number': {
+      const value = Number(raw)
+      return Number.isFinite(value) ? { type: 'number', number: value } : null
+    }
+    case 'boolean':
+      return { type: 'boolean', boolean: raw === 'true' }
+    case 'json': {
+      try {
+        return { type: 'json', json: raw.trim() ? JSON.parse(raw) : null }
+      } catch {
+        return null
+      }
+    }
+    case 'image':
+    case 'video':
+    case 'audio':
+    case 'resource': {
+      const id = Number(raw)
+      return Number.isInteger(id) && id > 0 ? { type: port.type, resource_id: id } : null
+    }
+    case 'text':
+    default:
+      return { type: 'text', text: raw }
+  }
 }
 
 export function createCanvasEntityNodeData({
@@ -136,18 +259,23 @@ export function createCanvasEntityNodeData({
   entityId,
   label,
   title,
+  schema,
 }: {
-  entityType: CanvasArtifactKind
+  entityType: CanvasEntityKind
   entityId: number
   label: string
   title: string
+  schema?: EntityWorkflowSchema
 }): Partial<CanvasNodeData> & { label: string } {
+  const ports = portsForEntitySchema(schema) ?? portsForEntityKind(entityType)
   return {
     source: 'manual',
     label,
-    artifactKind: entityType,
-    artifactId: entityId,
-    artifactTitle: title,
+    entityKind: entityType,
+    entityId,
+    entityTitle: title,
+    inputPorts: ports?.inputs,
+    outputPorts: ports?.outputs,
     textContent: label,
   }
 }
@@ -538,6 +666,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   // Workflow input dialog
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
+  const [nodeRunDialog, setNodeRunDialog] = useState<{ nodeId: string; ports: CanvasPortDef[] } | null>(null)
+  const [nodeRunValues, setNodeRunValues] = useState<Record<string, string>>({})
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [runHistoryPage, setRunHistoryPage] = useState(1)
   const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
@@ -555,6 +685,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     queryFn: () => api.get(`/canvases/${id}`).then((r) => r.data),
     enabled: !!id
   })
+
+  const { data: entitySchemas = [] } = useQuery<EntityWorkflowSchema[]>({
+    queryKey: ['workflow-entity-schemas'],
+    queryFn: () => api.get('/workflow/entity-schemas').then((r) => r.data),
+  })
+  const entitySchemaByKind = useMemo(() => new Map(entitySchemas.map((schema) => [schema.kind, schema])), [entitySchemas])
 
   const { data: workflowRunsPage, isLoading: workflowRunsLoading } = useQuery<PaginatedResponse<CanvasRun>>({
     queryKey: ['canvas-runs', id, runHistoryPage, runStatusFilter],
@@ -601,7 +737,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         data: {
           ...d,
           status: task.status,
-          resourceId: task.resource_id ?? d.resourceId,
+          resourceId: resourceIdFromTask(task) ?? d.resourceId,
           resource: task.resource ?? d.resource,
           error: task.error,
         },
@@ -668,10 +804,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
           const task: CanvasTask = await api.get(`/canvases/${id}/nodes/${n.id}/task`).then((r) => r.data)
           if (task.status === 'done' || task.status === 'failed') {
             const resource = task.resource
+            const resourceId = resourceIdFromTask(task)
             setNodes((prev) => prev.map((node) => {
               if (node.id !== n.id) return node
               const d = node.data as unknown as CanvasNodeData
-              return { ...node, data: { ...d, status: task.status, resourceId: task.resource_id, resource, error: task.error } }
+              return { ...node, data: { ...d, status: task.status, resourceId, resource, error: task.error } }
             }))
           }
         } catch (err: any) {
@@ -694,7 +831,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       const payload = {
         name: canvasName,
         nodes: nodes.map((n) => {
-          const { label, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onApprove, onReject, onPush, onCycleMode, canvasId: _canvasId, rfNodeId: _rfNodeId, ...rest } = n.data as any
+          const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
           return {
             node_id: n.id,
             type: n.type,
@@ -741,14 +878,45 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   })
 
   // Run single node
-  const runNode = useCallback(async (nodeId: string) => {
+  const submitRunNode = useCallback(async (nodeId: string, values?: Record<string, CanvasPortValue>) => {
     await save.mutateAsync()
-    await api.post(`/canvases/${id}/nodes/${nodeId}/run`)
+    await api.post(`/canvases/${id}/nodes/${nodeId}/run`, { input_values: values ?? {} })
     setNodes((prev) => prev.map((n) => {
       if (n.id !== nodeId) return n
       return { ...n, data: { ...n.data, status: 'pending' } }
     }))
   }, [id, save])
+
+  const runNode = useCallback(async (nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    const ports = runtimeInputPortsForNode(node, edges)
+    if (ports.length > 0) {
+      setNodeRunValues(Object.fromEntries(ports.map((port) => [port.id, defaultRuntimeValueForPort(port)])))
+      setNodeRunDialog({ nodeId, ports })
+      return
+    }
+    await submitRunNode(nodeId)
+  }, [edges, nodes, submitRunNode])
+
+  const handleConfirmNodeRun = useCallback(async () => {
+    if (!nodeRunDialog) return
+    const encoded: Record<string, CanvasPortValue> = {}
+    for (const port of nodeRunDialog.ports) {
+      const value = encodeRuntimePortValue(port, nodeRunValues[port.id] ?? '')
+      if (!value) {
+        toast.error(t('canvas.editor.errors.invalidRuntimeInput', { port: port.label ?? port.id, defaultValue: `Invalid input for ${port.label ?? port.id}` }))
+        return
+      }
+      if (!hasValueForPort([value]) && port.required) {
+        toast.error(t('canvas.editor.errors.requiredRuntimeInput', { port: port.label ?? port.id, defaultValue: `${port.label ?? port.id} is required` }))
+        return
+      }
+      if (hasValueForPort([value])) encoded[port.id] = value
+    }
+    setNodeRunDialog(null)
+    setNodeRunValues({})
+    await submitRunNode(nodeRunDialog.nodeId, encoded)
+  }, [nodeRunDialog, nodeRunValues, submitRunNode, t])
 
   const runLocalPluginNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
@@ -846,28 +1014,48 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     if (!canvas?.project_id) return
     try {
       if (target.kind === 'storyboard') {
-        const storyboard = await api.get(`/storyboards/${target.id}`).then((r) => r.data)
-        const existing: number[] = storyboard.resource_ids ? JSON.parse(storyboard.resource_ids) : []
-        if (!existing.includes(resourceId)) {
-          await api.put(`/storyboards/${target.id}`, { resource_ids: JSON.stringify([...existing, resourceId]) })
-          qc.invalidateQueries({ queryKey: ['storyboards-project', canvas.project_id] })
-        }
+        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
+          resource_id: resourceId,
+          owner_type: 'storyboard',
+          owner_id: target.id,
+          role: 'reference',
+          source_type: 'canvas',
+        })
+        qc.invalidateQueries({ queryKey: ['storyboards-project', canvas.project_id] })
       } else if (target.kind === 'scene') {
-        const scene = await api.get(`/scenes/${target.id}`).then((r) => r.data)
-        const existing: number[] = scene.resource_ids ? JSON.parse(scene.resource_ids) : []
-        if (!existing.includes(resourceId)) {
-          await api.put(`/scenes/${target.id}`, { resource_ids: JSON.stringify([...existing, resourceId]) })
-          qc.invalidateQueries({ queryKey: ['scenes', canvas.project_id] })
-        }
+        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
+          resource_id: resourceId,
+          owner_type: 'scene',
+          owner_id: target.id,
+          role: 'reference',
+          source_type: 'canvas',
+        })
+        qc.invalidateQueries({ queryKey: ['scenes', canvas.project_id] })
       } else if (target.kind === 'asset') {
-        await api.post(`/projects/${canvas.project_id}/assets/${target.id}/views`, {
+        const view = await api.post(`/projects/${canvas.project_id}/assets/${target.id}/views`, {
           view_type: 'custom',
           label: t('canvas.generatedByCanvas'),
+        }).then((r) => r.data)
+        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
           resource_id: resourceId,
+          owner_type: 'asset_view',
+          owner_id: view.ID,
+          role: 'final',
+          source_type: 'canvas',
+          is_primary: true,
+          status: 'selected',
         })
         qc.invalidateQueries({ queryKey: ['assets', canvas.project_id] })
       } else if (target.kind === 'final_video') {
-        await api.patch(`/final-videos/${target.id}`, { resource_id: resourceId })
+        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
+          resource_id: resourceId,
+          owner_type: 'final_video',
+          owner_id: target.id,
+          role: 'final',
+          source_type: 'canvas',
+          is_primary: true,
+          status: 'selected',
+        })
         qc.invalidateQueries({ queryKey: ['final-videos', canvas.project_id] })
       }
     } catch {
@@ -1059,19 +1247,65 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     }))
   }, [])
 
+  useEffect(() => {
+    if (entitySchemas.length === 0) return
+    setNodes((prev) => prev.map((node) => {
+      if (node.type !== 'entity_card') return node
+      const data = node.data as unknown as CanvasNodeData
+      if (!data.entityKind) return node
+      const schema = entitySchemaByKind.get(data.entityKind)
+      const ports = portsForEntitySchema(schema)
+      if (!ports) return node
+      const currentSig = JSON.stringify({ inputs: data.inputPorts ?? [], outputs: data.outputPorts ?? [] })
+      const nextSig = JSON.stringify(ports)
+      if (currentSig === nextSig) return node
+      return {
+        ...node,
+        data: {
+          ...data,
+          inputPorts: ports.inputs,
+          outputPorts: ports.outputs,
+        },
+      }
+    }))
+  }, [entitySchemaByKind, entitySchemas.length, setNodes])
+
   const onConnect = useCallback((params: Connection) => {
     const sourceNode = nodes.find((node) => node.id === params.source)
     const targetNode = nodes.find((node) => node.id === params.target)
+    const sourceHandle = params.sourceHandle ?? defaultHandleForNode(sourceNode, 'source') ?? null
+    const targetHandle = params.targetHandle ?? defaultHandleForNode(targetNode, 'target') ?? null
+    const sourcePort = portForHandle(sourceNode, 'source', sourceHandle)
+    const targetPort = portForHandle(targetNode, 'target', targetHandle)
+
+    if (!arePortTypesCompatible(sourcePort?.type, targetPort?.type)) {
+      toast.error(
+        t('canvas.editor.invalidConnection', { defaultValue: 'Invalid connection' }),
+        `${portLabel(sourcePort)} -> ${portLabel(targetPort)}`
+      )
+      return
+    }
+
+    if (targetPort?.maxCount && targetNode) {
+      const existingCount = edges.filter((edge) => edge.target === targetNode.id && (edge.targetHandle ?? defaultHandleForNode(targetNode, 'target') ?? null) === targetHandle).length
+      if (existingCount >= targetPort.maxCount) {
+        toast.error(
+          t('canvas.editor.portLimitReached', { defaultValue: 'Input port limit reached' }),
+          `${targetPort.label ?? targetPort.id}: ${targetPort.maxCount}`
+        )
+        return
+      }
+    }
+
     setEdges((eds) => addEdge({
       ...params,
-      sourceHandle: params.sourceHandle ?? defaultHandleForNode(sourceNode, 'source') ?? null,
-      targetHandle: params.targetHandle ?? defaultHandleForNode(targetNode, 'target') ?? null,
+      sourceHandle,
+      targetHandle,
     }, eds))
-  }, [nodes, setEdges])
+  }, [edges, nodes, setEdges, t])
 
-  // Single click — selection only, mode cycling is handled by the node's own button
   const onNodeClick = useCallback((_: React.MouseEvent, _node: Node) => {
-    // intentionally empty — mode cycling moved to onCycleMode in each node
+    // Selection is handled by ReactFlow.
   }, [])
 
   const onPaneContextMenu = useCallback((e: React.MouseEvent | MouseEvent) => {
@@ -1117,19 +1351,20 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const entityPayload = e.dataTransfer.getData('application/entity-node')
     if (entityPayload) {
       try {
-        const entity = JSON.parse(entityPayload) as { kind: CanvasArtifactKind; id: number; label: string; title?: string }
-        const supportedKinds: CanvasArtifactKind[] = ['script', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'final_video']
+        const entity = JSON.parse(entityPayload) as { kind: CanvasEntityKind; id: number; label: string; title?: string }
+        const supportedKinds: CanvasEntityKind[] = ['script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'final_video']
         if (!supportedKinds.includes(entity.kind)) return
         const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
         setNodes((prev) => [...prev, {
           id: genId(),
-          type: 'artifact_card',
+          type: 'entity_card',
           position,
           data: createCanvasEntityNodeData({
             entityType: entity.kind,
             entityId: entity.id,
             label: entity.label,
             title: entity.title || entity.kind,
+            schema: entitySchemaByKind.get(entity.kind),
           }),
           style: { width: 260 },
         }])
@@ -1141,7 +1376,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, screenToFlowPosition, setNodes])
+  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, entitySchemaByKind, screenToFlowPosition, setNodes])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/entity-node')) {
@@ -1164,9 +1399,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     onNodeDragStop(event, node)
   }, [onNodeDragStop])
 
-  const canRunSingleNode = canvasType === 'inspiration'
   const nodesWithHandlers = nodes.map((n) => {
     const data = n.data as unknown as CanvasNodeData
+    const plugin = n.type === 'plugin_card' && data.pluginId
+      ? clientPlugins.find((item) => item.id === data.pluginId)
+      : undefined
     const hasPushableOutput = pushTargets.length > 0
       && (n.type === 'image' || n.type === 'video' || n.type === 'output')
       && data.status === 'done'
@@ -1177,7 +1414,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         ...n.data,
         canvasId: id,
         rfNodeId: n.id,
-        onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : canRunSingleNode ? () => runNode(n.id) : undefined,
+        ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
+        onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
         onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
         onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
         onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
@@ -1188,13 +1426,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         ...(hasPushableOutput && {
           onPush: () => handlePushResource(pushTargets[0], data.resourceId!),
         }),
-        onCycleMode: () => {
-          if (n.type === 'group') return
-          const modes: Array<'compact' | 'detail' | 'full'> = ['compact', 'detail', 'full']
-          const current = (n.data as any).cardMode ?? 'detail'
-          const next = modes[(modes.indexOf(current) + 1) % modes.length]
-          updateNodeData(n.id, { cardMode: next })
-        },
       }
     }
   })
@@ -1500,7 +1731,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               connectionMode={ConnectionMode.Loose}
               connectionRadius={40}
               defaultEdgeOptions={{
-                type: 'smoothstep',
+                type: 'default',
                 markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
                 style: { strokeWidth: 1.6 },
               }}
@@ -1587,7 +1818,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                   edges={edges}
                   onUpdate={updateNodeData}
                   onRun={selectedNode.type === 'plugin_card' ? runLocalPluginNode : runNode}
-                  allowRun={selectedNode.type === 'plugin_card' ? true : canRunSingleNode}
+                  allowRun={selectedNode.type !== 'group'}
                 />
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col p-4 text-sm">
@@ -1658,6 +1889,93 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               <Button
                 variant="outline"
                 onClick={() => setRunDialogOpen(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single-node runtime input dialog */}
+      {nodeRunDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="flex max-h-[80vh] w-[460px] flex-col rounded-xl border border-border bg-background p-6 shadow-2xl">
+            <div className="shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">{t('canvas.editor.nodeRuntimeInputTitle', { defaultValue: 'Runtime inputs' })}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t('canvas.editor.nodeRuntimeInputDescription', { defaultValue: 'Provide values for unconnected input ports before running this node.' })}
+              </p>
+            </div>
+            <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              {nodeRunDialog.ports.map((port, index) => {
+                const label = port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
+                const value = nodeRunValues[port.id] ?? ''
+                return (
+                  <div key={port.id}>
+                    <Label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                      <span>{label}</span>
+                      <span className="font-normal text-muted-foreground/70">({port.type})</span>
+                      {port.required && <span className="text-destructive">*</span>}
+                    </Label>
+                    {port.type === 'boolean' ? (
+                      <label className="flex h-9 items-center gap-2 rounded-md border border-border px-3 text-xs text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={value === 'true'}
+                          onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.checked ? 'true' : 'false' }))}
+                          className="rounded"
+                          autoFocus={index === 0}
+                        />
+                        {t('canvas.editor.booleanEnabled', { defaultValue: 'Enabled' })}
+                      </label>
+                    ) : port.type === 'number' ? (
+                      <Input
+                        type="number"
+                        value={value}
+                        onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
+                        autoFocus={index === 0}
+                      />
+                    ) : port.type === 'json' ? (
+                      <Textarea
+                        rows={5}
+                        className="font-mono text-xs"
+                        value={value}
+                        onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
+                        autoFocus={index === 0}
+                      />
+                    ) : port.type === 'image' || port.type === 'video' || port.type === 'audio' || port.type === 'resource' ? (
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder={t('canvas.editor.resourceIdPlaceholder', { defaultValue: 'Resource ID' })}
+                        value={value}
+                        onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
+                        autoFocus={index === 0}
+                      />
+                    ) : (
+                      <Textarea
+                        rows={3}
+                        value={value}
+                        onChange={(event) => setNodeRunValues((prev) => ({ ...prev, [port.id]: event.target.value }))}
+                        autoFocus={index === 0}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="mt-5 flex shrink-0 gap-2">
+              <Button onClick={handleConfirmNodeRun} className="flex-1">
+                {t('shared.generation.runNode')}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setNodeRunDialog(null)
+                  setNodeRunValues({})
+                }}
               >
                 {t('common.cancel')}
               </Button>

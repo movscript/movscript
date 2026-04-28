@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,10 +15,94 @@ type ProjectHandler struct{ db *gorm.DB }
 
 func NewProjectHandler(db *gorm.DB) *ProjectHandler { return &ProjectHandler{db: db} }
 
+var (
+	errAdminProjectNotFound = errors.New("project not found")
+	errAdminOwnerNotFound   = errors.New("owner user not found")
+)
+
 func (h *ProjectHandler) List(c *gin.Context) {
 	projects := make([]model.Project, 0)
 	h.db.Preload("Owner").Find(&projects)
 	c.JSON(http.StatusOK, projects)
+}
+
+func (h *ProjectHandler) AdminList(c *gin.Context) {
+	projects := make([]model.Project, 0)
+	if err := h.db.Preload("Owner").Preload("Members.User").Order("id desc").Find(&projects).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目失败"))
+		return
+	}
+	c.JSON(http.StatusOK, projects)
+}
+
+func (h *ProjectHandler) AdminForceSetOwner(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req struct {
+		OwnerID uint `json:"owner_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if projectID == 0 || req.OwnerID == 0 {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目 ID 和 owner_id 必须有效"))
+		return
+	}
+
+	var updated model.Project
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		var owner model.User
+		if err := tx.First(&owner, req.OwnerID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errAdminOwnerNotFound
+			}
+			return err
+		}
+
+		var project model.Project
+		if err := tx.First(&project, projectID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errAdminProjectNotFound
+			}
+			return err
+		}
+
+		if err := tx.Model(&model.Project{}).Where("id = ?", project.ID).Update("owner_id", req.OwnerID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.ProjectMember{}).
+			Where("project_id = ? AND user_id <> ? AND role = ?", project.ID, req.OwnerID, "owner").
+			Update("role", "director").Error; err != nil {
+			return err
+		}
+
+		result := tx.Model(&model.ProjectMember{}).
+			Where("project_id = ? AND user_id = ?", project.ID, req.OwnerID).
+			Update("role", "owner")
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			if err := tx.Create(&model.ProjectMember{ProjectID: project.ID, UserID: req.OwnerID, Role: "owner"}).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Preload("Owner").Preload("Members.User").First(&updated, project.ID).Error
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, errAdminProjectNotFound):
+			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+		case errors.Is(err, errAdminOwnerNotFound):
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner 用户不存在"))
+		default:
+			c.JSON(http.StatusInternalServerError, apierr.Internal("修改项目 owner 失败"))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
 }
 
 func (h *ProjectHandler) Create(c *gin.Context) {

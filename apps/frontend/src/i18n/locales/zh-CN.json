@@ -901,11 +901,9 @@
     },
     "categories": {
       "work": "工作",
-      "artifact": "产物",
       "custom": "自定义",
       "tool": "工具",
       "workNodes": "工作节点",
-      "artifactNodes": "产物节点",
       "toolNodes": "工具节点"
     },
     "nodeTypes": {
@@ -941,46 +939,6 @@
         "label": "剧集剪辑",
         "desc": "后期剪辑制作"
       },
-      "main_script": {
-        "label": "主剧本",
-        "desc": "完整主剧本产物"
-      },
-      "episode_script": {
-        "label": "分集剧本",
-        "desc": "按集拆分剧本"
-      },
-      "scene_script": {
-        "label": "分场剧本",
-        "desc": "按场景拆分"
-      },
-      "storyboard_script": {
-        "label": "分镜脚本",
-        "desc": "分镜描述脚本"
-      },
-      "episode": {
-        "label": "分集",
-        "desc": "分集产物"
-      },
-      "scene": {
-        "label": "分场",
-        "desc": "分场产物"
-      },
-      "storyboard": {
-        "label": "分镜",
-        "desc": "分镜产物"
-      },
-      "asset": {
-        "label": "素材",
-        "desc": "素材产物"
-      },
-      "shot": {
-        "label": "镜头",
-        "desc": "镜头产物"
-      },
-      "final_video": {
-        "label": "成片",
-        "desc": "视频剪辑产物"
-      },
       "ref_image_gen": {
         "label": "参考生图",
         "desc": "以参考图生成新图像"
@@ -1015,10 +973,10 @@
       "dependencyLayer": "依赖层",
       "scheduleLayer": "排期层",
       "fitView": "适应画面",
-      "empty": "管线为空 · 添加根节点开始组织生产树"
+      "empty": "管线为空 · 新增工作项开始组织生产流程"
     },
     "tree": {
-      "addRoot": "添加根节点",
+      "addRoot": "新增工作项",
       "addChild": "添加子节点",
       "addChildTo": "给「{{name}}」添加子节点",
       "structure": "节点结构",
@@ -1045,9 +1003,8 @@
     "node": {
       "fallbackName": "节点 {{id}}",
       "linkedEntity": "已关联 {{type}} #{{id}}",
-      "blockedArtifacts": "待定稿产物：{{names}}",
       "dragConnect": "拖拽连线",
-      "enterWorkspace": "进入工作区",
+      "enterWorkspace": "在工作台打开实体",
       "lockedHint": "等待上游完成",
       "customStage": "自定义阶段",
       "actions": {
@@ -1081,7 +1038,7 @@
       "hint": "拖拽至画布创建关联节点",
       "emptySection": "暂无{{section}}",
       "footerLine1": "拖拽到画布空白处",
-      "footerLine2": "自动创建产物节点"
+      "footerLine2": "自动创建关联工作项"
     },
     "detail": {
       "entities": {
@@ -1129,7 +1086,7 @@
       "reopen": "重新开放（级联回退下游）",
       "clickToEdit": "点击编辑...",
       "contentType": "内容类型",
-      "openWorkspace": "进入工作区"
+      "openWorkspace": "在工作台打开实体"
     },
     "contentTypes": {
       "script": "剧本",
@@ -1221,10 +1178,11 @@
       "ai_gen": "AI 生成",
       "group": "分组",
       "plugin_card": "插件卡片",
-      "artifact_card": "产物卡片"
+      "entity_card": "实体"
     },
-    "artifactTypes": {
+    "entityTypes": {
       "script": "剧本",
+      "setting": "设定",
       "asset": "素材",
       "episode": "分集",
       "scene": "分场",
@@ -1263,6 +1221,10 @@
         "output": {
           "label": "输出结果",
           "description": "收拢上游节点的最终结果"
+        },
+        "entity_card": {
+          "label": "实体",
+          "description": "引用项目实体，并把实体字段作为工作流输入或输出"
         },
         "approval": {
           "label": "人工确认",
@@ -1666,9 +1628,9 @@
     "subtitle": "AI 模型配置、用户额度与用量统计",
     "tabs": {
       "models": "模型管理",
-      "agents": "Agent 管理",
       "features": "功能配置",
       "users": "用户管理",
+      "projects": "项目管理",
       "logs": "用量日志",
       "debug": "调试",
       "storage": "资源存储",
@@ -1808,10 +1770,6 @@
       "noModelsHint": "暂无已添加的模型，点击「添加模型」开始配置",
       "noCredentialsHint": "暂无凭据配置，点击右上角「添加凭据」开始接入"
     },
-    "agentTemplates": {
-      "title": "平台 Agent 模板",
-      "description": "管理平台下发给所有用户的 Agent 模板，用户可选择采用或自定义"
-    },
     "credentials": {
       "selectAdapter": "选择适配器",
       "configureAdapter": "配置 {{name}}",
@@ -1843,6 +1801,22 @@
       "empty": "暂无用户",
       "setBalanceTitle": "设置余额 — {{username}}",
       "newBalance": "新余额（Credits）"
+    },
+    "projects": {
+      "title": "项目管理",
+      "description": "查看所有项目，并在 owner 缺失或错误时强制指定新的项目所有者。",
+      "id": "ID",
+      "name": "项目名",
+      "owner": "Owner",
+      "members": "成员数",
+      "updatedAt": "更新时间",
+      "noOwner": "Owner 缺失",
+      "changeOwner": "修改 Owner",
+      "forceChange": "强制修改",
+      "newOwner": "新 Owner",
+      "empty": "暂无项目",
+      "changeOwnerTitle": "修改 Owner — {{name}}",
+      "changeOwnerHint": "保存后会更新项目 owner_id，并把新 Owner 写入项目成员表；同项目其他 owner 成员会降为 director。"
     },
     "logs": {
       "title": "用量日志",
@@ -2124,6 +2098,7 @@
     "titles": {
       "projects": "项目",
       "scripts": "剧本管理",
+      "settings": "设定管理",
       "assets": "素材库",
       "episodes": "分集管理",
       "collaboration": "协作进度",
@@ -2159,6 +2134,7 @@
     },
     "items": {
       "scripts": "剧本",
+      "settings": "设定",
       "assets": "素材",
       "episodes": "分集",
       "scenes": "分场",

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Script, Setting } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, FileText, BookOpen, Users, Save } from 'lucide-react'
+import { Plus, FileText, Users, Save } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,6 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { ScriptDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
@@ -344,29 +343,12 @@ function SettingsSection({ projectId }: { projectId: number }) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
-export default function ScriptsPage() {
-  const { t } = useTranslation()
+export default function ScriptsPage({ initialTab = 'scripts' }: { initialTab?: PageTab }) {
   const projectId = useProjectStore((s) => s.current?.ID)
-  const [pageTab, setPageTab] = useState<PageTab>('scripts')
 
   if (!projectId) return null
 
-  return (
-    <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as PageTab)} className="flex flex-col h-full overflow-hidden">
-      <TabsList className="shrink-0 w-full justify-start rounded-none border-b bg-background px-4 h-auto py-0">
-        <TabsTrigger value="scripts" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3">
-          <BookOpen size={14} /> {t('entities.scripts')}
-        </TabsTrigger>
-        <TabsTrigger value="settings" className="gap-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3">
-          <Users size={14} /> {t('entities.settings')}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="scripts" className="flex-1 overflow-hidden mt-0">
-        <ScriptsSection projectId={projectId} />
-      </TabsContent>
-      <TabsContent value="settings" className="flex-1 overflow-hidden mt-0">
-        <SettingsSection projectId={projectId} />
-      </TabsContent>
-    </Tabs>
-  )
+  return initialTab === 'settings'
+    ? <SettingsSection projectId={projectId} />
+    : <ScriptsSection projectId={projectId} />
 }

@@ -1,7 +1,7 @@
-import { FileText, Image, Film, Clapperboard, Layers, Camera, Video } from 'lucide-react'
+import { FileText, Image, Film, Clapperboard, Layers, Camera, Video, Users } from 'lucide-react'
 
-export type EntityKind = 'script' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
-export type WorkArtifactKind = 'script' | 'asset' | 'storyboard' | 'shot' | 'final_video'
+export type EntityKind = 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
+export type WorkArtifactKind = EntityKind
 
 export const KIND_CONFIG: Record<EntityKind, {
   labelKey: string
@@ -12,6 +12,7 @@ export const KIND_CONFIG: Record<EntityKind, {
   accentSoft: string  // soft background (active tab bg)
 }> = {
   script:     { labelKey: 'entities.scripts', icon: FileText,    color: 'text-muted-foreground', activeColor: 'text-sky-600',     accent: 'bg-sky-500',    accentSoft: 'bg-sky-500/10' },
+  setting:    { labelKey: 'entities.settings', icon: Users,       color: 'text-muted-foreground', activeColor: 'text-teal-600',    accent: 'bg-teal-500',   accentSoft: 'bg-teal-500/10' },
   asset:      { labelKey: 'entities.assets', icon: Image,       color: 'text-muted-foreground', activeColor: 'text-emerald-600', accent: 'bg-emerald-500', accentSoft: 'bg-emerald-500/10' },
   episode:    { labelKey: 'entities.episodes', icon: Film,        color: 'text-muted-foreground', activeColor: 'text-violet-600',  accent: 'bg-violet-500', accentSoft: 'bg-violet-500/10' },
   scene:      { labelKey: 'entities.scenes', icon: Clapperboard, color: 'text-muted-foreground', activeColor: 'text-blue-600',   accent: 'bg-blue-500',   accentSoft: 'bg-blue-500/10' },
@@ -20,7 +21,7 @@ export const KIND_CONFIG: Record<EntityKind, {
   final_video:{ labelKey: 'entities.finalVideos', icon: Video,       color: 'text-muted-foreground', activeColor: 'text-rose-600',    accent: 'bg-rose-500',   accentSoft: 'bg-rose-500/10' },
 }
 
-export const WORK_ARTIFACT_KINDS: WorkArtifactKind[] = ['script', 'asset', 'storyboard', 'shot', 'final_video']
+export const WORK_ARTIFACT_KINDS: WorkArtifactKind[] = ['script', 'episode', 'scene', 'setting', 'asset', 'storyboard', 'shot', 'final_video']
 
 export const ASSET_COLORS: Record<string, string> = {
   character: 'bg-muted text-muted-foreground',

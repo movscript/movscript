@@ -7,14 +7,14 @@ import {
   FileText, Image, ImagePlus, Film, Clapperboard, Layers, Camera,
   LayoutTemplate, Video, Move, Palette, Box,
   Users, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
-  HardDrive, Wand2, MessageSquare, BotMessageSquare, LayoutDashboard,
-  Puzzle, Bug, PanelLeftClose, PanelLeftOpen,
+  HardDrive, Wand2, MessageSquare, LayoutDashboard,
+  Puzzle, Bug, PanelLeftClose, PanelLeftOpen, Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
-import type { ProjectMember, Progress } from '@/types'
+import type { Progress } from '@/types'
 import { Avatar, AvatarFallback } from '@movscript/ui'
 import { Progress as ProgressBar } from '@movscript/ui'
 import { Button } from '@movscript/ui'
@@ -156,7 +156,7 @@ export function Sidebar() {
     })
   }
 
-  const { data: projectDetail, isError: projectNotFound } = useQuery({
+  const { isError: projectNotFound } = useQuery({
     queryKey: ['project', current?.ID],
     queryFn: () => api.get(`/projects/${current!.ID}`).then((r) => r.data),
     enabled: !!current,
@@ -166,13 +166,6 @@ export function Sidebar() {
   useEffect(() => {
     if (projectNotFound && current) setCurrent(null)
   }, [projectNotFound, current, setCurrent])
-
-  const members: ProjectMember[] = projectDetail?.members ?? []
-  const projectRole = members.find((m) => m.user_id === currentUser?.ID)?.role
-    ?? (current?.owner_id === currentUser?.ID ? 'owner' : 'viewer')
-
-  const showScripts = !current || ['owner', 'director', 'writer'].includes(projectRole)
-  const showStoryboards = !current || ['owner', 'director'].includes(projectRole)
 
   return (
     <aside className={cn(
@@ -234,7 +227,7 @@ export function Sidebar() {
           {current && (
             <>
               <NavItem to="/creation" icon={LayoutDashboard} label={t('sidebar.items.creation')} collapsed={collapsed} />
-              <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} collapsed={collapsed} />
+              <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} collapsed={collapsed} />
               {!collapsed && <div className="border-t border-border mx-3 my-1.5" />}
             </>
@@ -243,13 +236,15 @@ export function Sidebar() {
 
         {/* Content library — kept for cross-stage browsing */}
         {current && (
-          <Section title={t('sidebar.sections.contentLibrary')} defaultOpen={false} collapsed={collapsed}>
-            {showScripts && <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} collapsed={collapsed} />}
+          <Section title={t('sidebar.sections.contentLibrary')} defaultOpen={true} collapsed={collapsed}>
+            <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} collapsed={collapsed} />
+            <NavItem to="/settings" icon={Users} label={t('sidebar.items.settings')} collapsed={collapsed} />
+            <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} collapsed={collapsed} />
             <NavItem to="/episodes" icon={Film} label={t('sidebar.items.episodes')} collapsed={collapsed} />
             <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} collapsed={collapsed} />
-            {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} collapsed={collapsed} />}
-            {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} collapsed={collapsed} />}
-            {showStoryboards && <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />}
+            <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} collapsed={collapsed} />
+            <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} collapsed={collapsed} />
+            <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />
           </Section>
         )}
 
@@ -292,7 +287,6 @@ export function Sidebar() {
         {/* Manage */}
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
           <NavItem to="/plugins" icon={Puzzle} label={t('sidebar.items.plugins')} collapsed={collapsed} />
-          <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} collapsed={collapsed} />
           <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
           {currentUser?.system_role === 'super_admin' && (
             <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} collapsed={collapsed} />

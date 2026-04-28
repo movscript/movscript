@@ -266,6 +266,16 @@ function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript.read_project_structure',
+      description: 'Read compact project structure across scripts, settings, episodes, scenes, storyboards, shots, and pipeline nodes.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          limit: { type: 'number' },
+        }
+      ),
+    },
+    {
       name: 'movscript.create_draft',
       description: 'Create a local draft artifact. This does not write to MovScript project entities.',
       inputSchema: objectSchema(
@@ -322,6 +332,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await readEntity(args))
     case 'movscript.search_entities':
       return toolText(await searchEntities(args))
+    case 'movscript.read_project_structure':
+      return toolText(await readProjectStructure(args))
     case 'movscript.create_draft':
       return toolText(createDraft(args))
     case 'movscript.list_drafts':
@@ -331,6 +343,59 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
+}
+
+async function readProjectStructure(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
+  const limit = getOptionalNumber(args, 'limit') ?? 50
+  if (!projectId) throw new Error('projectId is required when no current project is selected')
+  const [scripts, settings, episodes, scenes, storyboards, shots, pipeline] = await Promise.all([
+    backendList(`/projects/${projectId}/scripts`),
+    backendList(`/projects/${projectId}/settings`),
+    backendList(`/projects/${projectId}/episodes`),
+    backendList(`/projects/${projectId}/scenes`),
+    backendList(`/projects/${projectId}/storyboards`),
+    backendList(`/projects/${projectId}/shots`),
+    backendGet(`/projects/${projectId}/pipeline`).catch(() => undefined),
+  ])
+  return {
+    projectId,
+    counts: {
+      scripts: scripts.length,
+      settings: settings.length,
+      episodes: episodes.length,
+      scenes: scenes.length,
+      storyboards: storyboards.length,
+      shots: shots.length,
+      pipelineNodes: isRecord(pipeline) && Array.isArray(pipeline.nodes) ? pipeline.nodes.length : 0,
+    },
+    scripts: scripts.slice(0, limit).map(summarizeEntity),
+    settings: settings.slice(0, limit).map(summarizeEntity),
+    episodes: episodes.slice(0, limit).map(summarizeEntity),
+    scenes: scenes.slice(0, limit).map((scene) => {
+      const summary = summarizeEntityObject(scene)
+      return {
+        ...summary,
+        storyboards: storyboards.filter((storyboard) => Number(storyboard?.scene_id) === Number(scene?.ID ?? scene?.id)).length,
+        shots: shots.filter((shot) => storyboards.some((storyboard) => Number(storyboard?.scene_id) === Number(scene?.ID ?? scene?.id) && Number(shot?.storyboard_id) === Number(storyboard?.ID ?? storyboard?.id))).length,
+      }
+    }),
+    storyboards: storyboards.slice(0, limit).map((storyboard) => ({
+      ...summarizeEntityObject(storyboard),
+      shots: shots.filter((shot) => Number(shot?.storyboard_id) === Number(storyboard?.ID ?? storyboard?.id)).length,
+    })),
+    shots: shots.slice(0, limit).map(summarizeEntity),
+    pipelineNodes: isRecord(pipeline) && Array.isArray(pipeline.nodes)
+      ? pipeline.nodes.slice(0, limit).map(summarizeEntity)
+      : [],
+  }
+}
+
+async function backendList(path: string): Promise<any[]> {
+  const data = await backendGet(path)
+  if (Array.isArray(data)) return data
+  if (isRecord(data) && Array.isArray(data.items)) return data.items
+  return []
 }
 
 async function readEntity(args: Record<string, unknown>): Promise<unknown> {
@@ -519,6 +584,11 @@ function summarizeEntity(item: any): unknown {
     if (item[key] !== undefined) summary[key] = truncateLongText(item[key])
   }
   return summary
+}
+
+function summarizeEntityObject(item: any): Record<string, unknown> {
+  const summary = summarizeEntity(item)
+  return isRecord(summary) ? summary : {}
 }
 
 function truncateLongText(value: unknown): unknown {

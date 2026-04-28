@@ -7,12 +7,24 @@ import { resolveAgentCapabilities } from './capabilityResolver.js'
 import { MemoryManager } from './memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from './memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from './memory/types.js'
+import { createDefaultModelPlanner, type AgentModelPlanner } from './modelPlanner.js'
 import { planAgentRun } from './planner.js'
 import { compilePromptPreview } from './promptCompiler.js'
 import { resolveAgentSkills } from './skillResolver.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
 import { applyToolPolicy } from './toolPolicy.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from './toolRegistry.js'
+import {
+  InMemoryAgentDraftStore,
+  normalizeDraftKind,
+  normalizeDraftStatus,
+  type AgentDraft,
+  type AgentDraftKind,
+  type AgentDraftStatus,
+  type AgentDraftStore,
+} from './draftStore.js'
+import { buildApplyDraftPreview, markDraftApplied, rejectDraft } from './draftApply.js'
+import { BackendApplyClient, type BackendApplyResult } from './backendApplyClient.js'
 import type { BlockedToolCall } from './toolPolicy.js'
 import type {
   AgentApprovalRequest,
@@ -28,6 +40,8 @@ import type {
   AgentInputEnvelope,
   AgentRunDebugTrace,
   AgentRunPolicy,
+  AgentTaskPlan,
+  AgentPlannerKind,
   AgentThread,
   AgentThreadSummary,
   ApproveRunInput,
@@ -37,8 +51,16 @@ import type {
   PreviewRunInput,
   RejectRunInput,
   ToolCallOutcome,
+  ToolCall,
   UpdateThreadInput,
 } from './types.js'
+
+interface PlannedAgentRunResult {
+  plan: AgentTaskPlan
+  toolCalls: ToolCall[]
+  planner: AgentPlannerKind
+  warnings: string[]
+}
 
 export type {
   AgentMessage,
@@ -74,12 +96,27 @@ export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from './agentM
 export { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from './agentManifest.js'
 export { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 export { InMemoryAgentStore } from './store.js'
+export {
+  FileAgentDraftStore,
+  InMemoryAgentDraftStore,
+  normalizeDraftKind,
+  normalizeDraftStatus,
+  resolveAgentDraftPath,
+} from './draftStore.js'
 export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from './toolRegistry.js'
-export { loadAgentPluginCatalog, resolveAgentSkillsDir, resolveAgentToolsDir } from './pluginCatalog.js'
+export {
+  loadAgentPluginCatalog,
+  resolveAgentSkillsDir,
+  resolveAgentToolsDir,
+  resolveBuiltinAgentSkillsDir,
+  resolveBuiltinAgentToolsDir,
+} from './pluginCatalog.js'
 
 export class AgentRuntime {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   private readonly store: AgentStore
+  private readonly draftStore: AgentDraftStore
+  private readonly backendApplyClient: BackendApplyClient
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
   private readonly defaultAgentManifest: AgentManifest
@@ -87,10 +124,13 @@ export class AgentRuntime {
   private readonly toolRegistry: ToolRegistry
   private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private readonly pluginWarnings: string[]
+  private readonly modelPlanner?: AgentModelPlanner
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
     this.store = options.store ?? new InMemoryAgentStore()
+    this.draftStore = options.draftStore ?? new InMemoryAgentDraftStore()
+    this.backendApplyClient = options.backendApplyClient ?? new BackendApplyClient()
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
     this.defaultAgentManifest = options.defaultAgentManifest ?? DEFAULT_AGENT_MANIFEST
@@ -98,6 +138,7 @@ export class AgentRuntime {
     this.toolRegistry = options.toolRegistry ?? DEFAULT_TOOL_REGISTRY
     this.pluginCatalogInfo = options.pluginCatalogInfo
     this.pluginWarnings = options.pluginWarnings ?? []
+    this.modelPlanner = options.modelPlanner ?? createDefaultModelPlanner()
   }
 
   async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {
@@ -271,8 +312,9 @@ export class AgentRuntime {
     }
     const promptPreview = compilePromptPreview(envelope)
     envelope.debug.compiledPrompt = promptPreview
-    const planned = planAgentRun(message, memories)
+    const planned = await this.planRun(envelope, memories)
     const warnings: string[] = [...capabilities.warnings]
+    warnings.push(...planned.warnings.filter((warning) => !warnings.includes(warning)))
     const pendingApprovals: AgentApprovalRequest[] = []
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
 
@@ -285,11 +327,11 @@ export class AgentRuntime {
         approvedToolNames,
       })
       warnings.push(...policy.warnings.filter((warning) => !warnings.includes(warning)))
-      pendingApprovals.push(
-        ...policy.blockedToolCalls
-          .filter((blocked) => blocked.reason === 'approval_required')
-          .map((blocked) => toApprovalRequest('preview', blocked)),
-      )
+        pendingApprovals.push(
+          ...policy.blockedToolCalls
+            .filter((blocked) => blocked.reason === 'approval_required')
+            .map((blocked) => this.toApprovalRequest('preview', blocked)),
+        )
       return {
         ...task,
         toolCalls: policy.toolCalls,
@@ -310,7 +352,9 @@ export class AgentRuntime {
       tools: capabilities.resolvedTools,
       policy,
       promptPreview,
-      debug: buildDebugTrace(envelope, promptPreview.debugParts.map((part) => part.id)),
+      debug: buildDebugTrace(envelope, promptPreview.debugParts.map((part) => part.id), planned.planner),
+      planner: planned.planner,
+      plannerWarnings: planned.warnings,
       plan: planned.plan,
       toolCalls: planned.plan.tasks.flatMap((task) => task.toolCalls),
       pendingApprovals,
@@ -421,6 +465,57 @@ export class AgentRuntime {
     return this.memoryStore.listMemories(query)
   }
 
+  listDrafts(query: {
+    projectId?: unknown
+    kind?: unknown
+    status?: unknown
+    sourceEntityType?: unknown
+    sourceEntityId?: unknown
+    limit?: unknown
+  } = {}): AgentDraft[] {
+    return this.draftStore.listDrafts(normalizeDraftQuery(query))
+  }
+
+  createLocalDraft(input: {
+    projectId?: unknown
+    kind?: unknown
+    title?: unknown
+    content?: unknown
+    source?: unknown
+    target?: unknown
+    metadata?: unknown
+  }): AgentDraft {
+    return this.draftStore.createDraft({
+      projectId: typeof input.projectId === 'number' && Number.isFinite(input.projectId) ? input.projectId : undefined,
+      kind: input.kind,
+      title: input.title,
+      content: input.content,
+      source: input.source,
+      target: input.target,
+      metadata: input.metadata,
+    })
+  }
+
+  getDraft(id: string): AgentDraft | undefined {
+    return this.draftStore.getDraft(id)
+  }
+
+  previewApplyDraft(input: {
+    draftId?: unknown
+    target?: unknown
+    targetEntityType?: unknown
+    targetEntityId?: unknown
+    targetField?: unknown
+    currentValue?: unknown
+    proposedValue?: unknown
+  }): JSONValue {
+    return buildApplyDraftPreview(this.draftStore, input) as unknown as JSONValue
+  }
+
+  rejectDraft(input: { draftId?: unknown; reason?: unknown }): AgentDraft {
+    return rejectDraft(this.draftStore, input.draftId, input.reason)
+  }
+
   createMemory(input: Parameters<AgentMemoryStore['createMemory']>[0]): AgentMemory {
     return this.memoryStore.createMemory(input)
   }
@@ -486,7 +581,7 @@ export class AgentRuntime {
       const promptPreview = compilePromptPreview(envelope)
       envelope.debug.compiledPrompt = promptPreview
       run.envelope = envelope
-      const planned = planAgentRun(lastUser.content, memories)
+      const planned = await this.planRun(envelope, memories)
       const planningStep = this.createStep(run, 'planning')
       planningStep.title = '任务规划'
       run.plan = planned.plan
@@ -494,6 +589,8 @@ export class AgentRuntime {
         planId: planned.plan.id,
         objective: planned.plan.objective,
         taskCount: planned.plan.tasks.length,
+        planner: planned.planner,
+        warnings: planned.warnings,
       }
       planningStep.status = 'completed'
       planningStep.completedAt = isoNow()
@@ -501,6 +598,7 @@ export class AgentRuntime {
       this.store.updateRun(run)
 
       const warnings: string[] = [...capabilities.warnings]
+      warnings.push(...planned.warnings.filter((warning) => !warnings.includes(warning)))
       const pendingApprovals: AgentApprovalRequest[] = []
       run.plan.tasks = run.plan.tasks.map((task) => {
         const policy = applyToolPolicy(task.toolCalls, {
@@ -514,7 +612,7 @@ export class AgentRuntime {
         pendingApprovals.push(
           ...policy.blockedToolCalls
             .filter((blocked) => blocked.reason === 'approval_required')
-            .map((blocked) => toApprovalRequest(run.id, blocked)),
+            .map((blocked) => this.toApprovalRequest(run.id, blocked)),
         )
         return {
           ...task,
@@ -525,7 +623,8 @@ export class AgentRuntime {
       run.plan.updatedAt = isoNow()
       run.metadata = {
         ...(run.metadata ?? {}),
-        debugTrace: buildDebugTrace(envelope, promptPreview.debugParts.map((part) => part.id)) as unknown as JSONValue,
+        debugTrace: buildDebugTrace(envelope, promptPreview.debugParts.map((part) => part.id), planned.planner) as unknown as JSONValue,
+        planner: planned.planner,
       }
       this.store.updateRun(run)
 
@@ -631,6 +730,16 @@ export class AgentRuntime {
     this.store.updateRun(run)
 
     try {
+      const runtimeToolResult = await this.callRuntimeTool(run, toolName, args)
+      if (runtimeToolResult !== undefined) {
+        step.result = runtimeToolResult
+        step.status = 'completed'
+        step.completedAt = isoNow()
+        run.updatedAt = step.completedAt
+        this.store.updateRun(run)
+        return runtimeToolResult
+      }
+
       await this.mcpClient.initialize()
       const result = await this.mcpClient.callTool(toolName, args)
       step.result = result
@@ -707,6 +816,103 @@ export class AgentRuntime {
     this.store.updateRun(run)
   }
 
+  private async planRun(
+    envelope: AgentInputEnvelope,
+    memories: AgentMemory[],
+  ): Promise<PlannedAgentRunResult> {
+    if (this.modelPlanner?.isEnabled()) {
+      try {
+        const planned = await this.modelPlanner.plan(envelope)
+        return {
+          plan: planned.plan,
+          toolCalls: planned.toolCalls,
+          planner: 'model',
+          warnings: planned.warnings,
+        }
+      } catch (error) {
+        const fallback = planAgentRun(envelope.message.content, memories)
+        return {
+          ...fallback,
+          planner: 'rule',
+          warnings: [`model planner fallback: ${error instanceof Error ? error.message : String(error)}`],
+        }
+      }
+    }
+
+    return {
+      ...planAgentRun(envelope.message.content, memories),
+      planner: 'rule',
+      warnings: [],
+    }
+  }
+
+  private async callRuntimeTool(
+    run: AgentRun,
+    toolName: string,
+    args: Record<string, JSONValue>,
+  ): Promise<JSONValue | undefined> {
+    if (toolName === 'movscript.create_draft') {
+      return this.draftStore.createDraft({
+        projectId: typeof args.projectId === 'number' ? args.projectId : undefined,
+        kind: args.kind,
+        title: args.title,
+        content: args.content,
+        source: mergeDraftSource(args.source, run),
+        target: args.target,
+        createdByRunId: run.id,
+        createdByThreadId: run.threadId,
+        metadata: isRecord(args.metadata) ? args.metadata : undefined,
+      }) as unknown as JSONValue
+    }
+
+    if (toolName === 'movscript.list_drafts') {
+      return {
+        drafts: this.draftStore.listDrafts(normalizeDraftQuery(args)),
+      } as unknown as JSONValue
+    }
+
+    if (toolName === 'movscript.apply_draft') {
+      const preview = buildApplyDraftPreview(this.draftStore, args)
+      const appliedByUserId = args.appliedByUserId ?? run.envelope?.context.user?.id
+      let backendApply: BackendApplyResult
+      try {
+        backendApply = await this.backendApplyClient.applyReview(
+          preview.review,
+          typeof appliedByUserId === 'number' || typeof appliedByUserId === 'string'
+            ? appliedByUserId
+            : undefined,
+        )
+      } catch (error) {
+        this.draftStore.updateDraft(preview.draft.id, {
+          metadata: {
+            ...(isRecord(preview.draft.metadata) ? preview.draft.metadata : {}),
+            backendWritePerformed: false,
+            backendWriteError: error instanceof Error ? error.message : String(error),
+          },
+        })
+        throw error
+      }
+      const finalDraft = markDraftApplied(this.draftStore, preview.draft, preview.review, {
+        ...args,
+        ...(typeof appliedByUserId === 'number' || typeof appliedByUserId === 'string' ? { appliedByUserId } : {}),
+      }, {
+        backendWritePerformed: backendApply.performed,
+        backendApply: backendApply as unknown as JSONValue,
+      })
+      return {
+        status: 'applied',
+        review: preview.review,
+        draft: finalDraft,
+        message: backendApply.performed
+          ? 'Draft applied and backend entity patch completed.'
+          : 'Draft marked applied in the local agent lifecycle. Backend entity patch was skipped.',
+        backendApply,
+      } as unknown as JSONValue
+    }
+
+    return undefined
+  }
+
   private updatePlanTask(run: AgentRun, taskId: string, patch: Partial<AgentPlanTask>): void {
     if (!run.plan) return
     run.plan.tasks = run.plan.tasks.map((task) => (
@@ -765,6 +971,21 @@ export class AgentRuntime {
     thread.updatedAt = isoNow()
     this.store.updateThread(thread)
   }
+
+  private toApprovalRequest(runId: string, blocked: BlockedToolCall): AgentApprovalRequest {
+    return toApprovalRequest(runId, blocked, (call) => this.buildApprovalPreview(call))
+  }
+
+  private buildApprovalPreview(call: ToolCall): JSONValue | undefined {
+    if (call.name !== 'movscript.apply_draft') return undefined
+    try {
+      return buildApplyDraftPreview(this.draftStore, call.args ?? {}) as unknown as JSONValue
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
 }
 
 function isMessageRole(value: unknown): value is AgentMessageRole {
@@ -782,6 +1003,46 @@ function normalizeStringArray(value: unknown): string[] {
 
 function normalizeApprovedToolNames(value: unknown): string[] {
   return normalizeStringArray(value)
+}
+
+function normalizeDraftQuery(query: {
+  projectId?: unknown
+  kind?: unknown
+  status?: unknown
+  sourceEntityType?: unknown
+  sourceEntityId?: unknown
+  limit?: unknown
+}): {
+  projectId?: number
+  kind?: AgentDraftKind
+  status?: AgentDraftStatus
+  sourceEntityType?: string
+  sourceEntityId?: number | string
+  limit?: number
+} {
+  const kind = normalizeOptionalDraftKind(query.kind)
+  const status = normalizeDraftStatus(query.status)
+  return {
+    ...(typeof query.projectId === 'number' && Number.isFinite(query.projectId) ? { projectId: query.projectId } : {}),
+    ...(kind ? { kind } : {}),
+    ...(status ? { status } : {}),
+    ...(typeof query.sourceEntityType === 'string' && query.sourceEntityType.trim() ? { sourceEntityType: query.sourceEntityType.trim() } : {}),
+    ...(typeof query.sourceEntityId === 'number' || typeof query.sourceEntityId === 'string' ? { sourceEntityId: query.sourceEntityId } : {}),
+    ...(typeof query.limit === 'number' && Number.isFinite(query.limit) ? { limit: query.limit } : {}),
+  }
+}
+
+function normalizeOptionalDraftKind(value: unknown): AgentDraftKind | undefined {
+  const kind = normalizeDraftKind(value)
+  return kind === value ? kind : undefined
+}
+
+function mergeDraftSource(source: JSONValue | undefined, run: AgentRun): Record<string, JSONValue> {
+  return {
+    ...(isRecord(source) ? source : {}),
+    runId: run.id,
+    threadId: run.threadId,
+  }
 }
 
 function getApprovedToolNames(run: AgentRun): string[] {
@@ -868,7 +1129,11 @@ function toMemoryRef(memory: AgentMemory): AgentInputEnvelope['memories'][number
   }
 }
 
-function buildDebugTrace(envelope: AgentInputEnvelope, promptPartIds: string[]): AgentRunDebugTrace {
+function buildDebugTrace(
+  envelope: AgentInputEnvelope,
+  promptPartIds: string[],
+  planner: AgentRunDebugTrace['planner'] = 'rule',
+): AgentRunDebugTrace {
   return {
     envelopeId: envelope.id,
     manifestId: envelope.manifest.id,
@@ -880,18 +1145,24 @@ function buildDebugTrace(envelope: AgentInputEnvelope, promptPartIds: string[]):
       ...(tool.unavailableReason ? { reason: tool.unavailableReason } : {}),
     })),
     promptPartIds,
-    planner: 'rule',
+    planner,
     ...(envelope.model ? { model: envelope.model } : {}),
   }
 }
 
-function toApprovalRequest(runId: string, blocked: BlockedToolCall): AgentApprovalRequest {
+function toApprovalRequest(
+  runId: string,
+  blocked: BlockedToolCall,
+  buildPreview?: (call: ToolCall) => JSONValue | undefined,
+): AgentApprovalRequest {
   const now = isoNow()
+  const preview = buildPreview?.(blocked.call)
   return {
     id: makeId('approval'),
     runId,
     toolName: blocked.call.name,
     ...(blocked.call.args ? { args: blocked.call.args } : {}),
+    ...(preview !== undefined ? { preview } : {}),
     reason: blocked.message,
     ...(blocked.tool?.risk ? { risk: blocked.tool.risk } : {}),
     ...(blocked.tool?.permission ? { permission: blocked.tool.permission } : {}),

@@ -2,6 +2,7 @@ export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentPlanTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
+export type AgentPlannerKind = 'rule' | 'model'
 
 export interface AgentMessage {
   id: string
@@ -65,6 +66,7 @@ export interface AgentPlanTask {
   startedAt?: string
   completedAt?: string
   error?: string
+  successCriteria?: string
 }
 
 export interface AgentTaskPlan {
@@ -171,6 +173,7 @@ export interface AgentRun {
   threadId: string
   status: AgentRunStatus
   agentManifest?: AgentManifest
+  envelope?: AgentInputEnvelope
   plan?: AgentTaskPlan
   pendingApprovals?: AgentApprovalRequest[]
   metadata?: Record<string, unknown>
@@ -195,8 +198,11 @@ export interface AgentRunPreview {
   context?: AgentDebugContextPanel
   skills?: ResolvedAgentSkill[]
   tools?: ResolvedToolCatalog
+  policy?: AgentRunPolicy
   promptPreview?: CompiledPromptPreview
   debug?: Record<string, unknown>
+  planner: AgentPlannerKind
+  plannerWarnings: string[]
   plan: AgentTaskPlan
   toolCalls: AgentToolCall[]
   pendingApprovals: AgentApprovalRequest[]
@@ -206,11 +212,54 @@ export interface AgentRunPreview {
   createdAt: string
 }
 
+export interface AgentRunPolicy {
+  approvalMode: 'interactive' | 'dry_run' | 'auto_readonly'
+  maxToolCalls: number
+  maxIterations: number
+  allowNetwork: boolean
+  allowFileBytes: boolean
+  costLimit?: {
+    currency: string
+    amount: number
+  }
+}
+
+export interface AgentInputEnvelope {
+  id: string
+  threadId?: string
+  runId?: string
+  mode: 'preview' | 'run'
+  message: {
+    role: 'user'
+    content: string
+  }
+  history: Array<{
+    id: string
+    role: AgentMessageRole
+    content: string
+    createdAt: string
+  }>
+  context: AgentDebugContextPanel
+  manifest: AgentManifest
+  skills: ResolvedAgentSkill[]
+  tools: ResolvedToolCatalog
+  policy: AgentRunPolicy
+  memories: Array<{ id: string; scope: string; kind: string; content: string }>
+  model?: AgentManifest['model']
+  debug: {
+    source: 'frontend' | 'runtime'
+    warnings: string[]
+    compiledPrompt?: CompiledPromptPreview
+  }
+}
+
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
+    builtinSkillsDir?: string
+    builtinToolsDir?: string
     skillCount: number
     toolCount: number
   }
@@ -250,6 +299,8 @@ export interface AgentInspectResponse {
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
+    builtinSkillsDir?: string
+    builtinToolsDir?: string
     skillCount: number
     toolCount: number
     warnings?: string[]
@@ -261,6 +312,7 @@ export interface AgentApprovalRequest {
   runId: string
   toolName: string
   args?: Record<string, unknown>
+  preview?: unknown
   reason: string
   risk?: string
   permission?: string
@@ -279,6 +331,8 @@ export interface AgentHealth {
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
+    builtinSkillsDir?: string
+    builtinToolsDir?: string
     skillCount: number
     toolCount: number
     warnings?: string[]
@@ -287,6 +341,8 @@ export interface AgentHealth {
 
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
+export type AgentDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline'
+export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentMemory {
   id: string
@@ -299,6 +355,44 @@ export interface AgentMemory {
   sourceMessageId?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface AgentDraft {
+  id: string
+  projectId?: number
+  kind: AgentDraftKind
+  title: string
+  content: string
+  status: AgentDraftStatus
+  source?: Record<string, unknown>
+  target?: Record<string, unknown>
+  createdByRunId?: string
+  createdByThreadId?: string
+  appliedByUserId?: number | string
+  appliedAt?: string
+  rejectedReason?: string
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentDraftApplyReview {
+  draftId: string
+  draftTitle: string
+  draftKind: AgentDraftKind
+  target: Record<string, unknown>
+  currentValue: unknown
+  proposedValue: unknown
+  risk: 'write'
+  sideEffect: string
+  requiresBackendApply: boolean
+}
+
+export interface AgentDraftApplyPreview {
+  status: 'preview' | 'applied'
+  review: AgentDraftApplyReview
+  draft: AgentDraft
+  message: string
 }
 
 export interface RunMessageResult {
@@ -423,6 +517,31 @@ export class LocalAgentClient {
     if (query.threadId) params.set('threadId', query.threadId)
     if (query.kind) params.set('kind', query.kind)
     return this.getJSON(`/memories${params.size ? `?${params.toString()}` : ''}`)
+  }
+
+  listDrafts(query: { projectId?: number; kind?: AgentDraftKind; status?: AgentDraftStatus; limit?: number } = {}): Promise<{ drafts: AgentDraft[] }> {
+    const params = new URLSearchParams()
+    if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
+    if (query.kind) params.set('kind', query.kind)
+    if (query.status) params.set('status', query.status)
+    if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    return this.getJSON(`/drafts${params.size ? `?${params.toString()}` : ''}`)
+  }
+
+  getDraft(draftId: string): Promise<AgentDraft> {
+    return this.getJSON(`/drafts/${encodeURIComponent(draftId)}`)
+  }
+
+  createDraft(input: { projectId?: number; kind?: AgentDraftKind; title: string; content: string; source?: Record<string, unknown>; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
+    return this.postJSON('/draft', input)
+  }
+
+  previewApplyDraft(draftId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentDraftApplyPreview> {
+    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/apply-preview`, input)
+  }
+
+  rejectDraft(draftId: string, reason?: string): Promise<AgentDraft> {
+    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/reject`, { reason })
   }
 
   createMemory(input: { scope: AgentMemoryScope; kind: AgentMemoryKind; content: string; projectId?: number; threadId?: string }): Promise<AgentMemory> {

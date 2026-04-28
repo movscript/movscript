@@ -9,6 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/storage"
+	"github.com/movscript/movscript/internal/workflow"
 	"gorm.io/gorm"
 )
 
@@ -16,12 +17,13 @@ type CanvasHandler struct {
 	db        *gorm.DB
 	registry  *ai.Registry
 	svc       *ai.AIService
+	entityIO  *workflow.EntityIOService
 	store     storage.Storage
 	uploadDir string
 }
 
 func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
-	return &CanvasHandler{db: db, registry: registry, svc: svc, store: store, uploadDir: "/tmp/movscript-canvas"}
+	return &CanvasHandler{db: db, registry: registry, svc: svc, entityIO: workflow.NewEntityIOService(db), store: store, uploadDir: "/tmp/movscript-canvas"}
 }
 
 func (h *CanvasHandler) List(c *gin.Context) {

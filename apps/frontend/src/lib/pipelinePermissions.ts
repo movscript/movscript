@@ -6,8 +6,8 @@ export function projectRoleFor(
   currentUserId: number | undefined,
 ) {
   if (!currentUserId) return 'viewer'
-  return members.find((member) => member.user_id === currentUserId)?.role
-    ?? (project?.owner_id === currentUserId ? 'owner' : 'viewer')
+  if (project?.owner_id === currentUserId) return 'owner'
+  return members.find((member) => member.user_id === currentUserId)?.role ?? 'viewer'
 }
 
 export function isProjectManager(role: string | undefined) {

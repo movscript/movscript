@@ -14,6 +14,8 @@ Movscript's local agent is a standalone TypeScript HTTP service in `apps/agent`.
 
 - [apps/agent/README.md](../../apps/agent/README.md): package-level development and API guide.
 - [apps/agent/src/runtime/README.md](../../apps/agent/src/runtime/README.md): runtime module boundaries.
+- [platform-skills-tools.md](platform-skills-tools.md): built-in skills, tools, and operating rules.
+- [smoke-tests.md](smoke-tests.md): end-to-end Agent smoke scenarios.
 - [mcp-v1.md](mcp-v1.md): first MCP-shaped tool/resource design notes.
 - [final-agent-architecture.md](final-agent-architecture.md): longer architecture proposal and acceptance notes.
 

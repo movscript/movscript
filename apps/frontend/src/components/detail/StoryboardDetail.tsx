@@ -56,6 +56,7 @@ export function StoryboardDetail({ storyboard, onClose, onDelete }: Props) {
         {/* Left: storyboard planning */}
         <div className="w-[28rem] shrink-0 border-r border-border overflow-hidden">
           <StoryboardForm
+            storyboard={storyboard}
             draft={draft}
             onChange={setDraft}
             onSave={(data) => update.mutate(data)}

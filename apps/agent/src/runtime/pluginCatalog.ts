@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_AGENT_MANIFEST,
   mergeAgentManifestSkills,
@@ -21,6 +22,8 @@ import {
 export interface AgentPluginCatalog {
   skillsDir: string
   toolsDir: string
+  builtinSkillsDir: string
+  builtinToolsDir: string
   skills: AgentSkillManifest[]
   tools: RegisteredTool[]
   toolGrants: AgentToolGrant[]
@@ -32,13 +35,28 @@ export interface AgentPluginCatalog {
 export function loadAgentPluginCatalog(options: {
   skillsDir?: string
   toolsDir?: string
+  builtinSkillsDir?: string
+  builtinToolsDir?: string
   baseManifest?: AgentManifest
   baseTools?: RegisteredTool[]
 } = {}): AgentPluginCatalog {
   const skillsDir = options.skillsDir ?? resolveAgentSkillsDir()
   const toolsDir = options.toolsDir ?? resolveAgentToolsDir()
-  const skillResult = loadSkillDirectory(skillsDir)
-  const toolResult = loadToolDirectory(toolsDir)
+  const builtinSkillsDir = options.builtinSkillsDir ?? resolveBuiltinAgentSkillsDir()
+  const builtinToolsDir = options.builtinToolsDir ?? resolveBuiltinAgentToolsDir()
+  const builtinSkillResult = loadSkillDirectory(builtinSkillsDir)
+  const localSkillResult = loadSkillDirectory(skillsDir)
+  const builtinToolResult = loadToolDirectory(builtinToolsDir)
+  const localToolResult = loadToolDirectory(toolsDir)
+  const skillResult = {
+    skills: dedupeById([...builtinSkillResult.skills, ...localSkillResult.skills]),
+    warnings: [...builtinSkillResult.warnings, ...localSkillResult.warnings],
+  }
+  const toolResult = {
+    tools: dedupeByName([...builtinToolResult.tools, ...localToolResult.tools]),
+    grants: mergeToolGrants([], [...builtinToolResult.grants, ...localToolResult.grants]),
+    warnings: [...builtinToolResult.warnings, ...localToolResult.warnings],
+  }
   const baseManifest = options.baseManifest ?? DEFAULT_AGENT_MANIFEST
   const baseTools = options.baseTools ?? DEFAULT_TOOL_REGISTRY.list()
   const manifest = mergeAgentManifestSkills({
@@ -51,6 +69,8 @@ export function loadAgentPluginCatalog(options: {
   return {
     skillsDir,
     toolsDir,
+    builtinSkillsDir,
+    builtinToolsDir,
     skills: skillResult.skills,
     tools: toolResult.tools,
     toolGrants: toolResult.grants,
@@ -66,6 +86,20 @@ export function resolveAgentSkillsDir(statePath = resolveAgentStatePath()): stri
 
 export function resolveAgentToolsDir(statePath = resolveAgentStatePath()): string {
   return process.env.MOVSCRIPT_AGENT_TOOLS_DIR || join(dirname(statePath), 'tools')
+}
+
+export function resolveBuiltinAgentSkillsDir(): string {
+  return resolveCatalogDir('skills')
+}
+
+export function resolveBuiltinAgentToolsDir(): string {
+  return resolveCatalogDir('tools')
+}
+
+function resolveCatalogDir(kind: 'skills' | 'tools'): string {
+  const fromSource = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'catalog', kind)
+  const fromDist = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'catalog', kind)
+  return existsSync(fromSource) ? fromSource : fromDist
 }
 
 function loadSkillDirectory(dir: string): { skills: AgentSkillManifest[]; warnings: string[] } {

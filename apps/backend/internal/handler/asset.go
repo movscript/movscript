@@ -41,25 +41,13 @@ func (h *AssetHandler) List(c *gin.Context) {
 		}
 		var total int64
 		q.Count(&total)
-		q.Preload("Views.Resource").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets)
-		for i := range assets {
-			for j := range assets[i].Views {
-				if assets[i].Views[j].Resource != nil {
-					assets[i].Views[j].Resource.URL = resourceURL(c, assets[i].Views[j].Resource.ID)
-				}
-			}
-		}
+		q.Preload("Views").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets)
+		h.populateAssetViewResources(c, assets)
 		c.JSON(http.StatusOK, gin.H{"total": total, "items": assets, "page": page, "page_size": pageSize})
 		return
 	}
-	q.Preload("Views.Resource").Order("created_at desc").Find(&assets)
-	for i := range assets {
-		for j := range assets[i].Views {
-			if assets[i].Views[j].Resource != nil {
-				assets[i].Views[j].Resource.URL = resourceURL(c, assets[i].Views[j].Resource.ID)
-			}
-		}
-	}
+	q.Preload("Views").Order("created_at desc").Find(&assets)
+	h.populateAssetViewResources(c, assets)
 	c.JSON(http.StatusOK, assets)
 }
 
@@ -143,24 +131,37 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 	h.db.Create(&a)
 
 	view := model.AssetView{
-		AssetID:    a.ID,
-		ViewType:   viewType,
-		Label:      viewType,
-		ResourceID: &r.ID,
-		ImageURL:   resourceURL(c, r.ID),
+		AssetID:  a.ID,
+		ViewType: viewType,
+		Label:    viewType,
+		ImageURL: resourceURL(c, r.ID),
 	}
 	h.db.Create(&view)
+	_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+		ProjectID:   a.ProjectID,
+		ResourceID:  r.ID,
+		OwnerType:   "asset_view",
+		OwnerID:     view.ID,
+		Role:        "final",
+		Slot:        viewType,
+		IsPrimary:   true,
+		Status:      "selected",
+		SourceType:  "upload",
+		CreatedByID: &user.ID,
+	})
 
-	h.db.Preload("Views.Resource").First(&a, a.ID)
+	h.db.Preload("Views").First(&a, a.ID)
+	h.populateAssetViewResources(c, []model.Asset{a})
 	c.JSON(http.StatusCreated, a)
 }
 
 func (h *AssetHandler) Get(c *gin.Context) {
 	var a model.Asset
-	if err := h.db.Preload("Views.Resource").First(&a, c.Param("assetId")).Error; err != nil {
+	if err := h.db.Preload("Views").First(&a, c.Param("assetId")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	h.populateAssetViewResources(c, []model.Asset{a})
 	c.JSON(http.StatusOK, a)
 }
 
@@ -193,7 +194,8 @@ func (h *AssetHandler) Patch(c *gin.Context) {
 		return
 	}
 	h.db.Model(&a).Updates(body)
-	h.db.Preload("Views.Resource").First(&a, a.ID)
+	h.db.Preload("Views").First(&a, a.ID)
+	h.populateAssetViewResources(c, []model.Asset{a})
 	c.JSON(http.StatusOK, a)
 }
 
@@ -292,14 +294,28 @@ func (h *AssetHandler) UploadView(c *gin.Context) {
 	})
 
 	view := model.AssetView{
-		AssetID:    assetID,
-		ViewType:   viewType,
-		Label:      label,
-		ResourceID: &r.ID,
-		ImageURL:   resourceURL(c, r.ID),
+		AssetID:  assetID,
+		ViewType: viewType,
+		Label:    label,
+		ImageURL: resourceURL(c, r.ID),
 	}
 	h.db.Create(&view)
-	h.db.Preload("Resource").First(&view, view.ID)
+	var asset model.Asset
+	if err := h.db.Select("id, project_id").First(&asset, assetID).Error; err == nil {
+		_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+			ProjectID:   asset.ProjectID,
+			ResourceID:  r.ID,
+			OwnerType:   "asset_view",
+			OwnerID:     view.ID,
+			Role:        "final",
+			Slot:        viewType,
+			IsPrimary:   true,
+			Status:      "selected",
+			SourceType:  "upload",
+			CreatedByID: &user.ID,
+		})
+	}
+	h.populateAssetViewResources(c, []model.Asset{{Views: []model.AssetView{view}}})
 	c.JSON(http.StatusCreated, view)
 }
 
@@ -307,4 +323,37 @@ func (h *AssetHandler) UploadView(c *gin.Context) {
 func (h *AssetHandler) DeleteView(c *gin.Context) {
 	h.db.Delete(&model.AssetView{}, c.Param("viewId"))
 	c.Status(http.StatusNoContent)
+}
+
+func (h *AssetHandler) populateAssetViewResources(c *gin.Context, assets []model.Asset) {
+	viewIDs := make([]uint, 0)
+	for _, asset := range assets {
+		for _, view := range asset.Views {
+			viewIDs = append(viewIDs, view.ID)
+		}
+	}
+	if len(viewIDs) == 0 {
+		return
+	}
+	var bindings []model.ResourceBinding
+	h.db.Preload("Resource").
+		Where("owner_type = ? AND owner_id IN ? AND role IN ?", "asset_view", viewIDs, []string{"final", "reference", "thumbnail"}).
+		Order("is_primary desc, sort_order, created_at").
+		Find(&bindings)
+	byView := map[uint]*model.RawResource{}
+	for i := range bindings {
+		if bindings[i].Resource != nil {
+			bindings[i].Resource.URL = resourceURL(c, bindings[i].Resource.ID)
+			if _, exists := byView[bindings[i].OwnerID]; !exists {
+				byView[bindings[i].OwnerID] = bindings[i].Resource
+			}
+		}
+	}
+	for i := range assets {
+		for j := range assets[i].Views {
+			if resource := byView[assets[i].Views[j].ID]; resource != nil {
+				assets[i].Views[j].Resource = resource
+			}
+		}
+	}
 }

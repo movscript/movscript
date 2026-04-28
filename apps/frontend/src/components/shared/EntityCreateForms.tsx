@@ -8,7 +8,7 @@ import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { defaultContentType, nodeTypeForEntity, type PipelineEntityType } from '@/pages/pipeline/nodeSpec'
+import { defaultContentType, type PipelineEntityType } from '@/pages/pipeline/nodeSpec'
 
 const SCRIPT_TYPES = [
   { type: 'main' as const, labelKey: 'domain.scriptTypes.mainAlt', color: 'bg-primary text-primary-foreground' },
@@ -29,34 +29,30 @@ export interface EntityFormProps {
   onCancel: () => void
 }
 
-function workNodeTypeForArtifact(nodeType: string, entityType: PipelineEntityType) {
+function workNodeTypeForEntity(entityType: PipelineEntityType, scriptType?: Script['script_type']) {
   if (entityType === 'final_video') return 'episode_edit'
-  if (nodeType === 'episode_script') return 'episode_writing'
-  if (nodeType === 'scene_script') return 'scene_writing'
+  if (scriptType === 'episode') return 'episode_writing'
+  if (scriptType === 'scene') return 'scene_writing'
   if (entityType === 'script') return 'script_writing'
   if (entityType === 'storyboard') return 'storyboard_creation'
   if (entityType === 'shot') return 'shot_production'
   if (entityType === 'asset') return 'asset_creation'
-  if (entityType === 'episode') return 'episode_edit'
+  if (entityType === 'episode') return 'episode_writing'
   if (entityType === 'scene') return 'scene_writing'
   return 'script_writing'
 }
 
-function spawnPipelineNode(projectId: number, nodeType: string, entityType: PipelineEntityType, entityId: number, name: string) {
-  const contentType = defaultContentType(nodeType)
-  const workType = workNodeTypeForArtifact(nodeType, entityType)
+function spawnPipelineNode(projectId: number, entityType: PipelineEntityType, entityId: number, name: string, scriptType?: Script['script_type']) {
+  const workType = workNodeTypeForEntity(entityType, scriptType)
   api.post(`/projects/${projectId}/pipeline/nodes`, {
-    type: workType, name, content_type: defaultContentType(workType), pos_x: 0, pos_y: 0,
-  }).then((r) => api.post(`/projects/${projectId}/pipeline/nodes`, {
-    type: nodeType,
+    type: workType,
     name,
-    content_type: contentType,
+    content_type: entityType || defaultContentType(workType),
     entity_type: entityType,
     entity_id: entityId,
-    parent_id: r.data.ID,
     pos_x: 0,
     pos_y: 0,
-  })).catch(() => {/* fire-and-forget */})
+  }).catch(() => {/* fire-and-forget */})
 }
 
 export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormProps) {
@@ -89,7 +85,7 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
       qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, nodeTypeForEntity('script', type), 'script', created.ID, created.title)
+      spawnPipelineNode(projectId, 'script', created.ID, created.title, type)
       onSuccess()
     },
   })
@@ -180,7 +176,7 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
       qc.invalidateQueries({ queryKey: ['assets', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'asset', 'asset', created.ID, created.name)
+      spawnPipelineNode(projectId, 'asset', created.ID, created.name)
       onSuccess()
     },
   })
@@ -266,7 +262,7 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
       qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'episode', 'episode', created.ID, created.title)
+      spawnPipelineNode(projectId, 'episode', created.ID, created.title)
       onSuccess()
     },
   })
@@ -329,7 +325,7 @@ export function SceneCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
     onSuccess: (created: Scene) => {
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'scene', 'scene', created.ID, created.title)
+      spawnPipelineNode(projectId, 'scene', created.ID, created.title)
       onSuccess()
     },
   })
@@ -395,7 +391,7 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
       qc.invalidateQueries({ queryKey: ['storyboards-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'storyboard', 'storyboard', created.ID, created.title || created.description || `#${created.ID}`)
+      spawnPipelineNode(projectId, 'storyboard', created.ID, created.title || created.description || `#${created.ID}`)
       onSuccess()
     },
   })
@@ -476,7 +472,7 @@ export function ShotCreateForm({ projectId, onSuccess, onCancel }: EntityFormPro
       qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'shot', 'shot', created.ID, created.description || `Shot #${created.ID}`)
+      spawnPipelineNode(projectId, 'shot', created.ID, created.description || `Shot #${created.ID}`)
       onSuccess()
     },
   })

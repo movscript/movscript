@@ -2,6 +2,8 @@ import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue, MCPResource, MCPTool } from '../types.js'
 import type { AgentManifest, AgentSkillManifest } from './agentManifest.js'
 import type { RegisteredTool, ToolRiskLevel } from './toolRegistry.js'
+import type { AgentDraftStore } from './draftStore.js'
+import type { BackendApplyClient } from './backendApplyClient.js'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
@@ -71,6 +73,7 @@ export interface AgentPlanTask {
   startedAt?: string
   completedAt?: string
   error?: string
+  successCriteria?: string
 }
 
 export interface AgentTaskPlan {
@@ -115,6 +118,8 @@ export interface AgentRunPreview {
   policy?: AgentRunPolicy
   promptPreview?: CompiledPromptPreview
   debug?: AgentRunDebugTrace
+  planner: AgentPlannerKind
+  plannerWarnings: string[]
   plan: AgentTaskPlan
   toolCalls: ToolCall[]
   pendingApprovals: AgentApprovalRequest[]
@@ -129,6 +134,7 @@ export interface AgentApprovalRequest {
   runId: string
   toolName: string
   args?: Record<string, JSONValue>
+  preview?: JSONValue
   reason: string
   risk?: string
   permission?: string
@@ -291,15 +297,19 @@ export interface AgentRunDebugTrace {
     reason?: ToolUnavailableReason
   }>
   promptPartIds: string[]
-  planner: 'rule' | 'model'
+  planner: AgentPlannerKind
   model?: AgentManifest['model']
 }
+
+export type AgentPlannerKind = 'rule' | 'model'
 
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
+    builtinSkillsDir?: string
+    builtinToolsDir?: string
     skillCount: number
     toolCount: number
   }
@@ -317,12 +327,15 @@ export interface AgentCapabilitiesResponse {
 export interface AgentRuntimeOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   store?: import('./store.js').AgentStore
+  draftStore?: AgentDraftStore
+  backendApplyClient?: BackendApplyClient
   memoryStore?: import('./memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
   skillCatalog?: AgentSkillManifest[]
   toolRegistry?: import('./toolRegistry.js').ToolRegistry
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
+  modelPlanner?: import('./modelPlanner.js').AgentModelPlanner
 }
 
 export interface CreateThreadInput {

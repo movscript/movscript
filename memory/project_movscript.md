@@ -38,12 +38,14 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
 ### 内容生产管线（Pipeline DAG）（2026-04-23）
 - 新数据模型：`PipelineNode` / `PipelineEdge`（`backend/internal/model/pipeline.go`）
 - `PipelineNode` 状态：`draft → under_review → final | rejected`；rejected 可 reopen 并级联回退下游
-- **架构决策（2026-04-28）**：`PipelineNode` 是唯一的生产任务单元。不要再维护独立 `Task` 概念。
-  - 理由：`PipelineNode` 已包含执行者 `assignee_id`、负责人 `lead_id`、截止时间 `due_date`、状态 `status`、说明 `description`、交付物绑定 `entity_type/entity_id` 和依赖/层级 `PipelineEdge`，已经覆盖“任务”的核心语义。
+- **架构决策（2026-04-29）**：实体是内容事实源，`PipelineNode` 收敛为实体生产工作项，不再保留独立的内容代理节点层。
+  - 理由：`Script` / `Episode` / `Scene` / `Storyboard` / `Shot` / `Asset` / `FinalVideo` 才拥有内容、资源和版本；`PipelineNode` 只承载执行者 `assignee_id`、负责人 `lead_id`、截止时间 `due_date`、生产状态 `status`、说明 `description`、可选实体绑定 `entity_type/entity_id` 和依赖/层级 `PipelineEdge`。
+  - 管线模板只生成生产阶段 work nodes；新建实体时只创建一个绑定实体的工作项节点，不再自动生成旧的双层结构。
+  - `final_video` 已纳入正式 `entity_type` 绑定，后端同步/解绑 `pipeline_node_id` 与前端 `final_video` 实体工作台一致。
   - `Task` 表、`TaskComment` 表、`backend/internal/model/task.go`、`handler/task.go`、`/projects/:id/tasks*`、`/projects/:id/collaboration` 中的旧任务聚合应直接删除，不考虑历史兼容或迁移。
   - 协作页不再是独立 todo 系统，而是 `PipelineNode` 的人员视图：我的执行任务、我负责的任务、待审核、被打回、已完成等都从 pipeline nodes 派生。
   - “去完成”直接跳转到 `/pipeline/nodes/:nodeId`，实际工作、产物编辑、提交审核都在管线节点工作台完成。
-  - 后续如果需要把一个节点拆成多个子事项，应优先创建子 `PipelineNode` 或下级 artifact/work 节点，而不是恢复独立 Task 表。
+  - 后续如果需要把一个节点拆成多个子事项，应优先创建绑定同一实体或相关实体的 `PipelineNode`，而不是恢复独立 Task 表或继续增加影子产物层。
 - 模板系统（`handler/pipeline_template.go`）：`full_production` / `from_script` / `from_storyboard` / `custom`
 - 创建项目时通过 `pipeline_template` 字段自动生成对应节点和边
 - Project 新增 `pipeline_template` 字段

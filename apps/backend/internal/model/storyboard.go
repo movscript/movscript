@@ -40,9 +40,6 @@ type Storyboard struct {
 	Pacing         string  `json:"pacing"`       // fast_cut|long_take|pause
 	Intent         string  `json:"intent"`       // 镜头意图
 
-	// Attached media (reference images, sketches, etc.)
-	ResourceIDs string `json:"resource_ids"` // JSON array of RawResource IDs
-
 	// Status: draft|approved
 	Status string `gorm:"default:'draft'" json:"status"`
 

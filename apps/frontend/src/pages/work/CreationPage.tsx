@@ -1,25 +1,31 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
-import type { ArtifactRef, Script, Asset, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource, Pipeline, PipelineNode, ProjectMember } from '@/types'
+import type { ArtifactRef, Script, Setting, Asset, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource, Pipeline, PipelineNode, ProjectMember } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Plus, LayoutTemplate, ChevronDown, GripVertical, Network, Search, X } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import {
-  ScriptCreateForm, AssetCreateForm, StoryboardCreateForm, ShotCreateForm,
+  ScriptCreateForm, AssetCreateForm, EpisodeCreateForm, SceneCreateForm, StoryboardCreateForm, ShotCreateForm,
 } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { type EntityKind, type WorkArtifactKind, KIND_CONFIG, WORK_ARTIFACT_KINDS } from './config'
 import { ScriptWorkspace } from './workspaces/ScriptWorkspace'
+import { SettingWorkspace } from './workspaces/SettingWorkspace'
 import { AssetWorkspace } from './workspaces/AssetWorkspace'
+import { EpisodeWorkspace } from './workspaces/EpisodeWorkspace'
+import { SceneWorkspace } from './workspaces/SceneWorkspace'
 import { StoryboardWorkspace } from './workspaces/StoryboardWorkspace'
 import { ShotWorkspace } from './workspaces/ShotWorkspace'
 import { EmptyWorkspace } from './workspaces/EmptyWorkspace'
 import { EmbeddedCanvas, type EntityDragItem, type PushTarget } from './EmbeddedCanvas'
-import { Button, Input, Label } from '@movscript/ui'
+import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { FinalVideoDetail } from '@/pages/final-videos/FinalVideosPage'
 import PipelineEditorPage from '@/pages/pipeline/PipelineEditorPage'
+import { ArtifactWorkspaceFrame } from './ArtifactWorkspaceFrame'
+import { isWorkbenchEntityKind } from './workbenchNavigation'
 
 const BOTTOM_PANEL_DEFAULT_H = 420
 const BOTTOM_PANEL_MIN_H = 260
@@ -34,9 +40,21 @@ interface OpenTab {
   label: string
 }
 
+interface WorkListItem {
+  kind: WorkArtifactKind
+  id: number
+  title: string
+  subtitle?: string
+  status?: string
+  pipeline_node_id?: number
+  resource?: RawResource
+}
+
 export default function CreationPage() {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
+  const [searchParams] = useSearchParams()
   const [activeKind, setActiveKind] = useState<WorkArtifactKind>('script')
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([])
   const [activeTabKey, setActiveTabKey] = useState<string | null>(null)
@@ -51,6 +69,7 @@ export default function CreationPage() {
 
   /* ── Data queries ── */
   const { data: _scripts }     = useQuery<Script[]>({     queryKey: ['scripts', projectId],            queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),     enabled: !!projectId })
+  const { data: _settings }    = useQuery<Setting[]>({    queryKey: ['settings', projectId],           queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),    enabled: !!projectId })
   const { data: _assets }      = useQuery<Asset[]>({      queryKey: ['assets', projectId],             queryFn: () => api.get(`/projects/${projectId}/assets`).then((r) => r.data),      enabled: !!projectId })
   const { data: _episodes }    = useQuery<Episode[]>({    queryKey: ['episodes-project', projectId],   queryFn: () => api.get(`/projects/${projectId}/episodes`).then((r) => r.data),    enabled: !!projectId })
   const { data: _scenes }      = useQuery<Scene[]>({      queryKey: ['scenes', projectId],             queryFn: () => api.get(`/projects/${projectId}/scenes`).then((r) => r.data),      enabled: !!projectId })
@@ -66,6 +85,7 @@ export default function CreationPage() {
   })
 
   const scripts     = _scripts     ?? []
+  const settings    = _settings    ?? []
   const assets      = _assets      ?? []
   const episodes    = _episodes    ?? []
   const scenes      = _scenes      ?? []
@@ -74,10 +94,14 @@ export default function CreationPage() {
   const finalVideos = _finalVideos ?? []
   const artifactRefs = _artifactRefs ?? []
   const members = projectDetail?.members ?? []
+  const autoOpenedRef = useRef<string | null>(null)
 
   const counts: Record<WorkArtifactKind, number> = {
     script: artifactRefs.filter((item) => item.kind === 'script').length,
+    setting: settings.length,
     asset: artifactRefs.filter((item) => item.kind === 'asset').length,
+    episode: episodes.length,
+    scene: scenes.length,
     storyboard: artifactRefs.filter((item) => item.kind === 'storyboard').length,
     shot: artifactRefs.filter((item) => item.kind === 'shot').length,
     final_video: artifactRefs.filter((item) => item.kind === 'final_video').length,
@@ -109,9 +133,159 @@ export default function CreationPage() {
 
   const activeTab = openTabs.find((t) => t.key === activeTabKey) ?? null
 
+  function entityLabel(kind: EntityKind, id: number) {
+    switch (kind) {
+      case 'script': {
+        const script = scripts.find((item) => item.ID === id)
+        return script?.title || artifactRefs.find((item) => item.kind === kind && item.id === id)?.title
+      }
+      case 'setting':
+        return settings.find((item) => item.ID === id)?.name
+      case 'asset':
+        return assets.find((item) => item.ID === id)?.name || artifactRefs.find((item) => item.kind === kind && item.id === id)?.title
+      case 'episode': {
+        const episode = episodes.find((item) => item.ID === id)
+        return episode?.title || (episode ? `EP${episode.number}` : undefined)
+      }
+      case 'scene': {
+        const scene = scenes.find((item) => item.ID === id)
+        return scene?.title || (scene ? t('details.sceneLabel', { number: scene.number }) : undefined)
+      }
+      case 'storyboard': {
+        const storyboard = storyboards.find((item) => item.ID === id)
+        return storyboard?.title || artifactRefs.find((item) => item.kind === kind && item.id === id)?.title || (storyboard ? `#${storyboard.order}` : undefined)
+      }
+      case 'shot': {
+        const shot = shots.find((item) => item.ID === id)
+        return shot?.description || artifactRefs.find((item) => item.kind === kind && item.id === id)?.title || (shot ? `镜头 #${shot.ID}` : undefined)
+      }
+      case 'final_video': {
+        const video = finalVideos.find((item) => item.ID === id)
+        return video?.title || artifactRefs.find((item) => item.kind === kind && item.id === id)?.title || (video ? t('pages.finalVideos.defaultTitle') : undefined)
+      }
+    }
+  }
+
+  function pipelineNodeIdForEntity(kind: EntityKind, id: number) {
+    switch (kind) {
+      case 'script':
+        return scripts.find((item) => item.ID === id)?.pipeline_node_id
+          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
+      case 'asset':
+        return assets.find((item) => item.ID === id)?.pipeline_node_id
+          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
+      case 'episode':
+        return episodes.find((item) => item.ID === id)?.pipeline_node_id
+      case 'scene':
+        return scenes.find((item) => item.ID === id)?.pipeline_node_id
+      case 'storyboard':
+        return storyboards.find((item) => item.ID === id)?.pipeline_node_id
+          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
+      case 'shot':
+        return shots.find((item) => item.ID === id)?.pipeline_node_id
+          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
+      case 'final_video':
+        return finalVideos.find((item) => item.ID === id)?.pipeline_node_id
+          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
+      case 'setting':
+        return undefined
+    }
+  }
+
+  function entityTargetForPipelineNode(nodeId: number): { kind: EntityKind; id: number } | null {
+    const node = pipeline?.nodes.find((item) => item.ID === nodeId)
+    if (node && isWorkbenchEntityKind(node.entity_type) && node.entity_id) {
+      return { kind: node.entity_type, id: node.entity_id }
+    }
+
+    const script = scripts.find((item) => item.pipeline_node_id === nodeId)
+    if (script) return { kind: 'script', id: script.ID }
+    const asset = assets.find((item) => item.pipeline_node_id === nodeId)
+    if (asset) return { kind: 'asset', id: asset.ID }
+    const episode = episodes.find((item) => item.pipeline_node_id === nodeId)
+    if (episode) return { kind: 'episode', id: episode.ID }
+    const scene = scenes.find((item) => item.pipeline_node_id === nodeId)
+    if (scene) return { kind: 'scene', id: scene.ID }
+    const storyboard = storyboards.find((item) => item.pipeline_node_id === nodeId)
+    if (storyboard) return { kind: 'storyboard', id: storyboard.ID }
+    const shot = shots.find((item) => item.pipeline_node_id === nodeId)
+    if (shot) return { kind: 'shot', id: shot.ID }
+    const finalVideo = finalVideos.find((item) => item.pipeline_node_id === nodeId)
+    if (finalVideo) return { kind: 'final_video', id: finalVideo.ID }
+
+    const ref = artifactRefs.find((item) => item.pipeline_node_id === nodeId)
+    return ref && isWorkbenchEntityKind(ref.kind) ? { kind: ref.kind, id: ref.id } : null
+  }
+
+  useEffect(() => {
+    const rawKind = searchParams.get('kind')
+    const rawId = searchParams.get('id')
+    const rawNodeId = searchParams.get('node')
+    const nodeId = rawNodeId ? Number(rawNodeId) : undefined
+    const directKind = isWorkbenchEntityKind(rawKind) ? rawKind : undefined
+    const directId = rawId ? Number(rawId) : undefined
+
+    let target: { kind: EntityKind; id: number; nodeId?: number } | null = null
+    if (directKind && directId && Number.isFinite(directId)) {
+      target = { kind: directKind, id: directId, nodeId }
+    } else if (nodeId && Number.isFinite(nodeId)) {
+      const entityTarget = entityTargetForPipelineNode(nodeId)
+      if (entityTarget) target = { ...entityTarget, nodeId }
+    }
+
+    if (!target) return
+    const key = `${target.kind}:${target.id}:${target.nodeId ?? ''}`
+    if (autoOpenedRef.current === key) return
+
+    const label = entityLabel(target.kind, target.id)
+    if (!label) return
+
+    setActiveKind(target.kind)
+    openTab(target.kind, target.id, label)
+    autoOpenedRef.current = key
+  }, [searchParams, pipeline, scripts, settings, assets, episodes, scenes, storyboards, shots, finalVideos, artifactRefs])
+
   /* ── Item strip ── */
-  function getItems(): ArtifactRef[] {
-    return artifactRefs.filter((item) => item.kind === activeKind)
+  function getItems(): WorkListItem[] {
+    switch (activeKind) {
+      case 'episode':
+        return episodes.map((episode) => ({
+          kind: 'episode',
+          id: episode.ID,
+          title: episode.title || `EP${episode.number}`,
+          subtitle: `EP${String(episode.number).padStart(2, '0')}`,
+          status: episode.status,
+          pipeline_node_id: episode.pipeline_node_id,
+        }))
+      case 'scene':
+        return scenes.map((scene) => ({
+          kind: 'scene',
+          id: scene.ID,
+          title: scene.title || `${t('details.sceneLabel', { number: scene.number })}`,
+          subtitle: scene.location || t('details.sceneLabel', { number: scene.number }),
+          pipeline_node_id: scene.pipeline_node_id,
+        }))
+      case 'setting':
+        return settings.map((setting) => ({
+          kind: 'setting',
+          id: setting.ID,
+          title: setting.name,
+          subtitle: setting.description || t(`domain.settingTypes.${setting.type === 'world_rule' ? 'worldRule' : setting.type}`, { defaultValue: setting.type }),
+          status: setting.status,
+        }))
+      default:
+        return artifactRefs
+          .filter((item) => item.kind === activeKind)
+          .map((item) => ({
+            kind: activeKind,
+            id: item.id,
+            title: item.title,
+            subtitle: item.subtitle,
+            status: item.status,
+            pipeline_node_id: item.pipeline_node_id,
+            resource: item.resource,
+          }))
+    }
   }
 
   /* ── Bottom panel ── */
@@ -202,30 +376,63 @@ export default function CreationPage() {
     }
     switch (kind) {
       case 'script':     { const item = scripts.find((s) => s.ID === id);     return item ? <ScriptWorkspace script={item} episodes={episodes} scenes={scenes} {...common} /> : <EmptyWorkspace kind={kind} /> }
+      case 'setting':    { const item = settings.find((s) => s.ID === id);    return item ? <SettingWorkspace setting={item} {...common} /> : <EmptyWorkspace kind={kind} /> }
       case 'asset':      { const item = assets.find((a) => a.ID === id);      return item ? <AssetWorkspace asset={item} {...common} /> : <EmptyWorkspace kind={kind} /> }
+      case 'episode':    { const item = episodes.find((e) => e.ID === id);    return item ? <EpisodeWorkspace episode={item} scripts={scripts} scenes={scenes} storyboards={storyboards} {...common} /> : <EmptyWorkspace kind={kind} /> }
+      case 'scene':      { const item = scenes.find((s) => s.ID === id);      return item ? <SceneWorkspace scene={item} episodes={episodes} storyboards={storyboards} {...common} /> : <EmptyWorkspace kind={kind} /> }
       case 'storyboard': { const item = storyboards.find((b) => b.ID === id); return item ? <StoryboardWorkspace storyboard={item} scenes={scenes} episodes={episodes} shots={shots} {...common} /> : <EmptyWorkspace kind={kind} /> }
       case 'shot':       { const item = shots.find((s) => s.ID === id);       return item ? <ShotWorkspace shot={item} storyboards={storyboards} {...common} /> : <EmptyWorkspace kind={kind} /> }
-      case 'final_video':{ const item = finalVideos.find((v) => v.ID === id); return item ? <FinalVideoDetail video={item} episodes={episodes} scenes={scenes} storyboards={storyboards} shots={shots} showHeader={false} /> : <EmptyWorkspace kind={kind} /> }
+      case 'final_video': {
+        const item = finalVideos.find((v) => v.ID === id)
+        return item ? (
+          <ArtifactWorkspaceFrame
+            kind="final_video"
+            title={item.title || t('pages.finalVideos.defaultTitle')}
+            subtitle={item.status}
+            node={node}
+            pipeline={pipeline}
+            members={members}
+            onNodeUpdated={handleNodeUpdated}
+          >
+            <FinalVideoDetail video={item} episodes={episodes} scenes={scenes} storyboards={storyboards} shots={shots} showHeader={false} />
+          </ArtifactWorkspaceFrame>
+        ) : <EmptyWorkspace kind={kind} />
+      }
     }
   }
 
   function findNodeFor(kind: EntityKind, id: number): PipelineNode | undefined {
-    return pipeline?.nodes.find((node) =>
-      (node.entity_type === kind && node.entity_id === id)
-      || (kind === 'script' && scripts.find((s) => s.ID === id)?.pipeline_node_id === node.ID)
-      || (kind === 'asset' && assets.find((a) => a.ID === id)?.pipeline_node_id === node.ID)
-      || (kind === 'episode' && episodes.find((e) => e.ID === id)?.pipeline_node_id === node.ID)
-      || (kind === 'scene' && scenes.find((s) => s.ID === id)?.pipeline_node_id === node.ID)
-      || (kind === 'storyboard' && storyboards.find((b) => b.ID === id)?.pipeline_node_id === node.ID)
-      || (kind === 'shot' && shots.find((s) => s.ID === id)?.pipeline_node_id === node.ID)
-      || (kind === 'final_video' && finalVideos.find((v) => v.ID === id)?.pipeline_node_id === node.ID)
+    const nodes = pipeline?.nodes ?? []
+    const entityPipelineNodeId = pipelineNodeIdForEntity(kind, id)
+    const requestedNodeId = Number(searchParams.get('node'))
+    const requestedNode = Number.isFinite(requestedNodeId)
+      ? nodes.find((node) => node.ID === requestedNodeId)
+      : undefined
+
+    if (
+      requestedNode &&
+      (
+        (requestedNode.entity_type === kind && requestedNode.entity_id === id) ||
+        requestedNode.ID === entityPipelineNodeId
+      )
+    ) {
+      return requestedNode
+    }
+
+    return nodes.find((node) =>
+      (node.entity_type === kind && node.entity_id === id) ||
+      node.ID === entityPipelineNodeId
     )
   }
 
   function handleNodeUpdated(updated: PipelineNode) {
-    // The query invalidation in the rail refreshes the source data. This hook is
-    // present so workspaces can optimistically react later without changing APIs.
-    void updated
+    qc.setQueryData<Pipeline | undefined>(['pipeline', projectId], (current) => {
+      if (!current) return current
+      return {
+        ...current,
+        nodes: current.nodes.map((node) => node.ID === updated.ID ? updated : node),
+      }
+    })
   }
 
   const items = getItems()
@@ -241,7 +448,10 @@ export default function CreationPage() {
     const close = () => setShowCreate(false)
     switch (activeKind) {
       case 'script':     return <ScriptCreateForm projectId={projectId} onSuccess={close} onCancel={close} />
+      case 'setting':    return <SettingCreateInlineForm projectId={projectId} onSuccess={close} onCancel={close} />
       case 'asset':      return <AssetCreateForm projectId={projectId} onSuccess={close} onCancel={close} />
+      case 'episode':    return <EpisodeCreateForm projectId={projectId} onSuccess={close} onCancel={close} />
+      case 'scene':      return <SceneCreateForm projectId={projectId} onSuccess={close} onCancel={close} />
       case 'storyboard': return <StoryboardCreateForm projectId={projectId} onSuccess={close} onCancel={close} />
       case 'shot':       return <ShotCreateForm projectId={projectId} onSuccess={close} onCancel={close} />
       case 'final_video':return (
@@ -514,6 +724,86 @@ function FinalVideoCreateInlineForm({
   )
 }
 
+function SettingCreateInlineForm({
+  projectId,
+  onSuccess,
+  onCancel,
+}: {
+  projectId: number
+  onSuccess: () => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [name, setName] = useState('')
+  const [type, setType] = useState<Setting['type']>('character')
+  const [description, setDescription] = useState('')
+
+  const settingTypes: { type: Setting['type']; labelKey: string }[] = [
+    { type: 'character', labelKey: 'domain.settingTypes.character' },
+    { type: 'scene', labelKey: 'domain.settingTypes.scene' },
+    { type: 'prop', labelKey: 'domain.settingTypes.prop' },
+    { type: 'world_rule', labelKey: 'domain.settingTypes.worldRule' },
+  ]
+
+  const create = useMutation({
+    mutationFn: () => api.post(`/projects/${projectId}/settings`, {
+      name: name.trim(),
+      type,
+      description: description.trim() || undefined,
+    }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', projectId] })
+      onSuccess()
+    },
+  })
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.nameRequired')}</Label>
+        <Input
+          autoFocus
+          placeholder={t('pages.scripts.settingName')}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => event.key === 'Enter' && name.trim() && create.mutate()}
+        />
+      </div>
+      <div>
+        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.typeRequired')}</Label>
+        <div className="flex flex-wrap gap-2">
+          {settingTypes.map((item) => (
+            <button
+              key={item.type}
+              type="button"
+              onClick={() => setType(item.type)}
+              className={cn(
+                'rounded-full border px-3 py-1.5 text-xs transition-colors',
+                type === item.type
+                  ? 'border-transparent bg-foreground text-background'
+                  : 'border-border text-muted-foreground hover:border-ring hover:text-foreground',
+              )}
+            >
+              {t(item.labelKey)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.summaryOptional')}</Label>
+        <Textarea className="resize-none" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} />
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending} className="flex-1">
+          {create.isPending ? t('common.creating') : t('common.create')}
+        </Button>
+        <Button variant="outline" onClick={onCancel}>{t('common.cancel')}</Button>
+      </div>
+    </div>
+  )
+}
+
 function BottomPanelTab({
   active,
   icon,
@@ -545,7 +835,7 @@ function BottomPanelTab({
 // ── Artifact card (middle strip) ──────────────────────────────────────────────
 
 interface EntityCardProps {
-  item: ArtifactRef
+  item: WorkListItem
   kind: WorkArtifactKind
   selected: boolean
   hasTab: boolean

@@ -18,7 +18,6 @@ type Episode struct {
 	Script            Script `json:"script,omitempty"`
 	TargetStoryboards int    `json:"target_storyboards"` // expected storyboard count for this episode
 	TargetScenes      int    `json:"target_scenes"`      // expected scene count for this episode
-	ResourceIDs       string `json:"resource_ids"`       // JSON array of RawResource IDs
 
 	Scenes      []Scene      `gorm:"many2many:episode_scenes;" json:"scenes,omitempty"`
 	Storyboards []Storyboard `gorm:"foreignKey:EpisodeID" json:"storyboards,omitempty"`

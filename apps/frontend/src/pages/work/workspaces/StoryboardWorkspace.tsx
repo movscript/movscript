@@ -52,6 +52,7 @@ export function StoryboardWorkspace({
     >
       <div className="h-full min-w-0 overflow-hidden">
         <StoryboardForm
+          storyboard={storyboard}
           draft={draft}
           onChange={setDraft}
           onSave={(data) => update.mutate(data)}

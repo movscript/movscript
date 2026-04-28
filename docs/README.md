@@ -19,6 +19,7 @@ This directory contains user, operator, developer, API, plugin, UI, and agent do
 ## Development
 
 - [Architecture](architecture.md): repository boundaries and runtime flows.
+- [Roadmap](roadmap.md): larger unfinished product and architecture directions.
 - [Development](development.md): commands, validation, coding conventions, and PR checklist.
 - [Plugins](plugins.md): plugin manifest format, backend import behavior, runtime boundary, and CLI notes.
 

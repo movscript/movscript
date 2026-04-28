@@ -6,8 +6,12 @@ import test from 'node:test'
 import { AgentRuntime, type AgentRun } from './agentRuntime.js'
 import type { JSONValue } from '../types.js'
 import { FileAgentStore } from './fileStore.js'
+import { FileAgentDraftStore, InMemoryAgentDraftStore } from './draftStore.js'
 import { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from './agentManifest.js'
+import type { AgentModelPlanner, ModelPlannerResult } from './modelPlanner.js'
+import { BackendApplyClient, type BackendApplyResult } from './backendApplyClient.js'
+import type { ApplyDraftReview } from './draftApply.js'
 
 type ToolCallRecord = {
   name: string
@@ -17,6 +21,7 @@ type ToolCallRecord = {
 class FakeMCPClient {
   readonly calls: ToolCallRecord[] = []
   projectId: number | null = null
+  userId: number | null = null
   failTools = new Set<string>()
 
   async initialize(): Promise<JSONValue> {
@@ -31,8 +36,7 @@ class FakeMCPClient {
     return [
       { name: 'movscript.search_entities', description: 'Search project entities by keyword.', inputSchema: {} },
       { name: 'movscript.read_entity', description: 'Read a single project entity.', inputSchema: {} },
-      { name: 'movscript.create_draft', description: 'Create a local draft artifact.', inputSchema: {} },
-      { name: 'movscript.list_drafts', description: 'List local drafts.', inputSchema: {} },
+      { name: 'movscript.read_project_structure', description: 'Read project structure.', inputSchema: {} },
       { name: 'movscript.open_entity', description: 'Open an entity.', inputSchema: {} },
     ]
   }
@@ -46,19 +50,58 @@ class FakeMCPClient {
       return toolText({
         snapshot: {
           project: this.projectId === null ? null : { id: this.projectId, name: 'Test Project' },
+          user: this.userId === null ? null : { id: this.userId, username: 'tester' },
         },
       })
     }
     if (name === 'movscript.search_entities') {
       return toolText({ results: [] })
     }
-    if (name === 'movscript.create_draft') {
-      return toolText({ id: 'draft_test', projectId: args.projectId ?? null })
+    if (name === 'movscript.read_project_structure') {
+      return toolText({
+        counts: { scripts: 1, settings: 0, episodes: 1, scenes: 2, storyboards: 1, shots: 3, pipelineNodes: 2 },
+        episodes: [],
+        scenes: [],
+        storyboards: [],
+        shots: [],
+      })
     }
     if (name === 'movscript.read_entity') {
       return toolText({ id: args.entityId, projectId: args.projectId })
     }
     return toolText({ ok: true })
+  }
+}
+
+class FakeModelPlanner implements AgentModelPlanner {
+  enabled = true
+  error?: Error
+  calls = 0
+
+  constructor(private readonly result: ModelPlannerResult) {}
+
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
+  async plan(): Promise<ModelPlannerResult> {
+    this.calls += 1
+    if (this.error) throw this.error
+    return this.result
+  }
+}
+
+class FakeBackendApplyClient extends BackendApplyClient {
+  readonly calls: Array<{ review: ApplyDraftReview; userId?: number | string }> = []
+  result: BackendApplyResult = { performed: true, method: 'PATCH', url: 'http://backend/api/v1/shots/7', payload: { description: 'New shot description' } }
+
+  override isEnabled(): boolean {
+    return true
+  }
+
+  override async applyReview(review: ApplyDraftReview, userId?: number | string): Promise<BackendApplyResult> {
+    this.calls.push({ review, userId })
+    return this.result
   }
 }
 
@@ -89,7 +132,8 @@ test('adds current projectId to search and draft tool calls', async () => {
 
   assert.equal(run.status, 'completed')
   assert.equal(search?.args.projectId, 42)
-  assert.equal(draft?.args.projectId, 42)
+  assert.equal(draft, undefined)
+  assert.equal(runtime.listDrafts({ projectId: 42 })[0]?.projectId, 42)
 })
 
 test('previews plan and policy without creating a run or executing planned tools', async () => {
@@ -122,6 +166,73 @@ test('previews plan and policy without creating a run or executing planned tools
   assert.deepEqual(client.calls.map((call) => call.name), ['movscript.get_context_pack'])
 })
 
+test('uses model planner when configured', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const planner = new FakeModelPlanner({
+    warnings: [],
+    toolCalls: [{ name: 'movscript.search_entities', args: { query: '主角', limit: 3 } }],
+    plan: {
+      id: 'plan_model',
+      objective: '模型规划检索主角',
+      strategy: 'Use model-generated search plan.',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      tasks: [{
+        id: 'task_model',
+        title: '检索主角资料',
+        description: 'Search project entities for protagonist material.',
+        agentRole: 'researcher',
+        status: 'pending',
+        toolCalls: [{ name: 'movscript.search_entities', args: { query: '主角', limit: 3 } }],
+        createdAt: new Date().toISOString(),
+        successCriteria: '找到相关项目实体。',
+      }],
+    },
+  })
+  const runtime = new AgentRuntime({ mcpClient: client, modelPlanner: planner })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我看看主角资料' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const search = client.calls.find((call) => call.name === 'movscript.search_entities')
+
+  assert.equal(run.status, 'completed')
+  assert.equal(planner.calls, 1)
+  assert.equal(run.plan?.id, 'plan_model')
+  assert.equal(run.metadata?.planner, 'model')
+  assert.equal(search?.args.query, '主角')
+  assert.equal(search?.args.projectId, 42)
+  assert.equal(run.steps.find((step) => step.type === 'planning')?.result && (run.steps.find((step) => step.type === 'planning')?.result as any).planner, 'model')
+})
+
+test('falls back to rule planner when model planner fails', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const planner = new FakeModelPlanner({
+    warnings: [],
+    toolCalls: [],
+    plan: {
+      id: 'unused',
+      objective: 'unused',
+      strategy: 'unused',
+      tasks: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  })
+  planner.error = new Error('planner unavailable')
+  const runtime = new AgentRuntime({ mcpClient: client, modelPlanner: planner })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '搜索主角' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+
+  assert.equal(run.status, 'completed_with_warnings')
+  assert.equal(planner.calls, 1)
+  assert.equal(run.metadata?.planner, 'rule')
+  assert.match(run.warnings?.join('\n') ?? '', /model planner fallback: planner unavailable/)
+  assert.equal(client.calls.some((call) => call.name === 'movscript.search_entities'), true)
+})
+
 test('capabilities distinguish available and blocked tools', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
@@ -139,6 +250,18 @@ test('capabilities distinguish available and blocked tools', async () => {
   assert.equal(capabilities.mcp.connected, true)
   assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript.search_entities'))
   assert.equal(capabilities.resolvedTools.byName['movscript.create_draft']?.unavailableReason, 'not_granted')
+})
+
+test('runtime draft tools are available without MCP tool discovery', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const runtime = new AgentRuntime({ mcpClient: client })
+
+  const capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
+
+  assert.equal(capabilities.resolvedTools.byName['movscript.create_draft']?.source, 'runtime')
+  assert.equal(capabilities.resolvedTools.byName['movscript.create_draft']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript.list_drafts']?.available, true)
 })
 
 test('run agentManifest limits tool execution', async () => {
@@ -187,7 +310,8 @@ test('run requiring approval pauses before tool execution and resumes after appr
   const draft = client.calls.find((call) => call.name === 'movscript.create_draft')
 
   assert.equal(resumed.status, 'completed')
-  assert.equal(draft?.args.projectId, 42)
+  assert.equal(draft, undefined)
+  assert.equal(runtime.listDrafts({ projectId: 42 }).length, 1)
   assert.equal(resumed.pendingApprovals?.[0].status, 'approved')
 })
 
@@ -212,6 +336,106 @@ test('run requiring approval can be rejected without executing the tool', async 
   assert.equal(rejected.pendingApprovals?.[0].status, 'rejected')
   assert.equal(client.calls.some((call) => call.name === 'movscript.create_draft'), false)
   assert.match(assistant?.content ?? '', /已取消需要确认的工具调用/)
+})
+
+test('apply_draft requires approval and marks draft applied after approval', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const backendApplyClient = new FakeBackendApplyClient()
+  const runtime = new AgentRuntime({ mcpClient: client, backendApplyClient })
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'shot',
+    title: 'Shot update',
+    content: 'New shot description',
+    target: { entityType: 'shot', entityId: 7, field: 'description' },
+  })
+  const thread = runtime.createThread({
+    messages: [{ role: 'user', content: `请应用草稿 ${draft.id} 到 shot #7 字段 description` }],
+  })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+
+  assert.equal(run.status, 'requires_action')
+  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript.apply_draft')
+  assert.equal((run.pendingApprovals?.[0].preview as any)?.review?.target?.entityType, 'shot')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+
+  runtime.approveRun(run.id)
+  const appliedRun = await waitForRun(runtime, run.id)
+  const appliedDraft = runtime.getDraft(draft.id)
+
+  assert.equal(appliedRun.status, 'completed')
+  assert.equal(backendApplyClient.calls.length, 1)
+  assert.equal(backendApplyClient.calls[0].review.target.entityType, 'shot')
+  assert.equal(appliedDraft?.status, 'applied')
+  assert.equal(appliedDraft?.target?.entityId, 7)
+  assert.equal((appliedDraft?.metadata?.applyReview as any)?.requiresBackendApply, true)
+  assert.equal(appliedDraft?.metadata?.backendWritePerformed, true)
+  assert.equal((appliedDraft?.metadata?.backendApply as any)?.method, 'PATCH')
+})
+
+test('apply_draft passes current context user id to backend apply client', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  client.userId = 9
+  const backendApplyClient = new FakeBackendApplyClient()
+  const runtime = new AgentRuntime({ mcpClient: client, backendApplyClient })
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'shot',
+    title: 'Shot update',
+    content: 'New shot description',
+    target: { entityType: 'shot', entityId: 7, field: 'description' },
+  })
+  const thread = runtime.createThread({
+    messages: [{ role: 'user', content: `请应用草稿 ${draft.id} 到 shot #7 字段 description` }],
+  })
+
+  await createAndWaitForRun(runtime, thread.id)
+  const waiting = runtime.listRuns()[0]
+  runtime.approveRun(waiting.id)
+  await waitForRun(runtime, waiting.id)
+
+  assert.equal(backendApplyClient.calls[0].userId, 9)
+})
+
+test('apply_draft preview API returns before and after values', () => {
+  const runtime = new AgentRuntime({ mcpClient: new FakeMCPClient() })
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'script',
+    title: 'Script update',
+    content: 'Updated script text',
+  })
+
+  const preview = runtime.previewApplyDraft({
+    draftId: draft.id,
+    targetEntityType: 'script',
+    targetEntityId: 3,
+    targetField: 'content',
+    currentValue: 'Old script text',
+  }) as any
+
+  assert.equal(preview.status, 'preview')
+  assert.equal(preview.review.currentValue, 'Old script text')
+  assert.equal(preview.review.proposedValue, 'Updated script text')
+  assert.equal(preview.review.risk, 'write')
+})
+
+test('rejectDraft marks local draft rejected with reason', () => {
+  const runtime = new AgentRuntime({ mcpClient: new FakeMCPClient() })
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'note',
+    title: 'Reject me',
+    content: 'Not useful',
+  })
+
+  const rejected = runtime.rejectDraft({ draftId: draft.id, reason: 'out of scope' })
+
+  assert.equal(rejected.status, 'rejected')
+  assert.equal(rejected.rejectedReason, 'out of scope')
 })
 
 test('creates visible planning and subagent steps during a run', async () => {
@@ -354,7 +578,8 @@ test('relevant memories are injected into create_draft content', async () => {
   await createAndWaitForRun(runtime, thread.id)
   const draft = client.calls.find((call) => call.name === 'movscript.create_draft')
 
-  assert.match(String(draft?.args.content ?? ''), /默认镜头风格是手持纪实/)
+  assert.equal(draft, undefined)
+  assert.match(runtime.listDrafts({ projectId: 42 })[0]?.content ?? '', /默认镜头风格是手持纪实/)
 })
 
 test('create_draft success writes draft memory', async () => {
@@ -366,6 +591,54 @@ test('create_draft success writes draft memory', async () => {
   await createAndWaitForRun(runtime, thread.id)
 
   assert.equal(runtime.listMemories({ kind: 'draft', projectId: 42 }).length, 1)
+})
+
+test('create_draft writes local draft lifecycle metadata and list_drafts returns it', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const runtime = new AgentRuntime({ mcpClient: client, draftStore })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个镜头草稿' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const draft = runtime.listDrafts({ projectId: 42, kind: 'shot' })[0]
+
+  assert.equal(run.status, 'completed')
+  assert.ok(draft)
+  assert.equal(draft.status, 'draft')
+  assert.equal(draft.kind, 'shot')
+  assert.equal(draft.createdByRunId, run.id)
+  assert.equal(draft.createdByThreadId, thread.id)
+  assert.equal(draft.source?.runId, run.id)
+  assert.equal(client.calls.some((call) => call.name === 'movscript.create_draft'), false)
+
+  runtime.addMessage(thread.id, { role: 'user', content: '列出当前项目已有的 Agent 草稿。' })
+  await createAndWaitForRun(runtime, thread.id)
+  assert.equal(client.calls.some((call) => call.name === 'movscript.list_drafts'), false)
+})
+
+test('file draft store persists drafts across runtime rebuilds', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
+  try {
+    const draftPath = join(dir, 'drafts.json')
+    const store = new FileAgentDraftStore(draftPath)
+    const draft = store.createDraft({
+      projectId: 42,
+      kind: 'note',
+      title: 'Review note',
+      content: 'Check storyboard gaps.',
+      source: { entityType: 'scene', entityId: 12 },
+    })
+
+    const rebuilt = new FileAgentDraftStore(draftPath)
+    const restored = rebuilt.getDraft(draft.id)
+
+    assert.equal(restored?.title, 'Review note')
+    assert.equal(restored?.source?.entityType, 'scene')
+    assert.equal(rebuilt.listDrafts({ projectId: 42 }).length, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 async function createAndWaitForRun(

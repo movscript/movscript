@@ -19,7 +19,6 @@ type Asset struct {
 	StyleProfile   string `json:"style_profile"`
 	Prompt         string `gorm:"type:text" json:"prompt"`
 	NegativePrompt string `gorm:"type:text" json:"negative_prompt"`
-	ReferenceIDs   string `gorm:"type:text" json:"reference_ids"` // JSON array of RawResource IDs
 	IsPrimary      bool   `json:"is_primary"`
 	// Reserved for legacy entity-level review. Disabled in the frontend for now;
 	// pipeline node status is the active review source of truth.
@@ -37,8 +36,7 @@ type AssetView struct {
 	ViewType           string       `gorm:"default:'front'" json:"view_type"`
 	Label              string       `json:"label"`
 	ShotType           string       `json:"shot_type"` // full_body|half_body|closeup|environment|prop_detail
-	ResourceID         *uint        `json:"resource_id,omitempty"`
-	Resource           *RawResource `gorm:"foreignKey:ResourceID" json:"resource,omitempty"`
+	Resource           *RawResource `gorm:"-" json:"resource,omitempty"`
 	CanvasID           *uint        `json:"canvas_id,omitempty"`
 	ImageURL           string       `json:"image_url"` // fallback for direct URL
 	Prompt             string       `gorm:"type:text" json:"prompt"`

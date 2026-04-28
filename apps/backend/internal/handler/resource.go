@@ -327,6 +327,7 @@ func (h *ResourceHandler) Delete(c *gin.Context) {
 	if r.StorageKey != "" {
 		_ = h.store.Delete(c.Request.Context(), r.StorageKey)
 	}
+	h.db.Where("resource_id = ?", r.ID).Delete(&model.ResourceBinding{})
 	h.db.Delete(&r)
 	c.Status(http.StatusNoContent)
 }
@@ -415,15 +416,26 @@ func (h *ResourceHandler) AddToAsset(c *gin.Context) {
 
 	rid := r.ID
 	view := model.AssetView{
-		AssetID:    asset.ID,
-		ViewType:   body.ViewType,
-		Label:      body.Label,
-		ResourceID: &rid,
+		AssetID:  asset.ID,
+		ViewType: body.ViewType,
+		Label:    body.Label,
 	}
 	if err := h.db.Create(&view).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+		ProjectID:   asset.ProjectID,
+		ResourceID:  rid,
+		OwnerType:   "asset_view",
+		OwnerID:     view.ID,
+		Role:        "final",
+		Slot:        body.ViewType,
+		IsPrimary:   true,
+		Status:      "selected",
+		SourceType:  "manual",
+		CreatedByID: &user.ID,
+	})
 	c.JSON(http.StatusCreated, view)
 }
 

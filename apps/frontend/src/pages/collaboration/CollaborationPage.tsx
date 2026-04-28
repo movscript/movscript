@@ -21,6 +21,7 @@ import { Badge } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import { workbenchPathForPipelineNode } from '@/pages/work/workbenchNavigation'
 
 const ROLE_LABEL_KEYS: Record<string, string> = {
   owner: 'pages.collaboration.roles.owner',
@@ -101,7 +102,7 @@ function NodeCard({
             {node.entity_type && <span>{node.entity_type} #{node.entity_id ?? '-'}</span>}
           </div>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={() => navigate(`/pipeline/nodes/${node.ID}`)}>
+        <Button size="sm" className="gap-1.5" onClick={() => navigate(workbenchPathForPipelineNode(node))}>
           <Play size={13} />
           去完成
         </Button>

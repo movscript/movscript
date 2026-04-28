@@ -41,7 +41,7 @@ export function applyToolPolicy(
   for (const call of requestedToolCalls) {
     const tool = registry.get(call.name)
     const catalogTool = options.catalog?.byName[call.name]
-    if (catalogTool && !catalogTool.available) {
+    if (catalogTool && !catalogTool.available && catalogTool.unavailableReason !== 'mcp_unavailable') {
       const reason = mapCatalogReason(catalogTool.unavailableReason)
       block(call, reason, catalogWarningMessage(call.name, catalogTool.unavailableReason))
       continue

@@ -19,10 +19,8 @@ type Shot struct {
 	Description  string `json:"description"`
 
 	// AI generation
-	Prompt         string `json:"prompt"`
-	CanvasID       *uint  `json:"canvas_id,omitempty"`
-	GeneratedResID *uint  `json:"generated_res_id,omitempty"`
-	RefResourceIDs string `json:"ref_resource_ids"` // JSON array of reference RawResource IDs
+	Prompt   string `json:"prompt"`
+	CanvasID *uint  `json:"canvas_id,omitempty"`
 
 	// Final version — stored separately from the working draft fields above.
 	FinalDescription string `json:"final_description"`

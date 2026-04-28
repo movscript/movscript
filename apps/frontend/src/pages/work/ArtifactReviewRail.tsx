@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, CalendarDays, CheckCircle2, Clock, FileWarning, Loader2, RotateCcw, Send } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, FileWarning, Loader2, RotateCcw, Send } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { PipelineNode } from '@/types'
 import { Button } from '@movscript/ui'
@@ -58,21 +58,10 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
   })
 
   if (!node) {
-    return (
-      <aside className="w-80 shrink-0 border-l border-border bg-card">
-        <div className="p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">流程状态</h2>
-          <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground leading-relaxed">
-            当前产物还没有绑定管线节点。绑定后可以在这里提交审核、查看打回原因和负责人信息。
-          </div>
-        </div>
-      </aside>
-    )
+    return null
   }
 
   const meta = STATUS_META[node.status] ?? STATUS_META.draft
-  const assignee = node.assignee?.username ?? (node.assignee_id ? `用户 #${node.assignee_id}` : '未分配')
-  const lead = node.lead?.username ?? (node.lead_id ? `用户 #${node.lead_id}` : '未指定')
   const busy = transition.isPending
 
   return (
@@ -80,23 +69,10 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">流程状态</h2>
+            <h2 className="text-sm font-semibold text-foreground">审核</h2>
             <span className={cn('rounded px-2 py-0.5 text-xs font-medium', meta.className)}>{meta.label}</span>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">{meta.description}</p>
-
-          <div className="grid grid-cols-2 gap-2">
-            <InfoCell label="执行人" value={assignee} />
-            <InfoCell label="负责人" value={lead} />
-          </div>
-
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <CalendarDays size={12} />
-              截止时间
-            </div>
-            <p className="mt-1 text-xs text-foreground">{node.due_date ? node.due_date.substring(0, 10) : '未设置'}</p>
-          </div>
         </section>
 
         {node.description && (
@@ -215,14 +191,5 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
         )}
       </div>
     </aside>
-  )
-}
-
-function InfoCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-3 py-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xs font-medium text-foreground">{value}</p>
-    </div>
   )
 }

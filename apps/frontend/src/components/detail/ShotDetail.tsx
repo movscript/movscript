@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { RawResource, Shot } from '@/types'
+import type { ResourceBinding, Shot } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -40,11 +40,12 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
     },
   })
 
-  const { data: generatedResource } = useQuery<RawResource>({
-    queryKey: ['resource', draft.generated_res_id],
-    queryFn: () => api.get(`/resources/${draft.generated_res_id}`).then((r) => r.data),
-    enabled: !!draft.generated_res_id,
+  const { data: outputBindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey: ['resource-bindings', projectId, 'shot', shot.ID, 'final'],
+    queryFn: () => api.get(`/projects/${projectId}/entities/shot/${shot.ID}/resources`, { params: { role: 'final' } }).then((r) => r.data),
+    enabled: !!projectId,
   })
+  const generatedResource = outputBindings.find((binding) => binding.resource)?.resource
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

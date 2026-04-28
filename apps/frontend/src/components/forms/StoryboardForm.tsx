@@ -19,20 +19,11 @@ import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 interface StoryboardFormProps {
+  storyboard: Storyboard
   draft: Partial<Storyboard>
   onChange: (d: Partial<Storyboard>) => void
   onSave: (data: Partial<Storyboard>) => void
   isSaving?: boolean
-}
-
-function safeJsonIds(value?: string): number[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.filter((id) => Number.isFinite(Number(id))).map(Number) : []
-  } catch {
-    return []
-  }
 }
 
 function PillSelector({
@@ -70,7 +61,7 @@ function PillSelector({
   )
 }
 
-export function StoryboardForm({ draft, onChange, onSave, isSaving }: StoryboardFormProps) {
+export function StoryboardForm({ storyboard, draft, onChange, onSave, isSaving }: StoryboardFormProps) {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
 
@@ -168,8 +159,9 @@ export function StoryboardForm({ draft, onChange, onSave, isSaving }: Storyboard
       <div className="space-y-2 pt-2 border-t border-border">
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.referenceAssets')}</Label>
         <ResourceAttachments
-          resourceIds={safeJsonIds(draft.resource_ids)}
-          onChange={(ids) => onChange({ ...draft, resource_ids: JSON.stringify(ids) })}
+          ownerType="storyboard"
+          ownerId={storyboard.ID}
+          role="reference"
         />
       </div>
       <Button onClick={() => onSave(draft)} disabled={isSaving} className="w-full gap-1.5" size="sm">

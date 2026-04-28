@@ -79,7 +79,6 @@ export interface Script {
   assignee_id?: number
   assignee?: User
   author_id: number
-  resource_ids: string // JSON array of RawResource IDs
   order: number // sort order for episode scripts
   // content management fields (内容管理)
   summary: string
@@ -180,7 +179,6 @@ export interface AssetView {
   view_type: string // front|back|left|right|detail|custom
   label: string
   shot_type?: string // full_body|half_body|closeup|environment|prop_detail
-  resource_id?: number
   resource?: RawResource
   canvas_id?: number
   image_url?: string
@@ -208,7 +206,6 @@ export interface Asset {
   style_profile?: string
   prompt?: string
   negative_prompt?: string
-  reference_ids?: string
   is_primary?: boolean
   review_status?: ReviewStatus
   setting_id?: number // optional link to a Setting
@@ -230,7 +227,6 @@ export interface Scene {
   time_of_day: string
   notes: string
   review_status?: ReviewStatus
-  resource_ids: string // JSON array of RawResource IDs
   storyboards?: Storyboard[]
 }
 
@@ -252,7 +248,6 @@ export interface Episode {
   script_id?: number // optional — can be created without a script
   target_storyboards?: number
   target_scenes?: number
-  resource_ids: string // JSON array of RawResource IDs
   scenes?: Scene[]
   CreatedAt: string
   UpdatedAt: string
@@ -288,7 +283,6 @@ export interface Storyboard {
   focal_length?: string // wide|standard|telephoto
   pacing?: string       // fast_cut|long_take|pause
   intent?: string       // 镜头意图
-  resource_ids: string // JSON array of RawResource IDs
   status: 'draft' | 'approved'
   review_status?: ReviewStatus
   shots?: Shot[]
@@ -311,8 +305,6 @@ export interface Shot {
   description: string
   prompt: string
   canvas_id?: number
-  generated_res_id?: number
-  ref_resource_ids: string // JSON array of reference RawResource IDs
   // Final version fields — stored separately from working draft above
   final_description?: string
   final_prompt?: string
@@ -335,8 +327,6 @@ export interface FinalVideo {
   pipeline_node_id?: number
   title: string
   description: string
-  resource_id?: number | null
-  resource?: RawResource
   status: FinalVideoStatus
   order: number
   CreatedAt: string
@@ -659,6 +649,53 @@ export interface RawResource {
   owner?: { ID: number; username: string }
 }
 
+export type ResourceBindingOwnerType =
+  | 'script'
+  | 'setting'
+  | 'episode'
+  | 'scene'
+  | 'storyboard'
+  | 'shot'
+  | 'final_video'
+  | 'asset'
+  | 'asset_view'
+  | 'canvas'
+
+export type ResourceBindingRole =
+  | 'reference'
+  | 'input'
+  | 'output'
+  | 'draft'
+  | 'final'
+  | 'thumbnail'
+  | 'attachment'
+  | 'source'
+  | 'setting_doc'
+
+export type ResourceBindingStatus = 'draft' | 'selected' | 'rejected' | 'approved' | 'archived'
+export type ResourceBindingSourceType = 'upload' | 'gen_job' | 'canvas' | 'import' | 'manual' | 'legacy'
+
+export interface ResourceBinding {
+  ID: number
+  project_id: number
+  resource_id: number
+  resource?: RawResource
+  owner_type: ResourceBindingOwnerType
+  owner_id: number
+  role: ResourceBindingRole
+  slot: string
+  sort_order: number
+  version: number
+  is_primary: boolean
+  status: ResourceBindingStatus
+  source_type: ResourceBindingSourceType
+  source_id?: number
+  metadata_json: string
+  created_by_id?: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
 export type GenJobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface GenJob {
@@ -700,8 +737,8 @@ export interface GenJob {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
-export type CanvasArtifactKind = 'script' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
-export type SpecialNodeType = 'input' | 'output' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'artifact_card'
+export type CanvasEntityKind = 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
+export type SpecialNodeType = 'input' | 'output' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
 export type NodeSource = 'upload' | 'ai' | 'manual'
@@ -714,10 +751,60 @@ export type CanvasPortType = CanvasParamType
 export interface CanvasPortDef {
   id: string
   label?: string
+  labelKey?: string
   type: CanvasPortType
   required?: boolean
   maxCount?: number
   description?: string
+}
+
+export interface EntityWorkflowField {
+  readable: boolean
+  writable: boolean
+  portId: string
+  required?: boolean
+  maxCount?: number
+}
+
+export interface EntityWorkflowBinding {
+  role: string
+  slot: string
+  isPrimary: boolean
+  multiple: boolean
+}
+
+export interface EntityWorkflowSchemaField {
+  id: string
+  labelKey: string
+  fallbackLabel: string
+  valueType: CanvasPortType
+  control: 'input' | 'textarea' | 'select' | 'number' | 'checkbox' | 'json_editor' | 'resource_picker' | 'resource_gallery' | 'readonly_text' | 'computed' | string
+  workflow: EntityWorkflowField
+  binding?: EntityWorkflowBinding
+}
+
+export interface EntityWorkflowSchemaSection {
+  id: string
+  labelKey: string
+  fallbackLabel: string
+  fields: EntityWorkflowSchemaField[]
+}
+
+export interface EntityWorkflowSchema {
+  kind: CanvasEntityKind
+  labelKey: string
+  fallbackLabel: string
+  sections: EntityWorkflowSchemaSection[]
+}
+
+export interface CanvasPortValue {
+  type: CanvasPortType
+  resource_id?: number
+  resource?: RawResource
+  text?: string
+  json?: unknown
+  number?: number
+  boolean?: boolean
 }
 
 export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'generation' | 'editing'
@@ -774,10 +861,10 @@ export interface CanvasNodeData {
   executableSpec?: CanvasExecutableSpec
   inputPorts?: CanvasPortDef[]
   outputPorts?: CanvasPortDef[]
-  // reusable project artifact card fields
-  artifactKind?: CanvasArtifactKind
-  artifactId?: number
-  artifactTitle?: string
+  // reusable project entity card fields
+  entityKind?: CanvasEntityKind
+  entityId?: number
+  entityTitle?: string
   // injected at runtime by CanvasEditorPage (not persisted)
   canvasId?: string
   rfNodeId?: string
@@ -911,6 +998,8 @@ export interface CanvasTask {
   status: CanvasTaskStatus
   provider_task_id?: string
   error?: string
+  input_values?: string
+  output_values?: string
   resource_id?: number
   resource?: RawResource
   CreatedAt: string

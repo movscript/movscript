@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   Bot, ChevronRight, Send, Loader2,
-  Plus, ArrowLeft, Copy, Check, Settings, MessageSquare, X,
-  Paperclip, Image, Video, FileText, Mic, File, Workflow, ShieldCheck, Brain,
-  Sparkles, Search, ListChecks, Upload, Eye, Wand2, ClipboardCheck,
+  Plus, ArrowLeft, Copy, Check, X, ClipboardCheck,
+  Image, Video, FileText, Mic, File, Workflow, ShieldCheck,
+  Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -69,8 +68,6 @@ import {
   useAgentStore,
   type ChatMessage,
   type Conversation,
-  type UserAgent,
-  type AgentTemplate,
   type AgentAttachment,
   type AgentSettings,
   type AgentWorkMode,
@@ -238,42 +235,6 @@ function buildAgentContext(options: {
     sections.push(`[最近素材]\n${options.recentResources.slice(0, 8).map((r) => `- #${r.ID} ${r.name} (${r.type}, ${formatBytes(r.size)})`).join('\n')}`)
   }
   return sections.join('\n\n')
-}
-
-function buildLocalAgentManifest(agent: (UserAgent | AgentTemplate) | null): AgentManifest | undefined {
-  if (!agent) return undefined
-  const skills = (agent.skills ?? []).map((skill, index) => ({
-    id: skill.id,
-    name: skill.name,
-    description: skill.description,
-    enabled: true,
-    priority: (agent.skills?.length ?? 0) - index,
-    instruction: skill.description,
-    metadata: {
-      source: 'movscript-ui',
-    },
-  }))
-  return {
-    schema: 'movscript.agent.v2',
-    id: `movscript.ui-agent.${agent.id}`,
-    version: String(agent.updated_at || 1),
-    name: agent.name,
-    description: agent.soul || undefined,
-    soul: agent.soul || undefined,
-    skills,
-    permissions: ['project.read', 'draft.read', 'draft.write', 'ui.navigate'],
-    tools: [
-      { name: 'movscript.search_entities', mode: 'allow', approval: 'never' },
-      { name: 'movscript.read_entity', mode: 'allow', approval: 'never' },
-      { name: 'movscript.create_draft', mode: 'allow', approval: 'never' },
-      { name: 'movscript.list_drafts', mode: 'allow', approval: 'never' },
-      { name: 'movscript.open_entity', mode: 'allow', approval: 'never' },
-    ],
-    metadata: {
-      source: 'movscript-ui',
-      skillIds: (agent.skills ?? []).map((skill) => skill.id),
-    },
-  }
 }
 
 type AgentSendRoute = 'cloud-chat' | 'local-runtime'
@@ -538,6 +499,9 @@ function LocalAgentWorkflow({
   if (!run) return null
   const tasks = run.plan?.tasks ?? []
   const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
+  const statusLabel = run.status === 'requires_action'
+    ? 'Waiting for approval'
+    : run.status.replace(/_/g, ' ')
 
   return (
     <div className="mx-1 my-2 rounded-md border border-border bg-background/70 p-2.5 text-xs">
@@ -546,8 +510,8 @@ function LocalAgentWorkflow({
           <Workflow size={13} />
           <span className="truncate">Agent workflow</span>
         </div>
-        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'in_progress' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
-          {run.status}
+        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'requires_action' ? 'warning' : run.status === 'in_progress' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
+          {statusLabel}
         </Badge>
       </div>
 
@@ -584,17 +548,46 @@ function LocalAgentWorkflow({
           <div className="space-y-1">
             {pendingApprovals.map((approval) => (
               <div key={approval.id} className="rounded border border-amber-500/20 bg-background/60 px-2 py-1.5">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-medium text-foreground">{approval.toolName}</span>
-                  {approval.risk && (
-                    <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
-                      {approval.risk}
-                    </Badge>
-                  )}
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-medium text-foreground">{approval.toolName}</span>
+                    {approval.risk && (
+                      <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
+                        {approval.risk}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => onReject?.([approval.id])}
+                      disabled={approving || !onReject}
+                      className="h-5 px-1.5 text-[9px] text-muted-foreground hover:text-destructive"
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => onApprove?.([approval.id])}
+                      disabled={approving || !onApprove}
+                      className="h-5 px-1.5 text-[9px]"
+                    >
+                      Approve
+                    </Button>
+                  </div>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
                 {approval.permission && (
                   <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">permission: {approval.permission}</p>
+                )}
+                {approval.args && (
+                  <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 text-[9px] text-muted-foreground">
+                    {safeJSONStringify(approval.args)}
+                  </pre>
                 )}
               </div>
             ))}
@@ -749,6 +742,36 @@ function AgentDebugPreviewDialog({
             </DebugSection>
           )}
 
+          {preview?.policy && (
+            <DebugSection title="Policy">
+              <div className="grid gap-2 text-[11px] md:grid-cols-4">
+                <DebugSummaryItem label="Approval mode" value={preview.policy.approvalMode} />
+                <DebugSummaryItem label="Max tool calls" value={String(preview.policy.maxToolCalls)} />
+                <DebugSummaryItem label="Max iterations" value={String(preview.policy.maxIterations)} />
+                <DebugSummaryItem label="File bytes" value={preview.policy.allowFileBytes ? 'allowed' : 'blocked'} />
+              </div>
+              <div className="mt-2 grid gap-2 text-[11px] md:grid-cols-2">
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                  <div className="mb-1 text-[10px] font-medium text-foreground">Runtime boundaries</div>
+                  <div className="space-y-0.5 text-[10px] text-muted-foreground">
+                    <div>network: {preview.policy.allowNetwork ? 'allowed' : 'blocked'}</div>
+                    <div>file bytes: {preview.policy.allowFileBytes ? 'allowed' : 'blocked'}</div>
+                    <div>cost limit: {preview.policy.costLimit ? `${preview.policy.costLimit.amount} ${preview.policy.costLimit.currency}` : 'none'}</div>
+                  </div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                  <div className="mb-1 text-[10px] font-medium text-foreground">Manifest grants</div>
+                  <div className="space-y-0.5 text-[10px] text-muted-foreground">
+                    {(preview.agentManifest?.tools ?? []).slice(0, 8).map((grant) => (
+                      <div key={grant.name}>{grant.name} · {grant.mode} · {grant.approval ?? 'default'}</div>
+                    ))}
+                    {(preview.agentManifest?.tools ?? []).length === 0 && <div>none</div>}
+                  </div>
+                </div>
+              </div>
+            </DebugSection>
+          )}
+
           {preview?.tools && (
             <DebugSection title="Tools">
               <div className="grid gap-2 md:grid-cols-3">
@@ -779,6 +802,96 @@ function AgentDebugPreviewDialog({
             </DebugSection>
           )}
 
+          {preview && (
+            <DebugSection title="Plan">
+              <div className="space-y-2 text-[11px]">
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-foreground">{preview.plan.objective}</div>
+                    <Badge variant={preview.planner === 'model' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
+                      {preview.planner ?? 'rule'} planner
+                    </Badge>
+                  </div>
+                  <div className="mt-1 whitespace-pre-wrap text-muted-foreground">{preview.plan.strategy}</div>
+                  <div className="mt-1 text-muted-foreground">
+                    project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount} · planned tool calls: {preview.toolCalls.length}
+                  </div>
+                  {preview.plannerWarnings.length > 0 && (
+                    <div className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-300">
+                      {preview.plannerWarnings.map((warning) => <div key={warning}>{warning}</div>)}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {preview.plan.tasks.map((task, index) => (
+                    <div key={task.id} className="rounded-md border border-border bg-background px-2 py-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{index + 1}. {task.title}</span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Badge variant="outline" className="text-[9px]">{task.agentRole}</Badge>
+                          <Badge variant={task.status === 'skipped' ? 'warning' : 'outline'} className="text-[9px]">{task.status}</Badge>
+                        </div>
+                      </div>
+                      <p className="mt-0.5 text-muted-foreground">{task.description}</p>
+                      {task.successCriteria && (
+                        <p className="mt-0.5 text-[10px] text-muted-foreground/80">success: {task.successCriteria}</p>
+                      )}
+                      {task.toolCalls.length > 0 && (
+                        <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                          {safeJSONStringify(task.toolCalls)}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DebugSection>
+          )}
+
+          {(draft.localRuntime || pendingApprovals.length > 0) && (
+            <DebugSection title="Approvals">
+              <div className="space-y-2 text-[11px]">
+                {draft.localRuntime && (
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <DebugSummaryItem label="Thread" value={draft.localRuntime.threadId ?? 'new thread'} />
+                    <DebugSummaryItem label="Project" value={draft.localRuntime.projectId ? String(draft.localRuntime.projectId) : 'runtime context'} />
+                    <DebugSummaryItem label="Manifest" value={draft.localRuntime.agentManifest?.name ?? 'default'} />
+                  </div>
+                )}
+                {draft.localRuntime?.previewError && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">
+                    {draft.localRuntime.previewError}
+                  </div>
+                )}
+                {pendingApprovals.length > 0 ? (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
+                    <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">Approvals before execution</div>
+                    <div className="space-y-1">
+                      {pendingApprovals.map((approval) => (
+                        <div key={approval.id} className="rounded border border-amber-500/20 bg-background/60 p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground">{approval.toolName}</span>
+                            <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.status}</Badge>
+                          </div>
+                          <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
+                          {approval.args && (
+                            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                              {safeJSONStringify(approval.args)}
+                            </pre>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-border bg-muted/20 p-2 text-muted-foreground">
+                    No approval required before execution.
+                  </div>
+                )}
+              </div>
+            </DebugSection>
+          )}
+
           <DebugSection title="Outbound messages">
             <div className="space-y-2">
               {draft.outbound.messages.map((message, index) => (
@@ -794,60 +907,6 @@ function AgentDebugPreviewDialog({
               ))}
             </div>
           </DebugSection>
-
-          {draft.localRuntime && (
-            <DebugSection title="Local runtime dry-run">
-              <div className="space-y-2 text-[11px]">
-                <div className="grid gap-2 md:grid-cols-3">
-                  <DebugSummaryItem label="Thread" value={draft.localRuntime.threadId ?? 'new thread'} />
-                  <DebugSummaryItem label="Project" value={draft.localRuntime.projectId ? String(draft.localRuntime.projectId) : 'runtime context'} />
-                  <DebugSummaryItem label="Manifest" value={draft.localRuntime.agentManifest?.name ?? 'default'} />
-                </div>
-                {draft.localRuntime.previewError && (
-                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">
-                    {draft.localRuntime.previewError}
-                  </div>
-                )}
-                {preview && (
-                  <>
-                    <div className="rounded-md border border-border bg-muted/20 p-2">
-                      <div className="font-medium text-foreground">{preview.plan.objective}</div>
-                      <div className="mt-1 whitespace-pre-wrap text-muted-foreground">{preview.plan.strategy}</div>
-                      <div className="mt-1 text-muted-foreground">
-                        project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      {preview.plan.tasks.map((task, index) => (
-                        <div key={task.id} className="rounded-md border border-border bg-background px-2 py-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium text-foreground">{index + 1}. {task.title}</span>
-                            <Badge variant="outline" className="text-[9px]">{task.status}</Badge>
-                          </div>
-                          <p className="mt-0.5 text-muted-foreground">{task.description}</p>
-                          {task.toolCalls.length > 0 && (
-                            <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
-                              {safeJSONStringify(task.toolCalls)}
-                            </pre>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {pendingApprovals.length > 0 && (
-                      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                        <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">Approvals before execution</div>
-                        {pendingApprovals.map((approval) => (
-                          <div key={approval.id} className="text-muted-foreground">
-                            {approval.toolName}: {approval.reason}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </DebugSection>
-          )}
 
           {preview?.promptPreview && (
             <DebugSection title="Compiled prompt">
@@ -1039,198 +1098,6 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   )
 }
 
-// ── Agent picker ──────────────────────────────────────────────────────────────
-
-function AgentPicker({ onSelect, onCancel }: {
-  onSelect: (userAgentId: number | null) => void
-  onCancel: () => void
-}) {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const qc = useQueryClient()
-  const { data: templates = [] } = useQuery<AgentTemplate[]>({
-    queryKey: ['agents'],
-    queryFn: () => api.get('/agents').then((r) => r.data),
-  })
-  const { data: myAgents = [] } = useQuery<UserAgent[]>({
-    queryKey: ['agents', 'my'],
-    queryFn: () => api.get('/agents/my').then((r) => r.data),
-  })
-
-  async function pickTemplate(tpl: AgentTemplate) {
-    // Find or create a UserAgent linked to this template
-    const existing = myAgents.find((a) => a.source_template_id === tpl.id)
-    if (existing) {
-      onSelect(existing.id)
-      return
-    }
-    const { data } = await api.post('/agents/my', {
-      name: tpl.name,
-      source_template_id: tpl.id,
-      accept_platform_updates: true,
-      soul: tpl.soul,
-      skills: tpl.skills,
-      platform_model_id: tpl.platform_model_id,
-    })
-    qc.invalidateQueries({ queryKey: ['agents', 'my'] })
-    onSelect(data.id)
-  }
-
-  return (
-    <AgentMain>
-      <AgentHeader>
-        <AgentHeaderContent>
-          <AgentTitle>{t('agents.chat.selectAgent')}</AgentTitle>
-          <AgentSubtitle>{t('agents.chat.aiAssistant')}</AgentSubtitle>
-        </AgentHeaderContent>
-        <AgentHeaderActions>
-          <Button size="icon-sm" variant="ghost" onClick={onCancel} aria-label="Close">
-          <X size={14} />
-          </Button>
-        </AgentHeaderActions>
-      </AgentHeader>
-      <AgentBody>
-        <ScrollArea className="h-full">
-          <div className="p-3 space-y-4">
-          {/* Platform templates */}
-          {templates.length > 0 && (
-            <AgentSidebarSection className="p-0">
-              <AgentSidebarTitle className="px-1">{t('agents.chat.platformTemplates')}</AgentSidebarTitle>
-              {templates.map((tpl) => (
-                <AgentConversationItem
-                  key={tpl.id}
-                  onClick={() => pickTemplate(tpl)}
-                  title={tpl.name}
-                  description={tpl.soul}
-                />
-              ))}
-            </AgentSidebarSection>
-          )}
-
-          {/* User's own agents */}
-          {myAgents.length > 0 && (
-            <AgentSidebarSection className="p-0">
-              <AgentSidebarTitle className="px-1">{t('agents.chat.myAgents')}</AgentSidebarTitle>
-              {myAgents.map((agent) => (
-                <AgentConversationItem
-                  key={agent.id}
-                  onClick={() => onSelect(agent.id)}
-                  title={agent.name}
-                  description={agent.soul}
-                />
-              ))}
-            </AgentSidebarSection>
-          )}
-
-          {/* No agent option */}
-          <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => onSelect(null)}>
-            {t('agents.chat.noAgent')}
-          </Button>
-
-          <div className="pt-2 border-t border-border">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { onCancel(); navigate('/agents') }}
-              className="w-full justify-center text-muted-foreground"
-            >
-              {t('agents.chat.manageMyAgents')}
-            </Button>
-          </div>
-          </div>
-        </ScrollArea>
-      </AgentBody>
-    </AgentMain>
-  )
-}
-
-function AgentMiniPicker({
-  value,
-  onChange,
-  myAgents,
-}: {
-  value: number | null
-  onChange: (id: number | null) => void
-  myAgents: UserAgent[]
-}) {
-  const { t } = useTranslation()
-  return (
-    <Select value={value === null ? 'none' : String(value)} onValueChange={(next) => onChange(next === 'none' ? null : Number(next))}>
-      <SelectTrigger size="sm" className="min-w-0 flex-1" title={t('agents.chat.identity')}>
-        <SelectValue placeholder={t('agents.chat.noAgentShort')} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="none">{t('agents.chat.noAgentShort')}</SelectItem>
-        {myAgents.map((agent) => (
-          <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function ModeButton({
-  mode,
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  mode: AgentWorkMode
-  active: boolean
-  icon: React.ReactNode
-  label: string
-  onClick: (mode: AgentWorkMode) => void
-}) {
-  return (
-    <Button
-      type="button"
-      onClick={() => onClick(mode)}
-      title={label}
-      variant={active ? 'secondary' : 'ghost'}
-      size="xs"
-      className={cn(
-        'h-8 min-w-0 flex-1 px-2 text-[10px]',
-        active ? 'border border-border text-foreground shadow-sm' : 'text-muted-foreground'
-      )}
-    >
-      {icon}
-      <span className="truncate">{label}</span>
-    </Button>
-  )
-}
-
-function AgentCapabilityStrip({ effectiveAgent }: { effectiveAgent: (UserAgent | AgentTemplate) | null }) {
-  const { t } = useTranslation()
-  const skills = effectiveAgent?.skills ?? []
-  const items = [
-    { icon: <Brain size={11} />, label: t('agents.chat.capabilities.memory') },
-    { icon: <Paperclip size={11} />, label: t('agents.chat.capabilities.multimodal') },
-    { icon: <Workflow size={11} />, label: t('agents.chat.capabilities.workflow') },
-    { icon: <ShieldCheck size={11} />, label: t('agents.chat.capabilities.audit') },
-  ]
-  return (
-    <div className="px-3 py-2 border-b border-border bg-background/75 space-y-1.5">
-      <div className="grid grid-cols-4 gap-1">
-        {items.map((item) => (
-          <div key={item.label} title={item.label} className="h-8 rounded-md border border-border bg-background flex items-center justify-center text-muted-foreground shadow-sm">
-            {item.icon}
-          </div>
-        ))}
-      </div>
-      {skills.length > 0 && (
-        <div className="flex gap-1 overflow-hidden">
-          {skills.slice(0, 3).map((skill) => (
-            <Badge key={skill.id} variant="secondary" className="min-w-0 max-w-full truncate text-[9px] leading-4 px-1.5 py-0">
-              {skill.name}
-            </Badge>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const MEMORY_SCOPES: AgentMemoryScope[] = ['global', 'project', 'thread']
 const MEMORY_KINDS: AgentMemoryKind[] = ['preference', 'fact', 'decision', 'entity_ref', 'draft', 'warning']
 
@@ -1407,7 +1274,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     addMessage,
     updateConversationTitle,
     updateSettings,
-    updateConversationAgent,
   } = useAgentStore()
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
@@ -1425,27 +1291,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     queryKey: ['resources', 'agent-panel'],
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((r) => r.data),
   })
-  const { data: myAgents = [] } = useQuery<UserAgent[]>({
-    queryKey: ['agents', 'my'],
-    queryFn: () => api.get('/agents/my').then((r) => r.data),
-  })
-  const { data: templates = [] } = useQuery<AgentTemplate[]>({
-    queryKey: ['agents'],
-    queryFn: () => api.get('/agents').then((r) => r.data),
-  })
-
-  const userAgent = myAgents.find((a) => a.id === conv.userAgentId) ?? null
-
-  // If agent follows platform updates, merge template soul/skills/model
-  const effectiveAgent = (() => {
-    if (!userAgent) return null
-    if (userAgent.accept_platform_updates && userAgent.source_template_id) {
-      const tpl = templates.find((t) => t.id === userAgent.source_template_id)
-      if (tpl) return { ...userAgent, soul: tpl.soul, skills: tpl.skills, platform_model_id: tpl.platform_model_id }
-    }
-    return userAgent
-  })()
-
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState<AgentAttachment[]>([])
@@ -1457,9 +1302,9 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   const [localAgentStartError, setLocalAgentStartError] = useState<string | null>(null)
   const [localRuntimeEnabled, setLocalRuntimeEnabledState] = useState(() => {
     try {
-      return localStorage.getItem(LOCAL_AGENT_MODE_KEY) === 'true'
+      return localStorage.getItem(LOCAL_AGENT_MODE_KEY) !== 'false'
     } catch {
-      return false
+      return true
     }
   })
   const [debugBeforeSend, setDebugBeforeSendState] = useState(() => {
@@ -1499,9 +1344,8 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     }
   }, [textModels]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedFallbackModelId = settings.modelId ?? textModels[0]?.id ?? null
-  const modelId = effectiveAgent?.platform_model_id ?? selectedFallbackModelId
-  const systemPrompt = effectiveAgent?.soul ?? ''
+  const modelId = settings.modelId ?? textModels[0]?.id ?? null
+  const systemPrompt = ''
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
   const activeModel = textModels.find((m) => m.id === modelId)
   const contextLabels = [
@@ -1672,7 +1516,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       { role: 'user' as const, content: enrichedUserContent },
     ]
     const warnings: string[] = []
-    const agentManifest = buildLocalAgentManifest(effectiveAgent)
     let localRuntime: AgentSendDraft['localRuntime']
 
     if (localRuntimeEnabled) {
@@ -1681,7 +1524,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         ...(threadId ? { threadId } : {}),
         ...(currentProject?.ID ? { projectId: currentProject.ID } : {}),
         title: conv.title,
-        ...(agentManifest ? { agentManifest } : {}),
       }
 
       if (options.includeRuntimePreview) {
@@ -1694,14 +1536,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             localRuntime.preview = await localAgentClient.previewRun({
               ...(threadId ? { threadId } : {}),
               message: enrichedUserContent,
-              ...(agentManifest ? { agentManifest } : {}),
             })
           } catch (e) {
             if (!threadId) throw e
             warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
             localRuntime.preview = await localAgentClient.previewRun({
               message: enrichedUserContent,
-              ...(agentManifest ? { agentManifest } : {}),
             })
           }
         } catch (e) {
@@ -1724,9 +1564,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         ...(activeModel?.provider_name ? { provider: activeModel.provider_name } : {}),
       },
       agent: {
-        id: effectiveAgent?.id ?? null,
-        ...(effectiveAgent?.name ? { name: effectiveAgent.name } : {}),
-        ...(effectiveAgent?.soul ? { soul: effectiveAgent.soul } : {}),
+        id: null,
       },
       settings: {
         mode: settings.mode,
@@ -1767,7 +1605,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     conv.messages,
     conv.id,
     conv.title,
-    effectiveAgent,
     localRuntimeEnabled,
     localAgentThreadIds,
     localAgentOnline,
@@ -1939,7 +1776,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         <AgentHeaderContent>
           <AgentTitle>{conv.title}</AgentTitle>
           <AgentSubtitle>
-            {localRuntimeEnabled ? 'Local Agent Runtime' : (effectiveAgent ? effectiveAgent.name : t('agents.chat.noAgentShort'))}
+            {localRuntimeEnabled ? 'Local Agent Runtime' : t('agents.chat.aiAssistant')}
           </AgentSubtitle>
         </AgentHeaderContent>
         <AgentHeaderActions>
@@ -1951,14 +1788,13 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           </Button>
         </AgentHeaderActions>
       </AgentHeader>
-      <AgentCapabilityStrip effectiveAgent={effectiveAgent} />
 
       <AgentBody>
         <AgentThread>
           {conv.messages.length === 0 && (
             <AgentEmpty className="min-h-0 py-6">
               <p className="text-sm font-medium text-foreground">
-                {effectiveAgent ? t('agents.chat.agentReady', { name: effectiveAgent.name }) : t('agents.chat.startChat')}
+                {t('agents.chat.startChat')}
               </p>
               <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
                 {[
@@ -2005,37 +1841,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
 
       <div className="px-3 py-2.5 shrink-0 space-y-2">
         <div className="flex gap-1.5">
-          <AgentMiniPicker
-            value={conv.userAgentId}
-            myAgents={myAgents}
-            onChange={(id) => updateConversationAgent(userId, conv.id, id)}
-          />
-          <Select
-            value={selectedFallbackModelId === null ? undefined : String(selectedFallbackModelId)}
-            onValueChange={(next) => updateSettings({ modelId: Number(next) || null })}
-            disabled={textModels.length === 0 || !!effectiveAgent?.platform_model_id}
-          >
-            <SelectTrigger
-              size="sm"
-              className="min-w-0 flex-1"
-              title={effectiveAgent?.platform_model_id ? t('agents.chat.modelLockedByAgent') : t('agents.model')}
-            >
-              <SelectValue placeholder={textModels.length === 0 ? t('shared.modelSelector.noModels') : t('agents.model')} />
-            </SelectTrigger>
-            <SelectContent>
-              {textModels.map((m) => (
-                <SelectItem key={m.id} value={String(m.id)}>
-                  {publicModelLabel(m)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Button
             type="button"
             size="sm"
             variant={localRuntimeEnabled ? 'secondary' : 'outline'}
             onClick={() => setLocalRuntimeEnabled(!localRuntimeEnabled)}
-            className="h-8 shrink-0 px-2 text-[10px]"
+            className="h-8 px-2 text-[10px]"
             title="Local Agent Runtime"
           >
             <Bot size={11} />
@@ -2082,12 +1893,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             <span className="truncate">{publicModelLabel(activeModel, true)}</span>
           </div>
         )}
-        <div className="grid grid-cols-4 gap-1">
-          <ModeButton mode="chat" active={settings.mode === 'chat'} label={t('agents.chat.modes.chat')} icon={<MessageSquare size={11} />} onClick={(mode) => updateSettings({ mode })} />
-          <ModeButton mode="plan" active={settings.mode === 'plan'} label={t('agents.chat.modes.plan')} icon={<ListChecks size={11} />} onClick={(mode) => updateSettings({ mode })} />
-          <ModeButton mode="create" active={settings.mode === 'create'} label={t('agents.chat.modes.create')} icon={<Sparkles size={11} />} onClick={(mode) => updateSettings({ mode })} />
-          <ModeButton mode="review" active={settings.mode === 'review'} label={t('agents.chat.modes.review')} icon={<ClipboardCheck size={11} />} onClick={(mode) => updateSettings({ mode })} />
-        </div>
         {showContext && (
           <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -2261,16 +2066,12 @@ function ConversationList({
   const { t, i18n } = useTranslation()
   const [localRuntimeEnabled] = useState(() => {
     try {
-      return localStorage.getItem(LOCAL_AGENT_MODE_KEY) === 'true'
+      return localStorage.getItem(LOCAL_AGENT_MODE_KEY) !== 'false'
     } catch {
-      return false
+      return true
     }
   })
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
-  const { data: myAgents = [] } = useQuery<UserAgent[]>({
-    queryKey: ['agents', 'my'],
-    queryFn: () => api.get('/agents/my').then((r) => r.data),
-  })
   const { data: localThreads = [], isFetching: fetchingLocalThreads, refetch: refetchLocalThreads } = useQuery<AgentThreadSummary[]>({
     queryKey: ['local-agent-threads', localAgentClient.baseURL],
     queryFn: async () => {
@@ -2319,29 +2120,26 @@ function ConversationList({
           </AgentEmpty>
         ) : (
           <AgentSidebarSection>
-            {conversations.map((conv) => {
-              const agent = myAgents.find((a) => a.id === conv.userAgentId)
-              return (
-                <div key={conv.id} className="group relative">
-                  <AgentConversationItem
-                    onClick={() => onSelect(conv.id)}
-                    title={conv.title}
-                    description={agent ? agent.name : (conv.messages[conv.messages.length - 1]?.content.slice(0, 54) ?? '')}
-                    meta={formatDate(conv.updatedAt)}
-                    className="pr-10"
-                  />
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
-                    className="absolute bottom-2 right-2 h-5 w-5 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                    aria-label="Delete conversation"
-                  >
-                    <X size={11} />
-                  </Button>
-                </div>
-              )
-            })}
+            {conversations.map((conv) => (
+              <div key={conv.id} className="group relative">
+                <AgentConversationItem
+                  onClick={() => onSelect(conv.id)}
+                  title={conv.title}
+                  description={conv.messages[conv.messages.length - 1]?.content.slice(0, 54) ?? ''}
+                  meta={formatDate(conv.updatedAt)}
+                  className="pr-10"
+                />
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+                  className="absolute bottom-2 right-2 h-5 w-5 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                  aria-label="Delete conversation"
+                >
+                  <X size={11} />
+                </Button>
+              </div>
+            ))}
           </AgentSidebarSection>
         )}
         {localRuntimeEnabled && (
@@ -2391,24 +2189,18 @@ function BuiltinChat({ userId }: { userId: string }) {
     addMessage,
     updateConversationTitle,
   } = useAgentStore()
-  const [picking, setPicking] = useState(false)
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
   const activeConv = conversations.find((c) => c.id === activeConversationId) ?? null
 
   function handleNew() {
-    setPicking(true)
-  }
-
-  function handlePickAgent(userAgentId: number | null) {
-    setPicking(false)
-    createConversation(userId, userAgentId)
+    createConversation(userId)
   }
 
   async function handleRestoreLocalThread(threadId: string) {
     const thread = await localAgentClient.getThread(threadId)
-    const convId = createConversation(userId, null)
+    const convId = createConversation(userId)
     updateConversationTitle(userId, convId, thread.title || `Local thread ${thread.id.slice(-6)}`)
     for (const message of thread.messages) {
       if (message.role !== 'user' && message.role !== 'assistant') continue
@@ -2426,9 +2218,7 @@ function BuiltinChat({ userId }: { userId: string }) {
 
   return (
     <AgentShell density="compact" className="ai-agent-panel-shell">
-      {picking ? (
-        <AgentPicker onSelect={handlePickAgent} onCancel={() => setPicking(false)} />
-      ) : activeConv ? (
+      {activeConv ? (
         <ChatView
           conv={activeConv}
           userId={userId}
@@ -2484,7 +2274,6 @@ export function AIAgentPanel() {
       return true
     }
   })
-  const navigate = useNavigate()
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
 
@@ -2510,18 +2299,6 @@ export function AIAgentPanel() {
           <Bot size={16} className="shrink-0 text-foreground" />
           {open && <span className="text-sm font-semibold flex-1 text-left text-foreground truncate">{t('agents.chat.aiAssistant')}</span>}
         </button>
-        {open && (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            onClick={(e) => { e.stopPropagation(); navigate('/agents') }}
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            title={t('agents.chat.manageAgent')}
-          >
-            <Settings size={13} />
-          </Button>
-        )}
         {open && (
           <Button
             type="button"

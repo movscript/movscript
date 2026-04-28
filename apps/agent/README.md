@@ -37,14 +37,16 @@ curl http://127.0.0.1:28765/health
 | --- | --- | --- |
 | `MOVSCRIPT_AGENT_PORT` | `28765` | Local HTTP port. |
 | `MOVSCRIPT_MCP_ENDPOINT` | `http://127.0.0.1:18765/mcp` | Desktop MCP-shaped endpoint. |
-| `MOVSCRIPT_AGENT_SKILLS_DIR` | derived from state path | Skill metadata directory. |
-| `MOVSCRIPT_AGENT_TOOLS_DIR` | derived from state path | Tool metadata directory. |
+| `MOVSCRIPT_AGENT_SKILLS_DIR` | derived from state path | Local skill metadata override directory. Built-in skills from `apps/agent/catalog/skills` are always loaded first. |
+| `MOVSCRIPT_AGENT_TOOLS_DIR` | derived from state path | Local tool metadata override directory. Built-in tools from `apps/agent/catalog/tools` are always loaded first. |
 | `MOVSCRIPT_AGENT_GATEWAY_BASE_URL` | `http://127.0.0.1:8080/v1` | Optional OpenAI-compatible gateway URL. |
 | `MOVSCRIPT_AGENT_GATEWAY_MODEL` | `movscript-default-chat` | Gateway model. |
 | `MOVSCRIPT_AGENT_GATEWAY_USER_ID` | unset | Enables backend gateway identity shim. |
 | `MOVSCRIPT_AGENT_OPENAI_API_KEY` | unset | Direct OpenAI-compatible API key. |
 | `MOVSCRIPT_AGENT_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Direct provider base URL. |
 | `MOVSCRIPT_AGENT_OPENAI_MODEL` | `gpt-4o-mini` | Direct provider model. |
+| `MOVSCRIPT_AGENT_PLANNER_MODEL` | inherits chat model | Optional model used only for model-driven run planning. |
+| `MOVSCRIPT_BACKEND_API_BASE_URL` | unset | Optional MovScript backend origin or `/api/v1` URL used for approved `apply_draft` PATCH writes. |
 
 ## HTTP API
 
@@ -57,7 +59,11 @@ curl http://127.0.0.1:28765/health
 | `GET` | `/skills` | Loaded skill catalog. |
 | `GET` | `/agent-manifest/default` | Built-in/default agent manifest. |
 | `GET` | `/context` | Current Movscript context pack from MCP. |
-| `POST` | `/draft` | Create a draft through MCP. |
+| `POST` | `/draft` | Create a local agent draft. |
+| `GET` | `/drafts` | List local agent drafts. |
+| `GET` | `/drafts/:id` | Read one local agent draft. |
+| `POST` | `/drafts/:id/apply-preview` | Build before/after review metadata for applying a draft. |
+| `POST` | `/drafts/:id/reject` | Mark a local agent draft rejected. |
 | `POST` | `/chat` | Simple chat endpoint. |
 | `POST` | `/threads` | Create a thread. |
 | `GET` | `/threads` | List thread summaries. |
@@ -87,6 +93,8 @@ pnpm --filter movcli dev -- agent run "Create a planning note" --json
 ## Skills and Tools
 
 The agent reads local JSON metadata from skills and tools directories at startup.
+It also ships a built-in MovScript catalog in `apps/agent/catalog/skills` and `apps/agent/catalog/tools`.
+See [docs/agent/platform-skills-tools.md](../../docs/agent/platform-skills-tools.md) for the first-stage platform operating contract and [docs/agent/smoke-tests.md](../../docs/agent/smoke-tests.md) for end-to-end checks.
 
 Skill example:
 
@@ -145,3 +153,5 @@ Runs may include a `movscript.agent.v1` manifest:
 ```
 
 The runtime checks tool registration, manifest grants, permissions, project scope, and approval requirements before execution.
+
+When a gateway key or direct OpenAI-compatible key is configured, the runtime first asks the model planner for a structured plan. If planner configuration is missing, the model returns invalid JSON, or planning fails, the runtime falls back to the deterministic rule planner and records the fallback warning on the run.

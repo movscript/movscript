@@ -23,7 +23,6 @@ type Script struct {
 	ReviewStatus string           `gorm:"default:'draft'" json:"review_status"`
 	AuthorID     uint             `json:"author_id"`
 	Author       User             `json:"author,omitempty"`
-	ResourceIDs  string           `json:"resource_ids"` // JSON array of RawResource IDs
 	Episodes     []Episode        `gorm:"foreignKey:ScriptID" json:"episodes,omitempty"`
 	Analyses     []ScriptAnalysis `gorm:"foreignKey:ScriptID" json:"analyses,omitempty"`
 

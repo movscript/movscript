@@ -1,16 +1,16 @@
 import {
   ArrowRight, Box, CalendarDays, Camera, ChevronDown, ChevronRight,
-  Clapperboard, FileEdit, FileText, Film, Hammer, Layers, MoreHorizontal,
-  Package, PenLine, Plus, Scissors, Trash2,
+  Clapperboard, FileEdit, Film, Hammer, Layers, MoreHorizontal,
+  PenLine, Plus, Scissors, Trash2,
 } from 'lucide-react'
 import type React from 'react'
 import type { PipelineNode } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { ARTIFACT_NODE_TYPES, WORK_NODE_TYPES, getPipelineNodeSpec } from '../nodeSpec'
+import { WORK_NODE_TYPES, getPipelineNodeSpec } from '../nodeSpec'
 
-export type NodeCategory = 'work' | 'artifact' | 'custom'
+export type NodeCategory = 'work' | 'custom'
 
 interface NodeTypeMeta {
   label: string
@@ -30,17 +30,6 @@ export const NODE_TYPE_META: Record<string, NodeTypeMeta> = {
   raw_script:           { label: 'Draft Writing',          icon: FileEdit,     category: 'work',     desc: 'Original draft or outline',            accent: 'bg-amber-500/10 text-amber-600',     iconColor: 'text-amber-500' },
   shot_production:      { label: 'Shot Production',        icon: Camera,       category: 'work',     desc: 'Generate shots with AI',               accent: 'bg-orange-500/10 text-orange-600',   iconColor: 'text-orange-500' },
   episode_edit:         { label: 'Episode Editing',        icon: Scissors,     category: 'work',     desc: 'Post-production editing',              accent: 'bg-rose-500/10 text-rose-600',       iconColor: 'text-rose-500' },
-
-  main_script:          { label: 'Main Script',            icon: FileText,     category: 'artifact', desc: 'Complete main script artifact',          accent: 'bg-sky-500/10 text-sky-600',         iconColor: 'text-sky-500' },
-  episode_script:       { label: 'Episode Script',         icon: Film,         category: 'artifact', desc: 'Script split by episode',               accent: 'bg-purple-500/10 text-purple-600',   iconColor: 'text-purple-500' },
-  scene_script:         { label: 'Scene Script',           icon: Clapperboard, category: 'artifact', desc: 'Script split by scene',                 accent: 'bg-blue-500/10 text-blue-600',       iconColor: 'text-blue-500' },
-  storyboard_script:    { label: 'Storyboard Script',      icon: Layers,       category: 'artifact', desc: 'Storyboard description script',         accent: 'bg-teal-500/10 text-teal-600',       iconColor: 'text-teal-500' },
-  episode:              { label: 'Episode',                icon: Film,         category: 'artifact', desc: 'Episode artifact',                      accent: 'bg-purple-500/10 text-purple-600',   iconColor: 'text-purple-500' },
-  scene:                { label: 'Scene',                  icon: Clapperboard, category: 'artifact', desc: 'Scene artifact',                        accent: 'bg-blue-500/10 text-blue-600',       iconColor: 'text-blue-500' },
-  storyboard:           { label: 'Storyboard',             icon: Layers,       category: 'artifact', desc: 'Storyboard artifact',                   accent: 'bg-teal-500/10 text-teal-600',       iconColor: 'text-teal-500' },
-  asset:                { label: 'Asset',                  icon: Package,      category: 'artifact', desc: 'Asset artifact',                        accent: 'bg-green-500/10 text-green-600',     iconColor: 'text-green-500' },
-  shot:                 { label: 'Shot',                   icon: Camera,       category: 'artifact', desc: 'Shot artifact',                          accent: 'bg-orange-500/10 text-orange-600',   iconColor: 'text-orange-500' },
-  final_video:          { label: 'Final Video',            icon: Film,         category: 'artifact', desc: 'Edited final video artifact',             accent: 'bg-rose-500/10 text-rose-600',       iconColor: 'text-rose-500' },
 
   custom:               { label: 'Custom',                 icon: Box,          category: 'custom',   desc: 'Define a custom type',                 accent: 'bg-muted text-muted-foreground',     iconColor: 'text-muted-foreground' },
 }
@@ -68,11 +57,7 @@ export function isPipelineWorkNode(type: string) {
   return getPipelineNodeSpec(type).category === 'work'
 }
 
-export function isPipelineArtifactNode(type: string) {
-  return getPipelineNodeSpec(type).category === 'artifact'
-}
-
-export { ARTIFACT_NODE_TYPES, WORK_NODE_TYPES }
+export { WORK_NODE_TYPES }
 
 interface PipelineNodeCardProps {
   node: PipelineNode
@@ -80,7 +65,6 @@ interface PipelineNodeCardProps {
   selected?: boolean
   expanded?: boolean
   childCount: number
-  blockedArtifactNames?: string[]
   onSelect: () => void
   onToggle: () => void
   onEnterWorkspace: () => void
@@ -94,7 +78,6 @@ export function PipelineNodeComponent({
   selected,
   expanded,
   childCount,
-  blockedArtifactNames = [],
   onSelect,
   onToggle,
   onEnterWorkspace,
@@ -144,9 +127,7 @@ export function PipelineNodeComponent({
               'text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0',
               meta.category === 'work'
                 ? 'bg-primary/10 text-primary'
-                : meta.category === 'artifact'
-                  ? 'bg-muted text-muted-foreground border border-border'
-                  : 'bg-muted text-muted-foreground',
+                : 'bg-muted text-muted-foreground',
             )}>
               {categoryLabel}
             </span>
@@ -156,11 +137,6 @@ export function PipelineNodeComponent({
             {node.entity_id && (
               <span className="truncate text-emerald-600">
                 {t('pipeline.node.linkedEntity', { type: node.entity_type, id: node.entity_id })}
-              </span>
-            )}
-            {blockedArtifactNames.length > 0 && (
-              <span className="truncate text-amber-600">
-                {t('pipeline.node.blockedArtifacts', { names: blockedArtifactNames.join(', ') })}
               </span>
             )}
           </div>

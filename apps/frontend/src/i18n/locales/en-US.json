@@ -901,11 +901,9 @@
     },
     "categories": {
       "work": "Work",
-      "artifact": "Artifact",
       "custom": "Custom",
       "tool": "Tool",
       "workNodes": "Work Nodes",
-      "artifactNodes": "Artifact Nodes",
       "toolNodes": "Tool Nodes"
     },
     "nodeTypes": {
@@ -941,46 +939,6 @@
         "label": "Episode Editing",
         "desc": "Post-production editing"
       },
-      "main_script": {
-        "label": "Main Script",
-        "desc": "Complete main script artifact"
-      },
-      "episode_script": {
-        "label": "Episode Script",
-        "desc": "Script split by episode"
-      },
-      "scene_script": {
-        "label": "Scene Script",
-        "desc": "Script split by scene"
-      },
-      "storyboard_script": {
-        "label": "Storyboard Script",
-        "desc": "Storyboard description script"
-      },
-      "episode": {
-        "label": "Episode",
-        "desc": "Episode artifact"
-      },
-      "scene": {
-        "label": "Scene",
-        "desc": "Scene artifact"
-      },
-      "storyboard": {
-        "label": "Storyboard",
-        "desc": "Storyboard artifact"
-      },
-      "asset": {
-        "label": "Asset",
-        "desc": "Asset artifact"
-      },
-      "shot": {
-        "label": "Shot",
-        "desc": "Shot artifact"
-      },
-      "final_video": {
-        "label": "Final Video",
-        "desc": "Edited video artifact"
-      },
       "ref_image_gen": {
         "label": "Reference Image",
         "desc": "Generate a new image from a reference image"
@@ -1015,10 +973,10 @@
       "dependencyLayer": "Dependencies",
       "scheduleLayer": "Schedule",
       "fitView": "Fit View",
-      "empty": "Pipeline is empty. Add a root node to start the production tree."
+      "empty": "Pipeline is empty. Add a work item to start the production flow."
     },
     "tree": {
-      "addRoot": "Add Root",
+      "addRoot": "Add Work Item",
       "addChild": "Add Child",
       "addChildTo": "Add child to \"{{name}}\"",
       "structure": "Node Structure",
@@ -1045,9 +1003,8 @@
     "node": {
       "fallbackName": "Node {{id}}",
       "linkedEntity": "Linked {{type}} #{{id}}",
-      "blockedArtifacts": "Artifacts pending final: {{names}}",
       "dragConnect": "Drag to connect",
-      "enterWorkspace": "Enter workspace",
+      "enterWorkspace": "Open entity in workbench",
       "lockedHint": "Waiting for upstream",
       "customStage": "Custom stage",
       "actions": {
@@ -1081,7 +1038,7 @@
       "hint": "Drag onto the canvas to create linked nodes",
       "emptySection": "No {{section}}",
       "footerLine1": "Drag onto empty canvas space",
-      "footerLine2": "to create artifact nodes automatically"
+      "footerLine2": "to create linked work items automatically"
     },
     "detail": {
       "entities": {
@@ -1129,7 +1086,7 @@
       "reopen": "Reopen (cascade downstream rollback)",
       "clickToEdit": "Click to edit...",
       "contentType": "Content Type",
-      "openWorkspace": "Open Workspace"
+      "openWorkspace": "Open entity in workbench"
     },
     "contentTypes": {
       "script": "Script",
@@ -1221,10 +1178,11 @@
       "ai_gen": "AI Generation",
       "group": "Group",
       "plugin_card": "Plugin Card",
-      "artifact_card": "Artifact Card"
+      "entity_card": "Entity"
     },
-    "artifactTypes": {
+    "entityTypes": {
       "script": "Script",
+      "setting": "Setting",
       "asset": "Asset",
       "episode": "Episode",
       "scene": "Scene",
@@ -1263,6 +1221,10 @@
         "output": {
           "label": "Output Result",
           "description": "Collect the final result from upstream nodes."
+        },
+        "entity_card": {
+          "label": "Entity",
+          "description": "Reference a project entity and use its fields as workflow inputs or outputs."
         },
         "approval": {
           "label": "Manual Approval",
@@ -1666,9 +1628,9 @@
     "subtitle": "AI model configuration, user credits, and usage analytics",
     "tabs": {
       "models": "Models",
-      "agents": "Agents",
       "features": "Features",
       "users": "Users",
+      "projects": "Projects",
       "logs": "Usage Logs",
       "debug": "Debug",
       "storage": "Resource Storage",
@@ -1808,10 +1770,6 @@
       "noModelsHint": "No models added yet. Click \"Add Model\" to start.",
       "noCredentialsHint": "No credential configured yet. Click \"Add Credential\" in the top right to connect one."
     },
-    "agentTemplates": {
-      "title": "Platform Agent Templates",
-      "description": "Manage platform Agent templates available to all users. Users can adopt or customize them."
-    },
     "credentials": {
       "selectAdapter": "Select Adapter",
       "configureAdapter": "Configure {{name}}",
@@ -1843,6 +1801,22 @@
       "empty": "No users",
       "setBalanceTitle": "Set balance - {{username}}",
       "newBalance": "New balance (Credits)"
+    },
+    "projects": {
+      "title": "Project Management",
+      "description": "View all projects and force assign a new owner when the current owner is missing or incorrect.",
+      "id": "ID",
+      "name": "Project",
+      "owner": "Owner",
+      "members": "Members",
+      "updatedAt": "Updated",
+      "noOwner": "Missing owner",
+      "changeOwner": "Change Owner",
+      "forceChange": "Force Change",
+      "newOwner": "New Owner",
+      "empty": "No projects",
+      "changeOwnerTitle": "Change Owner - {{name}}",
+      "changeOwnerHint": "Saving updates the project owner_id and project member table. Other owner members in the same project are demoted to director."
     },
     "logs": {
       "title": "Usage Logs",
@@ -2124,6 +2098,7 @@
     "titles": {
       "projects": "Projects",
       "scripts": "Script Management",
+      "settings": "Setting Management",
       "assets": "Asset Library",
       "episodes": "Episode Management",
       "collaboration": "Collaboration Progress",
@@ -2159,6 +2134,7 @@
     },
     "items": {
       "scripts": "Scripts",
+      "settings": "Settings",
       "assets": "Assets",
       "episodes": "Episodes",
       "scenes": "Scenes",

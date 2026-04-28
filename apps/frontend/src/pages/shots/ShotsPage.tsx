@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Shot, Storyboard, Scene, Episode, RawResource } from '@/types'
+import type { Shot, Storyboard, Scene, Episode, ResourceBinding } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Plus, Camera, Play, SkipBack, SkipForward, X, ListVideo } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
@@ -57,12 +57,13 @@ export default function ShotsPage() {
   const allShots = rawShots ?? []
 
   const currentPlayerShot = playerQueue[playerIndex] ?? null
-  const { data: playerResource } = useQuery<RawResource>({
-    queryKey: ['resource', currentPlayerShot?.generated_res_id],
-    queryFn: () => api.get(`/resources/${currentPlayerShot!.generated_res_id}`).then((r) => r.data),
-    enabled: !!currentPlayerShot?.generated_res_id && playerOpen,
+  const { data: playerBindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey: ['resource-bindings', projectId, 'shot', currentPlayerShot?.ID, 'final'],
+    queryFn: () => api.get(`/projects/${projectId}/entities/shot/${currentPlayerShot!.ID}/resources`, { params: { role: 'final' } }).then((r) => r.data),
+    enabled: !!projectId && !!currentPlayerShot?.ID && playerOpen,
     staleTime: 5 * 60 * 1000,
   })
+  const playerResource = playerBindings.find((binding) => binding.resource)?.resource
 
   const boardById = useMemo(() => Object.fromEntries(allBoards.map((b) => [b.ID, b])), [allBoards])
   const sceneById = useMemo(() => Object.fromEntries(scenes.map((s) => [s.ID, s])), [scenes])
@@ -111,7 +112,13 @@ export default function ShotsPage() {
     return filtered
   }, [allShots, filterSceneId, filterEpisodeId, sortMode, boardById, sceneById, episodes])
 
-  const playableShots = useMemo(() => shots.filter((s) => s.generated_res_id), [shots])
+  const { data: shotOutputBindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey: ['resource-bindings', projectId, 'shot-outputs'],
+    queryFn: () => api.get(`/projects/${projectId}/resource-bindings`, { params: { owner_type: 'shot', role: 'final' } }).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const playableShotIds = useMemo(() => new Set(shotOutputBindings.map((binding) => binding.owner_id)), [shotOutputBindings])
+  const playableShots = useMemo(() => shots.filter((s) => playableShotIds.has(s.ID)), [shots, playableShotIds])
 
   const selected = allShots.find((s) => s.ID === selectedId) ?? null
   const detailOpen = selectedId !== null
@@ -134,7 +141,7 @@ export default function ShotsPage() {
   }
 
   function playSingle(shot: Shot) {
-    if (!shot.generated_res_id) return
+    if (!playableShotIds.has(shot.ID)) return
     setPlayerQueue([shot])
     setPlayerIndex(0)
     setPlayerOpen(true)
@@ -234,7 +241,7 @@ export default function ShotsPage() {
                       <p className="text-sm text-foreground line-clamp-3">{getShotDescription(s)}</p>
                       {!s.storyboard_id && <span className="text-xs text-muted-foreground/50 mt-1 block">{t('pages.shots.independent')}</span>}
                     </button>
-                    {s.generated_res_id && (
+                    {playableShotIds.has(s.ID) && (
                       <button onClick={(e) => { e.stopPropagation(); playSingle(s) }}
                         className="absolute bottom-3 right-3 bg-primary text-primary-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" title={t('pages.shots.play')}>
                         <Play size={11} />
@@ -276,7 +283,7 @@ export default function ShotsPage() {
               className="w-full max-h-72 bg-black" onEnded={playerNext} />
           ) : (
             <div className="flex items-center justify-center h-20 text-xs text-background/60">
-              {currentPlayerShot?.generated_res_id ? t('common.loadingShort') : t('pages.shots.noVideo')}
+              {currentPlayerShot && playableShotIds.has(currentPlayerShot.ID) ? t('common.loadingShort') : t('pages.shots.noVideo')}
             </div>
           )}
         </div>

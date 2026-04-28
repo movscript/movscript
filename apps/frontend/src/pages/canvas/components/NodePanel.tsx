@@ -4,7 +4,7 @@ import type { Node, Edge } from '@xyflow/react'
 import { api } from '@/lib/api'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { loadClientPlugins, type ClientPluginInputProperty, type ClientPluginManifest } from '@/lib/clientPlugins'
-import type { Canvas, CanvasNodeData, CanvasParamType, NodeType, RawResource, PublicModel } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, EntityWorkflowSchema, NodeType, RawResource, PublicModel } from '@/types'
 import { Upload, Wand2, Check, X, Loader2 } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -151,6 +151,19 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     select: (items) => items.filter((canvas) => canvas.canvas_type === 'workflow' && canvas.ID !== canvasId),
   })
 
+  const { data: entitySchema } = useQuery<EntityWorkflowSchema>({
+    queryKey: ['workflow-entity-schema', data.entityKind],
+    queryFn: () => api.get(`/workflow/entity-schemas/${data.entityKind}`).then((r) => r.data),
+    enabled: nodeType === 'entity_card' && !!data.entityKind,
+  })
+
+  const selectedReferencedCanvasId = nodeType === 'canvas' && data.referencedCanvasId ? data.referencedCanvasId : undefined
+  const { data: referencedCanvas } = useQuery<Canvas>({
+    queryKey: ['canvas', selectedReferencedCanvasId],
+    queryFn: () => api.get(`/canvases/${selectedReferencedCanvasId}`).then((r) => r.data),
+    enabled: !!selectedReferencedCanvasId,
+  })
+
   const { data: clientPlugins = [] } = useQuery<ClientPluginManifest[]>({
     queryKey: ['client-plugins'],
     queryFn: loadClientPlugins,
@@ -172,6 +185,19 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   const status = data.status ?? 'idle'
   const isRunning = status === 'running' || status === 'pending'
+
+  useEffect(() => {
+    if (nodeType !== 'canvas' || !referencedCanvas) return
+    const nextPorts = deriveCanvasReferencePorts(referencedCanvas)
+    const currentSig = JSON.stringify({ inputs: data.inputPorts ?? [], outputs: data.outputPorts ?? [] })
+    const nextSig = JSON.stringify(nextPorts)
+    if (currentSig !== nextSig) {
+      onUpdate(nodeId, {
+        inputPorts: nextPorts.inputs,
+        outputPorts: nextPorts.outputs,
+      })
+    }
+  }, [data.inputPorts, data.outputPorts, nodeId, nodeType, onUpdate, referencedCanvas])
 
   // Upstream nodes for @mention
   const upstreamNodes = edges
@@ -317,7 +343,15 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           <select
             className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
             value={data.referencedCanvasId ?? ''}
-            onChange={(e) => onUpdate(nodeId, { referencedCanvasId: Number(e.target.value) || undefined, source: 'ai' })}
+            onChange={(e) => {
+              const referencedCanvasId = Number(e.target.value) || undefined
+              onUpdate(nodeId, {
+                referencedCanvasId,
+                source: 'ai',
+                inputPorts: [],
+                outputPorts: [],
+              })
+            }}
           >
             <option value="">{t('canvas.nodePanel.selectWorkflow')}</option>
             {workflowCanvases.map((canvas) => (
@@ -328,6 +362,9 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.referenceWorkflowHint')}
         </p>
+        {((data.inputPorts?.length ?? 0) > 0 || (data.outputPorts?.length ?? 0) > 0) && (
+          <PortSummary inputPorts={data.inputPorts ?? []} outputPorts={data.outputPorts ?? []} />
+        )}
         {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
         {allowRun && (
           <Button
@@ -341,6 +378,20 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           </Button>
         )}
       </div>
+    )
+  }
+
+  if (nodeType === 'entity_card') {
+    return (
+      <EntityCardPanel
+        data={data}
+        label={label}
+        schema={entitySchema}
+        isRunning={isRunning}
+        allowRun={allowRun}
+        onUpdate={(patch) => onUpdate(nodeId, patch)}
+        onRun={() => onRun(nodeId)}
+      />
     )
   }
 
@@ -464,6 +515,156 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
+
+function parseCanvasNodeData(raw?: string): CanvasNodeData {
+  if (!raw) return { source: 'manual' }
+  try {
+    return JSON.parse(raw) as CanvasNodeData
+  } catch {
+    return { source: 'manual' }
+  }
+}
+
+function normalizePortType(type?: CanvasParamType): CanvasPortDef['type'] {
+  return type ?? 'resource'
+}
+
+function deriveCanvasReferencePorts(canvas: Canvas): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
+  const inputNodes = (canvas.nodes ?? []).filter((node) => node.type === 'input')
+  const outputNodes = (canvas.nodes ?? []).filter((node) => node.type === 'output')
+
+  return {
+    inputs: inputNodes.map((node) => {
+      const nodeData = parseCanvasNodeData(node.data)
+      return {
+        id: node.node_id,
+        label: nodeData.paramName || node.label || node.node_id,
+        type: normalizePortType(nodeData.paramType ?? 'text'),
+        required: true,
+      }
+    }),
+    outputs: outputNodes.map((node) => {
+      const nodeData = parseCanvasNodeData(node.data)
+      return {
+        id: node.node_id,
+        label: nodeData.paramName || node.label || node.node_id,
+        type: normalizePortType(nodeData.paramType),
+      }
+    }),
+  }
+}
+
+function PortSummary({ inputPorts, outputPorts }: { inputPorts: CanvasPortDef[]; outputPorts: CanvasPortDef[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
+      {inputPorts.length > 0 && (
+        <div>
+          <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.inputs', { defaultValue: 'Inputs' })}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {inputPorts.map((port) => (
+              <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                {port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)} · {port.type}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {outputPorts.length > 0 && (
+        <div className={inputPorts.length > 0 ? 'mt-2' : ''}>
+          <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.outputs', { defaultValue: 'Outputs' })}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {outputPorts.map((port) => (
+              <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                {port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)} · {port.type}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EntityCardPanel({
+  data,
+  label,
+  schema,
+  isRunning,
+  allowRun,
+  onUpdate,
+  onRun,
+}: {
+  data: CanvasNodeData
+  label: string
+  schema?: EntityWorkflowSchema
+  isRunning: boolean
+  allowRun: boolean
+  onUpdate: (patch: Partial<CanvasNodeData & { label: string }>) => void
+  onRun: () => void
+}) {
+  const { t } = useTranslation()
+  const kindLabel = data.entityKind
+    ? t(schema?.labelKey ?? `canvas.entityTypes.${data.entityKind}`, { defaultValue: schema?.fallbackLabel ?? data.entityKind })
+    : t('canvas.nodeLabels.entity_card')
+  return (
+    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <LabelField label={label} onUpdate={(v) => onUpdate({ label: v } as any)} />
+      <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium text-foreground">{kindLabel}</span>
+          {data.entityId && <span className="font-mono text-muted-foreground">#{data.entityId}</span>}
+        </div>
+        {data.entityTitle && <p className="mt-1 truncate text-muted-foreground">{data.entityTitle}</p>}
+      </div>
+      {schema ? (
+        <div className="space-y-3">
+          {schema.sections.map((section) => (
+            <div key={section.id} className="rounded-md border border-border bg-card">
+              <div className="border-b border-border px-3 py-2 text-xs font-medium text-foreground">
+                {t(section.labelKey, { defaultValue: section.fallbackLabel })}
+              </div>
+              <div className="divide-y divide-border/60">
+                {section.fields.map((field) => (
+                  <div key={field.id} className="px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-foreground">
+                          {t(field.labelKey, { defaultValue: field.fallbackLabel })}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          {field.workflow.portId} · {field.valueType} · {field.control}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        {field.workflow.readable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">out</span>}
+                        {field.workflow.writable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">in</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <PortSummary inputPorts={data.inputPorts ?? []} outputPorts={data.outputPorts ?? []} />
+      )}
+      {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+      {allowRun && (
+        <Button
+          onClick={onRun}
+          disabled={isRunning || !data.entityKind || !data.entityId}
+          className="w-full"
+          size="sm"
+        >
+          <Wand2 size={12} />
+          {isRunning ? t('canvas.running') : t('shared.generation.runNode')}
+        </Button>
+      )}
+    </div>
+  )
+}
 
 function LabelField({ label, onUpdate }: { label: string; onUpdate: (v: string) => void }) {
   const { t } = useTranslation()

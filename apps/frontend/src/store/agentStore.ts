@@ -13,7 +13,6 @@ export interface ChatMessage {
 
 export interface Conversation {
   id: string
-  userAgentId: number | null  // UserAgent.id from server, null = no agent
   title: string
   messages: ChatMessage[]
   createdAt: number
@@ -98,10 +97,6 @@ interface UserConvState {
 }
 
 interface AgentStore {
-  // Which UserAgent is active in the AI panel
-  activeUserAgentId: number | null
-  setActiveUserAgent: (id: number | null) => void
-
   // Legacy model fallback
   settings: AgentSettings
   updateSettings: (s: Partial<AgentSettings>) => void
@@ -109,10 +104,9 @@ interface AgentStore {
   // Conversations keyed by userId (string). Use '' for unauthenticated.
   convsByUser: Record<string, UserConvState>
 
-  createConversation: (userId: string, userAgentId: number | null) => string
+  createConversation: (userId: string) => string
   deleteConversation: (userId: string, id: string) => void
   setActiveConversation: (userId: string, id: string | null) => void
-  updateConversationAgent: (userId: string, id: string, userAgentId: number | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
 
@@ -145,18 +139,15 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 export const useAgentStore = create<AgentStore>()(
   persist(
     (set, get) => ({
-      activeUserAgentId: null,
       settings: DEFAULT_AGENT_SETTINGS,
       convsByUser: {},
-
-      setActiveUserAgent: (id) => set({ activeUserAgentId: id }),
 
       updateSettings: (s) => set((state) => ({ settings: { ...state.settings, ...s } })),
 
       getConversations: (userId) => getUserState(get(), userId).conversations,
       getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
 
-      createConversation: (userId, userAgentId) => {
+      createConversation: (userId) => {
         const id = genId()
         set((state) => {
           const cur = getUserState(state, userId)
@@ -165,7 +156,7 @@ export const useAgentStore = create<AgentStore>()(
               ...state.convsByUser,
               [userId]: {
                 conversations: [
-                  { id, userAgentId, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+                  { id, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
                   ...cur.conversations,
                 ],
                 activeConversationId: id,
@@ -198,21 +189,6 @@ export const useAgentStore = create<AgentStore>()(
           [userId]: { ...getUserState(state, userId), activeConversationId: id },
         },
       })),
-
-      updateConversationAgent: (userId, id, userAgentId) => set((state) => {
-        const cur = getUserState(state, userId)
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: cur.conversations.map((c) =>
-                c.id === id ? { ...c, userAgentId, updatedAt: Date.now() } : c
-              ),
-            },
-          },
-        }
-      }),
 
       addMessage: (userId, conversationId, msg) => set((state) => {
         const cur = getUserState(state, userId)

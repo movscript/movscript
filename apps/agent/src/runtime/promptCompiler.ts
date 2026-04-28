@@ -14,6 +14,19 @@ export function compilePromptPreview(envelope: AgentInputEnvelope): CompiledProm
     ].join('\n'),
   })
 
+  debugParts.push({
+    id: 'workflow.production-chain',
+    kind: 'policy',
+    title: 'MovScript production workflow',
+    content: [
+      '项目结构按 Project -> Script/Setting -> Episode -> Scene -> Storyboard -> Shot -> Final Video 理解；Pipeline Node 表示流程状态、负责人和交付节点。',
+      '项目进度/缺口/下一步请求：先读取项目结构，再按需要读取具体实体；按 剧本 -> 分集 -> 场景 -> 分镜 -> 镜头 -> 素材/生成任务 的顺序盘点。',
+      '分镜/镜头审查：定位 scene/storyboard/shot，检查目标、场景信息、角色、视觉节拍、分镜覆盖、镜头数量、prompt/final_prompt、状态和审批。',
+      '输出复杂项目请求时使用：已确认事实 -> 缺口/风险 -> 下一步 -> 是否需要草稿/确认。',
+      '不要编造不存在的实体、状态或 ID；结构信息不足时说明缺口并继续用工具查询。',
+    ].join('\n'),
+  })
+
   if (envelope.manifest.soul) {
     debugParts.push({
       id: 'agent.soul',

@@ -134,8 +134,8 @@ function getUnavailableReason(options: {
   currentProjectId?: number
   mcpConnected: boolean
 }): ToolUnavailableReason | undefined {
-  if (!options.mcpConnected || !options.mcpTool) return 'mcp_unavailable'
   if (!options.registeredTool) return 'unregistered'
+  if (!options.mcpTool && options.registeredTool.source !== 'runtime') return 'mcp_unavailable'
   const grant = findToolGrant(options.manifest, options.name)
   if (grant?.mode === 'deny') return 'denied'
   if (!grant) return 'not_granted'

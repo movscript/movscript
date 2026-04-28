@@ -3,59 +3,77 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { API_BASE_URL } from '@/lib/config'
-import type { RawResource } from '@/types'
+import type { RawResource, ResourceBinding, ResourceBindingOwnerType, ResourceBindingRole } from '@/types'
 import { Paperclip, X, Upload } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
+import { useProjectStore } from '@/store/projectStore'
 
 interface Props {
-  resourceIds: number[]
-  onChange: (ids: number[]) => void
+  ownerType: ResourceBindingOwnerType
+  ownerId: number
+  role?: ResourceBindingRole
+  slot?: string
 }
 
 const BASE = API_BASE_URL
 
-export function ResourceAttachments({ resourceIds, onChange }: Props) {
+export function ResourceAttachments({ ownerType, ownerId, role = 'attachment', slot = '' }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const projectId = useProjectStore((s) => s.current?.ID)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const { data: allResources = [] } = useQuery<RawResource[]>({
-    queryKey: ['resources'],
-    queryFn: () => api.get('/resources').then((r) => r.data),
+  const queryKey = ['resource-bindings', projectId, ownerType, ownerId, role, slot]
+  const { data: bindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey,
+    queryFn: () =>
+      api.get(`/projects/${projectId}/entities/${ownerType}/${ownerId}/resources`, {
+        params: { role, ...(slot ? { slot } : {}) },
+      }).then((r) => r.data),
+    enabled: !!projectId && !!ownerId,
   })
 
-  const attached = allResources.filter((r) => resourceIds.includes(r.ID))
+  const attached = bindings.filter((binding) => binding.resource).map((binding) => ({ binding, resource: binding.resource! }))
 
   const upload = useMutation({
-    mutationFn: (file: File) => {
+    mutationFn: async (file: File) => {
       const fd = new FormData()
       fd.append('file', file)
-      return api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+      const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+      return api.post(`/projects/${projectId}/resource-bindings`, {
+        resource_id: resource.ID,
+        owner_type: ownerType,
+        owner_id: ownerId,
+        role,
+        slot,
+        source_type: 'upload',
+      }).then((r) => r.data as ResourceBinding)
     },
-    onSuccess: (r) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['resources'] })
-      onChange([...resourceIds, r.ID])
+      qc.invalidateQueries({ queryKey })
     },
   })
 
-  function remove(id: number) {
-    onChange(resourceIds.filter((i) => i !== id))
-  }
+  const remove = useMutation({
+    mutationFn: (bindingId: number) => api.delete(`/resource-bindings/${bindingId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+  })
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
-        {attached.map((r) => (
-          <div key={r.ID} className="relative group">
-            {r.type === 'image' ? (
+        {attached.map(({ binding, resource }) => (
+          <div key={binding.ID} className="relative group">
+            {resource.type === 'image' ? (
               <AuthedImage
-                src={`${BASE}${r.url}`}
-                alt={r.name}
+                src={`${BASE}${resource.url}`}
+                alt={resource.name}
                 className="w-16 h-16 object-cover rounded border border-border"
               />
-            ) : r.type === 'video' ? (
+            ) : resource.type === 'video' ? (
               <AuthedVideo
-                src={`${BASE}${r.url}`}
+                src={`${BASE}${resource.url}`}
                 className="w-16 h-16 object-cover rounded border border-border bg-muted"
               />
             ) : (
@@ -64,7 +82,7 @@ export function ResourceAttachments({ resourceIds, onChange }: Props) {
               </div>
             )}
             <button
-              onClick={() => remove(r.ID)}
+              onClick={() => remove.mutate(binding.ID)}
               className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               aria-label={t('shared.attachments.remove')}
             >

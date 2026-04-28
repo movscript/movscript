@@ -1,22 +1,22 @@
-import { Handle, Position, NodeResizer, useStore, useNodeId } from '@xyflow/react'
+import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import type { CanvasArtifactKind, CanvasNodeData } from '@/types'
+import type { CanvasEntityKind, CanvasNodeData, CanvasPortDef } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
-  Image, Video, Music, ChevronDown, Brush, Camera, Layers3,
+  Image, Video, Music, Brush, Camera, Layers3,
   Palette, PersonStanding, RotateCw, Wrench, Puzzle,
+  Database,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
-import { CanvasGenBody } from '@/components/shared/CanvasGenBody'
-import { ToolNodeFullCard } from '@/components/shared/ToolNodeFullCard'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
-import { CANVAS_NODE_META } from '../nodeCatalog'
+import { CANVAS_NODE_META, portsForEntityKind } from '../nodeCatalog'
 
-const ARTIFACT_ICONS: Record<CanvasArtifactKind, React.ReactNode> = {
+const ENTITY_ICONS: Record<CanvasEntityKind, React.ReactNode> = {
   script: <FileText size={12} />,
+  setting: <Database size={12} />,
   asset: <Image size={12} />,
   episode: <Video size={12} />,
   scene: <Camera size={12} />,
@@ -24,10 +24,6 @@ const ARTIFACT_ICONS: Record<CanvasArtifactKind, React.ReactNode> = {
   shot: <Video size={12} />,
   final_video: <Video size={12} />,
 }
-
-type CardMode = 'compact' | 'detail' | 'full'
-
-const MODES: CardMode[] = ['compact', 'detail', 'full']
 
 const targetHandleStyle: React.CSSProperties = {
   width: 14, height: 14, borderRadius: '50%',
@@ -43,16 +39,32 @@ const sourceHandleStyle: React.CSSProperties = {
   zIndex: 30,
   pointerEvents: 'auto',
 }
-
-function handleOffset(index: number, count: number) {
-  if (count <= 1) return '50%'
-  return `${((index + 1) * 100) / (count + 1)}%`
+const semanticTargetHandleStyle: React.CSSProperties = {
+  ...targetHandleStyle,
+  left: -9,
+  top: '50%',
+}
+const semanticSourceHandleStyle: React.CSSProperties = {
+  ...sourceHandleStyle,
+  right: -9,
+  top: '50%',
 }
 
-function NodePortHandles({
+const PARAM_TYPE_LABELS: Record<string, string> = {
+  text: 'canvas.paramTypes.text',
+  image: 'canvas.paramTypes.image',
+  video: 'canvas.paramTypes.video',
+  audio: 'canvas.paramTypes.audio',
+  json: 'canvas.paramTypes.json',
+  number: 'canvas.paramTypes.number',
+  boolean: 'canvas.paramTypes.boolean',
+  resource: 'canvas.paramTypes.resource',
+}
+
+function resolvePorts({
   nodeType,
-  inputPorts: customInputPorts,
-  outputPorts: customOutputPorts,
+  inputPorts,
+  outputPorts,
   inputs = true,
   outputs = true,
 }: {
@@ -63,45 +75,96 @@ function NodePortHandles({
   outputs?: boolean
 }) {
   const meta = CANVAS_NODE_META[nodeType as keyof typeof CANVAS_NODE_META]
-  const inputPorts = customInputPorts ?? meta?.inputs
-  const outputPorts = customOutputPorts ?? meta?.outputs
-  if (!inputPorts && !outputPorts) {
-    return (
-      <>
-        {inputs && <Handle type="target" position={Position.Left} style={targetHandleStyle} />}
-        {outputs && <Handle type="source" position={Position.Right} style={sourceHandleStyle} />}
-      </>
-    )
+  const hasDeclaredPorts = !!inputPorts || !!outputPorts || !!meta
+  return {
+    resolvedInputs: inputs ? (inputPorts ?? meta?.inputs ?? (!hasDeclaredPorts ? [{ id: 'input', label: 'Input', type: 'resource' as const }] : [])) : [],
+    resolvedOutputs: outputs ? (outputPorts ?? meta?.outputs ?? (!hasDeclaredPorts ? [{ id: 'result', label: 'Result', type: 'resource' as const }] : [])) : [],
   }
+}
+
+function SemanticPortRows({
+  nodeType,
+  inputPorts,
+  outputPorts,
+  inputs = true,
+  outputs = true,
+}: {
+  nodeType: string
+  inputPorts?: CanvasNodeData['inputPorts']
+  outputPorts?: CanvasNodeData['outputPorts']
+  inputs?: boolean
+  outputs?: boolean
+}) {
+  const { t } = useTranslation()
+  const { resolvedInputs, resolvedOutputs } = resolvePorts({ nodeType, inputPorts, outputPorts, inputs, outputs })
+  if (resolvedInputs.length === 0 && resolvedOutputs.length === 0) return null
+
   return (
-    <>
-      {inputs && inputPorts?.map((port, index) => (
-        <Handle
-          key={`in-${port.id}`}
-          id={port.id}
-          type="target"
-          position={Position.Left}
-          title={port.label ?? port.id}
-          style={{ ...targetHandleStyle, top: handleOffset(index, inputPorts.length) }}
-        />
-      ))}
-      {outputs && outputPorts?.map((port, index) => (
-        <Handle
-          key={`out-${port.id}`}
-          id={port.id}
-          type="source"
-          position={Position.Right}
-          title={port.label ?? port.id}
-          style={{ ...sourceHandleStyle, top: handleOffset(index, outputPorts.length) }}
-        />
-      ))}
-    </>
+    <div className="nodrag border-b border-border/60 bg-muted/15 px-2 py-2">
+      {resolvedInputs.length > 0 && (
+        <div className="space-y-1">
+          {resolvedInputs.map((port) => (
+            <SemanticPortRow key={`in-${port.id}`} port={port} side="input" />
+          ))}
+        </div>
+      )}
+      {resolvedOutputs.length > 0 && (
+        <div className={cn('space-y-1', resolvedInputs.length > 0 && 'mt-1.5 border-t border-border/50 pt-1.5')}>
+          {resolvedOutputs.map((port) => (
+            <SemanticPortRow key={`out-${port.id}`} port={port} side="output" />
+          ))}
+        </div>
+      )}
+      <span className="sr-only">{t('canvas.ports.semanticRows', { defaultValue: 'Semantic input and output ports' })}</span>
+    </div>
+  )
+}
+
+function SemanticPortRow({ port, side }: { port: CanvasPortDef; side: 'input' | 'output' }) {
+  const { t } = useTranslation()
+  const typeLabelKey = PARAM_TYPE_LABELS[port.type]
+  const typeLabel = typeLabelKey ? t(typeLabelKey) : port.type
+  const label = port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
+  const requiredLabel = t('canvas.ports.required', { defaultValue: 'Required' })
+  const maxCountLabel = port.maxCount ? t('canvas.ports.maxCount', { count: port.maxCount, defaultValue: `Max ${port.maxCount}` }) : null
+  const title = [
+    label,
+    typeLabel,
+    port.required ? requiredLabel : null,
+    maxCountLabel,
+    port.description,
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <div
+      title={title}
+      className={cn(
+        'relative flex min-h-[30px] items-center gap-1.5 rounded-md border border-border bg-background/85 px-2 py-1.5 text-[10px] shadow-sm',
+        side === 'output' ? 'justify-end pr-3 text-right' : 'pl-3'
+      )}
+    >
+      <Handle
+        id={port.id}
+        type={side === 'input' ? 'target' : 'source'}
+        position={side === 'input' ? Position.Left : Position.Right}
+        title={title}
+        style={side === 'input' ? semanticTargetHandleStyle : semanticSourceHandleStyle}
+      />
+      <div className={cn('flex min-w-0 flex-1 items-center gap-1.5', side === 'output' && 'justify-end')}>
+        <span className="truncate font-medium text-foreground">{label}</span>
+        {port.required && <span className="shrink-0 rounded-sm bg-destructive/10 px-1 py-0.5 leading-none text-destructive">*</span>}
+        <span className="shrink-0 rounded border border-border bg-muted/40 px-1 py-0.5 leading-none text-muted-foreground">{typeLabel}</span>
+        {maxCountLabel && (
+          <span className="shrink-0 rounded border border-border bg-muted/30 px-1 py-0.5 leading-none text-muted-foreground">{maxCountLabel}</span>
+        )}
+      </div>
+    </div>
   )
 }
 
 type NodeDataWithHandlers = CanvasNodeData & {
   label: string
-  cardMode?: CardMode
+  pluginInputProperties?: Record<string, { title?: string; default?: string | number | boolean }>
   onRun?: () => void
   onUpdateContent?: (content: string) => void
   onUpdatePrompt?: (prompt: string) => void
@@ -111,24 +174,6 @@ type NodeDataWithHandlers = CanvasNodeData & {
   onApprove?: () => void
   onReject?: () => void
   onPush?: () => void
-  onCycleMode?: () => void
-}
-
-// ── Hook: read node width from ReactFlow store ─────────────────────────────────
-
-function useNodeWidth(): number | undefined {
-  const nodeId = useNodeId()
-  return useStore((s) => {
-    if (!nodeId) return undefined
-    const node = s.nodeLookup.get(nodeId)
-    return node?.measured?.width
-  })
-}
-
-// Determine effective cardMode based on measured width (auto-override when narrow)
-function effectiveMode(declared: CardMode, measuredWidth?: number): CardMode {
-  if (measuredWidth !== undefined && measuredWidth < 100) return 'compact'
-  return declared
 }
 
 // ── Shared primitives ──────────────────────────────────────────────────────────
@@ -145,41 +190,19 @@ function NodeCard({ selected, children, className }: { selected?: boolean; child
   )
 }
 
-// Mode cycle button — shown in node header to prevent accidental mode switches on click
-function ModeCycleBtn({ mode, onCycle }: { mode: CardMode; onCycle?: () => void }) {
-  const { t } = useTranslation()
-  const label = t(`canvas.modes.${mode}`)
-  return (
-    <button
-      title={t('canvas.switchModeTitle', { mode: label })}
-      className="nodrag shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-[10px] font-medium"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => { e.stopPropagation(); onCycle?.() }}
-    >
-      {label}
-      <ChevronDown size={10} className={cn('transition-transform', mode === 'full' ? 'rotate-180' : '')} />
-    </button>
-  )
-}
-
-function NodeHeader({ icon, label, status, actions, accent, mode, onCycleMode, hideLabel }: {
+function NodeHeader({ icon, label, status, actions, accent }: {
   icon: React.ReactNode
   label: string
   status?: string
   actions?: React.ReactNode
   accent?: string
-  mode?: CardMode
-  onCycleMode?: () => void
-  hideLabel?: boolean
 }) {
   return (
     <div className={cn('flex items-center gap-2 px-3 py-2 rounded-t-lg border-b border-border', accent ?? 'bg-muted/60')}>
       <span className="shrink-0 text-muted-foreground">{icon}</span>
-      {!hideLabel && <span className="font-medium truncate flex-1 text-foreground">{label}</span>}
-      {hideLabel && <span className="flex-1" />}
+      <span className="font-medium truncate flex-1 text-foreground">{label}</span>
       {status && <StatusPip status={status} />}
       {actions}
-      {mode && onCycleMode && <ModeCycleBtn mode={mode} onCycle={onCycleMode} />}
     </div>
   )
 }
@@ -189,17 +212,6 @@ function StatusPip({ status }: { status: string }) {
   if (status === 'done') return <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
   if (status === 'failed') return <XCircle size={11} className="text-destructive shrink-0" />
   return null
-}
-
-const PARAM_TYPE_LABELS: Record<string, string> = {
-  text: 'canvas.paramTypes.text',
-  image: 'canvas.paramTypes.image',
-  video: 'canvas.paramTypes.video',
-  audio: 'canvas.paramTypes.audio',
-  json: 'canvas.paramTypes.json',
-  number: 'canvas.paramTypes.number',
-  boolean: 'canvas.paramTypes.boolean',
-  resource: 'canvas.paramTypes.resource',
 }
 
 function ParamMeta({ name, type }: { name?: string; type?: string }) {
@@ -234,43 +246,64 @@ function PushBtn({ onClick }: { onClick?: () => void }) {
   )
 }
 
+function PluginParamSummary({ data }: { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
+  const args = (data.pluginArgs ?? {}) as Record<string, unknown>
+  const schemaEntries = Object.entries(data.pluginInputProperties ?? {})
+  const argEntries = Object.entries(args).map(([name, value]) => [name, { title: name, default: value }] as const)
+  const entries = (schemaEntries.length > 0 ? schemaEntries : argEntries)
+    .map(([name, prop]) => {
+      const value = args[name] ?? prop.default
+      return { name, label: prop.title || name, value }
+    })
+    .filter((item) => item.value !== undefined && item.value !== null && String(item.value).trim() !== '')
+    .slice(0, 4)
+
+  if (entries.length === 0) return null
+
+  return (
+    <div className="space-y-1 rounded-md border border-border bg-muted/20 px-2 py-1.5">
+      <div className="text-[9px] font-semibold uppercase text-muted-foreground">{t('plugins.parameters')}</div>
+      {entries.map((item) => (
+        <div key={item.name} className="flex items-center gap-2 text-[10px]">
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.label}</span>
+          <span className="max-w-[120px] truncate rounded border border-border bg-background px-1.5 py-0.5 text-foreground">
+            {String(item.value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Media nodes ────────────────────────────────────────────────────────────────
 
 export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const measuredWidth = useNodeWidth()
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="text" />
       <NodeHeader
         icon={<FileText size={12} />}
         label={data.label || t('canvas.nodeLabels.text')}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && data.source === 'ai' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      {mode !== 'compact' && (
-        data.source === 'manual' ? (
-          <textarea
-            className="flex-1 w-full px-3 py-2 text-xs resize-none focus:outline-none bg-transparent nodrag nowheel text-foreground placeholder:text-muted-foreground/50 rounded-b-xl min-h-[60px]"
-            placeholder={t('canvas.textInputPlaceholder')}
-            value={data.textContent ?? ''}
-            onChange={e => data.onUpdateContent?.(e.target.value)}
-            onClick={e => e.stopPropagation()}
-          />
-        ) : (
-          <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
-            {data.textContent || data.prompt || data.resource?.name
-              ? <span className="text-muted-foreground break-words line-clamp-4">{data.textContent || data.prompt || data.resource?.name}</span>
-              : <span className="italic text-muted-foreground/40">{t('canvas.emptyContent')}</span>}
-          </div>
-        )
+      <SemanticPortRows nodeType="text" />
+      {data.source === 'manual' ? (
+        <textarea
+          className="flex-1 w-full px-3 py-2 text-xs resize-none focus:outline-none bg-transparent nodrag nowheel text-foreground placeholder:text-muted-foreground/50 rounded-b-xl min-h-[60px]"
+          placeholder={t('canvas.textInputPlaceholder')}
+          value={data.textContent ?? ''}
+          onChange={e => data.onUpdateContent?.(e.target.value)}
+          onClick={e => e.stopPropagation()}
+        />
+      ) : (
+        <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
+          {data.textContent || data.prompt || data.resource?.name
+            ? <span className="text-muted-foreground break-words line-clamp-4">{data.textContent || data.prompt || data.resource?.name}</span>
+            : <span className="italic text-muted-foreground/40">{t('canvas.emptyContent')}</span>}
+        </div>
       )}
     </NodeCard>
   )
@@ -279,33 +312,24 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
 export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const measuredWidth = useNodeWidth()
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   const imgUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="image" />
       <NodeHeader
         icon={<Image size={12} />}
         label={data.label || t('canvas.nodeLabels.image')}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' ? <>
-          {data.source === 'ai' && status === 'idle' && data.onRun && <RunBtn onClick={data.onRun} />}
+        actions={<>
+          {status !== 'pending' && status !== 'running' && data.onRun && <RunBtn onClick={data.onRun} />}
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
-        </> : undefined}
+        </>}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 bg-muted/30 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
-          {imgUrl
-            ? <AuthedImage src={imgUrl} alt="" className="w-full h-full object-cover" />
-            : <Image size={24} className="text-muted-foreground/20" />}
-        </div>
-      )}
+      <SemanticPortRows nodeType="image" />
+      <div className="flex-1 bg-muted/30 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
+        {imgUrl
+          ? <AuthedImage src={imgUrl} alt="" className="w-full h-full object-cover" />
+          : <Image size={24} className="text-muted-foreground/20" />}
+      </div>
     </NodeCard>
   )
 }
@@ -313,33 +337,24 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const measuredWidth = useNodeWidth()
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   const videoUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="video" />
       <NodeHeader
         icon={<Video size={12} />}
         label={data.label || t('canvas.nodeLabels.video')}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' ? <>
-          {data.source === 'ai' && status === 'idle' && data.onRun && <RunBtn onClick={data.onRun} />}
+        actions={<>
+          {status !== 'pending' && status !== 'running' && data.onRun && <RunBtn onClick={data.onRun} />}
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
-        </> : undefined}
+        </>}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 bg-zinc-900 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
-          {videoUrl
-            ? <AuthedVideo src={videoUrl} className="w-full h-full object-cover" controls={mode === 'full'} />
-            : <Video size={24} className="text-white/20" />}
-        </div>
-      )}
+      <SemanticPortRows nodeType="video" />
+      <div className="flex-1 bg-zinc-900 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
+        {videoUrl
+          ? <AuthedVideo src={videoUrl} className="w-full h-full object-cover" controls />
+          : <Video size={24} className="text-white/20" />}
+      </div>
     </NodeCard>
   )
 }
@@ -347,35 +362,26 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const measuredWidth = useNodeWidth()
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   const audioUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="audio" />
       <NodeHeader
         icon={<Music size={12} />}
         label={data.label || t('canvas.nodeLabels.audio')}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && data.source === 'ai' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 px-3 py-3 rounded-b-xl flex items-center">
-          {audioUrl
-            ? <AuthedAudio src={audioUrl} controls className="w-full h-6" />
-            : <span className="text-muted-foreground/40 italic">{t('canvas.emptyAudio')}</span>}
-        </div>
-      )}
+      <SemanticPortRows nodeType="audio" />
+      <div className="flex-1 px-3 py-3 rounded-b-xl flex items-center">
+        {audioUrl
+          ? <AuthedAudio src={audioUrl} controls className="w-full h-6" />
+          : <span className="text-muted-foreground/40 italic">{t('canvas.emptyAudio')}</span>}
+      </div>
     </NodeCard>
   )
 }
 
-// ── CanvasCardBody — detail-mode body for ToolNode / AIGenNode ─────────────────
+// ── CanvasCardBody — shared body for ToolNode / AIGenNode ─────────────────
 
 const API_BASE_CANVAS = API_BASE
 
@@ -452,62 +458,25 @@ const TOOL_META: Record<string, { icon: React.ReactNode; labelKey: string; outpu
 export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataWithHandlers; type: string }) {
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  const measuredWidth = useNodeWidth()
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image' as const, featureKey: 'canvas_image', inputType: 'image' as const }
   const metaLabel = type in TOOL_META ? t(meta.labelKey) : meta.labelKey
 
-  if (mode === 'full') {
-    return (
-      <div style={{ position: 'relative', display: 'inline-block' }}>
-        <NodePortHandles nodeType={type} />
-        <ToolNodeFullCard
-          toolName={data.label || metaLabel}
-          capability={meta.capability}
-          featureKey={meta.featureKey}
-          inputType={meta.inputType}
-          outputType={meta.outputType}
-          prompt={data.prompt}
-          onUpdatePrompt={data.onUpdatePrompt}
-          modelDbId={data.modelDbId}
-          onUpdateModelId={data.onUpdateModelId}
-          status={status}
-          resource={data.resource}
-          error={data.error}
-          onRun={data.onRun}
-          onUpdateAttachments={data.onUpdateAttachments}
-          className={selected ? 'border-primary ring-2 ring-primary/20 shadow-md' : ''}
-          onCycleMode={data.onCycleMode}
-          canvasId={data.canvasId}
-          rfNodeId={data.rfNodeId}
-        />
-      </div>
-    )
-  }
-
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType={type} />
       <NodeHeader
         icon={meta.icon}
         label={data.label || metaLabel}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      {mode === 'detail' && (
-        <CanvasCardBody
-          prompt={data.prompt}
-          status={status}
-          outputResource={data.resource}
-          outputType={meta.outputType}
-          error={data.error}
-        />
-      )}
+      <SemanticPortRows nodeType={type} inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
+      <CanvasCardBody
+        prompt={data.prompt}
+        status={status}
+        outputResource={data.resource}
+        outputType={meta.outputType}
+        error={data.error}
+      />
     </NodeCard>
   )
 }
@@ -515,39 +484,31 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
 export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="plugin_card" inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
       <NodeHeader
         icon={<Puzzle size={12} />}
         label={data.label || data.pluginName || t('canvas.nodeLabels.plugin_card')}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-          <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
-            <span className="truncate font-medium text-foreground">{data.pluginName || data.pluginId || t('plugins.notFound')}</span>
-            {data.pluginVersion && (
-              <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 leading-none">
-                v{data.pluginVersion}
-              </span>
-            )}
-          </div>
-          {data.pluginResultText ? (
-            <p className="line-clamp-4 whitespace-pre-wrap break-words text-xs text-muted-foreground">{data.pluginResultText}</p>
-          ) : (
-            <span className="italic text-muted-foreground/40">{t('canvas.pluginCard.waiting')}</span>
+      <SemanticPortRows nodeType="plugin_card" inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
+      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
+        <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
+          <span className="truncate font-medium text-foreground">{data.pluginName || data.pluginId || t('plugins.notFound')}</span>
+          {data.pluginVersion && (
+            <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 leading-none">
+              v{data.pluginVersion}
+            </span>
           )}
         </div>
-      )}
+        <PluginParamSummary data={data} />
+        {data.pluginResultText ? (
+          <p className="line-clamp-4 whitespace-pre-wrap break-words text-xs text-muted-foreground">{data.pluginResultText}</p>
+        ) : (
+          <span className="italic text-muted-foreground/40">{t('canvas.pluginCard.waiting')}</span>
+        )}
+      </div>
     </NodeCard>
   )
 }
@@ -556,29 +517,24 @@ export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataW
 
 export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
+  const status = data.status ?? 'idle'
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="input" inputs={false} />
       <NodeHeader
         icon={<LogIn size={12} />}
         label={data.label || t('canvas.nodeLabels.input')}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={!hideLabel ? <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.input')}</span> : undefined}
+        status={status}
+        actions={status !== 'pending' && status !== 'running' && data.onRun
+          ? <RunBtn onClick={data.onRun} />
+          : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.input')}</span>}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-          <ParamMeta name={data.paramName ?? 'input'} type={data.paramType ?? 'text'} />
-          {data.inputValue
-            ? <span className="text-foreground block break-words">{data.inputValue}</span>
-            : <span className="italic text-muted-foreground/40">{t('canvas.fillAtRuntime')}</span>}
-        </div>
-      )}
+      <SemanticPortRows nodeType="input" inputs={false} />
+      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
+        <ParamMeta name={data.paramName ?? 'input'} type={data.paramType ?? 'text'} />
+        {data.inputValue
+          ? <span className="text-foreground block break-words">{data.inputValue}</span>
+          : <span className="italic text-muted-foreground/40">{t('canvas.fillAtRuntime')}</span>}
+      </div>
     </NodeCard>
   )
 }
@@ -586,33 +542,27 @@ export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   const hasOutput = !!data.resource || status === 'done'
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="output" outputs={false} />
       <NodeHeader
         icon={<LogOut size={12} />}
         label={data.label || t('canvas.nodeLabels.output')}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={!hideLabel ? <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.output')}</span> : undefined}
+        status={status}
+        actions={status !== 'pending' && status !== 'running' && data.onRun
+          ? <RunBtn onClick={data.onRun} />
+          : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.output')}</span>}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-          <ParamMeta name={data.paramName ?? 'output'} type={data.paramType ?? 'resource'} />
-          <div className="flex items-center justify-between gap-2">
-            {hasOutput
-              ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.generated')}</span>
-              : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
-            {hasOutput && data.onPush && <PushBtn onClick={data.onPush} />}
-          </div>
+      <SemanticPortRows nodeType="output" outputs={false} />
+      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
+        <ParamMeta name={data.paramName ?? 'output'} type={data.paramType ?? 'resource'} />
+        <div className="flex items-center justify-between gap-2">
+          {hasOutput
+            ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.generated')}</span>
+            : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
+          {hasOutput && data.onPush && <PushBtn onClick={data.onPush} />}
         </div>
-      )}
+      </div>
     </NodeCard>
   )
 }
@@ -620,40 +570,31 @@ export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithH
 export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const approvalStatus = data.approvalStatus ?? 'waiting'
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="approval" />
       <NodeHeader
         icon={<UserCheck size={12} />}
         label={data.label || t('canvas.nodeLabels.approval')}
         accent="bg-amber-50 dark:bg-amber-950/30"
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={!hideLabel && approvalStatus === 'waiting' ? <span className="text-[9px] text-amber-600 shrink-0">{t('canvas.approval.waiting')}</span> : undefined}
+        actions={approvalStatus === 'waiting' ? <span className="text-[9px] text-amber-600 shrink-0">{t('canvas.approval.waiting')}</span> : undefined}
       />
-      {mode !== 'compact' && (
-        <div className="flex-1 px-3 py-2 rounded-b-xl">
-          {approvalStatus === 'approved' && <span className="text-emerald-600 flex items-center gap-1"><Check size={10} /> {t('canvas.approval.approved')}</span>}
-          {approvalStatus === 'rejected' && <span className="text-destructive flex items-center gap-1"><X size={10} /> {t('canvas.approval.rejected')}</span>}
-          {approvalStatus === 'waiting' && (
-            <div className="flex gap-1.5 mt-0.5">
-              <button onMouseDown={e => { e.stopPropagation(); data.onApprove?.() }}
-                className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-[10px] transition-colors">
-                <Check size={9} /> {t('canvas.approval.approve')}
-              </button>
-              <button onMouseDown={e => { e.stopPropagation(); data.onReject?.() }}
-                className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-[10px] transition-colors">
-                <X size={9} /> {t('canvas.approval.reject')}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      <SemanticPortRows nodeType="approval" />
+      <div className="flex-1 px-3 py-2 rounded-b-xl">
+        {approvalStatus === 'approved' && <span className="text-emerald-600 flex items-center gap-1"><Check size={10} /> {t('canvas.approval.approved')}</span>}
+        {approvalStatus === 'rejected' && <span className="text-destructive flex items-center gap-1"><X size={10} /> {t('canvas.approval.rejected')}</span>}
+        {approvalStatus === 'waiting' && (
+          <div className="flex gap-1.5 mt-0.5">
+            <button onMouseDown={e => { e.stopPropagation(); data.onApprove?.() }}
+              className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-[10px] transition-colors">
+              <Check size={9} /> {t('canvas.approval.approve')}
+            </button>
+            <button onMouseDown={e => { e.stopPropagation(); data.onReject?.() }}
+              className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-[10px] transition-colors">
+              <X size={9} /> {t('canvas.approval.reject')}
+            </button>
+          </div>
+        )}
+      </div>
     </NodeCard>
   )
 }
@@ -661,46 +602,21 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
 export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="text_gen" />
       <NodeHeader
         icon={<Sparkles size={12} />}
         label={data.label || t('canvas.nodeLabels.text_gen')}
         status={status}
         accent="bg-violet-50 dark:bg-violet-950/30"
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' && status === 'idle' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      {mode === 'detail' && (
-        <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
-          {data.prompt
-            ? <span className="text-muted-foreground break-words">{data.prompt}</span>
-            : <span className="italic text-muted-foreground/40">{t('canvas.noPrompt')}</span>}
-        </div>
-      )}
-      {mode === 'full' && (
-        <CanvasGenBody
-          prompt={data.prompt}
-          onUpdatePrompt={data.onUpdatePrompt}
-          modelDbId={data.modelDbId}
-          onUpdateModelId={data.onUpdateModelId}
-          capability="text"
-          featureKey="canvas_text"
-          outputType="text"
-          status={status}
-          resource={data.resource}
-          error={data.error}
-          onRun={data.onRun}
-          textContent={data.textContent}
-        />
-      )}
+      <SemanticPortRows nodeType="text_gen" />
+      <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
+        {data.textContent || data.prompt
+          ? <span className="text-muted-foreground break-words whitespace-pre-wrap">{data.textContent || data.prompt}</span>
+          : <span className="italic text-muted-foreground/40">{t('canvas.noPrompt')}</span>}
+      </div>
     </NodeCard>
   )
 }
@@ -718,70 +634,40 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const outputType = (data.outputType ?? 'image') as 'image' | 'video'
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
-
-  const aiCapability = outputType === 'video' ? 'video' : 'image'
-  const aiFeatureKey = outputType === 'video' ? 'canvas_video' : 'canvas_image'
 
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="ai_gen" />
       <NodeHeader
         icon={<Sparkles size={12} />}
         label={data.label || t('canvas.nodeLabels.ai_gen')}
         status={status}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
-        actions={mode !== 'compact' ? <>
-          {status === 'idle' && data.onRun && <RunBtn onClick={data.onRun} />}
+        actions={<>
+          {status !== 'pending' && status !== 'running' && data.onRun && <RunBtn onClick={data.onRun} />}
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
-        </> : undefined}
+        </>}
       />
-      {mode !== 'compact' && (
-        <div className="flex gap-1 px-3 py-2 border-b border-border/50">
-          {OUTPUT_TYPES.map((option) => (
-            <button key={option.value}
-              onClick={e => { e.stopPropagation(); data.onUpdateOutputType?.(option.value) }}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-0.5 py-1 rounded-md text-[10px] border transition-colors',
-                outputType === option.value
-                  ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
-                  : 'border-border text-muted-foreground hover:bg-muted/50'
-              )}>
-              {option.icon} {t(option.label)}
-            </button>
-          ))}
-        </div>
-      )}
-      {mode === 'detail' && (
-        <CanvasCardBody
-          prompt={data.prompt}
-          status={status}
-          outputResource={data.resource}
-          outputType={outputType}
-          error={data.error}
-        />
-      )}
-      {mode === 'full' && (
-        <CanvasGenBody
-          prompt={data.prompt}
-          onUpdatePrompt={data.onUpdatePrompt}
-          modelDbId={data.modelDbId}
-          onUpdateModelId={data.onUpdateModelId}
-          capability={aiCapability}
-          featureKey={aiFeatureKey}
-          outputType={outputType}
-          status={status}
-          resource={data.resource}
-          error={data.error}
-          onRun={data.onRun}
-          textContent={data.textContent}
-        />
-      )}
+      <SemanticPortRows nodeType="ai_gen" />
+      <div className="flex gap-1 px-3 py-2 border-b border-border/50">
+        {OUTPUT_TYPES.map((option) => (
+          <button key={option.value}
+            onClick={e => { e.stopPropagation(); data.onUpdateOutputType?.(option.value) }}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-0.5 py-1 rounded-md text-[10px] border transition-colors',
+              outputType === option.value
+                ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
+                : 'border-border text-muted-foreground hover:bg-muted/50'
+            )}>
+            {option.icon} {t(option.label)}
+          </button>
+        ))}
+      </div>
+      <CanvasCardBody
+        prompt={data.prompt}
+        status={status}
+        outputResource={data.resource}
+        outputType={outputType}
+        error={data.error}
+      />
     </NodeCard>
   )
 }
@@ -808,47 +694,32 @@ export function GroupNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   )
 }
 
-export function ArtifactCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const kind = data.artifactKind
-  const declaredMode: CardMode = data.cardMode ?? 'detail'
-  const measuredWidth = useNodeWidth()
-  const mode = effectiveMode(declaredMode, measuredWidth)
-  const hideLabel = measuredWidth !== undefined && measuredWidth < 100
-  const label = data.label || data.artifactTitle || t('canvas.nodeLabels.artifact_card')
-  const kindLabel = kind ? t(`canvas.artifactTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.artifact_card')
+  const kind = data.entityKind
+  const label = data.label || data.entityTitle || t('canvas.nodeLabels.entity_card')
+  const kindLabel = kind ? t(`canvas.entityTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.entity_card')
+  const ports = portsForEntityKind(kind)
+  const inputPorts = data.inputPorts ?? ports?.inputs
+  const outputPorts = data.outputPorts ?? ports?.outputs
 
   return (
     <NodeCard selected={selected}>
-      <NodePortHandles nodeType="artifact_card" />
       <NodeHeader
-        icon={kind ? ARTIFACT_ICONS[kind] : <FileText size={12} />}
+        icon={kind ? ENTITY_ICONS[kind] : <FileText size={12} />}
         label={label}
-        hideLabel={hideLabel}
-        mode={declaredMode}
-        onCycleMode={data.onCycleMode}
         accent="bg-slate-50 dark:bg-slate-950/35"
       />
-      {mode !== 'compact' && (
-        <div className="space-y-2 px-3 py-2">
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="rounded border border-border bg-background px-1.5 py-0.5 leading-none">{kindLabel}</span>
-            {data.artifactId && <span className="font-mono">#{data.artifactId}</span>}
-          </div>
-          {mode === 'detail' && data.textContent && (
-            <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.textContent}</p>
-          )}
-          {mode === 'full' && (
-            <textarea
-              className="nodrag nowheel min-h-[96px] w-full resize-none rounded-md border border-border bg-background px-2.5 py-2 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
-              value={data.textContent ?? ''}
-              onChange={(e) => data.onUpdateContent?.(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              placeholder={t('canvas.emptyContent')}
-            />
-          )}
+      <SemanticPortRows nodeType="entity_card" inputPorts={inputPorts} outputPorts={outputPorts} />
+      <div className="space-y-2 px-3 py-2">
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span className="rounded border border-border bg-background px-1.5 py-0.5 leading-none">{kindLabel}</span>
+          {data.entityId && <span className="font-mono">#{data.entityId}</span>}
         </div>
-      )}
+        {data.textContent && (
+          <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.textContent}</p>
+        )}
+      </div>
     </NodeCard>
   )
 }

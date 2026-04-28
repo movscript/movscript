@@ -4,6 +4,8 @@ import { ChatRuntime } from './chatRuntime.js'
 import { MCPClient } from './mcpClient.js'
 import { AgentRuntime, loadAgentPluginCatalog } from './runtime/agentRuntime.js'
 import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from './runtime/fileStore.js'
+import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/draftStore.js'
+import { BackendApplyClient } from './runtime/backendApplyClient.js'
 import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
 import type { JSONValue } from './types.js'
 
@@ -11,12 +13,16 @@ const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
 const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || 'http://127.0.0.1:18765/mcp'
 const statePath = resolveAgentStatePath()
 const memoryPath = resolveAgentMemoryPath(statePath)
+const draftPath = resolveAgentDraftPath(statePath)
+const backendApplyClient = new BackendApplyClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
 const chatRuntime = new ChatRuntime({ mcpClient: client })
 const agentRuntime = new AgentRuntime({
   mcpClient: client,
   store: new FileAgentStore(statePath),
+  draftStore: new FileAgentDraftStore(draftPath),
+  backendApplyClient,
   memoryStore: new FileAgentMemoryStore(memoryPath),
   defaultAgentManifest: pluginCatalog.manifest,
   skillCatalog: pluginCatalog.skills,
@@ -24,6 +30,8 @@ const agentRuntime = new AgentRuntime({
   pluginCatalogInfo: {
     skillsDir: pluginCatalog.skillsDir,
     toolsDir: pluginCatalog.toolsDir,
+    builtinSkillsDir: pluginCatalog.builtinSkillsDir,
+    builtinToolsDir: pluginCatalog.builtinToolsDir,
     skillCount: pluginCatalog.skills.length,
     toolCount: pluginCatalog.tools.length,
   },
@@ -51,10 +59,14 @@ const server = createServer(async (req, res) => {
         pluginCatalog: {
           skillsDir: pluginCatalog.skillsDir,
           toolsDir: pluginCatalog.toolsDir,
+          builtinSkillsDir: pluginCatalog.builtinSkillsDir,
+          builtinToolsDir: pluginCatalog.builtinToolsDir,
           skillCount: pluginCatalog.skills.length,
           toolCount: pluginCatalog.tools.length,
           warnings: pluginCatalog.warnings,
         },
+        draftPath,
+        backendApplyEnabled: backendApplyClient.isEnabled(),
       })
       return
     }
@@ -75,6 +87,8 @@ const server = createServer(async (req, res) => {
         pluginCatalog: {
           skillsDir: pluginCatalog.skillsDir,
           toolsDir: pluginCatalog.toolsDir,
+          builtinSkillsDir: pluginCatalog.builtinSkillsDir,
+          builtinToolsDir: pluginCatalog.builtinToolsDir,
           skillCount: pluginCatalog.skills.length,
           toolCount: pluginCatalog.tools.length,
           warnings: pluginCatalog.warnings,
@@ -116,9 +130,44 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/draft') {
       const body = await readJSON(req)
-      await client.initialize()
-      const result = await client.callTool('movscript.create_draft', normalizeDraftBody(body))
+      const result = agentRuntime.createLocalDraft(normalizeDraftBody(body))
       writeJSON(res, 200, result)
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/drafts') {
+      writeJSON(res, 200, { drafts: agentRuntime.listDrafts(normalizeDraftQuery(url)) })
+      return
+    }
+
+    const draftMatch = url.pathname.match(/^\/drafts\/([^/]+)$/)
+    if (draftMatch && req.method === 'GET') {
+      const draft = agentRuntime.getDraft(draftMatch[1])
+      if (!draft) {
+        writeJSON(res, 404, { error: 'draft not found' })
+        return
+      }
+      writeJSON(res, 200, draft)
+      return
+    }
+
+    const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
+    if (draftApplyPreviewMatch && req.method === 'POST') {
+      const body = normalizeOptionalObject(await readJSON(req), 'apply preview body')
+      writeJSON(res, 200, agentRuntime.previewApplyDraft({
+        draftId: draftApplyPreviewMatch[1],
+        ...body,
+      }))
+      return
+    }
+
+    const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
+    if (draftRejectMatch && req.method === 'POST') {
+      const body = normalizeOptionalObject(await readJSON(req), 'draft rejection body')
+      writeJSON(res, 200, agentRuntime.rejectDraft({
+        draftId: draftRejectMatch[1],
+        reason: body.reason,
+      }))
       return
     }
 
@@ -233,6 +282,8 @@ server.listen(port, '127.0.0.1', () => {
   console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
   console.info(`[agent] state path ${statePath}`)
   console.info(`[agent] memory path ${memoryPath}`)
+  console.info(`[agent] draft path ${draftPath}`)
+  console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
   console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
   for (const warning of pluginCatalog.warnings) console.warn(`[agent] plugin warning: ${warning}`)
@@ -242,10 +293,29 @@ function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
   if (!isRecord(body)) throw new Error('draft body must be an object')
   return {
     ...(typeof body.projectId === 'number' ? { projectId: body.projectId } : {}),
-    kind: typeof body.kind === 'string' ? body.kind : 'note',
+    kind: normalizeDraftKind(body.kind),
     title: typeof body.title === 'string' ? body.title : 'Untitled draft',
     content: typeof body.content === 'string' ? body.content : '',
     ...(isRecord(body.source) ? { source: body.source as Record<string, JSONValue> } : {}),
+    ...(isRecord(body.target) ? { target: body.target as Record<string, JSONValue> } : {}),
+    ...(isRecord(body.metadata) ? { metadata: body.metadata as Record<string, JSONValue> } : {}),
+  }
+}
+
+function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0] {
+  const projectId = url.searchParams.get('projectId')
+  const kind = normalizeDraftKind(url.searchParams.get('kind'))
+  const status = normalizeDraftStatus(url.searchParams.get('status'))
+  const sourceEntityType = url.searchParams.get('sourceEntityType')
+  const sourceEntityId = url.searchParams.get('sourceEntityId')
+  const limit = url.searchParams.get('limit')
+  return {
+    ...(projectId !== null && Number.isFinite(Number(projectId)) ? { projectId: Number(projectId) } : {}),
+    ...(url.searchParams.has('kind') ? { kind } : {}),
+    ...(status ? { status } : {}),
+    ...(sourceEntityType ? { sourceEntityType } : {}),
+    ...(sourceEntityId ? { sourceEntityId } : {}),
+    ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
   }
 }
 

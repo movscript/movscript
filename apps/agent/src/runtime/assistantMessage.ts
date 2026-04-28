@@ -59,9 +59,24 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   if (call.name === 'movscript.read_entity') {
     return `读取 ${String(call.args?.entityType ?? 'entity')} ${String(call.args?.entityId ?? '')}。`
   }
+  if (call.name === 'movscript.read_project_structure') {
+    const counts = isRecord(parsed) && isRecord(parsed.counts) ? parsed.counts : undefined
+    const summary = counts
+      ? `（scripts=${String(counts.scripts ?? 0)}, episodes=${String(counts.episodes ?? 0)}, scenes=${String(counts.scenes ?? 0)}, storyboards=${String(counts.storyboards ?? 0)}, shots=${String(counts.shots ?? 0)}）`
+      : ''
+    return `读取项目结构摘要${summary}。`
+  }
   if (call.name === 'movscript.create_draft') {
     const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
     return `创建本地草稿${draftId}。`
+  }
+  if (call.name === 'movscript.list_drafts') {
+    const count = isRecord(parsed) && Array.isArray(parsed.drafts) ? parsed.drafts.length : undefined
+    return `列出本地草稿${count === undefined ? '' : `，共 ${count} 条`}。`
+  }
+  if (call.name === 'movscript.apply_draft') {
+    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
+    return `应用草稿审批链已执行（${status}）；当前只更新本地 Agent 草稿生命周期，不直接写正式项目实体。`
   }
   return `调用 ${call.name}。`
 }

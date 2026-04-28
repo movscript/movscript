@@ -1010,8 +1010,9 @@ export function ScriptForm({ script, projectId, draft, onChange, onSave, isSavin
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.attachments')}</Label>
             <ResourceAttachments
-              resourceIds={draft.resource_ids ? JSON.parse(draft.resource_ids) : []}
-              onChange={(ids) => onChange({ ...draft, resource_ids: JSON.stringify(ids) })}
+              ownerType="script"
+              ownerId={script.ID}
+              role="attachment"
             />
           </div>
           <div className="pt-1 border-t border-border">

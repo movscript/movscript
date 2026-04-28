@@ -16,7 +16,6 @@ type Scene struct {
 	// Reserved for legacy entity-level review. Disabled in the frontend for now;
 	// pipeline node status is the active review source of truth.
 	ReviewStatus string       `gorm:"default:'draft'" json:"review_status"`
-	ResourceIDs  string       `json:"resource_ids"` // JSON array of RawResource IDs (images/videos/sketches)
 	Storyboards  []Storyboard `gorm:"foreignKey:SceneID" json:"storyboards,omitempty"`
 }
 

@@ -71,7 +71,7 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		return
 	}
 	if body.ParentID == nil && !isPipelineWorkNode(node.Type) {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("根节点只能是工作节点"))
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("新增工作项只能使用工作节点类型"))
 		return
 	}
 	var parent model.PipelineNode
@@ -88,10 +88,10 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 			node.LeadID = parent.LeadID
 		}
 	}
-	node.ContentType = pipelineContentTypeForNode(node.Type)
 	if node.EntityType == "" {
 		node.EntityType = pipelineEntityTypeForNode(node.Type)
 	}
+	node.ContentType = pipelineContentTypeForBinding(node.Type, node.EntityType)
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&node).Error; err != nil {
 			return err
@@ -180,7 +180,6 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	} else if body.DueDate != nil {
 		node.DueDate = body.DueDate
 	}
-	node.ContentType = pipelineContentTypeForNode(node.Type)
 	if rawEntityType, ok := raw["entity_type"]; ok {
 		if string(rawEntityType) == "null" {
 			node.EntityType = ""
@@ -215,6 +214,7 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	} else if node.EntityType == "" && body.EntityID != nil {
 		node.EntityType = pipelineEntityTypeForNode(node.Type)
 	}
+	node.ContentType = pipelineContentTypeForBinding(node.Type, node.EntityType)
 	if body.PosX != nil {
 		node.PosX = *body.PosX
 	}
@@ -362,8 +362,6 @@ func (h *PipelineHandler) DeleteEdge(c *gin.Context) {
 }
 
 // Submit transitions a node from draft (or rejected) to under_review.
-// Work nodes can be submitted only after every adjacent artifact node
-// (both upstream parent-side and downstream child-side) is final.
 func (h *PipelineHandler) Submit(c *gin.Context) {
 	var node model.PipelineNode
 	if err := h.db.First(&node, c.Param("nodeId")).Error; err != nil {
@@ -377,15 +375,6 @@ func (h *PipelineHandler) Submit(c *gin.Context) {
 	if isPipelineToolNode(node.Type) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
 		return
-	}
-	if isPipelineWorkNode(node.Type) {
-		if blocking, ok := h.findBlockingAdjacentArtifact(node); ok {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    "artifact_not_final",
-				"message": "关联产物「" + blocking.Name + "」尚未定稿，工作节点无法提交审核",
-			})
-			return
-		}
 	}
 	userID := currentUserID(c)
 	if !h.canSubmitNode(node, userID) {
@@ -517,25 +506,6 @@ func (h *PipelineHandler) Reopen(c *gin.Context) {
 	})
 }
 
-func (h *PipelineHandler) findBlockingAdjacentArtifact(node model.PipelineNode) (model.PipelineNode, bool) {
-	var edges []model.PipelineEdge
-	h.db.Where("project_id = ? AND (from_node_id = ? OR to_node_id = ?)", node.ProjectID, node.ID, node.ID).Find(&edges)
-	for _, e := range edges {
-		otherID := e.FromNodeID
-		if otherID == node.ID {
-			otherID = e.ToNodeID
-		}
-		var artifact model.PipelineNode
-		if err := h.db.Select("id, type, name, status").First(&artifact, otherID).Error; err != nil {
-			continue
-		}
-		if isPipelineArtifactNode(artifact.Type) && artifact.Status != "final" {
-			return artifact, true
-		}
-	}
-	return model.PipelineNode{}, false
-}
-
 func visiblePipelineTree(nodes []model.PipelineNode, edges []model.PipelineEdge) ([]model.PipelineNode, []model.PipelineEdge) {
 	visibleIDs := map[uint]bool{}
 	visibleNodes := make([]model.PipelineNode, 0, len(nodes))
@@ -665,13 +635,13 @@ func projectRole(db *gorm.DB, projectID, userID uint) (string, bool) {
 	if userID == 0 {
 		return "", false
 	}
-	var member model.ProjectMember
-	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err == nil {
-		return member.Role, true
-	}
 	var project model.Project
 	if err := db.Select("owner_id").First(&project, projectID).Error; err == nil && project.OwnerID == userID {
 		return "owner", true
+	}
+	var member model.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err == nil {
+		return member.Role, true
 	}
 	return "", false
 }

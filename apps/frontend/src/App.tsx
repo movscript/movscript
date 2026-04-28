@@ -32,8 +32,6 @@ import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import PipelineEditorPage from './pages/pipeline/PipelineEditorPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
-import AgentSettingsPage from './pages/agent/AgentSettingsPage'
-import AgentsPage from './pages/agent/AgentsPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
 import i18n from './i18n'
@@ -136,8 +134,6 @@ export default function App() {
       <Routes>
         {/* Canvas editor is full-screen, no sidebar/header */}
         <Route path="/canvases/:id" element={<CanvasEditorPage />} />
-        {/* Pipeline editor is full-screen */}
-        <Route path="/pipeline" element={<ProjectGuard><PipelineEditorPage /></ProjectGuard>} />
         {/* All other pages use the shell layout */}
         <Route path="*" element={
           <div className="flex h-screen bg-background text-foreground">
@@ -154,12 +150,14 @@ export default function App() {
 
                     {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
                     <Route path="/scripts"     element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
+                    <Route path="/settings"    element={<ProjectGuard><ScriptsPage initialTab="settings" /></ProjectGuard>} />
                     <Route path="/assets"      element={<ProjectGuard><AssetsPage /></ProjectGuard>} />
                     <Route path="/episodes"    element={<ProjectGuard><EpisodesPage /></ProjectGuard>} />
                     <Route path="/scenes"      element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
                     <Route path="/storyboards" element={<ProjectGuard><StoryboardsPage /></ProjectGuard>} />
                     <Route path="/shots"       element={<ProjectGuard><ShotsPage /></ProjectGuard>} />
                     <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
+                    <Route path="/pipeline" element={<ProjectGuard><PipelineEditorPage /></ProjectGuard>} />
                     <Route path="/pipeline/nodes/:nodeId" element={<ProjectGuard><WorkbenchPage mode="pipeline-node" /></ProjectGuard>} />
 
                     {/* 工具模块 */}
@@ -186,9 +184,9 @@ export default function App() {
                     <Route path="/plugins" element={<ClientPluginsPage />} />
 
                     {/* Agent */}
-                    <Route path="/agent/settings" element={<AgentSettingsPage />} />
                     <Route path="/agent/debug" element={<AgentDebugPage />} />
-                    <Route path="/agents" element={<Padded><AgentsPage /></Padded>} />
+                    <Route path="/agent/settings" element={<Navigate to="/agent/debug" replace />} />
+                    <Route path="/agents" element={<Navigate to="/agent/debug" replace />} />
 
                     {/* 管理后台 — super_admin only */}
                     <Route path="/admin" element={<AdminGuard><Padded><AdminPage /></Padded></AdminGuard>} />

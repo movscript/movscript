@@ -90,15 +90,16 @@ func (h *ArtifactRefHandler) scriptRefs(projectID uint) []ArtifactRef {
 
 func (h *ArtifactRefHandler) assetRefs(c *gin.Context, projectID uint) []ArtifactRef {
 	var assets []model.Asset
-	h.db.Preload("Views.Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&assets)
+	h.db.Preload("Views").Where("project_id = ?", projectID).Order("updated_at desc").Find(&assets)
 	refs := make([]ArtifactRef, 0, len(assets))
 	for _, asset := range assets {
-		var resource *model.RawResource
-		for _, view := range asset.Views {
-			if view.Resource != nil {
-				resource = view.Resource
-				resource.URL = resourceURL(c, resource.ID)
-				break
+		resource := h.firstBoundResource(c, projectID, "asset", asset.ID, "thumbnail", "final")
+		if resource == nil {
+			for _, view := range asset.Views {
+				resource = h.firstBoundResource(c, projectID, "asset_view", view.ID, "thumbnail", "final", "reference")
+				if resource != nil {
+					break
+				}
 			}
 		}
 		refs = append(refs, ArtifactRef{
@@ -167,12 +168,10 @@ func (h *ArtifactRefHandler) shotRefs(projectID uint) []ArtifactRef {
 
 func (h *ArtifactRefHandler) finalVideoRefs(c *gin.Context, projectID uint) []ArtifactRef {
 	var videos []model.FinalVideo
-	h.db.Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&videos)
+	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&videos)
 	refs := make([]ArtifactRef, 0, len(videos))
 	for _, video := range videos {
-		if video.Resource != nil {
-			video.Resource.URL = resourceURL(c, video.Resource.ID)
-		}
+		resource := h.firstBoundResource(c, projectID, "final_video", video.ID, "final", "output", "draft")
 		refs = append(refs, ArtifactRef{
 			Kind:           "final_video",
 			ID:             video.ID,
@@ -185,12 +184,27 @@ func (h *ArtifactRefHandler) finalVideoRefs(c *gin.Context, projectID uint) []Ar
 				SceneID:      video.SceneID,
 				StoryboardID: video.StoryboardID,
 			},
-			Resource:  video.Resource,
+			Resource:  resource,
 			CreatedAt: video.CreatedAt.Format(timeFormatRFC3339),
 			UpdatedAt: video.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
+}
+
+func (h *ArtifactRefHandler) firstBoundResource(c *gin.Context, projectID uint, ownerType string, ownerID uint, roles ...string) *model.RawResource {
+	var binding model.ResourceBinding
+	q := h.db.Preload("Resource").
+		Where("project_id = ? AND owner_type = ? AND owner_id = ?", projectID, ownerType, ownerID).
+		Order("is_primary desc, sort_order, created_at")
+	if len(roles) > 0 {
+		q = q.Where("role IN ?", roles)
+	}
+	if err := q.First(&binding).Error; err != nil || binding.Resource == nil {
+		return nil
+	}
+	binding.Resource.URL = resourceURL(c, binding.Resource.ID)
+	return binding.Resource
 }
 
 const timeFormatRFC3339 = "2006-01-02T15:04:05Z07:00"

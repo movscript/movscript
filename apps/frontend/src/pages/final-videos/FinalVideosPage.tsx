@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Episode, FinalVideo, FinalVideoStatus, RawResource, Scene, Shot, Storyboard } from '@/types'
+import type { Episode, FinalVideo, FinalVideoStatus, ResourceBinding, Scene, Shot, Storyboard } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
 import { cn } from '@/lib/utils'
 import { defaultContentType } from '@/pages/pipeline/nodeSpec'
 import { Check, Clapperboard, Film, LayoutGrid, List, Plus, Save, Video } from 'lucide-react'
@@ -208,14 +209,15 @@ export default function FinalVideosPage() {
 
 function FinalVideoGridCard({ video, selected, binding, onClick }: { video: FinalVideo; selected: boolean; binding: string; onClick: () => void }) {
   const { t } = useTranslation()
+  const preview = useFinalVideoResource(video.ID)
   return (
     <button
       onClick={onClick}
       className={cn('text-left bg-background border border-border rounded-lg overflow-hidden hover:border-ring hover:shadow-sm transition-all', selected && 'border-primary ring-1 ring-primary')}
     >
       <div className="aspect-video bg-muted overflow-hidden">
-        {video.resource ? (
-          <MediaViewer resource={video.resource} lightbox={false} className="w-full h-full rounded-none" />
+        {preview ? (
+          <MediaViewer resource={preview} lightbox={false} className="w-full h-full rounded-none" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-muted-foreground">
             <Video size={24} />
@@ -237,13 +239,14 @@ function FinalVideoGridCard({ video, selected, binding, onClick }: { video: Fina
 
 function FinalVideoListRow({ video, selected, binding, onClick }: { video: FinalVideo; selected: boolean; binding: string; onClick: () => void }) {
   const { t } = useTranslation()
+  const preview = useFinalVideoResource(video.ID)
   return (
     <button
       onClick={onClick}
       className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors flex items-center gap-2.5', selected && 'bg-background border-l-2 border-l-primary')}
     >
       <div className="w-12 h-8 rounded bg-muted shrink-0 overflow-hidden">
-        {video.resource ? <MediaViewer resource={video.resource} lightbox={false} className="w-full h-full rounded-none" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Video size={14} /></div>}
+        {preview ? <MediaViewer resource={preview} lightbox={false} className="w-full h-full rounded-none" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Video size={14} /></div>}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{video.title || t('common.emptyTitle')}</p>
@@ -254,6 +257,16 @@ function FinalVideoListRow({ video, selected, binding, onClick }: { video: Final
       </span>
     </button>
   )
+}
+
+function useFinalVideoResource(videoId: number) {
+  const projectId = useProjectStore((s) => s.current?.ID)
+  const { data: bindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey: ['resource-bindings', projectId, 'final_video', videoId, 'final'],
+    queryFn: () => api.get(`/projects/${projectId}/entities/final_video/${videoId}/resources`, { params: { role: 'final' } }).then((r) => r.data),
+    enabled: !!projectId && !!videoId,
+  })
+  return bindings.find((binding) => binding.resource)?.resource
 }
 
 function FinalVideoCreateForm({ projectId, onSuccess, onCancel }: { projectId: number; onSuccess: () => void; onCancel: () => void }) {
@@ -328,17 +341,16 @@ export function FinalVideoDetail({
 
   useEffect(() => setDraft(video), [video])
 
-  const { data: rawResources } = useQuery<RawResource[]>({
-    queryKey: ['resources', 'final-video-picker'],
-    queryFn: () => api.get('/resources', { params: { type: 'video,image' } }).then((r) => r.data),
+  const { data: finalBindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey: ['resource-bindings', projectId, 'final_video', video.ID, 'final'],
+    queryFn: () => api.get(`/projects/${projectId}/entities/final_video/${video.ID}/resources`, { params: { role: 'final' } }).then((r) => r.data),
+    enabled: !!projectId,
   })
-  const resources = rawResources ?? []
 
   const update = useMutation({
     mutationFn: () => api.patch(`/final-videos/${video.ID}`, {
       title: draft.title,
       description: draft.description,
-      resource_id: draft.resource_id,
       episode_id: draft.episode_id,
       scene_id: draft.scene_id,
       storyboard_id: draft.storyboard_id,
@@ -364,7 +376,7 @@ export function FinalVideoDetail({
     setDraft((current) => ({ ...current, ...patch }))
   }
 
-  const selectedResource = resources.find((item) => item.ID === draft.resource_id) ?? video.resource
+  const selectedResource = finalBindings.find((binding) => binding.resource)?.resource
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -400,10 +412,7 @@ export function FinalVideoDetail({
           </div>
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.mediaResource')}</Label>
-            <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={draft.resource_id ?? ''} onChange={(event) => updateDraft({ resource_id: emptyToNull(event.target.value) })}>
-              <option value="">{t('forms.unlinked')}</option>
-              {resources.map((resource) => <option key={resource.ID} value={resource.ID}>{resource.name}</option>)}
-            </select>
+            <ResourceAttachments ownerType="final_video" ownerId={video.ID} role="final" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -428,7 +437,7 @@ export function FinalVideoDetail({
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-foreground">{t('pages.finalVideos.preview')}</h3>
-            {draft.resource_id && <span className="text-xs text-muted-foreground">#{draft.resource_id}</span>}
+            {selectedResource && <span className="text-xs text-muted-foreground">#{selectedResource.ID}</span>}
           </div>
           {selectedResource ? (
             <MediaViewer resource={selectedResource} fit="contain" className="aspect-video w-full rounded-lg" />

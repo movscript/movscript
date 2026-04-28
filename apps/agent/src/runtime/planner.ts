@@ -27,6 +27,31 @@ export function planAgentRun(message: string, memories: AgentMemory[] = []): Pla
 export function planToolCalls(message: string, memories: AgentMemory[] = []): ToolCall[] {
   const calls: ToolCall[] = []
 
+  const applyDraft = inferApplyDraftCall(message)
+  if (applyDraft) {
+    calls.push(applyDraft)
+    return calls
+  }
+
+  if (wantsDraftList(message)) {
+    calls.push({
+      name: 'movscript.list_drafts',
+      args: {
+        limit: 20,
+      },
+    })
+    return calls
+  }
+
+  if (wantsProjectStructure(message)) {
+    calls.push({
+      name: 'movscript.read_project_structure',
+      args: {
+        limit: 50,
+      },
+    })
+  }
+
   if (wantsProjectLookup(message)) {
     const readTarget = inferReadTarget(message)
     if (readTarget) {
@@ -71,8 +96,11 @@ export function planToolCalls(message: string, memories: AgentMemory[] = []): To
 export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPlanTask[] {
   const now = new Date().toISOString()
   const tasks: AgentPlanTask[] = []
+  const structureCalls = toolCalls.filter((call) => call.name === 'movscript.read_project_structure')
   const readCalls = toolCalls.filter((call) => call.name === 'movscript.read_entity' || call.name === 'movscript.search_entities')
   const draftCalls = toolCalls.filter((call) => call.name === 'movscript.create_draft')
+  const draftListCalls = toolCalls.filter((call) => call.name === 'movscript.list_drafts')
+  const applyDraftCalls = toolCalls.filter((call) => call.name === 'movscript.apply_draft')
 
   if (wantsPlanning(message) || toolCalls.length > 0) {
     tasks.push({
@@ -83,6 +111,19 @@ export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPla
       status: 'pending',
       toolCalls: [],
       createdAt: now,
+    })
+  }
+
+  if (structureCalls.length > 0) {
+    tasks.push({
+      id: makeLocalId('task'),
+      title: '读取项目结构',
+      description: '读取剧本、设定、分集、场景、分镜、镜头和管线节点的结构摘要。',
+      agentRole: 'researcher',
+      status: 'pending',
+      toolCalls: structureCalls,
+      createdAt: now,
+      successCriteria: '获得足够的项目结构信息，用于判断进度、缺口和下一步。',
     })
   }
 
@@ -106,6 +147,30 @@ export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPla
       agentRole: 'creator',
       status: 'pending',
       toolCalls: draftCalls,
+      createdAt: now,
+    })
+  }
+
+  if (draftListCalls.length > 0) {
+    tasks.push({
+      id: makeLocalId('task'),
+      title: '列出现有草稿',
+      description: '读取当前项目的 Agent 本地草稿，供用户审查。',
+      agentRole: 'coordinator',
+      status: 'pending',
+      toolCalls: draftListCalls,
+      createdAt: now,
+    })
+  }
+
+  if (applyDraftCalls.length > 0) {
+    tasks.push({
+      id: makeLocalId('task'),
+      title: '申请应用草稿',
+      description: '准备草稿应用预览，并等待用户审批后再更新草稿生命周期。',
+      agentRole: 'coordinator',
+      status: 'pending',
+      toolCalls: applyDraftCalls,
       createdAt: now,
     })
   }
@@ -139,6 +204,48 @@ function wantsProjectLookup(message: string): boolean {
 
 function wantsDraft(message: string): boolean {
   return /草稿|起草|写一版|写个|帮我写|生成.*稿|create.*draft|draft|proposal|outline/i.test(message)
+}
+
+function wantsDraftList(message: string): boolean {
+  return /(列出|查看|有哪些|已有|现有|list|show).*(草稿|draft)|草稿.*(列表|有哪些|已有|现有|list|show)/i.test(message)
+}
+
+function wantsProjectStructure(message: string): boolean {
+  return /当前项目|项目进度|进度|还差|缺口|规划|下一步|分集|episode|场景|scene|分镜|storyboard|镜头|shot|管线|pipeline|project status|project progress|gap|missing/i.test(message)
+}
+
+function inferApplyDraftCall(message: string): ToolCall | undefined {
+  if (!/(应用|采纳|接受|确认|保存|写入|apply|accept|save).*(草稿|draft)|草稿.*(应用|采纳|接受|确认|保存|写入|apply|accept|save)/i.test(message)) {
+    return undefined
+  }
+  const draftId = inferDraftId(message)
+  if (!draftId) return undefined
+  const target = inferApplyTarget(message)
+  return {
+    name: 'movscript.apply_draft',
+    args: {
+      draftId,
+      ...(target.entityType ? { targetEntityType: target.entityType } : {}),
+      ...(target.entityId !== undefined ? { targetEntityId: target.entityId } : {}),
+      ...(target.field ? { targetField: target.field } : {}),
+    },
+  }
+}
+
+function inferDraftId(message: string): string | undefined {
+  const explicit = message.match(/draft_[a-z0-9_]+/i)
+  if (explicit) return explicit[0]
+  const hash = message.match(/草稿\s*#\s*([a-z0-9_-]+)/i)
+  return hash?.[1]
+}
+
+function inferApplyTarget(message: string): { entityType?: string; entityId?: number; field?: string } {
+  const readTarget = inferReadTarget(message)
+  const fieldMatch = message.match(/(?:字段|field)\s*[:：]?\s*([a-zA-Z_][a-zA-Z0-9_]*)/)
+  return {
+    ...(readTarget ? { entityType: readTarget.entityType, entityId: readTarget.entityId } : {}),
+    ...(fieldMatch?.[1] ? { field: fieldMatch[1] } : {}),
+  }
 }
 
 function wantsPlanning(message: string): boolean {

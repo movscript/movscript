@@ -11,7 +11,7 @@ import (
 
 type pipelineNodeSpec struct {
 	Type            string `json:"type"`
-	Category        string `json:"category"` // work|artifact|custom
+	Category        string `json:"category"` // work|custom
 	ContentType     string `json:"content_type"`
 	EntityType      string `json:"entity_type,omitempty"`
 	CanCreateEntity bool   `json:"can_create_entity"`
@@ -27,17 +27,6 @@ var pipelineNodeSpecs = map[string]pipelineNodeSpec{
 	"raw_script":          {Type: "raw_script", Category: "work", ContentType: "script"},
 	"shot_production":     {Type: "shot_production", Category: "work", ContentType: "shot"},
 	"episode_edit":        {Type: "episode_edit", Category: "work", ContentType: "final_video"},
-
-	"main_script":       {Type: "main_script", Category: "artifact", ContentType: "script", EntityType: "script", CanCreateEntity: true, CanLinkEntity: true},
-	"episode_script":    {Type: "episode_script", Category: "artifact", ContentType: "script", EntityType: "script", CanCreateEntity: true, CanLinkEntity: true},
-	"scene_script":      {Type: "scene_script", Category: "artifact", ContentType: "script", EntityType: "script", CanCreateEntity: true, CanLinkEntity: true},
-	"storyboard_script": {Type: "storyboard_script", Category: "artifact", ContentType: "storyboard", EntityType: "storyboard", CanCreateEntity: true, CanLinkEntity: true},
-	"episode":           {Type: "episode", Category: "artifact", ContentType: "episode", EntityType: "episode", CanCreateEntity: true, CanLinkEntity: true},
-	"scene":             {Type: "scene", Category: "artifact", ContentType: "scene", EntityType: "scene", CanCreateEntity: true, CanLinkEntity: true},
-	"storyboard":        {Type: "storyboard", Category: "artifact", ContentType: "storyboard", EntityType: "storyboard", CanCreateEntity: true, CanLinkEntity: true},
-	"asset":             {Type: "asset", Category: "artifact", ContentType: "asset", EntityType: "asset", CanCreateEntity: true, CanLinkEntity: true},
-	"shot":              {Type: "shot", Category: "artifact", ContentType: "shot", EntityType: "shot", CanCreateEntity: true, CanLinkEntity: true},
-	"final_video":       {Type: "final_video", Category: "artifact", ContentType: "final_video"},
 
 	"custom": {Type: "custom", Category: "custom", ContentType: "custom"},
 }
@@ -61,10 +50,6 @@ func isPipelineWorkNode(nodeType string) bool {
 	return pipelineSpecForNode(nodeType).Category == "work"
 }
 
-func isPipelineArtifactNode(nodeType string) bool {
-	return pipelineSpecForNode(nodeType).Category == "artifact"
-}
-
 func isPipelineToolNode(nodeType string) bool {
 	return pipelineToolNodeTypes[nodeType]
 }
@@ -73,17 +58,26 @@ func pipelineContentTypeForNode(nodeType string) string {
 	return pipelineSpecForNode(nodeType).ContentType
 }
 
+func pipelineContentTypeForBinding(nodeType, entityType string) string {
+	switch entityType {
+	case "script", "storyboard", "shot", "asset", "episode", "scene", "final_video":
+		return entityType
+	default:
+		return pipelineContentTypeForNode(nodeType)
+	}
+}
+
 func pipelineEntityTypeForNode(nodeType string) string {
 	return pipelineSpecForNode(nodeType).EntityType
 }
 
 func pipelineScriptTypeForNode(nodeType string) string {
 	switch nodeType {
-	case "episode_writing", "episode_script":
+	case "episode_writing":
 		return "episode"
-	case "scene_writing", "scene_script":
+	case "scene_writing":
 		return "scene"
-	case "script_writing", "raw_script", "main_script":
+	case "script_writing", "raw_script":
 		return "main"
 	default:
 		return ""
@@ -94,7 +88,7 @@ func (h *PipelineHandler) GetNodeSpecs(c *gin.Context) {
 	specs := make([]pipelineNodeSpec, 0, len(pipelineNodeSpecs))
 	order := []string{
 		"script_writing", "episode_writing", "scene_writing", "storyboard_creation", "asset_creation", "raw_script", "shot_production", "episode_edit",
-		"main_script", "episode_script", "scene_script", "storyboard_script", "episode", "scene", "storyboard", "asset", "shot", "final_video", "custom",
+		"custom",
 	}
 	for _, key := range order {
 		specs = append(specs, pipelineNodeSpecs[key])
@@ -135,6 +129,8 @@ func (h *PipelineHandler) syncPipelineEntityBinding(tx *gorm.DB, node model.Pipe
 		result = tx.Model(&model.Episode{}).Where("id = ? AND project_id = ?", *node.EntityID, node.ProjectID).Updates(updates)
 	case "scene":
 		result = tx.Model(&model.Scene{}).Where("id = ? AND project_id = ?", *node.EntityID, node.ProjectID).Updates(updates)
+	case "final_video":
+		result = tx.Model(&model.FinalVideo{}).Where("id = ? AND project_id = ?", *node.EntityID, node.ProjectID).Updates(updates)
 	default:
 		return nil
 	}
@@ -165,6 +161,8 @@ func (h *PipelineHandler) clearPipelineEntityBinding(tx *gorm.DB, node model.Pip
 		return tx.Model(&model.Episode{}).Where("id = ? AND pipeline_node_id = ?", *node.EntityID, node.ID).Updates(updates).Error
 	case "scene":
 		return tx.Model(&model.Scene{}).Where("id = ? AND pipeline_node_id = ?", *node.EntityID, node.ID).Updates(updates).Error
+	case "final_video":
+		return tx.Model(&model.FinalVideo{}).Where("id = ? AND pipeline_node_id = ?", *node.EntityID, node.ID).Updates(updates).Error
 	default:
 		return nil
 	}

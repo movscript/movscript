@@ -73,6 +73,8 @@ type CanvasTask struct {
 	Status         string       `gorm:"default:'pending'" json:"status"` // pending | running | done | failed
 	ProviderTaskID string       `json:"provider_task_id,omitempty"`
 	Error          string       `json:"error,omitempty"`
+	InputValues    string       `gorm:"type:text" json:"input_values,omitempty"`  // JSON: input port id -> values
+	OutputValues   string       `gorm:"type:text" json:"output_values,omitempty"` // JSON: output port id -> value
 	ResourceID     *uint        `json:"resource_id,omitempty"`
 	Resource       *RawResource `gorm:"foreignKey:ResourceID" json:"resource,omitempty"`
 }

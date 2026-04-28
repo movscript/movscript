@@ -11,7 +11,7 @@ import { CanvasWorkspace, type CanvasPushTarget } from '@/pages/canvas/CanvasEdi
 import { CheckCircle2, Layers, Loader2, PanelLeftClose, PanelLeftOpen, Play, Plus, XCircle } from 'lucide-react'
 
 export interface EntityDragItem {
-  kind: 'script' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
+  kind: 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
   id: number
   label: string
   title?: string

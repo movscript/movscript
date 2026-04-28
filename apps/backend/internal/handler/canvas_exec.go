@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/workflow"
 )
 
 type canvasRunSnapshot struct {
@@ -46,14 +47,21 @@ type nodeData struct {
 	Error              string                `json:"error,omitempty"`
 	TextContent        string                `json:"textContent,omitempty"`
 	InputValue         string                `json:"inputValue,omitempty"`
+	ParamName          string                `json:"paramName,omitempty"`
+	ParamType          string                `json:"paramType,omitempty"`
 	ExecutableSpec     *canvasExecutableSpec `json:"executableSpec,omitempty"`
 	InputPorts         []canvasPortDef       `json:"inputPorts,omitempty"`
 	OutputPorts        []canvasPortDef       `json:"outputPorts,omitempty"`
+	EntityKind         string                `json:"entityKind,omitempty"`
+	EntityID           *uint                 `json:"entityId,omitempty"`
+	EntityTitle        string                `json:"entityTitle,omitempty"`
 }
 
 type canvasPortDef struct {
-	ID   string `json:"id"`
-	Type string `json:"type,omitempty"`
+	ID       string `json:"id"`
+	Type     string `json:"type,omitempty"`
+	Required bool   `json:"required,omitempty"`
+	MaxCount int    `json:"maxCount,omitempty"`
 }
 
 type canvasExecutableSpec struct {
@@ -68,24 +76,238 @@ type canvasExecutableSpec struct {
 	Params           map[string]any `json:"params,omitempty"`
 }
 
-type canvasPortInputMap map[string][]*uint
+type canvasPortValue struct {
+	Type       string   `json:"type"`
+	ResourceID *uint    `json:"resource_id,omitempty"`
+	Text       string   `json:"text,omitempty"`
+	JSON       any      `json:"json,omitempty"`
+	Number     *float64 `json:"number,omitempty"`
+	Boolean    *bool    `json:"boolean,omitempty"`
+}
+
+func (v *canvasPortValue) UnmarshalJSON(data []byte) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch value := raw.(type) {
+	case nil:
+		*v = canvasPortValue{}
+	case string:
+		*v = canvasPortValue{Type: "text", Text: value}
+	case float64:
+		*v = canvasPortValue{Type: "number", Number: &value}
+	case bool:
+		*v = canvasPortValue{Type: "boolean", Boolean: &value}
+	case map[string]any:
+		type alias canvasPortValue
+		var decoded alias
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			return err
+		}
+		*v = canvasPortValue(decoded)
+		v.normalize()
+	default:
+		*v = canvasPortValue{Type: "json", JSON: value}
+	}
+	return nil
+}
+
+func (v *canvasPortValue) normalize() {
+	v.Type = strings.TrimSpace(v.Type)
+	if v.Type != "" {
+		return
+	}
+	switch {
+	case v.ResourceID != nil:
+		v.Type = "resource"
+	case v.JSON != nil:
+		v.Type = "json"
+	case v.Number != nil:
+		v.Type = "number"
+	case v.Boolean != nil:
+		v.Type = "boolean"
+	default:
+		v.Type = "text"
+	}
+}
+
+type canvasPortInputMap map[string][]canvasPortValue
 
 func (m canvasPortInputMap) flatten() []*uint {
 	var out []*uint
 	seen := map[uint]bool{}
-	for _, resources := range m {
-		for _, ptr := range resources {
-			if ptr == nil || *ptr == 0 || seen[*ptr] {
+	for _, values := range m {
+		for _, value := range values {
+			if value.ResourceID == nil || *value.ResourceID == 0 || seen[*value.ResourceID] {
 				continue
 			}
-			seen[*ptr] = true
-			out = append(out, ptr)
+			seen[*value.ResourceID] = true
+			out = append(out, value.ResourceID)
 		}
 	}
 	return out
 }
 
-// RunNode executes a single AI node and returns a pending CanvasTask.
+func canvasPortValueFromResource(rid *uint, valueType string) canvasPortValue {
+	if valueType == "" {
+		valueType = "resource"
+	}
+	return canvasPortValue{Type: valueType, ResourceID: rid}
+}
+
+func canvasPortValueFromText(valueType string, text string) canvasPortValue {
+	valueType = strings.TrimSpace(valueType)
+	if valueType == "" {
+		valueType = "text"
+	}
+	value := canvasPortValue{Type: valueType}
+	switch valueType {
+	case "json":
+		var decoded any
+		if err := json.Unmarshal([]byte(text), &decoded); err == nil {
+			value.JSON = decoded
+		} else {
+			value.Text = text
+		}
+	case "number":
+		if n, err := strconv.ParseFloat(strings.TrimSpace(text), 64); err == nil {
+			value.Number = &n
+		} else {
+			value.Text = text
+		}
+	case "boolean":
+		if b, err := strconv.ParseBool(strings.TrimSpace(text)); err == nil {
+			value.Boolean = &b
+		} else {
+			value.Text = text
+		}
+	default:
+		value.Text = text
+	}
+	return value
+}
+
+func canvasPortValueText(value canvasPortValue) string {
+	if value.Text != "" {
+		return value.Text
+	}
+	if value.JSON != nil {
+		if b, err := json.Marshal(value.JSON); err == nil {
+			return string(b)
+		}
+	}
+	if value.Number != nil {
+		return strconv.FormatFloat(*value.Number, 'f', -1, 64)
+	}
+	if value.Boolean != nil {
+		return strconv.FormatBool(*value.Boolean)
+	}
+	return ""
+}
+
+func canvasPortValueEmpty(value canvasPortValue) bool {
+	return value.ResourceID == nil && value.Text == "" && value.JSON == nil && value.Number == nil && value.Boolean == nil
+}
+
+func marshalCanvasPortInputs(inputs canvasPortInputMap) string {
+	if len(inputs) == 0 {
+		return ""
+	}
+	payload := map[string][]canvasPortValue{}
+	for handle, values := range inputs {
+		if strings.TrimSpace(handle) == "" {
+			continue
+		}
+		for _, value := range values {
+			value.normalize()
+			if canvasPortValueEmpty(value) {
+				continue
+			}
+			payload[handle] = append(payload[handle], value)
+		}
+	}
+	if len(payload) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(payload)
+	return string(b)
+}
+
+func marshalCanvasPortOutputs(outputs map[string]canvasPortValue) string {
+	if len(outputs) == 0 {
+		return ""
+	}
+	payload := map[string]canvasPortValue{}
+	for handle, value := range outputs {
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			continue
+		}
+		value.normalize()
+		if canvasPortValueEmpty(value) {
+			continue
+		}
+		payload[handle] = value
+	}
+	if len(payload) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(payload)
+	return string(b)
+}
+
+func decodeCanvasPortOutputs(raw string) map[string]canvasPortValue {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var payload map[string]canvasPortValue
+	if err := json.Unmarshal([]byte(raw), &payload); err == nil {
+		return payload
+	}
+	return nil
+}
+
+func decodeCanvasRunInputValues(raw string) map[string]canvasPortValue {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var values map[string]canvasPortValue
+	if err := json.Unmarshal([]byte(raw), &values); err == nil {
+		return values
+	}
+	var legacy map[string]string
+	if err := json.Unmarshal([]byte(raw), &legacy); err != nil {
+		return nil
+	}
+	values = map[string]canvasPortValue{}
+	for nodeID, text := range legacy {
+		values[nodeID] = canvasPortValue{Type: "text", Text: text}
+	}
+	return values
+}
+
+func (h *CanvasHandler) updateTaskInputValues(task *model.CanvasTask, inputs canvasPortInputMap) {
+	if task == nil {
+		return
+	}
+	if raw := marshalCanvasPortInputs(inputs); raw != "" {
+		h.db.Model(task).Update("input_values", raw)
+		task.InputValues = raw
+	}
+}
+
+func (h *CanvasHandler) updateTaskOutputValues(task *model.CanvasTask, outputs map[string]canvasPortValue) {
+	if task == nil {
+		return
+	}
+	if raw := marshalCanvasPortOutputs(outputs); raw != "" {
+		h.db.Model(task).Update("output_values", raw)
+		task.OutputValues = raw
+	}
+}
+
+// RunNode executes one canvas node by resolving its input ports from upstream outputs.
 func (h *CanvasHandler) RunNode(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
@@ -93,16 +315,12 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 		return
 	}
 	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, c.Param("id")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "canvas not found"})
 		return
 	}
 	if cv.OwnerID != user.ID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	if cv.CanvasType == "workflow" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "workflow canvases must be run as a workflow"})
 		return
 	}
 
@@ -111,12 +329,26 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
 		return
 	}
+	var req struct {
+		InputValues map[string]canvasPortValue `json:"input_values"`
+	}
+	_ = c.ShouldBindJSON(&req)
 
-	task, err := h.startNodeTask(user, &node, nil, nil)
+	inputs, err := h.collectSingleNodeInputs(context.Background(), user, cv, node.NodeID, req.InputValues)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	task := model.CanvasTask{
+		CanvasNodeID: node.ID,
+		NodeID:       node.NodeID,
+		NodeLabel:    node.Label,
+		NodeType:     node.Type,
+		Status:       "pending",
+		InputValues:  marshalCanvasPortInputs(inputs),
+	}
+	h.db.Create(&task)
+	go h.executeSingleWorkflowNode(user, cv, &node, &task, inputs)
 	c.JSON(http.StatusAccepted, task)
 }
 
@@ -141,7 +373,7 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		return
 	}
 	var req struct {
-		InputValues map[string]string `json:"input_values"`
+		InputValues map[string]canvasPortValue `json:"input_values"`
 	}
 	_ = c.ShouldBindJSON(&req)
 
@@ -181,6 +413,19 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		node := nodeMap[nid]
 		var nd nodeData
 		json.Unmarshal([]byte(node.Data), &nd)
+		if isCanvasEntityNode(node.Type) && hasCanvasEntityInputs(cv.Edges, nid) {
+			task := model.CanvasTask{
+				CanvasNodeID: node.ID,
+				CanvasRunID:  &run.ID,
+				NodeID:       node.NodeID,
+				NodeLabel:    node.Label,
+				NodeType:     node.Type,
+				Status:       "pending",
+			}
+			h.db.Create(&task)
+			tasks = append(tasks, task)
+			continue
+		}
 		if nd.Source != "ai" && node.Type != "output" && nd.ExecutableSpec == nil {
 			continue
 		}
@@ -244,10 +489,7 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 	taskMap := map[string]*model.CanvasTask{}
 	var runTasks []model.CanvasTask
 	h.db.Where("canvas_run_id = ?", runID).Order("id asc").Find(&runTasks)
-	inputValues := map[string]string{}
-	if run.InputValues != "" {
-		_ = json.Unmarshal([]byte(run.InputValues), &inputValues)
-	}
+	inputValues := decodeCanvasRunInputValues(run.InputValues)
 	taskIndex := 0
 	for _, nid := range order {
 		node := nodeMap[nid]
@@ -256,6 +498,14 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		}
 		var nd nodeData
 		json.Unmarshal([]byte(node.Data), &nd)
+		if isCanvasEntityNode(node.Type) && hasCanvasEntityInputs(cv.Edges, nid) {
+			if taskIndex >= len(runTasks) {
+				break
+			}
+			taskMap[nid] = &runTasks[taskIndex]
+			taskIndex++
+			continue
+		}
 		if nd.Source != "ai" && node.Type != "output" && nd.ExecutableSpec == nil {
 			continue
 		}
@@ -266,46 +516,48 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		taskIndex++
 	}
 
-	produced := map[string]map[string]*uint{}
-	setProduced := func(nodeID string, handle string, rid *uint) {
-		if rid == nil {
+	produced := map[string]map[string]canvasPortValue{}
+	setProduced := func(nodeID string, handle string, value canvasPortValue) {
+		value.normalize()
+		if canvasPortValueEmpty(value) {
 			return
 		}
 		if produced[nodeID] == nil {
-			produced[nodeID] = map[string]*uint{}
+			produced[nodeID] = map[string]canvasPortValue{}
 		}
 		handle = strings.TrimSpace(handle)
 		if handle == "" {
 			handle = "result"
 		}
-		produced[nodeID][handle] = rid
-		produced[nodeID][""] = rid
+		produced[nodeID][handle] = value
+		produced[nodeID][""] = value
 	}
-	resourceForEdge := func(edge model.CanvasEdge) *uint {
+	valueForEdge := func(edge model.CanvasEdge) (canvasPortValue, bool) {
 		byHandle := produced[edge.Source]
 		if len(byHandle) == 0 {
-			return nil
+			return canvasPortValue{}, false
 		}
 		if edge.SourceHandle != "" {
-			if rid := byHandle[edge.SourceHandle]; rid != nil {
-				return rid
+			if value, ok := byHandle[edge.SourceHandle]; ok && !canvasPortValueEmpty(value) {
+				return value, true
 			}
 		}
-		return byHandle[""]
+		value, ok := byHandle[""]
+		return value, ok && !canvasPortValueEmpty(value)
 	}
 	portInputsForNode := func(nodeID string) canvasPortInputMap {
 		inputs := canvasPortInputMap{}
 		for _, edge := range upstream[nodeID] {
-			rid := resourceForEdge(edge)
-			if rid == nil {
+			value, ok := valueForEdge(edge)
+			if !ok {
 				continue
 			}
 			handle := strings.TrimSpace(edge.TargetHandle)
 			if handle == "" {
 				handle = "input"
 			}
-			inputs[handle] = append(inputs[handle], rid)
-			inputs[""] = append(inputs[""], rid)
+			inputs[handle] = append(inputs[handle], value)
+			inputs[""] = append(inputs[""], value)
 		}
 		return inputs
 	}
@@ -314,75 +566,154 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		if node == nil {
 			continue
 		}
-		var nd nodeData
-		json.Unmarshal([]byte(node.Data), &nd)
-		if node.Type == "input" {
-			text, ok := inputValues[nid]
-			if !ok {
-				text = nd.InputValue
-			}
-			if r, err := h.createCanvasTextResource(context.Background(), user.ID, fmt.Sprintf("input_%s_%d.txt", nid, runID), text); err == nil {
-				rid := r.ID
-				setProduced(nid, "value", &rid)
-			}
-			continue
-		}
-		if node.Type == "output" {
-			task := taskMap[nid]
-			var outputResource *uint
-			for _, edge := range upstream[nid] {
-				if rid := resourceForEdge(edge); rid != nil {
-					outputResource = rid
-					break
-				}
-			}
-			if task != nil {
-				if outputResource == nil {
-					h.failTask(task, node, nd, "output node has no upstream resource")
-				} else {
-					h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *outputResource})
-					setProduced(nid, "value", outputResource)
-					h.updateRunStatus(task.CanvasRunID)
-				}
-			}
-			continue
-		}
-		if nd.Source != "ai" && nd.ExecutableSpec == nil {
-			if nd.ResourceID != nil {
-				setProduced(nid, defaultCanvasSourceHandleForNode(node.Type, nd), nd.ResourceID)
-			} else if node.Type == "text" {
-				if r, err := h.createCanvasTextResource(context.Background(), user.ID, fmt.Sprintf("text_%s_%d.txt", nid, runID), nd.TextContent); err == nil {
-					rid := r.ID
-					setProduced(nid, defaultCanvasSourceHandleForNode(node.Type, nd), &rid)
-				}
-			}
-			continue
-		}
 		task := taskMap[nid]
-		if task == nil {
-			continue
-		}
 		portInputs := portInputsForNode(nid)
-		upstreamResources := portInputs.flatten()
-		h.applyPromptPortInputs(context.Background(), &nd, portInputs)
-		if nd.ExecutableSpec == nil {
-			promptOptionalTypes := map[string]bool{
-				"motion_imitation": true,
-				"canvas":           true,
-			}
-			if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
-				h.failTask(task, node, nd, "prompt is required")
-				continue
+		if node.Type == "input" {
+			if value, ok := inputValues[nid]; ok {
+				portInputs["value"] = append(portInputs["value"], value)
+				portInputs[""] = append(portInputs[""], value)
 			}
 		}
-		h.executeTask(user, node, task, nd, upstreamResources)
-
-		var updated model.CanvasTask
-		if err := h.db.First(&updated, task.ID).Error; err == nil && updated.Status == "done" && updated.ResourceID != nil {
-			setProduced(nid, defaultCanvasSourceHandleForNode(node.Type, nd), updated.ResourceID)
+		outputs := h.executeCanvasNode(context.Background(), user, cv, node, task, portInputs)
+		for handle, value := range outputs {
+			setProduced(nid, handle, value)
 		}
 	}
 	h.updateRunStatus(&runID)
+}
+
+func (h *CanvasHandler) executeCanvasNode(ctx context.Context, user *model.User, cv model.Canvas, node *model.CanvasNode, task *model.CanvasTask, inputs canvasPortInputMap) map[string]canvasPortValue {
+	var nd nodeData
+	if err := json.Unmarshal([]byte(node.Data), &nd); err != nil {
+		if task != nil {
+			h.failTask(task, node, nd, "invalid node data")
+		}
+		return nil
+	}
+	if task != nil {
+		h.updateTaskInputValues(task, inputs)
+	}
+
+	if node.Type == "input" {
+		value := firstCanvasInputValue(inputs)
+		if canvasPortValueEmpty(value) {
+			value = staticCanvasNodePortValue(node, nd)
+		}
+		outputs := map[string]canvasPortValue{"value": value, "": value}
+		if task != nil {
+			h.completeInlineValueTask(task, node, nd, outputs)
+		}
+		return outputs
+	}
+
+	if node.Type == "output" {
+		outputValue := firstCanvasInputValue(inputs)
+		if canvasPortValueEmpty(outputValue) {
+			if task != nil {
+				h.db.Model(task).Update("status", "running")
+				h.failTask(task, node, nd, "output node has no upstream value")
+			}
+			return nil
+		}
+		outputs := map[string]canvasPortValue{"value": outputValue, "": outputValue}
+		if task != nil {
+			h.completeInlineValueTask(task, node, nd, outputs)
+		}
+		return outputs
+	}
+
+	if isCanvasEntityNode(node.Type) {
+		if len(inputs) > 0 {
+			if task == nil {
+				return nil
+			}
+			return h.completeEntityWriteTask(ctx, task, node, nd, cv, inputs, user)
+		}
+		outputs := h.resolveEntityNodeOutputs(ctx, user, nd)
+		if len(outputs) == 0 {
+			if task != nil {
+				h.failTask(task, node, nd, "entity node has no readable output")
+			}
+			return nil
+		}
+		if task != nil {
+			h.completeInlineValueTask(task, node, nd, outputs)
+		}
+		return outputs
+	}
+
+	if nd.Source != "ai" && nd.ExecutableSpec == nil {
+		outputs := h.staticNodeOutputs(ctx, node, nd)
+		if len(outputs) == 0 {
+			if task != nil {
+				h.failTask(task, node, nd, "node has no runnable output")
+			}
+			return nil
+		}
+		if task != nil {
+			h.completeInlineValueTask(task, node, nd, outputs)
+		}
+		return outputs
+	}
+
+	if task == nil {
+		return nil
+	}
+
+	h.applyPromptPortInputs(ctx, &nd, inputs)
+	if nd.ExecutableSpec == nil {
+		promptOptionalTypes := map[string]bool{
+			"motion_imitation": true,
+			"canvas":           true,
+		}
+		if nd.Prompt == "" && !promptOptionalTypes[node.Type] {
+			h.failTask(task, node, nd, "prompt is required")
+			return nil
+		}
+	}
+	if node.Type == "canvas" && nd.ExecutableSpec == nil {
+		h.db.Model(task).Update("status", "running")
+		return h.completeCanvasReferenceTask(task, node, nd, user)
+	}
+
+	h.executeTask(user, node, task, nd, inputs.flatten())
+
+	var updated model.CanvasTask
+	if err := h.db.First(&updated, task.ID).Error; err == nil && updated.Status == "done" {
+		if outputs := decodeCanvasPortOutputs(updated.OutputValues); len(outputs) > 0 {
+			return outputs
+		}
+		if updated.ResourceID != nil {
+			value := canvasPortValueFromResource(updated.ResourceID, defaultCanvasPortValueTypeForNode(node.Type, nd))
+			outputs := map[string]canvasPortValue{
+				defaultCanvasSourceHandleForNode(node.Type, nd): value,
+				"": value,
+			}
+			h.updateTaskOutputValues(task, outputs)
+			return outputs
+		}
+	}
+	return nil
+}
+
+func (h *CanvasHandler) completeInlineValueTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, outputs map[string]canvasPortValue) {
+	h.db.Model(task).Update("status", "running")
+	h.updateTaskOutputValues(task, outputs)
+	primary := firstCanvasOutputResource(outputs)
+	updates := map[string]any{"status": "done"}
+	if primary != nil {
+		updates["resource_id"] = *primary
+		nd.ResourceID = primary
+	} else {
+		nd.ResourceID = nil
+	}
+	h.db.Model(task).Updates(updates)
+	nd.Status = "done"
+	nd.TaskID = &task.ID
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
+	h.updateRunStatus(task.CanvasRunID)
 }
 
 func buildCanvasRunSnapshot(cv model.Canvas) (string, string, int, int) {
@@ -416,6 +747,195 @@ func canvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
 	cv := model.Canvas{Nodes: snapshot.Nodes, Edges: snapshot.Edges}
 	cv.ID = canvasID
 	return cv, nil
+}
+
+func (h *CanvasHandler) collectSingleNodeInputs(ctx context.Context, user *model.User, cv model.Canvas, nodeID string, overrides map[string]canvasPortValue) (canvasPortInputMap, error) {
+	inputs := canvasPortInputMap{}
+	nodeMap := map[string]*model.CanvasNode{}
+	for i := range cv.Nodes {
+		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
+	}
+	targetNode := nodeMap[nodeID]
+	for _, edge := range cv.Edges {
+		if edge.Target != nodeID {
+			continue
+		}
+		source := nodeMap[edge.Source]
+		if source == nil {
+			continue
+		}
+		value, ok := h.latestCanvasNodeOutputValue(ctx, user, cv, source, edge.SourceHandle)
+		if !ok {
+			return nil, fmt.Errorf("upstream node %q has no output for port %q", edge.Source, edge.SourceHandle)
+		}
+		handle := strings.TrimSpace(edge.TargetHandle)
+		if handle == "" {
+			handle = "input"
+		}
+		inputs[handle] = append(inputs[handle], value)
+		inputs[""] = append(inputs[""], value)
+	}
+	for handle, value := range overrides {
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			continue
+		}
+		value.normalize()
+		if canvasPortValueEmpty(value) {
+			continue
+		}
+		inputs[handle] = append(inputs[handle], value)
+		inputs[""] = append(inputs[""], value)
+	}
+	if targetNode != nil {
+		var nd nodeData
+		_ = json.Unmarshal([]byte(targetNode.Data), &nd)
+		for _, port := range nd.InputPorts {
+			handle := strings.TrimSpace(port.ID)
+			if handle == "" || !port.Required {
+				continue
+			}
+			if !canvasPortValuesPresent(inputs[handle]) {
+				return nil, fmt.Errorf("required input %q is missing", handle)
+			}
+		}
+	}
+	return inputs, nil
+}
+
+func canvasPortValuesPresent(values []canvasPortValue) bool {
+	for _, value := range values {
+		if !canvasPortValueEmpty(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *CanvasHandler) latestCanvasNodeOutputValue(ctx context.Context, user *model.User, cv model.Canvas, node *model.CanvasNode, sourceHandle string) (canvasPortValue, bool) {
+	handle := strings.TrimSpace(sourceHandle)
+	var nd nodeData
+	_ = json.Unmarshal([]byte(node.Data), &nd)
+	if handle == "" {
+		handle = defaultCanvasSourceHandleForNode(node.Type, nd)
+	}
+
+	var task model.CanvasTask
+	if err := h.db.Where("canvas_node_id = ? AND status = ?", node.ID, "done").Order("id desc").First(&task).Error; err == nil {
+		outputs := decodeCanvasPortOutputs(task.OutputValues)
+		if len(outputs) > 0 {
+			for _, key := range []string{handle, "", defaultCanvasSourceHandleForNode(node.Type, nd), "result", "value"} {
+				if value, ok := outputs[key]; ok && !canvasPortValueEmpty(value) {
+					return value, true
+				}
+			}
+			for _, value := range outputs {
+				if !canvasPortValueEmpty(value) {
+					return value, true
+				}
+			}
+		}
+		if task.ResourceID != nil {
+			return canvasPortValueFromResource(task.ResourceID, defaultCanvasPortValueTypeForNode(node.Type, nd)), true
+		}
+	}
+
+	if isCanvasEntityNode(node.Type) {
+		outputs := h.resolveEntityNodeOutputs(ctx, user, nd)
+		for _, key := range []string{handle, "", "result"} {
+			if value, ok := outputs[key]; ok && !canvasPortValueEmpty(value) {
+				return value, true
+			}
+		}
+		for _, value := range outputs {
+			if !canvasPortValueEmpty(value) {
+				return value, true
+			}
+		}
+	}
+
+	outputs := h.staticNodeOutputs(ctx, node, nd)
+	if value, ok := outputs[handle]; ok && !canvasPortValueEmpty(value) {
+		return value, true
+	}
+	if value, ok := outputs[""]; ok && !canvasPortValueEmpty(value) {
+		return value, true
+	}
+	for _, value := range outputs {
+		if !canvasPortValueEmpty(value) {
+			return value, true
+		}
+	}
+	_ = cv
+	return canvasPortValue{}, false
+}
+
+func (h *CanvasHandler) staticNodeOutputs(_ context.Context, node *model.CanvasNode, nd nodeData) map[string]canvasPortValue {
+	outputs := map[string]canvasPortValue{}
+	handle := defaultCanvasSourceHandleForNode(node.Type, nd)
+	set := func(port string, value canvasPortValue) {
+		value.normalize()
+		if canvasPortValueEmpty(value) {
+			return
+		}
+		if strings.TrimSpace(port) == "" {
+			port = handle
+		}
+		outputs[port] = value
+		outputs[""] = value
+	}
+	value := staticCanvasNodePortValue(node, nd)
+	if !canvasPortValueEmpty(value) {
+		set(handle, value)
+	}
+	return outputs
+}
+
+func (h *CanvasHandler) executeSingleWorkflowNode(user *model.User, cv model.Canvas, node *model.CanvasNode, task *model.CanvasTask, inputs canvasPortInputMap) {
+	h.executeCanvasNode(context.Background(), user, cv, node, task, inputs)
+}
+
+func firstCanvasInputValue(inputs canvasPortInputMap) canvasPortValue {
+	for _, value := range inputs[""] {
+		if !canvasPortValueEmpty(value) {
+			return value
+		}
+	}
+	for _, values := range inputs {
+		for _, value := range values {
+			if !canvasPortValueEmpty(value) {
+				return value
+			}
+		}
+	}
+	return canvasPortValue{}
+}
+
+func firstCanvasOutputResource(outputs map[string]canvasPortValue) *uint {
+	for _, key := range []string{"", "result", "value"} {
+		if value := outputs[key]; value.ResourceID != nil {
+			return value.ResourceID
+		}
+	}
+	for _, value := range outputs {
+		if value.ResourceID != nil {
+			return value.ResourceID
+		}
+	}
+	return nil
+}
+
+func isCanvasEntityNode(nodeType string) bool {
+	return nodeType == "entity_card"
+}
+
+func hasCanvasEntityInputs(edges []model.CanvasEdge, nodeID string) bool {
+	for _, edge := range edges {
+		if edge.Target == nodeID {
+			return true
+		}
+	}
+	return false
 }
 
 // ListRuns returns workflow runs for a canvas, newest first.
@@ -572,39 +1092,6 @@ func (h *CanvasHandler) ListNodeTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, tasks)
 }
 
-// startNodeTask creates a CanvasTask record and launches an async goroutine.
-func (h *CanvasHandler) startNodeTask(user *model.User, node *model.CanvasNode, upstreamResources []*uint, run *model.CanvasRun) (*model.CanvasTask, error) {
-	var nd nodeData
-	if err := json.Unmarshal([]byte(node.Data), &nd); err != nil {
-		return nil, fmt.Errorf("invalid node data")
-	}
-	if nd.Source != "ai" && nd.ExecutableSpec == nil {
-		return nil, fmt.Errorf("node is not an AI node")
-	}
-	promptOptionalTypes := map[string]bool{
-		"motion_imitation": true,
-		"canvas":           true,
-	}
-	if nd.ExecutableSpec == nil && nd.Prompt == "" && !promptOptionalTypes[node.Type] {
-		return nil, fmt.Errorf("prompt is required")
-	}
-
-	task := model.CanvasTask{CanvasNodeID: node.ID, Status: "pending"}
-	if run != nil {
-		task.CanvasRunID = &run.ID
-	}
-	h.db.Create(&task)
-
-	nd.Status = "pending"
-	nd.TaskID = &task.ID
-	if run == nil {
-		h.updateNodeData(node, nd)
-	}
-
-	go h.executeTask(user, node, &task, nd, upstreamResources)
-	return &task, nil
-}
-
 func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, upstreamResources []*uint) {
 	h.db.Model(task).Update("status", "running")
 	nd.Status = "running"
@@ -648,11 +1135,8 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		filename := fmt.Sprintf("%d_text_%d.txt", user.ID, task.ID)
-		_ = os.MkdirAll(h.uploadDir, 0755)
-		path := filepath.Join(h.uploadDir, filename)
-		os.WriteFile(path, []byte(resp.Content), 0644)
-		resultURL, mimeType, resType = path, "text/plain", "text"
+		h.completeInlineTextTask(task, node, nd, resp.Content)
+		return
 
 	case "image", "ref_image_gen", "multi_angle", "style_transfer":
 		if nd.ModelDbID == 0 {
@@ -713,6 +1197,11 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 	}
 
 	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
+	value := canvasPortValueFromResource(&r.ID, resType)
+	h.updateTaskOutputValues(task, map[string]canvasPortValue{
+		defaultCanvasSourceHandleForNode(node.Type, nd): value,
+		"": value,
+	})
 	nd.Status = "done"
 	nd.ResourceID = &r.ID
 	nd.TaskID = &task.ID
@@ -778,11 +1267,8 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		filename := fmt.Sprintf("%d_text_%d.txt", user.ID, task.ID)
-		_ = os.MkdirAll(h.uploadDir, 0755)
-		path := filepath.Join(h.uploadDir, filename)
-		os.WriteFile(path, []byte(resp.Content), 0644)
-		resultURL, mimeType, resType = path, "text/plain", "text"
+		h.completeInlineTextTask(task, node, nd, resp.Content)
+		return
 
 	case "image", "image_edit":
 		if prompt == "" {
@@ -873,8 +1359,29 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 	}
 
 	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
+	value := canvasPortValueFromResource(&r.ID, resType)
+	h.updateTaskOutputValues(task, map[string]canvasPortValue{
+		defaultCanvasSourceHandleForNode(node.Type, nd): value,
+		"": value,
+	})
 	nd.Status = "done"
 	nd.ResourceID = &r.ID
+	nd.TaskID = &task.ID
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
+	h.updateRunStatus(task.CanvasRunID)
+}
+
+func (h *CanvasHandler) completeInlineTextTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, text string) {
+	value := canvasPortValue{Type: "text", Text: text}
+	h.db.Model(task).Update("status", "done")
+	h.updateTaskOutputValues(task, map[string]canvasPortValue{
+		defaultCanvasSourceHandleForNode(node.Type, nd): value,
+		"": value,
+	})
+	nd.Status = "done"
+	nd.ResourceID = nil
 	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
@@ -912,11 +1419,55 @@ func defaultCanvasSourceHandleForNode(nodeType string, nd nodeData) string {
 	return defaultCanvasSourceHandle(nodeType)
 }
 
+func defaultCanvasPortValueTypeForNode(nodeType string, nd nodeData) string {
+	for _, port := range nd.OutputPorts {
+		if strings.TrimSpace(port.Type) != "" {
+			return strings.TrimSpace(port.Type)
+		}
+	}
+	switch nodeType {
+	case "text", "text_gen", "input", "output":
+		return "text"
+	case "image", "ref_image_gen", "multi_angle", "style_transfer":
+		return "image"
+	case "video", "ref_video_gen", "motion_imitation":
+		return "video"
+	case "audio":
+		return "audio"
+	default:
+		return "resource"
+	}
+}
+
+func staticCanvasNodePortValue(node *model.CanvasNode, nd nodeData) canvasPortValue {
+	valueType := defaultCanvasPortValueTypeForNode(node.Type, nd)
+	if nd.ResourceID != nil {
+		return canvasPortValueFromResource(nd.ResourceID, valueType)
+	}
+	switch node.Type {
+	case "input":
+		return canvasPortValueFromText(firstNonEmptyString(nd.ParamType, valueType, "text"), nd.InputValue)
+	case "text":
+		return canvasPortValueFromText(valueType, nd.TextContent)
+	default:
+		return canvasPortValue{}
+	}
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
 func (h *CanvasHandler) applyPromptPortInputs(ctx context.Context, nd *nodeData, portInputs canvasPortInputMap) {
 	if nd == nil || len(portInputs) == 0 {
 		return
 	}
-	promptTexts := h.readCanvasTextInputs(ctx, portInputs["prompt"])
+	promptTexts := h.readCanvasTextValues(ctx, portInputs["prompt"])
 	if len(promptTexts) > 0 {
 		if strings.TrimSpace(nd.Prompt) == "" {
 			nd.Prompt = strings.Join(promptTexts, "\n\n")
@@ -934,6 +1485,25 @@ func (h *CanvasHandler) applyPromptPortInputs(ctx context.Context, nd *nodeData,
 			}
 		}
 	}
+}
+
+func (h *CanvasHandler) readCanvasTextValues(ctx context.Context, values []canvasPortValue) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	texts := make([]string, 0, len(values))
+	var resourcePtrs []*uint
+	for _, value := range values {
+		if text := strings.TrimSpace(canvasPortValueText(value)); text != "" {
+			texts = append(texts, text)
+			continue
+		}
+		if value.ResourceID != nil {
+			resourcePtrs = append(resourcePtrs, value.ResourceID)
+		}
+	}
+	texts = append(texts, h.readCanvasTextInputs(ctx, resourcePtrs)...)
+	return texts
 }
 
 func (h *CanvasHandler) readCanvasTextInputs(ctx context.Context, resourcePtrs []*uint) []string {
@@ -980,8 +1550,190 @@ func (h *CanvasHandler) readCanvasTextInputs(ctx context.Context, resourcePtrs [
 	return texts
 }
 
-func (h *CanvasHandler) createCanvasTextResource(ctx context.Context, ownerID uint, name string, text string) (*model.RawResource, error) {
-	return h.createCanvasResourceFromBytes(ctx, ownerID, name, []byte(text), "text/plain")
+func (h *CanvasHandler) completeEntityWriteTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, cv model.Canvas, portInputs canvasPortInputMap, user *model.User) map[string]canvasPortValue {
+	h.db.Model(task).Update("status", "running")
+	kind, entityID := nd.resolvedEntity()
+	if kind == "" || entityID == 0 {
+		h.failTask(task, node, nd, "entity node is missing entity reference")
+		return nil
+	}
+
+	values := h.entityPortValuesFromCanvasInputs(ctx, kind, portInputs)
+	var runID uint
+	if task.CanvasRunID != nil {
+		runID = *task.CanvasRunID
+	}
+	result, err := h.entityIO.WritePorts(ctx, kind, entityID, values, workflow.EntityWriteMeta{
+		CanvasID:   cv.ID,
+		RunID:      runID,
+		NodeID:     node.NodeID,
+		UserID:     user.ID,
+		ProjectID:  cv.ProjectID,
+		SourceType: "canvas",
+	})
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return nil
+	}
+	updates := map[string]any{"status": "done"}
+	if result.PrimaryResourceID != nil {
+		updates["resource_id"] = *result.PrimaryResourceID
+	}
+	h.db.Model(task).Updates(updates)
+	nd.Status = "done"
+	nd.ResourceID = result.PrimaryResourceID
+	nd.TaskID = &task.ID
+	h.updateRunStatus(task.CanvasRunID)
+	outputs := h.resolveEntityNodeOutputs(ctx, user, nd)
+	if len(outputs) == 0 && result.PrimaryResourceID != nil {
+		value := canvasPortValueFromResource(result.PrimaryResourceID, "resource")
+		outputs = map[string]canvasPortValue{
+			"":       value,
+			"result": value,
+		}
+	}
+	h.updateTaskOutputValues(task, outputs)
+	return outputs
+}
+
+func (h *CanvasHandler) entityPortValuesFromCanvasInputs(ctx context.Context, kind string, portInputs canvasPortInputMap) map[string]workflow.EntityPortValue {
+	values := map[string]workflow.EntityPortValue{}
+	for handle, portValues := range portInputs {
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			continue
+		}
+		field, ok := workflow.EntityFieldForPort(kind, handle)
+		if !ok {
+			values[handle] = workflow.EntityPortValue{Type: "resource", ResourceIDs: uintValuesFromPortValues(portValues)}
+			continue
+		}
+		value := workflow.EntityPortValue{
+			Type:        field.ValueType,
+			ResourceIDs: uintValuesFromPortValues(portValues),
+		}
+		texts := h.readCanvasTextValues(ctx, portValues)
+		if text := strings.Join(texts, "\n\n"); strings.TrimSpace(text) != "" {
+			value.Text = text
+		}
+		for _, portValue := range portValues {
+			if portValue.JSON != nil {
+				value.JSON = portValue.JSON
+			}
+			if portValue.Number != nil {
+				value.Number = portValue.Number
+			}
+			if portValue.Boolean != nil {
+				value.Boolean = portValue.Boolean
+			}
+		}
+		values[handle] = value
+	}
+	return values
+}
+
+func uintValuesFromPortValues(values []canvasPortValue) []uint {
+	ids := make([]uint, 0, len(values))
+	seen := map[uint]bool{}
+	for _, value := range values {
+		ptr := value.ResourceID
+		if ptr == nil || *ptr == 0 || seen[*ptr] {
+			continue
+		}
+		seen[*ptr] = true
+		ids = append(ids, *ptr)
+	}
+	return ids
+}
+
+func (h *CanvasHandler) resolveEntityNodeOutputs(ctx context.Context, user *model.User, nd nodeData) map[string]canvasPortValue {
+	kind, entityID := nd.resolvedEntity()
+	if kind == "" || entityID == 0 {
+		return nil
+	}
+	outputs := map[string]canvasPortValue{}
+	values, err := h.entityIO.ReadPorts(ctx, kind, entityID)
+	if err != nil {
+		return nil
+	}
+	for handle, value := range values {
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			continue
+		}
+		if len(value.ResourceIDs) > 0 {
+			rid := value.ResourceIDs[0]
+			portValue := canvasPortValueFromResource(&rid, value.Type)
+			outputs[handle] = portValue
+			if canvasPortValueEmpty(outputs[""]) {
+				outputs[""] = portValue
+			}
+			continue
+		}
+		portValue := entityPortValueToCanvasPortValue(value)
+		if canvasPortValueEmpty(portValue) {
+			continue
+		}
+		outputs[handle] = portValue
+		if canvasPortValueEmpty(outputs[""]) {
+			outputs[""] = portValue
+		}
+	}
+	_ = user
+	return outputs
+}
+
+func entityPortValueToCanvasPortValue(value workflow.EntityPortValue) canvasPortValue {
+	valueType := strings.TrimSpace(value.Type)
+	if valueType == "" {
+		valueType = "text"
+	}
+	portValue := canvasPortValue{Type: valueType}
+	switch valueType {
+	case "json":
+		if value.JSON != nil {
+			portValue.JSON = value.JSON
+		} else if strings.TrimSpace(value.Text) != "" {
+			var decoded any
+			if err := json.Unmarshal([]byte(value.Text), &decoded); err == nil {
+				portValue.JSON = decoded
+			} else {
+				portValue.Text = value.Text
+			}
+		}
+	case "number":
+		if value.Number != nil {
+			portValue.Number = value.Number
+		} else if strings.TrimSpace(value.Text) != "" {
+			if n, err := strconv.ParseFloat(strings.TrimSpace(value.Text), 64); err == nil {
+				portValue.Number = &n
+			} else {
+				portValue.Text = value.Text
+			}
+		}
+	case "boolean":
+		if value.Boolean != nil {
+			portValue.Boolean = value.Boolean
+		} else if strings.TrimSpace(value.Text) != "" {
+			if b, err := strconv.ParseBool(strings.TrimSpace(value.Text)); err == nil {
+				portValue.Boolean = &b
+			} else {
+				portValue.Text = value.Text
+			}
+		}
+	default:
+		portValue.Text = value.Text
+	}
+	return portValue
+}
+
+func (nd nodeData) resolvedEntity() (string, uint) {
+	kind := strings.TrimSpace(nd.EntityKind)
+	id := nd.EntityID
+	if id == nil {
+		return kind, 0
+	}
+	return kind, *id
 }
 
 func (h *CanvasHandler) createCanvasResourceFromSource(ctx context.Context, ownerID uint, name string, source string, mimeType string) (*model.RawResource, error) {
@@ -1197,52 +1949,142 @@ func firstPositive(values ...int) int {
 	return 0
 }
 
-func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User) {
-	if nd.ReferencedCanvasID == nil || *nd.ReferencedCanvasID == 0 {
-		h.failTask(task, node, nd, "referenced workflow canvas is required")
-		return
-	}
-	var ref model.Canvas
-	if err := h.db.First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
-		h.failTask(task, node, nd, "referenced canvas not found")
-		return
-	}
-	if ref.OwnerID != user.ID {
-		h.failTask(task, node, nd, "referenced canvas is not accessible")
-		return
-	}
-	if ref.CanvasType != "workflow" {
-		h.failTask(task, node, nd, "only workflow canvases can be referenced")
-		return
+func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User) map[string]canvasPortValue {
+	outputs, primaryOutput, err := h.resolveCanvasReferenceOutputs(nd, user)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return nil
 	}
 
-	var latestRun model.CanvasRun
-	if err := h.db.Where("canvas_id = ? AND status = ?", ref.ID, "done").Order("id desc").First(&latestRun).Error; err != nil {
-		h.failTask(task, node, nd, "referenced workflow has no completed run")
-		return
+	updates := map[string]any{"status": "done"}
+	if primaryOutput != nil {
+		updates["resource_id"] = *primaryOutput
 	}
-
-	var outputNodeIDs []uint
-	h.db.Model(&model.CanvasNode{}).Where("canvas_id = ? AND type = ?", ref.ID, "output").Pluck("id", &outputNodeIDs)
-
-	var refTask model.CanvasTask
-	refTaskQuery := h.db.Where("canvas_run_id = ? AND resource_id IS NOT NULL", latestRun.ID)
-	if len(outputNodeIDs) > 0 {
-		refTaskQuery = refTaskQuery.Where("canvas_node_id IN ?", outputNodeIDs)
-	}
-	if err := refTaskQuery.Order("id desc").First(&refTask).Error; err != nil || refTask.ResourceID == nil {
-		h.failTask(task, node, nd, "referenced workflow run has no resource output")
-		return
-	}
-
-	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *refTask.ResourceID})
+	h.db.Model(task).Updates(updates)
+	h.updateTaskOutputValues(task, outputs)
 	nd.Status = "done"
-	nd.ResourceID = refTask.ResourceID
+	nd.ResourceID = primaryOutput
 	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
 	h.updateRunStatus(task.CanvasRunID)
+	return outputs
+}
+
+func (h *CanvasHandler) resolveCanvasReferenceOutputs(nd nodeData, user *model.User) (map[string]canvasPortValue, *uint, error) {
+	if nd.ReferencedCanvasID == nil || *nd.ReferencedCanvasID == 0 {
+		return nil, nil, fmt.Errorf("referenced workflow canvas is required")
+	}
+	var ref model.Canvas
+	if err := h.db.First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
+		return nil, nil, fmt.Errorf("referenced canvas not found")
+	}
+	if ref.OwnerID != user.ID {
+		return nil, nil, fmt.Errorf("referenced canvas is not accessible")
+	}
+	if ref.CanvasType != "workflow" {
+		return nil, nil, fmt.Errorf("only workflow canvases can be referenced")
+	}
+
+	var latestRun model.CanvasRun
+	if err := h.db.Where("canvas_id = ? AND status = ?", ref.ID, "done").Order("id desc").First(&latestRun).Error; err != nil {
+		return nil, nil, fmt.Errorf("referenced workflow has no completed run")
+	}
+
+	var outputNodes []model.CanvasNode
+	h.db.Where("canvas_id = ? AND type = ?", ref.ID, "output").Order("id asc").Find(&outputNodes)
+
+	var refTasks []model.CanvasTask
+	refTaskQuery := h.db.Where("canvas_run_id = ?", latestRun.ID)
+	if len(outputNodes) > 0 {
+		outputNodeIDs := make([]uint, 0, len(outputNodes))
+		for _, outputNode := range outputNodes {
+			outputNodeIDs = append(outputNodeIDs, outputNode.ID)
+		}
+		refTaskQuery = refTaskQuery.Where("canvas_node_id IN ?", outputNodeIDs)
+	}
+	refTaskQuery.Order("id asc").Find(&refTasks)
+
+	outputs := map[string]canvasPortValue{}
+	var primaryOutput *uint
+	if len(outputNodes) > 0 {
+		taskByNodeID := make(map[uint]model.CanvasTask, len(refTasks))
+		for _, refTask := range refTasks {
+			taskByNodeID[refTask.CanvasNodeID] = refTask
+		}
+		for _, outputNode := range outputNodes {
+			refTask, ok := taskByNodeID[outputNode.ID]
+			if !ok {
+				continue
+			}
+			var outputData nodeData
+			_ = json.Unmarshal([]byte(outputNode.Data), &outputData)
+			value := canvasReferenceTaskOutputValue(refTask, outputNode, outputData)
+			if canvasPortValueEmpty(value) {
+				continue
+			}
+			registerCanvasReferenceOutput(outputs, outputNode.NodeID, value)
+			registerCanvasReferenceOutput(outputs, outputData.ParamName, value)
+			if primaryOutput == nil && value.ResourceID != nil {
+				primaryOutput = value.ResourceID
+			}
+		}
+	} else if len(refTasks) > 0 {
+		value := canvasReferenceTaskOutputValue(refTasks[0], model.CanvasNode{}, nodeData{})
+		if !canvasPortValueEmpty(value) {
+			registerCanvasReferenceOutput(outputs, "result", value)
+			primaryOutput = value.ResourceID
+		}
+	}
+
+	if len(outputs) == 0 {
+		return nil, nil, fmt.Errorf("referenced workflow run has no output")
+	}
+	for _, port := range nd.OutputPorts {
+		handle := strings.TrimSpace(port.ID)
+		if handle == "" {
+			continue
+		}
+		if value, ok := outputs[handle]; ok && !canvasPortValueEmpty(value) {
+			outputs[""] = value
+			return outputs, primaryOutput, nil
+		}
+	}
+	if value, ok := outputs[""]; ok && !canvasPortValueEmpty(value) {
+		return outputs, primaryOutput, nil
+	}
+	for _, value := range outputs {
+		outputs[""] = value
+		break
+	}
+	return outputs, primaryOutput, nil
+}
+
+func canvasReferenceTaskOutputValue(task model.CanvasTask, node model.CanvasNode, nd nodeData) canvasPortValue {
+	outputs := decodeCanvasPortOutputs(task.OutputValues)
+	for _, key := range []string{"", "value", "result", defaultCanvasSourceHandleForNode(node.Type, nd)} {
+		if value, ok := outputs[key]; ok && !canvasPortValueEmpty(value) {
+			return value
+		}
+	}
+	for _, value := range outputs {
+		if !canvasPortValueEmpty(value) {
+			return value
+		}
+	}
+	if task.ResourceID != nil {
+		return canvasPortValueFromResource(task.ResourceID, defaultCanvasPortValueTypeForNode(node.Type, nd))
+	}
+	return canvasPortValue{}
+}
+
+func registerCanvasReferenceOutput(outputs map[string]canvasPortValue, handle string, value canvasPortValue) {
+	handle = strings.TrimSpace(handle)
+	if handle == "" || canvasPortValueEmpty(value) {
+		return
+	}
+	outputs[handle] = value
 }
 
 func (h *CanvasHandler) loadCanvasInputResources(ctx context.Context, nd nodeData, upstreamResources []*uint) (imageData, videoData []ai.MediaData) {

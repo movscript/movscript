@@ -6,15 +6,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// PipelineNode is an independent workflow unit or artifact in the content production pipeline.
-// It sits above the existing content entities (Script, Storyboard, etc.) as a review layer.
+// PipelineNode is a production work item in the content pipeline.
+// Content entities (Script, Storyboard, Shot, etc.) remain the source of truth;
+// a node only tracks production assignment, review state, and optional entity binding.
 // Status transitions: draft → under_review → final | rejected
 //
 //	rejected → draft (reopen, cascades to child nodes)
 type PipelineNode struct {
 	gorm.Model
 	ProjectID   uint       `gorm:"not null" json:"project_id"`
-	Type        string     `json:"type"` // work/artifact/custom pipeline node type; tool node types are not supported
+	Type        string     `json:"type"` // production stage type; legacy artifact/custom node types are still readable
 	Name        string     `json:"name"`
 	Status      string     `gorm:"default:'draft'" json:"status"` // draft|under_review|rejected|final
 	Description string     `json:"description,omitempty"`

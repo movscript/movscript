@@ -39,6 +39,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	authH := handler.NewAuthHandler(db)
 	aiH := handler.NewAIHandler(db, cfg.EncryptionKey, registry)
 	resources := handler.NewResourceHandler(db, store)
+	resourceBindings := handler.NewResourceBindingHandler(db)
 	resourceFolders := handler.NewResourceFolderHandler(db)
 	resourceAdmin := handler.NewResourceAdminHandler(db, store)
 	canvases := handler.NewCanvasHandler(db, registry, aiService, store)
@@ -53,6 +54,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	userAgentH := handler.NewUserAgentHandler(db)
 	pluginH := handler.NewPluginHandler(db)
 	registryH := handler.NewRegistryHandler()
+	workflowSchemas := handler.NewWorkflowSchemaHandler()
 
 	cloudFileCfgH := handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey)
 
@@ -99,6 +101,8 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.PUT("/resources/:id", resources.Update)
 		v1.DELETE("/resources/:id", resources.Delete)
 		v1.POST("/resources/:id/to-asset", resources.AddToAsset)
+		v1.PATCH("/resource-bindings/:id", resourceBindings.Patch)
+		v1.DELETE("/resource-bindings/:id", resourceBindings.Delete)
 
 		// resource folders
 		v1.GET("/resource-folders", resourceFolders.List)
@@ -133,6 +137,10 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.GET("/registry/plugins/:id", registryH.GetPlugin)
 
 		// canvases
+		v1.GET("/workflow/entity-schemas", workflowSchemas.ListEntitySchemas)
+		v1.GET("/workflow/entity-schemas/:kind", workflowSchemas.GetEntitySchema)
+
+		// canvases
 		v1.GET("/canvases", canvases.List)
 		v1.POST("/canvases", canvases.Create)
 		v1.GET("/canvases/:id", canvases.Get)
@@ -154,6 +162,9 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.DELETE("/projects/:id", projects.Delete)
 		v1.GET("/projects/:id/progress", projects.Progress)
 		v1.GET("/projects/:id/artifact-refs", artifactRefs.ListByProject)
+		v1.GET("/projects/:id/resource-bindings", resourceBindings.ListByProject)
+		v1.POST("/projects/:id/resource-bindings", resourceBindings.CreateByProject)
+		v1.GET("/projects/:id/entities/:ownerType/:ownerId/resources", resourceBindings.ListByEntity)
 		v1.GET("/projects/:id/members", projects.ListMembers)
 		v1.POST("/projects/:id/members", projects.AddMember)
 		v1.DELETE("/projects/:id/members/:memberId", projects.RemoveMember)
@@ -309,15 +320,12 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			admin.GET("/users", aiH.ListUsersWithQuota)
 			admin.PUT("/users/:id/quota", aiH.SetUserQuota)
 			admin.GET("/usage-logs", aiH.ListUsageLogs)
+			admin.GET("/projects", projects.AdminList)
+			admin.PUT("/projects/:id/owner", projects.AdminForceSetOwner)
 
 			// resource storage management
 			admin.GET("/resource-storage/backends", resourceAdmin.StorageBackends)
 			admin.GET("/resource-storage/stats", resourceAdmin.StorageStats)
-
-			// agent definitions
-			admin.POST("/agents", agentDefH.Create)
-			admin.PUT("/agents/:id", agentDefH.Update)
-			admin.DELETE("/agents/:id", agentDefH.Delete)
 
 			// cloud file storage configs
 			admin.GET("/cloud-file-configs", cloudFileCfgH.List)

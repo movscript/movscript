@@ -16,7 +16,7 @@ func NewFinalVideoHandler(db *gorm.DB) *FinalVideoHandler { return &FinalVideoHa
 // ListByProject returns all final videos for a project.
 func (h *FinalVideoHandler) ListByProject(c *gin.Context) {
 	videos := make([]model.FinalVideo, 0)
-	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\", id").Preload("Resource")
+	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\", id")
 	if eid := c.Query("episode_id"); eid != "" {
 		q = q.Where("episode_id = ?", eid)
 	}
@@ -33,11 +33,6 @@ func (h *FinalVideoHandler) ListByProject(c *gin.Context) {
 		q = q.Where("pipeline_node_id = ?", nid)
 	}
 	q.Find(&videos)
-	for i := range videos {
-		if videos[i].Resource != nil {
-			videos[i].Resource.URL = resourceURL(c, videos[i].Resource.ID)
-		}
-	}
 	c.JSON(http.StatusOK, videos)
 }
 
@@ -61,10 +56,6 @@ func (h *FinalVideoHandler) CreateByProject(c *gin.Context) {
 		v.Status = "draft"
 	}
 	h.db.Create(&v)
-	h.db.Preload("Resource").First(&v, v.ID)
-	if v.Resource != nil {
-		v.Resource.URL = resourceURL(c, v.Resource.ID)
-	}
 	c.JSON(http.StatusCreated, v)
 }
 
@@ -79,10 +70,6 @@ func (h *FinalVideoHandler) Update(c *gin.Context) {
 		return
 	}
 	h.db.Save(&v)
-	h.db.Preload("Resource").First(&v, v.ID)
-	if v.Resource != nil {
-		v.Resource.URL = resourceURL(c, v.Resource.ID)
-	}
 	c.JSON(http.StatusOK, v)
 }
 
@@ -98,10 +85,7 @@ func (h *FinalVideoHandler) Patch(c *gin.Context) {
 		return
 	}
 	h.db.Model(&v).Updates(body)
-	h.db.Preload("Resource").First(&v, v.ID)
-	if v.Resource != nil {
-		v.Resource.URL = resourceURL(c, v.Resource.ID)
-	}
+	h.db.First(&v, v.ID)
 	c.JSON(http.StatusOK, v)
 }
 

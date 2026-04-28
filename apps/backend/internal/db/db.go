@@ -92,6 +92,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&model.ResourceFolder{},
 		&model.ResourceFolderPermission{},
 		&model.RawResource{},
+		&model.ResourceBinding{},
 		&model.Canvas{},
 		&model.CanvasNode{},
 		&model.CanvasEdge{},
@@ -111,6 +112,19 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 	); err != nil {
 		return nil, err
 	}
+
+	// Development-stage canonical resource ownership: content entities no longer
+	// store RawResource IDs directly. ResourceBinding is the only content-library
+	// ownership/role table.
+	db.Exec("ALTER TABLE scripts DROP COLUMN IF EXISTS resource_ids")
+	db.Exec("ALTER TABLE episodes DROP COLUMN IF EXISTS resource_ids")
+	db.Exec("ALTER TABLE scenes DROP COLUMN IF EXISTS resource_ids")
+	db.Exec("ALTER TABLE storyboards DROP COLUMN IF EXISTS resource_ids")
+	db.Exec("ALTER TABLE shots DROP COLUMN IF EXISTS ref_resource_ids")
+	db.Exec("ALTER TABLE shots DROP COLUMN IF EXISTS generated_res_id")
+	db.Exec("ALTER TABLE final_videos DROP COLUMN IF EXISTS resource_id")
+	db.Exec("ALTER TABLE assets DROP COLUMN IF EXISTS reference_ids")
+	db.Exec("ALTER TABLE asset_views DROP COLUMN IF EXISTS resource_id")
 
 	db.Exec("UPDATE pipeline_edges SET relation_type = 'hierarchy' WHERE relation_type IS NULL OR relation_type = ''")
 
@@ -245,6 +259,11 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		UPDATE scenes e SET pipeline_node_id = pn.id
 		FROM pipeline_nodes pn
 		WHERE pn.entity_type = 'scene' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+	`)
+	db.Exec(`
+		UPDATE final_videos e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'final_video' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
 	`)
 
 	return db, nil

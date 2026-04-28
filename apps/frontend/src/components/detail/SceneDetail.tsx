@@ -112,12 +112,9 @@ export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Pro
             <span className="text-xs text-muted-foreground">{t('details.imageVideo')}</span>
           </div>
           <ResourceAttachments
-            resourceIds={draft.resource_ids ? JSON.parse(draft.resource_ids) : []}
-            onChange={(ids) => {
-              const updated = { ...draft, resource_ids: JSON.stringify(ids) }
-              setDraft(updated)
-              update.mutate(updated)
-            }}
+            ownerType="scene"
+            ownerId={scene.ID}
+            role="reference"
           />
         </div>
       </div>

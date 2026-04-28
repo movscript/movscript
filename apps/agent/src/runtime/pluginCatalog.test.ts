@@ -35,12 +35,36 @@ test('loads plugin catalog from json files and merges default grants', () => {
 
     assert.equal(catalog.skillsDir, skillsDir)
     assert.equal(catalog.toolsDir, toolsDir)
-    assert.equal(catalog.skills[0]?.id, 'studio.writer')
-    assert.equal(catalog.tools[0]?.name, 'studio.script_outline')
-    assert.equal(catalog.tools[0]?.source, 'plugin')
+    const writerSkill = catalog.skills.find((skill) => skill.id === 'studio.writer')
+    const outlineTool = catalog.tools.find((tool) => tool.name === 'studio.script_outline')
+    assert.equal(writerSkill?.id, 'studio.writer')
+    assert.equal(outlineTool?.name, 'studio.script_outline')
+    assert.equal(outlineTool?.source, 'plugin')
     assert.ok(catalog.manifest.skills.some((skill) => skill.id === 'studio.writer'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
     assert.ok(catalog.registry.get('studio.script_outline'))
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads bundled MovScript platform catalog by default', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-empty-'))
+  try {
+    const catalog = loadAgentPluginCatalog({
+      skillsDir: join(dir, 'skills'),
+      toolsDir: join(dir, 'tools'),
+    })
+
+    assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
+    assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
+    assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.platform.concepts'))
+    assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.workflow.safe-drafts'))
+    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript.get_context_pack'))
+    assert.ok(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.shot-draft-creation'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript.get_context_pack'))
+    assert.ok(catalog.registry.get('movscript.create_draft'))
     assert.deepEqual(catalog.warnings, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })

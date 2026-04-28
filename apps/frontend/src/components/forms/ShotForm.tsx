@@ -13,16 +13,6 @@ import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
-function safeJsonIds(value?: string): number[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.filter((id) => Number.isFinite(Number(id))).map(Number) : []
-  } catch {
-    return []
-  }
-}
-
 interface ShotFormProps {
   shot: Shot
   draft: Partial<Shot>
@@ -71,8 +61,9 @@ export function ShotForm({ shot, draft, onChange, onSave, isSaving }: ShotFormPr
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.referenceAssets')}</Label>
         <ResourceAttachments
-          resourceIds={safeJsonIds(draft.ref_resource_ids)}
-          onChange={(ids) => onChange({ ...draft, ref_resource_ids: JSON.stringify(ids) })}
+          ownerType="shot"
+          ownerId={shot.ID}
+          role="reference"
         />
       </div>
 

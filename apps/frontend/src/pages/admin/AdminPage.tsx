@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,6 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
-import { AgentConfigTab } from './AgentConfigTab'
 import { DebugPage } from './DebugPage'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
@@ -1652,7 +1651,142 @@ function UserManagementTab() {
   )
 }
 
-// ── Tab 3: 用量日志 ────────────────────────────────────────────────────────────
+// ── Tab 3: 项目 Owner 管理 ────────────────────────────────────────────────────
+
+interface AdminProjectMember {
+  ID: number
+  user_id: number
+  role: string
+  user?: User
+}
+
+interface AdminProject extends Project {
+  members?: AdminProjectMember[]
+}
+
+function ProjectOwnerManagementTab() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [ownerDialog, setOwnerDialog] = useState<AdminProject | null>(null)
+  const [selectedOwnerId, setSelectedOwnerId] = useState('')
+
+  const { data: projects = [] } = useQuery<AdminProject[]>({
+    queryKey: ['admin', 'projects'],
+    queryFn: () => api.get('/admin/projects').then((r) => r.data),
+  })
+  const { data: users = [] } = useQuery<UserWithQuota[]>({
+    queryKey: ['admin', 'users'],
+    queryFn: () => api.get('/admin/users').then((r) => r.data),
+  })
+
+  const forceSetOwner = useMutation({
+    mutationFn: ({ projectId, ownerId }: { projectId: number; ownerId: number }) =>
+      api.put(`/admin/projects/${projectId}/owner`, { owner_id: ownerId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      setOwnerDialog(null)
+      setSelectedOwnerId('')
+    },
+  })
+
+  const openOwnerDialog = (project: AdminProject) => {
+    setOwnerDialog(project)
+    setSelectedOwnerId(project.owner_id ? String(project.owner_id) : users[0]?.ID ? String(users[0].ID) : '')
+  }
+
+  return (
+    <div className="space-y-4 max-w-5xl">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">{t('admin.projects.title')}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.projects.description')}</p>
+      </div>
+
+      <div className="border border-border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-card border-b border-border">
+            <tr>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.id')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.name')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.owner')}</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.members')}</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.updatedAt')}</th>
+              <th className="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {projects.map((project) => {
+              const ownerName = project.owner?.username || (project.owner_id ? `#${project.owner_id}` : t('admin.projects.noOwner'))
+              return (
+                <tr key={project.ID} className={cn('hover:bg-card', project.owner_id === 0 && 'bg-destructive/5')}>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{project.ID}</td>
+                  <td className="px-4 py-3 font-medium">{project.name || t('common.emptyTitle')}</td>
+                  <td className={cn('px-4 py-3 text-xs', project.owner_id === 0 ? 'text-destructive font-medium' : 'text-muted-foreground')}>
+                    {ownerName}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-sm">{project.members?.length ?? 0}</td>
+                  <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                    {project.UpdatedAt ? new Date(project.UpdatedAt).toLocaleString() : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => openOwnerDialog(project)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {t('admin.projects.changeOwner')}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+            {projects.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.projects.empty')}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {ownerDialog && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+          <div className="bg-background rounded-xl shadow-2xl w-96 p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold">{t('admin.projects.changeOwnerTitle', { name: ownerDialog.name })}</h3>
+              <p className="text-xs text-muted-foreground mt-1">{t('admin.projects.changeOwnerHint')}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.newOwner')}</Label>
+              <select
+                value={selectedOwnerId}
+                onChange={(e) => setSelectedOwnerId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                autoFocus
+              >
+                {users.map((user) => (
+                  <option key={user.ID} value={user.ID}>
+                    {user.username} #{user.ID}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => forceSetOwner.mutate({ projectId: ownerDialog.ID, ownerId: Number(selectedOwnerId) })}
+                disabled={forceSetOwner.isPending || !selectedOwnerId}
+                className="flex-1"
+              >
+                {forceSetOwner.isPending ? t('common.saving') : t('admin.projects.forceChange')}
+              </Button>
+              <Button variant="outline" onClick={() => setOwnerDialog(null)}>
+                {t('common.cancel')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Tab 4: 用量日志 ────────────────────────────────────────────────────────────
 
 function UsageLogsTab() {
   const { t, i18n } = useTranslation()
@@ -2589,7 +2723,10 @@ export default function AdminPage() {
   const currentUser = useUserStore((s) => s.currentUser)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab = searchParams.get('tab') ?? 'models'
+  const requestedTab = searchParams.get('tab') ?? 'models'
+  const tab = ['models', 'features', 'users', 'projects', 'logs', 'debug', 'storage', 'cloud-files'].includes(requestedTab)
+    ? requestedTab
+    : 'models'
 
   if (currentUser?.system_role !== 'super_admin') {
     navigate('/projects', { replace: true })
@@ -2609,9 +2746,9 @@ export default function AdminPage() {
       <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v })}>
         <TabsList>
           <TabsTrigger value="models">{t('admin.tabs.models')}</TabsTrigger>
-          <TabsTrigger value="agents">{t('admin.tabs.agents')}</TabsTrigger>
           <TabsTrigger value="features">{t('admin.tabs.features')}</TabsTrigger>
           <TabsTrigger value="users">{t('admin.tabs.users')}</TabsTrigger>
+          <TabsTrigger value="projects">{t('admin.tabs.projects')}</TabsTrigger>
           <TabsTrigger value="logs">{t('admin.tabs.logs')}</TabsTrigger>
           <TabsTrigger value="debug">{t('admin.tabs.debug')}</TabsTrigger>
           <TabsTrigger value="storage">{t('admin.tabs.storage')}</TabsTrigger>
@@ -2620,14 +2757,14 @@ export default function AdminPage() {
         <TabsContent value="models" className="mt-6">
           <ModelManagementTab />
         </TabsContent>
-        <TabsContent value="agents" className="mt-6">
-          <AgentConfigTab />
-        </TabsContent>
         <TabsContent value="features" className="mt-6">
           <FeatureConfigTab />
         </TabsContent>
         <TabsContent value="users" className="mt-6">
           <UserManagementTab />
+        </TabsContent>
+        <TabsContent value="projects" className="mt-6">
+          <ProjectOwnerManagementTab />
         </TabsContent>
         <TabsContent value="logs" className="mt-6">
           <UsageLogsTab />
