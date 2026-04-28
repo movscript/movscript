@@ -105,6 +105,17 @@ export function normalizeAgentManifest(input: unknown): AgentManifest {
   }
 }
 
+export function mergeAgentManifestSkills(manifest: AgentManifest, skills: AgentSkillManifest[]): AgentManifest {
+  if (skills.length === 0) return manifest
+  const byId = new Map<string, AgentSkillManifest>()
+  for (const skill of manifest.skills) byId.set(skill.id, skill)
+  for (const skill of skills) byId.set(skill.id, skill)
+  return {
+    ...manifest,
+    skills: Array.from(byId.values()),
+  }
+}
+
 export function manifestAllowsPermission(manifest: AgentManifest, permission: string): boolean {
   return manifest.permissions.includes(permission)
 }
@@ -155,6 +166,10 @@ function skillManifestArray(value: unknown): AgentSkillManifest[] {
     })
   }
   return skills
+}
+
+export function normalizeAgentSkillManifest(input: unknown): AgentSkillManifest | undefined {
+  return skillManifestArray([input])[0]
 }
 
 function legacySkillManifestArray(input: Record<string, unknown>): AgentSkillManifest[] {

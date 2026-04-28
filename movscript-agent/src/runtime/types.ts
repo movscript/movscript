@@ -297,6 +297,12 @@ export interface AgentRunDebugTrace {
 
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
+  pluginCatalog?: {
+    skillsDir: string
+    toolsDir: string
+    skillCount: number
+    toolCount: number
+  }
   mcp: {
     connected: boolean
     resources: MCPResource[]
@@ -313,6 +319,10 @@ export interface AgentRuntimeOptions {
   store?: import('./store.js').AgentStore
   memoryStore?: import('./memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
+  skillCatalog?: AgentSkillManifest[]
+  toolRegistry?: import('./toolRegistry.js').ToolRegistry
+  pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
+  pluginWarnings?: string[]
 }
 
 export interface CreateThreadInput {

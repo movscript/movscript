@@ -198,6 +198,11 @@ function countTreeItems(item: TreeItem): number {
   return 1 + item.children.reduce((total, child) => total + countTreeItems(child), 0)
 }
 
+function treeHasNodeId(items: TreeItem[], nodeId?: number): boolean {
+  if (!nodeId) return false
+  return items.some((item) => item.node.ID === nodeId || treeHasNodeId(item.children, nodeId))
+}
+
 function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]): DependencyGraphLayout {
   const nodeMap = new Map(nodes.map((node) => [node.ID, node]))
   const validEdges = edges.filter((edge) => nodeMap.has(edge.from_node_id) && nodeMap.has(edge.to_node_id))
@@ -245,11 +250,13 @@ function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]
     levels.set(level, [...(levels.get(level) ?? []), node])
   }
 
-  const cardWidth = 224
-  const cardHeight = 74
-  const gapX = 108
-  const gapY = 26
+  const cardWidth = 132
+  const cardHeight = 36
+  const gapX = 56
+  const gapY = 12
   const padding = 28
+  const expandedOverflowX = 52
+  const expandedOverflowY = 20
   const items: DependencyGraphItem[] = []
 
   for (const [level, levelNodes] of [...levels.entries()].sort((a, b) => a[0] - b[0])) {
@@ -264,8 +271,8 @@ function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]
 
   const maxLevel = Math.max(0, ...items.map((item) => Math.floor((item.x - padding) / (cardWidth + gapX))))
   const maxRows = Math.max(1, ...[...levels.values()].map((levelNodes) => levelNodes.length))
-  const width = padding * 2 + (maxLevel + 1) * cardWidth + maxLevel * gapX
-  const height = padding * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY
+  const width = padding * 2 + (maxLevel + 1) * cardWidth + maxLevel * gapX + expandedOverflowX
+  const height = padding * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY + expandedOverflowY
   const itemById = new Map(items.map((item) => [item.node.ID, item]))
 
   return { items, itemById, edges: validEdges, width, height }
@@ -543,12 +550,19 @@ export default function PipelineEditorPage() {
                 {layout.workColumns.length > 0 || layout.looseArtifacts.length > 0 ? (
                   <div className="min-w-max">
                     {renderUnassignedShelf()}
-                    <div className="flex min-w-max items-start gap-4 p-4">
-                      {layout.workColumns.map((column, index) => (
-                        <div key={column.node.ID} className="w-72 shrink-0">
+                    <div className="flex min-w-max items-start gap-3 p-4">
+                      {layout.workColumns.map((column, index) => {
+                        const columnExpanded =
+                          selectedNode?.ID === column.node.ID ||
+                          workspaceNode?.ID === column.node.ID ||
+                          treeHasNodeId(column.artifacts, selectedNode?.ID) ||
+                          treeHasNodeId(column.artifacts, workspaceNode?.ID)
+
+                        return (
+                          <div key={column.node.ID} className={cn('shrink-0 transition-[width]', columnExpanded ? 'w-60' : 'w-44')}>
                           <div className="relative">
                             {index < layout.workColumns.length - 1 ? (
-                              <div className="absolute left-[calc(100%+16px)] top-10 h-px w-4 bg-border" />
+                              <div className="absolute left-[calc(100%+12px)] top-5 h-px w-3 bg-border" />
                             ) : null}
                             <PipelineFlowCard
                               node={column.node}
@@ -583,21 +597,22 @@ export default function PipelineEditorPage() {
                           </div>
 
                           {expandedIds.has(column.node.ID) ? (
-                            <div className="mt-3 space-y-2 border-l border-border pl-3">
+                            <div className="mt-2 space-y-1.5 border-l border-border pl-2.5">
                               {column.artifacts.length > 0 ? renderArtifactTree(column.artifacts) : (
                                 <button
                                   type="button"
-                                  className="w-full rounded-md border border-dashed border-border px-3 py-6 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-2 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
                                   onClick={() => setAddNodeState({ parentId: column.node.ID })}
                                 >
-                                  <Plus size={13} className="mx-auto mb-1.5" />
+                                  <Plus size={13} />
                                   {t('pipeline.tree.addChild')}
                                 </button>
                               )}
                             </div>
                           ) : null}
-                        </div>
-                      ))}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 ) : (
@@ -817,8 +832,10 @@ function DependencyGraph({
 }) {
   const { t } = useTranslation()
   const layout = useMemo(() => buildDependencyGraphLayout(nodes, edges), [nodes, edges])
-  const cardWidth = 224
-  const cardHeight = 74
+  const compactCardWidth = 132
+  const compactCardHeight = 36
+  const expandedCardWidth = 184
+  const expandedCardHeight = 56
 
   if (nodes.length === 0) {
     return (
@@ -850,10 +867,10 @@ function DependencyGraph({
             const from = layout.itemById.get(edge.from_node_id)
             const to = layout.itemById.get(edge.to_node_id)
             if (!from || !to) return null
-            const startX = from.x + cardWidth
-            const startY = from.y + cardHeight / 2
+            const startX = from.x + compactCardWidth
+            const startY = from.y + compactCardHeight / 2
             const endX = to.x
-            const endY = to.y + cardHeight / 2
+            const endY = to.y + compactCardHeight / 2
             const bend = Math.max(40, (endX - startX) / 2)
             return (
               <path
@@ -874,39 +891,46 @@ function DependencyGraph({
           const Icon = meta.icon
           const typeLabel = t(`pipeline.nodeTypes.${node.type}.label`, { defaultValue: meta.label })
           const categoryLabel = t(`pipeline.categories.${meta.category}`, { defaultValue: meta.category })
-          const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: status.label })
           const isWork = isPipelineWorkNode(node.type)
+          const isExpanded = selectedNodeId === node.ID
 
           return (
             <button
               key={node.ID}
               type="button"
               className={cn(
-                'absolute rounded-md border bg-card p-2.5 text-left shadow-sm transition-colors hover:border-primary/40',
-                selectedNodeId === node.ID ? 'border-primary/60 bg-primary/5' : 'border-border',
+                'absolute rounded-md border bg-card text-left shadow-sm transition-[border-color,background-color,box-shadow,width,height,padding] hover:border-primary/40',
+                isExpanded ? 'z-10 border-primary/60 bg-primary/5 p-2' : 'border-border px-2 py-1.5',
               )}
-              style={{ left: item.x, top: item.y, width: cardWidth, height: cardHeight }}
+              style={{
+                left: item.x,
+                top: item.y,
+                width: isExpanded ? expandedCardWidth : compactCardWidth,
+                height: isExpanded ? expandedCardHeight : compactCardHeight,
+              }}
               onClick={() => onNodeClick(node)}
             >
-              <div className="flex min-w-0 items-start gap-2">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${meta.accent}`}>
-                  <Icon size={15} className={meta.iconColor} />
+              <div className="flex h-full min-w-0 items-center gap-1.5">
+                <div className={cn(
+                  `flex shrink-0 items-center justify-center rounded-md ${meta.accent}`,
+                  isExpanded ? 'h-7 w-7' : 'h-6 w-6',
+                )}>
+                  <Icon size={isExpanded ? 14 : 12} className={meta.iconColor} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <p className="truncate text-[13px] font-semibold text-foreground">{node.name}</p>
-                    <span className={cn(
-                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase',
-                      isWork ? 'bg-primary/10 text-primary' : 'border border-border bg-muted text-muted-foreground',
-                    )}>
-                      {categoryLabel}
-                    </span>
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
+                    <p className="truncate text-xs font-semibold text-foreground">{node.name}</p>
+                    {isExpanded ? (
+                      <span className={cn(
+                        'shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase leading-none',
+                        isWork ? 'bg-primary/10 text-primary' : 'border border-border bg-muted text-muted-foreground',
+                      )}>
+                        {categoryLabel}
+                      </span>
+                    ) : null}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{typeLabel}</p>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-                    <span className="truncate text-[11px] text-muted-foreground">{statusLabel}</span>
-                  </div>
+                  {isExpanded ? <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{typeLabel}</p> : null}
                 </div>
               </div>
             </button>
@@ -937,15 +961,16 @@ function UnassignedArtifactCard({
   const status = NODE_STATUS_META[item.node.status] ?? NODE_STATUS_META.draft
   const Icon = meta.icon
   const typeLabel = t(`pipeline.nodeTypes.${item.node.type}.label`, { defaultValue: meta.label })
-  const statusLabel = t(`pipeline.status.${item.node.status}`, { defaultValue: status.label })
   const nestedCount = countTreeItems(item) - 1
+  const expanded = selected || workspaceActive
 
   return (
     <button
       type="button"
       draggable
       className={cn(
-        'flex h-16 w-56 cursor-grab items-center gap-2 rounded-md border bg-card px-2.5 text-left shadow-sm transition-colors active:cursor-grabbing',
+        'flex cursor-grab items-center gap-2 rounded-md border bg-card text-left shadow-sm transition-[border-color,background-color,box-shadow,width,height,padding] active:cursor-grabbing',
+        expanded ? 'h-12 w-48 px-2' : 'h-9 w-36 px-1.5',
         selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/40',
         workspaceActive && 'ring-1 ring-primary/40',
       )}
@@ -962,22 +987,24 @@ function UnassignedArtifactCard({
       }}
       title={item.node.name}
     >
-      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${meta.accent}`}>
-        <Icon size={16} className={meta.iconColor} />
+      <div className={cn(
+        `flex shrink-0 items-center justify-center rounded-md ${meta.accent}`,
+        expanded ? 'h-7 w-7' : 'h-6 w-6',
+      )}>
+        <Icon size={expanded ? 14 : 12} className={meta.iconColor} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold text-foreground">{item.node.name}</p>
-        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{typeLabel}</p>
-        <div className="mt-1 flex min-w-0 items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-          <span className="truncate text-[10px] text-muted-foreground">{statusLabel}</span>
-          {nestedCount > 0 ? (
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              +{nestedCount}
-            </span>
-          ) : null}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
+          <p className="truncate text-xs font-semibold text-foreground">{item.node.name}</p>
         </div>
+        {expanded ? <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{typeLabel}</p> : null}
       </div>
+      {nestedCount > 0 ? (
+        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
+          +{nestedCount}
+        </span>
+      ) : null}
     </button>
   )
 }
@@ -1037,16 +1064,18 @@ function PipelineFlowCard({
   const Icon = meta.icon
   const typeLabel = t(`pipeline.nodeTypes.${node.type}.label`, { defaultValue: meta.label })
   const categoryLabel = t(`pipeline.categories.${meta.category}`, { defaultValue: meta.category })
-  const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: status.label })
   const isCustomContent = node.content_type === 'custom' || !node.content_type
   const isWork = variant === 'work'
+  const expandedCard = !!selected || !!workspaceActive
 
   return (
     <div
       className={cn(
-        'group relative rounded-md border bg-card text-left shadow-sm transition-colors',
+        'group relative rounded-md border bg-card text-left shadow-sm transition-[border-color,background-color,box-shadow,min-height,padding]',
         draggable && 'cursor-grab active:cursor-grabbing',
-        isWork ? 'min-h-[116px] p-3' : 'min-h-[96px] p-2.5',
+        expandedCard
+          ? isWork ? 'min-h-[64px] p-2' : 'min-h-[56px] p-2'
+          : 'min-h-9 px-1.5 py-1',
         selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/40',
         workspaceActive && 'ring-1 ring-primary/40',
         isDropTarget && 'border-primary bg-primary/10 ring-2 ring-primary/30',
@@ -1076,130 +1105,128 @@ function PipelineFlowCard({
         }
       }}
     >
-      {!isWork && depth > 0 ? <div className="absolute -left-[18px] top-9 h-px w-[18px] bg-border" /> : null}
+      {!isWork && depth > 0 ? <div className={cn('absolute -left-[18px] h-px w-[18px] bg-border', expandedCard ? 'top-7' : 'top-4')} /> : null}
 
-      <div className="flex items-start gap-2.5">
-        <button
-          type="button"
-          className={cn(
-            'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground',
-            childCount === 0 && 'invisible',
-          )}
-          onClick={(e) => { e.stopPropagation(); onToggle() }}
-          title={expanded ? t('common.collapse', { defaultValue: 'Collapse' }) : t('common.expand', { defaultValue: 'Expand' })}
-        >
-          {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </button>
+      <div className="flex items-center gap-1.5">
+        {childCount > 0 ? (
+          <button
+            type="button"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); onToggle() }}
+            title={expanded ? t('common.collapse', { defaultValue: 'Collapse' }) : t('common.expand', { defaultValue: 'Expand' })}
+          >
+            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+        ) : null}
 
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${meta.accent}`}>
-          <Icon size={16} className={meta.iconColor} />
+        <div className={cn(
+          `flex shrink-0 items-center justify-center rounded-md ${meta.accent}`,
+          expandedCard ? 'h-7 w-7' : 'h-6 w-6',
+        )}>
+          <Icon size={expandedCard ? 14 : 12} className={meta.iconColor} />
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <p className={cn('truncate font-semibold text-foreground', isWork ? 'text-sm' : 'text-[13px]')}>
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
+            <p className="truncate text-xs font-semibold text-foreground">
               {node.name}
             </p>
-            <span className={cn(
-              'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase',
-              isWork ? 'bg-primary/10 text-primary' : 'border border-border bg-muted text-muted-foreground',
-            )}>
-              {categoryLabel}
-            </span>
+            {expandedCard ? (
+              <span className={cn(
+                'shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase leading-none',
+                isWork ? 'bg-primary/10 text-primary' : 'border border-border bg-muted text-muted-foreground',
+              )}>
+                {categoryLabel}
+              </span>
+            ) : null}
           </div>
 
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{typeLabel}</p>
+          {expandedCard ? <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{typeLabel}</p> : null}
 
-          {node.entity_id ? (
-            <p className="mt-1 truncate text-xs text-emerald-600">
+          {expandedCard && node.entity_id ? (
+            <p className="mt-0.5 truncate text-[10px] text-emerald-600">
               {t('pipeline.node.linkedEntity', { type: node.entity_type, id: node.entity_id })}
             </p>
           ) : null}
 
-          {blockedArtifactNames.length > 0 ? (
-            <p className="mt-1 truncate text-xs text-amber-600">
+          {expandedCard && blockedArtifactNames.length > 0 ? (
+            <p className="mt-0.5 truncate text-[10px] text-amber-600">
               {t('pipeline.node.blockedArtifacts', { names: blockedArtifactNames.join(', ') })}
             </p>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <div className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${status.badge}`}>
-              {statusLabel}
-            </span>
-          </div>
-
+      {expandedCard ? (
+        <div className={cn('mt-1.5 flex items-center justify-between gap-2', childCount > 0 ? 'pl-[54px]' : 'pl-[34px]')}>
           {node.due_date ? (
-            <span className="hidden items-center gap-1 truncate text-xs text-muted-foreground xl:flex">
-              <CalendarDays size={11} />
+            <span className="flex min-w-0 items-center gap-1 truncate text-[10px] text-muted-foreground">
+              <CalendarDays size={10} />
               {new Date(node.due_date).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
             </span>
-          ) : null}
-        </div>
+          ) : <span />}
 
-        <div className="flex shrink-0 items-center gap-1">
-          {isWork ? (
+          <div className="flex shrink-0 items-center gap-0.5">
+            {isWork ? (
             <>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
                 onClick={(e) => { e.stopPropagation(); onMoveBefore?.() }}
                 disabled={!onMoveBefore}
                 title={t('pipeline.tree.moveBefore', { defaultValue: 'Move left' })}
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={13} />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
                 onClick={(e) => { e.stopPropagation(); onMoveAfter?.() }}
                 disabled={!onMoveAfter}
                 title={t('pipeline.tree.moveAfter', { defaultValue: 'Move right' })}
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={13} />
               </Button>
             </>
-          ) : null}
-          {!isCustomContent ? (
+            ) : null}
+            {!isCustomContent ? (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100"
               onClick={(e) => { e.stopPropagation(); onEnterWorkspace() }}
               title={t('pipeline.node.enterWorkspace')}
             >
-              <ArrowRight size={14} />
+              <ArrowRight size={13} />
             </Button>
-          ) : null}
-          {canAddChild ? (
+            ) : null}
+            {canAddChild ? (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100"
               onClick={(e) => { e.stopPropagation(); onAddChild() }}
               title={t('pipeline.tree.addChild')}
             >
-              <Plus size={14} />
+              <Plus size={13} />
             </Button>
-          ) : null}
-          <Button
+            ) : null}
+            <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-destructive opacity-0 hover:text-destructive group-hover:opacity-100 focus:opacity-100"
+            className="h-6 w-6 text-destructive opacity-0 hover:text-destructive group-hover:opacity-100 focus:opacity-100"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
             title={t('common.delete')}
-          >
-            <Trash2 size={14} />
-          </Button>
-          <MoreHorizontal size={14} className="text-muted-foreground/50 group-hover:hidden" />
+            >
+              <Trash2 size={13} />
+            </Button>
+            <MoreHorizontal size={13} className="text-muted-foreground/50 group-hover:hidden" />
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

@@ -1,10 +1,25 @@
 import type { AgentManifest } from './agentManifest.js'
 import type { ResolvedAgentSkill } from './types.js'
 
-export function resolveAgentSkills(manifest: AgentManifest, message = ''): ResolvedAgentSkill[] {
+export function resolveAgentSkills(
+  manifest: AgentManifest,
+  message = '',
+  skillCatalog: AgentManifest['skills'] = [],
+): ResolvedAgentSkill[] {
+  const catalogById = new Map(skillCatalog.map((skill) => [skill.id, skill]))
   return manifest.skills
     .filter((skill) => skill.enabled !== false)
-    .map((skill, index) => {
+    .map((manifestSkill, index) => {
+      const catalogSkill = catalogById.get(manifestSkill.id)
+      const skill = catalogSkill
+        ? {
+          ...catalogSkill,
+          ...manifestSkill,
+          metadata: { ...(catalogSkill.metadata ?? {}), ...(manifestSkill.metadata ?? {}) },
+          instruction: manifestSkill.instruction || catalogSkill.instruction,
+          description: manifestSkill.description || catalogSkill.description,
+        }
+        : manifestSkill
       const applies = skill.appliesWhen ? messageMatches(message, skill.appliesWhen) : true
       return {
         ...skill,

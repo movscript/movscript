@@ -25,9 +25,11 @@ export async function resolveAgentCapabilities(options: {
   currentProjectId?: number
   registry?: ToolRegistry
   includeResources?: boolean
+  pluginCatalog?: AgentCapabilitiesResponse['pluginCatalog']
+  warnings?: string[]
 }): Promise<AgentCapabilitiesResponse> {
   const registry = options.registry ?? DEFAULT_TOOL_REGISTRY
-  const warnings: string[] = []
+  const warnings: string[] = [...(options.warnings ?? [])]
   let connected = false
   let resources: MCPResource[] = []
   let tools: MCPTool[] = []
@@ -49,6 +51,7 @@ export async function resolveAgentCapabilities(options: {
 
   return {
     defaultAgentManifest: options.manifest,
+    ...(options.pluginCatalog ? { pluginCatalog: options.pluginCatalog } : {}),
     mcp: {
       connected,
       resources,
@@ -103,7 +106,7 @@ export function resolveToolCatalog(options: {
       name,
       ...(mcpTool?.description || registeredTool?.description ? { description: mcpTool?.description ?? registeredTool?.description } : {}),
       ...(mcpTool?.inputSchema !== undefined ? { inputSchema: mcpTool.inputSchema } : {}),
-      source: mcpTool ? 'mcp' : 'runtime',
+      source: mcpTool ? 'mcp' : registeredTool?.source === 'plugin' ? 'plugin' : 'runtime',
       registered: !!registeredTool,
       granted: !!grant && grant.mode !== 'deny',
       ...(registeredTool ? { permission: registeredTool.permission } : {}),

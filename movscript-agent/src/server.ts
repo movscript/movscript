@@ -2,7 +2,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import { ChatRuntime } from './chatRuntime.js'
 import { MCPClient } from './mcpClient.js'
-import { AgentRuntime, DEFAULT_AGENT_MANIFEST, DEFAULT_TOOL_REGISTRY } from './runtime/agentRuntime.js'
+import { AgentRuntime, loadAgentPluginCatalog } from './runtime/agentRuntime.js'
 import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from './runtime/fileStore.js'
 import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
 import type { JSONValue } from './types.js'
@@ -11,12 +11,23 @@ const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
 const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || 'http://127.0.0.1:18765/mcp'
 const statePath = resolveAgentStatePath()
 const memoryPath = resolveAgentMemoryPath(statePath)
+const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
 const chatRuntime = new ChatRuntime({ mcpClient: client })
 const agentRuntime = new AgentRuntime({
   mcpClient: client,
   store: new FileAgentStore(statePath),
   memoryStore: new FileAgentMemoryStore(memoryPath),
+  defaultAgentManifest: pluginCatalog.manifest,
+  skillCatalog: pluginCatalog.skills,
+  toolRegistry: pluginCatalog.registry,
+  pluginCatalogInfo: {
+    skillsDir: pluginCatalog.skillsDir,
+    toolsDir: pluginCatalog.toolsDir,
+    skillCount: pluginCatalog.skills.length,
+    toolCount: pluginCatalog.tools.length,
+  },
+  pluginWarnings: pluginCatalog.warnings,
 })
 
 const server = createServer(async (req, res) => {
@@ -37,6 +48,13 @@ const server = createServer(async (req, res) => {
         service: 'movscript-agent',
         mode: 'server',
         mcpEndpoint,
+        pluginCatalog: {
+          skillsDir: pluginCatalog.skillsDir,
+          toolsDir: pluginCatalog.toolsDir,
+          skillCount: pluginCatalog.skills.length,
+          toolCount: pluginCatalog.tools.length,
+          warnings: pluginCatalog.warnings,
+        },
       })
       return
     }
@@ -51,8 +69,16 @@ const server = createServer(async (req, res) => {
         mcpEndpoint,
         resources,
         tools,
-        registeredTools: DEFAULT_TOOL_REGISTRY.list(),
-        defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+        registeredTools: agentRuntime.listRegisteredTools(),
+        skills: agentRuntime.listSkillCatalog(),
+        defaultAgentManifest: agentRuntime.getDefaultAgentManifest(),
+        pluginCatalog: {
+          skillsDir: pluginCatalog.skillsDir,
+          toolsDir: pluginCatalog.toolsDir,
+          skillCount: pluginCatalog.skills.length,
+          toolCount: pluginCatalog.tools.length,
+          warnings: pluginCatalog.warnings,
+        },
       })
       return
     }
@@ -68,12 +94,17 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/tools') {
-      writeJSON(res, 200, { tools: DEFAULT_TOOL_REGISTRY.list() })
+      writeJSON(res, 200, { tools: agentRuntime.listRegisteredTools() })
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/skills') {
+      writeJSON(res, 200, { skills: agentRuntime.listSkillCatalog() })
       return
     }
 
     if (req.method === 'GET' && url.pathname === '/agent-manifest/default') {
-      writeJSON(res, 200, DEFAULT_AGENT_MANIFEST)
+      writeJSON(res, 200, agentRuntime.getDefaultAgentManifest())
       return
     }
 
@@ -202,6 +233,9 @@ server.listen(port, '127.0.0.1', () => {
   console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
   console.info(`[agent] state path ${statePath}`)
   console.info(`[agent] memory path ${memoryPath}`)
+  console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
+  console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
+  for (const warning of pluginCatalog.warnings) console.warn(`[agent] plugin warning: ${warning}`)
 })
 
 function normalizeDraftBody(body: unknown): Record<string, JSONValue> {

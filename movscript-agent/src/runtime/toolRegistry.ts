@@ -5,8 +5,18 @@ export interface RegisteredTool {
   description: string
   permission: string
   risk: ToolRiskLevel
+  source?: 'runtime' | 'plugin'
   projectScoped: boolean
   requiresApprovalByDefault: boolean
+}
+
+export interface RegisteredToolBundle {
+  tools: RegisteredTool[]
+  grants: Array<{
+    name: string
+    mode: 'allow' | 'deny'
+    approval?: 'never' | 'always' | 'on_write'
+  }>
 }
 
 export interface ToolRegistry {
@@ -27,6 +37,31 @@ export class StaticToolRegistry implements ToolRegistry {
 
   list(): RegisteredTool[] {
     return Array.from(this.tools.values())
+  }
+}
+
+export function mergeRegisteredTools(base: RegisteredTool[], tools: RegisteredTool[]): RegisteredTool[] {
+  const byName = new Map<string, RegisteredTool>()
+  for (const tool of base) byName.set(tool.name, tool)
+  for (const tool of tools) byName.set(tool.name, tool)
+  return Array.from(byName.values())
+}
+
+export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefined {
+  if (!isRecord(input)) return undefined
+  const name = nonEmptyString(input.name)
+  const description = nonEmptyString(input.description)
+  const permission = nonEmptyString(input.permission)
+  const risk = normalizeRisk(input.risk)
+  if (!name || !description || !permission || !risk) return undefined
+  return {
+    name,
+    description,
+    permission,
+    risk,
+    source: 'plugin',
+    projectScoped: input.projectScoped === true,
+    requiresApprovalByDefault: input.requiresApprovalByDefault === true,
   }
 }
 
@@ -88,3 +123,22 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: true,
   },
 ])
+
+function normalizeRisk(value: unknown): ToolRiskLevel | undefined {
+  return value === 'read'
+    || value === 'draft'
+    || value === 'write'
+    || value === 'generate'
+    || value === 'destructive'
+    || value === 'ui'
+    ? value
+    : undefined
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}

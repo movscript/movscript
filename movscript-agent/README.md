@@ -60,6 +60,7 @@ npm run dev:cli -- draft --kind note --title "Test draft" --content "Hello from 
 - `GET /inspect`
 - `GET /context`
 - `GET /tools`
+- `GET /skills`
 - `GET /agent-manifest/default`
 - `POST /chat`
 - `POST /draft`
@@ -107,6 +108,64 @@ Optional settings:
 
 - `MOVSCRIPT_AGENT_OPENAI_MODEL` defaults to `gpt-4o-mini`
 - `MOVSCRIPT_AGENT_OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`
+
+## Plugin Folders
+
+`movscript-agent` reads installable skills and tool metadata from local folders at
+startup:
+
+```text
+.movscript-agent/skills
+.movscript-agent/tools
+```
+
+Override them with:
+
+```bash
+MOVSCRIPT_AGENT_SKILLS_DIR=/path/to/skills \
+MOVSCRIPT_AGENT_TOOLS_DIR=/path/to/tools \
+npm run dev
+```
+
+Each folder accepts `.json` files. A plugin subfolder can also contain
+`manifest.json`, `skill.json`, `skills.json`, `tool.json`, or `tools.json`.
+
+Skill file example:
+
+```json
+{
+  "id": "studio.writer",
+  "name": "Writer",
+  "description": "Writes scene drafts",
+  "enabled": true,
+  "priority": 20,
+  "instruction": "Write in short scene beats.",
+  "appliesWhen": "scene,draft",
+  "toolHints": ["studio.script_outline"]
+}
+```
+
+Tool metadata file example:
+
+```json
+{
+  "name": "studio.script_outline",
+  "description": "Create a script outline draft.",
+  "permission": "draft.write",
+  "risk": "draft",
+  "projectScoped": true,
+  "requiresApprovalByDefault": false,
+  "defaultGrant": {
+    "name": "studio.script_outline",
+    "mode": "allow",
+    "approval": "never"
+  }
+}
+```
+
+Installed skills are merged into the default agent manifest. Installed tools are
+merged into the runtime registry; a tool still needs a matching MCP tool at
+runtime before it becomes executable.
 
 ## Agent Manifest v1
 

@@ -12,6 +12,7 @@ import { compilePromptPreview } from './promptCompiler.js'
 import { resolveAgentSkills } from './skillResolver.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
 import { applyToolPolicy } from './toolPolicy.js'
+import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from './toolRegistry.js'
 import type { BlockedToolCall } from './toolPolicy.js'
 import type {
   AgentApprovalRequest,
@@ -74,6 +75,7 @@ export { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from './agentManifest.
 export { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 export { InMemoryAgentStore } from './store.js'
 export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from './toolRegistry.js'
+export { loadAgentPluginCatalog, resolveAgentSkillsDir, resolveAgentToolsDir } from './pluginCatalog.js'
 
 export class AgentRuntime {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
@@ -81,6 +83,10 @@ export class AgentRuntime {
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
   private readonly defaultAgentManifest: AgentManifest
+  private readonly skillCatalog: AgentManifest['skills']
+  private readonly toolRegistry: ToolRegistry
+  private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
+  private readonly pluginWarnings: string[]
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -88,6 +94,10 @@ export class AgentRuntime {
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
     this.defaultAgentManifest = options.defaultAgentManifest ?? DEFAULT_AGENT_MANIFEST
+    this.skillCatalog = options.skillCatalog ?? []
+    this.toolRegistry = options.toolRegistry ?? DEFAULT_TOOL_REGISTRY
+    this.pluginCatalogInfo = options.pluginCatalogInfo
+    this.pluginWarnings = options.pluginWarnings ?? []
   }
 
   async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {
@@ -97,7 +107,22 @@ export class AgentRuntime {
       manifest: agentManifest,
       currentProjectId: input.currentProjectId,
       includeResources: input.includeResources,
+      registry: this.toolRegistry,
+      pluginCatalog: this.pluginCatalogInfo,
+      warnings: this.pluginWarnings,
     })
+  }
+
+  listRegisteredTools(): ReturnType<ToolRegistry['list']> {
+    return this.toolRegistry.list()
+  }
+
+  listSkillCatalog(): AgentManifest['skills'] {
+    return this.skillCatalog
+  }
+
+  getDefaultAgentManifest(): AgentManifest {
+    return this.defaultAgentManifest
   }
 
   createThread(input: CreateThreadInput = {}): AgentThread {
@@ -215,11 +240,14 @@ export class AgentRuntime {
       ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
       threadId: thread?.id ?? 'preview',
     })
-    const skills = resolveAgentSkills(agentManifest, message)
+    const skills = resolveAgentSkills(agentManifest, message, this.skillCatalog)
     const capabilities = await resolveAgentCapabilities({
       mcpClient: this.mcpClient,
       manifest: agentManifest,
       currentProjectId: context.currentProjectId,
+      registry: this.toolRegistry,
+      pluginCatalog: this.pluginCatalogInfo,
+      warnings: this.pluginWarnings,
     })
     const debugContext = buildDebugContext(contextResult, memories)
     const policy = defaultRunPolicy('dry_run')
@@ -253,6 +281,7 @@ export class AgentRuntime {
         currentProjectId: context.currentProjectId,
         manifest: agentManifest,
         catalog: capabilities.resolvedTools,
+        registry: this.toolRegistry,
         approvedToolNames,
       })
       warnings.push(...policy.warnings.filter((warning) => !warnings.includes(warning)))
@@ -429,8 +458,11 @@ export class AgentRuntime {
         mcpClient: this.mcpClient,
         manifest: run.agentManifest ?? this.defaultAgentManifest,
         currentProjectId: context.currentProjectId,
+        registry: this.toolRegistry,
+        pluginCatalog: this.pluginCatalogInfo,
+        warnings: this.pluginWarnings,
       })
-      const skills = resolveAgentSkills(run.agentManifest ?? this.defaultAgentManifest, lastUser.content)
+      const skills = resolveAgentSkills(run.agentManifest ?? this.defaultAgentManifest, lastUser.content, this.skillCatalog)
       const debugContext = buildDebugContext(contextResult, memories)
       const envelope: AgentInputEnvelope = {
         id: makeId('envelope'),
@@ -475,6 +507,7 @@ export class AgentRuntime {
           currentProjectId: context.currentProjectId,
           manifest: run.agentManifest,
           catalog: capabilities.resolvedTools,
+          registry: this.toolRegistry,
           approvedToolNames: getApprovedToolNames(run),
         })
         warnings.push(...policy.warnings.filter((warning) => !warnings.includes(warning)))
