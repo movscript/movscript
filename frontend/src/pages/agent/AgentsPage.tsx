@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
-import { Plus, Trash2, Pencil, Check, X, ChevronDown, ChevronRight, Bot, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X, ChevronDown, ChevronRight, Bot, RefreshCw, Bug } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
@@ -383,9 +384,16 @@ export default function AgentsPage() {
           <h3 className="text-sm font-medium">{t('agents.myAgents')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{t('agents.description')}</p>
         </div>
-        <Button size="sm" onClick={() => setEditing('new')}>
-          <Plus size={13} className="mr-1" /> {t('agents.newAgent')}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/agent/debug">
+              <Bug size={13} className="mr-1" /> {t('agents.debug.shortTitle')}
+            </Link>
+          </Button>
+          <Button size="sm" onClick={() => setEditing('new')}>
+            <Plus size={13} className="mr-1" /> {t('agents.newAgent')}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

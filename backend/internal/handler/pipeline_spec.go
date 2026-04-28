@@ -26,7 +26,7 @@ var pipelineNodeSpecs = map[string]pipelineNodeSpec{
 	"asset_creation":      {Type: "asset_creation", Category: "work", ContentType: "asset"},
 	"raw_script":          {Type: "raw_script", Category: "work", ContentType: "script"},
 	"shot_production":     {Type: "shot_production", Category: "work", ContentType: "shot"},
-	"episode_edit":        {Type: "episode_edit", Category: "work", ContentType: "episode"},
+	"episode_edit":        {Type: "episode_edit", Category: "work", ContentType: "final_video"},
 
 	"main_script":       {Type: "main_script", Category: "artifact", ContentType: "script", EntityType: "script", CanCreateEntity: true, CanLinkEntity: true},
 	"episode_script":    {Type: "episode_script", Category: "artifact", ContentType: "script", EntityType: "script", CanCreateEntity: true, CanLinkEntity: true},
@@ -37,6 +37,7 @@ var pipelineNodeSpecs = map[string]pipelineNodeSpec{
 	"storyboard":        {Type: "storyboard", Category: "artifact", ContentType: "storyboard", EntityType: "storyboard", CanCreateEntity: true, CanLinkEntity: true},
 	"asset":             {Type: "asset", Category: "artifact", ContentType: "asset", EntityType: "asset", CanCreateEntity: true, CanLinkEntity: true},
 	"shot":              {Type: "shot", Category: "artifact", ContentType: "shot", EntityType: "shot", CanCreateEntity: true, CanLinkEntity: true},
+	"final_video":       {Type: "final_video", Category: "artifact", ContentType: "final_video"},
 
 	"custom": {Type: "custom", Category: "custom", ContentType: "custom"},
 }
@@ -93,7 +94,7 @@ func (h *PipelineHandler) GetNodeSpecs(c *gin.Context) {
 	specs := make([]pipelineNodeSpec, 0, len(pipelineNodeSpecs))
 	order := []string{
 		"script_writing", "episode_writing", "scene_writing", "storyboard_creation", "asset_creation", "raw_script", "shot_production", "episode_edit",
-		"main_script", "episode_script", "scene_script", "storyboard_script", "episode", "scene", "storyboard", "asset", "shot", "custom",
+		"main_script", "episode_script", "scene_script", "storyboard_script", "episode", "scene", "storyboard", "asset", "shot", "final_video", "custom",
 	}
 	for _, key := range order {
 		specs = append(specs, pipelineNodeSpecs[key])

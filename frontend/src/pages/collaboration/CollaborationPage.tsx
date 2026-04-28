@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Task, TaskStatus, TaskPriority, ProjectMember, User } from '@/types'
+import type { Task, TaskStatus, TaskPriority, ProjectMember, User, Pipeline, PipelineNode } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, Trash2, MessageSquare, ChevronDown, ChevronUp,
   CheckCircle, Play, X,
@@ -138,6 +139,7 @@ function WorkingCard({
 function TaskCard({
   task,
   users,
+  pipelineNodes,
   currentUserId,
   onUpdate,
   onDelete,
@@ -145,12 +147,14 @@ function TaskCard({
 }: {
   task: Task
   users: User[]
+  pipelineNodes: PipelineNode[]
   currentUserId?: number
   onUpdate: (id: number, data: Partial<Task>) => void
   onDelete: (id: number) => void
   onWork: (task: Task) => void
 }) {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [expanded, setExpanded] = useState(false)
@@ -173,6 +177,7 @@ function TaskCard({
 
   const isAssignedToMe = task.assignee_id === currentUserId
   const canWork = task.status !== 'done'
+  const pipelineNode = task.pipeline_node ?? pipelineNodes.find((node) => node.ID === task.pipeline_node_id)
 
   return (
     <div className={`border border-border rounded-lg bg-background shadow-sm text-sm ${isAssignedToMe ? 'border-primary/30' : ''}`}>
@@ -183,6 +188,16 @@ function TaskCard({
         <span className="flex-1 font-medium truncate">{task.title}</span>
         {task.ref_type && (
           <span className="text-xs text-muted-foreground shrink-0">{REF_TYPE_LABEL_KEYS[task.ref_type] ? t(REF_TYPE_LABEL_KEYS[task.ref_type]) : task.ref_type}</span>
+        )}
+        {pipelineNode && (
+          <button
+            type="button"
+            onClick={() => navigate(`/pipeline/nodes/${pipelineNode.ID}`)}
+            className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-2 py-0.5 shrink-0 max-w-[150px] truncate"
+            title={pipelineNode.name}
+          >
+            {pipelineNode.name}
+          </button>
         )}
         <Badge className={`${STATUS_BADGE_CLASS[task.status]} shrink-0`}>
           {t(STATUS_LABEL_KEYS[task.status])}
@@ -211,6 +226,7 @@ function TaskCard({
         <div className="border-t border-border px-3 py-3 space-y-3">
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span>{t('pages.collaboration.assigneeValue', { assignee: task.assignee?.username ?? t('pages.collaboration.unassigned') })}</span>
+            {pipelineNode && <span>管线：{pipelineNode.name}</span>}
             {task.deadline && <span>{t('pages.collaboration.deadlineValue', { date: new Date(task.deadline).toLocaleDateString(i18n.language) })}</span>}
           </div>
           {task.description && <p className="text-foreground text-xs">{task.description}</p>}
@@ -280,6 +296,7 @@ function TaskCard({
 function TasksTab({
   tasks,
   users,
+  pipelineNodes,
   currentUserId,
   tasksLoading,
   onUpdate,
@@ -287,6 +304,7 @@ function TasksTab({
 }: {
   tasks: Task[]
   users: User[]
+  pipelineNodes: PipelineNode[]
   currentUserId?: number
   tasksLoading: boolean
   onUpdate: (id: number, data: Partial<Task>) => void
@@ -300,6 +318,7 @@ function TasksTab({
   const [newTitle, setNewTitle] = useState('')
   const [newPriority, setNewPriority] = useState<TaskPriority>('medium')
   const [newRefType, setNewRefType] = useState('')
+  const [newPipelineNodeId, setNewPipelineNodeId] = useState<number | ''>('')
   const [newAssigneeId, setNewAssigneeId] = useState<number | ''>('')
   const [workingTask, setWorkingTask] = useState<Task | null>(null)
 
@@ -341,9 +360,10 @@ function TasksTab({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && newTitle.trim()) {
               createTask.mutate({
-                title: newTitle,
+                title: newTitle.trim(),
                 priority: newPriority,
                 ref_type: newRefType || undefined,
+                pipeline_node_id: newPipelineNodeId || undefined,
                 assignee_id: newAssigneeId || undefined,
               })
             }
@@ -366,6 +386,14 @@ function TasksTab({
             {Object.entries(REF_TYPE_LABEL_KEYS).map(([v, key]) => <option key={v} value={v}>{t(key)}</option>)}
           </select>
           <select
+            className="border border-border rounded-md px-2 py-1.5 text-xs bg-background text-foreground max-w-[220px]"
+            value={newPipelineNodeId}
+            onChange={(e) => setNewPipelineNodeId(Number(e.target.value) || '')}
+          >
+            <option value="">所属管线节点</option>
+            {pipelineNodes.map((node) => <option key={node.ID} value={node.ID}>{node.name}</option>)}
+          </select>
+          <select
             className="border border-border rounded-md px-2 py-1.5 text-xs flex-1 bg-background text-foreground"
             value={newAssigneeId}
             onChange={(e) => setNewAssigneeId(Number(e.target.value) || '')}
@@ -376,9 +404,10 @@ function TasksTab({
           <Button
             size="sm"
             onClick={() => newTitle.trim() && createTask.mutate({
-              title: newTitle,
+              title: newTitle.trim(),
               priority: newPriority,
               ref_type: newRefType || undefined,
+              pipeline_node_id: newPipelineNodeId || undefined,
               assignee_id: newAssigneeId || undefined,
             })}
             disabled={!newTitle.trim() || createTask.isPending}
@@ -427,6 +456,7 @@ function TasksTab({
               key={t.ID}
               task={t}
               users={users}
+              pipelineNodes={pipelineNodes}
               currentUserId={currentUserId}
               onUpdate={onUpdate}
               onDelete={onDelete}
@@ -570,7 +600,14 @@ export default function CollaborationPage() {
     refetchInterval: 30_000,
   })
 
+  const { data: pipeline } = useQuery<Pipeline>({
+    queryKey: ['pipeline', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/pipeline`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+
   const members: ProjectMember[] = projectDetail?.members ?? []
+  const pipelineNodes = pipeline?.nodes ?? []
   const { canManageMembers } = usePermissions(members)
 
   const updateTask = useMutation({
@@ -603,6 +640,7 @@ export default function CollaborationPage() {
           <TasksTab
             tasks={tasks}
             users={users}
+            pipelineNodes={pipelineNodes}
             currentUserId={currentUser?.ID}
             tasksLoading={tasksLoading}
             onUpdate={(id, data) => updateTask.mutate({ id, data })}

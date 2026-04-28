@@ -34,6 +34,7 @@ import PipelineEditorPage from './pages/pipeline/PipelineEditorPage'
 import StageWorkspacePage from './pages/pipeline/StageWorkspacePage'
 import AgentSettingsPage from './pages/agent/AgentSettingsPage'
 import AgentsPage from './pages/agent/AgentsPage'
+import AgentDebugPage from './pages/agent/AgentDebugPage'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
@@ -185,6 +186,7 @@ export default function App() {
 
                     {/* Agent */}
                     <Route path="/agent/settings" element={<AgentSettingsPage />} />
+                    <Route path="/agent/debug" element={<AgentDebugPage />} />
                     <Route path="/agents" element={<Padded><AgentsPage /></Padded>} />
 
                     {/* 管理后台 — super_admin only */}

@@ -612,6 +612,116 @@
     "unspecified": "Not specified",
     "followPlatform": "Follow platform",
     "fromTemplate": "From template: {{name}}",
+    "debug": {
+      "shortTitle": "Debug",
+      "title": "Agent Debug Console",
+      "description": "Inspect local Agent Runtime skills, tools, manifest, context, prompt, and dry-run plan.",
+      "defaultPreviewMessage": "Check the next best step for the current project.",
+      "defaultRuntimeManifest": "Default runtime manifest",
+      "tabs": {
+        "overview": "Overview",
+        "manifest": "Presets",
+        "skills": "Skills",
+        "tools": "Tools",
+        "prompt": "Prompt",
+        "context": "Context",
+        "runs": "Runs",
+        "raw": "Raw"
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "copied": "Copied",
+        "copyJson": "Copy JSON",
+        "runPreview": "Run Preview"
+      },
+      "status": {
+        "runtimeOnline": "Runtime online",
+        "runtimeOffline": "Runtime offline",
+        "checking": "Checking",
+        "online": "Online",
+        "offline": "Offline",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "available": "Available",
+        "blocked": "Blocked"
+      },
+      "panels": {
+        "runtime": "Runtime",
+        "previewInput": "Preview Input",
+        "warnings": "Warnings",
+        "mcpResources": "MCP Resources",
+        "latestPreview": "Latest Preview",
+        "effectiveManifest": "Effective Manifest",
+        "defaultManifest": "Default Runtime Manifest",
+        "activatedSkills": "Activated Skills",
+        "skillCatalog": "Skill Catalog",
+        "promptParts": "Prompt Parts",
+        "outboundMessages": "Outbound Messages",
+        "currentProject": "Current Project",
+        "contextSummary": "Context Summary",
+        "contextJson": "Context JSON",
+        "plan": "Plan",
+        "approvals": "Approvals"
+      },
+      "fields": {
+        "baseUrl": "Base URL",
+        "skillsDir": "Skills dir",
+        "toolsDir": "Tools dir",
+        "agentManifest": "Agent Manifest",
+        "preview": "Preview",
+        "project": "Project",
+        "memoryCount": "Memory count",
+        "toolCalls": "Tool calls",
+        "route": "Route",
+        "selection": "Selection",
+        "recentResources": "Recent resources",
+        "attachments": "Attachments",
+        "memories": "Memories"
+      },
+      "metrics": {
+        "runtime": "Runtime",
+        "mcpTools": "MCP tools",
+        "registeredTools": "Registered tools",
+        "skills": "Skills",
+        "registry": "Registry",
+        "discovered": "Discovered",
+        "available": "Available",
+        "blocked": "Blocked"
+      },
+      "table": {
+        "tool": "Tool",
+        "source": "Source",
+        "risk": "Risk",
+        "permission": "Permission",
+        "approval": "Approval",
+        "status": "Status"
+      },
+      "empty": {
+        "noResources": "No resources discovered.",
+        "runPreviewHint": "Run a preview to inspect prompt, context, plan, and approvals.",
+        "noManifest": "No manifest loaded.",
+        "noDefaultManifest": "No default manifest loaded.",
+        "noSkills": "No skills available.",
+        "noDescription": "(no description)",
+        "noInstruction": "(no instruction)",
+        "noToolCatalog": "Tool catalog is not loaded.",
+        "noTools": "No tools discovered.",
+        "runPromptPreviewHint": "Run a preview to inspect compiled prompt parts.",
+        "emptyValue": "(empty)",
+        "noProject": "No project selected.",
+        "runContextPreviewHint": "Run a preview to inspect runtime context.",
+        "runPlanPreviewHint": "Run a preview to inspect plan, tool calls, and approvals.",
+        "noApprovals": "No approval required in this preview."
+      },
+      "values": {
+        "none": "none",
+        "unknown": "unknown",
+        "required": "required",
+        "chars": "{{count}} chars",
+        "currentProject": "Current project: {{name}}",
+        "more": "+{{count}} more"
+      }
+    },
     "chat": {
       "aiAssistant": "AI Assistant",
       "agentReady": "{{name}} is ready",
@@ -778,6 +888,10 @@
         "label": "Shot",
         "desc": "Shot artifact"
       },
+      "final_video": {
+        "label": "Final Video",
+        "desc": "Edited video artifact"
+      },
       "ref_image_gen": {
         "label": "Reference Image",
         "desc": "Generate a new image from a reference image"
@@ -932,6 +1046,7 @@
       "asset": "Asset",
       "episode": "Episode",
       "scene": "Scene",
+      "final_video": "Final Video",
       "custom": "Custom"
     },
     "workspace": {
@@ -1899,6 +2014,7 @@
       "jobs": "Generation Jobs",
       "plugins": "Local Plugins",
       "agents": "Agents",
+      "agentDebug": "Agent Debug",
       "agentSettings": "Agent Settings",
       "user": "User Profile",
       "admin": "Admin",
@@ -1938,6 +2054,7 @@
       "jobs": "Generation Jobs",
       "plugins": "Plugins",
       "myAgents": "My Agents",
+      "agentDebug": "Agent Debug",
       "production": "Production Hub",
       "pipeline": "Pipeline",
       "creation": "Creation",

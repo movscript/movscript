@@ -38,11 +38,13 @@ type PipelineNode struct {
 	PosY float64 `json:"pos_y"`
 }
 
-// PipelineEdge represents a tree parent-child relation between two pipeline nodes.
-// FromNodeID is the parent and ToNodeID is the child. The table name is kept for compatibility.
+// PipelineEdge represents a directed relation between two pipeline nodes.
+// RelationType is "hierarchy" for the task-layer parent-child tree, or "dependency"
+// for extra DAG dependencies in the dependency layer.
 type PipelineEdge struct {
 	gorm.Model
-	ProjectID  uint `gorm:"not null" json:"project_id"`
-	FromNodeID uint `gorm:"not null" json:"from_node_id"`
-	ToNodeID   uint `gorm:"not null" json:"to_node_id"`
+	ProjectID    uint   `gorm:"not null" json:"project_id"`
+	FromNodeID   uint   `gorm:"not null" json:"from_node_id"`
+	ToNodeID     uint   `gorm:"not null" json:"to_node_id"`
+	RelationType string `gorm:"default:'hierarchy'" json:"relation_type"` // hierarchy|dependency
 }

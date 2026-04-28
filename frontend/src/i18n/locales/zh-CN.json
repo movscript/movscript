@@ -612,6 +612,116 @@
     "unspecified": "未指定",
     "followPlatform": "跟随平台",
     "fromTemplate": "来自模板：{{name}}",
+    "debug": {
+      "shortTitle": "调试",
+      "title": "Agent 调试控制台",
+      "description": "展示本地 Agent Runtime 的 skills、tools、manifest、context、prompt 和 dry-run 计划。",
+      "defaultPreviewMessage": "帮我检查当前项目下一步应该做什么。",
+      "defaultRuntimeManifest": "默认 Runtime Manifest",
+      "tabs": {
+        "overview": "概览",
+        "manifest": "预设",
+        "skills": "技能",
+        "tools": "工具",
+        "prompt": "Prompt",
+        "context": "上下文",
+        "runs": "运行",
+        "raw": "原始数据"
+      },
+      "actions": {
+        "refresh": "刷新",
+        "copied": "已复制",
+        "copyJson": "复制 JSON",
+        "runPreview": "运行 Preview"
+      },
+      "status": {
+        "runtimeOnline": "Runtime 在线",
+        "runtimeOffline": "Runtime 离线",
+        "checking": "检查中",
+        "online": "在线",
+        "offline": "离线",
+        "enabled": "已启用",
+        "disabled": "已禁用",
+        "available": "可用",
+        "blocked": "受限"
+      },
+      "panels": {
+        "runtime": "Runtime",
+        "previewInput": "Preview 输入",
+        "warnings": "警告",
+        "mcpResources": "MCP 资源",
+        "latestPreview": "最近 Preview",
+        "effectiveManifest": "生效 Manifest",
+        "defaultManifest": "默认 Runtime Manifest",
+        "activatedSkills": "已激活技能",
+        "skillCatalog": "技能目录",
+        "promptParts": "Prompt 片段",
+        "outboundMessages": "出站消息",
+        "currentProject": "当前项目",
+        "contextSummary": "上下文摘要",
+        "contextJson": "上下文 JSON",
+        "plan": "计划",
+        "approvals": "审批"
+      },
+      "fields": {
+        "baseUrl": "Base URL",
+        "skillsDir": "Skills 目录",
+        "toolsDir": "Tools 目录",
+        "agentManifest": "Agent Manifest",
+        "preview": "Preview",
+        "project": "项目",
+        "memoryCount": "记忆数量",
+        "toolCalls": "工具调用",
+        "route": "路由",
+        "selection": "选择对象",
+        "recentResources": "最近资源",
+        "attachments": "附件",
+        "memories": "记忆"
+      },
+      "metrics": {
+        "runtime": "Runtime",
+        "mcpTools": "MCP 工具",
+        "registeredTools": "已注册工具",
+        "skills": "技能",
+        "registry": "注册表",
+        "discovered": "已发现",
+        "available": "可用",
+        "blocked": "受限"
+      },
+      "table": {
+        "tool": "工具",
+        "source": "来源",
+        "risk": "风险",
+        "permission": "权限",
+        "approval": "审批",
+        "status": "状态"
+      },
+      "empty": {
+        "noResources": "未发现资源。",
+        "runPreviewHint": "运行 preview 后可查看 prompt、context、plan 和审批。",
+        "noManifest": "未加载 manifest。",
+        "noDefaultManifest": "未加载默认 manifest。",
+        "noSkills": "暂无技能。",
+        "noDescription": "（无描述）",
+        "noInstruction": "（无指令）",
+        "noToolCatalog": "工具目录尚未加载。",
+        "noTools": "未发现工具。",
+        "runPromptPreviewHint": "运行 preview 后可查看编译后的 prompt 片段。",
+        "emptyValue": "（空）",
+        "noProject": "未选择项目。",
+        "runContextPreviewHint": "运行 preview 后可查看 runtime 上下文。",
+        "runPlanPreviewHint": "运行 preview 后可查看计划、工具调用和审批。",
+        "noApprovals": "本次 preview 不需要审批。"
+      },
+      "values": {
+        "none": "无",
+        "unknown": "未知",
+        "required": "需要确认",
+        "chars": "{{count}} 字符",
+        "currentProject": "当前项目：{{name}}",
+        "more": "+{{count}} 项"
+      }
+    },
     "chat": {
       "aiAssistant": "AI 助手",
       "agentReady": "{{name}} 已就绪",
@@ -778,6 +888,10 @@
         "label": "镜头",
         "desc": "镜头产物"
       },
+      "final_video": {
+        "label": "成片",
+        "desc": "视频剪辑产物"
+      },
       "ref_image_gen": {
         "label": "参考生图",
         "desc": "以参考图生成新图像"
@@ -932,6 +1046,7 @@
       "asset": "素材",
       "episode": "分集",
       "scene": "分场",
+      "final_video": "成片",
       "custom": "自定义"
     },
     "workspace": {
@@ -1899,6 +2014,7 @@
       "jobs": "生成记录",
       "plugins": "本机插件",
       "agents": "Agent",
+      "agentDebug": "Agent 调试",
       "agentSettings": "Agent 设置",
       "user": "用户资料",
       "admin": "管理后台",
@@ -1938,6 +2054,7 @@
       "jobs": "生成记录",
       "plugins": "插件",
       "myAgents": "我的 Agent",
+      "agentDebug": "Agent 调试",
       "production": "生产中台",
       "pipeline": "管线",
       "creation": "创作",

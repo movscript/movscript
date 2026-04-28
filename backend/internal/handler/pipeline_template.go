@@ -32,8 +32,8 @@ var pipelineTemplates = map[string]templateDef{
 			{Type: "storyboard_script", ContentType: "storyboard", Name: "分镜脚本", PosX: 1640, PosY: 200},
 			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 1860, PosY: 200},
 			{Type: "shot", ContentType: "shot", Name: "镜头产物", PosX: 2080, PosY: 200},
-			{Type: "episode_edit", ContentType: "episode", Name: "剧集剪辑", PosX: 2300, PosY: 200},
-			{Type: "episode", ContentType: "episode", Name: "成片剧集", PosX: 2520, PosY: 200},
+			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 2300, PosY: 200},
+			{Type: "final_video", ContentType: "final_video", Name: "成片", PosX: 2520, PosY: 200},
 		},
 		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}, {6, 7}, {7, 8}, {8, 9}, {9, 10}, {10, 11}},
 	},
@@ -48,8 +48,8 @@ var pipelineTemplates = map[string]templateDef{
 			{Type: "storyboard_script", ContentType: "storyboard", Name: "分镜脚本", PosX: 1420, PosY: 200},
 			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 1640, PosY: 200},
 			{Type: "shot", ContentType: "shot", Name: "镜头产物", PosX: 1860, PosY: 200},
-			{Type: "episode_edit", ContentType: "episode", Name: "剧集剪辑", PosX: 2080, PosY: 200},
-			{Type: "episode", ContentType: "episode", Name: "成片剧集", PosX: 2300, PosY: 200},
+			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 2080, PosY: 200},
+			{Type: "final_video", ContentType: "final_video", Name: "成片", PosX: 2300, PosY: 200},
 		},
 		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}, {6, 7}, {7, 8}, {8, 9}, {9, 10}},
 	},
@@ -58,8 +58,8 @@ var pipelineTemplates = map[string]templateDef{
 			{Type: "storyboard_script", ContentType: "storyboard", Name: "分镜脚本", PosX: 100, PosY: 200},
 			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 320, PosY: 200},
 			{Type: "shot", ContentType: "shot", Name: "镜头产物", PosX: 540, PosY: 200},
-			{Type: "episode_edit", ContentType: "episode", Name: "剧集剪辑", PosX: 760, PosY: 200},
-			{Type: "episode", ContentType: "episode", Name: "成片剧集", PosX: 980, PosY: 200},
+			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 760, PosY: 200},
+			{Type: "final_video", ContentType: "final_video", Name: "成片", PosX: 980, PosY: 200},
 		},
 		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}},
 	},
@@ -97,9 +97,10 @@ func createPipelineFromTemplate(db *gorm.DB, projectID uint, template string) {
 
 	for _, e := range def.Edges {
 		edge := model.PipelineEdge{
-			ProjectID:  projectID,
-			FromNodeID: created[e[0]].ID,
-			ToNodeID:   created[e[1]].ID,
+			ProjectID:    projectID,
+			FromNodeID:   created[e[0]].ID,
+			ToNodeID:     created[e[1]].ID,
+			RelationType: "hierarchy",
 		}
 		db.Create(&edge)
 	}

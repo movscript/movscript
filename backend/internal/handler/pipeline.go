@@ -74,6 +74,10 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("根节点只能是工作节点"))
 		return
 	}
+	if body.ParentID == nil && h.visibleNodeCount(pid) > 0 {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线只能有一个根节点，请从现有节点添加子节点或依赖"))
+		return
+	}
 	var parent model.PipelineNode
 	if body.ParentID != nil {
 		if err := h.db.First(&parent, *body.ParentID).Error; err != nil || parent.ProjectID != pid {
@@ -95,9 +99,10 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		}
 		if body.ParentID != nil {
 			if err := tx.Create(&model.PipelineEdge{
-				ProjectID:  pid,
-				FromNodeID: *body.ParentID,
-				ToNodeID:   node.ID,
+				ProjectID:    pid,
+				FromNodeID:   *body.ParentID,
+				ToNodeID:     node.ID,
+				RelationType: "hierarchy",
 			}).Error; err != nil {
 				return err
 			}
@@ -238,6 +243,10 @@ func (h *PipelineHandler) DeleteNode(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("节点不存在"))
 		return
 	}
+	if h.wouldDeleteNodeBreakSingleRoot(node.ProjectID, node.ID) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("删除该节点会产生多个根节点，请先调整父子关系"))
+		return
+	}
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		if err := h.clearPipelineEntityBinding(tx, node); err != nil {
 			return err
@@ -253,7 +262,7 @@ func (h *PipelineHandler) DeleteNode(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CreateEdge adds a parent-child relation between two pipeline nodes.
+// CreateEdge adds a hierarchy relation or an extra dependency between two pipeline nodes.
 func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 	pid := parseID(c.Param("id"))
 	var edge model.PipelineEdge
@@ -262,6 +271,13 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 		return
 	}
 	edge.ProjectID = pid
+	if edge.RelationType == "" {
+		edge.RelationType = "hierarchy"
+	}
+	if edge.RelationType != "hierarchy" && edge.RelationType != "dependency" {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("依赖类型必须是 hierarchy 或 dependency"))
+		return
+	}
 
 	// Prevent self-loops
 	if edge.FromNodeID == edge.ToNodeID {
@@ -269,36 +285,38 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 		return
 	}
 
-	var parent model.PipelineNode
-	if err := h.db.First(&parent, edge.FromNodeID).Error; err != nil || parent.ProjectID != pid {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("父节点不存在"))
+	var from model.PipelineNode
+	if err := h.db.First(&from, edge.FromNodeID).Error; err != nil || from.ProjectID != pid {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("起点节点不存在"))
 		return
 	}
-	if !isPipelineWorkNode(parent.Type) {
+	if edge.RelationType == "hierarchy" && !isPipelineWorkNode(from.Type) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有工作节点可以挂载子节点"))
 		return
 	}
-	var child model.PipelineNode
-	if err := h.db.First(&child, edge.ToNodeID).Error; err != nil || child.ProjectID != pid {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("子节点不存在"))
+	var to model.PipelineNode
+	if err := h.db.First(&to, edge.ToNodeID).Error; err != nil || to.ProjectID != pid {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("终点节点不存在"))
 		return
 	}
 
 	if h.wouldCreateCycle(pid, edge.FromNodeID, edge.ToNodeID) {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("树形管线不允许形成循环"))
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线 DAG 不允许形成循环"))
 		return
 	}
 
 	// Prevent duplicate edges
 	var existing model.PipelineEdge
-	if h.db.Where("from_node_id = ? AND to_node_id = ?", edge.FromNodeID, edge.ToNodeID).First(&existing).Error == nil {
+	if h.db.Where("project_id = ? AND from_node_id = ? AND to_node_id = ?", pid, edge.FromNodeID, edge.ToNodeID).First(&existing).Error == nil {
 		c.JSON(http.StatusConflict, apierr.Conflict("依赖关系已存在"))
 		return
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("project_id = ? AND to_node_id = ?", pid, edge.ToNodeID).Delete(&model.PipelineEdge{}).Error; err != nil {
-			return err
+		if edge.RelationType == "hierarchy" {
+			if err := tx.Where("project_id = ? AND relation_type = ? AND to_node_id = ?", pid, "hierarchy", edge.ToNodeID).Delete(&model.PipelineEdge{}).Error; err != nil {
+				return err
+			}
 		}
 		return tx.Create(&edge).Error
 	}); err != nil {
@@ -310,7 +328,16 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 
 // DeleteEdge removes a dependency edge.
 func (h *PipelineHandler) DeleteEdge(c *gin.Context) {
-	h.db.Delete(&model.PipelineEdge{}, c.Param("edgeId"))
+	var edge model.PipelineEdge
+	if err := h.db.First(&edge, c.Param("edgeId")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("依赖关系不存在"))
+		return
+	}
+	if edge.RelationType == "hierarchy" {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("父子关系需要在任务层调整，不能作为额外依赖删除"))
+		return
+	}
+	h.db.Delete(&edge)
 	c.Status(http.StatusNoContent)
 }
 
@@ -329,6 +356,14 @@ func (h *PipelineHandler) Submit(c *gin.Context) {
 	}
 	if isPipelineToolNode(node.Type) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
+		return
+	}
+	if openTasks := h.openTaskCount(node.ID); openTasks > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    "open_tasks",
+			"message": "该节点还有未完成协作任务，无法提交审核",
+			"count":   openTasks,
+		})
 		return
 	}
 
@@ -480,6 +515,12 @@ func (h *PipelineHandler) findBlockingAdjacentArtifact(node model.PipelineNode) 
 	return model.PipelineNode{}, false
 }
 
+func (h *PipelineHandler) openTaskCount(nodeID uint) int64 {
+	var count int64
+	h.db.Model(&model.Task{}).Where("pipeline_node_id = ? AND status != ?", nodeID, "done").Count(&count)
+	return count
+}
+
 func visiblePipelineTree(nodes []model.PipelineNode, edges []model.PipelineEdge) ([]model.PipelineNode, []model.PipelineEdge) {
 	visibleIDs := map[uint]bool{}
 	visibleNodes := make([]model.PipelineNode, 0, len(nodes))
@@ -493,11 +534,68 @@ func visiblePipelineTree(nodes []model.PipelineNode, edges []model.PipelineEdge)
 
 	visibleEdges := make([]model.PipelineEdge, 0, len(edges))
 	for _, edge := range edges {
+		if edge.RelationType == "" {
+			edge.RelationType = "hierarchy"
+		}
 		if visibleIDs[edge.FromNodeID] && visibleIDs[edge.ToNodeID] {
 			visibleEdges = append(visibleEdges, edge)
 		}
 	}
 	return visibleNodes, visibleEdges
+}
+
+func (h *PipelineHandler) visibleNodeCount(projectID uint) int {
+	var nodes []model.PipelineNode
+	h.db.Select("id, type").Where("project_id = ?", projectID).Find(&nodes)
+	count := 0
+	for _, node := range nodes {
+		if !isPipelineToolNode(node.Type) {
+			count++
+		}
+	}
+	return count
+}
+
+func (h *PipelineHandler) wouldDeleteNodeBreakSingleRoot(projectID, nodeID uint) bool {
+	var nodes []model.PipelineNode
+	var edges []model.PipelineEdge
+	h.db.Select("id, type").Where("project_id = ?", projectID).Find(&nodes)
+	h.db.Select("from_node_id, to_node_id, relation_type").Where("project_id = ?", projectID).Find(&edges)
+
+	remaining := map[uint]bool{}
+	for _, node := range nodes {
+		if node.ID == nodeID || isPipelineToolNode(node.Type) {
+			continue
+		}
+		remaining[node.ID] = true
+	}
+	if len(remaining) <= 1 {
+		return false
+	}
+
+	hasParent := map[uint]bool{}
+	for _, edge := range edges {
+		if edge.RelationType != "" && edge.RelationType != "hierarchy" {
+			continue
+		}
+		if edge.FromNodeID == nodeID || edge.ToNodeID == nodeID {
+			continue
+		}
+		if remaining[edge.FromNodeID] && remaining[edge.ToNodeID] {
+			hasParent[edge.ToNodeID] = true
+		}
+	}
+
+	rootCount := 0
+	for id := range remaining {
+		if !hasParent[id] {
+			rootCount++
+			if rootCount > 1 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (h *PipelineHandler) wouldCreateCycle(projectID, parentID, childID uint) bool {

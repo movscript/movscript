@@ -208,6 +208,12 @@ export interface AgentRunPreview {
 
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
+  pluginCatalog?: {
+    skillsDir: string
+    toolsDir: string
+    skillCount: number
+    toolCount: number
+  }
   mcp: {
     connected: boolean
     resources: Array<{ uri: string; name?: string; description?: string; mimeType?: string }>
@@ -224,6 +230,30 @@ export interface AgentCapabilitiesResponse {
   }>
   resolvedTools: ResolvedToolCatalog
   warnings: string[]
+}
+
+export interface AgentInspectResponse {
+  mcpEndpoint: string
+  resources: Array<{ uri: string; name?: string; description?: string; mimeType?: string }>
+  tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
+  registeredTools: Array<{
+    name: string
+    description: string
+    permission: string
+    risk: string
+    projectScoped: boolean
+    requiresApprovalByDefault: boolean
+    source?: string
+  }>
+  skills: AgentSkillManifest[]
+  defaultAgentManifest: AgentManifest
+  pluginCatalog?: {
+    skillsDir: string
+    toolsDir: string
+    skillCount: number
+    toolCount: number
+    warnings?: string[]
+  }
 }
 
 export interface AgentApprovalRequest {
@@ -246,6 +276,13 @@ export interface AgentHealth {
   service: string
   mode: string
   mcpEndpoint: string
+  pluginCatalog?: {
+    skillsDir: string
+    toolsDir: string
+    skillCount: number
+    toolCount: number
+    warnings?: string[]
+  }
 }
 
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
@@ -297,6 +334,10 @@ export class LocalAgentClient {
 
   health(): Promise<AgentHealth> {
     return this.getJSON('/health')
+  }
+
+  inspect(): Promise<AgentInspectResponse> {
+    return this.getJSON('/inspect')
   }
 
   async ensureRunning(): Promise<AgentHealth> {

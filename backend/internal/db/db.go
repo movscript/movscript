@@ -82,6 +82,8 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	db.Exec("UPDATE pipeline_edges SET relation_type = 'hierarchy' WHERE relation_type IS NULL OR relation_type = ''")
+
 	// Seed default feature configs (idempotent — only creates rows that don't exist yet).
 	seedFeatures := []model.FeatureConfig{
 		// Internal features
@@ -176,7 +178,8 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			WHEN type IN ('storyboard_creation','storyboard_script','storyboard') THEN 'storyboard'
 			WHEN type IN ('shot_production','shot') THEN 'shot'
 			WHEN type IN ('asset_creation','asset') THEN 'asset'
-			WHEN type IN ('episode_edit','episode') THEN 'episode'
+			WHEN type IN ('episode') THEN 'episode'
+			WHEN type IN ('episode_edit','final_video') THEN 'final_video'
 			WHEN type IN ('scene') THEN 'scene'
 			ELSE 'custom'
 		END

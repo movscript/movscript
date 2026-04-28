@@ -17,12 +17,22 @@ func (h *TaskHandler) List(c *gin.Context) {
 	var tasks []model.Task
 	q := h.db.Where("project_id = ?", c.Param("id")).
 		Preload("Assignee").
+		Preload("PipelineNode").
 		Order("created_at desc")
 	if s := c.Query("status"); s != "" {
 		q = q.Where("status = ?", s)
 	}
+	if assigneeID := c.Query("assignee_id"); assigneeID != "" {
+		q = q.Where("assignee_id = ?", assigneeID)
+	}
+	if pipelineNodeID := c.Query("pipeline_node_id"); pipelineNodeID != "" {
+		q = q.Where("pipeline_node_id = ?", pipelineNodeID)
+	}
 	if rt := c.Query("ref_type"); rt != "" {
 		q = q.Where("ref_type = ?", rt)
+	}
+	if refID := c.Query("ref_id"); refID != "" {
+		q = q.Where("ref_id = ?", refID)
 	}
 	q.Find(&tasks)
 	c.JSON(http.StatusOK, tasks)
@@ -35,11 +45,14 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 	t.ProjectID = parseID(c.Param("id"))
+	if !h.validTaskPipelineNode(c, t.ProjectID, t.PipelineNodeID) {
+		return
+	}
 	if u, ok := c.Get(middleware.ContextUserKey); ok {
 		t.CreatorID = u.(*model.User).ID
 	}
 	h.db.Create(&t)
-	h.db.Preload("Assignee").First(&t, t.ID)
+	h.db.Preload("Assignee").Preload("PipelineNode").First(&t, t.ID)
 	c.JSON(http.StatusCreated, t)
 }
 
@@ -49,16 +62,26 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	projectID := parseID(c.Param("id"))
+	if t.ProjectID != projectID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
 	if err := c.ShouldBindJSON(&t); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	t.ProjectID = projectID
+	if !h.validTaskPipelineNode(c, projectID, t.PipelineNodeID) {
+		return
+	}
 	h.db.Save(&t)
+	h.db.Preload("Assignee").Preload("PipelineNode").First(&t, t.ID)
 	c.JSON(http.StatusOK, t)
 }
 
 func (h *TaskHandler) Delete(c *gin.Context) {
-	h.db.Delete(&model.Task{}, c.Param("taskId"))
+	h.db.Where("project_id = ?", c.Param("id")).Delete(&model.Task{}, c.Param("taskId"))
 	c.Status(http.StatusNoContent)
 }
 
@@ -133,7 +156,7 @@ func (h *TaskHandler) Collaboration(c *gin.Context) {
 	}
 
 	var tasks []model.Task
-	h.db.Where("project_id = ?", pid).Preload("Assignee").Order("created_at desc").Find(&tasks)
+	h.db.Where("project_id = ?", pid).Preload("Assignee").Preload("PipelineNode").Order("created_at desc").Find(&tasks)
 
 	c.JSON(http.StatusOK, gin.H{
 		"members":     members,
@@ -151,4 +174,16 @@ func (h *TaskHandler) Collaboration(c *gin.Context) {
 		},
 		"tasks": tasks,
 	})
+}
+
+func (h *TaskHandler) validTaskPipelineNode(c *gin.Context, projectID uint, pipelineNodeID *uint) bool {
+	if pipelineNodeID == nil {
+		return true
+	}
+	var node model.PipelineNode
+	if err := h.db.Select("id, project_id").First(&node, *pipelineNodeID).Error; err != nil || node.ProjectID != projectID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "pipeline node not found in project"})
+		return false
+	}
+	return true
 }

@@ -12,7 +12,7 @@ export interface Project {
 }
 
 export type PipelineNodeStatus = 'draft' | 'under_review' | 'rejected' | 'final'
-export type PipelineContentType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'custom'
+export type PipelineContentType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video' | 'custom'
 
 export interface PipelineNode {
   ID: number
@@ -43,6 +43,7 @@ export interface PipelineEdge {
   project_id: number
   from_node_id: number
   to_node_id: number
+  relation_type?: 'hierarchy' | 'dependency'
 }
 
 export interface Pipeline {
@@ -246,6 +247,8 @@ export type TaskPriority = 'low' | 'medium' | 'high'
 export interface Task {
   ID: number
   project_id: number
+  pipeline_node_id?: number
+  pipeline_node?: PipelineNode
   assignee_id?: number
   assignee?: User
   creator_id: number

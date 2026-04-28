@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -30,7 +30,7 @@ import {
   isPipelineArtifactNode,
   isPipelineWorkNode,
 } from './components/PipelineNodeComponent'
-import { NODE_TYPE_OPTIONS, WORK_NODE_TYPES, defaultContentType } from './nodeSpec'
+import { WORK_NODE_TYPES, defaultContentType } from './nodeSpec'
 import { NodeDetailPanel } from './components/NodeDetailPanel'
 import { GanttChart } from './components/GanttChart'
 import { DeleteNodeDialog } from './components/DeleteNodeDialog'
@@ -62,6 +62,11 @@ interface DependencyGraphItem {
   y: number
 }
 
+interface DependencyNodePosition {
+  x: number
+  y: number
+}
+
 interface DependencyGraphLayout {
   items: DependencyGraphItem[]
   itemById: Map<number, DependencyGraphItem>
@@ -71,19 +76,41 @@ interface DependencyGraphLayout {
 }
 
 const FIXED_WORK_OUTPUT_TYPES: Record<string, string> = {
+  raw_script: 'main_script',
   script_writing: 'main_script',
   episode_writing: 'episode_script',
   scene_writing: 'scene_script',
+  storyboard_creation: 'storyboard_script',
   asset_creation: 'asset',
+  shot_production: 'shot',
+  episode_edit: 'final_video',
 }
 
 const INLINE_WORKSPACE_DEFAULT_HEIGHT = 480
+const EDGE_RELATION_HIERARCHY = 'hierarchy'
+const EDGE_RELATION_DEPENDENCY = 'dependency'
 
 const NODE_STATUS_META: Record<string, { dot: string; badge: string; label: string }> = {
   draft:        { dot: 'bg-muted-foreground/40', badge: 'bg-muted text-muted-foreground', label: 'Draft' },
   under_review: { dot: 'bg-amber-500',           badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', label: 'In Review' },
   rejected:     { dot: 'bg-destructive',         badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400', label: 'Rejected' },
   final:        { dot: 'bg-green-500',           badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', label: 'Final' },
+}
+
+function edgeRelationType(edge: PipelineEdge) {
+  return edge.relation_type || EDGE_RELATION_HIERARCHY
+}
+
+function hierarchyEdges(edges: PipelineEdge[]) {
+  return edges.filter((edge) => edgeRelationType(edge) === EDGE_RELATION_HIERARCHY)
+}
+
+function dependencyEdges(edges: PipelineEdge[]) {
+  return edges.filter((edge) => edgeRelationType(edge) === EDGE_RELATION_DEPENDENCY)
+}
+
+function hasStoredDependencyPosition(node: PipelineNode) {
+  return Number.isFinite(node.pos_x) && Number.isFinite(node.pos_y) && node.pos_y > 0
 }
 
 function defaultArtifactTypeForWork(type: string) {
@@ -93,7 +120,7 @@ function defaultArtifactTypeForWork(type: string) {
   if (type === 'storyboard_creation') return 'storyboard'
   if (type === 'asset_creation') return 'asset'
   if (type === 'shot_production') return 'shot'
-  if (type === 'episode_edit') return 'episode'
+  if (type === 'episode_edit') return 'final_video'
   return 'main_script'
 }
 
@@ -139,7 +166,7 @@ function buildPipelineLayout(nodes: PipelineNode[], edges: PipelineEdge[]): Pipe
   const artifactChildrenByParent = new Map<number, PipelineNode[]>()
   const workParentsByArtifact = new Map<number, number[]>()
 
-  for (const edge of [...edges].sort((a, b) => a.ID - b.ID)) {
+  for (const edge of [...hierarchyEdges(edges)].sort((a, b) => a.ID - b.ID)) {
     if (!nodeMap.has(edge.from_node_id) || !nodeMap.has(edge.to_node_id)) continue
     const from = nodeMap.get(edge.from_node_id)!
     const to = nodeMap.get(edge.to_node_id)!
@@ -203,7 +230,7 @@ function treeHasNodeId(items: TreeItem[], nodeId?: number): boolean {
   return items.some((item) => item.node.ID === nodeId || treeHasNodeId(item.children, nodeId))
 }
 
-function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]): DependencyGraphLayout {
+function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[], useStoredPositions = true): DependencyGraphLayout {
   const nodeMap = new Map(nodes.map((node) => [node.ID, node]))
   const validEdges = edges.filter((edge) => nodeMap.has(edge.from_node_id) && nodeMap.has(edge.to_node_id))
   const incomingCount = new Map(nodes.map((node) => [node.ID, 0]))
@@ -251,9 +278,9 @@ function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]
   }
 
   const cardWidth = 132
-  const cardHeight = 36
+  const cardHeight = 56
   const gapX = 56
-  const gapY = 12
+  const gapY = 14
   const padding = 28
   const expandedOverflowX = 52
   const expandedOverflowY = 20
@@ -269,13 +296,25 @@ function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[]
     })
   }
 
+  const positionedItems = items.map((item) => {
+    if (!useStoredPositions) return item
+    if (!hasStoredDependencyPosition(item.node)) return item
+    return {
+      ...item,
+      x: Math.max(0, item.node.pos_x),
+      y: Math.max(0, item.node.pos_y),
+    }
+  })
+
   const maxLevel = Math.max(0, ...items.map((item) => Math.floor((item.x - padding) / (cardWidth + gapX))))
   const maxRows = Math.max(1, ...[...levels.values()].map((levelNodes) => levelNodes.length))
-  const width = padding * 2 + (maxLevel + 1) * cardWidth + maxLevel * gapX + expandedOverflowX
-  const height = padding * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY + expandedOverflowY
-  const itemById = new Map(items.map((item) => [item.node.ID, item]))
+  const autoWidth = padding * 2 + (maxLevel + 1) * cardWidth + maxLevel * gapX + expandedOverflowX
+  const autoHeight = padding * 2 + maxRows * cardHeight + Math.max(0, maxRows - 1) * gapY + expandedOverflowY
+  const width = Math.max(autoWidth, padding + expandedOverflowX + Math.max(0, ...positionedItems.map((item) => item.x + cardWidth)))
+  const height = Math.max(autoHeight, padding + expandedOverflowY + Math.max(0, ...positionedItems.map((item) => item.y + cardHeight)))
+  const itemById = new Map(positionedItems.map((item) => [item.node.ID, item]))
 
-  return { items, itemById, edges: validEdges, width, height }
+  return { items: positionedItems, itemById, edges: validEdges, width, height }
 }
 
 export default function PipelineEditorPage() {
@@ -302,6 +341,7 @@ export default function PipelineEditorPage() {
   })
 
   const layout = useMemo(() => buildPipelineLayout(pipeline?.nodes ?? [], pipeline?.edges ?? []), [pipeline])
+  const canAddRootNode = (pipeline?.nodes.length ?? 0) === 0
 
   useEffect(() => {
     if (!pipeline) return
@@ -348,6 +388,7 @@ export default function PipelineEditorPage() {
       api.post(`/projects/${project!.ID}/pipeline/edges`, {
         from_node_id: parentId,
         to_node_id: childId,
+        relation_type: EDGE_RELATION_HIERARCHY,
       }).then((r) => r.data as PipelineEdge),
     onSuccess: (_edge, variables) => {
       qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
@@ -376,6 +417,48 @@ export default function PipelineEditorPage() {
       Promise.all(
         orderedIds.map((id, index) =>
           api.put(`/pipeline/nodes/${id}`, { pos_x: (index + 1) * 1000 }),
+        ),
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+    },
+  })
+
+  const createDependencyEdge = useMutation({
+    mutationFn: ({ fromId, toId }: { fromId: number; toId: number }) =>
+      api.post(`/projects/${project!.ID}/pipeline/edges`, {
+        from_node_id: fromId,
+        to_node_id: toId,
+        relation_type: EDGE_RELATION_DEPENDENCY,
+      }).then((r) => r.data as PipelineEdge),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+    },
+  })
+
+  const deleteDependencyEdge = useMutation({
+    mutationFn: (edgeId: number) => api.delete(`/pipeline/edges/${edgeId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+    },
+  })
+
+  const moveDependencyNode = useMutation({
+    mutationFn: ({ nodeId, x, y }: { nodeId: number; x: number; y: number }) =>
+      api.put(`/pipeline/nodes/${nodeId}`, { pos_x: Math.round(x), pos_y: Math.round(y) }).then((r) => r.data as PipelineNode),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+    },
+    onError: () => {
+      qc.invalidateQueries({ queryKey: ['pipeline', project?.ID] })
+    },
+  })
+
+  const arrangeDependencyNodes = useMutation({
+    mutationFn: (positions: Array<{ id: number; x: number; y: number }>) =>
+      Promise.all(
+        positions.map((position) =>
+          api.put(`/pipeline/nodes/${position.id}`, { pos_x: position.x, pos_y: position.y }),
         ),
       ),
     onSuccess: () => {
@@ -414,7 +497,7 @@ export default function PipelineEditorPage() {
     if (!draggedId || target.ID === draggedId || !isPipelineWorkNode(target.type)) return false
     const dragged = pipeline?.nodes.find((node) => node.ID === draggedId)
     if (!dragged || isPipelineWorkNode(dragged.type)) return false
-    return !pipeline?.edges.some((edge) => edge.from_node_id === target.ID && edge.to_node_id === draggedId)
+    return !hierarchyEdges(pipeline?.edges ?? []).some((edge) => edge.from_node_id === target.ID && edge.to_node_id === draggedId)
   }
 
   function handleNodeDrop(target: PipelineNode) {
@@ -424,6 +507,11 @@ export default function PipelineEditorPage() {
       return
     }
     reparentNode.mutate({ parentId: target.ID, childId: draggedNodeId })
+  }
+
+  function handleArrangeDependencyGraph() {
+    const nextLayout = buildDependencyGraphLayout(pipeline?.nodes ?? [], pipeline?.edges ?? [], false)
+    arrangeDependencyNodes.mutate(nextLayout.items.map((item) => ({ id: item.node.ID, x: item.x, y: item.y })))
   }
 
   const onWorkspaceResizeMouseDown = useCallback((e: React.MouseEvent) => {
@@ -531,7 +619,13 @@ export default function PipelineEditorPage() {
         </div>
 
         <div className="flex items-center gap-2 w-64 shrink-0 justify-end">
-          <Button size="sm" className="h-8 text-xs" onClick={() => setAddNodeState({ parentId: null })}>
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setAddNodeState({ parentId: null })}
+            disabled={!canAddRootNode}
+            title={!canAddRootNode ? t('pipeline.tree.singleRootHint', { defaultValue: '管线只能有一个根节点' }) : undefined}
+          >
             <Plus size={13} className="mr-1.5" />
             {t('pipeline.tree.addRoot')}
           </Button>
@@ -619,7 +713,7 @@ export default function PipelineEditorPage() {
                   <div className="flex h-[320px] flex-col items-center justify-center gap-3 text-center">
                     <TreePine size={28} className="text-muted-foreground/60" />
                     <p className="text-sm text-muted-foreground">{t('pipeline.editor.empty')}</p>
-                    <Button size="sm" onClick={() => setAddNodeState({ parentId: null })}>
+                    <Button size="sm" onClick={() => setAddNodeState({ parentId: null })} disabled={!canAddRootNode}>
                       <Plus size={13} className="mr-1.5" />
                       {t('pipeline.tree.addRoot')}
                     </Button>
@@ -662,6 +756,11 @@ export default function PipelineEditorPage() {
               edges={pipeline?.edges ?? []}
               selectedNodeId={selectedNode?.ID}
               onNodeClick={setSelectedNode}
+              onCreateDependency={(fromId, toId) => createDependencyEdge.mutate({ fromId, toId })}
+              onDeleteDependency={(edgeId) => deleteDependencyEdge.mutate(edgeId)}
+              onMoveNode={(nodeId, x, y) => moveDependencyNode.mutate({ nodeId, x, y })}
+              onAutoArrange={handleArrangeDependencyGraph}
+              isMutating={createDependencyEdge.isPending || deleteDependencyEdge.isPending || arrangeDependencyNodes.isPending || moveDependencyNode.isPending}
             />
           ) : (
             <GanttChart
@@ -717,8 +816,7 @@ function AddNodeDialog({
   const { t } = useTranslation()
   const [type, setType] = useState<string>('script_writing')
   const [name, setName] = useState('')
-  const fixedChildType = parent ? FIXED_WORK_OUTPUT_TYPES[parent.type] : undefined
-  const selectableTypes = parent ? NODE_TYPE_OPTIONS : WORK_NODE_TYPES
+  const fixedChildType = parent ? defaultArtifactTypeForWork(parent.type) : undefined
 
   useEffect(() => {
     if (!open) return
@@ -728,7 +826,6 @@ function AddNodeDialog({
   }, [open, parent?.ID, parent?.type, fixedChildType])
 
   function handleTypeChange(nextType: string) {
-    if (fixedChildType) return
     setType(nextType)
     if (!name.trim()) {
       const meta = getPipelineNodeMeta(nextType)
@@ -754,14 +851,7 @@ function AddNodeDialog({
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('pipeline.contextMenu.addNode')} />
           </div>
 
-          {fixedChildType ? (
-            <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
-              <Label className="text-xs text-muted-foreground">{t('pipeline.tree.nodeType')}</Label>
-              <p className="mt-1 text-sm font-medium text-foreground">
-                {t(`pipeline.nodeTypes.${type}.label`, { defaultValue: getPipelineNodeMeta(type).label })}
-              </p>
-            </div>
-          ) : (
+          {!parent ? (
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">{t('pipeline.tree.nodeType')}</Label>
               <Select value={type} onValueChange={handleTypeChange}>
@@ -769,7 +859,7 @@ function AddNodeDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {selectableTypes.map((option) => {
+                  {WORK_NODE_TYPES.map((option) => {
                     const meta = NODE_TYPE_META[option]
                     if (!meta) return null
                     return (
@@ -781,7 +871,7 @@ function AddNodeDialog({
                 </SelectContent>
               </Select>
             </div>
-          )}
+          ) : null}
         </div>
 
         <DialogFooter>
@@ -824,18 +914,247 @@ function DependencyGraph({
   edges,
   selectedNodeId,
   onNodeClick,
+  onCreateDependency,
+  onDeleteDependency,
+  onMoveNode,
+  onAutoArrange,
+  isMutating,
 }: {
   nodes: PipelineNode[]
   edges: PipelineEdge[]
   selectedNodeId?: number
   onNodeClick: (node: PipelineNode) => void
+  onCreateDependency: (fromId: number, toId: number) => void
+  onDeleteDependency: (edgeId: number) => void
+  onMoveNode: (nodeId: number, x: number, y: number) => void
+  onAutoArrange: () => void
+  isMutating?: boolean
 }) {
   const { t } = useTranslation()
-  const layout = useMemo(() => buildDependencyGraphLayout(nodes, edges), [nodes, edges])
+  const graphRef = useRef<HTMLDivElement | null>(null)
+  const suppressNextNodeClickRef = useRef(false)
+  const [dragSourceId, setDragSourceId] = useState<number | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<number | null>(null)
+  const [connectSourceId, setConnectSourceId] = useState<number | null>(null)
+  const [previewPoint, setPreviewPoint] = useState<{ x: number; y: number } | null>(null)
+  const [localPositions, setLocalPositions] = useState<Record<number, DependencyNodePosition>>({})
   const compactCardWidth = 132
   const compactCardHeight = 36
   const expandedCardWidth = 184
   const expandedCardHeight = 56
+  const extraDependencies = dependencyEdges(edges)
+  const layout = useMemo(() => {
+    const base = buildDependencyGraphLayout(nodes, edges)
+    const positionEntries = Object.entries(localPositions)
+    if (positionEntries.length === 0) return base
+
+    const positionedItems = base.items.map((item) => {
+      const local = localPositions[item.node.ID]
+      return local ? { ...item, x: local.x, y: local.y } : item
+    })
+    const width = Math.max(base.width, 28 + expandedCardWidth + Math.max(0, ...positionedItems.map((item) => item.x)))
+    const height = Math.max(base.height, 28 + expandedCardHeight + Math.max(0, ...positionedItems.map((item) => item.y)))
+    return {
+      ...base,
+      items: positionedItems,
+      itemById: new Map(positionedItems.map((item) => [item.node.ID, item])),
+      width,
+      height,
+    }
+  }, [nodes, edges, localPositions])
+
+  useEffect(() => {
+    const existingIds = new Set(nodes.map((node) => node.ID))
+    setLocalPositions((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([id]) => existingIds.has(Number(id))))
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next
+    })
+  }, [nodes])
+
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      setConnectSourceId(null)
+      setDragSourceId(null)
+      setDropTargetId(null)
+      setPreviewPoint(null)
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [])
+
+  function wouldCreateCycle(fromId: number, toId: number) {
+    const outgoing = new Map<number, number[]>()
+    for (const edge of edges) {
+      outgoing.set(edge.from_node_id, [...(outgoing.get(edge.from_node_id) ?? []), edge.to_node_id])
+    }
+    const visited = new Set<number>()
+    const queue = [toId]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (current === fromId) return true
+      if (visited.has(current)) continue
+      visited.add(current)
+      queue.push(...(outgoing.get(current) ?? []))
+    }
+    return false
+  }
+
+  function canCreateDependencyFrom(fromId: number | null, toId: number) {
+    if (!fromId || fromId === toId) return false
+    if (edges.some((edge) => edge.from_node_id === fromId && edge.to_node_id === toId)) return false
+    return !wouldCreateCycle(fromId, toId)
+  }
+
+  function handleNodeActivate(node: PipelineNode) {
+    if (connectSourceId) {
+      const fromId = connectSourceId
+      setConnectSourceId(null)
+      setDropTargetId(null)
+      setPreviewPoint(null)
+      if (canCreateDependencyFrom(fromId, node.ID)) {
+        onCreateDependency(fromId, node.ID)
+      }
+      return
+    }
+    onNodeClick(node)
+  }
+
+  function renderedCardWidth(nodeId: number) {
+    return selectedNodeId === nodeId ? expandedCardWidth : compactCardWidth
+  }
+
+  function renderedCardHeight(nodeId: number) {
+    return selectedNodeId === nodeId ? expandedCardHeight : compactCardHeight
+  }
+
+  function pointFromClient(clientX: number, clientY: number) {
+    const rect = graphRef.current?.getBoundingClientRect()
+    if (!rect) return null
+    return { x: clientX - rect.left, y: clientY - rect.top }
+  }
+
+  function dependencyPath(startX: number, startY: number, endX: number, endY: number) {
+    const bend = Math.max(40, Math.abs(endX - startX) / 2)
+    return `M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`
+  }
+
+  function targetNodeIdFromPoint(clientX: number, clientY: number) {
+    const element = document.elementFromPoint(clientX, clientY)
+    const nodeElement = element?.closest('[data-dependency-node-id]') as HTMLElement | null
+    const raw = nodeElement?.dataset.dependencyNodeId
+    return raw ? Number(raw) : null
+  }
+
+  function startDependencyConnect(sourceId: number, e: React.PointerEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startY = e.clientY
+    let didDrag = false
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const distance = Math.hypot(ev.clientX - startX, ev.clientY - startY)
+      if (!didDrag && distance < 4) return
+      if (!didDrag) {
+        didDrag = true
+        setConnectSourceId(null)
+        setDragSourceId(sourceId)
+      }
+      setPreviewPoint(pointFromClient(ev.clientX, ev.clientY))
+      const targetId = targetNodeIdFromPoint(ev.clientX, ev.clientY)
+      setDropTargetId(targetId && canCreateDependencyFrom(sourceId, targetId) ? targetId : null)
+    }
+
+    const onPointerUp = (ev: PointerEvent) => {
+      if (didDrag) {
+        const targetId = targetNodeIdFromPoint(ev.clientX, ev.clientY)
+        if (targetId && canCreateDependencyFrom(sourceId, targetId)) {
+          onCreateDependency(sourceId, targetId)
+        }
+        setDragSourceId(null)
+        setDropTargetId(null)
+        setPreviewPoint(null)
+      } else {
+        setConnectSourceId((current) => current === sourceId ? null : sourceId)
+        setDropTargetId(null)
+        setPreviewPoint(null)
+      }
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerCancel)
+    }
+
+    const onPointerCancel = () => {
+      setDragSourceId(null)
+      setDropTargetId(null)
+      setPreviewPoint(null)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerCancel)
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerCancel)
+  }
+
+  function startNodeMove(nodeId: number, e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('button')) return
+    const item = layout.itemById.get(nodeId)
+    if (!item) return
+
+    const startClientX = e.clientX
+    const startClientY = e.clientY
+    const startX = item.x
+    const startY = item.y
+    let didMove = false
+    let lastPosition: DependencyNodePosition = { x: startX, y: startY }
+
+    const onPointerMove = (ev: PointerEvent) => {
+      ev.preventDefault()
+      const dx = ev.clientX - startClientX
+      const dy = ev.clientY - startClientY
+      if (!didMove && Math.hypot(dx, dy) < 4) return
+      didMove = true
+      suppressNextNodeClickRef.current = true
+      setConnectSourceId(null)
+      setDropTargetId(null)
+      setPreviewPoint(null)
+
+      lastPosition = {
+        x: Math.max(0, startX + dx),
+        y: Math.max(0, startY + dy),
+      }
+      setLocalPositions((prev) => ({ ...prev, [nodeId]: lastPosition }))
+    }
+
+    const finish = () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      if (didMove) {
+        setLocalPositions((prev) => ({ ...prev, [nodeId]: lastPosition }))
+        onMoveNode(nodeId, lastPosition.x, lastPosition.y)
+        window.setTimeout(() => {
+          suppressNextNodeClickRef.current = false
+        }, 0)
+      }
+    }
+
+    const cancel = () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      suppressNextNodeClickRef.current = false
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', cancel)
+  }
 
   if (nodes.length === 0) {
     return (
@@ -847,10 +1166,58 @@ function DependencyGraph({
   }
 
   return (
-    <div className="h-full overflow-auto bg-background p-4">
+    <div className="flex h-full flex-col bg-background">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-foreground">
+            {t('pipeline.dependency.title', { defaultValue: '依赖 DAG' })}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {t('pipeline.dependency.dragHint', { defaultValue: '拖动节点调整位置；从右侧端口拖到目标节点，或点端口后再点目标节点。' })}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded border border-border px-2 py-1 text-[11px] text-muted-foreground">
+            {t('pipeline.dependency.extraCount', { defaultValue: '额外依赖 {{count}} 条', count: extraDependencies.length })}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => {
+              setLocalPositions({})
+              onAutoArrange()
+            }}
+            disabled={isMutating}
+          >
+            <Network size={13} className="mr-1.5" />
+            {t('pipeline.dependency.arrange', { defaultValue: '整理排列' })}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4">
       <div
+        ref={graphRef}
         className="relative min-h-full min-w-full"
         style={{ width: layout.width, height: layout.height }}
+        onMouseMove={(e) => {
+          if (!connectSourceId || dragSourceId) return
+          setPreviewPoint(pointFromClient(e.clientX, e.clientY))
+          const targetId = targetNodeIdFromPoint(e.clientX, e.clientY)
+          setDropTargetId(targetId && canCreateDependencyFrom(connectSourceId, targetId) ? targetId : null)
+        }}
+        onMouseLeave={() => {
+          if (!connectSourceId) return
+          setPreviewPoint(null)
+          setDropTargetId(null)
+        }}
+        onClick={(e) => {
+          if (e.target !== e.currentTarget) return
+          setConnectSourceId(null)
+          setDropTargetId(null)
+          setPreviewPoint(null)
+        }}
       >
         <svg
           className="absolute inset-0 pointer-events-none"
@@ -867,22 +1234,66 @@ function DependencyGraph({
             const from = layout.itemById.get(edge.from_node_id)
             const to = layout.itemById.get(edge.to_node_id)
             if (!from || !to) return null
-            const startX = from.x + compactCardWidth
-            const startY = from.y + compactCardHeight / 2
+            const isDependency = edgeRelationType(edge) === EDGE_RELATION_DEPENDENCY
+            const startX = from.x + renderedCardWidth(from.node.ID)
+            const startY = from.y + renderedCardHeight(from.node.ID) / 2
             const endX = to.x
-            const endY = to.y + compactCardHeight / 2
-            const bend = Math.max(40, (endX - startX) / 2)
+            const endY = to.y + renderedCardHeight(to.node.ID) / 2
             return (
               <path
                 key={edge.ID}
-                d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`}
-                className="fill-none stroke-border"
-                strokeWidth="1.5"
+                d={dependencyPath(startX, startY, endX, endY)}
+                className={cn('fill-none', isDependency ? 'stroke-primary' : 'stroke-border')}
+                strokeWidth={isDependency ? '2' : '1.5'}
+                strokeDasharray={isDependency ? '5 4' : undefined}
                 markerEnd="url(#pipeline-dependency-arrow)"
               />
             )
           })}
+          {(() => {
+            const sourceId = dragSourceId ?? connectSourceId
+            const source = sourceId ? layout.itemById.get(sourceId) : undefined
+            if (!source) return null
+            const target = dropTargetId ? layout.itemById.get(dropTargetId) : undefined
+            const startX = source.x + renderedCardWidth(source.node.ID)
+            const startY = source.y + renderedCardHeight(source.node.ID) / 2
+            const end = target
+              ? { x: target.x, y: target.y + renderedCardHeight(target.node.ID) / 2 }
+              : previewPoint
+            if (!end) return null
+            return (
+              <path
+                d={dependencyPath(startX, startY, end.x, end.y)}
+                className="fill-none stroke-primary"
+                strokeWidth="2"
+                strokeDasharray="6 4"
+                markerEnd="url(#pipeline-dependency-arrow)"
+              />
+            )
+          })()}
         </svg>
+
+        {layout.edges.map((edge) => {
+          if (edgeRelationType(edge) !== EDGE_RELATION_DEPENDENCY) return null
+          const from = layout.itemById.get(edge.from_node_id)
+          const to = layout.itemById.get(edge.to_node_id)
+          if (!from || !to) return null
+          const x = (from.x + renderedCardWidth(from.node.ID) + to.x) / 2
+          const y = (from.y + renderedCardHeight(from.node.ID) / 2 + to.y + renderedCardHeight(to.node.ID) / 2) / 2
+          return (
+            <button
+              key={`delete-${edge.ID}`}
+              type="button"
+              className="absolute z-20 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm hover:border-destructive/50 hover:text-destructive"
+              style={{ left: x - 12, top: y - 12 }}
+              onClick={() => onDeleteDependency(edge.ID)}
+              disabled={isMutating}
+              title={t('pipeline.dependency.delete', { defaultValue: '删除额外依赖' })}
+            >
+              <Trash2 size={12} />
+            </button>
+          )
+        })}
 
         {layout.items.map((item) => {
           const node = item.node
@@ -893,23 +1304,53 @@ function DependencyGraph({
           const categoryLabel = t(`pipeline.categories.${meta.category}`, { defaultValue: meta.category })
           const isWork = isPipelineWorkNode(node.type)
           const isExpanded = selectedNodeId === node.ID
+          const isDropTarget = dropTargetId === node.ID
+          const isConnectSource = connectSourceId === node.ID
 
           return (
-            <button
+            <div
               key={node.ID}
-              type="button"
+              data-dependency-node-id={node.ID}
+              role="button"
+              tabIndex={0}
               className={cn(
-                'absolute rounded-md border bg-card text-left shadow-sm transition-[border-color,background-color,box-shadow,width,height,padding] hover:border-primary/40',
+                'absolute cursor-move rounded-md border bg-card text-left shadow-sm transition-[border-color,background-color,box-shadow,width,height,padding] hover:border-primary/40',
                 isExpanded ? 'z-10 border-primary/60 bg-primary/5 p-2' : 'border-border px-2 py-1.5',
+                isDropTarget && 'border-primary bg-primary/10 ring-2 ring-primary/30',
+                isConnectSource && 'border-primary bg-primary/10 ring-2 ring-primary/30',
               )}
               style={{
                 left: item.x,
                 top: item.y,
                 width: isExpanded ? expandedCardWidth : compactCardWidth,
                 height: isExpanded ? expandedCardHeight : compactCardHeight,
+                touchAction: 'none',
               }}
-              onClick={() => onNodeClick(node)}
+              onPointerDown={(e) => startNodeMove(node.ID, e)}
+              onClick={() => {
+                if (suppressNextNodeClickRef.current) return
+                handleNodeActivate(node)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleNodeActivate(node)
+                }
+                if (e.key === 'Escape') setConnectSourceId(null)
+              }}
             >
+              <button
+                type="button"
+                className={cn(
+                  'absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:border-primary hover:text-primary',
+                  isConnectSource && 'border-primary bg-primary text-primary-foreground hover:text-primary-foreground',
+                )}
+                onPointerDown={(e) => startDependencyConnect(node.ID, e)}
+                title={t('pipeline.dependency.startConnect', { defaultValue: '从这里拖拽或点击开始连线' })}
+              >
+                <Plus size={13} />
+              </button>
+
               <div className="flex h-full min-w-0 items-center gap-1.5">
                 <div className={cn(
                   `flex shrink-0 items-center justify-center rounded-md ${meta.accent}`,
@@ -933,9 +1374,10 @@ function DependencyGraph({
                   {isExpanded ? <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{typeLabel}</p> : null}
                 </div>
               </div>
-            </button>
+            </div>
           )
         })}
+      </div>
       </div>
     </div>
   )

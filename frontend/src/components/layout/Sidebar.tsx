@@ -8,7 +8,7 @@ import {
   LayoutTemplate, Video, Move, Palette, Box,
   Users, PenLine, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
   HardDrive, Wand2, Network, MessageSquare, BotMessageSquare, LayoutDashboard,
-  Puzzle, Settings2,
+  Puzzle, Settings2, Bug,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -238,6 +238,7 @@ export function Sidebar() {
         <Section title={t('sidebar.sections.manage')}>
           <NavItem to="/plugins" icon={Puzzle} label={t('sidebar.items.plugins')} />
           <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} />
+          <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} />
           {currentUser?.system_role === 'super_admin' && (
             <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
           )}

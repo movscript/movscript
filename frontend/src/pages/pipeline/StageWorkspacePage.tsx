@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package, Film, Clapperboard } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, Send, UserCircle, ChevronDown, CheckCircle, XCircle, RotateCcw, Package, Film, Clapperboard, Circle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
-import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, PipelineContentType, ProjectMember } from '@/types'
+import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, PipelineContentType, ProjectMember, Task, TaskPriority, TaskStatus } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ScriptWorkspace } from '@/pages/work/workspaces/ScriptWorkspace'
@@ -120,6 +120,16 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
     getLabel: (item) => (item as Episode).title,
     getSub: (item) => { const e = item as Episode; return `EP${e.number} · ${e.status}` },
     getPatchUrl: (item) => `/episodes/${item.ID}`,
+    getAssigneeId: () => undefined,
+  },
+  final_video: {
+    icon: Film,
+    listKey: (pid) => ['final-video', pid],
+    listFn: async () => [],
+    createFn: async () => ({ ID: 0 } as unknown as ContentItem),
+    getLabel: () => '',
+    getSub: () => '',
+    getPatchUrl: () => '',
     getAssigneeId: () => undefined,
   },
   scene: {
@@ -388,6 +398,156 @@ function ChildNodeListItem({
   )
 }
 
+// ── Node tasks ────────────────────────────────────────────────────────────────
+
+const TASK_STATUS_CLASS: Record<TaskStatus, string> = {
+  pending: 'text-muted-foreground',
+  in_progress: 'text-sky-600',
+  review: 'text-amber-600',
+  done: 'text-green-600',
+}
+
+function NodeTasksPanel({
+  projectId,
+  node,
+  members,
+  linkedEntityType,
+  linkedEntityId,
+}: {
+  projectId?: number
+  node: PipelineNode | null
+  members: ProjectMember[]
+  linkedEntityType?: string
+  linkedEntityId?: number
+}) {
+  const qc = useQueryClient()
+  const [title, setTitle] = useState('')
+  const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [assigneeId, setAssigneeId] = useState<number | ''>('')
+  const nodeId = node?.ID
+  const queryKey = ['tasks', projectId, 'pipeline-node', nodeId]
+
+  const { data: tasks = [], isLoading } = useQuery<Task[]>({
+    queryKey,
+    queryFn: () => api.get(`/projects/${projectId}/tasks?pipeline_node_id=${nodeId}`).then((r) => r.data),
+    enabled: !!projectId && !!nodeId,
+  })
+
+  const createTask = useMutation({
+    mutationFn: () => api.post(`/projects/${projectId}/tasks`, {
+      title: title.trim(),
+      priority,
+      status: 'pending',
+      pipeline_node_id: nodeId,
+      assignee_id: assigneeId || undefined,
+      ref_type: linkedEntityType,
+      ref_id: linkedEntityId,
+    }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey })
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] })
+      setTitle('')
+      setAssigneeId('')
+    },
+  })
+
+  const updateTask = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: TaskStatus }) =>
+      api.put(`/projects/${projectId}/tasks/${id}`, { status }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey })
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] })
+    },
+  })
+
+  if (!node) return null
+
+  return (
+    <aside className="w-80 shrink-0 border-l border-border bg-card flex flex-col min-h-0">
+      <div className="px-3 py-2.5 border-b border-border">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">协作任务</p>
+          <span className="text-xs text-muted-foreground">{tasks.filter((task) => task.status === 'done').length}/{tasks.length}</span>
+        </div>
+      </div>
+
+      <div className="p-3 border-b border-border space-y-2">
+        <input
+          className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && title.trim()) createTask.mutate()
+          }}
+          placeholder="新建节点任务"
+        />
+        <div className="flex gap-2">
+          <select
+            className="min-w-0 flex-1 h-8 rounded-md border border-border bg-background px-2 text-xs"
+            value={assigneeId}
+            onChange={(event) => setAssigneeId(Number(event.target.value) || '')}
+          >
+            <option value="">未分配</option>
+            {members.map((member) => (
+              <option key={member.user_id} value={member.user_id}>{member.user?.username ?? `用户 ${member.user_id}`}</option>
+            ))}
+          </select>
+          <select
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+            value={priority}
+            onChange={(event) => setPriority(event.target.value as TaskPriority)}
+          >
+            <option value="low">低</option>
+            <option value="medium">中</option>
+            <option value="high">高</option>
+          </select>
+          <Button
+            size="sm"
+            className="h-8 px-2"
+            onClick={() => title.trim() && createTask.mutate()}
+            disabled={!title.trim() || createTask.isPending}
+          >
+            {createTask.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {isLoading ? (
+          <div className="h-24 flex items-center justify-center">
+            <Loader2 size={16} className="animate-spin text-muted-foreground" />
+          </div>
+        ) : tasks.length === 0 ? (
+          <p className="px-3 py-4 text-sm text-muted-foreground">暂无任务</p>
+        ) : (
+          tasks.map((task) => (
+            <div key={task.ID} className="px-3 py-2.5 border-b border-border">
+              <div className="flex items-start gap-2">
+                <button
+                  type="button"
+                  className="mt-0.5 text-muted-foreground hover:text-green-600"
+                  onClick={() => updateTask.mutate({ id: task.ID, status: task.status === 'done' ? 'pending' : 'done' })}
+                  title={task.status === 'done' ? '重新打开' : '标记完成'}
+                >
+                  {task.status === 'done' ? <CheckCircle size={14} /> : <Circle size={14} />}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs">
+                    <span className={TASK_STATUS_CLASS[task.status]}>{task.status}</span>
+                    <span className="text-muted-foreground">{task.assignee?.username ?? '未分配'}</span>
+                    <span className="text-muted-foreground">{task.priority}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </aside>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 interface StageWorkspaceContentProps {
@@ -601,7 +761,7 @@ export function StageWorkspaceContent({
           </button>
         )}
 
-        {isArtifactNode && contentType !== 'custom' && (
+        {isArtifactNode && contentType !== 'custom' && cfg.entityType && (
           <Button
             size="sm"
             className="h-7 text-xs"
@@ -653,17 +813,33 @@ export function StageWorkspaceContent({
               creating={creating || createMutation.isPending}
               onCreate={() => { setCreating(true); createMutation.mutate() }}
             />
+            <NodeTasksPanel
+              projectId={project?.ID}
+              node={detailNode}
+              members={members}
+              linkedEntityType={cfg.entityType}
+              linkedEntityId={selected?.ID}
+            />
           </>
         ) : (
-          <ArtifactDetailArea
-            contentType={contentType}
-            cfg={cfg}
-            item={selected}
-            itemsLoading={itemsLoading}
-            canCreate={isArtifactNode && contentType !== 'custom'}
-            creating={creating || createMutation.isPending}
-            onCreate={() => { setCreating(true); createMutation.mutate() }}
-          />
+          <>
+            <ArtifactDetailArea
+              contentType={contentType}
+              cfg={cfg}
+              item={selected}
+              itemsLoading={itemsLoading}
+              canCreate={isArtifactNode && contentType !== 'custom'}
+              creating={creating || createMutation.isPending}
+              onCreate={() => { setCreating(true); createMutation.mutate() }}
+            />
+            <NodeTasksPanel
+              projectId={project?.ID}
+              node={detailNode}
+              members={members}
+              linkedEntityType={cfg.entityType}
+              linkedEntityId={selected?.ID}
+            />
+          </>
         )}
       </div>
     </div>

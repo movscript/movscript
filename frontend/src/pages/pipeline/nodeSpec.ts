@@ -21,7 +21,7 @@ export const PIPELINE_NODE_SPECS: Record<string, PipelineNodeSpec> = {
   asset_creation:      { type: 'asset_creation',      category: 'work',     contentType: 'asset',      canCreateEntity: false, canLinkEntity: false },
   raw_script:          { type: 'raw_script',          category: 'work',     contentType: 'script',     canCreateEntity: false, canLinkEntity: false },
   shot_production:     { type: 'shot_production',     category: 'work',     contentType: 'shot',       canCreateEntity: false, canLinkEntity: false },
-  episode_edit:        { type: 'episode_edit',        category: 'work',     contentType: 'episode',    canCreateEntity: false, canLinkEntity: false },
+  episode_edit:        { type: 'episode_edit',        category: 'work',     contentType: 'final_video', canCreateEntity: false, canLinkEntity: false },
 
   main_script:       { type: 'main_script',       category: 'artifact', contentType: 'script',     entityType: 'script',     canCreateEntity: true, canLinkEntity: true },
   episode_script:    { type: 'episode_script',    category: 'artifact', contentType: 'script',     entityType: 'script',     canCreateEntity: true, canLinkEntity: true },
@@ -32,6 +32,7 @@ export const PIPELINE_NODE_SPECS: Record<string, PipelineNodeSpec> = {
   storyboard:        { type: 'storyboard',        category: 'artifact', contentType: 'storyboard', entityType: 'storyboard', canCreateEntity: true, canLinkEntity: true },
   asset:             { type: 'asset',             category: 'artifact', contentType: 'asset',      entityType: 'asset',      canCreateEntity: true, canLinkEntity: true },
   shot:              { type: 'shot',              category: 'artifact', contentType: 'shot',       entityType: 'shot',       canCreateEntity: true, canLinkEntity: true },
+  final_video:       { type: 'final_video',       category: 'artifact', contentType: 'final_video',                       canCreateEntity: false, canLinkEntity: false },
 
   custom: { type: 'custom', category: 'custom', contentType: 'custom', canCreateEntity: false, canLinkEntity: false },
 }

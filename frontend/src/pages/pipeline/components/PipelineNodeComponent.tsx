@@ -40,6 +40,7 @@ export const NODE_TYPE_META: Record<string, NodeTypeMeta> = {
   storyboard:           { label: 'Storyboard',             icon: Layers,       category: 'artifact', desc: 'Storyboard artifact',                   accent: 'bg-teal-500/10 text-teal-600',       iconColor: 'text-teal-500' },
   asset:                { label: 'Asset',                  icon: Package,      category: 'artifact', desc: 'Asset artifact',                        accent: 'bg-green-500/10 text-green-600',     iconColor: 'text-green-500' },
   shot:                 { label: 'Shot',                   icon: Camera,       category: 'artifact', desc: 'Shot artifact',                          accent: 'bg-orange-500/10 text-orange-600',   iconColor: 'text-orange-500' },
+  final_video:          { label: 'Final Video',            icon: Film,         category: 'artifact', desc: 'Edited final video artifact',             accent: 'bg-rose-500/10 text-rose-600',       iconColor: 'text-rose-500' },
 
   custom:               { label: 'Custom',                 icon: Box,          category: 'custom',   desc: 'Define a custom type',                 accent: 'bg-muted text-muted-foreground',     iconColor: 'text-muted-foreground' },
 }
