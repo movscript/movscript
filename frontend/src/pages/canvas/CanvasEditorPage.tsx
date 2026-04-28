@@ -31,6 +31,7 @@ import {
 import { ContextMenu } from './components/ContextMenu'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { NodePanel } from './components/NodePanel'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import {
   CANVAS_NODE_CATALOG,
   CANVAS_NODE_CATEGORIES,
@@ -109,8 +110,16 @@ function resourceToNodeType(resource: RawResource): NodeType {
 
 function ResourceThumb({ resource }: { resource: RawResource }) {
   const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
-  if (resource.type === 'image') return <img src={url} alt="" className="h-full w-full object-cover" />
-  if (resource.type === 'video') return <video src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+  if (resource.type === 'image') {
+    return resource.direct_url
+      ? <img src={resource.direct_url} alt="" className="h-full w-full object-cover" />
+      : <AuthedImage src={url} alt="" className="h-full w-full object-cover" />
+  }
+  if (resource.type === 'video') {
+    return resource.direct_url
+      ? <video src={resource.direct_url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+      : <AuthedVideo src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+  }
   if (resource.type === 'audio') return <Music size={14} className="text-muted-foreground" />
   return <File size={14} className="text-muted-foreground" />
 }
@@ -420,7 +429,7 @@ function WorkflowBottomPanel({
             className={cn('flex items-center gap-1.5 px-3 py-1.5 transition-colors', activeTab === 'resources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
           >
             <HardDrive size={12} />
-            {t('shared.resourcePanel.resourceLibrary')}
+            {t('canvas.editor.resourceShelf.title')}
           </button>
           <button
             onClick={() => onTabChange('history')}

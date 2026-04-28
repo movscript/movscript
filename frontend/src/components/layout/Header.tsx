@@ -17,6 +17,7 @@ const titleKeys: Record<string, string> = {
   '/canvases': 'header.titles.canvases',
   '/resources': 'header.titles.resources',
   '/jobs': 'header.titles.jobs',
+  '/plugins': 'header.titles.plugins',
   '/agents': 'header.titles.agents',
   '/agent/settings': 'header.titles.agentSettings',
   '/collaboration': 'header.titles.collaboration',

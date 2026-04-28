@@ -4,4 +4,11 @@ contextBridge.exposeInMainWorld('api', {
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   saveFile: (defaultPath?: string) => ipcRenderer.invoke('dialog:saveFile', defaultPath),
   setUserId: (id: string) => ipcRenderer.invoke('set-user-id', id),
+  updateMCPContext: (snapshot: unknown) => ipcRenderer.invoke('mcp:update-context', snapshot),
+  ensureLocalAgent: (input?: { baseURL?: string }) => ipcRenderer.invoke('agent:ensure-running', input),
+  onMCPOpenRoute: (handler: (route: string) => void) => {
+    const listener = (_event: unknown, route: string) => handler(route)
+    ipcRenderer.on('mcp:open-route', listener)
+    return () => ipcRenderer.removeListener('mcp:open-route', listener)
+  },
 })

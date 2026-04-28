@@ -28,6 +28,15 @@ export interface EntityFormProps {
   onCancel: () => void
 }
 
+function spawnPipelineNode(projectId: number, nodeType: string, entityType: string, entityId: number, name: string) {
+  const contentType = entityType === 'script' || entityType === 'storyboard' || entityType === 'shot'
+    ? entityType
+    : 'custom'
+  api.post(`/projects/${projectId}/pipeline/nodes`, {
+    type: nodeType, name, content_type: contentType, entity_type: entityType, entity_id: entityId, pos_x: 0, pos_y: 0,
+  }).catch(() => {/* fire-and-forget */})
+}
+
 export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormProps) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -38,8 +47,10 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/scripts`, { title, description: desc || undefined, script_type: type }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (created: Script) => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
+      spawnPipelineNode(projectId, type === 'main' ? 'main_script' : 'script_writing', 'script', created.ID, created.title)
       onSuccess()
     },
   })
@@ -97,8 +108,10 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/assets`, { name, type, description: desc || undefined }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (created: { ID: number; name: string }) => {
       qc.invalidateQueries({ queryKey: ['assets', projectId] })
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
+      spawnPipelineNode(projectId, 'asset', 'asset', created.ID, created.name)
       onSuccess()
     },
   })
@@ -164,8 +177,10 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/episodes`, { title, script_id: scriptId ?? undefined }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (created: Episode) => {
       qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
+      spawnPipelineNode(projectId, 'episode', 'episode', created.ID, created.title)
       onSuccess()
     },
   })
@@ -214,8 +229,10 @@ export function SceneCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/scenes`, { title, location: location || undefined, time_of_day: 'day' }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (created: Scene) => {
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
+      spawnPipelineNode(projectId, 'scene', 'scene', created.ID, created.title)
       onSuccess()
     },
   })
@@ -277,8 +294,10 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
         scene_id: sceneId ?? undefined,
         episode_id: episodeId ?? undefined,
       }).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (created: Storyboard) => {
       qc.invalidateQueries({ queryKey: ['storyboards-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
+      spawnPipelineNode(projectId, 'storyboard', 'storyboard', created.ID, created.title || created.description || `#${created.ID}`)
       onSuccess()
     },
   })
@@ -355,8 +374,10 @@ export function ShotCreateForm({ projectId, onSuccess, onCancel }: EntityFormPro
       }
       return api.post(`/projects/${projectId}/shots`, { description: desc || undefined, status: 'draft' }).then((r) => r.data)
     },
-    onSuccess: () => {
+    onSuccess: (created: { ID: number; description?: string }) => {
       qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
+      spawnPipelineNode(projectId, 'shot', 'shot', created.ID, created.description || `Shot #${created.ID}`)
       onSuccess()
     },
   })

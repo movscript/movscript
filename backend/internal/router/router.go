@@ -8,7 +8,6 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/config"
 	"github.com/movscript/movscript/internal/handler"
-	"github.com/movscript/movscript/internal/mcp"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/storage"
 	"gorm.io/gorm"
@@ -50,12 +49,12 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	pipelineH := handler.NewPipelineHandler(db)
 	agentDefH := handler.NewAgentDefHandler(db)
 	userAgentH := handler.NewUserAgentHandler(db)
-	mcpServer := mcp.NewServer(db, cfg.MCPToken)
+	pluginH := handler.NewPluginHandler(db)
+	registryH := handler.NewRegistryHandler()
 
 	cloudFileCfgH := handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey)
 
-	// MCP endpoint — accessible at /mcp (outside /api/v1 for external agent clients).
-	r.POST("/mcp", mcpServer.Handle)
+	// MCP endpoint removed — tools are now provided by the client.
 
 	v1 := r.Group("/api/v1")
 	{
@@ -105,6 +104,20 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.POST("/gen-jobs/:id/retry", genJobs.Retry)
 		v1.DELETE("/gen-jobs/:id", genJobs.Delete)
 
+		// plugins (client-side JS runtime; backend stores manifests only)
+		v1.GET("/plugins", pluginH.List)
+		v1.POST("/plugins", pluginH.Import)
+		v1.POST("/plugins/:id/enable", pluginH.Enable)
+		v1.POST("/plugins/:id/disable", pluginH.Disable)
+		v1.DELETE("/plugins/:id", pluginH.Delete)
+		v1.GET("/plugins/tools", pluginH.ToolCatalog)
+		v1.GET("/plugins/cards", pluginH.CardCatalog)
+		v1.GET("/plugins/canvas-nodes", pluginH.CanvasNodeCatalog)
+
+		// registry proxy (avoids CORS; reads PLUGIN_REGISTRY_URL env)
+		v1.GET("/registry/plugins", registryH.ListPlugins)
+		v1.GET("/registry/plugins/:id", registryH.GetPlugin)
+
 		// canvases
 		v1.GET("/canvases", canvases.List)
 		v1.POST("/canvases", canvases.Create)
@@ -126,6 +139,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.PUT("/projects/:id", projects.Update)
 		v1.DELETE("/projects/:id", projects.Delete)
 		v1.GET("/projects/:id/progress", projects.Progress)
+		v1.GET("/projects/:id/members", projects.ListMembers)
 		v1.POST("/projects/:id/members", projects.AddMember)
 		v1.DELETE("/projects/:id/members/:memberId", projects.RemoveMember)
 
@@ -143,6 +157,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		// pipeline DAG
 		v1.GET("/projects/:id/pipeline", pipelineH.GetPipeline)
 		v1.POST("/projects/:id/pipeline/nodes", pipelineH.CreateNode)
+		v1.GET("/pipeline/nodes/:nodeId", pipelineH.GetNode)
 		v1.PUT("/pipeline/nodes/:nodeId", pipelineH.UpdateNode)
 		v1.DELETE("/pipeline/nodes/:nodeId", pipelineH.DeleteNode)
 		v1.POST("/projects/:id/pipeline/edges", pipelineH.CreateEdge)
@@ -172,6 +187,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.PUT("/projects/:id/scripts/:scriptId", scripts.Update)
 		v1.DELETE("/projects/:id/scripts/:scriptId", scripts.Delete)
 		v1.POST("/projects/:id/scripts/:scriptId/analyze", scripts.Analyze)
+		v1.PATCH("/scripts/:id", scripts.Patch)
 
 		// episodes directly under project (script optional)
 		v1.POST("/projects/:id/episodes", episodes.CreateUnderProject)
@@ -208,10 +224,12 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.GET("/scenes/:id/storyboards", storyboards.List)
 		v1.POST("/scenes/:id/storyboards", storyboards.Create)
 		v1.PUT("/storyboards/:id", storyboards.Update)
+		v1.PATCH("/storyboards/:id", storyboards.Patch)
 		v1.DELETE("/storyboards/:id", storyboards.Delete)
 
 		// shots (flat routes by shot ID)
 		v1.PUT("/shots/:id", shots.Update)
+		v1.PATCH("/shots/:id", shots.Patch)
 		v1.DELETE("/shots/:id", shots.Delete)
 
 		// shots nested under storyboard (kept for listing)

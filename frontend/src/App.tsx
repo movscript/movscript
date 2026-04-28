@@ -28,11 +28,15 @@ import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import GenJobsPage from './pages/jobs/GenJobsPage'
+import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
+import PluginToolPage from './pages/plugins/PluginToolPage'
 import PipelineEditorPage from './pages/pipeline/PipelineEditorPage'
+import StageWorkspacePage from './pages/pipeline/StageWorkspacePage'
 import AgentSettingsPage from './pages/agent/AgentSettingsPage'
 import AgentsPage from './pages/agent/AgentsPage'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
 import i18n from './i18n'
+import { MCPContextBridge } from './mcp/MCPContextBridge'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -115,6 +119,7 @@ export default function App() {
   if (!user) {
     return (
       <BrowserRouter>
+        <MCPContextBridge />
         <Toaster />
         <Routes>
           <Route path="*" element={<AuthPage />} />
@@ -125,13 +130,13 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <MCPContextBridge />
       <Toaster />
       <Routes>
         {/* Canvas editor is full-screen, no sidebar/header */}
         <Route path="/canvases/:id" element={<CanvasEditorPage />} />
         {/* Pipeline editor is full-screen */}
         <Route path="/pipeline" element={<ProjectGuard><PipelineEditorPage /></ProjectGuard>} />
-
         {/* All other pages use the shell layout */}
         <Route path="*" element={
           <div className="flex h-screen bg-background text-foreground">
@@ -153,6 +158,7 @@ export default function App() {
                     <Route path="/scenes"      element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
                     <Route path="/storyboards" element={<ProjectGuard><StoryboardsPage /></ProjectGuard>} />
                     <Route path="/shots"       element={<ProjectGuard><ShotsPage /></ProjectGuard>} />
+                    <Route path="/pipeline/nodes/:nodeId" element={<ProjectGuard><StageWorkspacePage /></ProjectGuard>} />
 
                     {/* 工具模块 */}
                     <Route path="/canvases"                  element={<Padded><CanvasListPage /></Padded>} />
@@ -162,6 +168,7 @@ export default function App() {
                     <Route path="/tools/style-transfer"      element={<StyleTransferPage />} />
                     <Route path="/tools/multi-angle"         element={<MultiAnglePage />} />
                     <Route path="/tools/brainstorm"          element={<BrainstormPage />} />
+                    <Route path="/tools/plugin/:pluginId"    element={<PluginToolPage />} />
 
                     {/* 工作模块 */}
                     <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
@@ -174,6 +181,7 @@ export default function App() {
                     {/* 文件 */}
                     <Route path="/resources" element={<ResourcesPage />} />
                     <Route path="/jobs" element={<GenJobsPage />} />
+                    <Route path="/plugins" element={<ClientPluginsPage />} />
 
                     {/* Agent */}
                     <Route path="/agent/settings" element={<AgentSettingsPage />} />

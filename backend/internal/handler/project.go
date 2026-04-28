@@ -85,6 +85,12 @@ func (h *ProjectHandler) RemoveMember(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *ProjectHandler) ListMembers(c *gin.Context) {
+	members := make([]model.ProjectMember, 0)
+	h.db.Where("project_id = ?", c.Param("id")).Preload("User").Find(&members)
+	c.JSON(http.StatusOK, members)
+}
+
 func (h *ProjectHandler) Progress(c *gin.Context) {
 	pid := c.Param("id")
 	var scriptCount, episodeCount, sceneCount, memberCount, assetCount int64

@@ -1,0 +1,92 @@
+{
+  "schema": "movscript.clientPlugin.v1",
+  "id": "com.movscript.image-generator",
+  "name": "图像生成器",
+  "version": "1.0.0",
+  "description": "文生图 & 参考图生图。自动选择可用模型，支持画幅、质量、负向提示词等参数。",
+  "author": "Movscript",
+  "homepage": "https://github.com/migua/movscript",
+  "permissions": [
+    "model.image.generate",
+    "resource.read"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "prompt"
+    ],
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "title": "提示词",
+        "description": "描述要生成的画面内容"
+      },
+      "negative_prompt": {
+        "type": "string",
+        "title": "负向提示词",
+        "description": "不希望出现的内容（可选）"
+      },
+      "model_config_id": {
+        "type": "number",
+        "title": "模型配置",
+        "description": "可选，不填时自动选择可用图像模型",
+        "x-widget": "model-selector",
+        "x-capability": "image"
+      },
+      "reference_resource_ids": {
+        "type": "string",
+        "title": "参考图资源 ID",
+        "description": "可选，多个 ID 用英文逗号分隔，填写后切换为图生图模式"
+      },
+      "aspect_ratio": {
+        "type": "string",
+        "title": "画幅比例",
+        "enum": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "2:3",
+          "3:2"
+        ],
+        "default": "1:1"
+      },
+      "image_size": {
+        "type": "string",
+        "title": "输出尺寸",
+        "description": "如 1024x1024、1280x720",
+        "default": "1024x1024"
+      },
+      "quality": {
+        "type": "string",
+        "title": "质量",
+        "enum": [
+          "auto",
+          "standard",
+          "hd",
+          "high",
+          "medium",
+          "low"
+        ],
+        "default": "standard"
+      },
+      "steps": {
+        "type": "number",
+        "title": "推理步数",
+        "description": "可选，部分模型支持（如 20~50）"
+      },
+      "seed": {
+        "type": "number",
+        "title": "随机种子",
+        "description": "可选，固定种子可复现结果"
+      },
+      "timeout_ms": {
+        "type": "number",
+        "title": "超时（毫秒）",
+        "description": "默认 180000（3 分钟）",
+        "default": 180000
+      }
+    }
+  }
+}

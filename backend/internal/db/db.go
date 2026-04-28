@@ -69,6 +69,9 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&model.CanvasTask{},
 		&model.FeatureConfig{},
 		&model.GenJob{},
+		&model.Plugin{},
+		&model.PluginTool{},
+		&model.PluginSecret{},
 		&model.PipelineNode{},
 		&model.PipelineEdge{},
 		&model.AgentTemplate{},
@@ -134,6 +137,17 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			migrator.DropColumn(&model.Shot{}, col)
 		}
 	}
+
+	// Backfill pipeline_node.content_type from type field for existing data.
+	db.Exec(`
+		UPDATE pipeline_nodes SET content_type = CASE
+			WHEN type IN ('script_writing','raw_script','main_script','episode_writing','episode_script','scene_writing','scene_script') THEN 'script'
+			WHEN type IN ('storyboard_creation','storyboard_script','storyboard') THEN 'storyboard'
+			WHEN type IN ('shot_production','shot') THEN 'shot'
+			WHEN type IN ('asset_creation','asset') THEN 'asset'
+			ELSE 'custom'
+		END
+	`)
 
 	return db, nil
 }

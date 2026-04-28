@@ -617,14 +617,49 @@
       "manageMyAgents": "Manage My Agents ->",
       "messagesCount": "{{count}} messages",
       "modelInvalid": "The current model configuration is invalid. Please select another model.",
+      "modelLockedByAgent": "This Agent has a pinned model",
       "myAgents": "My Agents",
       "newConversation": "New Conversation",
       "noAgent": "Chat without an Agent",
+      "noAgentShort": "Direct chat",
       "noConversations": "No conversations yet",
       "platformTemplates": "Platform Templates",
       "selectAgent": "Select Agent",
       "selectModelFirst": "Please select a model first.",
-      "startChat": "Start a conversation"
+      "startChat": "Start a conversation",
+      "identity": "Identity",
+      "uploadAttachment": "Upload image, video, audio, or text",
+      "attachmentOnlyMessage": "Please analyze these attachments.",
+      "attachmentsCount": "{{count}} attachments",
+      "recentResourcesCount": "{{count}} recent resources",
+      "projectContext": "Project context",
+      "resourceContext": "Resource context",
+      "autoPlan": "Auto plan",
+      "hideContext": "Hide context",
+      "showContext": "Show context",
+      "modes": {
+        "chat": "Chat",
+        "plan": "Plan",
+        "create": "Create",
+        "review": "Review"
+      },
+      "permissions": {
+        "ask": "Ask first",
+        "suggest": "Suggest only",
+        "auto": "Low-risk auto"
+      },
+      "capabilities": {
+        "memory": "Conversation memory",
+        "multimodal": "Image and video attachments",
+        "workflow": "Project workflow",
+        "audit": "Permission and audit trail"
+      },
+      "suggestions": {
+        "planProject": "Plan the next step for this project",
+        "createShot": "Create a shot plan from assets",
+        "reviewAssets": "Review asset gaps and risks",
+        "buildWorkflow": "Break this into an executable workflow"
+      }
     }
   },
   "user": {
@@ -669,35 +704,114 @@
       "toolNodes": "Tool Nodes"
     },
     "nodeTypes": {
-      "script_writing": { "label": "Script Writing", "desc": "Create the main script" },
-      "episode_writing": { "label": "Episode Script Writing", "desc": "Create episode scripts" },
-      "scene_writing": { "label": "Scene Script Writing", "desc": "Create scene scripts" },
-      "storyboard_creation": { "label": "Storyboard Creation", "desc": "Create storyboard scripts" },
-      "asset_creation": { "label": "Asset Creation", "desc": "Create characters, scenes, and props" },
-      "raw_script": { "label": "Draft Writing", "desc": "Original draft or outline" },
-      "shot_production": { "label": "Shot Production", "desc": "Generate shots with AI" },
-      "episode_edit": { "label": "Episode Editing", "desc": "Post-production editing" },
-      "main_script": { "label": "Main Script", "desc": "Complete main script artifact" },
-      "episode_script": { "label": "Episode Script", "desc": "Script split by episode" },
-      "scene_script": { "label": "Scene Script", "desc": "Script split by scene" },
-      "storyboard_script": { "label": "Storyboard Script", "desc": "Storyboard description script" },
-      "episode": { "label": "Episode", "desc": "Episode artifact" },
-      "scene": { "label": "Scene", "desc": "Scene artifact" },
-      "storyboard": { "label": "Storyboard", "desc": "Storyboard artifact" },
-      "asset": { "label": "Asset", "desc": "Asset artifact" },
-      "ref_image_gen": { "label": "Reference Image", "desc": "Generate a new image from a reference image" },
-      "ref_video_gen": { "label": "Reference Video", "desc": "Generate video from a reference video" },
-      "style_transfer": { "label": "Style Transfer", "desc": "Transfer the reference image's art style" },
-      "motion_imitation": { "label": "Motion Imitation", "desc": "Transfer motion from a reference video" },
-      "multi_angle": { "label": "Multi-angle", "desc": "Generate multi-angle views" },
-      "custom": { "label": "Custom", "desc": "Define a custom type" }
+      "script_writing": {
+        "label": "Script Writing",
+        "desc": "Create the main script"
+      },
+      "episode_writing": {
+        "label": "Episode Script Writing",
+        "desc": "Create episode scripts"
+      },
+      "scene_writing": {
+        "label": "Scene Script Writing",
+        "desc": "Create scene scripts"
+      },
+      "storyboard_creation": {
+        "label": "Storyboard Creation",
+        "desc": "Create storyboard scripts"
+      },
+      "asset_creation": {
+        "label": "Asset Creation",
+        "desc": "Create characters, scenes, and props"
+      },
+      "raw_script": {
+        "label": "Draft Writing",
+        "desc": "Original draft or outline"
+      },
+      "shot_production": {
+        "label": "Shot Production",
+        "desc": "Generate shots with AI"
+      },
+      "episode_edit": {
+        "label": "Episode Editing",
+        "desc": "Post-production editing"
+      },
+      "main_script": {
+        "label": "Main Script",
+        "desc": "Complete main script artifact"
+      },
+      "episode_script": {
+        "label": "Episode Script",
+        "desc": "Script split by episode"
+      },
+      "scene_script": {
+        "label": "Scene Script",
+        "desc": "Script split by scene"
+      },
+      "storyboard_script": {
+        "label": "Storyboard Script",
+        "desc": "Storyboard description script"
+      },
+      "episode": {
+        "label": "Episode",
+        "desc": "Episode artifact"
+      },
+      "scene": {
+        "label": "Scene",
+        "desc": "Scene artifact"
+      },
+      "storyboard": {
+        "label": "Storyboard",
+        "desc": "Storyboard artifact"
+      },
+      "asset": {
+        "label": "Asset",
+        "desc": "Asset artifact"
+      },
+      "shot": {
+        "label": "Shot",
+        "desc": "Shot artifact"
+      },
+      "ref_image_gen": {
+        "label": "Reference Image",
+        "desc": "Generate a new image from a reference image"
+      },
+      "ref_video_gen": {
+        "label": "Reference Video",
+        "desc": "Generate video from a reference video"
+      },
+      "style_transfer": {
+        "label": "Style Transfer",
+        "desc": "Transfer the reference image's art style"
+      },
+      "motion_imitation": {
+        "label": "Motion Imitation",
+        "desc": "Transfer motion from a reference video"
+      },
+      "multi_angle": {
+        "label": "Multi-angle",
+        "desc": "Generate multi-angle views"
+      },
+      "custom": {
+        "label": "Custom",
+        "desc": "Define a custom type"
+      }
     },
     "editor": {
       "subtitle": "Content production pipeline",
       "dagView": "DAG View",
+      "treeView": "Tree",
       "ganttView": "Gantt",
       "fitView": "Fit View",
-      "empty": "Pipeline is empty. Right-click the canvas to add a node, or drag content from the left."
+      "empty": "Pipeline is empty. Add a root node to start the production tree."
+    },
+    "tree": {
+      "addRoot": "Add Root",
+      "addChild": "Add Child",
+      "addChildTo": "Add child to \"{{name}}\"",
+      "structure": "Node Structure",
+      "statusAndActions": "Status and Actions",
+      "nodeType": "Node Type"
     },
     "contextMenu": {
       "addNode": "Add Node",
@@ -716,7 +830,17 @@
     "node": {
       "fallbackName": "Node {{id}}",
       "linkedEntity": "Linked {{type}} #{{id}}",
-      "dragConnect": "Drag to connect"
+      "blockedArtifacts": "Artifacts pending final: {{names}}",
+      "dragConnect": "Drag to connect",
+      "enterWorkspace": "Enter workspace",
+      "lockedHint": "Waiting for upstream",
+      "customStage": "Custom stage",
+      "actions": {
+        "submit": "Submit",
+        "approve": "Approve",
+        "reject": "Reject",
+        "reopen": "Reopen"
+      }
     },
     "toolNode": {
       "noModels": "No models",
@@ -758,7 +882,8 @@
       },
       "nodeName": "Node Name",
       "addDescription": "Add description...",
-      "assignee": "Assignee",
+      "assignee": "Executor",
+      "lead": "Stage Lead",
       "unassigned": "Unassigned",
       "dueDate": "Due Date",
       "linkEntity": "Link {{entity}}",
@@ -772,7 +897,21 @@
       "rejectPlaceholder": "Enter a rejection reason...",
       "confirmReject": "Confirm Reject",
       "reopen": "Reopen (cascade downstream rollback)",
-      "clickToEdit": "Click to edit..."
+      "clickToEdit": "Click to edit...",
+      "contentType": "Content Type",
+      "openWorkspace": "Open Workspace"
+    },
+    "contentTypes": {
+      "script": "Script",
+      "storyboard": "Storyboard",
+      "shot": "Shot",
+      "asset": "Asset",
+      "custom": "Custom"
+    },
+    "workspace": {
+      "empty": "No content yet, click the button to create",
+      "customHint": "Custom stage — manage content in the Content Library",
+      "createFirst": "Create first {{type}}"
     }
   },
   "work": {
@@ -935,7 +1074,7 @@
     },
     "editor": {
       "resourceShelf": {
-        "title": "Resources / Assets",
+        "title": "Available Content",
         "dragHint": "Drag onto the canvas to create nodes",
         "noAssetViews": "No asset views",
         "noProject": "This canvas is not linked to a project"
@@ -1097,7 +1236,12 @@
       }
     },
     "genResult": {
-      "reusePrompt": "Reuse this prompt"
+      "reusePrompt": "Reuse this prompt",
+      "context": {
+        "model": "Model",
+        "resources": "Refs",
+        "params": "Params"
+      }
     },
     "generation": {
       "promptPlaceholder": "Describe what you want to generate...",
@@ -1206,6 +1350,54 @@
         "promptPlaceholder": "Describe the target content. AI will redraw it using the reference image's style... Type @ to reference images from the resource library"
       }
     }
+  },
+  "plugins": {
+    "title": "Plugins",
+    "subtitle": "Plugin install, execution, and deletion stay in this client (IndexedDB)",
+    "installed": "Installed",
+    "sample": "Reference Image",
+    "empty": "No plugins installed yet",
+    "insertTitle": "Paste Manifest",
+    "insertDescription": "Paste a client plugin manifest JSON. Saving writes only to this client's IndexedDB.",
+    "save": "Save",
+    "noSelection": "No plugin selected",
+    "selectHint": "Select a plugin on the left or install one first",
+    "edit": "Edit",
+    "delete": "Delete",
+    "run": "Call",
+    "running": "Calling",
+    "enabled": "Enabled",
+    "result": "Call Result",
+    "parameters": "Parameters",
+    "notFound": "Plugin not found",
+    "installFromUrl": "Install from URL",
+    "installFromFile": "Install from File",
+    "installFromUrlTitle": "Install Plugin from URL",
+    "installFromUrlDescription": "Enter the URL of a plugin manifest (JSON) or bundle (JS). It will be downloaded and installed locally.",
+    "urlPlaceholder": "https://example.com/my-plugin.json",
+    "installing": "Installing…",
+    "install": "Install",
+    "installedAt": "Installed at",
+    "source": "Source",
+    "author": "Author",
+    "version": "Version",
+    "migratedFromLocalStorage": "Migrated {{count}} plugin(s) from legacy localStorage",
+    "errors": {
+      "invalidManifest": "Invalid plugin manifest",
+      "runFailed": "Plugin call failed",
+      "installFailed": "Install failed: {{message}}"
+    },
+    "myPlugins": "My Plugins",
+    "marketplace": "Marketplace",
+    "alreadyInstalled": "Installed",
+    "downloads": "downloads",
+    "searchPlaceholder": "Search plugins…",
+    "browseMarketplace": "Browse Marketplace",
+    "marketplaceNote": "Marketplace is not live yet",
+    "marketplaceEmpty": "No plugins in the marketplace",
+    "marketplaceEmptyHint": "Install custom plugins from a file or URL",
+    "open": "Open",
+    "emptyHint": "Install custom plugins from a file / URL, or wait for the marketplace"
   },
   "admin": {
     "title": "Admin",
@@ -1677,6 +1869,7 @@
       "canvases": "Canvas",
       "resources": "Resources",
       "jobs": "Generation Jobs",
+      "plugins": "Local Plugins",
       "agents": "Agents",
       "agentSettings": "Agent Settings",
       "user": "User Profile",
@@ -1695,8 +1888,9 @@
       "progress": "Progress",
       "tools": "Tools",
       "files": "Files",
-      "agent": "Agent",
-      "workspace": "Workspace"
+      "manage": "Manage",
+      "workspace": "Workspace",
+      "contentLibrary": "Content Library"
     },
     "items": {
       "scripts": "Scripts",
@@ -1714,6 +1908,7 @@
       "brainstorm": "Brainstorm",
       "resources": "Resources",
       "jobs": "Generation Jobs",
+      "plugins": "Plugins",
       "myAgents": "My Agents",
       "production": "Production Hub",
       "pipeline": "Pipeline",

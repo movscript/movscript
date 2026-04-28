@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
-import { GenResultCard } from '@/components/shared/GenResultCard'
+import { GenJobContextSummary, GenResultCard } from '@/components/shared/GenResultCard'
 import type { InputSlotDef } from '@/components/shared/GenInputCard'
 import { GenInputCard } from '@/components/shared/GenInputCard'
 import {
@@ -205,6 +205,7 @@ function GenerationCard({
       error={job.error_msg}
       timestamp={job.CreatedAt}
       onReuse={onReuse}
+      contextPanel={<GenJobContextSummary job={job} />}
       debugPanel={debugMode ? <DebugPanel job={job} /> : undefined}
       compact
     />

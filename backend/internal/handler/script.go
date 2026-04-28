@@ -28,6 +28,12 @@ func (h *ScriptHandler) List(c *gin.Context) {
 	if t := c.Query("type"); t != "" {
 		q = q.Where("script_type = ?", t)
 	}
+	if nid := c.Query("pipeline_node_id"); nid != "" {
+		q = q.Where("pipeline_node_id = ?", nid)
+	}
+	if aid := c.Query("assignee_id"); aid != "" {
+		q = q.Where("assignee_id = ?", aid)
+	}
 	q.Order(`"order", created_at`).Find(&scripts)
 	c.JSON(http.StatusOK, scripts)
 }
@@ -72,6 +78,23 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 func (h *ScriptHandler) Delete(c *gin.Context) {
 	h.db.Delete(&model.Script{}, c.Param("scriptId"))
 	c.Status(http.StatusNoContent)
+}
+
+// Patch applies a partial update (assignee_id, review_status, etc.) to a script.
+func (h *ScriptHandler) Patch(c *gin.Context) {
+	var s model.Script
+	if err := h.db.First(&s, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("剧本不存在"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.db.Model(&s).Updates(body)
+	h.db.First(&s, s.ID)
+	c.JSON(http.StatusOK, s)
 }
 
 // Analyze uses AI to extract content metadata from script text.

@@ -10,7 +10,7 @@ import {
   ChevronLeft, XCircle,
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
-import { PromptText } from '@/components/shared/GenResultCard'
+import { GenJobContextSummary, PromptText } from '@/components/shared/GenResultCard'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -137,6 +137,10 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
         </div>
       </div>
 
+      <div className="px-4 py-2 border-b border-border bg-muted/10 empty:hidden">
+        <GenJobContextSummary job={job} />
+      </div>
+
       <div className="bg-card min-h-[64px] flex items-center">
         {isActive && (
           <div className="flex items-center justify-center w-full py-8">
@@ -222,6 +226,7 @@ function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (i
         <p className="text-[10px] text-muted-foreground truncate">
           {job.prompt ? <PromptText text={job.prompt} /> : t('pages.jobs.noPrompt')}
         </p>
+        <GenJobContextSummary job={job} className="mt-1" />
         <p className="text-[9px] text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt, i18n.language, t)}</p>
       </div>
     </div>

@@ -83,12 +83,35 @@ func (h *ShotHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// Patch applies a partial update (assignee_id, review_status, etc.) to a shot.
+func (h *ShotHandler) Patch(c *gin.Context) {
+	var s model.Shot
+	if err := h.db.First(&s, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("镜头不存在"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.db.Model(&s).Updates(body)
+	h.db.First(&s, s.ID)
+	c.JSON(http.StatusOK, s)
+}
+
 // ListByProject returns all shots for a project.
 func (h *ShotHandler) ListByProject(c *gin.Context) {
 	shots := make([]model.Shot, 0)
 	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\"")
 	if sid := c.Query("storyboard_id"); sid != "" {
 		q = q.Where("storyboard_id = ?", sid)
+	}
+	if nid := c.Query("pipeline_node_id"); nid != "" {
+		q = q.Where("pipeline_node_id = ?", nid)
+	}
+	if aid := c.Query("assignee_id"); aid != "" {
+		q = q.Where("assignee_id = ?", aid)
 	}
 	q.Find(&shots)
 	c.JSON(http.StatusOK, shots)

@@ -6,6 +6,8 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  attachments?: AgentAttachment[]
+  meta?: ChatMessageMeta
   timestamp: number
 }
 
@@ -61,6 +63,32 @@ export interface UserAgent {
 // Legacy settings for fallback when no agent is selected
 export interface AgentSettings {
   modelId: number | null
+  mode: AgentWorkMode
+  includeProjectContext: boolean
+  includeRecentResources: boolean
+  autoPlan: boolean
+  permissionMode: AgentPermissionMode
+}
+
+export type AgentWorkMode = 'chat' | 'plan' | 'create' | 'review'
+export type AgentPermissionMode = 'ask' | 'suggest' | 'auto'
+
+export interface AgentAttachment {
+  id: string
+  name: string
+  type: 'image' | 'video' | 'audio' | 'text' | 'file'
+  mimeType: string
+  size: number
+  url?: string
+  resourceId?: number
+}
+
+export interface ChatMessageMeta {
+  modelId?: number | null
+  agentName?: string
+  mode?: AgentWorkMode
+  permissionMode?: AgentPermissionMode
+  contextLabels?: string[]
 }
 
 // Per-user conversation state
@@ -84,6 +112,7 @@ interface AgentStore {
   createConversation: (userId: string, userAgentId: number | null) => string
   deleteConversation: (userId: string, id: string) => void
   setActiveConversation: (userId: string, id: string | null) => void
+  updateConversationAgent: (userId: string, id: string, userAgentId: number | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
 
@@ -104,11 +133,20 @@ function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): U
   return store.convsByUser[userId] ?? defaultUserState()
 }
 
+const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  modelId: null,
+  mode: 'chat',
+  includeProjectContext: true,
+  includeRecentResources: true,
+  autoPlan: true,
+  permissionMode: 'ask',
+}
+
 export const useAgentStore = create<AgentStore>()(
   persist(
     (set, get) => ({
       activeUserAgentId: null,
-      settings: { modelId: null },
+      settings: DEFAULT_AGENT_SETTINGS,
       convsByUser: {},
 
       setActiveUserAgent: (id) => set({ activeUserAgentId: id }),
@@ -161,6 +199,21 @@ export const useAgentStore = create<AgentStore>()(
         },
       })),
 
+      updateConversationAgent: (userId, id, userAgentId) => set((state) => {
+        const cur = getUserState(state, userId)
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              conversations: cur.conversations.map((c) =>
+                c.id === id ? { ...c, userAgentId, updatedAt: Date.now() } : c
+              ),
+            },
+          },
+        }
+      }),
+
       addMessage: (userId, conversationId, msg) => set((state) => {
         const cur = getUserState(state, userId)
         return {
@@ -193,6 +246,17 @@ export const useAgentStore = create<AgentStore>()(
     }),
     {
       name: 'agent-store-v3',
+      merge: (persisted, current) => {
+        const state = persisted as Partial<AgentStore> | undefined
+        return {
+          ...current,
+          ...state,
+          settings: {
+            ...DEFAULT_AGENT_SETTINGS,
+            ...(state?.settings ?? {}),
+          },
+        }
+      },
     }
   )
 )

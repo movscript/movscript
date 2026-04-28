@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
@@ -8,6 +8,7 @@ import {
   LayoutTemplate, Video, Move, Palette, Box,
   Users, PenLine, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
   HardDrive, Wand2, Network, MessageSquare, BotMessageSquare, LayoutDashboard,
+  Puzzle, Settings2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -17,6 +18,7 @@ import type { ProjectMember, Progress } from '@/types'
 import { Avatar, AvatarFallback } from '@movscript/ui'
 import { Progress as ProgressBar } from '@movscript/ui'
 import { Button } from '@movscript/ui'
+import { loadClientPlugins } from '@/lib/clientPlugins'
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
   return (
@@ -119,6 +121,10 @@ export function Sidebar() {
   const currentUser = useUserStore((s) => s.currentUser)
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  const [installedPlugins, setInstalledPlugins] = useState<import('@/lib/clientPlugins').ClientPluginManifest[]>([])
+  useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
 
   const { data: projectDetail, isError: projectNotFound } = useQuery({
     queryKey: ['project', current?.ID],
@@ -173,20 +179,24 @@ export function Sidebar() {
 
           {current && (
             <>
-              {showScripts && <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} />}
-              <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} />
-              <NavItem to="/episodes" icon={Film} label={t('sidebar.items.episodes')} />
-              <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} />
-              {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} />}
-              {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} />}
-              <div className="border-t border-border mx-3 my-1.5" />
-              <NavItem to="/production" icon={LayoutDashboard} label={t('sidebar.items.production')} />
               <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} />
+              <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} />
               <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} />
-              <NavItem to="/creation" icon={PenLine} label={t('sidebar.items.creation')} />
+              <div className="border-t border-border mx-3 my-1.5" />
             </>
           )}
         </Section>
+
+        {/* Content library — kept for cross-stage browsing */}
+        {current && (
+          <Section title={t('sidebar.sections.contentLibrary')} defaultOpen={false}>
+            {showScripts && <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} />}
+            <NavItem to="/episodes" icon={Film} label={t('sidebar.items.episodes')} />
+            <NavItem to="/scenes" icon={Clapperboard} label={t('sidebar.items.scenes')} />
+            {showStoryboards && <NavItem to="/storyboards" icon={Layers} label={t('sidebar.items.storyboards')} />}
+            {showStoryboards && <NavItem to="/shots" icon={Camera} label={t('sidebar.items.shots')} />}
+          </Section>
+        )}
 
         {/* Progress */}
         {current && (
@@ -209,6 +219,9 @@ export function Sidebar() {
           <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} />
           <NavItem to="/tools/multi-angle" icon={Box} label={t('sidebar.items.multiAngle')} />
           <NavItem to="/tools/brainstorm" icon={MessageSquare} label={t('sidebar.items.brainstorm')} />
+          {installedPlugins.map((plugin) => (
+            <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={Puzzle} label={plugin.name} />
+          ))}
         </Section>
 
         <div className="border-t border-border my-2" />
@@ -221,20 +234,14 @@ export function Sidebar() {
 
         <div className="border-t border-border my-2" />
 
-        {/* Agent */}
-        <Section title={t('sidebar.sections.agent')}>
+        {/* Manage */}
+        <Section title={t('sidebar.sections.manage')}>
+          <NavItem to="/plugins" icon={Puzzle} label={t('sidebar.items.plugins')} />
           <NavItem to="/agents" icon={BotMessageSquare} label={t('sidebar.items.myAgents')} />
-        </Section>
-
-        {/* Admin (super_admin only) */}
-        {currentUser?.system_role === 'super_admin' && (
-          <>
-            <div className="border-t border-border my-2" />
-            <Section title={t('sidebar.items.admin')} defaultOpen={false}>
-              <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
-            </Section>
-          </>
+          {currentUser?.system_role === 'super_admin' && (
+            <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} />
           )}
+        </Section>
 
       </nav>
 

@@ -617,14 +617,49 @@
       "manageMyAgents": "管理我的 Agent ->",
       "messagesCount": "{{count}} 条",
       "modelInvalid": "当前模型配置已失效，请重新选择模型。",
+      "modelLockedByAgent": "当前 Agent 已指定模型",
       "myAgents": "我的 Agent",
       "newConversation": "新对话",
       "noAgent": "不使用 Agent，直接对话",
+      "noAgentShort": "直接对话",
       "noConversations": "暂无对话记录",
       "platformTemplates": "平台模板",
       "selectAgent": "选择 Agent",
       "selectModelFirst": "请先选择一个模型。",
-      "startChat": "开始对话吧"
+      "startChat": "开始对话吧",
+      "identity": "身份",
+      "uploadAttachment": "上传图文、视频或音频",
+      "attachmentOnlyMessage": "请分析这些附件。",
+      "attachmentsCount": "{{count}} 个附件",
+      "recentResourcesCount": "{{count}} 个最近素材",
+      "projectContext": "项目上下文",
+      "resourceContext": "素材上下文",
+      "autoPlan": "自动规划",
+      "hideContext": "隐藏上下文",
+      "showContext": "显示上下文",
+      "modes": {
+        "chat": "协作",
+        "plan": "规划",
+        "create": "创作",
+        "review": "审查"
+      },
+      "permissions": {
+        "ask": "改动前确认",
+        "suggest": "只建议",
+        "auto": "低风险自动"
+      },
+      "capabilities": {
+        "memory": "会话记忆",
+        "multimodal": "图文视频附件",
+        "workflow": "项目工作流",
+        "audit": "权限与审计"
+      },
+      "suggestions": {
+        "planProject": "帮我规划当前项目下一步",
+        "createShot": "根据素材创作一个镜头方案",
+        "reviewAssets": "审查素材缺口和风险",
+        "buildWorkflow": "拆成可执行工作流"
+      }
     }
   },
   "user": {
@@ -669,35 +704,114 @@
       "toolNodes": "工具节点"
     },
     "nodeTypes": {
-      "script_writing": { "label": "剧本创作", "desc": "创作主剧本" },
-      "episode_writing": { "label": "分集剧本创作", "desc": "创作分集剧本" },
-      "scene_writing": { "label": "分场剧本创作", "desc": "创作分场剧本" },
-      "storyboard_creation": { "label": "分镜创作", "desc": "分镜脚本创作" },
-      "asset_creation": { "label": "素材创作", "desc": "人物/场景/道具创作" },
-      "raw_script": { "label": "底稿写作", "desc": "原始底稿/大纲" },
-      "shot_production": { "label": "镜头生产", "desc": "AI 生成镜头" },
-      "episode_edit": { "label": "剧集剪辑", "desc": "后期剪辑制作" },
-      "main_script": { "label": "主剧本", "desc": "完整主剧本产物" },
-      "episode_script": { "label": "分集剧本", "desc": "按集拆分剧本" },
-      "scene_script": { "label": "分场剧本", "desc": "按场景拆分" },
-      "storyboard_script": { "label": "分镜脚本", "desc": "分镜描述脚本" },
-      "episode": { "label": "分集", "desc": "分集产物" },
-      "scene": { "label": "分场", "desc": "分场产物" },
-      "storyboard": { "label": "分镜", "desc": "分镜产物" },
-      "asset": { "label": "素材", "desc": "素材产物" },
-      "ref_image_gen": { "label": "参考生图", "desc": "以参考图生成新图像" },
-      "ref_video_gen": { "label": "参考生视频", "desc": "以参考视频生成视频" },
-      "style_transfer": { "label": "画风迁移", "desc": "迁移参考图的艺术风格" },
-      "motion_imitation": { "label": "动作迁移", "desc": "迁移参考视频的动作" },
-      "multi_angle": { "label": "多角度", "desc": "生成多角度视图" },
-      "custom": { "label": "自定义", "desc": "自由定义类型" }
+      "script_writing": {
+        "label": "剧本创作",
+        "desc": "创作主剧本"
+      },
+      "episode_writing": {
+        "label": "分集剧本创作",
+        "desc": "创作分集剧本"
+      },
+      "scene_writing": {
+        "label": "分场剧本创作",
+        "desc": "创作分场剧本"
+      },
+      "storyboard_creation": {
+        "label": "分镜创作",
+        "desc": "分镜脚本创作"
+      },
+      "asset_creation": {
+        "label": "素材创作",
+        "desc": "人物/场景/道具创作"
+      },
+      "raw_script": {
+        "label": "底稿写作",
+        "desc": "原始底稿/大纲"
+      },
+      "shot_production": {
+        "label": "镜头生产",
+        "desc": "AI 生成镜头"
+      },
+      "episode_edit": {
+        "label": "剧集剪辑",
+        "desc": "后期剪辑制作"
+      },
+      "main_script": {
+        "label": "主剧本",
+        "desc": "完整主剧本产物"
+      },
+      "episode_script": {
+        "label": "分集剧本",
+        "desc": "按集拆分剧本"
+      },
+      "scene_script": {
+        "label": "分场剧本",
+        "desc": "按场景拆分"
+      },
+      "storyboard_script": {
+        "label": "分镜脚本",
+        "desc": "分镜描述脚本"
+      },
+      "episode": {
+        "label": "分集",
+        "desc": "分集产物"
+      },
+      "scene": {
+        "label": "分场",
+        "desc": "分场产物"
+      },
+      "storyboard": {
+        "label": "分镜",
+        "desc": "分镜产物"
+      },
+      "asset": {
+        "label": "素材",
+        "desc": "素材产物"
+      },
+      "shot": {
+        "label": "镜头",
+        "desc": "镜头产物"
+      },
+      "ref_image_gen": {
+        "label": "参考生图",
+        "desc": "以参考图生成新图像"
+      },
+      "ref_video_gen": {
+        "label": "参考生视频",
+        "desc": "以参考视频生成视频"
+      },
+      "style_transfer": {
+        "label": "画风迁移",
+        "desc": "迁移参考图的艺术风格"
+      },
+      "motion_imitation": {
+        "label": "动作迁移",
+        "desc": "迁移参考视频的动作"
+      },
+      "multi_angle": {
+        "label": "多角度",
+        "desc": "生成多角度视图"
+      },
+      "custom": {
+        "label": "自定义",
+        "desc": "自由定义类型"
+      }
     },
     "editor": {
       "subtitle": "内容生产管线",
       "dagView": "DAG 视图",
+      "treeView": "树形视图",
       "ganttView": "甘特图",
       "fitView": "适应画面",
-      "empty": "管线为空 · 右键画板添加节点，或从左侧拖入内容"
+      "empty": "管线为空 · 添加根节点开始组织生产树"
+    },
+    "tree": {
+      "addRoot": "添加根节点",
+      "addChild": "添加子节点",
+      "addChildTo": "给「{{name}}」添加子节点",
+      "structure": "节点结构",
+      "statusAndActions": "状态与操作",
+      "nodeType": "节点类型"
     },
     "contextMenu": {
       "addNode": "添加节点",
@@ -716,7 +830,17 @@
     "node": {
       "fallbackName": "节点 {{id}}",
       "linkedEntity": "已关联 {{type}} #{{id}}",
-      "dragConnect": "拖拽连线"
+      "blockedArtifacts": "待定稿产物：{{names}}",
+      "dragConnect": "拖拽连线",
+      "enterWorkspace": "进入工作区",
+      "lockedHint": "等待上游完成",
+      "customStage": "自定义阶段",
+      "actions": {
+        "submit": "提交审核",
+        "approve": "批准",
+        "reject": "拒绝",
+        "reopen": "重新开放"
+      }
     },
     "toolNode": {
       "noModels": "暂无模型",
@@ -758,7 +882,8 @@
       },
       "nodeName": "节点名称",
       "addDescription": "添加描述...",
-      "assignee": "负责人",
+      "assignee": "执行者",
+      "lead": "阶段负责人",
       "unassigned": "未分配",
       "dueDate": "截止日期",
       "linkEntity": "关联{{entity}}",
@@ -772,7 +897,21 @@
       "rejectPlaceholder": "请填写拒绝原因...",
       "confirmReject": "确认拒绝",
       "reopen": "重新开放（级联回退下游）",
-      "clickToEdit": "点击编辑..."
+      "clickToEdit": "点击编辑...",
+      "contentType": "内容类型",
+      "openWorkspace": "进入工作区"
+    },
+    "contentTypes": {
+      "script": "剧本",
+      "storyboard": "分镜",
+      "shot": "镜头",
+      "asset": "素材",
+      "custom": "自定义"
+    },
+    "workspace": {
+      "empty": "暂无内容，点击右上角新建",
+      "customHint": "自定义阶段，请在内容库中管理相关内容",
+      "createFirst": "新建第一个{{type}}"
     }
   },
   "work": {
@@ -935,7 +1074,7 @@
     },
     "editor": {
       "resourceShelf": {
-        "title": "资源 / 素材",
+        "title": "可用内容",
         "dragHint": "拖入画布创建节点",
         "noAssetViews": "暂无素材视图",
         "noProject": "该画布未绑定项目"
@@ -1097,7 +1236,12 @@
       }
     },
     "genResult": {
-      "reusePrompt": "复用此提示词"
+      "reusePrompt": "复用此提示词",
+      "context": {
+        "model": "模型",
+        "resources": "引用",
+        "params": "参数"
+      }
     },
     "generation": {
       "promptPlaceholder": "描述你想生成的内容…",
@@ -1206,6 +1350,54 @@
         "promptPlaceholder": "描述目标内容，AI 将使用参考图的画风重新绘制… 输入 @ 可引用资源库中的图片"
       }
     }
+  },
+  "plugins": {
+    "title": "插件",
+    "subtitle": "插件安装、脚本执行和删除都保存在当前客户端（IndexedDB）",
+    "installed": "已安装",
+    "sample": "参考生图",
+    "empty": "还没有安装插件",
+    "insertTitle": "粘贴 Manifest",
+    "insertDescription": "粘贴客户端插件 manifest JSON，保存后写入本机 IndexedDB。",
+    "save": "保存",
+    "noSelection": "未选择插件",
+    "selectHint": "先在左侧选择或安装一个插件",
+    "edit": "编辑",
+    "delete": "删除",
+    "run": "调用",
+    "running": "调用中",
+    "enabled": "启用",
+    "result": "调用结果",
+    "parameters": "参数",
+    "notFound": "插件未找到",
+    "installFromUrl": "从 URL 安装",
+    "installFromFile": "从文件安装",
+    "installFromUrlTitle": "从 URL 安装插件",
+    "installFromUrlDescription": "输入插件 manifest（JSON）或 bundle（JS）的 URL，将自动下载并安装到本机。",
+    "urlPlaceholder": "https://example.com/my-plugin.json",
+    "installing": "安装中…",
+    "install": "安装",
+    "installedAt": "安装于",
+    "source": "来源",
+    "author": "作者",
+    "version": "版本",
+    "migratedFromLocalStorage": "已从旧版 localStorage 迁移 {{count}} 个插件",
+    "errors": {
+      "invalidManifest": "插件 manifest 无效",
+      "runFailed": "插件调用失败",
+      "installFailed": "安装失败：{{message}}"
+    },
+    "myPlugins": "我的插件",
+    "marketplace": "插件市场",
+    "alreadyInstalled": "已安装",
+    "downloads": "次下载",
+    "searchPlaceholder": "搜索插件…",
+    "browseMarketplace": "去插件市场浏览",
+    "marketplaceNote": "插件市场尚未上线",
+    "marketplaceEmpty": "插件市场暂无插件",
+    "marketplaceEmptyHint": "可通过文件或 URL 安装自定义插件",
+    "open": "打开",
+    "emptyHint": "通过文件 / URL 安装自定义插件，或等待插件市场上线"
   },
   "admin": {
     "title": "管理后台",
@@ -1677,6 +1869,7 @@
       "canvases": "画布",
       "resources": "资源库",
       "jobs": "生成记录",
+      "plugins": "本机插件",
       "agents": "Agent",
       "agentSettings": "Agent 设置",
       "user": "用户资料",
@@ -1695,8 +1888,9 @@
       "progress": "进度",
       "tools": "工具",
       "files": "文件",
-      "agent": "Agent",
-      "workspace": "工作区"
+      "manage": "管理",
+      "workspace": "工作区",
+      "contentLibrary": "内容库"
     },
     "items": {
       "scripts": "剧本",
@@ -1714,6 +1908,7 @@
       "brainstorm": "头脑风暴",
       "resources": "资源库",
       "jobs": "生成记录",
+      "plugins": "插件",
       "myAgents": "我的 Agent",
       "production": "生产中台",
       "pipeline": "管线",

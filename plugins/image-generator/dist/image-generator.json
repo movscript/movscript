@@ -1,0 +1,93 @@
+{
+  "schema": "movscript.clientPlugin.v1",
+  "id": "com.movscript.image-generator",
+  "name": "图像生成器",
+  "version": "1.0.0",
+  "description": "文生图 & 参考图生图。自动选择可用模型，支持画幅、质量、负向提示词等参数。",
+  "author": "Movscript",
+  "homepage": "https://github.com/migua/movscript",
+  "permissions": [
+    "model.image.generate",
+    "resource.read"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "prompt"
+    ],
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "title": "提示词",
+        "description": "描述要生成的画面内容"
+      },
+      "negative_prompt": {
+        "type": "string",
+        "title": "负向提示词",
+        "description": "不希望出现的内容（可选）"
+      },
+      "model_config_id": {
+        "type": "number",
+        "title": "模型配置",
+        "description": "可选，不填时自动选择可用图像模型",
+        "x-widget": "model-selector",
+        "x-capability": "image"
+      },
+      "reference_resource_ids": {
+        "type": "string",
+        "title": "参考图资源 ID",
+        "description": "可选，多个 ID 用英文逗号分隔，填写后切换为图生图模式"
+      },
+      "aspect_ratio": {
+        "type": "string",
+        "title": "画幅比例",
+        "enum": [
+          "1:1",
+          "16:9",
+          "9:16",
+          "4:3",
+          "3:4",
+          "2:3",
+          "3:2"
+        ],
+        "default": "1:1"
+      },
+      "image_size": {
+        "type": "string",
+        "title": "输出尺寸",
+        "description": "如 1024x1024、1280x720",
+        "default": "1024x1024"
+      },
+      "quality": {
+        "type": "string",
+        "title": "质量",
+        "enum": [
+          "auto",
+          "standard",
+          "hd",
+          "high",
+          "medium",
+          "low"
+        ],
+        "default": "standard"
+      },
+      "steps": {
+        "type": "number",
+        "title": "推理步数",
+        "description": "可选，部分模型支持（如 20~50）"
+      },
+      "seed": {
+        "type": "number",
+        "title": "随机种子",
+        "description": "可选，固定种子可复现结果"
+      },
+      "timeout_ms": {
+        "type": "number",
+        "title": "超时（毫秒）",
+        "description": "默认 180000（3 分钟）",
+        "default": 180000
+      }
+    }
+  },
+  "bundle": "\"use strict\";var __movPlugin__=(()=>{var g=Object.defineProperty;var y=Object.getOwnPropertyDescriptor;var w=Object.getOwnPropertyNames;var P=Object.prototype.hasOwnProperty;var R=(t,e)=>{for(var n in e)g(t,n,{get:e[n],enumerable:!0})},h=(t,e,n,r)=>{if(e&&typeof e==\"object\"||typeof e==\"function\")for(let i of w(e))!P.call(t,i)&&i!==n&&g(t,i,{get:()=>e[i],enumerable:!(r=y(e,i))||r.enumerable});return t};var k=t=>h(g({},\"__esModule\",{value:!0}),t);var x={};R(x,{run:()=>I});async function I(t,e){let n=String(e.prompt??\"\").trim();if(!n)throw new Error(\"prompt \\u4E0D\\u80FD\\u4E3A\\u7A7A\");let r=String(e.reference_resource_ids??\"\").split(\",\").map(s=>Number(s.trim())).filter(s=>Number.isFinite(s)&&s>0),i=r.length>0,o=Number(e.model_config_id);if(!o||!Number.isFinite(o)){let s=i?\"image_edit\":\"image\",c=await t.models(s);if(c.length===0){let p=await t.models(i?\"image\":\"image_edit\");if(p.length===0)throw new Error(\"\\u6CA1\\u6709\\u53EF\\u7528\\u7684\\u56FE\\u50CF\\u6A21\\u578B\\u914D\\u7F6E\\uFF0C\\u8BF7\\u5728\\u7BA1\\u7406\\u540E\\u53F0\\u6DFB\\u52A0\");o=p[0].id}else o=c[0].id}let d=String(e.aspect_ratio??\"1:1\"),_=String(e.image_size??\"1024x1024\"),l=String(e.quality??\"standard\"),f=Number(e.timeout_ms??18e4),a={image_size:_,quality:l};e.negative_prompt&&(a.negative_prompt=String(e.negative_prompt)),e.steps&&(a.steps=Number(e.steps)),e.seed&&(a.seed=Number(e.seed));let m=await t.generateImage({model_config_id:o,job_type:i?\"image_edit\":\"image\",feature_key:\"plugin.image_generator\",prompt:n,input_resource_ids:r,aspect_ratio:d,extra_params:a,timeout_ms:f}),b=m.output_resource_ids?.length??0,u=[`\\u56FE\\u50CF\\u751F\\u6210\\u5B8C\\u6210 (Job #${m.ID})`,`\\u72B6\\u6001: ${m.status}`];return b>0&&u.push(`\\u8F93\\u51FA\\u8D44\\u6E90 ID: ${m.output_resource_ids.join(\", \")}`),i&&u.push(`\\u53C2\\u8003\\u56FE: ${r.join(\", \")}`),{content:[{type:\"text\",text:u.join(`\n`)}],data:m}}return k(x);})();\n\nvar run = __movPlugin__.run;"
+}

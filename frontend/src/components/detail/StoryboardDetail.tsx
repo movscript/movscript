@@ -3,15 +3,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Storyboard } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Save, Camera, Upload } from 'lucide-react'
+import { Camera, Upload } from 'lucide-react'
 import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
-import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
-import { Label } from '@movscript/ui'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
+import { StoryboardForm } from '@/components/forms/StoryboardForm'
 
 interface Props {
   storyboard: Storyboard
@@ -69,36 +66,13 @@ export function StoryboardDetail({ storyboard, onClose, onDelete }: Props) {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: description editor */}
-        <div className="w-96 shrink-0 border-r border-border overflow-y-auto p-5 space-y-3">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.title')}</Label>
-            <Input value={draft.title ?? ''} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
-            <Textarea rows={3} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.characters')}</Label>
-              <Textarea rows={2} value={draft.characters ?? ''} onChange={(e) => setDraft((d) => ({ ...d, characters: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.actions')}</Label>
-              <Textarea rows={2} value={draft.actions ?? ''} onChange={(e) => setDraft((d) => ({ ...d, actions: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.dialogue')}</Label>
-            <Textarea rows={3} value={draft.dialogue ?? ''} onChange={(e) => setDraft((d) => ({ ...d, dialogue: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.atmosphere')}</Label>
-            <Textarea rows={2} value={draft.atmosphere ?? ''} onChange={(e) => setDraft((d) => ({ ...d, atmosphere: e.target.value }))} />
-          </div>
-          <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="w-full gap-1.5" size="sm">
-            <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
-          </Button>
+        <div className="w-96 shrink-0 border-r border-border overflow-hidden">
+          <StoryboardForm
+            draft={draft}
+            onChange={setDraft}
+            onSave={(data) => update.mutate(data)}
+            isSaving={update.isPending}
+          />
         </div>
 
         {/* Right: key frames + draft video */}

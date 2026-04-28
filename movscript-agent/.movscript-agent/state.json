@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "threads": [
+    {
+      "id": "thread_moi5j48b_p6qtou",
+      "title": "新对话",
+      "projectId": 1,
+      "archived": false,
+      "createdAt": "2026-04-28T04:54:27.371Z",
+      "updatedAt": "2026-04-28T04:54:27.419Z",
+      "messages": [
+        {
+          "id": "msg_moi5j48q_804dqb",
+          "threadId": "thread_moi5j48b_p6qtou",
+          "role": "user",
+          "content": "你好",
+          "createdAt": "2026-04-28T04:54:27.386Z"
+        },
+        {
+          "id": "msg_moi5j49m_ilbxa5",
+          "threadId": "thread_moi5j48b_p6qtou",
+          "role": "assistant",
+          "content": "我已经读取了当前 MovScript 上下文。\n收到的请求：你好\n第一阶段 runtime 目前只会自动读取上下文，并在你要求查项目内容或生成草稿时调用对应 MCP 工具。",
+          "runId": "run_moi5j48u_nk2up2",
+          "createdAt": "2026-04-28T04:54:27.418Z"
+        }
+      ],
+      "lastRunStatus": "completed"
+    }
+  ],
+  "runs": [
+    {
+      "id": "run_moi5j48u_nk2up2",
+      "threadId": "thread_moi5j48b_p6qtou",
+      "status": "completed",
+      "agentManifest": {
+        "schema": "movscript.agent.v1",
+        "id": "movscript.default.local-agent",
+        "version": "0.1.0",
+        "name": "MovScript Local Agent",
+        "description": "Default local agent with first-version read and draft permissions.",
+        "permissions": [
+          "project.read",
+          "draft.read",
+          "draft.write",
+          "ui.navigate"
+        ],
+        "tools": [
+          {
+            "name": "movscript.search_entities",
+            "mode": "allow",
+            "approval": "never"
+          },
+          {
+            "name": "movscript.read_entity",
+            "mode": "allow",
+            "approval": "never"
+          },
+          {
+            "name": "movscript.create_draft",
+            "mode": "allow",
+            "approval": "never"
+          },
+          {
+            "name": "movscript.list_drafts",
+            "mode": "allow",
+            "approval": "never"
+          },
+          {
+            "name": "movscript.open_entity",
+            "mode": "allow",
+            "approval": "never"
+          }
+        ]
+      },
+      "createdAt": "2026-04-28T04:54:27.390Z",
+      "updatedAt": "2026-04-28T04:54:27.419Z",
+      "steps": [
+        {
+          "id": "step_moi5j48v_emoanc",
+          "runId": "run_moi5j48u_nk2up2",
+          "type": "tool_call",
+          "status": "completed",
+          "createdAt": "2026-04-28T04:54:27.391Z",
+          "toolName": "movscript.get_context_pack",
+          "args": {},
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"snapshot\": {\n    \"route\": {\n      \"pathname\": \"/\",\n      \"search\": \"\",\n      \"hash\": \"\"\n    },\n    \"project\": null,\n    \"user\": null,\n    \"selection\": null,\n    \"updatedAt\": \"1970-01-01T00:00:00.000Z\"\n  },\n  \"resources\": [\n    {\n      \"uri\": \"movscript://ui/current-route\",\n      \"name\": \"Current route\",\n      \"description\": \"Current MovScript route in the Electron renderer.\",\n      \"mimeType\": \"application/json\"\n    },\n    {\n      \"uri\": \"movscript://ui/current-selection\",\n      \"name\": \"Current selection\",\n      \"description\": \"Current selected entity, when a page has reported one.\",\n      \"mimeType\": \"application/json\"\n    },\n    {\n      \"uri\": \"movscript://project/current\",\n      \"name\": \"Current project\",\n      \"description\": \"Current MovScript project summary.\",\n      \"mimeType\": \"application/json\"\n    }\n  ],\n  \"draftCount\": 0\n}"
+              }
+            ]
+          },
+          "completedAt": "2026-04-28T04:54:27.412Z"
+        },
+        {
+          "id": "step_moi5j49i_l2gpws",
+          "runId": "run_moi5j48u_nk2up2",
+          "type": "planning",
+          "status": "completed",
+          "createdAt": "2026-04-28T04:54:27.414Z",
+          "title": "任务规划",
+          "result": {
+            "planId": "plan_moi5j49i_tla1i9",
+            "objective": "你好",
+            "taskCount": 1
+          },
+          "completedAt": "2026-04-28T04:54:27.414Z"
+        },
+        {
+          "id": "step_moi5j49k_9vxwow",
+          "runId": "run_moi5j48u_nk2up2",
+          "type": "subagent",
+          "status": "completed",
+          "createdAt": "2026-04-28T04:54:27.416Z",
+          "title": "直接回应",
+          "agentId": "agent_moi5j49k_9jfeie",
+          "agentRole": "coordinator",
+          "result": {
+            "taskId": "task_moi5j49i_fzno04",
+            "description": "当前请求不需要项目工具，整理上下文后直接回复。",
+            "toolCount": 0,
+            "summary": "子 agent 已完成分配任务。"
+          },
+          "completedAt": "2026-04-28T04:54:27.417Z"
+        },
+        {
+          "id": "step_moi5j49m_jfmfip",
+          "runId": "run_moi5j48u_nk2up2",
+          "type": "message",
+          "status": "completed",
+          "createdAt": "2026-04-28T04:54:27.418Z",
+          "result": {
+            "messageId": "msg_moi5j49m_ilbxa5"
+          },
+          "completedAt": "2026-04-28T04:54:27.419Z"
+        }
+      ],
+      "startedAt": "2026-04-28T04:54:27.391Z",
+      "plan": {
+        "id": "plan_moi5j49i_tla1i9",
+        "objective": "你好",
+        "strategy": "coordinator 处理：直接回应",
+        "tasks": [
+          {
+            "id": "task_moi5j49i_fzno04",
+            "title": "直接回应",
+            "description": "当前请求不需要项目工具，整理上下文后直接回复。",
+            "agentRole": "coordinator",
+            "status": "completed",
+            "toolCalls": [],
+            "createdAt": "2026-04-28T04:54:27.414Z",
+            "startedAt": "2026-04-28T04:54:27.416Z",
+            "completedAt": "2026-04-28T04:54:27.417Z"
+          }
+        ],
+        "createdAt": "2026-04-28T04:54:27.414Z",
+        "updatedAt": "2026-04-28T04:54:27.417Z"
+      },
+      "assistantMessageId": "msg_moi5j49m_ilbxa5",
+      "metadata": {
+        "memoryIds": [],
+        "writtenMemoryIds": []
+      },
+      "completedAt": "2026-04-28T04:54:27.419Z"
+    }
+  ]
+}

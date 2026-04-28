@@ -44,6 +44,12 @@ func (h *StoryboardHandler) ListByProject(c *gin.Context) {
 	if eid := c.Query("episode_id"); eid != "" {
 		q = q.Where("episode_id = ?", eid)
 	}
+	if nid := c.Query("pipeline_node_id"); nid != "" {
+		q = q.Where("pipeline_node_id = ?", nid)
+	}
+	if aid := c.Query("assignee_id"); aid != "" {
+		q = q.Where("assignee_id = ?", aid)
+	}
 	q.Find(&boards)
 	c.JSON(http.StatusOK, boards)
 }
@@ -123,4 +129,21 @@ func (h *StoryboardHandler) Update(c *gin.Context) {
 func (h *StoryboardHandler) Delete(c *gin.Context) {
 	h.db.Delete(&model.Storyboard{}, c.Param("id"))
 	c.Status(http.StatusNoContent)
+}
+
+// Patch applies a partial update (assignee_id, review_status, etc.) to a storyboard.
+func (h *StoryboardHandler) Patch(c *gin.Context) {
+	var b model.Storyboard
+	if err := h.db.First(&b, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("分镜不存在"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.db.Model(&b).Updates(body)
+	h.db.First(&b, b.ID)
+	c.JSON(http.StatusOK, b)
 }

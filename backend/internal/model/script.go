@@ -11,6 +11,10 @@ type Script struct {
 	Status     string    `gorm:"default:'draft'" json:"status"`
 	ScriptType string    `gorm:"default:'main'" json:"script_type"` // main|episode|scene
 	EpisodeID  *uint     `json:"episode_id,omitempty"`
+	PipelineNodeID *uint `json:"pipeline_node_id,omitempty"`
+	AssigneeID     *uint `json:"assignee_id,omitempty"`
+	Assignee       *User `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
+	ReviewStatus   string `gorm:"default:'draft'" json:"review_status"`
 	AuthorID   uint      `json:"author_id"`
 	Author     User      `json:"author,omitempty"`
 	ResourceIDs string   `json:"resource_ids"` // JSON array of RawResource IDs

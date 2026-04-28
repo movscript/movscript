@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   X, CalendarDays, AlertCircle, CheckCircle2, Clock,
-  FileWarning, Link2, Plus, ExternalLink, Loader2,
+  FileWarning, Link2, Plus, ExternalLink, Loader2, ArrowRight,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
@@ -49,6 +50,12 @@ const NODE_TYPE_TO_ENTITY: Record<string, EntityDef> = {
     apiPath: (pid) => `/projects/${pid}/shots`,
     defaultBody: () => ({ description: '' }),
   },
+  shot: {
+    entityType: 'shot',
+    label: 'Shot',
+    apiPath: (pid) => `/projects/${pid}/shots`,
+    defaultBody: () => ({ description: '' }),
+  },
 }
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
@@ -62,10 +69,12 @@ interface Props {
   node: PipelineNode
   onClose: () => void
   onNodeUpdated: (node: PipelineNode) => void
+  onOpenWorkspace?: (node: PipelineNode) => void
 }
 
-export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
+export function NodeDetailPanel({ node, onClose, onNodeUpdated, onOpenWorkspace }: Props) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const project = useProjectStore((s) => s.current)
   const currentUser = useUserStore((s) => s.currentUser)
@@ -195,6 +204,27 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
           </Select>
         </div>
 
+        {/* Lead */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">{t('pipeline.detail.lead')}</Label>
+          <Select
+            value={node.lead_id?.toString() ?? '__none__'}
+            onValueChange={(v) => handleSaveField('lead_id', v === '__none__' ? null : parseInt(v))}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder={t('pipeline.detail.unassigned')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">{t('pipeline.detail.unassigned')}</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.user_id} value={m.user_id.toString()}>
+                  {m.user?.username ?? t('pages.resources.userFallback', { id: m.user_id })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Due date */}
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -208,6 +238,25 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
             onBlur={(e) => handleSaveField('due_date', e.target.value || null as unknown as string)}
           />
         </div>
+
+        {/* Content type */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">{t('pipeline.detail.contentType')}</Label>
+          <div className="h-8 rounded-md border border-border bg-muted/40 px-3 text-sm text-foreground flex items-center">
+            {t(`pipeline.contentTypes.${node.content_type ?? 'custom'}`)}
+          </div>
+        </div>
+
+        {/* Open workspace */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-8 text-xs"
+          onClick={() => onOpenWorkspace ? onOpenWorkspace(node) : navigate(`/pipeline/nodes/${node.ID}`)}
+        >
+          <ArrowRight size={12} className="mr-1.5" />
+          {t('pipeline.detail.openWorkspace')}
+        </Button>
 
         {/* ── Entity link section ────────────────────────────────────── */}
         {entityDef && (
@@ -328,7 +377,7 @@ export function NodeDetailPanel({ node, onClose, onNodeUpdated }: Props) {
           </>
         )}
 
-        {(node.status === 'final' || node.status === 'rejected') && (
+        {node.status === 'final' && (
           <Button
             variant="outline"
             className="w-full"

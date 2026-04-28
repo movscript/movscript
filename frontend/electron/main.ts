@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, dialog, session } from 'electron'
 import { join } from 'path'
 import { startBackend, stopBackend } from './backend'
+import { ensureAgentRunning, stopAgent } from './agent'
+import { startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
+import type { MCPContextSnapshot } from './mcp/types'
 
 // Tracks the currently authenticated user ID, injected into every backend request.
 let currentUserId = ''
@@ -43,6 +46,7 @@ app.whenReady().then(async () => {
   )
 
   await startBackend()
+  await startMCPServer()
   createWindow()
 
   app.on('activate', () => {
@@ -51,6 +55,8 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
+  await stopAgent()
+  await stopMCPServer()
   await stopBackend()
   if (process.platform !== 'darwin') app.quit()
 })
@@ -67,4 +73,12 @@ ipcMain.handle('dialog:saveFile', async (_e, defaultPath?: string) => {
 
 ipcMain.handle('set-user-id', (_e, id: string) => {
   currentUserId = id
+})
+
+ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
+  updateMCPContextSnapshot(snapshot)
+})
+
+ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {
+  return ensureAgentRunning(input)
 })

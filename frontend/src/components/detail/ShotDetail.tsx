@@ -3,17 +3,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Shot } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Save, Camera } from 'lucide-react'
-import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
+import { Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import {
-  SHOT_STATUS_LABEL_KEYS, SHOT_STATUS_COLORS, SHOT_STATUS_NEXT, SHOT_STATUS_STEPS,
-} from '@/constants/shot'
+import { SHOT_STATUS_LABEL_KEYS, SHOT_STATUS_COLORS } from '@/constants/shot'
 import { Button } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
-import { Label } from '@movscript/ui'
 import { ReviewStatusBadge, ReviewActions } from './ReviewStatus'
 import { useTranslation } from 'react-i18next'
+import { ShotForm } from '@/components/forms/ShotForm'
 
 interface Props {
   shot: Shot
@@ -29,19 +25,17 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
 
   const update = useMutation({
     mutationFn: (data: Partial<Shot>) =>
-      api.put(`/storyboards/${shot.storyboard_id}/shots/${shot.ID}`, data).then((r) => r.data),
+      api.put(`/shots/${shot.ID}`, data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shots-project', projectId] }),
   })
 
   const remove = useMutation({
-    mutationFn: () => api.delete(`/storyboards/${shot.storyboard_id}/shots/${shot.ID}`),
+    mutationFn: () => api.delete(`/shots/${shot.ID}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
       onDelete?.()
     },
   })
-
-  const currentIdx = SHOT_STATUS_STEPS.indexOf(shot.status)
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -63,7 +57,7 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
       <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-muted/30 shrink-0">
         <ReviewActions
           status={shot.review_status}
-          apiUrl={`/storyboards/${shot.storyboard_id}/shots/${shot.ID}`}
+          apiUrl={`/shots/${shot.ID}`}
           queryKey={['shots-project', projectId]}
         />
         {onDelete && (
@@ -75,52 +69,14 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: shot settings */}
-        <div className="w-96 shrink-0 border-r border-border overflow-y-auto p-5 space-y-3">
-          {/* Status progress */}
-          <div className="flex items-center gap-1 mb-2">
-            {SHOT_STATUS_STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-1">
-                <div className={cn('w-2 h-2 rounded-full', i <= currentIdx ? 'bg-foreground' : 'bg-muted')} />
-                {i < SHOT_STATUS_STEPS.length - 1 && (
-                  <div className={cn('w-4 h-0.5', i < currentIdx ? 'bg-foreground' : 'bg-muted')} />
-                )}
-              </div>
-            ))}
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
-            <Textarea rows={2} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.prompt')}</Label>
-            <Textarea
-              className="font-mono"
-              rows={6}
-              placeholder={t('details.promptPlaceholder')}
-              value={draft.prompt ?? ''}
-              onChange={(e) => setDraft((d) => ({ ...d, prompt: e.target.value }))}
-            />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.referenceAssets')}</Label>
-            <ResourceAttachments
-              resourceIds={draft.ref_resource_ids ? JSON.parse(draft.ref_resource_ids) : []}
-              onChange={(ids) => setDraft((d) => ({ ...d, ref_resource_ids: JSON.stringify(ids) }))}
-            />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="flex-1 gap-1.5" size="sm">
-              <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
-            </Button>
-            {SHOT_STATUS_NEXT[shot.status] && (
-              <button
-                onClick={() => update.mutate({ status: SHOT_STATUS_NEXT[shot.status]! })}
-                className="text-xs text-muted-foreground border border-border px-3 py-2 rounded hover:bg-muted whitespace-nowrap"
-              >
-                → {t(SHOT_STATUS_LABEL_KEYS[SHOT_STATUS_NEXT[shot.status]!])}
-              </button>
-            )}
-          </div>
+        <div className="w-96 shrink-0 border-r border-border overflow-hidden">
+          <ShotForm
+            shot={shot}
+            draft={draft}
+            onChange={setDraft}
+            onSave={(data) => update.mutate(data)}
+            isSaving={update.isPending}
+          />
         </div>
 
         {/* Right: video output */}

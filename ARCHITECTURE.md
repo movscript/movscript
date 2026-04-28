@@ -99,6 +99,9 @@ const mutation = useMutation({
 `ai/registry.go` 从 DB 加载 `AIProvider` 记录，解密 API key，实例化对应 adapter。
 调用入口：`h.registry.Get(providerName)` → `provider.TextGenerate / ImageGenerate / VideoGenerate`
 
+### 前端：本机插件
+插件安装和脚本执行在客户端完成，入口是 `frontend/src/pages/plugins/ClientPluginsPage.tsx`。后端不保存插件注册表、不调用插件 runtime，也不把插件并入 MCP；插件通过 `/models`、`/resources`、`/gen-jobs` 等稳定模型能力 API 调用后端。详见 `docs/plugins.md`。
+
 ---
 
 ## 修改指南
@@ -113,4 +116,5 @@ const mutation = useMutation({
 | 添加新 AI provider | `backend/internal/ai/<provider>.go`，实现 `Provider` 接口，注册到 registry |
 | 修改 Canvas 执行逻辑 | `backend/internal/handler/canvas_exec.go` |
 | 修改 Canvas CRUD | `backend/internal/handler/canvas.go` |
+| 修改本机插件 manifest / runtime | `frontend/src/lib/clientPlugins.ts` + `frontend/src/pages/plugins/ClientPluginsPage.tsx` |
 | 添加新实体类型 | model + handler + router + `frontend/src/types/index.ts` |

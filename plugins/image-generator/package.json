@@ -1,0 +1,14 @@
+{
+  "name": "@movscript/plugin-image-generator",
+  "version": "1.0.0",
+  "description": "Movscript image generation plugin — text-to-image and image-to-image",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "movcli build"
+  },
+  "devDependencies": {
+    "@movscript/plugin-sdk": "latest",
+    "typescript": "^5.7.0"
+  }
+}

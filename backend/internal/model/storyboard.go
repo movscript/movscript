@@ -10,6 +10,10 @@ type Storyboard struct {
 	ProjectID   uint   `gorm:"not null" json:"project_id"`
 	SceneID     *uint  `json:"scene_id,omitempty"`
 	EpisodeID   *uint  `json:"episode_id,omitempty"`
+	PipelineNodeID *uint `json:"pipeline_node_id,omitempty"`
+	AssigneeID     *uint `json:"assignee_id,omitempty"`
+	Assignee       *User `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
+	ReviewStatus   string `gorm:"default:'draft'" json:"review_status"`
 	Order       int    `json:"order"`
 	Title       string `json:"title"`
 	Description string `json:"description"`

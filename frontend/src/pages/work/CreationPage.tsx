@@ -147,12 +147,12 @@ export default function CreationPage() {
     if (!activeTab) return <EmptyWorkspace kind={activeKind} />
     const { kind, id } = activeTab
     switch (kind) {
-      case 'script':     { const item = scripts.find((s) => s.ID === id);     return item ? <ScriptWorkspace script={item} />         : <EmptyWorkspace kind={kind} /> }
+      case 'script':     { const item = scripts.find((s) => s.ID === id);     return item ? <ScriptWorkspace script={item} episodes={episodes} scenes={scenes} /> : <EmptyWorkspace kind={kind} /> }
       case 'asset':      { const item = assets.find((a) => a.ID === id);      return item ? <AssetWorkspace asset={item} />           : <EmptyWorkspace kind={kind} /> }
       case 'episode':    { const item = episodes.find((e) => e.ID === id);    return item ? <EpisodeWorkspace episode={item} />       : <EmptyWorkspace kind={kind} /> }
       case 'scene':      { const item = scenes.find((s) => s.ID === id);      return item ? <SceneWorkspace scene={item} />           : <EmptyWorkspace kind={kind} /> }
-      case 'storyboard': { const item = storyboards.find((b) => b.ID === id); return item ? <StoryboardWorkspace storyboard={item} /> : <EmptyWorkspace kind={kind} /> }
-      case 'shot':       { const item = shots.find((s) => s.ID === id);       return item ? <ShotWorkspace shot={item} />             : <EmptyWorkspace kind={kind} /> }
+      case 'storyboard': { const item = storyboards.find((b) => b.ID === id); return item ? <StoryboardWorkspace storyboard={item} scenes={scenes} episodes={episodes} shots={shots} onOpenTab={openTab} /> : <EmptyWorkspace kind={kind} /> }
+      case 'shot':       { const item = shots.find((s) => s.ID === id);       return item ? <ShotWorkspace shot={item} storyboards={storyboards} onOpenTab={openTab} /> : <EmptyWorkspace kind={kind} /> }
     }
   }
 

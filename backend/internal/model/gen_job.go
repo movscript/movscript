@@ -19,16 +19,17 @@ type GenJob struct {
 	MaxAttempts         int        `gorm:"not null;default:3" json:"max_attempts"`
 	NextRunAt           *time.Time `json:"next_run_at,omitempty"`
 	Prompt              string     `json:"prompt"`
-	ExtraParams         string     `json:"extra_params,omitempty"`                   // JSON: size, quality, style, etc.
-	AspectRatio         string     `gorm:"default:''" json:"aspect_ratio,omitempty"` // e.g. "16:9", "9:16"
-	Duration            int        `gorm:"default:0" json:"duration,omitempty"`      // seconds; 0 = model default
-	InputResourceID     *uint      `json:"input_resource_id,omitempty"`              // legacy single reference (kept for backward compat)
-	InputResourceIDs    string     `json:"input_resource_ids,omitempty"`             // JSON array of resource IDs e.g. "[1,2]"
-	OutputResourceID    *uint      `json:"output_resource_id,omitempty"`             // set when succeeded
-	ProviderTaskID      string     `json:"provider_task_id,omitempty"`               // external task ID if async
-	ProviderTaskKind    string     `json:"provider_task_kind,omitempty"`             // provider-specific async task kind/endpoint
-	ProviderTaskStatus  string     `json:"provider_task_status,omitempty"`           // latest external task status
-	ProviderTaskHistory string     `json:"provider_task_history,omitempty"`          // JSON-encoded provider status history
+	ExtraParams         string     `json:"extra_params,omitempty"`                     // JSON: size, quality, style, etc.
+	AspectRatio         string     `gorm:"default:''" json:"aspect_ratio,omitempty"`   // e.g. "16:9", "9:16"
+	Duration            int        `gorm:"default:0" json:"duration,omitempty"`        // seconds; 0 = model default
+	RequestContext      string     `gorm:"type:text" json:"request_context,omitempty"` // JSON snapshot of model, inputs, and params at creation time
+	InputResourceID     *uint      `json:"input_resource_id,omitempty"`                // legacy single reference (kept for backward compat)
+	InputResourceIDs    string     `json:"input_resource_ids,omitempty"`               // JSON array of resource IDs e.g. "[1,2]"
+	OutputResourceID    *uint      `json:"output_resource_id,omitempty"`               // set when succeeded
+	ProviderTaskID      string     `json:"provider_task_id,omitempty"`                 // external task ID if async
+	ProviderTaskKind    string     `json:"provider_task_kind,omitempty"`               // provider-specific async task kind/endpoint
+	ProviderTaskStatus  string     `json:"provider_task_status,omitempty"`             // latest external task status
+	ProviderTaskHistory string     `json:"provider_task_history,omitempty"`            // JSON-encoded provider status history
 	ErrorMsg            string     `json:"error_msg,omitempty"`
 	DebugInfo           string     `json:"debug_info,omitempty"`      // JSON-encoded DebugCallResult (populated in debug mode)
 	ExecutionState      string     `json:"execution_state,omitempty"` // current worker state-machine state

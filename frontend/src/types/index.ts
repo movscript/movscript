@@ -12,16 +12,20 @@ export interface Project {
 }
 
 export type PipelineNodeStatus = 'draft' | 'under_review' | 'rejected' | 'final'
+export type PipelineContentType = 'script' | 'storyboard' | 'shot' | 'asset' | 'custom'
 
 export interface PipelineNode {
   ID: number
   project_id: number
   type: string // raw_script|main_script|episode_script|scene_script|storyboard_script|shot_production|episode_edit|custom
+  content_type: PipelineContentType
   name: string
   status: PipelineNodeStatus
   description?: string
   assignee_id?: number
   assignee?: User
+  lead_id?: number
+  lead?: User
   due_date?: string
   review_note?: string
   reviewed_by?: number
@@ -66,6 +70,9 @@ export interface Script {
   review_status?: ReviewStatus
   script_type: 'main' | 'episode' | 'scene'
   episode_id?: number
+  pipeline_node_id?: number
+  assignee_id?: number
+  assignee?: User
   author_id: number
   resource_ids: string // JSON array of RawResource IDs
   order: number // sort order for episode scripts
@@ -110,6 +117,7 @@ export interface AssetView {
 export interface Asset {
   ID: number
   project_id: number
+  pipeline_node_id?: number
   name: string
   type: 'character' | 'scene' | 'prop' | 'draft'
   description: string
@@ -166,6 +174,9 @@ export interface Storyboard {
   project_id: number
   scene_id?: number
   episode_id?: number
+  pipeline_node_id?: number
+  assignee_id?: number
+  assignee?: User
   order: number
   title: string
   description: string
@@ -196,6 +207,9 @@ export interface Shot {
   ID: number
   project_id: number
   storyboard_id?: number
+  pipeline_node_id?: number
+  assignee_id?: number
+  assignee?: User
   order: number
   description: string
   prompt: string
@@ -207,6 +221,13 @@ export interface Shot {
   final_prompt?: string
   is_approved?: boolean
   review_status?: ReviewStatus
+  // Cinematography parameters
+  shot_size?: string    // close_up|near|medium|full|wide|extreme_wide
+  angle?: string        // eye_level|overhead|low_angle|side|top|dutch
+  movement?: string     // push|pull|pan|dolly|follow|crane|handheld|static
+  focal_length?: string // wide|standard|telephoto
+  pacing?: string       // fast_cut|long_take|pause
+  intent?: string       // 镜头意图
   status: ShotStatus
   CreatedAt: string
   UpdatedAt: string
@@ -540,6 +561,10 @@ export interface GenJob {
   ID: number
   user_id: number
   model_config_id: number
+  model_config?: AIModelConfig
+  provider_name?: string
+  model_display?: string
+  model_identifier?: string
   job_type: string  // image | image_edit | video | video_i2v | video_v2v
   feature_key?: string  // tool feature key e.g. ref_image_gen, ref_video_gen, canvas
   status: GenJobStatus
@@ -547,8 +572,10 @@ export interface GenJob {
   extra_params?: string // JSON: size, quality, style, etc.
   aspect_ratio?: string // e.g. "16:9", "9:16"
   duration?: number     // seconds; 0 = model default
+  request_context?: string // JSON snapshot of model, input resources, and params at creation time
   input_resource_id?: number
   input_resource_ids?: string // JSON array e.g. "[1,2]"
+  input_resources?: RawResource[]
   output_resource_id?: number
   output_resource?: RawResource
   provider_task_id?: string
@@ -570,7 +597,8 @@ export interface GenJob {
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
 export type SpecialNodeType = 'input' | 'output' | 'approval' | 'text_gen' | 'ai_gen' | 'group'
-export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType
+export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
+export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
 export type NodeSource = 'upload' | 'ai' | 'manual'
 export type CanvasTaskStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 export type CanvasType = 'inspiration' | 'workflow'
@@ -609,6 +637,90 @@ export interface CanvasNodeData {
   // injected at runtime by CanvasEditorPage (not persisted)
   canvasId?: string
   rfNodeId?: string
+}
+
+// Plugins
+export interface Plugin {
+  ID: number
+  plugin_key: string
+  name: string
+  version: string
+  description?: string
+  manifest: string
+  install_path?: string
+  enabled: boolean
+  trusted: boolean
+  source: 'manifest' | 'local_path' | 'package' | 'builtin' | string
+  Tools?: PluginTool[]
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface PluginRuntimeSpec {
+  kind: 'none' | 'http' | string
+  endpoint?: string
+  method?: string
+  timeout?: number
+  config?: unknown
+}
+
+export interface PluginTool {
+  ID: number
+  plugin_id: number
+  tool_key: string
+  title: string
+  description?: string
+  input_schema?: string
+  output_schema?: string
+  permissions?: string
+  runtime_kind?: string
+  runtime?: string
+  enabled: boolean
+  plugin?: Plugin
+}
+
+export interface PluginCardContribution {
+  plugin_id: number
+  plugin_key: string
+  id: string
+  title?: string
+  tool?: string
+  view?: string
+  schema?: unknown
+  description?: string
+}
+
+export interface PluginCanvasNodeContribution {
+  plugin_id: number
+  plugin_key: string
+  type: NodeType
+  title: string
+  description?: string
+  tool?: string
+  inputs?: string[]
+  outputs?: string[]
+  card?: string
+  icon?: string
+  category?: string
+  defaultData?: Partial<CanvasNodeData>
+}
+
+export interface PluginInvocation {
+  ID: number
+  plugin_id: number
+  tool_key: string
+  user_id?: number
+  project_id?: number
+  canvas_id?: number
+  canvas_node_id?: number
+  status: 'running' | 'succeeded' | 'failed'
+  input_json?: string
+  output_json?: string
+  error?: string
+  started_at: string
+  finished_at?: string
+  CreatedAt: string
+  UpdatedAt: string
 }
 
 export interface CanvasNodeModel {

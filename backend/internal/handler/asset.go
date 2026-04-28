@@ -27,6 +27,9 @@ func (h *AssetHandler) List(c *gin.Context) {
 	if t := c.Query("type"); t != "" {
 		q = q.Where("type = ?", t)
 	}
+	if nid := c.Query("pipeline_node_id"); nid != "" {
+		q = q.Where("pipeline_node_id = ?", nid)
+	}
 	if keyword := strings.TrimSpace(c.Query("q")); keyword != "" {
 		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(keyword)+"%")
 	}

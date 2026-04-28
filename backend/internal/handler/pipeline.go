@@ -15,14 +15,87 @@ type PipelineHandler struct{ db *gorm.DB }
 
 func NewPipelineHandler(db *gorm.DB) *PipelineHandler { return &PipelineHandler{db: db} }
 
+var pipelineWorkNodeTypes = map[string]bool{
+	"script_writing":      true,
+	"episode_writing":     true,
+	"scene_writing":       true,
+	"storyboard_creation": true,
+	"asset_creation":      true,
+	"raw_script":          true,
+	"shot_production":     true,
+	"episode_edit":        true,
+}
+
+var pipelineArtifactNodeTypes = map[string]bool{
+	"main_script":       true,
+	"episode_script":    true,
+	"scene_script":      true,
+	"storyboard_script": true,
+	"episode":           true,
+	"scene":             true,
+	"storyboard":        true,
+	"asset":             true,
+	"shot":              true,
+}
+
+var pipelineToolNodeTypes = map[string]bool{
+	"ref_image_gen":    true,
+	"ref_video_gen":    true,
+	"style_transfer":   true,
+	"motion_imitation": true,
+	"multi_angle":      true,
+}
+
+func isPipelineWorkNode(nodeType string) bool {
+	return pipelineWorkNodeTypes[nodeType]
+}
+
+func isPipelineArtifactNode(nodeType string) bool {
+	return pipelineArtifactNodeTypes[nodeType]
+}
+
+func isPipelineToolNode(nodeType string) bool {
+	return pipelineToolNodeTypes[nodeType]
+}
+
+func pipelineContentTypeForNode(nodeType string) string {
+	switch nodeType {
+	case "script_writing", "raw_script", "main_script", "episode_writing", "episode_script", "scene_writing", "scene_script":
+		return "script"
+	case "storyboard_creation", "storyboard_script", "storyboard":
+		return "storyboard"
+	case "shot_production", "shot":
+		return "shot"
+	case "asset_creation", "asset":
+		return "asset"
+	default:
+		return "custom"
+	}
+}
+
+// GetNode returns a single pipeline node by ID.
+func (h *PipelineHandler) GetNode(c *gin.Context) {
+	var node model.PipelineNode
+	if err := h.db.Preload("Assignee").Preload("Lead").First(&node, c.Param("nodeId")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("节点不存在"))
+		return
+	}
+	if isPipelineToolNode(node.Type) {
+		c.JSON(http.StatusNotFound, apierr.NotFound("节点不存在"))
+		return
+	}
+	c.JSON(http.StatusOK, node)
+}
+
 // GetPipeline returns all nodes and edges for a project.
 func (h *PipelineHandler) GetPipeline(c *gin.Context) {
 	pid := c.Param("id")
 	var nodes []model.PipelineNode
 	var edges []model.PipelineEdge
 
-	h.db.Preload("Assignee").Where("project_id = ?", pid).Order("created_at").Find(&nodes)
+	h.db.Preload("Assignee").Preload("Lead").Where("project_id = ?", pid).Order("created_at").Find(&nodes)
 	h.db.Where("project_id = ?", pid).Find(&edges)
+	nodes, edges = visiblePipelineTree(nodes, edges)
 
 	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "edges": edges})
 }
@@ -37,8 +110,13 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 	}
 	node.ProjectID = pid
 	node.Status = "draft"
+	if isPipelineToolNode(node.Type) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
+		return
+	}
+	node.ContentType = pipelineContentTypeForNode(node.Type)
 	h.db.Create(&node)
-	h.db.Preload("Assignee").First(&node, node.ID)
+	h.db.Preload("Assignee").Preload("Lead").First(&node, node.ID)
 	c.JSON(http.StatusCreated, node)
 }
 
@@ -54,7 +132,9 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 		Name        *string    `json:"name"`
 		Description *string    `json:"description"`
 		AssigneeID  *uint      `json:"assignee_id"`
+		LeadID      *uint      `json:"lead_id"`
 		DueDate     *time.Time `json:"due_date"`
+		ContentType *string    `json:"content_type"`
 		EntityType  *string    `json:"entity_type"`
 		EntityID    *uint      `json:"entity_id"`
 		PosX        *float64   `json:"pos_x"`
@@ -74,9 +154,13 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	if body.AssigneeID != nil {
 		node.AssigneeID = body.AssigneeID
 	}
+	if body.LeadID != nil {
+		node.LeadID = body.LeadID
+	}
 	if body.DueDate != nil {
 		node.DueDate = body.DueDate
 	}
+	node.ContentType = pipelineContentTypeForNode(node.Type)
 	if body.EntityType != nil {
 		node.EntityType = *body.EntityType
 	}
@@ -91,7 +175,7 @@ func (h *PipelineHandler) UpdateNode(c *gin.Context) {
 	}
 
 	h.db.Save(&node)
-	h.db.Preload("Assignee").First(&node, node.ID)
+	h.db.Preload("Assignee").Preload("Lead").First(&node, node.ID)
 	c.JSON(http.StatusOK, node)
 }
 
@@ -108,7 +192,7 @@ func (h *PipelineHandler) DeleteNode(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CreateEdge adds a dependency edge between two pipeline nodes.
+// CreateEdge adds a parent-child relation between two pipeline nodes.
 func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 	pid := parseID(c.Param("id"))
 	var edge model.PipelineEdge
@@ -121,6 +205,30 @@ func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 	// Prevent self-loops
 	if edge.FromNodeID == edge.ToNodeID {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("节点不能指向自身"))
+		return
+	}
+
+	var parent model.PipelineNode
+	if err := h.db.First(&parent, edge.FromNodeID).Error; err != nil || parent.ProjectID != pid {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("父节点不存在"))
+		return
+	}
+	var child model.PipelineNode
+	if err := h.db.First(&child, edge.ToNodeID).Error; err != nil || child.ProjectID != pid {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("子节点不存在"))
+		return
+	}
+
+	// A tree node can have only one parent.
+	var parentCount int64
+	h.db.Model(&model.PipelineEdge{}).Where("project_id = ? AND to_node_id = ?", pid, edge.ToNodeID).Count(&parentCount)
+	if parentCount > 0 {
+		c.JSON(http.StatusConflict, apierr.Conflict("树形管线中每个节点只能有一个父节点"))
+		return
+	}
+
+	if h.wouldCreateCycle(pid, edge.FromNodeID, edge.ToNodeID) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("树形管线不允许形成循环"))
 		return
 	}
 
@@ -142,7 +250,8 @@ func (h *PipelineHandler) DeleteEdge(c *gin.Context) {
 }
 
 // Submit transitions a node from draft (or rejected) to under_review.
-// All upstream nodes must be in "final" status.
+// Work nodes can be submitted only after every adjacent artifact node
+// (both upstream parent-side and downstream child-side) is final.
 func (h *PipelineHandler) Submit(c *gin.Context) {
 	var node model.PipelineNode
 	if err := h.db.First(&node, c.Param("nodeId")).Error; err != nil {
@@ -153,19 +262,16 @@ func (h *PipelineHandler) Submit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("只有草稿或被拒绝的节点可以提交审核"))
 		return
 	}
+	if isPipelineToolNode(node.Type) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
+		return
+	}
 
-	// Check all upstream nodes are final
-	var upstreamEdges []model.PipelineEdge
-	h.db.Where("to_node_id = ?", node.ID).Find(&upstreamEdges)
-	for _, e := range upstreamEdges {
-		var upstream model.PipelineNode
-		if err := h.db.Select("status, name").First(&upstream, e.FromNodeID).Error; err != nil {
-			continue
-		}
-		if upstream.Status != "final" {
+	if isPipelineWorkNode(node.Type) {
+		if blocking, ok := h.findBlockingAdjacentArtifact(node); ok {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    "upstream_not_final",
-				"message": "前置节点「" + upstream.Name + "」尚未定稿，无法提交审核",
+				"code":    "artifact_not_final",
+				"message": "关联产物「" + blocking.Name + "」尚未定稿，工作节点无法提交审核",
 			})
 			return
 		}
@@ -238,7 +344,7 @@ func (h *PipelineHandler) Reject(c *gin.Context) {
 }
 
 // Reopen transitions a node from rejected (or final) back to draft.
-// All downstream nodes are cascade-reset to draft via BFS.
+// All child nodes are cascade-reset to draft via BFS.
 func (h *PipelineHandler) Reopen(c *gin.Context) {
 	var node model.PipelineNode
 	if err := h.db.First(&node, c.Param("nodeId")).Error; err != nil {
@@ -250,7 +356,7 @@ func (h *PipelineHandler) Reopen(c *gin.Context) {
 		return
 	}
 
-	// Cascade reset: BFS through all downstream nodes
+	// Cascade reset: BFS through all child nodes
 	visited := map[uint]bool{node.ID: true}
 	queue := []uint{node.ID}
 	toReset := []uint{}
@@ -275,19 +381,81 @@ func (h *PipelineHandler) Reopen(c *gin.Context) {
 	node.ReviewNote = ""
 	h.db.Save(&node)
 
-	// Reset all downstream nodes that are not already draft
+	// Reset all child nodes that are not already draft
 	if len(toReset) > 0 {
 		h.db.Model(&model.PipelineNode{}).
 			Where("id IN ? AND status != 'draft'", toReset).
 			Updates(map[string]interface{}{"status": "draft", "review_note": ""})
 	}
 
-	h.db.Preload("Assignee").First(&node, node.ID)
+	h.db.Preload("Assignee").Preload("Lead").First(&node, node.ID)
 	c.JSON(http.StatusOK, gin.H{
-		"node":          node,
-		"reset_count":   len(toReset),
+		"node":           node,
+		"reset_count":    len(toReset),
 		"reset_node_ids": toReset,
 	})
+}
+
+func (h *PipelineHandler) findBlockingAdjacentArtifact(node model.PipelineNode) (model.PipelineNode, bool) {
+	var edges []model.PipelineEdge
+	h.db.Where("project_id = ? AND (from_node_id = ? OR to_node_id = ?)", node.ProjectID, node.ID, node.ID).Find(&edges)
+	for _, e := range edges {
+		otherID := e.FromNodeID
+		if otherID == node.ID {
+			otherID = e.ToNodeID
+		}
+		var artifact model.PipelineNode
+		if err := h.db.Select("id, type, name, status").First(&artifact, otherID).Error; err != nil {
+			continue
+		}
+		if isPipelineArtifactNode(artifact.Type) && artifact.Status != "final" {
+			return artifact, true
+		}
+	}
+	return model.PipelineNode{}, false
+}
+
+func visiblePipelineTree(nodes []model.PipelineNode, edges []model.PipelineEdge) ([]model.PipelineNode, []model.PipelineEdge) {
+	visibleIDs := map[uint]bool{}
+	visibleNodes := make([]model.PipelineNode, 0, len(nodes))
+	for _, node := range nodes {
+		if isPipelineToolNode(node.Type) {
+			continue
+		}
+		visibleIDs[node.ID] = true
+		visibleNodes = append(visibleNodes, node)
+	}
+
+	visibleEdges := make([]model.PipelineEdge, 0, len(edges))
+	for _, edge := range edges {
+		if visibleIDs[edge.FromNodeID] && visibleIDs[edge.ToNodeID] {
+			visibleEdges = append(visibleEdges, edge)
+		}
+	}
+	return visibleNodes, visibleEdges
+}
+
+func (h *PipelineHandler) wouldCreateCycle(projectID, parentID, childID uint) bool {
+	visited := map[uint]bool{}
+	queue := []uint{childID}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur == parentID {
+			return true
+		}
+		if visited[cur] {
+			continue
+		}
+		visited[cur] = true
+
+		var edges []model.PipelineEdge
+		h.db.Where("project_id = ? AND from_node_id = ?", projectID, cur).Find(&edges)
+		for _, e := range edges {
+			queue = append(queue, e.ToNodeID)
+		}
+	}
+	return false
 }
 
 // currentUserID extracts the authenticated user's ID from context.

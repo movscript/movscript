@@ -19,6 +19,48 @@ type GenJobHandler struct {
 	aiService *ai.AIService
 }
 
+type genJobResponse struct {
+	model.GenJob
+	InputResources  []model.RawResource  `json:"input_resources,omitempty"`
+	ModelConfig     *model.AIModelConfig `json:"model_config,omitempty"`
+	ProviderName    string               `json:"provider_name,omitempty"`
+	ModelDisplay    string               `json:"model_display,omitempty"`
+	ModelIdentifier string               `json:"model_identifier,omitempty"`
+}
+
+type genJobContextSnapshot struct {
+	Model          genJobModelSnapshot      `json:"model"`
+	JobType        string                   `json:"job_type"`
+	FeatureKey     string                   `json:"feature_key,omitempty"`
+	Prompt         string                   `json:"prompt"`
+	Params         genJobParamsSnapshot     `json:"params"`
+	InputResources []genJobResourceSnapshot `json:"input_resources,omitempty"`
+	CreatedAt      time.Time                `json:"created_at"`
+}
+
+type genJobModelSnapshot struct {
+	ConfigID     uint   `json:"config_id"`
+	DisplayName  string `json:"display_name"`
+	Identifier   string `json:"identifier"`
+	ModelDefID   string `json:"model_def_id"`
+	ProviderName string `json:"provider_name"`
+	CredentialID uint   `json:"credential_id"`
+}
+
+type genJobParamsSnapshot struct {
+	AspectRatio string         `json:"aspect_ratio,omitempty"`
+	Duration    int            `json:"duration,omitempty"`
+	ExtraParams map[string]any `json:"extra_params,omitempty"`
+}
+
+type genJobResourceSnapshot struct {
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	MimeType string `json:"mime_type,omitempty"`
+	Size     int64  `json:"size,omitempty"`
+}
+
 func NewGenJobHandler(db *gorm.DB, aiService *ai.AIService) *GenJobHandler {
 	return &GenJobHandler{db: db, aiService: aiService}
 }
@@ -64,7 +106,7 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 	}
 
 	// Resolve input resource counts for capability validation.
-	imageCount, videoCount, err := h.countInputResources(append(req.InputResourceIDs, idOrNil(req.InputResourceID)...))
+	inputResources, imageCount, videoCount, err := h.loadInputResources(append(req.InputResourceIDs, idOrNil(req.InputResourceID)...))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load input resources: " + err.Error()})
 		return
@@ -109,6 +151,7 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 	if len(allIDs) > 0 {
 		legacyInputID = &allIDs[0]
 	}
+	requestContext := buildGenJobContextSnapshot(mcfg, cred, req.Prompt, req.ExtraParams, req.AspectRatio, req.Duration, jobType, req.FeatureKey, orderedResources(inputResources, allIDs), time.Now())
 
 	job := model.GenJob{
 		UserID:           user.ID,
@@ -121,6 +164,7 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		ExtraParams:      req.ExtraParams,
 		AspectRatio:      req.AspectRatio,
 		Duration:         req.Duration,
+		RequestContext:   requestContext,
 		InputResourceID:  legacyInputID,
 		InputResourceIDs: inputResourceIDsJSON,
 		ProjectID:        req.ProjectID,
@@ -129,17 +173,16 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, job)
+	c.JSON(http.StatusCreated, h.buildJobResponses(c, []model.GenJob{job})[0])
 }
 
-// countInputResources loads resources by ID and returns image and video counts.
-func (h *GenJobHandler) countInputResources(ids []uint) (imageCount, videoCount int, err error) {
+// loadInputResources loads resources by ID and returns them plus image/video counts.
+func (h *GenJobHandler) loadInputResources(ids []uint) (resources []model.RawResource, imageCount, videoCount int, err error) {
 	if len(ids) == 0 {
-		return 0, 0, nil
+		return nil, 0, 0, nil
 	}
-	var resources []model.RawResource
 	if err := h.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
-		return 0, 0, err
+		return nil, 0, 0, err
 	}
 	for _, r := range resources {
 		switch r.Type {
@@ -149,7 +192,7 @@ func (h *GenJobHandler) countInputResources(ids []uint) (imageCount, videoCount 
 			videoCount++
 		}
 	}
-	return imageCount, videoCount, nil
+	return resources, imageCount, videoCount, nil
 }
 
 // idOrNil returns a slice with the dereferenced uint, or empty if nil.
@@ -174,6 +217,179 @@ func mergeIDs(arr []uint, single *uint) []uint {
 		result = append(result, *single)
 	}
 	return result
+}
+
+func parseJobInputIDs(job model.GenJob) []uint {
+	var ids []uint
+	if job.InputResourceIDs != "" {
+		_ = json.Unmarshal([]byte(job.InputResourceIDs), &ids)
+	}
+	if job.InputResourceID != nil {
+		ids = mergeIDs(ids, job.InputResourceID)
+	}
+	return ids
+}
+
+func orderedResources(resources []model.RawResource, ids []uint) []model.RawResource {
+	byID := make(map[uint]model.RawResource, len(resources))
+	for _, r := range resources {
+		byID[r.ID] = r
+	}
+	ordered := make([]model.RawResource, 0, len(ids))
+	seen := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if r, ok := byID[id]; ok {
+			ordered = append(ordered, r)
+		}
+	}
+	return ordered
+}
+
+func buildGenJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredential, prompt, extraParams, aspectRatio string, duration int, jobType, featureKey string, inputResources []model.RawResource, createdAt time.Time) string {
+	params := genJobParamsSnapshot{
+		AspectRatio: aspectRatio,
+		Duration:    duration,
+	}
+	if extraParams != "" {
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(extraParams), &parsed); err == nil {
+			params.ExtraParams = parsed
+		}
+	}
+	resources := make([]genJobResourceSnapshot, 0, len(inputResources))
+	for _, r := range inputResources {
+		resources = append(resources, genJobResourceSnapshot{
+			ID:       r.ID,
+			Name:     r.Name,
+			Type:     r.Type,
+			MimeType: r.MimeType,
+			Size:     r.Size,
+		})
+	}
+	snapshot := genJobContextSnapshot{
+		Model: genJobModelSnapshot{
+			ConfigID:     mcfg.ID,
+			DisplayName:  genJobModelDisplay(mcfg),
+			Identifier:   genJobModelIdentifier(mcfg),
+			ModelDefID:   mcfg.ModelDefID,
+			ProviderName: cred.DisplayName,
+			CredentialID: mcfg.CredentialID,
+		},
+		JobType:        jobType,
+		FeatureKey:     featureKey,
+		Prompt:         prompt,
+		Params:         params,
+		InputResources: resources,
+		CreatedAt:      createdAt,
+	}
+	b, err := json.Marshal(snapshot)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func genJobModelDisplay(mcfg model.AIModelConfig) string {
+	return firstNonEmptyHandler(mcfg.CustomDisplayName, mcfg.ModelDefID, "Model")
+}
+
+func genJobModelIdentifier(mcfg model.AIModelConfig) string {
+	return firstNonEmptyHandler(mcfg.ModelIDOverride, mcfg.ModelDefID)
+}
+
+func (h *GenJobHandler) buildJobResponses(c *gin.Context, jobs []model.GenJob) []genJobResponse {
+	if len(jobs) == 0 {
+		return []genJobResponse{}
+	}
+
+	resourceIDSet := make(map[uint]bool)
+	modelConfigIDSet := make(map[uint]bool)
+	for i := range jobs {
+		if jobs[i].OutputResource != nil {
+			jobs[i].OutputResource.URL = resourceURL(c, jobs[i].OutputResource.ID)
+		}
+		modelConfigIDSet[jobs[i].ModelConfigID] = true
+		for _, id := range parseJobInputIDs(jobs[i]) {
+			resourceIDSet[id] = true
+		}
+	}
+
+	resourceIDs := make([]uint, 0, len(resourceIDSet))
+	for id := range resourceIDSet {
+		resourceIDs = append(resourceIDs, id)
+	}
+	resourcesByID := make(map[uint]model.RawResource, len(resourceIDs))
+	if len(resourceIDs) > 0 {
+		var resources []model.RawResource
+		if err := h.db.Where("id IN ?", resourceIDs).Find(&resources).Error; err == nil {
+			for _, r := range resources {
+				r.URL = resourceURL(c, r.ID)
+				resourcesByID[r.ID] = r
+			}
+		}
+	}
+
+	modelConfigIDs := make([]uint, 0, len(modelConfigIDSet))
+	for id := range modelConfigIDSet {
+		modelConfigIDs = append(modelConfigIDs, id)
+	}
+	configsByID := make(map[uint]model.AIModelConfig, len(modelConfigIDs))
+	credentialIDSet := make(map[uint]bool)
+	if len(modelConfigIDs) > 0 {
+		var configs []model.AIModelConfig
+		if err := h.db.Where("id IN ?", modelConfigIDs).Find(&configs).Error; err == nil {
+			for _, cfg := range configs {
+				configsByID[cfg.ID] = cfg
+				credentialIDSet[cfg.CredentialID] = true
+			}
+		}
+	}
+
+	credentialIDs := make([]uint, 0, len(credentialIDSet))
+	for id := range credentialIDSet {
+		credentialIDs = append(credentialIDs, id)
+	}
+	credentialsByID := make(map[uint]model.AICredential, len(credentialIDs))
+	if len(credentialIDs) > 0 {
+		var creds []model.AICredential
+		if err := h.db.Where("id IN ?", credentialIDs).Find(&creds).Error; err == nil {
+			for _, cred := range creds {
+				credentialsByID[cred.ID] = cred
+			}
+		}
+	}
+
+	resp := make([]genJobResponse, 0, len(jobs))
+	for _, job := range jobs {
+		item := genJobResponse{GenJob: job}
+		inputIDs := parseJobInputIDs(job)
+		item.InputResources = make([]model.RawResource, 0, len(inputIDs))
+		seenResources := make(map[uint]bool, len(inputIDs))
+		for _, id := range inputIDs {
+			if seenResources[id] {
+				continue
+			}
+			seenResources[id] = true
+			if r, ok := resourcesByID[id]; ok {
+				item.InputResources = append(item.InputResources, r)
+			}
+		}
+		if cfg, ok := configsByID[job.ModelConfigID]; ok {
+			cfgCopy := cfg
+			item.ModelConfig = &cfgCopy
+			item.ModelDisplay = genJobModelDisplay(cfg)
+			item.ModelIdentifier = genJobModelIdentifier(cfg)
+			if cred, ok := credentialsByID[cfg.CredentialID]; ok {
+				item.ProviderName = cred.DisplayName
+			}
+		}
+		resp = append(resp, item)
+	}
+	return resp
 }
 
 // List returns the current user's generation jobs (newest first).
@@ -228,18 +444,13 @@ func (h *GenJobHandler) List(c *gin.Context) {
 
 	var jobs []model.GenJob
 	q.Preload("OutputResource").Order("id desc").Limit(limit).Offset(offset).Find(&jobs)
-
-	for i := range jobs {
-		if jobs[i].OutputResource != nil {
-			jobs[i].OutputResource.URL = resourceURL(c, jobs[i].OutputResource.ID)
-		}
-	}
+	resp := h.buildJobResponses(c, jobs)
 	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
 	if pageMode {
-		c.JSON(http.StatusOK, gin.H{"total": total, "items": jobs, "page": page, "page_size": pageSize})
+		c.JSON(http.StatusOK, gin.H{"total": total, "items": resp, "page": page, "page_size": pageSize})
 		return
 	}
-	c.JSON(http.StatusOK, jobs)
+	c.JSON(http.StatusOK, resp)
 }
 
 // Get returns a single job by ID with its output resource.
@@ -260,10 +471,7 @@ func (h *GenJobHandler) Get(c *gin.Context) {
 		return
 	}
 
-	if job.OutputResource != nil {
-		job.OutputResource.URL = resourceURL(c, job.OutputResource.ID)
-	}
-	c.JSON(http.StatusOK, job)
+	c.JSON(http.StatusOK, h.buildJobResponses(c, []model.GenJob{job})[0])
 }
 
 // Retry requeues a failed generation job for manual retry.
