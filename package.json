@@ -1,0 +1,22 @@
+{
+  "name": "movscript",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "build": "pnpm run build:backend && pnpm run build:packages && pnpm run build:apps && pnpm run build:plugins",
+    "build:backend": "cd apps/backend && go build -o bin/server ./cmd/server",
+    "build:packages": "pnpm --filter @movscript/tokens build && pnpm --filter @movscript/ui build && pnpm --filter @movscript/plugin-sdk build",
+    "build:apps": "pnpm --filter movcli build && pnpm --filter movscript-agent build && pnpm --filter movscript-frontend build",
+    "build:plugins": "pnpm --filter @movscript/plugin-image-generator build",
+    "dev:backend": "cd apps/backend && go run ./cmd/server",
+    "dev:frontend": "pnpm --filter movscript-frontend dev",
+    "dev:agent": "pnpm --filter movscript-agent dev",
+    "dev:movcli": "pnpm --filter movcli dev",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm run test:backend && pnpm -r --if-present test",
+    "test:backend": "cd apps/backend && go test ./...",
+    "tidy": "cd apps/backend && go mod tidy",
+    "release": "pnpm run build"
+  }
+}

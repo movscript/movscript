@@ -17,6 +17,6 @@ frontend Electron app
 
 - Frontend state is managed with Zustand and TanStack Query.
 - Backend handlers currently operate directly on GORM models.
-- AI execution is abstracted through `backend/internal/ai`.
-- Async generation jobs are handled by `backend/internal/genjob`.
+- AI execution is abstracted through `apps/backend/internal/ai`.
+- Async generation jobs are handled by `apps/backend/internal/genjob`.
 - The MCP endpoint is exposed at `/mcp`.

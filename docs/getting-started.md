@@ -17,7 +17,7 @@ docker compose up -d db minio createbuckets
 ## 2. Configure the backend
 
 ```bash
-cp backend/.env.example backend/.env
+cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
 ```
 
@@ -38,10 +38,9 @@ curl http://localhost:8765/health
 ## 4. Run the frontend
 
 ```bash
-cp frontend/.env.example frontend/.env
-cd frontend
-npm install
-npm run dev
+cp apps/frontend/.env.example apps/frontend/.env
+pnpm install
+pnpm dev:frontend
 ```
 
 ## 5. Validate the workspace

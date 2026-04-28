@@ -1,26 +1,50 @@
-.PHONY: build build-backend build-frontend dev-backend dev-frontend test test-backend typecheck-frontend tidy
+.PHONY: build build-agent build-apps build-backend build-frontend build-movcli build-packages build-plugins dev-agent dev-backend dev-frontend dev-movcli test test-backend typecheck-frontend typecheck-packages tidy
 
-build: build-backend build-frontend
+build: build-backend build-packages build-apps build-plugins
 
 build-backend:
-	cd backend && go build -o bin/server ./cmd/server
+	cd apps/backend && go build -o bin/server ./cmd/server
+
+build-packages:
+	pnpm run build:packages
+
+build-apps:
+	pnpm run build:apps
+
+build-plugins:
+	pnpm run build:plugins
+
+build-agent:
+	pnpm --filter movscript-agent build
+
+build-movcli:
+	pnpm --filter movcli build
 
 build-frontend:
-	cd frontend && npm run build
+	pnpm --filter movscript-frontend build
 
 dev-backend:
-	cd backend && go run ./cmd/server
+	cd apps/backend && go run ./cmd/server
 
 dev-frontend:
-	cd frontend && npm run dev
+	pnpm --filter movscript-frontend dev
+
+dev-agent:
+	pnpm --filter movscript-agent dev
+
+dev-movcli:
+	pnpm --filter movcli dev
 
 tidy:
-	cd backend && go mod tidy
+	cd apps/backend && go mod tidy
 
 test-backend:
-	cd backend && go test ./...
+	cd apps/backend && go test ./...
 
 typecheck-frontend:
-	cd frontend && npm run typecheck
+	pnpm --filter movscript-frontend typecheck
 
-test: test-backend typecheck-frontend
+typecheck-packages:
+	pnpm -r --if-present typecheck
+
+test: test-backend typecheck-packages

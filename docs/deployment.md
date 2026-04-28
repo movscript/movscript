@@ -18,10 +18,9 @@ The backend listens on `SERVER_PORT`, defaulting to `8765`.
 Configure the backend origin before packaging:
 
 ```bash
-cd frontend
-cp .env.example .env
-npm ci
-npm run build
+cp apps/frontend/.env.example apps/frontend/.env
+pnpm install
+pnpm --filter movscript-frontend build
 ```
 
 Set `VITE_API_BASE_URL` to the backend origin visible from the packaged app.

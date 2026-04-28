@@ -1,6 +1,6 @@
 # AI Providers
 
-AI provider code lives in `backend/internal/ai`.
+AI provider code lives in `apps/backend/internal/ai`.
 
 ## Current adapter areas
 
@@ -23,7 +23,7 @@ AI provider code lives in `backend/internal/ai`.
 
 When adding a provider:
 
-1. Implement the provider interface in `backend/internal/ai`.
+1. Implement the provider interface in `apps/backend/internal/ai`.
 2. Register it in the provider registry.
 3. Add validation and debug sanitization tests.
 4. Document required credentials and supported capabilities.

@@ -2,7 +2,7 @@
 
 ## 背景
 
-当前系统已经有一层 `backend/internal/ai` Provider 抽象，用于屏蔽 OpenAI-compatible、Anthropic、Gemini、Kling、Volcengine 等供应商差异。业务侧接口例如 `/api/v1/ai/chat`、画布节点、生成任务、脚本分析等，直接调用 `AIService.CallText`、`CallImage`、`CallVideo`。
+当前系统已经有一层 `apps/backend/internal/ai` Provider 抽象，用于屏蔽 OpenAI-compatible、Anthropic、Gemini、Kling、Volcengine 等供应商差异。业务侧接口例如 `/api/v1/ai/chat`、画布节点、生成任务、脚本分析等，直接调用 `AIService.CallText`、`CallImage`、`CallVideo`。
 
 这个结构能支撑 MovScript 内部业务，但对外部 Agent 接入不够标准：
 
@@ -50,7 +50,7 @@ OpenAI-compatible / Anthropic / Gemini / Volcen / Kling / DryRun
 External Model Providers
 ```
 
-现有 `backend/internal/ai` 里的 Provider Adapter Layer 可以继续保留。新增的是 Gateway API 和 Gateway Service。
+现有 `apps/backend/internal/ai` 里的 Provider Adapter Layer 可以继续保留。新增的是 Gateway API 和 Gateway Service。
 
 ## API 设计
 
@@ -369,7 +369,7 @@ model = movscript-default-chat
 
 ### 第一阶段：Chat Completions 网关
 
-1. 新增 `backend/internal/gateway` 或 `backend/internal/ai/gateway`。
+1. 新增 `apps/backend/internal/gateway` 或 `apps/backend/internal/ai/gateway`。
 2. 定义 OpenAI-compatible request/response DTO。
 3. 新增 `ModelGatewayService.ChatCompletion`。
 4. 复用 `AIService.CallText` 完成真实调用。
@@ -411,7 +411,7 @@ GET /v1/models
 ## 推荐目录结构
 
 ```text
-backend/internal/gateway/
+apps/backend/internal/gateway/
   handler.go          // HTTP handler, Gin binding, SSE
   service.go          // Gateway orchestration
   openai_types.go     // OpenAI-compatible DTO
@@ -421,7 +421,7 @@ backend/internal/gateway/
   models.go           // Gateway model listing and routing
 ```
 
-`backend/internal/ai` 保持为 Provider 和模型配置层，不直接承担标准协议兼容职责。
+`apps/backend/internal/ai` 保持为 Provider 和模型配置层，不直接承担标准协议兼容职责。
 
 ## 关键原则
 

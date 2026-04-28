@@ -38,6 +38,12 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
 ### 内容生产管线（Pipeline DAG）（2026-04-23）
 - 新数据模型：`PipelineNode` / `PipelineEdge`（`backend/internal/model/pipeline.go`）
 - `PipelineNode` 状态：`draft → under_review → final | rejected`；rejected 可 reopen 并级联回退下游
+- **架构决策（2026-04-28）**：`PipelineNode` 是唯一的生产任务单元。不要再维护独立 `Task` 概念。
+  - 理由：`PipelineNode` 已包含执行者 `assignee_id`、负责人 `lead_id`、截止时间 `due_date`、状态 `status`、说明 `description`、交付物绑定 `entity_type/entity_id` 和依赖/层级 `PipelineEdge`，已经覆盖“任务”的核心语义。
+  - `Task` 表、`TaskComment` 表、`backend/internal/model/task.go`、`handler/task.go`、`/projects/:id/tasks*`、`/projects/:id/collaboration` 中的旧任务聚合应直接删除，不考虑历史兼容或迁移。
+  - 协作页不再是独立 todo 系统，而是 `PipelineNode` 的人员视图：我的执行任务、我负责的任务、待审核、被打回、已完成等都从 pipeline nodes 派生。
+  - “去完成”直接跳转到 `/pipeline/nodes/:nodeId`，实际工作、产物编辑、提交审核都在管线节点工作台完成。
+  - 后续如果需要把一个节点拆成多个子事项，应优先创建子 `PipelineNode` 或下级 artifact/work 节点，而不是恢复独立 Task 表。
 - 模板系统（`handler/pipeline_template.go`）：`full_production` / `from_script` / `from_storyboard` / `custom`
 - 创建项目时通过 `pipeline_template` 字段自动生成对应节点和边
 - Project 新增 `pipeline_template` 字段
@@ -140,17 +146,20 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
 - 显示：剧本/分集/分场（数量）+ 分镜/镜头（已通过/总数 + 进度条）
 - 数据：`GET /projects/:id/progress`，60 秒自动刷新
 
-### 协作页面（/collaboration）重构（2026-04-22）
-拆分为两个 Tab：
-1. **任务 Tab**：
-   - 新建任务表单（支持直接分配负责人）
-   - 全部/我的任务 切换
-   - 状态筛选器
-   - TaskCard 展示优先级/状态/分配人
-   - 分配给自己且未完成的任务显示「去完成」按钮（蓝色圆角）
-   - 点击「去完成」→ WorkingCard 弹窗（顶部任务信息 + 工作记录文本框 + 「标记完成」绿色按钮）
-2. **管理 Tab**：
-   - 团队成员管理（添加/移除）
+### 协作页面（/collaboration）方向（更新于 2026-04-28）
+- 协作页应基于 `PipelineNode`，不要基于独立 `Task` 表。
+- 页面定位：项目内管线节点的人员协作视图。
+- 主要视图：
+  - 我的执行：`PipelineNode.assignee_id = currentUser.ID`
+  - 我负责的：`PipelineNode.lead_id = currentUser.ID`
+  - 待审核：`PipelineNode.status = under_review`
+  - 被打回：`PipelineNode.status = rejected`
+  - 已完成：`PipelineNode.status = final`
+- 操作：
+  - 点击节点卡片或「去完成」跳转 `/pipeline/nodes/:nodeId`
+  - 分配执行者、负责人、截止时间直接更新 `PipelineNode`
+  - 新建“任务”本质上是新建 pipeline node，应从管线结构中创建，而不是创建独立 todo
+- 管理 Tab 可继续用于团队成员管理（添加/移除）。
 
 已删除：协作页面的"项目进度"区块（进度信息移至侧边栏）
 

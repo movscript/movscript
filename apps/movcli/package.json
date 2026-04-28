@@ -1,0 +1,27 @@
+{
+  "name": "movcli",
+  "version": "0.2.0",
+  "description": "MovScript CLI — init, build, and manage plugins",
+  "type": "module",
+  "bin": {
+    "movcli": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "commander": "^12.0.0",
+    "esbuild": "^0.24.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

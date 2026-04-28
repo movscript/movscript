@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8765/api/v1`
 
-The router is defined in `backend/internal/router/router.go`.
+The router is defined in `apps/backend/internal/router/router.go`.
 
 ## Public and user-facing routes
 

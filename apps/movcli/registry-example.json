@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "plugins": [
+    {
+      "id": "refgen-image-v2",
+      "name": "参考图生成 v2",
+      "version": "2.0.0",
+      "manifest_url": "https://registry.movscript.com/plugins/refgen-image-v2/manifest.json"
+    }
+  ]
+}

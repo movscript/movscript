@@ -28,7 +28,7 @@ docker compose up -d db minio createbuckets
 ### Configure and run the backend
 
 ```bash
-cp backend/.env.example backend/.env
+cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
 # paste the generated value into ENCRYPTION_KEY
 make dev-backend
@@ -39,10 +39,9 @@ The health endpoint is available at `http://localhost:8765/health`.
 ### Configure and run the frontend
 
 ```bash
-cp frontend/.env.example frontend/.env
-cd frontend
-npm install
-npm run dev
+cp apps/frontend/.env.example apps/frontend/.env
+pnpm install
+pnpm dev:frontend
 ```
 
 ### Build
@@ -75,8 +74,12 @@ Chinese documentation entry: [README.zh-CN.md](README.zh-CN.md)
 
 ```text
 movscript/
-├── backend/          Go API server
-├── frontend/         Electron + Vite + React application
+├── apps/backend/          Go API server
+├── apps/frontend/         Electron + Vite + React application
+├── apps/agent/            Local agent runtime
+├── apps/movcli/           MovScript CLI
+├── packages/              Shared workspace packages
+├── plugins/               First-party plugins
 ├── docs/             User, developer, and deployment documentation
 └── docker-compose.yml
 ```

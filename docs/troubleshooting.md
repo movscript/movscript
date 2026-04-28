@@ -2,7 +2,7 @@
 
 ## Backend exits with `ENCRYPTION_KEY must be a 64-character hex string`
 
-Generate a key and set it in `backend/.env`:
+Generate a key and set it in `apps/backend/.env`:
 
 ```bash
 openssl rand -hex 32
@@ -10,7 +10,7 @@ openssl rand -hex 32
 
 ## Frontend cannot reach backend
 
-Check `frontend/.env`:
+Check `apps/frontend/.env`:
 
 ```bash
 VITE_API_BASE_URL=http://localhost:8765

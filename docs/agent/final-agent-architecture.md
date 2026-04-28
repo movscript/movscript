@@ -209,7 +209,7 @@ interface AgentManifestV2 {
 新增独立 builder，避免 `AIAgentPanel` 里继续散落拼接逻辑。
 
 ```text
-frontend/src/agent/inputBuilder.ts
+apps/frontend/src/agent/inputBuilder.ts
   buildAgentInputEnvelope()
   resolveAgentManifest()
   buildDebugSections()
@@ -440,9 +440,9 @@ interface AgentRunPolicy {
 建议文件：
 
 ```text
-frontend/src/agent/inputBuilder.ts
-frontend/src/agent/manifest.ts
-frontend/src/agent/debugSections.ts
+apps/frontend/src/agent/inputBuilder.ts
+apps/frontend/src/agent/manifest.ts
+apps/frontend/src/agent/debugSections.ts
 ```
 
 `buildAgentInputEnvelopeDraft()` 输入：
@@ -492,10 +492,10 @@ resolver 是 agent 安全边界的核心，不应散落在 planner、server hand
 建议文件：
 
 ```text
-movscript-agent/src/runtime/capabilityResolver.ts
-movscript-agent/src/runtime/skillResolver.ts
-movscript-agent/src/runtime/inputEnvelope.ts
-movscript-agent/src/runtime/promptCompiler.ts
+apps/agent/src/runtime/capabilityResolver.ts
+apps/agent/src/runtime/skillResolver.ts
+apps/agent/src/runtime/inputEnvelope.ts
+apps/agent/src/runtime/promptCompiler.ts
 ```
 
 resolver 流程：

@@ -5,7 +5,7 @@ Movscript uses `i18next` and `react-i18next` in the frontend.
 ## Files
 
 ```text
-frontend/src/i18n/
+apps/frontend/src/i18n/
   index.ts
   locales/
     en-US.json

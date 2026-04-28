@@ -28,9 +28,9 @@ docker compose up -d db minio createbuckets
 ### 配置并启动后端
 
 ```bash
-cp backend/.env.example backend/.env
+cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
-# 将生成值写入 backend/.env 的 ENCRYPTION_KEY
+# 将生成值写入 apps/backend/.env 的 ENCRYPTION_KEY
 make dev-backend
 ```
 
@@ -39,10 +39,9 @@ make dev-backend
 ### 配置并启动前端
 
 ```bash
-cp frontend/.env.example frontend/.env
-cd frontend
-npm install
-npm run dev
+cp apps/frontend/.env.example apps/frontend/.env
+pnpm install
+pnpm dev:frontend
 ```
 
 ## 更多文档

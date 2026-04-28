@@ -1,23 +1,25 @@
 # Binaries
-backend/bin/
-backend/main
-frontend/dist/
-frontend/dist-electron/
-frontend/out/
+apps/backend/bin/
+apps/backend/main
+apps/frontend/dist/
+apps/frontend/dist-electron/
+apps/frontend/out/
 
 # Go
-backend/uploads/
+apps/backend/uploads/
 *.exe
 *.test
 *.out
 
 # Node
-frontend/node_modules/
 node_modules/
+**/node_modules/
+apps/*/dist/
+packages/*/dist/
 
 # Env
 .env
-backend/.env
+apps/backend/.env
 
 # OS
 .DS_Store

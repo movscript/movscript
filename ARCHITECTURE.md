@@ -8,7 +8,7 @@
 
 | 层 | 技术 |
 |----|------|
-| 桌面壳 | Electron 33 (main: `frontend/electron/main.ts`) |
+| 桌面壳 | Electron 33 (main: `apps/frontend/electron/main.ts`) |
 | 前端 | React 18 + React Router v6 + Zustand + TanStack Query v5 + Tailwind CSS |
 | 后端 | Go 1.25 + Gin + GORM + PostgreSQL |
 | AI | 多 provider 适配层（Anthropic / OpenAI-compatible / Kling） |
@@ -21,7 +21,7 @@ API 基地址：默认 `http://localhost:8765/api/v1`，前端通过 `VITE_API_B
 
 ```
 movscript/
-├── backend/
+├── apps/backend/
 │   └── internal/
 │       ├── ai/           AI provider 接口 + 各 provider 适配器
 │       ├── config/       环境变量加载
@@ -35,7 +35,7 @@ movscript/
 │       ├── model/        GORM 模型（每个实体一个文件）
 │       └── router/       路由注册
 │
-└── frontend/src/
+└── apps/frontend/src/
     ├── constants/        跨页面共享常量（shot.ts 等）
     ├── components/
     │   ├── layout/       Sidebar / Header / MasterDetail
@@ -100,7 +100,7 @@ const mutation = useMutation({
 调用入口：`h.registry.Get(providerName)` → `provider.TextGenerate / ImageGenerate / VideoGenerate`
 
 ### 前端：本机插件
-插件安装和脚本执行在客户端完成，入口是 `frontend/src/pages/plugins/ClientPluginsPage.tsx`。后端不保存插件注册表、不调用插件 runtime，也不把插件并入 MCP；插件通过 `/models`、`/resources`、`/gen-jobs` 等稳定模型能力 API 调用后端。详见 `docs/plugins.md`。
+插件安装和脚本执行在客户端完成，入口是 `apps/frontend/src/pages/plugins/ClientPluginsPage.tsx`。后端不保存插件注册表、不调用插件 runtime，也不把插件并入 MCP；插件通过 `/models`、`/resources`、`/gen-jobs` 等稳定模型能力 API 调用后端。详见 `docs/plugins.md`。
 
 ---
 
@@ -108,13 +108,13 @@ const mutation = useMutation({
 
 | 目标 | 改哪里 |
 |------|--------|
-| 修改某实体的创作工作区 UI | `frontend/src/pages/work/workspaces/<Entity>Workspace.tsx` |
-| 修改创作页实体标签/颜色 | `frontend/src/pages/work/config.ts` |
-| 修改 Shot 状态标签/颜色 | `frontend/src/constants/shot.ts` |
-| 修改某实体的管理页 | `frontend/src/pages/<entity>/<Entity>Page.tsx` |
-| 添加新 API 端点 | `backend/internal/handler/<entity>.go` + `router/router.go` |
-| 添加新 AI provider | `backend/internal/ai/<provider>.go`，实现 `Provider` 接口，注册到 registry |
-| 修改 Canvas 执行逻辑 | `backend/internal/handler/canvas_exec.go` |
-| 修改 Canvas CRUD | `backend/internal/handler/canvas.go` |
-| 修改本机插件 manifest / runtime | `frontend/src/lib/clientPlugins.ts` + `frontend/src/pages/plugins/ClientPluginsPage.tsx` |
-| 添加新实体类型 | model + handler + router + `frontend/src/types/index.ts` |
+| 修改某实体的创作工作区 UI | `apps/frontend/src/pages/work/workspaces/<Entity>Workspace.tsx` |
+| 修改创作页实体标签/颜色 | `apps/frontend/src/pages/work/config.ts` |
+| 修改 Shot 状态标签/颜色 | `apps/frontend/src/constants/shot.ts` |
+| 修改某实体的管理页 | `apps/frontend/src/pages/<entity>/<Entity>Page.tsx` |
+| 添加新 API 端点 | `apps/backend/internal/handler/<entity>.go` + `router/router.go` |
+| 添加新 AI provider | `apps/backend/internal/ai/<provider>.go`，实现 `Provider` 接口，注册到 registry |
+| 修改 Canvas 执行逻辑 | `apps/backend/internal/handler/canvas_exec.go` |
+| 修改 Canvas CRUD | `apps/backend/internal/handler/canvas.go` |
+| 修改本机插件 manifest / runtime | `apps/frontend/src/lib/clientPlugins.ts` + `apps/frontend/src/pages/plugins/ClientPluginsPage.tsx` |
+| 添加新实体类型 | model + handler + router + `apps/frontend/src/types/index.ts` |

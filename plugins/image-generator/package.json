@@ -5,10 +5,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "movcli build"
+    "build": "tsx ../../apps/movcli/src/index.ts build"
   },
   "devDependencies": {
-    "@movscript/plugin-sdk": "latest",
+    "@movscript/plugin-sdk": "workspace:*",
+    "tsx": "^4.0.0",
     "typescript": "^5.7.0"
   }
 }

@@ -1,0 +1,29 @@
+{
+  "name": "@movscript/tokens",
+  "version": "0.1.0",
+  "description": "MovScript design tokens.",
+  "sideEffects": [
+    "./src/theme.css"
+  ],
+  "files": [
+    "dist",
+    "src/theme.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./theme.css": "./src/theme.css"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0"
+  }
+}

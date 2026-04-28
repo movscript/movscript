@@ -49,7 +49,7 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./apps/backend
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:

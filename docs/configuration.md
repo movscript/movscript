@@ -2,7 +2,7 @@
 
 ## Backend environment variables
 
-Copy `backend/.env.example` to `backend/.env`.
+Copy `apps/backend/.env.example` to `apps/backend/.env`.
 
 | Variable | Required | Description |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ openssl rand -hex 32
 
 ## Frontend environment variables
 
-Copy `frontend/.env.example` to `frontend/.env`.
+Copy `apps/frontend/.env.example` to `apps/frontend/.env`.
 
 | Variable | Required | Description |
 | --- | --- | --- |

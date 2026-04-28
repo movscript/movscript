@@ -1,0 +1,17 @@
+{
+  "name": "@movscript/plugin-scene-summary",
+  "version": "1.0.0",
+  "description": "A sample Movscript plugin that summarizes all scenes in a project using an AI model.",
+  "keywords": ["movscript", "plugin"],
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --no-splitting --banner.js \"/* movscript-plugin: scene-summary */\" --outDir dist --clean",
+    "bundle": "node scripts/bundle.mjs"
+  },
+  "devDependencies": {
+    "@movscript/plugin-sdk": "workspace:*",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0"
+  }
+}

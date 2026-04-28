@@ -11,35 +11,34 @@ make build
 
 ## Backend
 
-The backend is a Go API server in `backend/`.
+The backend is a Go API server in `apps/backend/`.
 
-- Entry point: `backend/cmd/server/main.go`
-- Router: `backend/internal/router/router.go`
-- Handlers: `backend/internal/handler/`
-- Models: `backend/internal/model/`
-- AI providers: `backend/internal/ai/`
+- Entry point: `apps/backend/cmd/server/main.go`
+- Router: `apps/backend/internal/router/router.go`
+- Handlers: `apps/backend/internal/handler/`
+- Models: `apps/backend/internal/model/`
+- AI providers: `apps/backend/internal/ai/`
 
 Run tests:
 
 ```bash
-cd backend
+cd apps/backend
 go test ./...
 ```
 
 ## Frontend
 
-The frontend is an Electron + Vite + React application in `frontend/`.
+The frontend is an Electron + Vite + React application in `apps/frontend/`.
 
-- App shell: `frontend/src/App.tsx`
-- API client: `frontend/src/lib/api.ts`
-- Runtime config: `frontend/src/lib/config.ts`
-- i18n setup: `frontend/src/i18n/`
+- App shell: `apps/frontend/src/App.tsx`
+- API client: `apps/frontend/src/lib/api.ts`
+- Runtime config: `apps/frontend/src/lib/config.ts`
+- i18n setup: `apps/frontend/src/i18n/`
 
 Run typecheck:
 
 ```bash
-cd frontend
-npm run typecheck
+pnpm --filter movscript-frontend typecheck
 ```
 
 ## Pull request checklist
