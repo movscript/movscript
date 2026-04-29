@@ -10,57 +10,35 @@ The near-term direction is to make workflow canvases operate on production entit
 
 - Canvas tasks can record port-level `input_values` and `output_values`.
 - Workflow canvases and individual nodes can be run through the backend.
-- Backend entity workflow schemas expose field metadata, port ids, value types, control hints, binding roles, and i18n keys.
-- Entity canvas nodes prefer backend schema ports and labels, with local hardcoded ports only as fallback.
+- Backend entity semantic schemas expose field metadata, value types, control hints, binding roles, i18n keys, storage mappings, validation, and IO capabilities.
+- Workflow entity schemas are projections from the semantic schema layer, so workflow ports do not become the source of truth for product entities.
+- Entity canvas nodes use backend schema ports and labels.
+- Entity canvas reads and writes are routed through `workflow.EntityIOService` (`ReadPorts` / `WritePorts`) instead of being implemented directly in canvas execution.
+- Direct entity field reads and writes use backend schema storage mappings. Computed or cross-table ports are kept as explicit workflow-service overrides.
+- Entity project lookup and stored field updates use workflow-service table/schema mappings, keeping per-entity model switches out of canvas execution.
+- Backend write validation rejects unknown ports, readonly ports, incompatible value types, missing inline/resource values, and resource counts beyond schema limits.
+- Entity writes create `CanvasEntityWriteAudit` records with canvas/run/node/port/entity/user context, old/new values, and resource binding ids.
+- Full-canvas and single-node runs reject unconnected required inputs, with backend test coverage.
+- Entity read-port validation is available for future caller-selected output-port APIs.
+- Entity write audit records can be read through an API filtered by canvas id, run id, entity kind/id, and user.
+- Canvas task APIs lazily normalize legacy `resource_id`-only outputs into `output_values` with semantic `result`/`value` handles.
+- The canvas editor includes a task input/output inspector for the selected node and selected run.
+- The canvas editor prompts for unconnected required single-node runtime inputs, submits typed `CanvasPortValue` data, and shows the resulting node task in the inspector.
+- Entity workflow schemas include `schemaVersion`, alias/deprecated metadata, readonly state, validation hints, and layout hints.
+- Backend workflow execution supports `CanvasExecutableSpec.executor = "plugin_http"` for enabled trusted HTTP plugin tools.
+- Inline `text`, `json`, `number`, and `boolean` values propagate as `CanvasPortValue` data; `RawResource` records are reserved for persisted media/resource artifacts.
+- Full-canvas runs use a topological execution plan and execute nodes through the same `executeCanvasNode` path used by single-node runs.
+- The frontend no longer maintains per-entity local port maps or generic entity port fallbacks; entity nodes require backend schema ports.
+- A shared `EntitySemanticForm` can render editable detail fields and resource binding controls from entity semantic schemas, with per-field renderers and form slots for hybrid composition.
+- Asset, scene, storyboard, shot, setting, episode, final-video, and script detail surfaces use the semantic-schema-driven form for core editable fields while preserving domain-specific editors around it.
 
-### P0: Stabilize Entity-Centric Workflows
+### P1: Semantic-Schema-Driven Product UI
 
-- Extract entity read/write behavior from `canvas_exec.go` into a dedicated backend workflow service.
-  - Target shape: `ReadPorts(ctx, kind, id)` and `WritePorts(ctx, kind, id, values, meta)`.
-  - Canvas execution should call this service instead of knowing table fields for every entity kind.
-
-- Make backend schema the source of truth for entity write behavior.
-  - Use schema mappings for field writes, resource binding role, binding slot, primary flag, and multiplicity.
-  - Keep old switch statements only as temporary compatibility code.
-
-- Add backend port validation.
-  - Validate required inputs.
-  - Validate value type compatibility.
-  - Enforce `maxCount`.
-  - Reject writes to fields that are not marked writable.
-  - Reject reads from fields that are not marked readable.
-
-- Add entity write audit logs.
-  - Record canvas id, run id, node id, port id, entity kind/id, user id, old value, new value, and resource binding ids.
-  - Use this for debugging, rollback, review, and production traceability.
-
-### P1: Complete the Port Value Runtime
-
-- Implement native structured value propagation.
-  - `text`, `json`, `number`, and `boolean` should flow as `CanvasPortValue` data.
-  - Create `RawResource` records only when a media file, attachment, or persisted resource is needed.
-
-- Unify full-canvas and single-node execution.
-  - Replace duplicated workflow loop behavior with one `executeNode` path.
-  - Full workflow execution should become topological scheduling over the same node executor.
-
-- Add a single-node runtime input form.
-  - When a node has unconnected required inputs, render a form from input port/schema metadata.
-  - Submit those values to `POST /canvases/:id/nodes/:nodeId/run`.
-
-- Add a task input/output inspector.
-  - Show each task's input ports, output ports, resources, inline values, errors, and timestamps.
-  - Use `input_values` and `output_values` as the primary data source.
-
-- Backfill or lazily upgrade old task output data.
-  - Old tasks with only `resource_id` should still render as a `result`/`value` output.
-  - Consider a migration or lazy writeback when a task is fetched.
-
-### P1: Schema-Driven Product UI
-
-- Reuse entity workflow schema in entity detail pages.
-  - Details pages should use the same field ids and i18n keys as workflow nodes.
-  - Schema can drive labels, controls, grouping, readonly state, and validation.
+- Finish polishing semantic-schema-driven entity detail pages.
+  - Details pages and workflow nodes should share semantic field ids, i18n keys, binding roles, readonly state, and validation.
+  - Detail UI should consume a UI/detail projection of the semantic schema, not the workflow-port projection.
+  - Workflow schema remains a runtime port projection and must not become the source of truth for entities.
+  - Keep richer domain-specific editors composed as field renderers or slots instead of forking duplicate field definitions.
 
 - Expand schema layout expressiveness.
   - Support resource galleries.
@@ -74,23 +52,12 @@ The near-term direction is to make workflow canvases operate on production entit
 
 ### P2: Plugin and Extensibility Runtime
 
-- Bring plugin canvas nodes into the backend workflow model.
-  - Define whether plugins run in a backend runtime, a trusted local runtime, or a callback boundary.
-  - Make plugin inputs and outputs compatible with `CanvasPortValue`.
-
-- Version entity schemas.
-  - Add `schemaVersion`.
+- Version entity semantic schemas and their projections.
   - Support port aliases and deprecated fields.
-  - Ensure old canvases and old task histories continue to load after schema changes.
-
-- Remove local entity port fallbacks once backend schema is mature.
-  - `ENTITY_PORTS` in the frontend should shrink to a minimal emergency fallback or disappear.
 
 ## API Documentation
 
-- Document workflow schema routes in `docs/api.md`.
-- Document canvas task port values and execution semantics.
-- Document entity write audit APIs after the audit model lands.
+- Keep canvas task port values and execution semantics current as the runtime evolves.
 
 ## Agent Runtime and Platform Operations
 

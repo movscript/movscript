@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
@@ -44,17 +46,19 @@ func NewEntityIOService(db *gorm.DB) *EntityIOService {
 }
 
 func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (map[string]EntityPortValue, error) {
-	if _, ok := EntitySchemaForKind(kind); !ok {
+	schema, ok := EntitySchemaForKind(kind)
+	if !ok {
 		return nil, fmt.Errorf("unsupported entity type %q", kind)
 	}
 	values := map[string]EntityPortValue{}
-	addText := func(portID string, text string) {
-		field, ok := EntityFieldForPort(kind, portID)
-		if !ok || !field.Workflow.Readable || strings.TrimSpace(text) == "" {
-			return
-		}
-		values[portID] = EntityPortValue{Type: field.ValueType, Text: text}
+
+	if err := s.readStoredPorts(ctx, schema, id, values); err != nil {
+		return nil, err
 	}
+	if err := s.readComputedPorts(ctx, kind, id, values); err != nil {
+		return nil, err
+	}
+
 	addBinding := func(portID string) {
 		field, ok := EntityFieldForPort(kind, portID)
 		if !ok || !field.Workflow.Readable || field.Binding == nil {
@@ -69,121 +73,6 @@ func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (
 		}
 	}
 
-	switch kind {
-	case "script":
-		var item model.Script
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("script not found")
-		}
-		addText("title", item.Title)
-		addText("description", item.Description)
-		addText("content", item.Content)
-		addText("summary", item.Summary)
-		addText("characters", firstNonEmpty(item.CharacterProfiles, item.Characters))
-		addText("character_profiles", item.CharacterProfiles)
-		addText("character_relationships", item.CharacterRelationships)
-		addText("settings", item.CoreSettings)
-		addText("background", item.Background)
-		addText("scenes_desc", item.ScenesDesc)
-		addText("hook", item.Hook)
-		addText("plot_summary", item.PlotSummary)
-		addText("script_points", item.ScriptPoints)
-	case "setting":
-		var item model.Setting
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("setting not found")
-		}
-		addText("name", item.Name)
-		addText("alias", item.Alias)
-		addText("type", item.Type)
-		addText("description", item.Description)
-		addText("content", item.Content)
-		addText("status", item.Status)
-		addText("importance", item.Importance)
-		addText("tags", item.Tags)
-		addText("profile_json", item.ProfileJSON)
-	case "asset":
-		var item model.Asset
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("asset not found")
-		}
-		addText("name", item.Name)
-		addText("type", item.Type)
-		addText("description", item.Description)
-		addText("variant_name", item.VariantName)
-		addText("costume", item.Costume)
-		addText("time_of_day", item.TimeOfDay)
-		addText("period", item.Period)
-		addText("state", item.State)
-		addText("style_profile", item.StyleProfile)
-		addText("prompt", item.Prompt)
-		addText("negative_prompt", item.NegativePrompt)
-	case "episode":
-		var item model.Episode
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("episode not found")
-		}
-		addText("title", item.Title)
-		addText("synopsis", item.Synopsis)
-		if item.ScriptID != nil {
-			var script model.Script
-			if err := s.db.WithContext(ctx).First(&script, *item.ScriptID).Error; err == nil {
-				addText("script", script.Content)
-			}
-		}
-	case "scene":
-		var item model.Scene
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("scene not found")
-		}
-		addText("title", item.Title)
-		addText("notes", item.Notes)
-		addText("location", item.Location)
-		addText("time_of_day", item.TimeOfDay)
-	case "storyboard":
-		var item model.Storyboard
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("storyboard not found")
-		}
-		addText("title", item.Title)
-		addText("description", item.Description)
-		addText("notes", item.Notes)
-		addText("characters", item.Characters)
-		addText("actions", item.Actions)
-		addText("dialogue", item.Dialogue)
-		addText("atmosphere", item.Atmosphere)
-		addText("prompt", strings.TrimSpace(strings.Join([]string{item.Description, item.Actions, item.Dialogue, item.Atmosphere}, "\n")))
-		addText("camera_angle", item.CameraAngle)
-		addText("camera_movement", item.CameraMovement)
-		addText("depth_of_field", item.DepthOfField)
-		addText("lighting", item.Lighting)
-		addText("shot_size", item.ShotSize)
-		addText("angle", item.Angle)
-		addText("movement", item.Movement)
-		addText("focal_length", item.FocalLength)
-		addText("pacing", item.Pacing)
-		addText("intent", item.Intent)
-	case "shot":
-		var item model.Shot
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("shot not found")
-		}
-		addText("description", item.Description)
-		addText("prompt", firstNonEmpty(item.FinalPrompt, item.Prompt))
-		addText("final_description", item.FinalDescription)
-		addText("final_prompt", item.FinalPrompt)
-	case "final_video":
-		var item model.FinalVideo
-		if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
-			return nil, fmt.Errorf("final video not found")
-		}
-		addText("title", item.Title)
-		addText("description", item.Description)
-	default:
-		return nil, fmt.Errorf("unsupported entity type %q", kind)
-	}
-
-	schema, _ := EntitySchemaForKind(kind)
 	for _, section := range schema.Sections {
 		for _, field := range section.Fields {
 			if field.Workflow.Readable && field.Binding != nil {
@@ -192,6 +81,92 @@ func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (
 		}
 	}
 	return values, nil
+}
+
+func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySchema, id uint, values map[string]EntityPortValue) error {
+	table, ok := entityTableName(schema.Kind)
+	if !ok {
+		return fmt.Errorf("unsupported entity type %q", schema.Kind)
+	}
+	fieldsByColumn := map[string][]EntitySchemaField{}
+	columns := []string{"id"}
+	seen := map[string]bool{"id": true}
+	for _, section := range schema.Sections {
+		for _, field := range section.Fields {
+			if !field.Workflow.Readable || field.Storage == nil || strings.TrimSpace(field.Storage.Column) == "" {
+				continue
+			}
+			column := strings.TrimSpace(field.Storage.Column)
+			fieldsByColumn[column] = append(fieldsByColumn[column], field)
+			if !seen[column] {
+				seen[column] = true
+				columns = append(columns, column)
+			}
+		}
+	}
+	sort.Strings(columns[1:])
+	row := map[string]any{}
+	if err := s.db.WithContext(ctx).Table(table).Select(columns).Where("id = ?", id).Take(&row).Error; err != nil {
+		return fmt.Errorf("%s not found", entityLabel(schema.Kind))
+	}
+	for column, fields := range fieldsByColumn {
+		text := storedColumnText(row[column])
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		for _, field := range fields {
+			value := EntityPortValue{Type: field.ValueType, Text: text}
+			if field.ValueType == "number" {
+				if n, err := strconv.ParseFloat(strings.TrimSpace(text), 64); err == nil {
+					value.Number = &n
+				}
+			}
+			values[field.Workflow.PortID] = value
+		}
+	}
+	return nil
+}
+
+func (s *EntityIOService) readComputedPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue) error {
+	addComputedText := func(portID string, text string) {
+		field, ok := EntityFieldForPort(kind, portID)
+		if !ok || !field.Workflow.Readable || strings.TrimSpace(text) == "" {
+			return
+		}
+		values[portID] = EntityPortValue{Type: field.ValueType, Text: text}
+	}
+	switch kind {
+	case "script":
+		var item model.Script
+		if err := s.db.WithContext(ctx).Select("characters", "character_profiles").First(&item, id).Error; err != nil {
+			return fmt.Errorf("script not found")
+		}
+		addComputedText("characters", firstNonEmpty(item.CharacterProfiles, item.Characters))
+	case "episode":
+		var item model.Episode
+		if err := s.db.WithContext(ctx).Select("script_id").First(&item, id).Error; err != nil {
+			return fmt.Errorf("episode not found")
+		}
+		if item.ScriptID != nil {
+			var script model.Script
+			if err := s.db.WithContext(ctx).Select("content").First(&script, *item.ScriptID).Error; err == nil {
+				addComputedText("script", script.Content)
+			}
+		}
+	case "storyboard":
+		var item model.Storyboard
+		if err := s.db.WithContext(ctx).Select("description", "actions", "dialogue", "atmosphere").First(&item, id).Error; err != nil {
+			return fmt.Errorf("storyboard not found")
+		}
+		addComputedText("prompt", strings.TrimSpace(strings.Join([]string{item.Description, item.Actions, item.Dialogue, item.Atmosphere}, "\n")))
+	case "shot":
+		var item model.Shot
+		if err := s.db.WithContext(ctx).Select("prompt", "final_prompt").First(&item, id).Error; err != nil {
+			return fmt.Errorf("shot not found")
+		}
+		addComputedText("prompt", firstNonEmpty(item.FinalPrompt, item.Prompt))
+	}
+	return nil
 }
 
 func (s *EntityIOService) WritePorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue, meta EntityWriteMeta) (EntityWriteResult, error) {
@@ -270,60 +245,132 @@ func (s *EntityIOService) ProjectID(ctx context.Context, kind string, id uint, f
 	if fallback != nil && *fallback != 0 {
 		return *fallback, nil
 	}
-	var projectID uint
-	switch kind {
-	case "script":
-		var item model.Script
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("script not found")
-		}
-		projectID = item.ProjectID
-	case "asset":
-		var item model.Asset
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("asset not found")
-		}
-		projectID = item.ProjectID
-	case "setting":
-		var item model.Setting
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("setting not found")
-		}
-		projectID = item.ProjectID
-	case "episode":
-		var item model.Episode
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("episode not found")
-		}
-		projectID = item.ProjectID
-	case "scene":
-		var item model.Scene
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("scene not found")
-		}
-		projectID = item.ProjectID
-	case "storyboard":
-		var item model.Storyboard
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("storyboard not found")
-		}
-		projectID = item.ProjectID
-	case "shot":
-		var item model.Shot
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("shot not found")
-		}
-		projectID = item.ProjectID
-	case "final_video":
-		var item model.FinalVideo
-		if err := s.db.WithContext(ctx).Select("project_id").First(&item, id).Error; err != nil {
-			return 0, fmt.Errorf("final video not found")
-		}
-		projectID = item.ProjectID
-	default:
+	table, ok := entityTableName(kind)
+	if !ok {
 		return 0, fmt.Errorf("unsupported entity type %q", kind)
 	}
+	row := map[string]any{}
+	if err := s.db.WithContext(ctx).Table(table).Select("project_id").Where("id = ?", id).Take(&row).Error; err != nil {
+		return 0, fmt.Errorf("%s not found", entityLabel(kind))
+	}
+	projectID, err := storedColumnUint(row["project_id"])
+	if err != nil || projectID == 0 {
+		return 0, fmt.Errorf("%s project_id is missing", entityLabel(kind))
+	}
 	return projectID, nil
+}
+
+func entityTableName(kind string) (string, bool) {
+	switch kind {
+	case "script":
+		return "scripts", true
+	case "setting":
+		return "settings", true
+	case "asset":
+		return "assets", true
+	case "episode":
+		return "episodes", true
+	case "scene":
+		return "scenes", true
+	case "storyboard":
+		return "storyboards", true
+	case "shot":
+		return "shots", true
+	case "final_video":
+		return "final_videos", true
+	default:
+		return "", false
+	}
+}
+
+func entityLabel(kind string) string {
+	switch kind {
+	case "final_video":
+		return "final video"
+	default:
+		return strings.ReplaceAll(kind, "_", " ")
+	}
+}
+
+func storedColumnText(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	case fmt.Stringer:
+		return v.String()
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprint(v)
+		}
+		return string(b)
+	}
+}
+
+func storedColumnUint(value any) (uint, error) {
+	switch v := value.(type) {
+	case nil:
+		return 0, fmt.Errorf("missing value")
+	case uint:
+		return v, nil
+	case uint64:
+		return uint(v), nil
+	case uint32:
+		return uint(v), nil
+	case int:
+		if v < 0 {
+			return 0, fmt.Errorf("negative value")
+		}
+		return uint(v), nil
+	case int64:
+		if v < 0 {
+			return 0, fmt.Errorf("negative value")
+		}
+		return uint(v), nil
+	case int32:
+		if v < 0 {
+			return 0, fmt.Errorf("negative value")
+		}
+		return uint(v), nil
+	case float64:
+		if v < 0 {
+			return 0, fmt.Errorf("negative value")
+		}
+		return uint(v), nil
+	case []byte:
+		n, err := strconv.ParseUint(string(v), 10, 64)
+		return uint(n), err
+	case string:
+		n, err := strconv.ParseUint(v, 10, 64)
+		return uint(n), err
+	default:
+		n, err := strconv.ParseUint(fmt.Sprint(v), 10, 64)
+		return uint(n), err
+	}
+}
+
+func ValidateEntityReadPorts(kind string, portIDs []string) error {
+	if _, ok := EntitySchemaForKind(kind); !ok {
+		return fmt.Errorf("unsupported entity type %q", kind)
+	}
+	for _, portID := range portIDs {
+		portID = strings.TrimSpace(portID)
+		if portID == "" {
+			continue
+		}
+		field, ok := EntityFieldForPort(kind, portID)
+		if !ok {
+			return fmt.Errorf("unknown port %q for entity type %q", portID, kind)
+		}
+		if !field.Workflow.Readable {
+			return fmt.Errorf("port %q is not readable", portID)
+		}
+	}
+	return nil
 }
 
 func validateEntityPortValues(kind string, values map[string]EntityPortValue) error {
@@ -416,26 +463,12 @@ func (s *EntityIOService) writeEntityFields(ctx context.Context, kind string, id
 	if len(updates) == 0 {
 		return nil
 	}
-	switch kind {
-	case "script":
-		return s.db.WithContext(ctx).Model(&model.Script{}).Where("id = ?", id).Updates(updates).Error
-	case "setting":
-		return s.db.WithContext(ctx).Model(&model.Setting{}).Where("id = ?", id).Updates(updates).Error
-	case "asset":
-		return s.db.WithContext(ctx).Model(&model.Asset{}).Where("id = ?", id).Updates(updates).Error
-	case "episode":
-		return s.db.WithContext(ctx).Model(&model.Episode{}).Where("id = ?", id).Updates(updates).Error
-	case "scene":
-		return s.db.WithContext(ctx).Model(&model.Scene{}).Where("id = ?", id).Updates(updates).Error
-	case "storyboard":
-		return s.db.WithContext(ctx).Model(&model.Storyboard{}).Where("id = ?", id).Updates(updates).Error
-	case "shot":
-		return s.db.WithContext(ctx).Model(&model.Shot{}).Where("id = ?", id).Updates(updates).Error
-	case "final_video":
-		return s.db.WithContext(ctx).Model(&model.FinalVideo{}).Where("id = ?", id).Updates(updates).Error
-	default:
+	table, ok := entityTableName(kind)
+	if !ok {
 		return fmt.Errorf("unsupported entity type %q", kind)
 	}
+	updates["updated_at"] = time.Now()
+	return s.db.WithContext(ctx).Table(table).Where("id = ?", id).Updates(updates).Error
 }
 
 func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[string]any {
@@ -449,7 +482,11 @@ func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[stri
 		if !ok || field.Storage == nil || strings.TrimSpace(field.Storage.Column) == "" {
 			continue
 		}
-		updates[field.Storage.Column] = text
+		if field.ValueType == "number" && value.Number != nil {
+			updates[field.Storage.Column] = *value.Number
+		} else {
+			updates[field.Storage.Column] = text
+		}
 		switch kind + "." + portID {
 		case "shot.prompt":
 			updates["prompt"] = text

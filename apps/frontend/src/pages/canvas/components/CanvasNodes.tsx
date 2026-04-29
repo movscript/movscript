@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
-import { CANVAS_NODE_META, portsForEntityKind } from '../nodeCatalog'
+import { CANVAS_NODE_META } from '../nodeCatalog'
 
 const ENTITY_ICONS: Record<CanvasEntityKind, React.ReactNode> = {
   script: <FileText size={12} />,
@@ -699,9 +699,8 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
   const kind = data.entityKind
   const label = data.label || data.entityTitle || t('canvas.nodeLabels.entity_card')
   const kindLabel = kind ? t(`canvas.entityTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.entity_card')
-  const ports = portsForEntityKind(kind)
-  const inputPorts = data.inputPorts ?? ports?.inputs
-  const outputPorts = data.outputPorts ?? ports?.outputs
+  const inputPorts = data.inputPorts
+  const outputPorts = data.outputPorts
 
   return (
     <NodeCard selected={selected}>

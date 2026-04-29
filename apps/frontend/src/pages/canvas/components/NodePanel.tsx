@@ -613,7 +613,10 @@ function EntityCardPanel({
       <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
         <div className="flex items-center justify-between gap-2">
           <span className="font-medium text-foreground">{kindLabel}</span>
-          {data.entityId && <span className="font-mono text-muted-foreground">#{data.entityId}</span>}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {schema?.schemaVersion && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">v{schema.schemaVersion}</span>}
+            {data.entityId && <span className="font-mono text-muted-foreground">#{data.entityId}</span>}
+          </div>
         </div>
         {data.entityTitle && <p className="mt-1 truncate text-muted-foreground">{data.entityTitle}</p>}
       </div>
@@ -639,6 +642,8 @@ function EntityCardPanel({
                       <div className="flex shrink-0 gap-1">
                         {field.workflow.readable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">out</span>}
                         {field.workflow.writable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">in</span>}
+                        {field.readonly && <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t('common.readonly', { defaultValue: 'read-only' })}</span>}
+                        {field.deprecated && <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">{t('common.deprecated', { defaultValue: 'deprecated' })}</span>}
                       </div>
                     </div>
                   </div>
@@ -768,6 +773,11 @@ function PluginCardPanel({
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
           {plugin?.description || t('canvas.pluginCard.localRuntimeDescription')}
         </p>
+        {data.pluginRuntime && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {t('canvas.pluginCard.runtime', { runtime: data.pluginRuntime, defaultValue: `runtime: ${data.pluginRuntime}` })}
+          </p>
+        )}
       </div>
 
       {((data.inputPorts?.length ?? 0) > 0 || (data.outputPorts?.length ?? 0) > 0) && (

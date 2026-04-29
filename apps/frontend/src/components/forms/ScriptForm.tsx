@@ -14,6 +14,7 @@ import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { EntitySemanticForm } from '@/components/detail/EntitySemanticForm'
 
 const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; color: string }> = {
   main:    { labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400' },
@@ -871,8 +872,6 @@ export function ScriptForm({ script, projectId, draft, onChange, onSave, isSavin
   const isMain = script.script_type === 'main'
   const isEpisode = script.script_type === 'episode'
   const isScene = script.script_type === 'scene'
-  const typeCfg = SCRIPT_TYPE_MAP[script.script_type]
-
   function field<K extends keyof Script>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       onChange({ ...draft, [key]: e.target.value })
@@ -908,23 +907,21 @@ export function ScriptForm({ script, projectId, draft, onChange, onSave, isSavin
       </TabsList>
 
       <TabsContent value="content" className="flex-1 min-h-0 overflow-y-auto mt-0">
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.title')}</Label>
-              <Input value={draft.title ?? ''} onChange={field('title')} />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
-              <Input value={draft.description ?? ''} onChange={field('description')} />
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.scriptSummary')}</Label>
-            <Textarea className="resize-none" rows={3} placeholder={t('details.scriptSummaryPlaceholder')} value={draft.summary ?? ''} onChange={field('summary')} />
-          </div>
-          {isMain ? (
+        <EntitySemanticForm
+          kind="script"
+          ownerType="script"
+          ownerId={script.ID}
+          draft={draft}
+          onChange={(next) => onChange(next as Partial<Script>)}
+          onSave={(payload) => onSave(payload as Partial<Script>)}
+          isSaving={isSaving}
+          excludeFields={isMain
+            ? ['result', 'attachment', 'content', 'characters', 'character_profiles', 'character_relationships', 'core_settings', 'background', 'scenes_desc', 'hook', 'plot_summary', 'script_points']
+            : ['result', 'attachment', 'content', 'characters', 'character_profiles', 'character_relationships', 'core_settings', 'background', 'scenes_desc', 'hook', 'plot_summary', 'script_points']}
+          renderAfter={(
             <>
+              {isMain ? (
+                <>
               <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] gap-4">
                 <CharacterStructureEditor draft={draft} onChange={onChange} />
                 <StructuredListEditor
@@ -947,9 +944,9 @@ export function ScriptForm({ script, projectId, draft, onChange, onSave, isSavin
                   onChange={(value) => onChange({ ...draft, scenes_desc: value })}
                 />
               </div>
-            </>
-          ) : (
-            <div className="space-y-4">
+                </>
+              ) : (
+                <div className="space-y-4">
               <SettingReferencePanel projectId={projectId} script={script} />
               <div>
                 <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.background')}</Label>
@@ -961,9 +958,9 @@ export function ScriptForm({ script, projectId, draft, onChange, onSave, isSavin
                   onChange={field('background')}
                 />
               </div>
-            </div>
-          )}
-          {(isEpisode || isScene) && (
+                </div>
+              )}
+              {(isEpisode || isScene) && (
             <div className="border-t border-border pt-4 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{isEpisode ? t('details.episodeSpecific') : t('details.sceneSpecific')}</p>
               <div>
@@ -1006,21 +1003,18 @@ export function ScriptForm({ script, projectId, draft, onChange, onSave, isSavin
                 </div>
               )}
             </div>
-          )}
-          <div>
+              )}
+              <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.attachments')}</Label>
             <ResourceAttachments
               ownerType="script"
               ownerId={script.ID}
               role="attachment"
             />
-          </div>
-          <div className="pt-1 border-t border-border">
-            <Button onClick={() => onSave(draft)} disabled={isSaving} className="gap-1.5">
-              <Save size={13} /> {isSaving ? t('common.saving') : t('common.save')}
-            </Button>
-          </div>
-        </div>
+              </div>
+            </>
+          )}
+        />
       </TabsContent>
 
       <TabsContent value="plot" className="flex-1 min-h-0 overflow-y-auto mt-0">

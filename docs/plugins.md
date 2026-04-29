@@ -147,3 +147,24 @@ Frontend plugin-related code lives primarily in:
 - `packages/plugin-sdk/`
 
 Older client-plugin types (`movscript.clientPlugin.v1` and `movscript.clientPlugin.v2`) still exist in the SDK for frontend/runtime experimentation. The backend manifest format described above is the source of truth for persisted plugin catalog data.
+
+## Canvas Runtime Boundary
+
+Canvas plugin nodes have two supported runtime boundaries:
+
+- `trusted_local`: client-installed plugins run in the Electron/frontend runtime. If they expose a `compile(args)` function that returns a `CanvasExecutableSpec`, the compiled spec is persisted on the canvas node and can later be executed by the backend workflow runner.
+- `plugin_http`: backend-installed, trusted plugin tools can be called by the backend workflow runner through `CanvasExecutableSpec.executor = "plugin_http"` and `pluginToolKey`.
+
+`plugin_http` only runs tools from enabled plugins marked `trusted`. The tool must have runtime `{ "kind": "http", "endpoint": "...", "method": "POST" }`. The backend sends tool params, typed port inputs, input resource ids, canvas node id, task id, and user id as JSON.
+
+HTTP plugin responses should prefer:
+
+```json
+{
+  "outputs": {
+    "result": { "type": "text", "text": "plugin output" }
+  }
+}
+```
+
+Scalar output values are accepted and normalized to `CanvasPortValue`. Top-level `result`, `value`, `data`, or `content` are treated as the default `result` output when `outputs` is omitted.

@@ -12,6 +12,7 @@ import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { ScriptDetail } from '@/components/detail'
+import { EntitySemanticForm } from '@/components/detail/EntitySemanticForm'
 import { useTranslation } from 'react-i18next'
 
 type ScriptType = 'main' | 'episode' | 'scene'
@@ -207,11 +208,6 @@ function SettingsSection({ projectId }: { projectId: number }) {
   const detailOpen = selectedId !== null
 
   function selectSetting(s: Setting) { setSelectedId(s.ID); setDraft({ ...s }) }
-  function field<K extends keyof Setting>(key: K) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setDraft((d) => ({ ...d, [key]: e.target.value }))
-  }
-
   const filterTabs = [{ value: '' as const, label: t('common.all') }, ...SETTING_TYPES.map((type) => ({ value: type.type, label: t(type.labelKey) }))]
 
   return (
@@ -273,41 +269,31 @@ function SettingsSection({ projectId }: { projectId: number }) {
               <button onClick={() => remove.mutate(selected.ID)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">{t('common.delete')}</button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.name')}</Label><Input value={draft.name ?? ''} onChange={field('name')} /></div>
-              <div><Label className="text-xs font-medium text-muted-foreground mb-1">别名</Label><Input value={draft.alias ?? ''} onChange={field('alias')} /></div>
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.type')}</Label>
-                <div className="flex gap-2 flex-wrap">
-                  {SETTING_TYPES.map((type) => (
-                    <button key={type.type} onClick={() => setDraft((d) => ({ ...d, type: type.type }))}
-                      className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', draft.type === type.type ? cn(type.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
-                      {t(type.labelKey)}
-                    </button>
-                  ))}
+          <EntitySemanticForm
+            kind="setting"
+            ownerType="setting"
+            ownerId={selected.ID}
+            draft={draft}
+            onChange={(next) => setDraft(next as Partial<Setting>)}
+            onSave={(payload) => update.mutate({ id: selected.ID, data: payload as Partial<Setting> })}
+            isSaving={update.isPending}
+            excludeFields={['result', 'reference']}
+            fieldRenderers={{
+              type: (ctx) => (
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground mb-1">{ctx.label}</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {SETTING_TYPES.map((type) => (
+                      <button key={type.type} onClick={() => ctx.setValue(type.type)}
+                        className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', ctx.value === type.type ? cn(type.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
+                        {t(type.labelKey)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><Label className="text-xs font-medium text-muted-foreground mb-1">状态</Label><Input value={draft.status ?? ''} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as Setting['status'] }))} /></div>
-                <div><Label className="text-xs font-medium text-muted-foreground mb-1">重要性</Label><Input value={draft.importance ?? ''} onChange={(e) => setDraft((d) => ({ ...d, importance: e.target.value as Setting['importance'] }))} /></div>
-              </div>
-            </div>
-            <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label><Input value={draft.description ?? ''} onChange={field('description')} /></div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.scripts.settingContent')}</Label>
-              <Textarea className="resize-none" rows={12} placeholder={t('pages.scripts.settingContentPlaceholder')} value={draft.content ?? ''} onChange={field('content')} />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">结构化设定 JSON</Label>
-              <Textarea className="resize-none font-mono text-xs" rows={8} value={draft.profile_json ?? ''} onChange={field('profile_json')} />
-            </div>
-            <div className="pt-1 border-t border-border">
-              <Button onClick={() => update.mutate({ id: selected.ID, data: draft })} disabled={update.isPending} className="gap-1.5">
-                <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
-              </Button>
-            </div>
-          </div>
+              ),
+            }}
+          />
         </div>
       )}
 

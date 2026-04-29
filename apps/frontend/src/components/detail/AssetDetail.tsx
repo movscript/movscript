@@ -4,14 +4,11 @@ import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { Asset, AssetView } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
-import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import { EntitySemanticForm } from './EntitySemanticForm'
 
 function resolveViewSrc(v: AssetView): string | undefined {
   const raw = v.resource?.url ? `${API_BASE}${v.resource.url}` : v.image_url
@@ -28,21 +25,6 @@ const ASSET_TYPE_MAP: Record<string, { labelKey: string; color: string }> = {
   scene:     { labelKey: 'domain.assetTypes.scene',     color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
   prop:      { labelKey: 'domain.assetTypes.prop',      color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
   draft:     { labelKey: 'domain.assetTypes.draft',     color: 'bg-muted text-muted-foreground' },
-}
-
-function editableAssetPayload(draft: Partial<Asset>): Partial<Asset> {
-  return {
-    name: draft.name,
-    description: draft.description,
-    variant_type: draft.variant_type,
-    variant_name: draft.variant_name,
-    costume: draft.costume,
-    time_of_day: draft.time_of_day,
-    period: draft.period,
-    state: draft.state,
-    style_profile: draft.style_profile,
-    prompt: draft.prompt,
-  }
 }
 
 interface Props {
@@ -96,62 +78,17 @@ export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Pro
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: edit form */}
-        <div className="w-72 shrink-0 border-r border-border overflow-y-auto p-5 space-y-3">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.name')}</Label>
-            <Input value={draft.name ?? ''} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
-            <Textarea rows={4} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">变体类型</Label>
-              <Input value={draft.variant_type ?? ''} onChange={(e) => setDraft((d) => ({ ...d, variant_type: e.target.value as Asset['variant_type'] }))} />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">变体名称</Label>
-              <Input value={draft.variant_name ?? ''} onChange={(e) => setDraft((d) => ({ ...d, variant_name: e.target.value }))} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">服装</Label>
-              <Input value={draft.costume ?? ''} onChange={(e) => setDraft((d) => ({ ...d, costume: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">时间</Label>
-              <Input value={draft.time_of_day ?? ''} onChange={(e) => setDraft((d) => ({ ...d, time_of_day: e.target.value }))} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">时期</Label>
-              <Input value={draft.period ?? ''} onChange={(e) => setDraft((d) => ({ ...d, period: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">状态</Label>
-              <Input value={draft.state ?? ''} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">风格</Label>
-            <Input value={draft.style_profile ?? ''} onChange={(e) => setDraft((d) => ({ ...d, style_profile: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">生成提示词</Label>
-            <Textarea rows={4} value={draft.prompt ?? ''} onChange={(e) => setDraft((d) => ({ ...d, prompt: e.target.value }))} />
-          </div>
-          <Button
-            onClick={() => update.mutate(editableAssetPayload(draft))}
-            disabled={update.isPending}
-            className="w-full gap-1.5"
-            size="sm"
-          >
-            <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
-          </Button>
+        <div className="w-72 shrink-0 border-r border-border overflow-hidden">
+          <EntitySemanticForm
+            kind="asset"
+            ownerType="asset"
+            ownerId={asset.ID}
+            draft={draft}
+            onChange={(next) => setDraft(next as Partial<Asset>)}
+            onSave={(payload) => update.mutate(payload as Partial<Asset>)}
+            isSaving={update.isPending}
+            excludeFields={['result', 'image', 'reference', 'negative_prompt']}
+          />
         </div>
 
         {/* Right: views gallery */}

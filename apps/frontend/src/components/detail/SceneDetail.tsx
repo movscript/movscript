@@ -3,24 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Scene } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Save } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
 import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
-import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
-
-const TIME_LABEL_KEYS: Record<string, string> = {
-  day: 'domain.timeOfDay.day', night: 'domain.timeOfDay.night', dawn: 'domain.timeOfDay.dawn', dusk: 'domain.timeOfDay.dusk',
-}
-const TIME_COLORS: Record<string, string> = {
-  day:   'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
-  night: 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400',
-  dawn:  'border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400',
-  dusk:  'border-orange-300 bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400',
-}
+import { EntitySemanticForm } from './EntitySemanticForm'
 
 interface Props {
   scene: Scene
@@ -69,40 +54,17 @@ export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Pro
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: settings */}
-        <div className="w-72 shrink-0 border-r border-border overflow-y-auto p-5 space-y-3">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.title')}</Label>
-            <Input value={draft.title ?? ''} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.shootingLocation')}</Label>
-            <Input value={draft.location ?? ''} onChange={(e) => setDraft((d) => ({ ...d, location: e.target.value }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.timeOfDay')}</Label>
-            <div className="flex gap-1.5 flex-wrap">
-              {Object.entries(TIME_LABEL_KEYS).map(([v, labelKey]) => (
-                <button
-                  key={v}
-                  onClick={() => setDraft((d) => ({ ...d, time_of_day: v }))}
-                  className={cn(
-                    'flex-1 py-1.5 text-xs rounded border transition-colors min-w-[60px]',
-                    draft.time_of_day === v ? cn(TIME_COLORS[v], 'font-medium') : 'border-border text-muted-foreground hover:border-border/80'
-                  )}
-                >
-                  {t(labelKey)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.notes')}</Label>
-            <Textarea rows={4} value={draft.notes ?? ''} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} />
-          </div>
-          <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="w-full gap-1.5" size="sm">
-            <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
-          </Button>
+        <div className="w-72 shrink-0 border-r border-border overflow-hidden">
+          <EntitySemanticForm
+            kind="scene"
+            ownerType="scene"
+            ownerId={scene.ID}
+            draft={draft}
+            onChange={(next) => setDraft(next as Partial<Scene>)}
+            onSave={(payload) => update.mutate(payload as Partial<Scene>)}
+            isSaving={update.isPending}
+            excludeFields={['result', 'reference', 'storyboards', 'shots']}
+          />
         </div>
 
         {/* Right: media */}
@@ -111,10 +73,17 @@ export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Pro
             <h3 className="text-sm font-semibold text-foreground">{t('details.mediaLibrary')}</h3>
             <span className="text-xs text-muted-foreground">{t('details.imageVideo')}</span>
           </div>
-          <ResourceAttachments
+          <EntitySemanticForm
+            kind="scene"
             ownerType="scene"
             ownerId={scene.ID}
-            role="reference"
+            draft={draft}
+            onChange={(next) => setDraft(next as Partial<Scene>)}
+            onSave={(payload) => update.mutate(payload as Partial<Scene>)}
+            isSaving={update.isPending}
+            includeFields={['reference']}
+            className="h-auto overflow-visible p-0"
+            showSave={false}
           />
         </div>
       </div>

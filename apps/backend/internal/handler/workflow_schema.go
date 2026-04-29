@@ -25,3 +25,16 @@ func (h *WorkflowSchemaHandler) GetEntitySchema(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, schema)
 }
+
+func (h *WorkflowSchemaHandler) ListEntitySemanticSchemas(c *gin.Context) {
+	c.JSON(http.StatusOK, workflow.EntitySemanticSchemas())
+}
+
+func (h *WorkflowSchemaHandler) GetEntitySemanticSchema(c *gin.Context) {
+	schema, ok := workflow.EntitySemanticSchemaForKind(c.Param("kind"))
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "entity semantic schema not found"})
+		return
+	}
+	c.JSON(http.StatusOK, schema)
+}

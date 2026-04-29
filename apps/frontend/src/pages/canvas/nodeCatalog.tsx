@@ -18,7 +18,7 @@ import {
   Video,
   Wand2,
 } from 'lucide-react'
-import type { CanvasEntityKind, CanvasNodeData, CanvasPortDef, EntityWorkflowSchema, NodeType } from '@/types'
+import type { CanvasNodeData, CanvasPortDef, EntityWorkflowSchema, NodeType } from '@/types'
 
 export type CanvasNodeCategory = 'flow' | 'media' | 'ai' | 'organization'
 
@@ -55,118 +55,6 @@ const port = (id: string, type: CanvasPortDef['type'], extra?: Omit<CanvasPortDe
   ...extra,
 })
 
-const bidirectionalEntityPorts = (ports: CanvasPortDef[]): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } => ({
-  inputs: ports.map((item) => ({ ...item })),
-  outputs: ports.map((item) => ({ ...item })),
-})
-
-export const ENTITY_PORTS: Record<CanvasEntityKind, { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] }> = {
-  script: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('attachment', 'resource'),
-    port('title', 'text'),
-    port('description', 'text'),
-    port('content', 'text'),
-    port('summary', 'text'),
-    port('characters', 'json'),
-    port('character_profiles', 'json'),
-    port('character_relationships', 'json'),
-    port('settings', 'json'),
-    port('background', 'text'),
-    port('scenes_desc', 'text'),
-    port('hook', 'text'),
-    port('plot_summary', 'text'),
-    port('script_points', 'json'),
-  ]),
-  setting: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('reference', 'resource'),
-    port('name', 'text'),
-    port('alias', 'text'),
-    port('type', 'text'),
-    port('description', 'text'),
-    port('content', 'text'),
-    port('status', 'text'),
-    port('importance', 'text'),
-    port('tags', 'json'),
-    port('profile_json', 'json'),
-  ]),
-  asset: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('image', 'image'),
-    port('reference', 'resource'),
-    port('name', 'text'),
-    port('type', 'text'),
-    port('description', 'text'),
-    port('variant_name', 'text'),
-    port('costume', 'text'),
-    port('time_of_day', 'text'),
-    port('period', 'text'),
-    port('state', 'text'),
-    port('style_profile', 'text'),
-    port('prompt', 'text'),
-    port('negative_prompt', 'text'),
-  ]),
-  episode: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('attachment', 'resource'),
-    port('title', 'text'),
-    port('synopsis', 'text'),
-    port('script', 'text'),
-  ]),
-  scene: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('reference', 'resource'),
-    port('title', 'text'),
-    port('location', 'text'),
-    port('time_of_day', 'text'),
-    port('notes', 'text'),
-  ]),
-  storyboard: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('image', 'image'),
-    port('reference', 'resource'),
-    port('title', 'text'),
-    port('description', 'text'),
-    port('notes', 'text'),
-    port('characters', 'json'),
-    port('actions', 'text'),
-    port('dialogue', 'text'),
-    port('atmosphere', 'text'),
-    port('prompt', 'text'),
-    port('camera_angle', 'text'),
-    port('camera_movement', 'text'),
-    port('depth_of_field', 'text'),
-    port('lighting', 'text'),
-    port('shot_size', 'text'),
-    port('angle', 'text'),
-    port('movement', 'text'),
-    port('focal_length', 'text'),
-    port('pacing', 'text'),
-    port('intent', 'text'),
-  ]),
-  shot: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('video', 'video'),
-    port('reference', 'resource'),
-    port('description', 'text'),
-    port('prompt', 'text'),
-    port('final_description', 'text'),
-    port('final_prompt', 'text'),
-  ]),
-  final_video: bidirectionalEntityPorts([
-    port('result', 'resource'),
-    port('video', 'video'),
-    port('reference', 'resource'),
-    port('title', 'text'),
-    port('description', 'text'),
-  ]),
-}
-
-export function portsForEntityKind(kind?: CanvasEntityKind) {
-  return kind ? ENTITY_PORTS[kind] : undefined
-}
-
 export function portsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } | undefined {
   if (!schema) return undefined
   const inputs: CanvasPortDef[] = []
@@ -175,11 +63,13 @@ export function portsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: C
     section.fields.forEach((field) => {
       const port: CanvasPortDef = {
         id: field.workflow.portId,
+        aliases: field.workflow.aliases ?? field.aliases,
         label: field.fallbackLabel,
         labelKey: field.labelKey,
         type: field.valueType,
         required: field.workflow.required,
         maxCount: field.workflow.maxCount,
+        deprecated: field.deprecated,
       }
       if (field.workflow.writable) inputs.push(port)
       if (field.workflow.readable) outputs.push(port)

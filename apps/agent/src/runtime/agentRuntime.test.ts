@@ -404,6 +404,48 @@ test('apply_draft requires approval and marks draft applied after approval', asy
   assert.equal((appliedDraft?.metadata?.backendApply as any)?.method, 'PATCH')
 })
 
+test('createToolRun drives apply_draft through the same approval policy', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const backendApplyClient = new FakeBackendApplyClient()
+  const runtime = new AgentRuntime({ mcpClient: client, backendApplyClient })
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'shot',
+    title: 'Shot update',
+    content: 'New shot description',
+    target: { entityType: 'shot', entityId: 7, field: 'description' },
+  })
+
+  const run = runtime.createToolRun({
+    title: 'Apply draft from UI',
+    message: 'Apply draft from UI',
+    toolCall: {
+      name: 'movscript.apply_draft',
+      args: {
+        draftId: draft.id,
+        target: { entityType: 'shot', entityId: 7, field: 'description' },
+        currentValue: 'Old shot description',
+        proposedValue: 'New shot description',
+      },
+    },
+  })
+  const waiting = await waitForRun(runtime, run.id)
+
+  assert.equal(waiting.status, 'requires_action')
+  assert.equal(waiting.plan?.tasks[0]?.toolCalls.length, 0)
+  assert.equal(waiting.pendingApprovals?.[0].toolName, 'movscript.apply_draft')
+  assert.equal((waiting.pendingApprovals?.[0].preview as any)?.review?.currentValue, 'Old shot description')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+
+  runtime.approveRun(waiting.id, { approvalIds: [waiting.pendingApprovals![0].id] })
+  const appliedRun = await waitForRun(runtime, waiting.id)
+
+  assert.equal(appliedRun.status, 'completed')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'applied')
+  assert.equal(backendApplyClient.calls.length, 1)
+})
+
 test('apply_draft passes current context user id to backend apply client', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42

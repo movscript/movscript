@@ -3,13 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Script, Episode, Scene, EpisodeScene } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Save, Link, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Link, X } from 'lucide-react'
 import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import { EntitySemanticForm } from './EntitySemanticForm'
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
   draft: 'domain.episodeStatus.draft',
@@ -87,11 +85,6 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
     },
   })
 
-  function field<K extends keyof Episode>(key: K) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-      setDraft((d) => ({ ...d, [key]: e.target.value }))
-  }
-
   const linkedSceneIds = new Set(episodeScenes.map((es) => es.scene_id))
   const linkedScenes = episodeScenes
     .sort((a, b) => a.order - b.order)
@@ -119,18 +112,32 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('forms.title')}</Label>
-            <Input value={draft.title ?? ''} onChange={field('title')} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.episodeNumber')}</Label>
-            <Input type="number" value={draft.number ?? ''} onChange={(e) => setDraft((d) => ({ ...d, number: Number(e.target.value) }))} />
-          </div>
-        </div>
-        <div>
+      <EntitySemanticForm
+        kind="episode"
+        ownerType="episode"
+        ownerId={episode.ID}
+        draft={draft}
+        onChange={(next) => setDraft(next as Partial<Episode>)}
+        onSave={(payload) => update.mutate(payload as Partial<Episode>)}
+        isSaving={update.isPending}
+        excludeFields={['result', 'attachment', 'script', 'scenes', 'storyboards']}
+        fieldRenderers={{
+          status: (ctx) => (
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1 block">{ctx.label}</Label>
+              <select
+                className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+                value={(ctx.value as string | undefined) ?? ''}
+                onChange={(e) => ctx.setValue(e.target.value)}
+              >
+                {Object.entries(STATUS_LABEL_KEYS).map(([v, labelKey]) => <option key={v} value={v}>{t(labelKey)}</option>)}
+              </select>
+            </div>
+          ),
+        }}
+        renderAfter={(
+          <div className="border-t border-border pt-4 space-y-4">
+            <div>
           <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('forms.linkedEpisodeScript')}</Label>
           <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-foreground">
             {episodeScripts.filter((script) => script.episode_id === episode.ID || script.ID === episode.script_id).length > 0 ? (
@@ -145,39 +152,10 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
               <span className="text-muted-foreground">{t('forms.noLinkedEpisodeScript')}</span>
             )}
           </div>
-        </div>
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.episodeSynopsis')}</Label>
-          <Textarea className="resize-none" rows={4} value={draft.synopsis ?? ''} onChange={field('synopsis')} />
-        </div>
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.productionStatus')}</Label>
-          <select
-            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
-            value={draft.status ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}
-          >
-            {Object.entries(STATUS_LABEL_KEYS).map(([v, labelKey]) => <option key={v} value={v}>{t(labelKey)}</option>)}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.targetStoryboards')}</Label>
-            <Input type="number" min={0} value={draft.target_storyboards ?? ''} onChange={(e) => setDraft((d) => ({ ...d, target_storyboards: Number(e.target.value) || 0 }))} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t('details.targetScenes')}</Label>
-            <Input type="number" min={0} value={draft.target_scenes ?? ''} onChange={(e) => setDraft((d) => ({ ...d, target_scenes: Number(e.target.value) || 0 }))} />
-          </div>
-        </div>
-        <div className="pt-1 border-t border-border">
-          <Button onClick={() => update.mutate(draft)} disabled={update.isPending} className="gap-1.5" size="sm">
-            <Save size={13} /> {update.isPending ? t('common.saving') : t('common.save')}
-          </Button>
-        </div>
+            </div>
 
         {/* Linked scenes */}
-        <div className="border-t border-border pt-4 space-y-3">
+        <div className="space-y-3">
           <p className="text-xs font-medium text-muted-foreground">{t('details.linkedScenes')}</p>
           {linkedScenes.length === 0 ? (
             <p className="text-xs text-muted-foreground">{t('details.noLinkedScenes')}</p>
@@ -221,7 +199,9 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
             </div>
           )}
         </div>
-      </div>
+          </div>
+        )}
+      />
     </div>
   )
 }

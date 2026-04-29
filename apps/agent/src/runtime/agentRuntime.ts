@@ -51,6 +51,7 @@ import type {
   ApproveRunInput,
   CreateMessageInput,
   CreateRunInput,
+  CreateToolRunInput,
   CreateThreadInput,
   PreviewRunInput,
   RejectRunInput,
@@ -88,6 +89,7 @@ export type {
   ApproveRunInput,
   CreateMessageInput,
   CreateRunInput,
+  CreateToolRunInput,
   CreateThreadInput,
   PreviewRunInput,
   RejectRunInput,
@@ -277,6 +279,55 @@ export class AgentRuntime {
         ...(run.metadata ?? {}),
         clientInput: clientInput as unknown as JSONValue,
       }
+    }
+    this.store.createRun(run)
+    thread.lastRunStatus = run.status
+    thread.updatedAt = now
+    this.store.updateThread(thread)
+    void this.executeRun(run.id)
+    return run
+  }
+
+  createToolRun(input: CreateToolRunInput): AgentRun {
+    const toolCall = normalizeToolCall(input.toolCall)
+    if (!toolCall) throw new Error('toolCall is required')
+    const thread = typeof input.threadId === 'string' && input.threadId
+      ? this.requireThread(input.threadId)
+      : this.createThread({
+        title: typeof input.title === 'string' && input.title.trim() ? input.title.trim() : `Tool run: ${toolCall.name}`,
+      })
+    const clientInput = normalizeClientInput(input.clientInput)
+    const message = clientInput
+      ? buildRuntimeUserMessage(clientInput)
+      : typeof input.message === 'string' && input.message.trim()
+        ? input.message.trim()
+        : `Run tool ${toolCall.name}`
+    const userMessage = this.createMessage(thread.id, 'user', message)
+    thread.messages.push(userMessage)
+    if (clientInput) {
+      thread.metadata = {
+        ...(thread.metadata ?? {}),
+        lastClientInput: clientInput as unknown as JSONValue,
+      }
+    }
+    thread.updatedAt = userMessage.createdAt
+    this.store.updateThread(thread)
+
+    const now = isoNow()
+    const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
+    const run: AgentRun = {
+      id: makeId('run'),
+      threadId: thread.id,
+      status: 'queued',
+      agentManifest: normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest),
+      createdAt: now,
+      updatedAt: now,
+      steps: [],
+      metadata: {
+        forcedToolCall: toolCall as unknown as JSONValue,
+        ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
+        ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
+      },
     }
     this.store.createRun(run)
     thread.lastRunStatus = run.status
@@ -865,6 +916,34 @@ export class AgentRuntime {
     envelope: AgentInputEnvelope,
     memories: AgentMemory[],
   ): Promise<PlannedAgentRunResult> {
+    const forcedToolCall = normalizeToolCall(this.store.getRun(envelope.runId ?? '')?.metadata?.forcedToolCall)
+    if (forcedToolCall) {
+      const now = isoNow()
+      const task: AgentPlanTask = {
+        id: makeId('task'),
+        title: `执行工具 ${forcedToolCall.name}`,
+        description: '执行由产品界面发起、仍需经过 runtime policy 和审批链的工具调用。',
+        agentRole: 'coordinator',
+        status: 'pending',
+        toolCalls: [forcedToolCall],
+        createdAt: now,
+        successCriteria: '工具调用已按当前权限、项目上下文和审批状态完成或被拦截。',
+      }
+      return {
+        plan: {
+          id: makeId('plan'),
+          objective: envelope.message.content,
+          strategy: 'Use an explicit product-initiated tool call and enforce runtime policy before execution.',
+          tasks: [task],
+          createdAt: now,
+          updatedAt: now,
+        },
+        toolCalls: [forcedToolCall],
+        planner: 'rule',
+        warnings: [],
+      }
+    }
+
     if (this.modelPlanner?.isEnabled()) {
       try {
         const planned = await this.modelPlanner.plan(envelope)
@@ -1048,6 +1127,16 @@ function normalizeStringArray(value: unknown): string[] {
 
 function normalizeApprovedToolNames(value: unknown): string[] {
   return normalizeStringArray(value)
+}
+
+function normalizeToolCall(value: unknown): ToolCall | undefined {
+  if (!isRecord(value)) return undefined
+  const name = typeof value.name === 'string' && value.name.trim() ? value.name.trim() : undefined
+  if (!name) return undefined
+  return {
+    name,
+    ...(isRecord(value.args) ? { args: value.args as Record<string, JSONValue> } : {}),
+  }
 }
 
 type NormalizedClientInput = {

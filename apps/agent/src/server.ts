@@ -217,6 +217,12 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    if (req.method === 'POST' && url.pathname === '/runs/tool') {
+      const body = await readJSON(req)
+      writeJSON(res, 201, agentRuntime.createToolRun(normalizeOptionalObject(body, 'tool run body')))
+      return
+    }
+
     if (req.method === 'POST' && url.pathname === '/runs/preview') {
       const body = await readJSON(req)
       writeJSON(res, 200, await agentRuntime.previewRun(normalizeOptionalObject(body, 'run preview body')))

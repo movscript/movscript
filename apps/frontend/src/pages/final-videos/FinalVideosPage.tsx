@@ -7,9 +7,10 @@ import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
+import { EntitySemanticForm, type EntitySemanticFieldRenderContext } from '@/components/detail/EntitySemanticForm'
 import { cn } from '@/lib/utils'
 import { defaultContentType } from '@/pages/pipeline/nodeSpec'
-import { Check, Clapperboard, Film, LayoutGrid, List, Plus, Save, Video } from 'lucide-react'
+import { Clapperboard, Film, LayoutGrid, List, Plus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 type ViewMode = 'grid' | 'list'
@@ -348,7 +349,7 @@ export function FinalVideoDetail({
   })
 
   const update = useMutation({
-    mutationFn: () => api.patch(`/final-videos/${video.ID}`, {
+    mutationFn: (payload?: Partial<FinalVideo>) => api.patch(`/final-videos/${video.ID}`, payload ?? {
       title: draft.title,
       description: draft.description,
       episode_id: draft.episode_id,
@@ -401,37 +402,37 @@ export function FinalVideoDetail({
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-96 shrink-0 border-r border-border overflow-y-auto p-4 space-y-4">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.title')}</Label>
-            <Input value={draft.title ?? ''} onChange={(event) => updateDraft({ title: event.target.value })} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.description')}</Label>
-            <Textarea className="resize-none" rows={3} value={draft.description ?? ''} onChange={(event) => updateDraft({ description: event.target.value })} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.mediaResource')}</Label>
-            <ResourceAttachments ownerType="final_video" ownerId={video.ID} role="final" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.statusLabel')}</Label>
-              <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={draft.status ?? 'draft'} onChange={(event) => updateDraft({ status: event.target.value as FinalVideoStatus })}>
-                {(['draft', 'editing', 'ready', 'approved'] as const).map((status) => <option key={status} value={status}>{t(STATUS_LABEL_KEYS[status])}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.order')}</Label>
-              <Input type="number" value={draft.order ?? 0} onChange={(event) => updateDraft({ order: Number(event.target.value) || 0 })} />
-            </div>
-          </div>
-
-          <BindingSelects draft={draft} episodes={episodes} scenes={scenes} storyboards={storyboards} shots={shots} updateDraft={updateDraft} />
-
-          <Button onClick={() => update.mutate()} disabled={update.isPending} className="w-full gap-2">
-            {update.isPending ? t('common.saving') : <><Save size={14} /> {t('common.save')}</>}
-          </Button>
+        <div className="w-96 shrink-0 border-r border-border overflow-hidden">
+          <EntitySemanticForm
+            kind="final_video"
+            ownerType="final_video"
+            ownerId={video.ID}
+            draft={draft}
+            onChange={(next) => setDraft(next as Partial<FinalVideo>)}
+            onSave={(payload) => update.mutate(payload as Partial<FinalVideo>)}
+            isSaving={update.isPending}
+            excludeFields={['result', 'reference']}
+            fieldRenderers={{
+              video: () => (
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.mediaResource')}</Label>
+                  <ResourceAttachments ownerType="final_video" ownerId={video.ID} role="final" slot="video" />
+                </div>
+              ),
+              status: (ctx) => (
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground mb-1">{ctx.label}</Label>
+                  <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={(ctx.value as FinalVideoStatus | undefined) ?? 'draft'} onChange={(event) => ctx.setValue(event.target.value as FinalVideoStatus)}>
+                    {(['draft', 'editing', 'ready', 'approved'] as const).map((status) => <option key={status} value={status}>{t(STATUS_LABEL_KEYS[status])}</option>)}
+                  </select>
+                </div>
+              ),
+              episode_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={episodes} emptyLabel={t('forms.unlinked')} labelFor={(episode) => `EP${episode.number} ${episode.title}`} />,
+              scene_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={scenes} emptyLabel={t('forms.unlinked')} labelFor={(scene) => `${t('details.sceneLabel', { number: scene.number })} ${scene.title}`} />,
+              storyboard_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={storyboards} emptyLabel={t('forms.unlinked')} labelFor={(storyboard) => storyboard.title || t('details.storyboardLabel', { order: storyboard.order })} />,
+              shot_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={shots} emptyLabel={t('forms.unlinked')} labelFor={(shot) => `${t('details.shotLabel', { order: shot.order })} ${shot.description}`} />,
+            }}
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -455,55 +456,28 @@ export function FinalVideoDetail({
   )
 }
 
-function BindingSelects({
-  draft,
-  episodes,
-  scenes,
-  storyboards,
-  shots,
-  updateDraft,
+function FinalVideoBindingField<T extends { ID: number }>({
+  ctx,
+  items,
+  emptyLabel,
+  labelFor,
 }: {
-  draft: Partial<FinalVideo>
-  episodes: Episode[]
-  scenes: Scene[]
-  storyboards: Storyboard[]
-  shots: Shot[]
-  updateDraft: (patch: Partial<FinalVideo>) => void
+  ctx: EntitySemanticFieldRenderContext
+  items: T[]
+  emptyLabel: string
+  labelFor: (item: T) => string
 }) {
-  const { t } = useTranslation()
   return (
-    <div className="rounded-md border border-border p-3 space-y-3">
-      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <Check size={13} /> {t('pages.finalVideos.bindings')}
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.parentEpisodeOptional')}</Label>
-        <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={draft.episode_id ?? ''} onChange={(event) => updateDraft({ episode_id: emptyToNull(event.target.value) })}>
-          <option value="">{t('forms.unlinked')}</option>
-          {episodes.map((episode) => <option key={episode.ID} value={episode.ID}>EP{episode.number} {episode.title}</option>)}
-        </select>
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.parentSceneOptional')}</Label>
-        <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={draft.scene_id ?? ''} onChange={(event) => updateDraft({ scene_id: emptyToNull(event.target.value) })}>
-          <option value="">{t('forms.unlinked')}</option>
-          {scenes.map((scene) => <option key={scene.ID} value={scene.ID}>{t('details.sceneLabel', { number: scene.number })} {scene.title}</option>)}
-        </select>
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.parentStoryboardOptional')}</Label>
-        <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={draft.storyboard_id ?? ''} onChange={(event) => updateDraft({ storyboard_id: emptyToNull(event.target.value) })}>
-          <option value="">{t('forms.unlinked')}</option>
-          {storyboards.map((storyboard) => <option key={storyboard.ID} value={storyboard.ID}>{storyboard.title || t('details.storyboardLabel', { order: storyboard.order })}</option>)}
-        </select>
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.parentShotOptional')}</Label>
-        <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={draft.shot_id ?? ''} onChange={(event) => updateDraft({ shot_id: emptyToNull(event.target.value) })}>
-          <option value="">{t('forms.unlinked')}</option>
-          {shots.map((shot) => <option key={shot.ID} value={shot.ID}>{t('details.shotLabel', { order: shot.order })} {shot.description}</option>)}
-        </select>
-      </div>
+    <div>
+      <Label className="text-xs font-medium text-muted-foreground mb-1">{ctx.label}</Label>
+      <select
+        className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+        value={(ctx.value as number | null | undefined) ?? ''}
+        onChange={(event) => ctx.setValue(emptyToNull(event.target.value))}
+      >
+        <option value="">{emptyLabel}</option>
+        {items.map((item) => <option key={item.ID} value={item.ID}>{labelFor(item)}</option>)}
+      </select>
     </div>
   )
 }

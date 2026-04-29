@@ -39,7 +39,6 @@ import {
   CANVAS_NODE_CATEGORIES,
   CANVAS_NODE_META,
   NODE_LABELS,
-  portsForEntityKind,
   portsForEntitySchema,
 } from './nodeCatalog'
 import { Button } from '@movscript/ui'
@@ -133,11 +132,6 @@ function defaultHandleForNode(node: Node | undefined, side: 'source' | 'target')
   const data = node?.data as Partial<CanvasNodeData> | undefined
   const customPorts = side === 'source' ? data?.outputPorts : data?.inputPorts
   if (customPorts?.[0]) return customPorts[0].id
-  if (node?.type === 'entity_card') {
-    const entityPorts = portsForEntityKind(data?.entityKind)
-    const ports = side === 'source' ? entityPorts?.outputs : entityPorts?.inputs
-    if (ports?.[0]) return ports[0].id
-  }
   return defaultHandleForType(node?.type, side)
 }
 
@@ -146,11 +140,7 @@ function portsForNode(node: Node | undefined, side: 'source' | 'target'): Canvas
   const data = node.data as Partial<CanvasNodeData>
   const customPorts = side === 'source' ? data.outputPorts : data.inputPorts
   if (customPorts) return customPorts
-  if (node.type === 'entity_card') {
-    const entityPorts = portsForEntityKind(data.entityKind)
-    const ports = side === 'source' ? entityPorts?.outputs : entityPorts?.inputs
-    if (ports) return ports
-  }
+  if (node.type === 'entity_card') return []
   const meta = CANVAS_NODE_META[node.type as NodeType]
   const metaPorts = side === 'source' ? meta?.outputs : meta?.inputs
   if (metaPorts) return metaPorts
@@ -189,6 +179,62 @@ function resourceIdFromTask(task: CanvasTask) {
   }
 }
 
+function parseTaskInputValues(raw?: string): Record<string, CanvasPortValue[]> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as Record<string, CanvasPortValue | CanvasPortValue[] | string | number | boolean | null>
+    return Object.fromEntries(Object.entries(parsed).map(([handle, value]) => {
+      const values = Array.isArray(value) ? value : [value]
+      return [handle, values.map(normalizeCanvasPortValue).filter(Boolean) as CanvasPortValue[]]
+    }).filter(([, values]) => values.length > 0))
+  } catch {
+    return {}
+  }
+}
+
+function parseTaskOutputValues(raw?: string): Record<string, CanvasPortValue> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as Record<string, CanvasPortValue | string | number | boolean | null>
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([handle, value]) => [handle, normalizeCanvasPortValue(value)] as const)
+        .filter(([, value]) => !!value)
+    ) as Record<string, CanvasPortValue>
+  } catch {
+    return {}
+  }
+}
+
+function normalizeCanvasPortValue(value: CanvasPortValue | string | number | boolean | null): CanvasPortValue | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'string') return { type: 'text', text: value }
+  if (typeof value === 'number') return { type: 'number', number: value }
+  if (typeof value === 'boolean') return { type: 'boolean', boolean: value }
+  return value
+}
+
+function portMatchesHandle(port: CanvasPortDef, handle: string) {
+  return port.id === handle || (port.aliases ?? []).includes(handle)
+}
+
+function taskPortLabel(node: Node | undefined, side: 'source' | 'target', handle: string, t: (key: string, options?: any) => string) {
+  const port = portsForNode(node, side).find((item) => portMatchesHandle(item, handle))
+  if (!port) return handle || (side === 'source' ? 'result' : 'input')
+  return port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
+}
+
+function canvasPortValueSummary(value: CanvasPortValue) {
+  if (value.resource_id) return `resource #${value.resource_id}`
+  if (value.text !== undefined) return value.text
+  if (value.json !== undefined) {
+    try { return JSON.stringify(value.json) } catch { return String(value.json) }
+  }
+  if (value.number !== undefined) return String(value.number)
+  if (value.boolean !== undefined) return value.boolean ? 'true' : 'false'
+  return ''
+}
+
 function hasValueForPort(values: CanvasPortValue[] | undefined) {
   return (values ?? []).some((value) => {
     if (!value) return false
@@ -198,6 +244,15 @@ function hasValueForPort(values: CanvasPortValue[] | undefined) {
       || value.number !== undefined
       || value.boolean !== undefined
   })
+}
+
+function newestCanvasTask(a?: CanvasTask, b?: CanvasTask) {
+  if (!a) return b
+  if (!b) return a
+  const aTime = a.CreatedAt ? new Date(a.CreatedAt).getTime() : 0
+  const bTime = b.CreatedAt ? new Date(b.CreatedAt).getTime() : 0
+  if (aTime !== bTime) return bTime > aTime ? b : a
+  return (b.ID ?? 0) > (a.ID ?? 0) ? b : a
 }
 
 function connectedInputPortIds(nodeId: string, edges: Edge[]) {
@@ -267,7 +322,7 @@ export function createCanvasEntityNodeData({
   title: string
   schema?: EntityWorkflowSchema
 }): Partial<CanvasNodeData> & { label: string } {
-  const ports = portsForEntitySchema(schema) ?? portsForEntityKind(entityType)
+  const ports = portsForEntitySchema(schema)
   return {
     source: 'manual',
     label,
@@ -645,6 +700,117 @@ function WorkflowBottomPanel({
   )
 }
 
+function TaskIOInspector({
+  node,
+  task,
+  activeRun,
+}: {
+  node?: Node
+  task?: CanvasTask
+  activeRun?: CanvasRun
+}) {
+  const { t, i18n } = useTranslation()
+  const inputs = parseTaskInputValues(task?.input_values)
+  const outputs = parseTaskOutputValues(task?.output_values)
+  const inputEntries = Object.entries(inputs).filter(([handle]) => handle !== '')
+  const outputEntries = Object.entries(outputs)
+  return (
+    <section className="shrink-0 border-t border-border bg-muted/10 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-foreground">
+            {t('canvas.editor.taskInspector.title', { defaultValue: 'Task I/O' })}
+          </p>
+          <p className="truncate text-[10px] text-muted-foreground">
+            {activeRun
+              ? t('canvas.editor.taskInspector.runLabel', { id: activeRun.ID, defaultValue: `Run #${activeRun.ID}` })
+              : task
+                ? t('canvas.editor.taskInspector.latestNodeTask', { defaultValue: 'Latest node run' })
+                : t('canvas.editor.taskInspector.noRun', { defaultValue: 'No run selected' })}
+          </p>
+        </div>
+        {task && <RunStatusBadge status={task.status as CanvasRun['status']} />}
+      </div>
+
+      {!task ? (
+        <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+          {t('canvas.editor.taskInspector.empty', { defaultValue: 'Run this node or select a workflow run to inspect inputs and outputs.' })}
+        </p>
+      ) : (
+        <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+            <div className="rounded border border-border bg-background px-2 py-1.5">
+              <span className="block font-medium text-foreground">#{task.ID}</span>
+              {task.node_label || task.node_id || t('canvas.editor.taskInspector.task', { defaultValue: 'Task' })}
+            </div>
+            <div className="rounded border border-border bg-background px-2 py-1.5 text-right">
+              <span className="block font-medium text-foreground">{formatRunTime(task.CreatedAt, i18n.language)}</span>
+              {t('canvas.editor.history.startedAt', { defaultValue: 'Started' })}
+            </div>
+          </div>
+          {task.error && <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">{task.error}</p>}
+          <TaskValueGroup
+            title={t('canvas.editor.taskInspector.inputs', { defaultValue: 'Inputs' })}
+            empty={t('canvas.editor.taskInspector.noInputs', { defaultValue: 'No recorded inputs' })}
+            entries={inputEntries.map(([handle, values]) => ({
+              handle,
+              label: taskPortLabel(node, 'target', handle, t),
+              values,
+            }))}
+          />
+          <TaskValueGroup
+            title={t('canvas.editor.taskInspector.outputs', { defaultValue: 'Outputs' })}
+            empty={t('canvas.editor.taskInspector.noOutputs', { defaultValue: 'No recorded outputs' })}
+            entries={outputEntries.map(([handle, value]) => ({
+              handle,
+              label: taskPortLabel(node, 'source', handle, t),
+              values: [value],
+            }))}
+          />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function TaskValueGroup({
+  title,
+  empty,
+  entries,
+}: {
+  title: string
+  empty: string
+  entries: Array<{ handle: string; label: string; values: CanvasPortValue[] }>
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      {entries.length === 0 ? (
+        <p className="rounded border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {entries.map((entry) => (
+            <div key={entry.handle} className="rounded-md border border-border bg-background px-2 py-1.5">
+              <div className="mb-1 flex items-center justify-between gap-2 text-[10px]">
+                <span className="truncate font-medium text-foreground">{entry.label}</span>
+                <span className="font-mono text-muted-foreground">{entry.handle}</span>
+              </div>
+              <div className="space-y-1">
+                {entry.values.map((value, index) => (
+                  <div key={`${entry.handle}-${index}`} className="min-w-0 rounded bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+                    <span className="mr-1 rounded border border-border bg-background px-1 py-0.5 font-mono text-[10px]">{value.type}</span>
+                    <span className="break-words">{canvasPortValueSummary(value) || 'empty'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTargets = [] }: CanvasWorkspaceProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -719,6 +885,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     queryFn: () => api.get(`/canvases/${id}/runs/${activeRunId}/tasks`).then((r) => r.data),
     enabled: !!id && !!activeRunId,
     refetchInterval: activeRunId && workflowRuns.find((run) => run.ID === activeRunId && (run.status === 'done' || run.status === 'failed')) ? false : activeRunId ? 2000 : false,
+  })
+
+  const selectedNodeId = selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : undefined
+  const { data: latestSelectedNodeTask } = useQuery<CanvasTask>({
+    queryKey: ['canvas-node-task', id, selectedNodeId],
+    queryFn: () => api.get(`/canvases/${id}/nodes/${selectedNodeId}/task`).then((r) => r.data),
+    enabled: !!id && !!selectedNodeId,
+    refetchInterval: (query) => {
+      const status = (query.state.data as CanvasTask | undefined)?.status
+      return status === 'pending' || status === 'running' ? 2000 : false
+    },
+    retry: (failureCount, error: any) => error?.response?.status === 404 ? false : failureCount < 2,
   })
 
   useEffect(() => {
@@ -879,13 +1057,25 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
   // Run single node
   const submitRunNode = useCallback(async (nodeId: string, values?: Record<string, CanvasPortValue>) => {
-    await save.mutateAsync()
-    await api.post(`/canvases/${id}/nodes/${nodeId}/run`, { input_values: values ?? {} })
-    setNodes((prev) => prev.map((n) => {
-      if (n.id !== nodeId) return n
-      return { ...n, data: { ...n.data, status: 'pending' } }
-    }))
-  }, [id, save])
+    try {
+      await save.mutateAsync()
+      const response = await api.post(`/canvases/${id}/nodes/${nodeId}/run`, { input_values: values ?? {} })
+      qc.setQueryData(['canvas-node-task', id, nodeId], response.data)
+      qc.invalidateQueries({ queryKey: ['canvas-node-task', id, nodeId] })
+      qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
+      setNodes((prev) => prev.map((n) => {
+        if (n.id !== nodeId) return n
+        return { ...n, data: { ...n.data, status: 'pending', error: undefined } }
+      }))
+    } catch (err: any) {
+      const message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
+      toast.error(message)
+      setNodes((prev) => prev.map((n) => {
+        if (n.id !== nodeId) return n
+        return { ...n, data: { ...n.data, status: 'failed', error: message } }
+      }))
+    }
+  }, [id, qc, save, t])
 
   const runNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
@@ -1125,6 +1315,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         pluginId: plugin.id,
         pluginName: plugin.name,
         pluginVersion: plugin.version,
+        pluginRuntime: 'trusted_local',
         pluginArgs: {},
         inputPorts: contribution?.inputs,
         outputPorts: contribution?.outputs,
@@ -1354,6 +1545,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         const entity = JSON.parse(entityPayload) as { kind: CanvasEntityKind; id: number; label: string; title?: string }
         const supportedKinds: CanvasEntityKind[] = ['script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'final_video']
         if (!supportedKinds.includes(entity.kind)) return
+        const schema = entitySchemaByKind.get(entity.kind)
+        if (!schema) {
+          toast.error(t('canvas.editor.entitySchemaUnavailable', { defaultValue: 'Entity schema unavailable' }))
+          return
+        }
         const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
         setNodes((prev) => [...prev, {
           id: genId(),
@@ -1364,7 +1560,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
             entityId: entity.id,
             label: entity.label,
             title: entity.title || entity.kind,
-            schema: entitySchemaByKind.get(entity.kind),
+            schema,
           }),
           style: { width: 260 },
         }])
@@ -1449,6 +1645,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const activeRunStatusLabel = activeRun ? t(`canvas.runStatus.${activeRun.status}`) : undefined
   const workflowRunningCount = workflowRuns.filter((run) => run.status === 'running' || run.status === 'pending').length
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
+  const activeRunSelectedNodeTask = selectedNode
+    ? activeRunTasks.find((task) => task.node_id === selectedNode.id)
+    : undefined
+  const selectedNodeTask = newestCanvasTask(activeRunSelectedNodeTask, latestSelectedNodeTask)
+  const selectedNodeTaskRun = selectedNodeTask?.canvas_run_id && selectedNodeTask.canvas_run_id === activeRun?.ID
+    ? activeRun
+    : undefined
 
   return (
     <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'h-full' : 'h-screen')}>
@@ -1808,18 +2011,29 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
             {!inspectorCollapsed && (
               selectedNode ? (
-                <NodePanel
-                  nodeId={selectedNode.id}
-                  canvasId={Number(id)}
-                  nodeType={selectedNode.type as NodeType}
-                  data={selectedNode.data as unknown as CanvasNodeData}
-                  label={(selectedNode.data as any).label || (selectedNodeMeta ? t(selectedNodeMeta.defaultLabelKey) : NODE_LABELS[selectedNode.type as NodeType])}
-                  allNodes={nodes}
-                  edges={edges}
-                  onUpdate={updateNodeData}
-                  onRun={selectedNode.type === 'plugin_card' ? runLocalPluginNode : runNode}
-                  allowRun={selectedNode.type !== 'group'}
-                />
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <NodePanel
+                      nodeId={selectedNode.id}
+                      canvasId={Number(id)}
+                      nodeType={selectedNode.type as NodeType}
+                      data={selectedNode.data as unknown as CanvasNodeData}
+                      label={(selectedNode.data as any).label || (selectedNodeMeta ? t(selectedNodeMeta.defaultLabelKey) : NODE_LABELS[selectedNode.type as NodeType])}
+                      allNodes={nodes}
+                      edges={edges}
+                      onUpdate={updateNodeData}
+                      onRun={selectedNode.type === 'plugin_card' ? runLocalPluginNode : runNode}
+                      allowRun={selectedNode.type !== 'group'}
+                    />
+                  </div>
+                  {canvasType === 'workflow' && (
+                    <TaskIOInspector
+                      node={selectedNode}
+                      task={selectedNodeTask}
+                      activeRun={selectedNodeTaskRun}
+                    />
+                  )}
+                </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col p-4 text-sm">
                   <div className="rounded-lg border border-dashed border-border bg-muted/25 p-4">

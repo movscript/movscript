@@ -8,8 +8,8 @@ import { cn } from '@/lib/utils'
 import { SHOT_STATUS_LABEL_KEYS, SHOT_STATUS_COLORS } from '@/constants/shot'
 import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
-import { ShotForm } from '@/components/forms/ShotForm'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { EntitySemanticForm } from './EntitySemanticForm'
 
 interface Props {
   shot: Shot
@@ -70,12 +70,15 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: shot settings */}
         <div className="w-96 shrink-0 border-r border-border overflow-hidden">
-          <ShotForm
-            shot={shot}
+          <EntitySemanticForm
+            kind="shot"
+            ownerType="shot"
+            ownerId={shot.ID}
             draft={draft}
-            onChange={setDraft}
-            onSave={(data) => update.mutate(data)}
+            onChange={(next) => setDraft(next as Partial<Shot>)}
+            onSave={(payload) => update.mutate(payload as Partial<Shot>)}
             isSaving={update.isPending}
+            excludeFields={['result', 'video', 'reference']}
           />
         </div>
 

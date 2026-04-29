@@ -17,6 +17,10 @@ import {
   localAgentClient,
   type AgentHealth,
   type AgentClientInput,
+  type AgentDraft,
+  type AgentDraftApplyPreview,
+  type AgentDraftKind,
+  type AgentDraftStatus,
   type AgentMemory,
   type AgentMemoryKind,
   type AgentMemoryScope,
@@ -571,6 +575,17 @@ function LocalAgentWorkflow({
                     {safeJSONStringify(approval.args)}
                   </pre>
                 )}
+                {(() => {
+                  const applyPreview = isDraftApplyPreview(approval.preview) ? approval.preview : null
+                  return applyPreview ? (
+                    <div className="mt-1 space-y-1">
+                      <div className="rounded bg-amber-500/10 p-1.5 text-[9px] leading-relaxed text-amber-800 dark:text-amber-300">
+                        {applyPreview.review.sideEffect}
+                      </div>
+                      <DraftDiff preview={applyPreview} />
+                    </div>
+                  ) : null
+                })()}
               </div>
             ))}
           </div>
@@ -1097,6 +1112,79 @@ function localThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id' | 'mes
   return thread.title || `Local thread ${thread.id.slice(-6)}`
 }
 
+function asString(value: unknown) {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value
+  return JSON.stringify(value, null, 2)
+}
+
+function draftStatusVariant(status: AgentDraftStatus): 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' {
+  if (status === 'applied') return 'success'
+  if (status === 'rejected') return 'destructive'
+  if (status === 'accepted') return 'warning'
+  if (status === 'superseded') return 'secondary'
+  return 'outline'
+}
+
+function diffRows(currentValue: unknown, proposedValue: unknown) {
+  const before = asString(currentValue)
+  const after = asString(proposedValue)
+  if (before === after) {
+    return [{ type: 'same' as const, text: after || '(empty)' }]
+  }
+  return [
+    ...(before ? before.split('\n').map((text) => ({ type: 'removed' as const, text })) : [{ type: 'removed' as const, text: '(empty)' }]),
+    ...(after ? after.split('\n').map((text) => ({ type: 'added' as const, text })) : [{ type: 'added' as const, text: '(empty)' }]),
+  ]
+}
+
+function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
+  const rows = diffRows(preview.review.currentValue, preview.review.proposedValue)
+  return (
+    <div className="overflow-hidden rounded-md border border-border bg-background">
+      <div className="grid border-b border-border bg-muted/30 text-[10px] font-medium text-muted-foreground md:grid-cols-2">
+        <div className="border-b border-border px-2 py-1.5 md:border-b-0 md:border-r">Current</div>
+        <div className="px-2 py-1.5">Proposed</div>
+      </div>
+      <div className="grid md:grid-cols-2">
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words border-b border-border bg-red-500/5 p-2 text-[10px] leading-relaxed text-red-700 md:border-b-0 md:border-r">
+          {asString(preview.review.currentValue) || '(empty)'}
+        </pre>
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-green-500/5 p-2 text-[10px] leading-relaxed text-green-700">
+          {asString(preview.review.proposedValue) || '(empty)'}
+        </pre>
+      </div>
+      <div className="border-t border-border bg-muted/20 p-2">
+        <div className="max-h-36 overflow-auto rounded border border-border bg-background font-mono text-[10px]">
+          {rows.map((row, index) => (
+            <div
+              key={`${row.type}-${index}`}
+              className={cn(
+                'whitespace-pre-wrap break-words px-2 py-0.5',
+                row.type === 'removed' && 'bg-red-500/10 text-red-700',
+                row.type === 'added' && 'bg-green-500/10 text-green-700',
+                row.type === 'same' && 'text-muted-foreground',
+              )}
+            >
+              {row.type === 'removed' ? '- ' : row.type === 'added' ? '+ ' : '  '}
+              {row.text}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function isDraftApplyPreview(value: unknown): value is AgentDraftApplyPreview {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Partial<AgentDraftApplyPreview>
+  return !!record.review
+    && typeof record.review === 'object'
+    && typeof record.review.draftId === 'string'
+    && !!record.draft
+}
+
 function MemoryPanel({
   project,
   threadId,
@@ -1242,6 +1330,298 @@ function MemoryPanel({
             ))}
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+const DRAFT_KINDS: AgentDraftKind[] = ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note', 'pipeline']
+const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
+
+function DraftPanel({
+  project,
+  threadId,
+  online,
+  onRunUpdate,
+  onAppliedRun,
+}: {
+  project: Project | null
+  threadId?: string
+  online: boolean
+  onRunUpdate: (run: AgentRun | null) => void
+  onAppliedRun: (run: AgentRun, thread: LocalAgentThread) => void
+}) {
+  const { i18n } = useTranslation()
+  const qc = useQueryClient()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const [status, setStatus] = useState<AgentDraftStatus | 'all'>('draft')
+  const [kind, setKind] = useState<AgentDraftKind | 'all'>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [targetEntityType, setTargetEntityType] = useState('')
+  const [targetEntityId, setTargetEntityId] = useState('')
+  const [targetField, setTargetField] = useState('')
+  const [currentValue, setCurrentValue] = useState('')
+  const [proposedValue, setProposedValue] = useState('')
+  const [rejectReason, setRejectReason] = useState('')
+  const [preview, setPreview] = useState<AgentDraftApplyPreview | null>(null)
+  const [working, setWorking] = useState(false)
+  const query = {
+    ...(project ? { projectId: project.ID } : {}),
+    ...(kind !== 'all' ? { kind } : {}),
+    ...(status !== 'all' ? { status } : {}),
+    limit: 20,
+  }
+  const draftsQuery = useQuery<AgentDraft[]>({
+    queryKey: ['local-agent-drafts', localAgentClient.baseURL, query],
+    queryFn: () => localAgentClient.listDrafts(query).then((r) => r.drafts),
+    enabled: online,
+    retry: false,
+  })
+  const drafts = draftsQuery.data ?? []
+  const selectedDraft = drafts.find((draft) => draft.id === selectedId) ?? drafts[0] ?? null
+
+  useEffect(() => {
+    if (!selectedDraft) {
+      setSelectedId(null)
+      setPreview(null)
+      return
+    }
+    if (!selectedId || !drafts.some((draft) => draft.id === selectedId)) {
+      setSelectedId(selectedDraft.id)
+    }
+  }, [drafts, selectedDraft, selectedId])
+
+  useEffect(() => {
+    if (!selectedDraft) return
+    const target = selectedDraft.target ?? {}
+    setTargetEntityType(typeof target.entityType === 'string' ? target.entityType : '')
+    setTargetEntityId(target.entityId === undefined || target.entityId === null ? '' : String(target.entityId))
+    setTargetField(typeof target.field === 'string' ? target.field : '')
+    setProposedValue(selectedDraft.content)
+    setCurrentValue('')
+    setRejectReason('')
+    setPreview(null)
+  }, [selectedDraft?.id])
+
+  async function refreshDrafts() {
+    await draftsQuery.refetch()
+  }
+
+  async function buildPreview() {
+    if (!selectedDraft) return
+    setWorking(true)
+    try {
+      const next = await localAgentClient.previewApplyDraft(selectedDraft.id, {
+        targetEntityType: targetEntityType.trim(),
+        targetEntityId: Number.isFinite(Number(targetEntityId)) && targetEntityId.trim() ? Number(targetEntityId) : targetEntityId.trim(),
+        targetField: targetField.trim(),
+        currentValue,
+        proposedValue: proposedValue || selectedDraft.content,
+      })
+      setPreview(next)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function rejectSelectedDraft() {
+    if (!selectedDraft) return
+    setWorking(true)
+    try {
+      await localAgentClient.rejectDraft(selectedDraft.id, rejectReason.trim() || undefined)
+      setPreview(null)
+      qc.invalidateQueries({ queryKey: ['local-agent-drafts'] })
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function startApplyRun() {
+    if (!selectedDraft) return
+    setWorking(true)
+    try {
+      const activePreview = preview ?? await localAgentClient.previewApplyDraft(selectedDraft.id, {
+        targetEntityType: targetEntityType.trim(),
+        targetEntityId: Number.isFinite(Number(targetEntityId)) && targetEntityId.trim() ? Number(targetEntityId) : targetEntityId.trim(),
+        targetField: targetField.trim(),
+        currentValue,
+        proposedValue: proposedValue || selectedDraft.content,
+      })
+      setPreview(activePreview)
+      const run = await localAgentClient.createToolRun({
+        ...(threadId ? { threadId } : {}),
+        title: `Apply draft ${selectedDraft.title}`,
+        message: `Apply Agent draft ${selectedDraft.id} to ${String(activePreview.review.target.entityType)} ${String(activePreview.review.target.entityId)}.`,
+        toolCall: {
+          name: 'movscript.apply_draft',
+          args: {
+            draftId: selectedDraft.id,
+            target: activePreview.review.target,
+            currentValue: activePreview.review.currentValue,
+            proposedValue: activePreview.review.proposedValue,
+          },
+        },
+      })
+      onRunUpdate(run)
+      const finalRun = await localAgentClient.waitForRun(run.id, {
+        onRunUpdate,
+      })
+      const thread = await localAgentClient.getThread(finalRun.threadId)
+      onAppliedRun(finalRun, thread)
+      qc.invalidateQueries({ queryKey: ['local-agent-drafts'] })
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
+          <ClipboardCheck size={11} />
+          Drafts
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          onClick={refreshDrafts}
+          disabled={!online || draftsQuery.isFetching}
+          className="h-5 px-1 text-[10px] text-muted-foreground"
+        >
+          <RefreshCw size={10} className={draftsQuery.isFetching ? 'animate-spin' : ''} />
+          Refresh
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <Select value={status} onValueChange={(next) => setStatus(next as AgentDraftStatus | 'all')}>
+          <SelectTrigger size="sm" className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">all statuses</SelectItem>
+            {DRAFT_STATUSES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={kind} onValueChange={(next) => setKind(next as AgentDraftKind | 'all')}>
+          <SelectTrigger size="sm" className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">all kinds</SelectItem>
+            {DRAFT_KINDS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      {!online ? (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">Start the local runtime to inspect Agent drafts.</p>
+      ) : drafts.length === 0 ? (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">No drafts match this filter.</p>
+      ) : (
+        <div className="grid gap-2 xl:grid-cols-[0.8fr_1.2fr]">
+          <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+            {drafts.map((draft) => (
+              <button
+                key={draft.id}
+                type="button"
+                onClick={() => setSelectedId(draft.id)}
+                className={cn(
+                  'w-full rounded-md border px-2 py-1.5 text-left text-[10px] transition-colors',
+                  selectedDraft?.id === draft.id ? 'border-ring bg-muted/50' : 'border-border bg-background hover:bg-muted/30',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="line-clamp-2 font-medium text-foreground">{draft.title}</span>
+                  <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">{draft.status}</Badge>
+                </div>
+                <div className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground">
+                  <span>{draft.kind}</span>
+                  <span>·</span>
+                  <span>{formatAgentDate(draft.updatedAt, locale)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+          {selectedDraft && (
+            <div className="min-w-0 space-y-2">
+              <div className="rounded-md border border-border bg-background p-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium text-foreground">{selectedDraft.title}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{selectedDraft.kind}</Badge>
+                      <Badge variant={draftStatusVariant(selectedDraft.status)} className="text-[9px] leading-4 px-1.5 py-0">{selectedDraft.status}</Badge>
+                      {selectedDraft.projectId && <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">project #{selectedDraft.projectId}</Badge>}
+                    </div>
+                  </div>
+                </div>
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 text-[10px] leading-relaxed">
+                  {selectedDraft.content || '(empty draft)'}
+                </pre>
+              </div>
+              <div className="grid gap-1.5 md:grid-cols-3">
+                <input
+                  value={targetEntityType}
+                  onChange={(e) => { setTargetEntityType(e.target.value); setPreview(null) }}
+                  placeholder="entity type"
+                  className="h-7 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <input
+                  value={targetEntityId}
+                  onChange={(e) => { setTargetEntityId(e.target.value); setPreview(null) }}
+                  placeholder="entity id"
+                  className="h-7 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <input
+                  value={targetField}
+                  onChange={(e) => { setTargetField(e.target.value); setPreview(null) }}
+                  placeholder="field"
+                  className="h-7 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="grid gap-1.5 md:grid-cols-2">
+                <textarea
+                  value={currentValue}
+                  onChange={(e) => { setCurrentValue(e.target.value); setPreview(null) }}
+                  placeholder="Current value for review..."
+                  rows={3}
+                  className="min-h-20 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <textarea
+                  value={proposedValue}
+                  onChange={(e) => { setProposedValue(e.target.value); setPreview(null) }}
+                  placeholder="Proposed value..."
+                  rows={3}
+                  className="min-h-20 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              {preview && (
+                <div className="space-y-1.5">
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+                    {preview.review.sideEffect} Approval is required before this write can run.
+                  </div>
+                  <DraftDiff preview={preview} />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button type="button" size="xs" variant="outline" onClick={buildPreview} disabled={working || !targetEntityType.trim() || !targetEntityId.trim() || !targetField.trim()}>
+                  {working ? <Loader2 size={10} className="animate-spin" /> : <Eye size={10} />}
+                  Diff
+                </Button>
+                <Button type="button" size="xs" variant="secondary" onClick={startApplyRun} disabled={working || !targetEntityType.trim() || !targetEntityId.trim() || !targetField.trim() || selectedDraft.status === 'applied'}>
+                  {working ? <Loader2 size={10} className="animate-spin" /> : <ShieldCheck size={10} />}
+                  Request apply
+                </Button>
+                <input
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="rejection reason"
+                  className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <Button type="button" size="xs" variant="ghost" onClick={rejectSelectedDraft} disabled={working || selectedDraft.status === 'rejected'} className="text-muted-foreground hover:text-destructive">
+                  <X size={10} />
+                  Reject
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -1924,11 +2304,27 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           </div>
         )}
         {localRuntimeEnabled && showContext && (
-          <MemoryPanel
-            project={currentProject}
-            threadId={localAgentThreadIds[conv.id]}
-            online={localAgentOnline}
-          />
+          <>
+            <DraftPanel
+              project={currentProject}
+              threadId={localAgentThreadIds[conv.id]}
+              online={localAgentOnline}
+              onRunUpdate={setActiveLocalRun}
+              onAppliedRun={(run, thread) => {
+                const content = formatLocalAgentAssistantContent(run, thread)
+                addMessage(userId, conv.id, {
+                  role: 'assistant',
+                  content,
+                  meta: { contextLabels: [`run ${run.status}`, 'Draft apply'] },
+                })
+              }}
+            />
+            <MemoryPanel
+              project={currentProject}
+              threadId={localAgentThreadIds[conv.id]}
+              online={localAgentOnline}
+            />
+          </>
         )}
         <AgentComposer
           onSubmit={(e) => {

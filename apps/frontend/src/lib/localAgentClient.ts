@@ -509,6 +509,18 @@ export class LocalAgentClient {
     return this.postJSON('/runs', { threadId, ...input })
   }
 
+  createToolRun(input: {
+    threadId?: string
+    title?: string
+    message?: string
+    toolCall: AgentToolCall
+    agentManifest?: AgentManifest
+    approvedToolNames?: string[]
+    clientInput?: AgentClientInput
+  }): Promise<AgentRun> {
+    return this.postJSON('/runs/tool', input)
+  }
+
   previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput }): Promise<AgentRunPreview> {
     return this.postJSON('/runs/preview', input)
   }

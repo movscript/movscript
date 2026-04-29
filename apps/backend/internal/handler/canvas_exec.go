@@ -32,6 +32,16 @@ type canvasRunSnapshot struct {
 	Edges      []model.CanvasEdge `json:"edges"`
 }
 
+type canvasExecutionPlan struct {
+	Order []string
+	Tasks []canvasTaskPlan
+}
+
+type canvasTaskPlan struct {
+	NodeID string
+	Node   *model.CanvasNode
+}
+
 // nodeData mirrors the JSON stored in CanvasNode.Data.
 type nodeData struct {
 	Source             string                `json:"source"`
@@ -58,10 +68,15 @@ type nodeData struct {
 }
 
 type canvasPortDef struct {
-	ID       string `json:"id"`
-	Type     string `json:"type,omitempty"`
-	Required bool   `json:"required,omitempty"`
-	MaxCount int    `json:"maxCount,omitempty"`
+	ID          string   `json:"id"`
+	Aliases     []string `json:"aliases,omitempty"`
+	Label       string   `json:"label,omitempty"`
+	LabelKey    string   `json:"labelKey,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	Required    bool     `json:"required,omitempty"`
+	MaxCount    int      `json:"maxCount,omitempty"`
+	Deprecated  bool     `json:"deprecated,omitempty"`
+	Description string   `json:"description,omitempty"`
 }
 
 type canvasExecutableSpec struct {
@@ -69,6 +84,7 @@ type canvasExecutableSpec struct {
 	Capability       string         `json:"capability"`
 	FeatureKey       string         `json:"featureKey,omitempty"`
 	ModelDbID        uint           `json:"modelDbId,omitempty"`
+	PluginToolKey    string         `json:"pluginToolKey,omitempty"`
 	Prompt           string         `json:"prompt,omitempty"`
 	InputResourceIDs []uint         `json:"inputResourceIds,omitempty"`
 	AspectRatio      string         `json:"aspectRatio,omitempty"`
@@ -188,6 +204,39 @@ func canvasPortValueFromText(valueType string, text string) canvasPortValue {
 	return value
 }
 
+func canvasPortValueFromAny(value any) canvasPortValue {
+	switch typed := value.(type) {
+	case nil:
+		return canvasPortValue{}
+	case canvasPortValue:
+		typed.normalize()
+		return typed
+	case string:
+		return canvasPortValue{Type: "text", Text: typed}
+	case float64:
+		return canvasPortValue{Type: "number", Number: &typed}
+	case bool:
+		return canvasPortValue{Type: "boolean", Boolean: &typed}
+	default:
+		raw, err := json.Marshal(typed)
+		if err != nil {
+			return canvasPortValue{}
+		}
+		var portValue canvasPortValue
+		if err := json.Unmarshal(raw, &portValue); err == nil {
+			portValue.normalize()
+			if !canvasPortValueEmpty(portValue) {
+				return portValue
+			}
+		}
+		var decoded any
+		if err := json.Unmarshal(raw, &decoded); err == nil {
+			return canvasPortValue{Type: "json", JSON: decoded}
+		}
+		return canvasPortValue{}
+	}
+}
+
 func canvasPortValueText(value canvasPortValue) string {
 	if value.Text != "" {
 		return value.Text
@@ -266,6 +315,35 @@ func decodeCanvasPortOutputs(raw string) map[string]canvasPortValue {
 		return payload
 	}
 	return nil
+}
+
+func normalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {
+	if dbTask == nil {
+		return
+	}
+	outputs := decodeCanvasPortOutputs(dbTask.OutputValues)
+	if len(outputs) > 0 || dbTask.ResourceID == nil {
+		return
+	}
+	valueType := defaultCanvasPortValueTypeForNode(firstNonEmptyString(dbTask.NodeType, nodeType), nodeData{})
+	value := canvasPortValueFromResource(dbTask.ResourceID, valueType)
+	handle := defaultCanvasSourceHandle(firstNonEmptyString(dbTask.NodeType, nodeType))
+	outputs = map[string]canvasPortValue{
+		handle:   value,
+		"result": value,
+		"value":  value,
+	}
+	dbTask.OutputValues = marshalCanvasPortOutputs(outputs)
+}
+
+func (h *CanvasHandler) lazyBackfillCanvasTaskOutputs(task *model.CanvasTask, nodeType string) {
+	if task == nil || strings.TrimSpace(task.OutputValues) != "" || task.ResourceID == nil {
+		return
+	}
+	normalizeCanvasTaskForResponse(task, nodeType)
+	if strings.TrimSpace(task.OutputValues) != "" {
+		h.db.Model(task).Update("output_values", task.OutputValues)
+	}
 }
 
 func decodeCanvasRunInputValues(raw string) map[string]canvasPortValue {
@@ -377,9 +455,13 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&req)
 
-	order, err := topoSort(cv.Nodes, cv.Edges)
+	plan, err := buildCanvasExecutionPlan(cv)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cycle detected in canvas"})
+		return
+	}
+	if err := validateCanvasRequiredInputs(cv, req.InputValues); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := buildCanvasRunSnapshot(cv)
@@ -403,30 +485,10 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	}
 	h.db.Create(&run)
 
-	nodeMap := map[string]*model.CanvasNode{}
-	for i := range cv.Nodes {
-		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
-	}
-
 	var tasks []model.CanvasTask
-	for _, nid := range order {
-		node := nodeMap[nid]
-		var nd nodeData
-		json.Unmarshal([]byte(node.Data), &nd)
-		if isCanvasEntityNode(node.Type) && hasCanvasEntityInputs(cv.Edges, nid) {
-			task := model.CanvasTask{
-				CanvasNodeID: node.ID,
-				CanvasRunID:  &run.ID,
-				NodeID:       node.NodeID,
-				NodeLabel:    node.Label,
-				NodeType:     node.Type,
-				Status:       "pending",
-			}
-			h.db.Create(&task)
-			tasks = append(tasks, task)
-			continue
-		}
-		if nd.Source != "ai" && node.Type != "output" && nd.ExecutableSpec == nil {
+	for _, taskPlan := range plan.Tasks {
+		node := taskPlan.Node
+		if node == nil {
 			continue
 		}
 		task := model.CanvasTask{
@@ -447,7 +509,7 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		run.Status = "done"
 		run.FinishedAt = &finishedAt
 	} else {
-		go h.executeWorkflowRun(user, cv.ID, run.ID, order)
+		go h.executeWorkflowRun(user, cv.ID, run.ID, plan.Order)
 	}
 	run.Tasks = tasks
 	c.JSON(http.StatusAccepted, gin.H{"run": run, "tasks": tasks})
@@ -486,35 +548,16 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
-	taskMap := map[string]*model.CanvasTask{}
 	var runTasks []model.CanvasTask
 	h.db.Where("canvas_run_id = ?", runID).Order("id asc").Find(&runTasks)
-	inputValues := decodeCanvasRunInputValues(run.InputValues)
-	taskIndex := 0
-	for _, nid := range order {
-		node := nodeMap[nid]
-		if node == nil {
+	taskMap := map[string]*model.CanvasTask{}
+	for i := range runTasks {
+		if strings.TrimSpace(runTasks[i].NodeID) == "" {
 			continue
 		}
-		var nd nodeData
-		json.Unmarshal([]byte(node.Data), &nd)
-		if isCanvasEntityNode(node.Type) && hasCanvasEntityInputs(cv.Edges, nid) {
-			if taskIndex >= len(runTasks) {
-				break
-			}
-			taskMap[nid] = &runTasks[taskIndex]
-			taskIndex++
-			continue
-		}
-		if nd.Source != "ai" && node.Type != "output" && nd.ExecutableSpec == nil {
-			continue
-		}
-		if taskIndex >= len(runTasks) {
-			break
-		}
-		taskMap[nid] = &runTasks[taskIndex]
-		taskIndex++
+		taskMap[runTasks[i].NodeID] = &runTasks[i]
 	}
+	inputValues := decodeCanvasRunInputValues(run.InputValues)
 
 	produced := map[string]map[string]canvasPortValue{}
 	setProduced := func(nodeID string, handle string, value canvasPortValue) {
@@ -580,6 +623,41 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		}
 	}
 	h.updateRunStatus(&runID)
+}
+
+func buildCanvasExecutionPlan(cv model.Canvas) (canvasExecutionPlan, error) {
+	order, err := topoSort(cv.Nodes, cv.Edges)
+	if err != nil {
+		return canvasExecutionPlan{}, err
+	}
+	nodeMap := map[string]*model.CanvasNode{}
+	for i := range cv.Nodes {
+		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
+	}
+	plan := canvasExecutionPlan{Order: order}
+	for _, nid := range order {
+		node := nodeMap[nid]
+		if !canvasNodeRequiresWorkflowTask(cv, node) {
+			continue
+		}
+		plan.Tasks = append(plan.Tasks, canvasTaskPlan{NodeID: nid, Node: node})
+	}
+	return plan, nil
+}
+
+func canvasNodeRequiresWorkflowTask(cv model.Canvas, node *model.CanvasNode) bool {
+	if node == nil {
+		return false
+	}
+	if isCanvasEntityNode(node.Type) && hasCanvasEntityInputs(cv.Edges, node.NodeID) {
+		return true
+	}
+	if node.Type == "output" {
+		return true
+	}
+	var nd nodeData
+	_ = json.Unmarshal([]byte(node.Data), &nd)
+	return nd.Source == "ai" || nd.ExecutableSpec != nil
 }
 
 func (h *CanvasHandler) executeCanvasNode(ctx context.Context, user *model.User, cv model.Canvas, node *model.CanvasNode, task *model.CanvasTask, inputs canvasPortInputMap) map[string]canvasPortValue {
@@ -676,7 +754,7 @@ func (h *CanvasHandler) executeCanvasNode(ctx context.Context, user *model.User,
 		return h.completeCanvasReferenceTask(task, node, nd, user)
 	}
 
-	h.executeTask(user, node, task, nd, inputs.flatten())
+	h.executeTask(user, node, task, nd, inputs)
 
 	var updated model.CanvasTask
 	if err := h.db.First(&updated, task.ID).Error; err == nil && updated.Status == "done" {
@@ -751,6 +829,7 @@ func canvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
 
 func (h *CanvasHandler) collectSingleNodeInputs(ctx context.Context, user *model.User, cv model.Canvas, nodeID string, overrides map[string]canvasPortValue) (canvasPortInputMap, error) {
 	inputs := canvasPortInputMap{}
+	connectedHandles := map[string]bool{}
 	nodeMap := map[string]*model.CanvasNode{}
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
@@ -772,12 +851,16 @@ func (h *CanvasHandler) collectSingleNodeInputs(ctx context.Context, user *model
 		if handle == "" {
 			handle = "input"
 		}
+		connectedHandles[handle] = true
 		inputs[handle] = append(inputs[handle], value)
 		inputs[""] = append(inputs[""], value)
 	}
 	for handle, value := range overrides {
 		handle = strings.TrimSpace(handle)
 		if handle == "" {
+			continue
+		}
+		if connectedHandles[handle] {
 			continue
 		}
 		value.normalize()
@@ -812,6 +895,49 @@ func canvasPortValuesPresent(values []canvasPortValue) bool {
 	return false
 }
 
+func validateCanvasRequiredInputs(cv model.Canvas, inputValues map[string]canvasPortValue) error {
+	incoming := map[string]map[string]bool{}
+	for _, edge := range cv.Edges {
+		handle := strings.TrimSpace(edge.TargetHandle)
+		if handle == "" {
+			handle = "input"
+		}
+		if incoming[edge.Target] == nil {
+			incoming[edge.Target] = map[string]bool{}
+		}
+		incoming[edge.Target][handle] = true
+	}
+	for i := range cv.Nodes {
+		node := &cv.Nodes[i]
+		var nd nodeData
+		if err := json.Unmarshal([]byte(node.Data), &nd); err != nil {
+			return fmt.Errorf("node %q has invalid data", node.NodeID)
+		}
+		for _, port := range nd.InputPorts {
+			handle := strings.TrimSpace(port.ID)
+			if handle == "" || !port.Required {
+				continue
+			}
+			if incoming[node.NodeID][handle] {
+				continue
+			}
+			if node.Type == "input" {
+				if value, ok := inputValues[node.NodeID]; ok {
+					value.normalize()
+					if !canvasPortValueEmpty(value) {
+						continue
+					}
+				}
+				if !canvasPortValueEmpty(staticCanvasNodePortValue(node, nd)) {
+					continue
+				}
+			}
+			return fmt.Errorf("node %q required input %q is missing", node.NodeID, handle)
+		}
+	}
+	return nil
+}
+
 func (h *CanvasHandler) latestCanvasNodeOutputValue(ctx context.Context, user *model.User, cv model.Canvas, node *model.CanvasNode, sourceHandle string) (canvasPortValue, bool) {
 	handle := strings.TrimSpace(sourceHandle)
 	var nd nodeData
@@ -820,23 +946,25 @@ func (h *CanvasHandler) latestCanvasNodeOutputValue(ctx context.Context, user *m
 		handle = defaultCanvasSourceHandleForNode(node.Type, nd)
 	}
 
-	var task model.CanvasTask
-	if err := h.db.Where("canvas_node_id = ? AND status = ?", node.ID, "done").Order("id desc").First(&task).Error; err == nil {
-		outputs := decodeCanvasPortOutputs(task.OutputValues)
-		if len(outputs) > 0 {
-			for _, key := range []string{handle, "", defaultCanvasSourceHandleForNode(node.Type, nd), "result", "value"} {
-				if value, ok := outputs[key]; ok && !canvasPortValueEmpty(value) {
-					return value, true
+	if h.db != nil {
+		var task model.CanvasTask
+		if err := h.db.Where("canvas_node_id = ? AND status = ?", node.ID, "done").Order("id desc").First(&task).Error; err == nil {
+			outputs := decodeCanvasPortOutputs(task.OutputValues)
+			if len(outputs) > 0 {
+				for _, key := range []string{handle, "", defaultCanvasSourceHandleForNode(node.Type, nd), "result", "value"} {
+					if value, ok := outputs[key]; ok && !canvasPortValueEmpty(value) {
+						return value, true
+					}
+				}
+				for _, value := range outputs {
+					if !canvasPortValueEmpty(value) {
+						return value, true
+					}
 				}
 			}
-			for _, value := range outputs {
-				if !canvasPortValueEmpty(value) {
-					return value, true
-				}
+			if task.ResourceID != nil {
+				return canvasPortValueFromResource(task.ResourceID, defaultCanvasPortValueTypeForNode(node.Type, nd)), true
 			}
-		}
-		if task.ResourceID != nil {
-			return canvasPortValueFromResource(task.ResourceID, defaultCanvasPortValueTypeForNode(node.Type, nd)), true
 		}
 	}
 
@@ -1035,11 +1163,92 @@ func (h *CanvasHandler) ListRunTasks(c *gin.Context) {
 	var tasks []model.CanvasTask
 	h.db.Where("canvas_run_id = ?", run.ID).Preload("Resource").Order("id asc").Find(&tasks)
 	for i := range tasks {
+		h.lazyBackfillCanvasTaskOutputs(&tasks[i], tasks[i].NodeType)
 		if tasks[i].Resource != nil {
 			tasks[i].Resource.URL = resourceURL(c, tasks[i].Resource.ID)
 		}
 	}
 	c.JSON(http.StatusOK, tasks)
+}
+
+// ListEntityWriteAudits returns entity write audit records visible to the current canvas owner.
+func (h *CanvasHandler) ListEntityWriteAudits(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	q := h.db.Model(&model.CanvasEntityWriteAudit{}).
+		Joins("JOIN canvases ON canvases.id = canvas_entity_write_audits.canvas_id").
+		Where("canvases.owner_id = ?", user.ID)
+
+	if value, ok, err := optionalUintQuery(c, "canvas_id"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if ok {
+		q = q.Where("canvas_entity_write_audits.canvas_id = ?", value)
+	}
+	if value, ok, err := optionalUintQuery(c, "run_id"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if ok {
+		q = q.Where("canvas_entity_write_audits.canvas_run_id = ?", value)
+	}
+	if value, ok, err := optionalUintQuery(c, "canvas_run_id"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if ok {
+		q = q.Where("canvas_entity_write_audits.canvas_run_id = ?", value)
+	}
+	if entityKind := strings.TrimSpace(c.Query("entity_kind")); entityKind != "" {
+		q = q.Where("canvas_entity_write_audits.entity_kind = ?", entityKind)
+	}
+	if value, ok, err := optionalUintQuery(c, "entity_id"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if ok {
+		q = q.Where("canvas_entity_write_audits.entity_id = ?", value)
+	}
+	if value, ok, err := optionalUintQuery(c, "user_id"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if ok {
+		q = q.Where("canvas_entity_write_audits.user_id = ?", value)
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 200 {
+		pageSize = 50
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var audits []model.CanvasEntityWriteAudit
+	if err := q.Order("canvas_entity_write_audits.id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&audits).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"total": total, "items": audits, "page": page, "page_size": pageSize})
+}
+
+func optionalUintQuery(c *gin.Context, key string) (uint, bool, error) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return 0, false, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, false, fmt.Errorf("%s must be an unsigned integer", key)
+	}
+	return uint(value), true, nil
 }
 
 // GetNodeTask returns the latest CanvasTask for a given node.
@@ -1066,6 +1275,7 @@ func (h *CanvasHandler) GetNodeTask(c *gin.Context) {
 			task.Resource = &resource
 		}
 	}
+	h.lazyBackfillCanvasTaskOutputs(&task, node.Type)
 	c.JSON(http.StatusOK, task)
 }
 
@@ -1085,6 +1295,7 @@ func (h *CanvasHandler) ListNodeTasks(c *gin.Context) {
 	h.db.Where("canvas_node_id = ?", node.ID).Preload("Resource").Order("id desc").Find(&tasks)
 	// Populate resource URLs
 	for i := range tasks {
+		h.lazyBackfillCanvasTaskOutputs(&tasks[i], node.Type)
 		if tasks[i].Resource != nil {
 			tasks[i].Resource.URL = resourceURL(c, tasks[i].Resource.ID)
 		}
@@ -1092,7 +1303,7 @@ func (h *CanvasHandler) ListNodeTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, tasks)
 }
 
-func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, upstreamResources []*uint) {
+func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
 	h.db.Model(task).Update("status", "running")
 	nd.Status = "running"
 	if task.CanvasRunID == nil {
@@ -1108,11 +1319,12 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 		nd.InputResourceIDs = append(nd.InputResourceIDs, mentionIDs...)
 	}
 
+	upstreamResources := portInputs.flatten()
 	var resultURL, mimeType, resType string
 	imageData, videoData := h.loadCanvasInputResources(ctx, nd, upstreamResources)
 
 	if nd.ExecutableSpec != nil {
-		h.executeExecutableSpec(ctx, user, node, task, nd, upstreamResources)
+		h.executeExecutableSpec(ctx, user, node, task, nd, portInputs)
 		return
 	}
 
@@ -1211,10 +1423,14 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 	h.updateRunStatus(task.CanvasRunID)
 }
 
-func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, upstreamResources []*uint) {
+func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
 	spec := nd.ExecutableSpec
 	if spec == nil {
 		h.failTask(task, node, nd, "missing executable spec")
+		return
+	}
+	if spec.Executor == "plugin_http" {
+		h.executeHTTPPluginSpec(ctx, user, node, task, nd, portInputs)
 		return
 	}
 	if spec.Executor != "ai_model" {
@@ -1238,6 +1454,7 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 	specData := nodeData{
 		InputResourceIDs: spec.InputResourceIDs,
 	}
+	upstreamResources := portInputs.flatten()
 	imageData, videoData := h.loadCanvasInputResources(ctx, specData, upstreamResources)
 	prompt := strings.TrimSpace(spec.Prompt)
 	if prompt == "" && spec.Params != nil {
@@ -1371,6 +1588,129 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 		h.updateNodeData(node, nd)
 	}
 	h.updateRunStatus(task.CanvasRunID)
+}
+
+type pluginHTTPRuntimeSpec struct {
+	Kind     string `json:"kind"`
+	Endpoint string `json:"endpoint"`
+	Method   string `json:"method"`
+	Timeout  int    `json:"timeout"`
+}
+
+func (h *CanvasHandler) executeHTTPPluginSpec(ctx context.Context, user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
+	spec := nd.ExecutableSpec
+	if spec == nil || strings.TrimSpace(spec.PluginToolKey) == "" {
+		h.failTask(task, node, nd, "plugin tool key is required")
+		return
+	}
+
+	var tool model.PluginTool
+	err := h.db.Preload("Plugin").
+		Joins("JOIN plugins ON plugins.id = plugin_tools.plugin_id").
+		Where("plugin_tools.tool_key = ? AND plugin_tools.enabled = ? AND plugins.enabled = ? AND plugins.deleted_at IS NULL", spec.PluginToolKey, true, true).
+		First(&tool).Error
+	if err != nil {
+		h.failTask(task, node, nd, "plugin tool not found")
+		return
+	}
+	if !tool.Plugin.Trusted {
+		h.failTask(task, node, nd, "plugin_http executor requires a trusted plugin")
+		return
+	}
+
+	var runtime pluginHTTPRuntimeSpec
+	if err := json.Unmarshal([]byte(tool.Runtime), &runtime); err != nil {
+		h.failTask(task, node, nd, "invalid plugin runtime")
+		return
+	}
+	if runtime.Kind != "http" {
+		h.failTask(task, node, nd, "plugin tool is not an http runtime")
+		return
+	}
+	if strings.TrimSpace(runtime.Endpoint) == "" {
+		h.failTask(task, node, nd, "plugin http endpoint is required")
+		return
+	}
+	method := strings.ToUpper(strings.TrimSpace(runtime.Method))
+	if method == "" {
+		method = http.MethodPost
+	}
+	if method != http.MethodPost {
+		h.failTask(task, node, nd, "plugin_http executor currently supports POST only")
+		return
+	}
+	timeout := time.Duration(firstPositive(runtime.Timeout, 30)) * time.Second
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	body, _ := json.Marshal(map[string]any{
+		"tool_key":           tool.ToolKey,
+		"plugin_key":         tool.Plugin.PluginKey,
+		"params":             spec.Params,
+		"inputs":             portInputs,
+		"input_resource_ids": portInputs.flatten(),
+		"canvas_node_id":     node.NodeID,
+		"task_id":            task.ID,
+		"user_id":            user.ID,
+	})
+	req, err := http.NewRequestWithContext(callCtx, method, runtime.Endpoint, bytes.NewReader(body))
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		h.failTask(task, node, nd, fmt.Sprintf("plugin http runtime returned %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody))))
+		return
+	}
+
+	outputs := pluginHTTPOutputs(respBody)
+	if len(outputs) == 0 {
+		h.failTask(task, node, nd, "plugin http runtime returned no outputs")
+		return
+	}
+	h.completeInlineValueTask(task, node, nd, outputs)
+}
+
+func pluginHTTPOutputs(raw []byte) map[string]canvasPortValue {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		text := strings.TrimSpace(string(raw))
+		if text == "" {
+			return nil
+		}
+		value := canvasPortValue{Type: "text", Text: text}
+		return map[string]canvasPortValue{"result": value}
+	}
+	outputs := map[string]canvasPortValue{}
+	if rawOutputs, ok := payload["outputs"].(map[string]any); ok {
+		for handle, rawValue := range rawOutputs {
+			value := canvasPortValueFromAny(rawValue)
+			if !canvasPortValueEmpty(value) {
+				outputs[handle] = value
+			}
+		}
+	}
+	if len(outputs) == 0 {
+		for _, key := range []string{"result", "value", "data", "content"} {
+			if rawValue, ok := payload[key]; ok {
+				value := canvasPortValueFromAny(rawValue)
+				if !canvasPortValueEmpty(value) {
+					outputs["result"] = value
+					break
+				}
+			}
+		}
+	}
+	return outputs
 }
 
 func (h *CanvasHandler) completeInlineTextTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, text string) {

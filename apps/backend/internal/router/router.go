@@ -136,12 +136,15 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		v1.GET("/registry/plugins", registryH.ListPlugins)
 		v1.GET("/registry/plugins/:id", registryH.GetPlugin)
 
-		// canvases
+		// entity schemas and workflow projections
+		v1.GET("/entities/semantic-schemas", workflowSchemas.ListEntitySemanticSchemas)
+		v1.GET("/entities/semantic-schemas/:kind", workflowSchemas.GetEntitySemanticSchema)
 		v1.GET("/workflow/entity-schemas", workflowSchemas.ListEntitySchemas)
 		v1.GET("/workflow/entity-schemas/:kind", workflowSchemas.GetEntitySchema)
 
 		// canvases
 		v1.GET("/canvases", canvases.List)
+		v1.GET("/canvas-entity-write-audits", canvases.ListEntityWriteAudits)
 		v1.POST("/canvases", canvases.Create)
 		v1.GET("/canvases/:id", canvases.Get)
 		v1.PUT("/canvases/:id", canvases.Save)

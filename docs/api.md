@@ -116,7 +116,12 @@ Additional nested routes exist for scripts, assets, asset views, episodes, episo
 
 | Method | Path | Description |
 | --- | --- | --- |
+| `GET` | `/api/v1/entities/semantic-schemas` | List entity semantic schemas used as the shared field/capability registry. |
+| `GET` | `/api/v1/entities/semantic-schemas/:kind` | Read one entity semantic schema. |
+| `GET` | `/api/v1/workflow/entity-schemas` | List workflow-port projections of entity semantic schemas. |
+| `GET` | `/api/v1/workflow/entity-schemas/:kind` | Read one workflow-port projection for an entity kind. |
 | `GET` | `/api/v1/canvases` | List canvases. |
+| `GET` | `/api/v1/canvas-entity-write-audits` | List entity write audit records. Supports `canvas_id`, `run_id`/`canvas_run_id`, `entity_kind`, `entity_id`, `user_id`, `page`, and `page_size`. |
 | `POST` | `/api/v1/canvases` | Create canvas. |
 | `GET` | `/api/v1/canvases/:id` | Read canvas. |
 | `PUT` | `/api/v1/canvases/:id` | Save canvas. |
@@ -124,9 +129,43 @@ Additional nested routes exist for scripts, assets, asset views, episodes, episo
 | `POST` | `/api/v1/canvases/:id/nodes/:nodeId/run` | Run one canvas node. |
 | `POST` | `/api/v1/canvases/:id/run` | Run a canvas. |
 | `GET` | `/api/v1/canvases/:id/runs` | List canvas runs. |
+| `GET` | `/api/v1/canvases/:id/runs/:runId` | Read one canvas run. |
+| `GET` | `/api/v1/canvases/:id/runs/:runId/tasks` | List canvas run tasks. |
 | `GET` | `/api/v1/pipeline/node-specs` | Read pipeline node specs. |
 | `GET` | `/api/v1/projects/:id/pipeline` | Read project pipeline. |
 | `POST` | `/api/v1/projects/:id/pipeline/nodes` | Create pipeline node. |
+
+### Canvas Port Values
+
+Canvas execution moves typed values through node ports. `input_values` and `output_values` use `CanvasPortValue` objects:
+
+```json
+{
+  "type": "text|json|number|boolean|resource|image|video|audio",
+  "text": "inline text",
+  "json": { "any": "json" },
+  "number": 1.25,
+  "boolean": true,
+  "resource_id": 123
+}
+```
+
+`CanvasTask.input_values` is keyed by input port id. Each entry is an array of `CanvasPortValue` objects because a port can receive more than one upstream value.
+
+`CanvasTask.output_values` is keyed by output port id. Outputs may include semantic handles such as `text`, `image`, `video`, `value`, or `result`. Resource-producing tasks also keep `resource_id` for compatibility.
+
+Legacy tasks that only have `resource_id` are normalized lazily when task APIs return them. The response backfills `output_values` with the node's default output handle plus `result` and `value`, so old task history still renders in task inspectors and downstream readers.
+
+### Canvas Execution Semantics
+
+`POST /api/v1/canvases/:id/run` creates a `CanvasRun`, stores the graph snapshot, validates unconnected required inputs, creates tasks for runnable nodes, then executes nodes in topological order. Inline `text`, `json`, `number`, and `boolean` values stay as `CanvasPortValue` data. `RawResource` records are created only when an output is a persisted media/resource artifact.
+
+`POST /api/v1/canvases/:id/nodes/:nodeId/run` runs one node through the same node executor. The backend resolves connected upstream outputs first, then merges caller-provided `input_values` only for unconnected runtime inputs. Values submitted for connected input ports are ignored so saved graph edges remain authoritative.
+
+`CanvasExecutableSpec` supports:
+
+- `executor: "ai_model"` for backend model-backed text/image/video/audio-capability execution.
+- `executor: "plugin_http"` for trusted backend plugin tools with an HTTP runtime. The plugin response can return `{ "outputs": { "<port>": <CanvasPortValue or scalar> } }`, or a top-level `result`/`value`/`data`/`content`.
 
 ## Plugins and Registry
 

@@ -408,6 +408,16 @@ export interface CreateRunInput {
   clientInput?: unknown
 }
 
+export interface CreateToolRunInput {
+  threadId?: unknown
+  title?: unknown
+  message?: unknown
+  toolCall?: unknown
+  agentManifest?: unknown
+  approvedToolNames?: unknown
+  clientInput?: unknown
+}
+
 export interface PreviewRunInput {
   threadId?: unknown
   message?: unknown

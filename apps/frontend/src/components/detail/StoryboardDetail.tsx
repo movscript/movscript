@@ -6,7 +6,7 @@ import { useProjectStore } from '@/store/projectStore'
 import { Camera } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
-import { StoryboardForm } from '@/components/forms/StoryboardForm'
+import { EntitySemanticForm } from './EntitySemanticForm'
 
 interface Props {
   storyboard: Storyboard
@@ -55,12 +55,15 @@ export function StoryboardDetail({ storyboard, onClose, onDelete }: Props) {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: storyboard planning */}
         <div className="w-[28rem] shrink-0 border-r border-border overflow-hidden">
-          <StoryboardForm
-            storyboard={storyboard}
+          <EntitySemanticForm
+            kind="storyboard"
+            ownerType="storyboard"
+            ownerId={storyboard.ID}
             draft={draft}
-            onChange={setDraft}
-            onSave={(data) => update.mutate(data)}
+            onChange={(next) => setDraft(next as Partial<Storyboard>)}
+            onSave={(payload) => update.mutate(payload as Partial<Storyboard>)}
             isSaving={update.isPending}
+            excludeFields={['result', 'image', 'reference', 'shots', 'prompt']}
           />
         </div>
 

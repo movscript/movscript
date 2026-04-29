@@ -750,11 +750,13 @@ export type CanvasPortType = CanvasParamType
 
 export interface CanvasPortDef {
   id: string
+  aliases?: string[]
   label?: string
   labelKey?: string
   type: CanvasPortType
   required?: boolean
   maxCount?: number
+  deprecated?: boolean
   description?: string
 }
 
@@ -762,6 +764,7 @@ export interface EntityWorkflowField {
   readable: boolean
   writable: boolean
   portId: string
+  aliases?: string[]
   required?: boolean
   maxCount?: number
 }
@@ -773,27 +776,102 @@ export interface EntityWorkflowBinding {
   multiple: boolean
 }
 
+export interface EntitySemanticFieldIO {
+  readable: boolean
+  writable: boolean
+  required?: boolean
+  maxCount?: number
+}
+
+export interface EntitySemanticSchemaField {
+  id: string
+  aliases?: string[]
+  deprecated?: boolean
+  labelKey: string
+  fallbackLabel: string
+  valueType: CanvasPortType
+  control: 'input' | 'textarea' | 'select' | 'number' | 'checkbox' | 'json_editor' | 'resource_picker' | 'resource_gallery' | 'related_entity_list' | 'readonly_text' | 'computed' | string
+  readonly?: boolean
+  layout?: {
+    width?: string
+    relation?: string
+    nestedKind?: string
+  }
+  io: EntitySemanticFieldIO
+  binding?: EntityWorkflowBinding
+  validation?: {
+    required?: boolean
+    enum?: string[]
+    min?: number
+    max?: number
+  }
+}
+
+export interface EntitySemanticSchemaSection {
+  id: string
+  labelKey: string
+  fallbackLabel: string
+  layout?: {
+    variant?: string
+    columns?: number
+  }
+  fields: EntitySemanticSchemaField[]
+}
+
+export interface EntitySemanticSchema {
+  kind: CanvasEntityKind
+  schemaVersion?: number
+  labelKey: string
+  fallbackLabel: string
+  layout?: {
+    variant?: string
+  }
+  sections: EntitySemanticSchemaSection[]
+}
+
 export interface EntityWorkflowSchemaField {
   id: string
+  aliases?: string[]
+  deprecated?: boolean
   labelKey: string
   fallbackLabel: string
   valueType: CanvasPortType
   control: 'input' | 'textarea' | 'select' | 'number' | 'checkbox' | 'json_editor' | 'resource_picker' | 'resource_gallery' | 'readonly_text' | 'computed' | string
+  readonly?: boolean
+  layout?: {
+    width?: string
+    relation?: string
+    nestedKind?: string
+  }
   workflow: EntityWorkflowField
   binding?: EntityWorkflowBinding
+  validation?: {
+    required?: boolean
+    enum?: string[]
+    min?: number
+    max?: number
+  }
 }
 
 export interface EntityWorkflowSchemaSection {
   id: string
   labelKey: string
   fallbackLabel: string
+  layout?: {
+    variant?: string
+    columns?: number
+  }
   fields: EntityWorkflowSchemaField[]
 }
 
 export interface EntityWorkflowSchema {
   kind: CanvasEntityKind
+  schemaVersion?: number
   labelKey: string
   fallbackLabel: string
+  layout?: {
+    variant?: string
+  }
   sections: EntityWorkflowSchemaSection[]
 }
 
@@ -812,10 +890,11 @@ export type CanvasStage = 'script_analysis' | 'asset_prep' | 'storyboard' | 'gen
 export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio'
 
 export interface CanvasExecutableSpec {
-  executor: 'ai_model'
+  executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
   featureKey?: string
   modelDbId?: number
+  pluginToolKey?: string
   prompt?: string
   inputResourceIds?: number[]
   aspectRatio?: string
@@ -854,6 +933,7 @@ export interface CanvasNodeData {
   pluginId?: string
   pluginName?: string
   pluginVersion?: string
+  pluginRuntime?: 'trusted_local' | 'backend_ai_model' | 'backend_http' | 'callback'
   pluginArgs?: Record<string, unknown>
   pluginResultText?: string
   pluginResultData?: unknown
