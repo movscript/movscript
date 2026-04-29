@@ -26,10 +26,11 @@ type GenJob struct {
 	InputResourceID     *uint      `json:"input_resource_id,omitempty"`                // legacy single reference (kept for backward compat)
 	InputResourceIDs    string     `json:"input_resource_ids,omitempty"`               // JSON array of resource IDs e.g. "[1,2]"
 	OutputResourceID    *uint      `json:"output_resource_id,omitempty"`               // set when succeeded
-	ProviderTaskID      string     `json:"provider_task_id,omitempty"`                 // external task ID if async
-	ProviderTaskKind    string     `json:"provider_task_kind,omitempty"`               // provider-specific async task kind/endpoint
-	ProviderTaskStatus  string     `json:"provider_task_status,omitempty"`             // latest external task status
-	ProviderTaskHistory string     `json:"provider_task_history,omitempty"`            // JSON-encoded provider status history
+	UsageReservationID  *uint      `gorm:"index" json:"usage_reservation_id,omitempty"`
+	ProviderTaskID      string     `json:"provider_task_id,omitempty"`      // external task ID if async
+	ProviderTaskKind    string     `json:"provider_task_kind,omitempty"`    // provider-specific async task kind/endpoint
+	ProviderTaskStatus  string     `json:"provider_task_status,omitempty"`  // latest external task status
+	ProviderTaskHistory string     `json:"provider_task_history,omitempty"` // JSON-encoded provider status history
 	ErrorMsg            string     `json:"error_msg,omitempty"`
 	DebugInfo           string     `json:"debug_info,omitempty"`      // JSON-encoded DebugCallResult (populated in debug mode)
 	ExecutionState      string     `json:"execution_state,omitempty"` // current worker state-machine state

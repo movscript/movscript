@@ -10,6 +10,7 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/crypto"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -283,27 +284,7 @@ func (h *AIHandler) ListModelConfigs(c *gin.Context) {
 }
 
 func (h *AIHandler) CreateModelConfig(c *gin.Context) {
-	var req struct {
-		ModelDefID         string  `json:"model_def_id" binding:"required"`
-		ModelIDOverride    string  `json:"model_id_override"`
-		IsEnabled          *bool   `json:"is_enabled"`
-		Priority           int     `json:"priority"`
-		CreditsInputPer1M  float64 `json:"credits_input_per_1m"`
-		CreditsOutputPer1M float64 `json:"credits_output_per_1m"`
-		CreditsPerImage    float64 `json:"credits_per_image"`
-		CreditsPerSecond   float64 `json:"credits_per_second"`
-		CreditsPerCall     float64 `json:"credits_per_call"`
-		// Custom metadata — always used at runtime.
-		CustomDisplayName     string `json:"custom_display_name"`
-		ShortName             string `json:"short_name"`
-		CustomCapabilities    string `json:"custom_capabilities"`     // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
-		CustomBillingMode     string `json:"custom_billing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
-		CustomAcceptsImage    bool   `json:"custom_accepts_image"`    // true for image_edit / i2v models
-		CustomMaxInputImages  int    `json:"custom_max_input_images"` // 0=unset, 1=single, -1=unlimited
-		CustomMaxInputVideos  int    `json:"custom_max_input_videos"`
-		CustomImageEditField  string `json:"custom_image_edit_field"` // multipart field; empty = "image"
-		CustomSupportedParams string `json:"custom_supported_params"` // JSON: []ParamDef
-	}
+	var req service.AIModelConfigInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -315,30 +296,7 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		return
 	}
 
-	cfg := model.AIModelConfig{
-		CredentialID:          parseUint(c.Param("id")),
-		ModelDefID:            req.ModelDefID,
-		ModelIDOverride:       req.ModelIDOverride,
-		IsEnabled:             true,
-		Priority:              req.Priority,
-		CreditsInputPer1M:     req.CreditsInputPer1M,
-		CreditsOutputPer1M:    req.CreditsOutputPer1M,
-		CreditsPerImage:       req.CreditsPerImage,
-		CreditsPerSecond:      req.CreditsPerSecond,
-		CreditsPerCall:        req.CreditsPerCall,
-		CustomDisplayName:     req.CustomDisplayName,
-		ShortName:             req.ShortName,
-		CustomCapabilities:    req.CustomCapabilities,
-		CustomBillingMode:     req.CustomBillingMode,
-		CustomAcceptsImage:    req.CustomAcceptsImage,
-		CustomMaxInputImages:  req.CustomMaxInputImages,
-		CustomMaxInputVideos:  req.CustomMaxInputVideos,
-		CustomImageEditField:  req.CustomImageEditField,
-		CustomSupportedParams: req.CustomSupportedParams,
-	}
-	if req.IsEnabled != nil {
-		cfg.IsEnabled = *req.IsEnabled
-	}
+	cfg := service.NewAIModelConfig(req, parseUint(c.Param("id")))
 	if err := h.db.Create(&cfg).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -352,7 +310,16 @@ func (h *AIHandler) UpdateModelConfig(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.ShouldBindJSON(&cfg)
+	var req service.AIModelConfigInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.CustomCapabilities == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "custom_capabilities is required (e.g. \"text\" or \"image\")"})
+		return
+	}
+	service.ApplyAIModelConfigInput(&cfg, req)
 	h.db.Save(&cfg)
 	c.JSON(http.StatusOK, cfg)
 }

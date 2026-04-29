@@ -10,6 +10,7 @@ import (
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -47,36 +48,28 @@ func (h *PipelineHandler) GetPipeline(c *gin.Context) {
 // CreateNode adds a new pipeline node to a project.
 func (h *PipelineHandler) CreateNode(c *gin.Context) {
 	pid := parseID(c.Param("id"))
-	var node model.PipelineNode
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if err := json.Unmarshal(payload, &node); err != nil {
+	var req service.PipelineNodeInput
+	if err := json.Unmarshal(payload, &req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	var body struct {
-		ParentID *uint `json:"parent_id"`
-	}
-	if err := json.Unmarshal(payload, &body); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	node.ProjectID = pid
-	node.Status = "draft"
+	node := service.NewPipelineNode(req, pid)
 	if isPipelineToolNode(node.Type) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("管线不再支持工具节点类型"))
 		return
 	}
-	if body.ParentID == nil && !isPipelineWorkNode(node.Type) {
+	if req.ParentID == nil && !isPipelineWorkNode(node.Type) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("新增工作项只能使用工作节点类型"))
 		return
 	}
 	var parent model.PipelineNode
-	if body.ParentID != nil {
-		if err := h.db.First(&parent, *body.ParentID).Error; err != nil || parent.ProjectID != pid {
+	if req.ParentID != nil {
+		if err := h.db.First(&parent, *req.ParentID).Error; err != nil || parent.ProjectID != pid {
 			c.JSON(http.StatusBadRequest, apierr.InvalidInput("父节点不存在"))
 			return
 		}
@@ -96,10 +89,10 @@ func (h *PipelineHandler) CreateNode(c *gin.Context) {
 		if err := tx.Create(&node).Error; err != nil {
 			return err
 		}
-		if body.ParentID != nil {
+		if req.ParentID != nil {
 			if err := tx.Create(&model.PipelineEdge{
 				ProjectID:    pid,
-				FromNodeID:   *body.ParentID,
+				FromNodeID:   *req.ParentID,
 				ToNodeID:     node.ID,
 				RelationType: "hierarchy",
 			}).Error; err != nil {
@@ -285,15 +278,12 @@ func (h *PipelineHandler) DeleteNode(c *gin.Context) {
 // CreateEdge adds a hierarchy relation or an extra dependency between two pipeline nodes.
 func (h *PipelineHandler) CreateEdge(c *gin.Context) {
 	pid := parseID(c.Param("id"))
-	var edge model.PipelineEdge
-	if err := c.ShouldBindJSON(&edge); err != nil {
+	var req service.PipelineEdgeInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	edge.ProjectID = pid
-	if edge.RelationType == "" {
-		edge.RelationType = "hierarchy"
-	}
+	edge := service.NewPipelineEdge(req, pid)
 	if edge.RelationType != "hierarchy" && edge.RelationType != "dependency" {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("依赖类型必须是 hierarchy 或 dependency"))
 		return

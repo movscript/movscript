@@ -16,6 +16,15 @@ OpenAI-compatible model gateway routes are also exposed under:
 
 The router source of truth is `apps/backend/internal/router/router.go`.
 
+The initial machine-readable contract lives at `docs/api/openapi.v1.json`.
+Frontend API types are generated from it with:
+
+```text
+pnpm run generate:api-types
+```
+
+Treat that OpenAPI file as the compatibility surface for stable clients and plugin SDK work. Expand it before introducing generated client usage for new endpoints.
+
 ## Health
 
 | Method | Path | Description |

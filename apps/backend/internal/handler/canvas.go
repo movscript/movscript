@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
@@ -43,7 +44,10 @@ func (h *CanvasHandler) List(c *gin.Context) {
 	if canvasType := c.Query("type"); canvasType != "" {
 		q = q.Where("canvas_type = ?", canvasType)
 	}
-	q.Find(&canvases)
+	if err := q.Find(&canvases).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, canvases)
 }
 
@@ -81,8 +85,26 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		RefType:    req.RefType,
 		RefID:      req.RefID,
 	}
-	h.db.Create(&cv)
-	if cv.CanvasType == "workflow" {
+	if err := h.createCanvas(&cv); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, cv)
+}
+
+func (h *CanvasHandler) createCanvas(cv *model.Canvas) error {
+	return h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(cv).Error; err != nil {
+			return err
+		}
+		if cv.CanvasType != "workflow" {
+			return nil
+		}
+
 		inputData, _ := json.Marshal(map[string]any{
 			"source":     "manual",
 			"inputValue": "",
@@ -90,18 +112,20 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 			"paramType":  "text",
 		})
 		outputData, _ := json.Marshal(map[string]any{
-			"source":    "upload",
+			"source":    "manual",
 			"paramName": "output",
 			"paramType": "resource",
 		})
-		h.db.Create(&[]model.CanvasNode{
+		nodes := []model.CanvasNode{
 			{CanvasID: cv.ID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
 			{CanvasID: cv.ID, NodeID: "output", Type: "output", Label: "输出", PosX: 460, PosY: 160, Data: string(outputData)},
-		})
-		h.db.Create(&model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "output", SourceHandle: "value", TargetHandle: "value"})
-		h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID)
-	}
-	c.JSON(http.StatusCreated, cv)
+		}
+		if err := tx.Create(&nodes).Error; err != nil {
+			return err
+		}
+		edge := model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "output", SourceHandle: "value", TargetHandle: "value"}
+		return tx.Create(&edge).Error
+	})
 }
 
 func (h *CanvasHandler) Get(c *gin.Context) {
@@ -117,6 +141,44 @@ func (h *CanvasHandler) Get(c *gin.Context) {
 	}
 	if cv.OwnerID != user.ID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	c.JSON(http.StatusOK, cv)
+}
+
+func (h *CanvasHandler) Patch(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	var cv model.Canvas
+	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if cv.OwnerID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	var req struct {
+		Name *string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+			return
+		}
+		cv.Name = name
+	}
+	if err := h.db.Save(&cv).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, cv)
@@ -177,9 +239,13 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 		cv.Name = req.Name
 	}
 
-	h.db.Transaction(func(tx *gorm.DB) error {
-		tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{})
-		tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{})
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{}).Error; err != nil {
+			return err
+		}
 		for i := range req.Nodes {
 			req.Nodes[i].CanvasID = cv.ID
 			req.Nodes[i].ID = 0
@@ -189,15 +255,24 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 			req.Edges[i].ID = 0
 		}
 		if len(req.Nodes) > 0 {
-			tx.Create(&req.Nodes)
+			if err := tx.Create(&req.Nodes).Error; err != nil {
+				return err
+			}
 		}
 		if len(req.Edges) > 0 {
-			tx.Create(&req.Edges)
+			if err := tx.Create(&req.Edges).Error; err != nil {
+				return err
+			}
 		}
-		tx.Save(&cv)
-		return nil
-	})
+		return tx.Save(&cv).Error
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-	h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID)
+	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, cv)
 }

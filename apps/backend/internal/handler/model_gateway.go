@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -16,6 +18,7 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const defaultGatewayChatModel = "movscript-default-chat"
@@ -41,6 +44,7 @@ type chatCompletionRequest struct {
 	} `json:"response_format,omitempty"`
 	Tools      json.RawMessage `json:"tools,omitempty"`
 	ToolChoice json.RawMessage `json:"tool_choice,omitempty"`
+	ProjectID  *uint           `json:"project_id,omitempty"`
 }
 
 type gatewayMessage struct {
@@ -166,6 +170,10 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this model", "insufficient_permissions", "model", "model_not_allowed")
 		return
 	}
+	if principal.Key != nil && !gatewayKeyAllowsProject(principal.Key, req.ProjectID) {
+		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this project scope", "insufficient_permissions", "project_id", "project_not_allowed")
+		return
+	}
 
 	messages, ok := normalizeGatewayMessages(c, req.Messages)
 	if !ok {
@@ -188,14 +196,35 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		Tools:       req.Tools,
 		ToolChoice:  req.ToolChoice,
 	}
+	if principal.Key != nil {
+		estimate, err := h.svc.EstimateTextCost(modelConfigID, textReq)
+		if err != nil {
+			writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "model", "model_not_available")
+			return
+		}
+		if err := h.enforceGatewayKeyLimits(c.Request.Context(), principal.Key, estimate.Cost); err != nil {
+			status := http.StatusTooManyRequests
+			code := "rate_limit_exceeded"
+			if errors.Is(err, errGatewayMonthlyBudgetExceeded) {
+				status = http.StatusPaymentRequired
+				code = "monthly_budget_exceeded"
+			}
+			writeOpenAIError(c, status, err.Error(), "insufficient_quota", "", code)
+			return
+		}
+	}
 
 	if req.Stream {
-		h.streamChatCompletions(c, principal.User.ID, modelConfigID, responseModel, textReq)
+		h.streamChatCompletions(c, principal, modelConfigID, responseModel, textReq, req.ProjectID)
 		return
 	}
 
-	resp, err := h.svc.CallText(c.Request.Context(), principal.User.ID, modelConfigID, textReq)
+	resp, err := h.svc.CallTextWithBilling(c.Request.Context(), principal.User.ID, modelConfigID, textReq, gatewayBillingContext(principal.Key, req.ProjectID))
 	if err != nil {
+		if errors.Is(err, ai.ErrInsufficientQuota) {
+			writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", "", "insufficient_quota")
+			return
+		}
 		writeOpenAIError(c, http.StatusBadGateway, err.Error(), "server_error", "", "provider_error")
 		return
 	}
@@ -235,9 +264,13 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 	})
 }
 
-func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, userID uint, modelConfigID uint, responseModel string, req ai.TextRequest) {
-	events, err := h.svc.CallTextStream(c.Request.Context(), userID, modelConfigID, req)
+func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, principal *gatewayPrincipal, modelConfigID uint, responseModel string, req ai.TextRequest, projectID *uint) {
+	events, err := h.svc.CallTextStreamWithBilling(c.Request.Context(), principal.User.ID, modelConfigID, req, gatewayBillingContext(principal.Key, projectID))
 	if err != nil {
+		if errors.Is(err, ai.ErrInsufficientQuota) {
+			writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", "stream", "insufficient_quota")
+			return
+		}
 		writeOpenAIError(c, http.StatusBadGateway, err.Error(), "server_error", "stream", "provider_error")
 		return
 	}
@@ -529,6 +562,80 @@ func gatewayKeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
 		}
 	}
 	return false
+}
+
+func gatewayKeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
+	if key.ProjectID == nil {
+		return true
+	}
+	if requestedProjectID == nil {
+		return false
+	}
+	return *key.ProjectID == *requestedProjectID
+}
+
+func gatewayBillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
+	ctx := ai.BillingContext{ProjectID: projectID}
+	if key != nil {
+		ctx.GatewayAPIKeyID = &key.ID
+	}
+	return ctx
+}
+
+var errGatewayMonthlyBudgetExceeded = errors.New("gateway monthly budget exceeded")
+
+func (h *ModelGatewayHandler) enforceGatewayKeyLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {
+	if key.RateLimitRPM > 0 {
+		if err := h.consumeGatewayRateLimit(ctx, key.ID, key.RateLimitRPM); err != nil {
+			return err
+		}
+	}
+	if key.MonthlyBudget > 0 {
+		spent, err := h.gatewayKeyMonthlySpend(ctx, key.ID)
+		if err != nil {
+			return err
+		}
+		if spent+estimatedCost > key.MonthlyBudget {
+			return fmt.Errorf("%w: spent %.4f plus estimated %.4f exceeds %.4f credits", errGatewayMonthlyBudgetExceeded, spent, estimatedCost, key.MonthlyBudget)
+		}
+	}
+	return nil
+}
+
+func (h *ModelGatewayHandler) consumeGatewayRateLimit(ctx context.Context, keyID uint, limit int) error {
+	now := time.Now().UTC()
+	window := now.Truncate(time.Minute)
+	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var counter model.GatewayRateLimitCounter
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("gateway_api_key_id = ? AND window_start = ?", keyID, window).
+			First(&counter).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			counter = model.GatewayRateLimitCounter{
+				GatewayAPIKeyID: keyID,
+				WindowStart:     window,
+				RequestCount:    1,
+			}
+			return tx.Create(&counter).Error
+		}
+		if counter.RequestCount >= limit {
+			return fmt.Errorf("gateway rate limit exceeded: %d requests per minute", limit)
+		}
+		return tx.Model(&counter).UpdateColumn("request_count", gorm.Expr("request_count + 1")).Error
+	})
+}
+
+func (h *ModelGatewayHandler) gatewayKeyMonthlySpend(ctx context.Context, keyID uint) (float64, error) {
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	var total float64
+	err := h.db.WithContext(ctx).Model(&model.UsageLog{}).
+		Where("gateway_api_key_id = ? AND created_at >= ?", keyID, monthStart).
+		Select("COALESCE(SUM(cost), 0)").Scan(&total).Error
+	return total, err
 }
 
 func (h *ModelGatewayHandler) resolveTextModel(modelID string) (uint, string, error) {

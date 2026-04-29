@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -22,11 +23,13 @@ func (h *ShotHandler) List(c *gin.Context) {
 
 // Create creates a shot under a storyboard.
 func (h *ShotHandler) Create(c *gin.Context) {
-	var s model.Shot
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.ShotInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var s model.Shot
+	service.ApplyShotInput(&s, req)
 	boardID := parseID(c.Param("id"))
 	s.StoryboardID = &boardID
 
@@ -47,11 +50,13 @@ func (h *ShotHandler) Create(c *gin.Context) {
 
 // CreateByProject creates a shot directly under a project (no storyboard required).
 func (h *ShotHandler) CreateByProject(c *gin.Context) {
-	var s model.Shot
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.ShotInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var s model.Shot
+	service.ApplyShotInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
 	if s.Order == 0 {
 		var count int64
@@ -69,10 +74,12 @@ func (h *ShotHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("镜头不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.ShotInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyShotInput(&s, req)
 	h.db.Save(&s)
 	c.JSON(http.StatusOK, s)
 }
@@ -97,7 +104,9 @@ func (h *ShotHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	h.db.Model(&s).Updates(body)
+	if updates := service.ShotPatchUpdates(body); len(updates) > 0 {
+		h.db.Model(&s).Updates(updates)
+	}
 	h.db.First(&s, s.ID)
 	c.JSON(http.StatusOK, s)
 }

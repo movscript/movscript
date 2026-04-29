@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -317,6 +318,10 @@ func decodeCanvasPortOutputs(raw string) map[string]canvasPortValue {
 	return nil
 }
 
+func decodeCanvasRunOutputValues(raw string) map[string]canvasPortValue {
+	return decodeCanvasPortOutputs(raw)
+}
+
 func normalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {
 	if dbTask == nil {
 		return
@@ -516,6 +521,10 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 }
 
 func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runID uint, order []string) {
+	h.executeWorkflowRunWithContext(context.Background(), user, canvasID, runID, order)
+}
+
+func (h *CanvasHandler) executeWorkflowRunWithContext(ctx context.Context, user *model.User, canvasID uint, runID uint, order []string) {
 	var run model.CanvasRun
 	if err := h.db.First(&run, runID).Error; err != nil {
 		finishedAt := time.Now()
@@ -558,6 +567,10 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 		taskMap[runTasks[i].NodeID] = &runTasks[i]
 	}
 	inputValues := decodeCanvasRunInputValues(run.InputValues)
+	workflowOutputs := decodeCanvasRunOutputValues(run.OutputValues)
+	if workflowOutputs == nil {
+		workflowOutputs = map[string]canvasPortValue{}
+	}
 
 	produced := map[string]map[string]canvasPortValue{}
 	setProduced := func(nodeID string, handle string, value canvasPortValue) {
@@ -617,12 +630,133 @@ func (h *CanvasHandler) executeWorkflowRun(user *model.User, canvasID uint, runI
 				portInputs[""] = append(portInputs[""], value)
 			}
 		}
-		outputs := h.executeCanvasNode(context.Background(), user, cv, node, task, portInputs)
+		outputs := h.executeCanvasNode(ctx, user, cv, node, task, portInputs)
+		if node.Type == "output" {
+			var nd nodeData
+			_ = json.Unmarshal([]byte(node.Data), &nd)
+			registerWorkflowOutput(workflowOutputs, node, nd, outputs)
+		}
 		for handle, value := range outputs {
 			setProduced(nid, handle, value)
 		}
 	}
+	if len(workflowOutputs) > 0 {
+		if err := h.persistWorkflowOutputsToResources(ctx, user, cv, runID, workflowOutputs); err != nil {
+			finishedAt := time.Now()
+			h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
+				"status":      "failed",
+				"error":       err.Error(),
+				"finished_at": &finishedAt,
+			})
+			return
+		}
+	}
+	if raw := marshalCanvasPortOutputs(workflowOutputs); raw != "" {
+		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Update("output_values", raw)
+	}
 	h.updateRunStatus(&runID)
+}
+
+func (h *CanvasHandler) persistWorkflowOutputsToResources(ctx context.Context, user *model.User, cv model.Canvas, runID uint, outputs map[string]canvasPortValue) error {
+	if h == nil || user == nil || len(outputs) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(outputs))
+	for key := range outputs {
+		if strings.TrimSpace(key) != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	persistedByFingerprint := map[string]*uint{}
+	for _, key := range keys {
+		value := outputs[key]
+		value.normalize()
+		if canvasPortValueEmpty(value) {
+			continue
+		}
+		if value.ResourceID == nil || *value.ResourceID == 0 {
+			fingerprint := canvasPortValuePersistenceFingerprint(value)
+			if rid := persistedByFingerprint[fingerprint]; rid != nil {
+				value.ResourceID = rid
+			} else {
+				data, mimeType, ext, err := canvasPortValueResourcePayload(value)
+				if err != nil {
+					return fmt.Errorf("persist workflow output %q: %w", key, err)
+				}
+				name := canvasWorkflowOutputResourceName(cv, runID, key, value, ext)
+				resource, err := h.createCanvasResourceFromBytes(ctx, user.ID, name, data, mimeType)
+				if err != nil {
+					return fmt.Errorf("persist workflow output %q: %w", key, err)
+				}
+				value.ResourceID = &resource.ID
+				persistedByFingerprint[fingerprint] = &resource.ID
+			}
+		}
+		outputs[key] = value
+		h.bindWorkflowOutputResource(cv, runID, user.ID, key, value)
+	}
+	return nil
+}
+
+func canvasPortValuePersistenceFingerprint(value canvasPortValue) string {
+	value.normalize()
+	raw, _ := json.Marshal(value)
+	return string(raw)
+}
+
+func canvasWorkflowOutputResourceName(cv model.Canvas, runID uint, key string, value canvasPortValue, ext string) string {
+	base := firstNonEmptyString(cv.Name, "workflow")
+	key = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(key, "_"), "._-")
+	base = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(base, "_"), "._-")
+	if base == "" {
+		base = "workflow"
+	}
+	if key == "" {
+		key = "output"
+	}
+	if ext == "" {
+		switch value.Type {
+		case "json":
+			ext = "json"
+		case "image":
+			ext = "png"
+		case "video":
+			ext = "mp4"
+		case "audio":
+			ext = "mp3"
+		default:
+			ext = "txt"
+		}
+	}
+	return fmt.Sprintf("%s_run_%d_%s.%s", base, runID, key, ext)
+}
+
+func (h *CanvasHandler) bindWorkflowOutputResource(cv model.Canvas, runID uint, userID uint, key string, value canvasPortValue) {
+	if h == nil || h.db == nil || cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
+		return
+	}
+	metadata, _ := json.Marshal(map[string]any{
+		"canvas_id":     cv.ID,
+		"canvas_run_id": runID,
+		"output_key":    key,
+		"value_type":    value.Type,
+	})
+	sourceID := runID
+	binding := model.ResourceBinding{
+		ProjectID:    *cv.ProjectID,
+		ResourceID:   *value.ResourceID,
+		OwnerType:    "canvas",
+		OwnerID:      cv.ID,
+		Role:         "output",
+		Slot:         key,
+		Status:       "selected",
+		SourceType:   "canvas",
+		SourceID:     &sourceID,
+		MetadataJSON: string(metadata),
+		CreatedByID:  &userID,
+	}
+	_ = NewResourceBindingHandler(h.db).createBinding(binding)
 }
 
 func buildCanvasExecutionPlan(cv model.Canvas) (canvasExecutionPlan, error) {
@@ -653,6 +787,9 @@ func canvasNodeRequiresWorkflowTask(cv model.Canvas, node *model.CanvasNode) boo
 		return true
 	}
 	if node.Type == "output" {
+		return true
+	}
+	if node.Type == "resource_sink" {
 		return true
 	}
 	var nd nodeData
@@ -698,6 +835,19 @@ func (h *CanvasHandler) executeCanvasNode(ctx context.Context, user *model.User,
 			h.completeInlineValueTask(task, node, nd, outputs)
 		}
 		return outputs
+	}
+
+	if node.Type == "resource_sink" {
+		if task == nil {
+			return nil
+		}
+		outputValue := firstCanvasInputValue(inputs)
+		if canvasPortValueEmpty(outputValue) {
+			h.db.Model(task).Update("status", "running")
+			h.failTask(task, node, nd, "resource sink has no upstream value")
+			return nil
+		}
+		return h.completeResourceSinkTask(ctx, task, node, nd, user, outputValue)
 	}
 
 	if isCanvasEntityNode(node.Type) {
@@ -751,7 +901,7 @@ func (h *CanvasHandler) executeCanvasNode(ctx context.Context, user *model.User,
 	}
 	if node.Type == "canvas" && nd.ExecutableSpec == nil {
 		h.db.Model(task).Update("status", "running")
-		return h.completeCanvasReferenceTask(task, node, nd, user)
+		return h.completeCanvasReferenceTask(ctx, task, node, nd, user, inputs)
 	}
 
 	h.executeTask(user, node, task, nd, inputs)
@@ -1039,6 +1189,35 @@ func firstCanvasInputValue(inputs canvasPortInputMap) canvasPortValue {
 	return canvasPortValue{}
 }
 
+func firstCanvasOutputValue(outputs map[string]canvasPortValue) canvasPortValue {
+	for _, key := range []string{"", "value", "result"} {
+		if value, ok := outputs[key]; ok && !canvasPortValueEmpty(value) {
+			return value
+		}
+	}
+	for _, value := range outputs {
+		if !canvasPortValueEmpty(value) {
+			return value
+		}
+	}
+	return canvasPortValue{}
+}
+
+func registerWorkflowOutput(outputs map[string]canvasPortValue, node *model.CanvasNode, nd nodeData, nodeOutputs map[string]canvasPortValue) {
+	if outputs == nil || node == nil {
+		return
+	}
+	value := firstCanvasOutputValue(nodeOutputs)
+	if canvasPortValueEmpty(value) {
+		return
+	}
+	registerCanvasReferenceOutput(outputs, node.NodeID, value)
+	registerCanvasReferenceOutput(outputs, nd.ParamName, value)
+	for _, port := range nd.OutputPorts {
+		registerCanvasReferenceOutput(outputs, port.ID, value)
+	}
+}
+
 func firstCanvasOutputResource(outputs map[string]canvasPortValue) *uint {
 	for _, key := range []string{"", "result", "value"} {
 		if value := outputs[key]; value.ResourceID != nil {
@@ -1179,9 +1358,10 @@ func (h *CanvasHandler) ListEntityWriteAudits(c *gin.Context) {
 		return
 	}
 
+	canvasTable := h.db.NamingStrategy.TableName("Canvas")
 	q := h.db.Model(&model.CanvasEntityWriteAudit{}).
-		Joins("JOIN canvases ON canvases.id = canvas_entity_write_audits.canvas_id").
-		Where("canvases.owner_id = ?", user.ID)
+		Joins("JOIN "+canvasTable+" ON "+canvasTable+".id = canvas_entity_write_audits.canvas_id").
+		Where(canvasTable+".owner_id = ?", user.ID)
 
 	if value, ok, err := optionalUintQuery(c, "canvas_id"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1329,7 +1509,7 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 	}
 
 	if node.Type == "canvas" {
-		h.completeCanvasReferenceTask(task, node, nd, user)
+		h.completeCanvasReferenceTask(ctx, task, node, nd, user, portInputs)
 		return
 	}
 
@@ -1729,10 +1909,93 @@ func (h *CanvasHandler) completeInlineTextTask(task *model.CanvasTask, node *mod
 	h.updateRunStatus(task.CanvasRunID)
 }
 
+func (h *CanvasHandler) completeResourceSinkTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User, value canvasPortValue) map[string]canvasPortValue {
+	h.db.Model(task).Update("status", "running")
+	value.normalize()
+	if value.ResourceID != nil && *value.ResourceID > 0 {
+		outputs := map[string]canvasPortValue{
+			defaultCanvasSourceHandleForNode(node.Type, nd): value,
+			"": value,
+		}
+		h.updateTaskOutputValues(task, outputs)
+		h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *value.ResourceID})
+		nd.Status = "done"
+		nd.ResourceID = value.ResourceID
+		nd.TaskID = &task.ID
+		if task.CanvasRunID == nil {
+			h.updateNodeData(node, nd)
+		}
+		h.updateRunStatus(task.CanvasRunID)
+		return outputs
+	}
+
+	data, mimeType, ext, err := canvasPortValueResourcePayload(value)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return nil
+	}
+	name := canvasResourceSinkName(node, nd, task.ID, ext)
+	r, err := h.createCanvasResourceFromBytes(ctx, user.ID, name, data, mimeType)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return nil
+	}
+	outputValue := canvasPortValueFromResource(&r.ID, firstNonEmptyString(nd.ParamType, "resource"))
+	outputs := map[string]canvasPortValue{
+		defaultCanvasSourceHandleForNode(node.Type, nd): outputValue,
+		"": outputValue,
+	}
+	h.updateTaskOutputValues(task, outputs)
+	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
+	nd.Status = "done"
+	nd.ResourceID = &r.ID
+	nd.TaskID = &task.ID
+	if task.CanvasRunID == nil {
+		h.updateNodeData(node, nd)
+	}
+	h.updateRunStatus(task.CanvasRunID)
+	return outputs
+}
+
+func canvasPortValueResourcePayload(value canvasPortValue) ([]byte, string, string, error) {
+	value.normalize()
+	switch value.Type {
+	case "json":
+		data, err := json.MarshalIndent(value.JSON, "", "  ")
+		if err != nil {
+			return nil, "", "", fmt.Errorf("encode json resource: %w", err)
+		}
+		return data, "application/json", "json", nil
+	case "number", "boolean", "text":
+		text := canvasPortValueText(value)
+		return []byte(text), "text/plain; charset=utf-8", "txt", nil
+	default:
+		text := canvasPortValueText(value)
+		if strings.TrimSpace(text) == "" {
+			return nil, "", "", fmt.Errorf("resource sink can only persist resource or inline text/json/number/boolean values")
+		}
+		return []byte(text), "text/plain; charset=utf-8", "txt", nil
+	}
+}
+
+func canvasResourceSinkName(node *model.CanvasNode, nd nodeData, taskID uint, ext string) string {
+	base := firstNonEmptyString(nd.ParamName, node.Label, node.NodeID, "canvas_output")
+	base = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(base, "_"), "._-")
+	if base == "" {
+		base = "canvas_output"
+	}
+	if ext == "" {
+		ext = "bin"
+	}
+	return fmt.Sprintf("%s_%d.%s", base, taskID, ext)
+}
+
 func defaultCanvasSourceHandle(nodeType string) string {
 	switch nodeType {
 	case "input", "output":
 		return "value"
+	case "resource_sink":
+		return "resource"
 	case "text", "text_gen":
 		return "text"
 	case "image", "ref_image_gen":
@@ -1766,8 +2029,12 @@ func defaultCanvasPortValueTypeForNode(nodeType string, nd nodeData) string {
 		}
 	}
 	switch nodeType {
-	case "text", "text_gen", "input", "output":
+	case "text", "text_gen", "input":
 		return "text"
+	case "output":
+		return firstNonEmptyString(nd.ParamType, "resource")
+	case "resource_sink":
+		return "resource"
 	case "image", "ref_image_gen", "multi_angle", "style_transfer":
 		return "image"
 	case "video", "ref_video_gen", "motion_imitation":
@@ -2289,8 +2556,8 @@ func firstPositive(values ...int) int {
 	return 0
 }
 
-func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User) map[string]canvasPortValue {
-	outputs, primaryOutput, err := h.resolveCanvasReferenceOutputs(nd, user)
+func (h *CanvasHandler) completeCanvasReferenceTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User, inputs canvasPortInputMap) map[string]canvasPortValue {
+	outputs, primaryOutput, err := h.executeCanvasReferenceOutputs(ctx, nd, user, inputs)
 	if err != nil {
 		h.failTask(task, node, nd, err.Error())
 		return nil
@@ -2312,31 +2579,208 @@ func (h *CanvasHandler) completeCanvasReferenceTask(task *model.CanvasTask, node
 	return outputs
 }
 
-func (h *CanvasHandler) resolveCanvasReferenceOutputs(nd nodeData, user *model.User) (map[string]canvasPortValue, *uint, error) {
+func (h *CanvasHandler) executeCanvasReferenceOutputs(ctx context.Context, nd nodeData, user *model.User, inputs canvasPortInputMap) (map[string]canvasPortValue, *uint, error) {
+	ref, err := h.loadReferencedWorkflowCanvas(nd, user)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(inputs) == 0 {
+		if outputs, primaryOutput, err := h.resolveCanvasReferenceOutputs(ref, nd); err == nil {
+			return outputs, primaryOutput, nil
+		}
+	}
+	run, err := h.executeReferencedWorkflowRun(ctx, user, ref, nd, inputs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return h.outputsForReferencedWorkflowRun(ref, nd, run.ID)
+}
+
+func (h *CanvasHandler) loadReferencedWorkflowCanvas(nd nodeData, user *model.User) (model.Canvas, error) {
 	if nd.ReferencedCanvasID == nil || *nd.ReferencedCanvasID == 0 {
-		return nil, nil, fmt.Errorf("referenced workflow canvas is required")
+		return model.Canvas{}, fmt.Errorf("referenced workflow canvas is required")
 	}
 	var ref model.Canvas
-	if err := h.db.First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
-		return nil, nil, fmt.Errorf("referenced canvas not found")
+	if err := h.db.Preload("Nodes").Preload("Edges").First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
+		return model.Canvas{}, fmt.Errorf("referenced canvas not found")
 	}
 	if ref.OwnerID != user.ID {
-		return nil, nil, fmt.Errorf("referenced canvas is not accessible")
+		return model.Canvas{}, fmt.Errorf("referenced canvas is not accessible")
 	}
 	if ref.CanvasType != "workflow" {
-		return nil, nil, fmt.Errorf("only workflow canvases can be referenced")
+		return model.Canvas{}, fmt.Errorf("only workflow canvases can be referenced")
 	}
+	return ref, nil
+}
 
+func (h *CanvasHandler) resolveCanvasReferenceOutputs(ref model.Canvas, nd nodeData) (map[string]canvasPortValue, *uint, error) {
 	var latestRun model.CanvasRun
 	if err := h.db.Where("canvas_id = ? AND status = ?", ref.ID, "done").Order("id desc").First(&latestRun).Error; err != nil {
 		return nil, nil, fmt.Errorf("referenced workflow has no completed run")
 	}
+	return h.outputsForReferencedWorkflowRun(ref, nd, latestRun.ID)
+}
+
+func (h *CanvasHandler) executeReferencedWorkflowRun(ctx context.Context, user *model.User, ref model.Canvas, nd nodeData, inputs canvasPortInputMap) (model.CanvasRun, error) {
+	plan, err := buildCanvasExecutionPlan(ref)
+	if err != nil {
+		return model.CanvasRun{}, fmt.Errorf("cycle detected in referenced workflow")
+	}
+	inputValues := h.canvasReferenceInputValues(ref, nd, inputs)
+	if err := validateCanvasRequiredInputs(ref, inputValues); err != nil {
+		return model.CanvasRun{}, err
+	}
+	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := buildCanvasRunSnapshot(ref)
+	rawInputValues := "{}"
+	if len(inputValues) > 0 {
+		if b, err := json.Marshal(inputValues); err == nil {
+			rawInputValues = string(b)
+		}
+	}
+	now := time.Now()
+	run := model.CanvasRun{
+		CanvasID:          ref.ID,
+		Status:            "running",
+		InputValues:       rawInputValues,
+		GraphSnapshot:     snapshot,
+		SnapshotHash:      snapshotHash,
+		SnapshotNodeCount: snapshotNodeCount,
+		SnapshotEdgeCount: snapshotEdgeCount,
+		StartedAt:         &now,
+	}
+	if err := h.db.Create(&run).Error; err != nil {
+		return model.CanvasRun{}, err
+	}
+
+	for _, taskPlan := range plan.Tasks {
+		node := taskPlan.Node
+		if node == nil {
+			continue
+		}
+		task := model.CanvasTask{
+			CanvasNodeID: node.ID,
+			CanvasRunID:  &run.ID,
+			NodeID:       node.NodeID,
+			NodeLabel:    node.Label,
+			NodeType:     node.Type,
+			Status:       "pending",
+		}
+		if err := h.db.Create(&task).Error; err != nil {
+			return run, err
+		}
+	}
+
+	h.executeWorkflowRunWithContext(ctx, user, ref.ID, run.ID, plan.Order)
+	if err := h.db.First(&run, run.ID).Error; err != nil {
+		return run, err
+	}
+	if run.Status != "done" {
+		if strings.TrimSpace(run.Error) != "" {
+			return run, fmt.Errorf("referenced workflow failed: %s", run.Error)
+		}
+		return run, fmt.Errorf("referenced workflow failed")
+	}
+	return run, nil
+}
+
+func (h *CanvasHandler) canvasReferenceInputValues(ref model.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
+	values := map[string]canvasPortValue{}
+	inputNodeIDs := map[string]bool{}
+	paramNameToNodeID := map[string]string{}
+	inputNodeOrder := []string{}
+	for _, refNode := range ref.Nodes {
+		if refNode.Type != "input" {
+			continue
+		}
+		inputNodeIDs[refNode.NodeID] = true
+		inputNodeOrder = append(inputNodeOrder, refNode.NodeID)
+		var refNodeData nodeData
+		_ = json.Unmarshal([]byte(refNode.Data), &refNodeData)
+		if name := strings.TrimSpace(refNodeData.ParamName); name != "" {
+			paramNameToNodeID[name] = refNode.NodeID
+		}
+	}
+	if len(inputNodeOrder) == 1 {
+		if value, ok := firstNonEmptyCanvasPortValue(inputs["input"]); ok {
+			values[inputNodeOrder[0]] = value
+		} else if value, ok := firstNonEmptyCanvasPortValue(inputs[""]); ok {
+			values[inputNodeOrder[0]] = value
+		}
+	}
+
+	for handle, portValues := range inputs {
+		handle = strings.TrimSpace(handle)
+		if handle == "" {
+			continue
+		}
+		value, ok := firstNonEmptyCanvasPortValue(portValues)
+		if !ok {
+			continue
+		}
+		if inputNodeIDs[handle] {
+			values[handle] = value
+			continue
+		}
+		if nodeID := paramNameToNodeID[handle]; nodeID != "" {
+			values[nodeID] = value
+		}
+	}
+	for _, port := range nd.InputPorts {
+		handle := strings.TrimSpace(port.ID)
+		if handle == "" {
+			continue
+		}
+		if value, ok := values[handle]; ok && !canvasPortValueEmpty(value) {
+			continue
+		}
+		if nodeID := paramNameToNodeID[handle]; nodeID != "" {
+			if value, ok := values[nodeID]; ok && !canvasPortValueEmpty(value) {
+				continue
+			}
+		}
+		value, ok := firstNonEmptyCanvasPortValue(inputs[handle])
+		if !ok {
+			continue
+		}
+		if inputNodeIDs[handle] {
+			values[handle] = value
+		} else if nodeID := paramNameToNodeID[handle]; nodeID != "" {
+			values[nodeID] = value
+		}
+	}
+	return values
+}
+
+func firstNonEmptyCanvasPortValue(values []canvasPortValue) (canvasPortValue, bool) {
+	for _, value := range values {
+		value.normalize()
+		if !canvasPortValueEmpty(value) {
+			return value, true
+		}
+	}
+	return canvasPortValue{}, false
+}
+
+func (h *CanvasHandler) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData, runID uint) (map[string]canvasPortValue, *uint, error) {
+	var run model.CanvasRun
+	if err := h.db.Where("canvas_id = ? AND id = ?", ref.ID, runID).First(&run).Error; err == nil {
+		if outputs, primaryOutput := h.canvasReferenceOutputsFromRun(run, nd); len(outputs) > 0 {
+			return outputs, primaryOutput, nil
+		}
+	}
 
 	var outputNodes []model.CanvasNode
-	h.db.Where("canvas_id = ? AND type = ?", ref.ID, "output").Order("id asc").Find(&outputNodes)
+	for _, node := range ref.Nodes {
+		if node.Type == "output" {
+			outputNodes = append(outputNodes, node)
+		}
+	}
+	if len(outputNodes) == 0 {
+		h.db.Where("canvas_id = ? AND type = ?", ref.ID, "output").Order("id asc").Find(&outputNodes)
+	}
 
 	var refTasks []model.CanvasTask
-	refTaskQuery := h.db.Where("canvas_run_id = ?", latestRun.ID)
+	refTaskQuery := h.db.Where("canvas_run_id = ?", runID)
 	if len(outputNodes) > 0 {
 		outputNodeIDs := make([]uint, 0, len(outputNodes))
 		for _, outputNode := range outputNodes {
@@ -2399,6 +2843,44 @@ func (h *CanvasHandler) resolveCanvasReferenceOutputs(nd nodeData, user *model.U
 		break
 	}
 	return outputs, primaryOutput, nil
+}
+
+func (h *CanvasHandler) canvasReferenceOutputsFromRun(run model.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
+	runOutputs := decodeCanvasRunOutputValues(run.OutputValues)
+	if len(runOutputs) == 0 {
+		return nil, nil
+	}
+	outputs := map[string]canvasPortValue{}
+	var primaryOutput *uint
+	for key, value := range runOutputs {
+		if canvasPortValueEmpty(value) {
+			continue
+		}
+		registerCanvasReferenceOutput(outputs, key, value)
+		if primaryOutput == nil && value.ResourceID != nil {
+			primaryOutput = value.ResourceID
+		}
+	}
+	for _, port := range nd.OutputPorts {
+		handle := strings.TrimSpace(port.ID)
+		if handle == "" {
+			continue
+		}
+		if value, ok := outputs[handle]; ok && !canvasPortValueEmpty(value) {
+			outputs[""] = value
+			return outputs, primaryOutput
+		}
+	}
+	if value, ok := outputs[""]; ok && !canvasPortValueEmpty(value) {
+		return outputs, primaryOutput
+	}
+	for _, value := range outputs {
+		if !canvasPortValueEmpty(value) {
+			outputs[""] = value
+			break
+		}
+	}
+	return outputs, primaryOutput
 }
 
 func canvasReferenceTaskOutputValue(task model.CanvasTask, node model.CanvasNode, nd nodeData) canvasPortValue {
@@ -2612,12 +3094,47 @@ func (h *CanvasHandler) updateRunStatus(runID *uint) {
 		if failed {
 			status = "failed"
 			updates["status"] = status
-			updates["error"] = "one or more workflow tasks failed"
+			updates["error"] = canvasRunTaskFailureSummary(tasks)
 		}
 		finishedAt := time.Now()
 		updates["finished_at"] = &finishedAt
 	}
 	h.db.Model(&model.CanvasRun{}).Where("id = ?", *runID).Updates(updates)
+}
+
+func canvasRunTaskFailureSummary(tasks []model.CanvasTask) string {
+	failures := make([]string, 0)
+	for _, task := range tasks {
+		if task.Status != "failed" {
+			continue
+		}
+		label := strings.TrimSpace(task.NodeLabel)
+		if label == "" {
+			label = strings.TrimSpace(task.NodeID)
+		}
+		if label == "" {
+			label = fmt.Sprintf("task #%d", task.ID)
+		}
+		errMsg := strings.TrimSpace(task.Error)
+		if errMsg == "" {
+			errMsg = "unknown error"
+		}
+		if len(errMsg) > 240 {
+			errMsg = errMsg[:240] + "..."
+		}
+		failures = append(failures, fmt.Sprintf("%s: %s", label, errMsg))
+	}
+	if len(failures) == 0 {
+		return "one or more workflow tasks failed"
+	}
+	if len(failures) == 1 {
+		return "workflow task failed: " + failures[0]
+	}
+	if len(failures) > 3 {
+		remaining := len(failures) - 3
+		failures = append(failures[:3], fmt.Sprintf("%d more failed", remaining))
+	}
+	return "workflow tasks failed: " + strings.Join(failures, "; ")
 }
 
 // topoSort returns node IDs in topological order; returns error if a cycle exists.

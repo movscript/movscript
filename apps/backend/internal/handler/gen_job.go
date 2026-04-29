@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -152,27 +153,44 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		legacyInputID = &allIDs[0]
 	}
 	requestContext := buildGenJobContextSnapshot(mcfg, cred, req.Prompt, req.ExtraParams, req.AspectRatio, req.Duration, jobType, req.FeatureKey, orderedResources(inputResources, allIDs), time.Now())
+	estimate, err := h.estimateGenJobCost(req.ModelConfigID, jobType, req.Duration, req.ExtraParams, req.AspectRatio)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	reservation, err := h.aiService.ReserveQuota(c.Request.Context(), user.ID, req.ModelConfigID, estimate, ai.BillingContext{ProjectID: req.ProjectID})
+	if err != nil {
+		status := http.StatusPaymentRequired
+		if !errors.Is(err, ai.ErrInsufficientQuota) {
+			status = http.StatusInternalServerError
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
 
 	job := model.GenJob{
-		UserID:           user.ID,
-		ModelConfigID:    req.ModelConfigID,
-		JobType:          jobType,
-		FeatureKey:       req.FeatureKey,
-		Status:           genjob.StatusPending,
-		MaxAttempts:      genjob.DefaultMaxAttempts,
-		Prompt:           req.Prompt,
-		ExtraParams:      req.ExtraParams,
-		AspectRatio:      req.AspectRatio,
-		Duration:         req.Duration,
-		RequestContext:   requestContext,
-		InputResourceID:  legacyInputID,
-		InputResourceIDs: inputResourceIDsJSON,
-		ProjectID:        req.ProjectID,
+		UserID:             user.ID,
+		ModelConfigID:      req.ModelConfigID,
+		JobType:            jobType,
+		FeatureKey:         req.FeatureKey,
+		Status:             genjob.StatusPending,
+		MaxAttempts:        genjob.DefaultMaxAttempts,
+		Prompt:             req.Prompt,
+		ExtraParams:        req.ExtraParams,
+		AspectRatio:        req.AspectRatio,
+		Duration:           req.Duration,
+		RequestContext:     requestContext,
+		InputResourceID:    legacyInputID,
+		InputResourceIDs:   inputResourceIDsJSON,
+		UsageReservationID: &reservation.ID,
+		ProjectID:          req.ProjectID,
 	}
 	if err := h.db.Create(&job).Error; err != nil {
+		_ = h.aiService.ReleaseReservation(c.Request.Context(), reservation.ID, "gen job create failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	_ = h.aiService.SetReservationGenJob(c.Request.Context(), reservation.ID, job.ID)
 	c.JSON(http.StatusCreated, h.buildJobResponses(c, []model.GenJob{job})[0])
 }
 
@@ -291,6 +309,55 @@ func buildGenJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredentia
 		return ""
 	}
 	return string(b)
+}
+
+func (h *GenJobHandler) estimateGenJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
+	extra := map[string]any{}
+	if extraParams != "" {
+		_ = json.Unmarshal([]byte(extraParams), &extra)
+	}
+	extra = ai.NormalizeGenerationParams(extra)
+	getString := func(key string) string {
+		if v, ok := extra[key].(string); ok {
+			return v
+		}
+		return ""
+	}
+	getInt := func(key string) int {
+		if v, ok := extra[key]; ok {
+			switch n := v.(type) {
+			case float64:
+				return int(n)
+			case int:
+				return n
+			case string:
+				i, err := strconv.Atoi(n)
+				if err == nil {
+					return i
+				}
+			}
+		}
+		return 0
+	}
+
+	switch jobType {
+	case ai.CapabilityImage, ai.CapabilityImageEdit:
+		return h.aiService.EstimateImageCost(modelConfigID, ai.ImageRequest{
+			N:           1,
+			AspectRatio: firstNonEmptyHandler(aspectRatio, getString("aspect_ratio")),
+		})
+	case ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+		dur := duration
+		if dur <= 0 {
+			dur = getInt("duration")
+		}
+		return h.aiService.EstimateVideoCost(modelConfigID, ai.VideoRequest{
+			Duration:    dur,
+			AspectRatio: firstNonEmptyHandler(aspectRatio, getString("aspect_ratio"), getString("ratio")),
+		})
+	default:
+		return ai.UsageEstimate{}, errors.New("unsupported generation job type")
+	}
 }
 
 func genJobModelDisplay(mcfg model.AIModelConfig) string {
@@ -596,6 +663,9 @@ func (h *GenJobHandler) Cancel(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if job.UsageReservationID != nil {
+		_ = h.aiService.ReleaseReservation(c.Request.Context(), *job.UsageReservationID, "cancelled by user")
+	}
 	if err := h.db.Preload("OutputResource").First(&job, job.ID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -631,6 +701,9 @@ func (h *GenJobHandler) Delete(c *gin.Context) {
 			"next_run_at":       nil,
 			"last_heartbeat_at": &now,
 		})
+		if job.UsageReservationID != nil {
+			_ = h.aiService.ReleaseReservation(c.Request.Context(), *job.UsageReservationID, "cancelled by user")
+		}
 	} else if job.Status == genjob.StatusRunning {
 		c.JSON(http.StatusConflict, gin.H{"error": "running jobs must be cancelled before deletion"})
 		return

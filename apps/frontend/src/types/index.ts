@@ -738,7 +738,7 @@ export interface GenJob {
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
 export type CanvasEntityKind = 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
-export type SpecialNodeType = 'input' | 'output' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
+export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
 export type NodeSource = 'upload' | 'ai' | 'manual'
@@ -1138,6 +1138,7 @@ export interface CanvasRun {
   canvas_id: number
   status: CanvasRunStatus
   input_values?: string
+  output_values?: string
   error?: string
   graph_snapshot?: string
   snapshot_hash?: string

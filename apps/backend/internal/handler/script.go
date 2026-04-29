@@ -11,6 +11,7 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -50,11 +51,13 @@ func (h *ScriptHandler) ListAnalyses(c *gin.Context) {
 }
 
 func (h *ScriptHandler) Create(c *gin.Context) {
-	var s model.Script
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.ScriptInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var s model.Script
+	service.ApplyScriptInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
 	if err := h.validateScriptEpisodeBinding(&s); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
@@ -93,10 +96,12 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("剧本不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.ScriptInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyScriptInput(&s, req)
 	if err := h.validateScriptEpisodeBinding(&s); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -165,12 +170,15 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	updates := service.ScriptPatchUpdates(body)
 	if next.ScriptType == "main" {
-		body["episode_id"] = nil
+		updates["episode_id"] = nil
 	}
-	if err := h.db.Model(&s).Updates(body).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	if len(updates) > 0 {
+		if err := h.db.Model(&s).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	h.db.First(&s, s.ID)
 	if err := h.syncScriptFieldsToSettings(&s); err != nil {

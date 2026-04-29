@@ -1,6 +1,9 @@
 package config
 
 import (
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -51,6 +54,44 @@ func Load() *Config {
 	}
 }
 
+func (c *Config) ValidateStartup() error {
+	var problems []string
+	if key, err := hex.DecodeString(c.EncryptionKey); err != nil || len(key) != 32 {
+		problems = append(problems, "ENCRYPTION_KEY must be a 64-character hex string (generate one with: openssl rand -hex 32)")
+	}
+	if c.AuthTokenSecret == "" {
+		problems = append(problems, "AUTH_TOKEN_SECRET must be set")
+	}
+	if c.AuthTokenTTLHours <= 0 {
+		problems = append(problems, "AUTH_TOKEN_TTL_HOURS must be greater than 0")
+	}
+	if c.DBHost == "" || c.DBPort == "" || c.DBUser == "" || c.DBName == "" {
+		problems = append(problems, "database settings DB_HOST, DB_PORT, DB_USER, and DB_NAME are required")
+	}
+	if c.MinIOEndpoint == "" || c.MinIOAccessKey == "" || c.MinIOSecretKey == "" || c.MinIOBucket == "" {
+		problems = append(problems, "MinIO settings MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, and MINIO_BUCKET are required")
+	}
+	if len(problems) > 0 {
+		return errors.New("invalid startup configuration: " + joinProblems(problems))
+	}
+	return nil
+}
+
+func (c *Config) SafeSummary() map[string]any {
+	return map[string]any{
+		"db_host":         c.DBHost,
+		"db_port":         c.DBPort,
+		"db_name":         c.DBName,
+		"server_port":     c.ServerPort,
+		"auth_ttl_hours":  c.AuthTokenTTLHours,
+		"minio_endpoint":  c.MinIOEndpoint,
+		"minio_bucket":    c.MinIOBucket,
+		"minio_use_ssl":   c.MinIOUseSSL,
+		"mcp_token_set":   c.MCPToken != "",
+		"auth_secret_set": c.AuthTokenSecret != "",
+	}
+}
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -65,4 +106,18 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func joinProblems(problems []string) string {
+	if len(problems) == 0 {
+		return ""
+	}
+	out := ""
+	for i, problem := range problems {
+		if i > 0 {
+			out += "; "
+		}
+		out += fmt.Sprintf("%d. %s", i+1, problem)
+	}
+	return out
 }

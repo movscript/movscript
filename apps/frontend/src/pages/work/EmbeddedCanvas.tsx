@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import type { Canvas, CanvasRun, CanvasType } from '@/types'
 import { Button } from '@movscript/ui'
+import { Input } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { CanvasWorkspace, type CanvasPushTarget } from '@/pages/canvas/CanvasEditorPage'
-import { CheckCircle2, Layers, Loader2, PanelLeftClose, PanelLeftOpen, Play, Plus, XCircle } from 'lucide-react'
+import { Check, CheckCircle2, Layers, Loader2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, X, XCircle } from 'lucide-react'
 
 export interface EntityDragItem {
   kind: 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
@@ -27,14 +28,18 @@ interface Props {
 function CanvasListItem({
   canvas,
   active,
+  projectId,
   onSelect,
 }: {
   canvas: Canvas
   active: boolean
+  projectId?: number
   onSelect: () => void
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingName, setEditingName] = useState(canvas.name)
   const { data: runsPage } = useQuery<{ items?: CanvasRun[] } | CanvasRun[]>({
     queryKey: ['canvas-runs', canvas.ID, 1, 'all'],
     queryFn: () => api.get(`/canvases/${canvas.ID}/runs`, { params: { page: 1, page_size: 1 } }).then((r) => r.data),
@@ -48,6 +53,25 @@ function CanvasListItem({
     mutationFn: () => api.post(`/canvases/${canvas.ID}/run`, { input_values: {} }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas-runs', canvas.ID] }),
   })
+  const rename = useMutation({
+    mutationFn: (name: string) => api.patch(`/canvases/${canvas.ID}`, { name }).then((r) => r.data as Canvas),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['canvases-project', projectId] })
+      qc.invalidateQueries({ queryKey: ['canvases'] })
+      qc.invalidateQueries({ queryKey: ['canvas', canvas.ID] })
+      setIsEditing(false)
+    },
+  })
+
+  useEffect(() => {
+    setEditingName(canvas.name)
+  }, [canvas.name])
+
+  function submitRename() {
+    const name = editingName.trim()
+    if (!name) return
+    rename.mutate(name)
+  }
 
   const statusIcon = latestRun?.status === 'done'
     ? <CheckCircle2 size={10} className="text-emerald-500" />
@@ -62,21 +86,83 @@ function CanvasListItem({
     : canvas.canvas_type === 'workflow' ? t('canvas.status.notRun') : t('canvas.types.inspiration')
 
   return (
-    <button
-      onClick={onSelect}
+    <div
+      onClick={() => {
+        if (!isEditing) onSelect()
+      }}
       className={cn(
-        'w-full border-b border-border/50 px-2.5 py-2 text-left transition-colors',
+        'w-full cursor-pointer border-b border-border/50 px-2.5 py-2 text-left transition-colors',
         active ? 'border-l-2 border-l-primary bg-background' : 'hover:bg-background/60'
       )}
     >
       <div className="flex min-w-0 items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-foreground">{canvas.name}</p>
+          {isEditing ? (
+            <Input
+              autoFocus
+              value={editingName}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setEditingName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitRename()
+                if (e.key === 'Escape') {
+                  setEditingName(canvas.name)
+                  setIsEditing(false)
+                }
+              }}
+              className="h-7 text-xs"
+            />
+          ) : (
+            <p className="truncate text-xs font-medium text-foreground">{canvas.name}</p>
+          )}
           <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
             {statusIcon}
             <span>{statusText}</span>
           </p>
         </div>
+        {isEditing ? (
+          <div className="mt-0.5 flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                submitRename()
+              }}
+              disabled={!editingName.trim() || rename.isPending}
+              className="h-6 w-6"
+              title={t('pages.canvases.renameConfirm')}
+            >
+              {rename.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditingName(canvas.name)
+                setIsEditing(false)
+              }}
+              className="h-6 w-6"
+              title={t('common.cancel')}
+            >
+              <X size={11} />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsEditing(true)
+            }}
+            className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground"
+            title={t('pages.canvases.rename')}
+          >
+            <Pencil size={11} />
+          </Button>
+        )}
         {canvas.canvas_type === 'workflow' && (
           <span
             role="button"
@@ -97,7 +183,7 @@ function CanvasListItem({
       <p className="mt-1 text-[10px] text-muted-foreground">
         {canvas.canvas_type === 'workflow' ? t('canvas.types.workflow') : t('canvas.types.inspiration')}
       </p>
-    </button>
+    </div>
   )
 }
 
@@ -211,6 +297,7 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
                   key={canvas.ID}
                   canvas={canvas}
                   active={activeCanvasId === canvas.ID}
+                  projectId={projectId}
                   onSelect={() => setActiveCanvasId(canvas.ID)}
                 />
               ))

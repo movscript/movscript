@@ -52,6 +52,7 @@ services:
       context: ./apps/backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    command: ["/bin/sh", "-c", "./migrate up && ./server"]
     ports:
       - "8765:8765"
     environment:

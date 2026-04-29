@@ -1,4 +1,4 @@
-.PHONY: build build-agent build-apps build-backend build-frontend build-movcli build-packages build-plugins dev-agent dev-backend dev-frontend dev-movcli test test-backend typecheck-frontend typecheck-packages tidy
+.PHONY: build build-agent build-apps build-backend build-frontend build-movcli build-packages build-plugins dev-agent dev-backend dev-frontend dev-movcli migrate-backend migrate-backend-status test test-backend typecheck-frontend typecheck-packages tidy
 
 build: build-backend build-packages build-apps build-plugins
 
@@ -25,6 +25,12 @@ build-frontend:
 
 dev-backend:
 	cd apps/backend && go run ./cmd/server
+
+migrate-backend:
+	cd apps/backend && go run ./cmd/migrate up
+
+migrate-backend-status:
+	cd apps/backend && go run ./cmd/migrate status
 
 dev-frontend:
 	pnpm --filter movscript-frontend dev

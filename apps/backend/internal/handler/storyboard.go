@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -56,11 +57,13 @@ func (h *StoryboardHandler) ListByProject(c *gin.Context) {
 
 // Create creates a storyboard under a scene.
 func (h *StoryboardHandler) Create(c *gin.Context) {
-	var b model.Storyboard
-	if err := c.ShouldBindJSON(&b); err != nil {
+	var req service.StoryboardInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var b model.Storyboard
+	service.ApplyStoryboardInput(&b, req)
 	sceneID := parseID(c.Param("id"))
 	b.SceneID = &sceneID
 
@@ -88,11 +91,13 @@ func (h *StoryboardHandler) Create(c *gin.Context) {
 
 // CreateByProject creates a storyboard directly under a project (scene/episode optional).
 func (h *StoryboardHandler) CreateByProject(c *gin.Context) {
-	var b model.Storyboard
-	if err := c.ShouldBindJSON(&b); err != nil {
+	var req service.StoryboardInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var b model.Storyboard
+	service.ApplyStoryboardInput(&b, req)
 	b.ProjectID = parseID(c.Param("id"))
 
 	// If scene_id provided in body, resolve episode from it.
@@ -118,10 +123,12 @@ func (h *StoryboardHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("分镜不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&b); err != nil {
+	var req service.StoryboardInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyStoryboardInput(&b, req)
 	h.db.Save(&b)
 	c.JSON(http.StatusOK, b)
 }
@@ -145,7 +152,9 @@ func (h *StoryboardHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	h.db.Model(&b).Updates(body)
+	if updates := service.StoryboardPatchUpdates(body); len(updates) > 0 {
+		h.db.Model(&b).Updates(updates)
+	}
 	h.db.First(&b, b.ID)
 	c.JSON(http.StatusOK, b)
 }

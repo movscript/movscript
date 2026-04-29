@@ -23,3 +23,10 @@ type GatewayAPIKey struct {
 	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
 	Owner           User       `gorm:"foreignKey:OwnerUserID" json:"owner,omitempty"`
 }
+
+type GatewayRateLimitCounter struct {
+	gorm.Model
+	GatewayAPIKeyID uint      `gorm:"not null;index:idx_gateway_rate_window,unique" json:"gateway_api_key_id"`
+	WindowStart     time.Time `gorm:"not null;index:idx_gateway_rate_window,unique" json:"window_start"`
+	RequestCount    int       `gorm:"not null;default:0" json:"request_count"`
+}

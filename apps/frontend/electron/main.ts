@@ -1,16 +1,23 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { existsSync } from 'fs'
 import { join } from 'path'
 import { startBackend, stopBackend } from './backend'
 import { ensureAgentRunning, stopAgent } from './agent'
 import { startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
 
+function resolvePreloadPath(): string {
+  const jsPath = join(__dirname, '../preload/index.js')
+  const mjsPath = join(__dirname, '../preload/index.mjs')
+  return existsSync(jsPath) ? jsPath : mjsPath
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: resolvePreloadPath(),
       sandbox: false
     }
   })

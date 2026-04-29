@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/audit"
 	"github.com/movscript/movscript/internal/auth"
 	"github.com/movscript/movscript/internal/model"
 	"golang.org/x/crypto/bcrypt"
@@ -66,6 +67,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	actorID := u.ID
+	audit.Record(c, h.db, audit.Event{
+		Action:     "auth.register",
+		TargetType: "user",
+		TargetID:   audit.TargetID(u.ID),
+		ActorID:    &actorID,
+		Metadata: map[string]any{
+			"system_role": u.SystemRole,
+		},
+	})
 	h.respondWithCredential(c, http.StatusCreated, u)
 }
 
@@ -90,10 +101,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	actorID := u.ID
+	audit.Record(c, h.db, audit.Event{
+		Action:     "auth.login",
+		TargetType: "user",
+		TargetID:   audit.TargetID(u.ID),
+		ActorID:    &actorID,
+	})
 	h.respondWithCredential(c, http.StatusOK, u)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
+	audit.Record(c, h.db, audit.Event{
+		Action:     "auth.logout",
+		TargetType: "session",
+	})
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import type { Canvas, CanvasType } from '@/types'
-import { Plus, Trash2, ArrowRight, LayoutTemplate, Lightbulb, Zap } from 'lucide-react'
+import { Plus, Trash2, ArrowRight, LayoutTemplate, Lightbulb, Zap, Pencil, Check, X } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { Button } from '@movscript/ui'
@@ -34,6 +34,8 @@ export default function CanvasListPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newCanvasType, setNewCanvasType] = useState<CanvasType>('inspiration')
+  const [editingCanvasId, setEditingCanvasId] = useState<number | null>(null)
+  const [editingName, setEditingName] = useState('')
 
   const { data: canvases = [], isLoading } = useQuery<Canvas[]>({
     queryKey: ['canvases', currentProject?.ID],
@@ -61,9 +63,35 @@ export default function CanvasListPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvases'] }),
   })
 
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      api.patch(`/canvases/${id}`, { name }).then((r) => r.data as Canvas),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['canvases'] })
+      setEditingCanvasId(null)
+      setEditingName('')
+    },
+  })
+
   function handleCreate() {
     if (!newName.trim()) return
     create.mutate({ name: newName.trim(), canvas_type: newCanvasType, project_id: currentProject?.ID })
+  }
+
+  function startRename(cv: Canvas) {
+    setEditingCanvasId(cv.ID)
+    setEditingName(cv.name)
+  }
+
+  function submitRename(id: number) {
+    const name = editingName.trim()
+    if (!name) return
+    rename.mutate({ id, name })
+  }
+
+  function cancelRename() {
+    setEditingCanvasId(null)
+    setEditingName('')
   }
 
   return (
@@ -98,6 +126,7 @@ export default function CanvasListPage() {
           {canvases.map((cv) => {
             const type = cv.canvas_type ?? 'inspiration'
             const meta = TYPE_META[type]
+            const isEditing = editingCanvasId === cv.ID
             return (
               <div
                 key={cv.ID}
@@ -105,28 +134,76 @@ export default function CanvasListPage() {
               >
                 <LayoutTemplate size={16} className="text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{cv.name}</p>
+                  {isEditing ? (
+                    <Input
+                      autoFocus
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitRename(cv.ID)
+                        if (e.key === 'Escape') cancelRename()
+                      }}
+                      className="h-8 text-sm"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium text-foreground truncate">{cv.name}</p>
+                  )}
                 </div>
                 <span className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-medium shrink-0 ${meta.color}`}>
                   {meta.icon}{t(meta.labelKey)}
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/canvases/${cv.ID}`)}
-                  className="shrink-0"
-                >
-                  {t('pages.canvases.open')} <ArrowRight size={13} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => remove.mutate(cv.ID)}
-                  aria-label={t('common.delete')}
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 size={14} />
-                </Button>
+                {isEditing ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => submitRename(cv.ID)}
+                      disabled={!editingName.trim() || rename.isPending}
+                      aria-label={t('pages.canvases.renameConfirm')}
+                      className="shrink-0"
+                    >
+                      <Check size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={cancelRename}
+                      aria-label={t('common.cancel')}
+                      className="shrink-0 text-muted-foreground"
+                    >
+                      <X size={14} />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/canvases/${cv.ID}`)}
+                      className="shrink-0"
+                    >
+                      {t('pages.canvases.open')} <ArrowRight size={13} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => startRename(cv)}
+                      aria-label={t('pages.canvases.rename')}
+                      className="shrink-0 text-muted-foreground"
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => remove.mutate(cv.ID)}
+                      aria-label={t('common.delete')}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </>
+                )}
               </div>
             )
           })}

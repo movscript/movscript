@@ -1,0 +1,495 @@
+package service
+
+import (
+	"time"
+
+	"github.com/movscript/movscript/internal/model"
+)
+
+type ProjectCreateInput struct {
+	Name             string `json:"name" binding:"required"`
+	Description      string `json:"description"`
+	TotalEpisodes    int    `json:"total_episodes"`
+	PipelineTemplate string `json:"pipeline_template"`
+}
+
+type ProjectUpdateInput struct {
+	Name             string `json:"name" binding:"required"`
+	Description      string `json:"description"`
+	TotalEpisodes    int    `json:"total_episodes"`
+	PipelineTemplate string `json:"pipeline_template"`
+}
+
+type ProjectMemberInput struct {
+	UserID uint   `json:"user_id" binding:"required"`
+	Role   string `json:"role"`
+}
+
+type UserCreateInput struct {
+	Username string `json:"username" binding:"required"`
+}
+
+type PipelineEdgeInput struct {
+	FromNodeID   uint   `json:"from_node_id" binding:"required"`
+	ToNodeID     uint   `json:"to_node_id" binding:"required"`
+	RelationType string `json:"relation_type"`
+}
+
+type PipelineNodeInput struct {
+	ParentID    *uint      `json:"parent_id"`
+	Type        string     `json:"type" binding:"required"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	AssigneeID  *uint      `json:"assignee_id"`
+	LeadID      *uint      `json:"lead_id"`
+	DueDate     *time.Time `json:"due_date"`
+	ContentType string     `json:"content_type"`
+	EntityType  string     `json:"entity_type"`
+	EntityID    *uint      `json:"entity_id"`
+	PosX        float64    `json:"pos_x"`
+	PosY        float64    `json:"pos_y"`
+}
+
+type AIModelConfigInput struct {
+	ModelDefID            string  `json:"model_def_id" binding:"required"`
+	ModelIDOverride       string  `json:"model_id_override"`
+	IsEnabled             *bool   `json:"is_enabled"`
+	Priority              int     `json:"priority"`
+	CreditsInputPer1M     float64 `json:"credits_input_per_1m"`
+	CreditsOutputPer1M    float64 `json:"credits_output_per_1m"`
+	CreditsPerImage       float64 `json:"credits_per_image"`
+	CreditsPerSecond      float64 `json:"credits_per_second"`
+	CreditsPerCall        float64 `json:"credits_per_call"`
+	CustomDisplayName     string  `json:"custom_display_name"`
+	ShortName             string  `json:"short_name"`
+	CustomCapabilities    string  `json:"custom_capabilities"`
+	CustomBillingMode     string  `json:"custom_billing_mode"`
+	CustomAcceptsImage    bool    `json:"custom_accepts_image"`
+	CustomMaxInputImages  int     `json:"custom_max_input_images"`
+	CustomMaxInputVideos  int     `json:"custom_max_input_videos"`
+	CustomImageEditField  string  `json:"custom_image_edit_field"`
+	CustomSupportedParams string  `json:"custom_supported_params"`
+}
+
+type ScriptInput struct {
+	Title                  string `json:"title" binding:"required"`
+	Description            string `json:"description"`
+	Content                string `json:"content"`
+	ScriptType             string `json:"script_type"`
+	SourceType             string `json:"source_type"`
+	Version                int    `json:"version"`
+	ParentScriptID         *uint  `json:"parent_script_id"`
+	EpisodeID              *uint  `json:"episode_id"`
+	AssigneeID             *uint  `json:"assignee_id"`
+	Summary                string `json:"summary"`
+	Characters             string `json:"characters"`
+	CharacterProfiles      string `json:"character_profiles"`
+	CharacterRelationships string `json:"character_relationships"`
+	CoreSettings           string `json:"core_settings"`
+	Background             string `json:"background"`
+	ScenesDesc             string `json:"scenes_desc"`
+	Hook                   string `json:"hook"`
+	PlotSummary            string `json:"plot_summary"`
+	ScriptPoints           string `json:"script_points"`
+	Order                  int    `json:"order"`
+}
+
+type EpisodeInput struct {
+	Title             string `json:"title" binding:"required"`
+	Number            int    `json:"number"`
+	Synopsis          string `json:"synopsis"`
+	TargetStoryboards int    `json:"target_storyboards"`
+	TargetScenes      int    `json:"target_scenes"`
+}
+
+type SceneInput struct {
+	Number    int    `json:"number"`
+	Title     string `json:"title"`
+	Location  string `json:"location"`
+	TimeOfDay string `json:"time_of_day"`
+	Notes     string `json:"notes"`
+}
+
+type StoryboardInput struct {
+	SceneID        *uint   `json:"scene_id"`
+	EpisodeID      *uint   `json:"episode_id"`
+	AssigneeID     *uint   `json:"assignee_id"`
+	Order          int     `json:"order"`
+	Title          string  `json:"title"`
+	Description    string  `json:"description"`
+	Notes          string  `json:"notes"`
+	Characters     string  `json:"characters"`
+	Actions        string  `json:"actions"`
+	Dialogue       string  `json:"dialogue"`
+	Atmosphere     string  `json:"atmosphere"`
+	CameraAngle    string  `json:"camera_angle"`
+	CameraMovement string  `json:"camera_movement"`
+	DepthOfField   string  `json:"depth_of_field"`
+	Lighting       string  `json:"lighting"`
+	Duration       float64 `json:"duration"`
+	ShotSize       string  `json:"shot_size"`
+	Angle          string  `json:"angle"`
+	Movement       string  `json:"movement"`
+	FocalLength    string  `json:"focal_length"`
+	Pacing         string  `json:"pacing"`
+	Intent         string  `json:"intent"`
+}
+
+type ShotInput struct {
+	StoryboardID     *uint  `json:"storyboard_id"`
+	AssigneeID       *uint  `json:"assignee_id"`
+	Order            int    `json:"order"`
+	Description      string `json:"description"`
+	Prompt           string `json:"prompt"`
+	CanvasID         *uint  `json:"canvas_id"`
+	FinalDescription string `json:"final_description"`
+	FinalPrompt      string `json:"final_prompt"`
+}
+
+type FinalVideoInput struct {
+	EpisodeID    *uint  `json:"episode_id"`
+	SceneID      *uint  `json:"scene_id"`
+	StoryboardID *uint  `json:"storyboard_id"`
+	ShotID       *uint  `json:"shot_id"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	Order        int    `json:"order"`
+}
+
+type AssetInput struct {
+	Name           string `json:"name" binding:"required"`
+	Type           string `json:"type" binding:"required"`
+	Description    string `json:"description"`
+	VariantType    string `json:"variant_type"`
+	VariantName    string `json:"variant_name"`
+	Costume        string `json:"costume"`
+	TimeOfDay      string `json:"time_of_day"`
+	Period         string `json:"period"`
+	State          string `json:"state"`
+	StyleProfile   string `json:"style_profile"`
+	Prompt         string `json:"prompt"`
+	NegativePrompt string `json:"negative_prompt"`
+	IsPrimary      bool   `json:"is_primary"`
+	SettingID      *uint  `json:"setting_id"`
+}
+
+type SettingInput struct {
+	ScriptID         *uint  `json:"script_id"`
+	SourceScriptID   *uint  `json:"source_script_id"`
+	SourceAnalysisID *uint  `json:"source_analysis_id"`
+	Type             string `json:"type" binding:"required"`
+	Name             string `json:"name" binding:"required"`
+	Alias            string `json:"alias"`
+	Description      string `json:"description"`
+	Content          string `json:"content"`
+	Importance       string `json:"importance"`
+	Tags             string `json:"tags"`
+	ProfileJSON      string `json:"profile_json"`
+}
+
+type ScriptSettingRefInput struct {
+	ScriptID     uint    `json:"script_id" binding:"required"`
+	SettingID    uint    `json:"setting_id" binding:"required"`
+	Role         string  `json:"role"`
+	Scope        string  `json:"scope"`
+	FirstMention string  `json:"first_mention"`
+	Evidence     string  `json:"evidence"`
+	Note         string  `json:"note"`
+	Emotion      string  `json:"emotion"`
+	State        string  `json:"state"`
+	Purpose      string  `json:"purpose"`
+	Order        int     `json:"order"`
+	Confidence   float64 `json:"confidence"`
+}
+
+type SettingRelationshipInput struct {
+	SourceSettingID uint   `json:"source_setting_id" binding:"required"`
+	TargetSettingID uint   `json:"target_setting_id" binding:"required"`
+	ScopeScriptID   *uint  `json:"scope_script_id"`
+	Type            string `json:"type"`
+	Label           string `json:"label"`
+	Description     string `json:"description"`
+}
+
+func NewProject(in ProjectCreateInput, ownerID uint) model.Project {
+	return model.Project{
+		Name:             in.Name,
+		Description:      in.Description,
+		OwnerID:          ownerID,
+		TotalEpisodes:    in.TotalEpisodes,
+		PipelineTemplate: in.PipelineTemplate,
+	}
+}
+
+func NewUser(in UserCreateInput) model.User {
+	return model.User{Username: in.Username}
+}
+
+func NewPipelineEdge(in PipelineEdgeInput, projectID uint) model.PipelineEdge {
+	relationType := in.RelationType
+	if relationType == "" {
+		relationType = "hierarchy"
+	}
+	return model.PipelineEdge{
+		ProjectID:    projectID,
+		FromNodeID:   in.FromNodeID,
+		ToNodeID:     in.ToNodeID,
+		RelationType: relationType,
+	}
+}
+
+func NewPipelineNode(in PipelineNodeInput, projectID uint) model.PipelineNode {
+	return model.PipelineNode{
+		ProjectID:   projectID,
+		Type:        in.Type,
+		Name:        in.Name,
+		Status:      "draft",
+		Description: in.Description,
+		AssigneeID:  in.AssigneeID,
+		LeadID:      in.LeadID,
+		DueDate:     in.DueDate,
+		ContentType: in.ContentType,
+		EntityType:  in.EntityType,
+		EntityID:    in.EntityID,
+		PosX:        in.PosX,
+		PosY:        in.PosY,
+	}
+}
+
+func NewAIModelConfig(in AIModelConfigInput, credentialID uint) model.AIModelConfig {
+	cfg := model.AIModelConfig{CredentialID: credentialID}
+	ApplyAIModelConfigInput(&cfg, in)
+	if in.IsEnabled == nil {
+		cfg.IsEnabled = true
+	}
+	return cfg
+}
+
+func ApplyAIModelConfigInput(cfg *model.AIModelConfig, in AIModelConfigInput) {
+	cfg.ModelDefID = in.ModelDefID
+	cfg.ModelIDOverride = in.ModelIDOverride
+	cfg.Priority = in.Priority
+	cfg.CreditsInputPer1M = in.CreditsInputPer1M
+	cfg.CreditsOutputPer1M = in.CreditsOutputPer1M
+	cfg.CreditsPerImage = in.CreditsPerImage
+	cfg.CreditsPerSecond = in.CreditsPerSecond
+	cfg.CreditsPerCall = in.CreditsPerCall
+	cfg.CustomDisplayName = in.CustomDisplayName
+	cfg.ShortName = in.ShortName
+	cfg.CustomCapabilities = in.CustomCapabilities
+	cfg.CustomBillingMode = in.CustomBillingMode
+	cfg.CustomAcceptsImage = in.CustomAcceptsImage
+	cfg.CustomMaxInputImages = in.CustomMaxInputImages
+	cfg.CustomMaxInputVideos = in.CustomMaxInputVideos
+	cfg.CustomImageEditField = in.CustomImageEditField
+	cfg.CustomSupportedParams = in.CustomSupportedParams
+	if in.IsEnabled != nil {
+		cfg.IsEnabled = *in.IsEnabled
+	}
+}
+
+func ApplyProjectUpdate(p *model.Project, in ProjectUpdateInput) {
+	p.Name = in.Name
+	p.Description = in.Description
+	p.TotalEpisodes = in.TotalEpisodes
+	p.PipelineTemplate = in.PipelineTemplate
+}
+
+func ApplyScriptInput(s *model.Script, in ScriptInput) {
+	s.Title = in.Title
+	s.Description = in.Description
+	s.Content = in.Content
+	s.ScriptType = in.ScriptType
+	s.SourceType = in.SourceType
+	s.Version = in.Version
+	s.ParentScriptID = in.ParentScriptID
+	s.EpisodeID = in.EpisodeID
+	s.AssigneeID = in.AssigneeID
+	s.Summary = in.Summary
+	s.Characters = in.Characters
+	s.CharacterProfiles = in.CharacterProfiles
+	s.CharacterRelationships = in.CharacterRelationships
+	s.CoreSettings = in.CoreSettings
+	s.Background = in.Background
+	s.ScenesDesc = in.ScenesDesc
+	s.Hook = in.Hook
+	s.PlotSummary = in.PlotSummary
+	s.ScriptPoints = in.ScriptPoints
+	s.Order = in.Order
+}
+
+func ApplyEpisodeInput(e *model.Episode, in EpisodeInput) {
+	e.Title = in.Title
+	e.Number = in.Number
+	e.Synopsis = in.Synopsis
+	e.TargetStoryboards = in.TargetStoryboards
+	e.TargetScenes = in.TargetScenes
+}
+
+func ApplySceneInput(s *model.Scene, in SceneInput) {
+	s.Number = in.Number
+	s.Title = in.Title
+	s.Location = in.Location
+	s.TimeOfDay = in.TimeOfDay
+	s.Notes = in.Notes
+}
+
+func ApplyStoryboardInput(b *model.Storyboard, in StoryboardInput) {
+	b.SceneID = in.SceneID
+	b.EpisodeID = in.EpisodeID
+	b.AssigneeID = in.AssigneeID
+	b.Order = in.Order
+	b.Title = in.Title
+	b.Description = in.Description
+	b.Notes = in.Notes
+	b.Characters = in.Characters
+	b.Actions = in.Actions
+	b.Dialogue = in.Dialogue
+	b.Atmosphere = in.Atmosphere
+	b.CameraAngle = in.CameraAngle
+	b.CameraMovement = in.CameraMovement
+	b.DepthOfField = in.DepthOfField
+	b.Lighting = in.Lighting
+	b.Duration = in.Duration
+	b.ShotSize = in.ShotSize
+	b.Angle = in.Angle
+	b.Movement = in.Movement
+	b.FocalLength = in.FocalLength
+	b.Pacing = in.Pacing
+	b.Intent = in.Intent
+}
+
+func ApplyShotInput(s *model.Shot, in ShotInput) {
+	s.StoryboardID = in.StoryboardID
+	s.AssigneeID = in.AssigneeID
+	s.Order = in.Order
+	s.Description = in.Description
+	s.Prompt = in.Prompt
+	s.CanvasID = in.CanvasID
+	s.FinalDescription = in.FinalDescription
+	s.FinalPrompt = in.FinalPrompt
+}
+
+func ApplyFinalVideoInput(v *model.FinalVideo, in FinalVideoInput) {
+	v.EpisodeID = in.EpisodeID
+	v.SceneID = in.SceneID
+	v.StoryboardID = in.StoryboardID
+	v.ShotID = in.ShotID
+	v.Title = in.Title
+	v.Description = in.Description
+	v.Order = in.Order
+}
+
+func ApplyAssetInput(a *model.Asset, in AssetInput) {
+	a.Name = in.Name
+	a.Type = in.Type
+	a.Description = in.Description
+	a.VariantType = in.VariantType
+	a.VariantName = in.VariantName
+	a.Costume = in.Costume
+	a.TimeOfDay = in.TimeOfDay
+	a.Period = in.Period
+	a.State = in.State
+	a.StyleProfile = in.StyleProfile
+	a.Prompt = in.Prompt
+	a.NegativePrompt = in.NegativePrompt
+	a.IsPrimary = in.IsPrimary
+	a.SettingID = in.SettingID
+}
+
+func ApplySettingInput(s *model.Setting, in SettingInput) {
+	s.ScriptID = in.ScriptID
+	s.SourceScriptID = in.SourceScriptID
+	s.SourceAnalysisID = in.SourceAnalysisID
+	s.Type = in.Type
+	s.Name = in.Name
+	s.Alias = in.Alias
+	s.Description = in.Description
+	s.Content = in.Content
+	s.Importance = in.Importance
+	s.Tags = in.Tags
+	s.ProfileJSON = in.ProfileJSON
+}
+
+func ApplyScriptSettingRefInput(ref *model.ScriptSettingRef, in ScriptSettingRefInput) {
+	ref.ScriptID = in.ScriptID
+	ref.SettingID = in.SettingID
+	ref.Role = in.Role
+	ref.Scope = in.Scope
+	ref.FirstMention = in.FirstMention
+	ref.Evidence = in.Evidence
+	ref.Note = in.Note
+	ref.Emotion = in.Emotion
+	ref.State = in.State
+	ref.Purpose = in.Purpose
+	ref.Order = in.Order
+	ref.Confidence = in.Confidence
+}
+
+func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelationshipInput) {
+	r.SourceSettingID = in.SourceSettingID
+	r.TargetSettingID = in.TargetSettingID
+	r.ScopeScriptID = in.ScopeScriptID
+	r.Type = in.Type
+	r.Label = in.Label
+	r.Description = in.Description
+}
+
+var projectPatchFields = stringSet("name", "description", "total_episodes", "pipeline_template")
+var scriptPatchFields = stringSet("title", "description", "content", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "character_profiles", "character_relationships", "core_settings", "background", "scenes_desc", "hook", "plot_summary", "script_points", "order")
+var episodePatchFields = stringSet("title", "number", "synopsis", "target_storyboards", "target_scenes")
+var scenePatchFields = stringSet("number", "title", "location", "time_of_day", "notes")
+var storyboardPatchFields = stringSet("scene_id", "episode_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "camera_angle", "camera_movement", "depth_of_field", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")
+var shotPatchFields = stringSet("storyboard_id", "assignee_id", "order", "description", "prompt", "canvas_id", "final_description", "final_prompt")
+var finalVideoPatchFields = stringSet("episode_id", "scene_id", "storyboard_id", "shot_id", "title", "description", "order")
+var assetPatchFields = stringSet("name", "type", "description", "variant_type", "variant_name", "costume", "time_of_day", "period", "state", "style_profile", "prompt", "negative_prompt", "is_primary", "setting_id")
+
+func ProjectPatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, projectPatchFields)
+}
+
+func ScriptPatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, scriptPatchFields)
+}
+
+func EpisodePatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, episodePatchFields)
+}
+
+func ScenePatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, scenePatchFields)
+}
+
+func StoryboardPatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, storyboardPatchFields)
+}
+
+func ShotPatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, shotPatchFields)
+}
+
+func FinalVideoPatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, finalVideoPatchFields)
+}
+
+func AssetPatchUpdates(body map[string]any) map[string]any {
+	return allowPatchFields(body, assetPatchFields)
+}
+
+func allowPatchFields(body map[string]any, allowed map[string]struct{}) map[string]any {
+	updates := make(map[string]any, len(body))
+	for key, value := range body {
+		if _, ok := allowed[key]; ok {
+			updates[key] = value
+		}
+	}
+	return updates
+}
+
+func stringSet(values ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		set[value] = struct{}{}
+	}
+	return set
+}

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -38,11 +39,13 @@ func (h *FinalVideoHandler) ListByProject(c *gin.Context) {
 
 // CreateByProject creates a final video directly under a project.
 func (h *FinalVideoHandler) CreateByProject(c *gin.Context) {
-	var v model.FinalVideo
-	if err := c.ShouldBindJSON(&v); err != nil {
+	var req service.FinalVideoInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var v model.FinalVideo
+	service.ApplyFinalVideoInput(&v, req)
 	v.ProjectID = parseID(c.Param("id"))
 	if v.Order == 0 {
 		var count int64
@@ -65,10 +68,12 @@ func (h *FinalVideoHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("成片不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&v); err != nil {
+	var req service.FinalVideoInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyFinalVideoInput(&v, req)
 	h.db.Save(&v)
 	c.JSON(http.StatusOK, v)
 }
@@ -84,7 +89,9 @@ func (h *FinalVideoHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	h.db.Model(&v).Updates(body)
+	if updates := service.FinalVideoPatchUpdates(body); len(updates) > 0 {
+		h.db.Model(&v).Updates(updates)
+	}
 	h.db.First(&v, v.ID)
 	c.JSON(http.StatusOK, v)
 }

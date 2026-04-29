@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -44,11 +45,13 @@ func (h *EpisodeHandler) ListByProject(c *gin.Context) {
 
 // Create creates an episode under a specific script (legacy route).
 func (h *EpisodeHandler) Create(c *gin.Context) {
-	var e model.Episode
-	if err := c.ShouldBindJSON(&e); err != nil {
+	var req service.EpisodeInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var e model.Episode
+	service.ApplyEpisodeInput(&e, req)
 	scriptID := parseID(c.Param("id"))
 	e.ScriptID = &scriptID
 
@@ -69,11 +72,13 @@ func (h *EpisodeHandler) Create(c *gin.Context) {
 
 // CreateUnderProject creates an episode directly under a project (script optional).
 func (h *EpisodeHandler) CreateUnderProject(c *gin.Context) {
-	var e model.Episode
-	if err := c.ShouldBindJSON(&e); err != nil {
+	var req service.EpisodeInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var e model.Episode
+	service.ApplyEpisodeInput(&e, req)
 	projectID := parseID(c.Param("id"))
 	e.ProjectID = projectID
 
@@ -96,10 +101,12 @@ func (h *EpisodeHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("分集不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&e); err != nil {
+	var req service.EpisodeInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyEpisodeInput(&e, req)
 	e.ScriptID = nil
 	var script model.Script
 	if err := h.db.Where("project_id = ? AND episode_id = ? AND script_type = ?", e.ProjectID, e.ID, "episode").Order("updated_at desc, id desc").First(&script).Error; err == nil {
@@ -123,7 +130,9 @@ func (h *EpisodeHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	h.db.Model(&e).Updates(body)
+	if updates := service.EpisodePatchUpdates(body); len(updates) > 0 {
+		h.db.Model(&e).Updates(updates)
+	}
 	h.db.First(&e, e.ID)
 	c.JSON(http.StatusOK, e)
 }

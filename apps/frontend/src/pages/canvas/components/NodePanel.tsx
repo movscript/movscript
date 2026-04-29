@@ -245,11 +245,39 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.outputHint')}
         </p>
+      </div>
+    )
+  }
+
+  if (nodeType === 'resource_sink') {
+    return (
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+        <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
+        <ParamFields
+          name={data.paramName ?? 'resource'}
+          type={data.paramType ?? 'resource'}
+          onUpdate={(patch) => onUpdate(nodeId, patch)}
+        />
+        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+          {t('canvas.nodePanel.resourceSinkHint')}
+        </p>
         {data.resource && (
           <div>
             <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.currentOutput')}</p>
             <p className="text-xs text-foreground">{data.resource.name}</p>
           </div>
+        )}
+        {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+        {allowRun && (
+          <Button
+            onClick={() => onRun(nodeId)}
+            disabled={isRunning}
+            className="w-full"
+            size="sm"
+          >
+            <Wand2 size={12} />
+            {isRunning ? t('canvas.running') : t('canvas.nodePanel.saveResource')}
+          </Button>
         )}
       </div>
     )
@@ -529,7 +557,7 @@ function normalizePortType(type?: CanvasParamType): CanvasPortDef['type'] {
   return type ?? 'resource'
 }
 
-function deriveCanvasReferencePorts(canvas: Canvas): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
+export function deriveCanvasReferencePorts(canvas: Canvas): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
   const inputNodes = (canvas.nodes ?? []).filter((node) => node.type === 'input')
   const outputNodes = (canvas.nodes ?? []).filter((node) => node.type === 'output')
 

@@ -4,6 +4,9 @@ import type { NodeType } from '@/types'
 import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '../nodeCatalog'
 import { Boxes, Trash2 } from 'lucide-react'
 
+const CONTEXT_MENU_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
+const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card'])
+
 interface Props {
   x: number
   y: number
@@ -27,7 +30,7 @@ function Section({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const nodes = CANVAS_NODE_CATALOG.filter((node) => node.category === category)
+  const nodes = CANVAS_NODE_CATALOG.filter((node) => node.category === category && !CONTEXT_MENU_HIDDEN_NODE_TYPES.has(node.type))
   return (
     <>
       <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
@@ -105,7 +108,7 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
           <div className="border-t border-border my-1" />
         </>
       )}
-      {CANVAS_NODE_CATEGORIES.map((category, index) => (
+      {CONTEXT_MENU_NODE_CATEGORIES.map((category, index) => (
         <div key={category.id}>
           {index > 0 && <div className="border-t border-border my-1" />}
           <Section title={t(category.titleKey)} category={category.id} onAdd={onAdd} onClose={onClose} />

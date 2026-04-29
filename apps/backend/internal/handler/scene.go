@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -30,11 +31,13 @@ func (h *SceneHandler) ListByProject(c *gin.Context) {
 }
 
 func (h *SceneHandler) Create(c *gin.Context) {
-	var s model.Scene
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.SceneInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var s model.Scene
+	service.ApplySceneInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
 	var count int64
 	h.db.Model(&model.Scene{}).Where("project_id = ?", s.ProjectID).Count(&count)
@@ -51,10 +54,12 @@ func (h *SceneHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("分场不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.SceneInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplySceneInput(&s, req)
 	h.db.Save(&s)
 	c.JSON(http.StatusOK, s)
 }
@@ -73,7 +78,9 @@ func (h *SceneHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	h.db.Model(&s).Updates(body)
+	if updates := service.ScenePatchUpdates(body); len(updates) > 0 {
+		h.db.Model(&s).Updates(updates)
+	}
 	h.db.First(&s, s.ID)
 	c.JSON(http.StatusOK, s)
 }

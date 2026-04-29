@@ -12,6 +12,7 @@ import (
 	"github.com/movscript/movscript/internal/config"
 	"github.com/movscript/movscript/internal/handler"
 	"github.com/movscript/movscript/internal/middleware"
+	"github.com/movscript/movscript/internal/observability"
 	"github.com/movscript/movscript/internal/storage"
 	"gorm.io/gorm"
 )
@@ -22,7 +23,10 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		log.Fatalf("invalid auth configuration: %v", err)
 	}
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(observability.RequestID())
+	r.Use(observability.RequestLogger())
 	r.Use(middleware.CORS())
 	r.Use(middleware.Identity(db, tokens))
 
@@ -63,6 +67,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	pluginH := handler.NewPluginHandler(db)
 	registryH := handler.NewRegistryHandler()
 	workflowSchemas := handler.NewWorkflowSchemaHandler(db)
+	auditH := handler.NewAuditHandler(db)
 
 	cloudFileCfgH := handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey)
 
@@ -162,6 +167,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.GET("/canvas-entity-write-audits", canvases.ListEntityWriteAudits)
 			protected.POST("/canvases", canvases.Create)
 			protected.GET("/canvases/:id", canvases.Get)
+			protected.PATCH("/canvases/:id", canvases.Patch)
 			protected.PUT("/canvases/:id", canvases.Save)
 			protected.DELETE("/canvases/:id", canvases.Delete)
 			protected.POST("/canvases/:id/nodes/:nodeId/run", canvases.RunNode)
@@ -338,6 +344,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 				admin.GET("/users", aiH.ListUsersWithQuota)
 				admin.PUT("/users/:id/quota", aiH.SetUserQuota)
 				admin.GET("/usage-logs", aiH.ListUsageLogs)
+				admin.GET("/audit-logs", auditH.List)
 				admin.GET("/projects", projects.AdminList)
 				admin.PUT("/projects/:id/owner", projects.AdminForceSetOwner)
 

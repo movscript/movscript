@@ -1,18 +1,20 @@
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import type { CanvasEntityKind, CanvasNodeData, CanvasPortDef } from '@/types'
+import { useQuery } from '@tanstack/react-query'
+import type { CanvasEntityKind, CanvasNodeData, CanvasPortDef, EntitySemanticValues, EntityWorkflowSchema, EntityWorkflowSchemaField } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
   Image, Video, Music, Brush, Camera, Layers3,
-  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
-  Database,
-} from 'lucide-react'
+	  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
+	  Database, ArrowRightLeft, HardDrive,
+	} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
 import { CANVAS_NODE_META } from '../nodeCatalog'
+import { api } from '@/lib/api'
 
 const ENTITY_ICONS: Record<CanvasEntityKind, React.ReactNode> = {
   script: <FileText size={12} />,
@@ -49,6 +51,9 @@ const semanticSourceHandleStyle: React.CSSProperties = {
   right: -9,
   top: '50%',
 }
+
+const semanticInputHandleId = (portId: string) => `in:${portId}`
+const semanticOutputHandleId = (portId: string) => `out:${portId}`
 
 const PARAM_TYPE_LABELS: Record<string, string> = {
   text: 'canvas.paramTypes.text',
@@ -167,22 +172,18 @@ function SemanticPortRow({ inputPort, outputPort }: { inputPort?: CanvasPortDef;
     >
       {inputPort && (
         <Handle
-          id={inputPort.id}
+          id={semanticInputHandleId(inputPort.id)}
           type="target"
           position={Position.Left}
-          isConnectableStart={false}
-          isConnectableEnd
           title={title}
           style={semanticTargetHandleStyle}
         />
       )}
       {outputPort && (
         <Handle
-          id={outputPort.id}
+          id={semanticOutputHandleId(outputPort.id)}
           type="source"
           position={Position.Right}
-          isConnectableStart
-          isConnectableEnd={false}
           title={title}
           style={semanticSourceHandleStyle}
         />
@@ -201,6 +202,36 @@ function SemanticPortRow({ inputPort, outputPort }: { inputPort?: CanvasPortDef;
       </div>
     </div>
   )
+}
+
+function workflowInputOutputPorts(data: CanvasNodeData): CanvasPortDef[] {
+  return [{
+    id: 'value',
+    label: data.paramName || 'input',
+    type: data.paramType ?? 'text',
+    required: true,
+  }]
+}
+
+function workflowOutputInputPorts(data: CanvasNodeData): CanvasPortDef[] {
+  return [{
+    id: 'value',
+    label: data.paramName || 'output',
+    type: data.paramType ?? 'resource',
+    required: true,
+  }]
+}
+
+function resourceSinkPorts(data: CanvasNodeData): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
+  return {
+    inputs: [{
+      id: 'input',
+      label: data.paramName || 'resource',
+      type: data.paramType ?? 'resource',
+      required: true,
+    }],
+    outputs: [{ id: 'resource', label: data.paramName || 'resource', type: 'resource' }],
+  }
 }
 
 type NodeDataWithHandlers = CanvasNodeData & {
@@ -485,6 +516,76 @@ function CanvasCardBody({
   )
 }
 
+function CanvasReferenceBody({
+  referencedCanvasId,
+  status,
+  inputPorts,
+  outputPorts,
+  outputResource,
+  error,
+}: {
+  referencedCanvasId?: number
+  status: 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  inputPorts?: CanvasPortDef[]
+  outputPorts?: CanvasPortDef[]
+  outputResource?: CanvasNodeData['resource']
+  error?: string
+}) {
+  const { t } = useTranslation()
+  const inputCount = inputPorts?.length ?? 0
+  const outputCount = outputPorts?.length ?? 0
+  const isRunning = status === 'pending' || status === 'running'
+  const outputUrl = outputResource
+    ? outputResource.direct_url ?? `${API_BASE_CANVAS}${outputResource.url}`
+    : undefined
+
+  return (
+    <div className="flex-1 rounded-b-lg bg-card">
+      <div className="border-b border-border px-3 py-2">
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <ArrowRightLeft size={11} />
+          <span className="truncate">
+            {referencedCanvasId
+              ? t('canvas.referenceWorkflow.interfaceSummary', { inputs: inputCount, outputs: outputCount })
+              : t('canvas.referenceWorkflow.selectWorkflow')}
+          </span>
+        </div>
+      </div>
+      {isRunning && (
+        <div className="flex items-center justify-center gap-2 px-3 py-5 text-xs text-muted-foreground">
+          <Loader2 size={14} className="animate-spin" />
+          {t('canvas.referenceWorkflow.reading')}
+        </div>
+      )}
+      {!isRunning && status === 'failed' && (
+        <div className="flex items-center gap-2 px-3 py-3 text-xs text-destructive">
+          <XCircle size={12} />
+          <span className="line-clamp-2">{error ?? t('canvas.generationFailed')}</span>
+        </div>
+      )}
+      {!isRunning && status === 'done' && outputUrl && (
+        <div className="h-28 overflow-hidden bg-muted/30">
+          {outputResource?.type === 'video'
+            ? (outputResource.direct_url
+              ? <video src={outputResource.direct_url} className="h-full w-full object-cover" />
+              : <AuthedVideo src={`${API_BASE_CANVAS}${outputResource.url}`} className="h-full w-full object-cover" />)
+            : outputResource?.direct_url
+              ? <img src={outputResource.direct_url} alt={t('shared.generation.resultAlt')} className="h-full w-full object-cover" />
+              : <AuthedImage src={`${API_BASE_CANVAS}${outputResource?.url}`} alt={t('shared.generation.resultAlt')} className="h-full w-full object-cover" />
+          }
+        </div>
+      )}
+      {!isRunning && !(status === 'done' && outputUrl) && status !== 'failed' && (
+        <div className="px-3 py-3 text-xs text-muted-foreground">
+          {referencedCanvasId
+            ? t('canvas.referenceWorkflow.latestOutputHint')
+            : t('canvas.referenceWorkflow.noWorkflowHint')}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Tool nodes ─────────────────────────────────────────────────────────────────
 
 const TOOL_META: Record<string, { icon: React.ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; featureKey: string; inputType: 'image' | 'video' | 'image+video' }> = {
@@ -511,13 +612,24 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
       <SemanticPortRows nodeType={type} inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
-      <CanvasCardBody
-        prompt={data.prompt}
-        status={status}
-        outputResource={data.resource}
-        outputType={meta.outputType}
-        error={data.error}
-      />
+      {type === 'canvas' ? (
+        <CanvasReferenceBody
+          referencedCanvasId={data.referencedCanvasId}
+          status={status}
+          inputPorts={data.inputPorts}
+          outputPorts={data.outputPorts}
+          outputResource={data.resource}
+          error={data.error}
+        />
+      ) : (
+        <CanvasCardBody
+          prompt={data.prompt}
+          status={status}
+          outputResource={data.resource}
+          outputType={meta.outputType}
+          error={data.error}
+        />
+      )}
     </NodeCard>
   )
 }
@@ -569,7 +681,7 @@ export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHa
           ? <RunBtn onClick={data.onRun} />
           : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.input')}</span>}
       />
-      <SemanticPortRows nodeType="input" inputs={false} />
+      <SemanticPortRows nodeType="input" outputPorts={workflowInputOutputPorts(data)} inputs={false} />
       <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
         <ParamMeta name={data.paramName ?? 'input'} type={data.paramType ?? 'text'} />
         {data.inputValue
@@ -594,15 +706,40 @@ export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithH
           ? <RunBtn onClick={data.onRun} />
           : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.output')}</span>}
       />
-      <SemanticPortRows nodeType="output" outputs={false} />
+      <SemanticPortRows nodeType="output" inputPorts={workflowOutputInputPorts(data)} outputs={false} />
       <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
         <ParamMeta name={data.paramName ?? 'output'} type={data.paramType ?? 'resource'} />
         <div className="flex items-center justify-between gap-2">
           {hasOutput
             ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.generated')}</span>
             : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
-          {hasOutput && data.onPush && <PushBtn onClick={data.onPush} />}
         </div>
+      </div>
+    </NodeCard>
+  )
+}
+
+export function ResourceSinkNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
+  const status = data.status ?? 'idle'
+  const ports = resourceSinkPorts(data)
+  const hasOutput = !!data.resource || status === 'done'
+  return (
+    <NodeCard selected={selected}>
+      <NodeHeader
+        icon={<HardDrive size={12} />}
+        label={data.label || t('canvas.nodeLabels.resource_sink')}
+        status={status}
+        actions={status !== 'pending' && status !== 'running' && data.onRun
+          ? <RunBtn onClick={data.onRun} />
+          : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.resource_sink')}</span>}
+      />
+      <SemanticPortRows nodeType="resource_sink" inputPorts={ports.inputs} outputPorts={ports.outputs} />
+      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
+        <ParamMeta name={data.paramName ?? 'resource'} type={data.paramType ?? 'resource'} />
+        {hasOutput
+          ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.resourceSaved')}</span>
+          : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
       </div>
     </NodeCard>
   )
@@ -742,6 +879,17 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
   const kindLabel = kind ? t(`canvas.entityTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.entity_card')
   const inputPorts = data.inputPorts
   const outputPorts = data.outputPorts
+  const { data: schema } = useQuery<EntityWorkflowSchema>({
+    queryKey: ['workflow-entity-schema', kind],
+    queryFn: () => api.get(`/workflow/entity-schemas/${kind}`).then((r) => r.data),
+    enabled: !!kind,
+  })
+  const { data: semanticValues } = useQuery<EntitySemanticValues>({
+    queryKey: ['entity-semantic-values', kind, data.entityId],
+    queryFn: () => api.get(`/entities/${kind}/${data.entityId}/semantic-values`).then((r) => r.data),
+    enabled: !!kind && !!data.entityId,
+  })
+  const fields = entityPreviewFields(schema, semanticValues?.values, t)
 
   return (
     <NodeCard selected={selected}>
@@ -756,10 +904,101 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
           <span className="rounded border border-border bg-background px-1.5 py-0.5 leading-none">{kindLabel}</span>
           {data.entityId && <span className="font-mono">#{data.entityId}</span>}
         </div>
-        {data.textContent && (
-          <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{data.textContent}</p>
+        {fields.length > 0 ? (
+          <div className="space-y-1.5">
+            {fields.map((field) => (
+              <div key={field.id} className="rounded-md border border-border bg-background/85 px-2 py-1.5">
+                <div className="flex items-center gap-1.5 text-[10px]">
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">{field.label}</span>
+                  {field.readable && <span className="rounded border border-border bg-muted/50 px-1 py-0.5 leading-none text-muted-foreground">out</span>}
+                  {field.writable && <span className="rounded border border-border bg-muted/50 px-1 py-0.5 leading-none text-muted-foreground">in</span>}
+                </div>
+                <p className={cn(
+                  'mt-1 text-[11px] leading-snug',
+                  field.hasValue ? 'line-clamp-2 text-muted-foreground' : 'italic text-muted-foreground/45'
+                )}>
+                  {field.summary}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs italic text-muted-foreground/45">
+            {data.textContent || t('canvas.entityCard.noPreview')}
+          </p>
         )}
       </div>
     </NodeCard>
   )
+}
+
+type EntityPreviewField = {
+  id: string
+  label: string
+  summary: string
+  hasValue: boolean
+  readable: boolean
+  writable: boolean
+}
+
+function entityPreviewFields(schema: EntityWorkflowSchema | undefined, values: Record<string, unknown> | undefined, t: (key: string, options?: any) => string): EntityPreviewField[] {
+  if (!schema) return []
+  const fields = schema.sections.flatMap((section) => section.fields)
+    .filter((field) => !field.deprecated && (field.workflow.readable || field.workflow.writable))
+    .map((field) => {
+      const value = values?.[field.id]
+      const summary = summarizeEntityValue(value)
+      return {
+        id: field.id,
+        label: field.labelKey ? t(field.labelKey, { defaultValue: entityFieldFallbackLabel(field) }) : entityFieldFallbackLabel(field),
+        summary: summary || t('canvas.entityCard.noValue'),
+        hasValue: !!summary,
+        readable: field.workflow.readable,
+        writable: field.workflow.writable,
+      }
+    })
+  return fields
+    .sort((a, b) => Number(b.hasValue) - Number(a.hasValue) || Number(b.readable) - Number(a.readable))
+    .slice(0, 5)
+}
+
+function entityFieldFallbackLabel(field: EntityWorkflowSchemaField) {
+  return field.fallbackLabel || field.workflow.portId || field.id
+}
+
+function summarizeEntityValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return compactText(value)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    if (value.length === 0) return ''
+    const sample = value.slice(0, 3).map(summarizeEntityListItem).filter(Boolean).join(', ')
+    return value.length > 3 ? `${sample} +${value.length - 3}` : sample
+  }
+  if (typeof value === 'object') {
+    const item = value as Record<string, unknown>
+    const title = item.title ?? item.name ?? item.label ?? item.number ?? item.ID ?? item.id
+    if (title !== undefined) return compactText(String(title))
+    try {
+      return compactText(JSON.stringify(value))
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
+
+function summarizeEntityListItem(value: unknown): string {
+  if (typeof value === 'number') return `#${value}`
+  if (typeof value === 'string') return compactText(value)
+  if (typeof value === 'object' && value) {
+    const item = value as Record<string, unknown>
+    const title = item.title ?? item.name ?? item.label ?? item.number ?? item.ID ?? item.id
+    if (title !== undefined) return compactText(String(title))
+  }
+  return summarizeEntityValue(value)
+}
+
+function compactText(value: string) {
+  return value.replace(/\s+/g, ' ').trim()
 }

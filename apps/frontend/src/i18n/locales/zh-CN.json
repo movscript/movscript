@@ -508,6 +508,8 @@
       "empty": "还没有画布",
       "createFirst": "创建第一个画布",
       "open": "打开",
+      "rename": "重命名",
+      "renameConfirm": "确认重命名",
       "nameRequired": "画布名称 *",
       "namePlaceholder": "为你的画布起个名字",
       "workflowCreateHint": "新画布会以工作流创建，包含默认输入、输出节点。",
@@ -1176,9 +1178,10 @@
       "multi_angle": "图像多角度",
       "style_transfer": "风格迁移",
       "motion_imitation": "动作模仿",
-      "input": "输入",
-      "output": "输出",
-      "approval": "人工确认",
+	      "input": "输入",
+	      "output": "输出",
+	      "resource_sink": "保存资源",
+	      "approval": "人工确认",
       "text_gen": "AI 文本生成",
       "ai_gen": "AI 生成",
       "group": "分组",
@@ -1223,10 +1226,14 @@
           "label": "用户输入",
           "description": "运行工作流时收集文本输入"
         },
-        "output": {
-          "label": "输出结果",
-          "description": "收拢上游节点的最终结果"
-        },
+	    "output": {
+	      "label": "工作流输出",
+	      "description": "把上游结果作为当前工作流的类型化输出暴露给调用方"
+	    },
+	    "resource_sink": {
+	      "label": "保存资源",
+	      "description": "把上游值写入资源库"
+	    },
         "entity_card": {
           "label": "实体",
           "description": "引用项目实体，并把实体字段作为工作流输入或输出"
@@ -1384,9 +1391,21 @@
     "waitingStart": "等待开始…",
     "generating": "生成中…",
     "generationFailed": "生成失败",
-    "fillAtRuntime": "运行时填写",
-    "generated": "已生成",
-    "waitingUpstream": "等待上游结果",
+	    "fillAtRuntime": "运行时填写",
+	    "generated": "已生成",
+	    "resourceSaved": "已保存到资源库",
+	    "waitingUpstream": "等待上游结果",
+    "referenceWorkflow": {
+      "selectWorkflow": "选择引用工作流后显示接口",
+      "interfaceSummary": "{{inputs}} 个输入 · {{outputs}} 个输出",
+      "reading": "读取引用输出…",
+      "latestOutputHint": "运行时读取该工作流最近一次成功输出。输入端口用于表达上游依赖。",
+      "noWorkflowHint": "在右侧选择一个工作流画布后，会按它的输入/输出节点生成吸附点。"
+    },
+    "entityCard": {
+      "noPreview": "暂无可预览字段",
+      "noValue": "暂无内容"
+    },
     "approval": {
       "waiting": "等待",
       "approved": "已通过",
@@ -1403,8 +1422,9 @@
       "inputContent": "输入内容",
       "inputDefaultPlaceholder": "工作流运行时会弹窗填写，也可在此预设默认值…",
       "inputHint": "此节点是工作流的入口，运行时弹窗要求填写内容。",
-      "outputHint": "此节点是工作流的出口，连接上游节点后，运行结果将展示在此处。",
-      "currentOutput": "当前输出",
+	      "outputHint": "此节点只定义工作流对外输出，不负责保存资源。需要写入资源库时请连接“保存资源”节点。",
+	      "resourceSinkHint": "此节点把上游值写入资源库；资源输入会直接复用，文本 / JSON / 数字 / 布尔会保存为文件。",
+	      "currentOutput": "当前输出",
       "approvalHint": "工作流运行到此节点时暂停，等待人工确认后继续。",
       "currentStatus": "当前状态",
       "generateText": "生成文本",
@@ -1428,8 +1448,9 @@
       "label": "标签",
       "paramName": "参数名",
       "paramNamePlaceholder": "例如 prompt",
-      "paramType": "参数类型"
-    },
+	      "paramType": "参数类型",
+	      "saveResource": "保存资源"
+	    },
     "generatedByCanvas": "canvas生成",
     "namePlaceholder": "画布名称",
     "runningCount": "{{count}} 运行中",

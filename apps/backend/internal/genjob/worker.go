@@ -159,6 +159,9 @@ func (w *Worker) completeFailure(job *model.GenJob, err error) {
 		"next_run_at":       nil,
 		"last_heartbeat_at": &now,
 	})
+	if job.UsageReservationID != nil {
+		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, err.Error())
+	}
 	log.Printf("[genjob] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
 }
 
@@ -505,7 +508,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		}
 		sm.enter(StateCallingProvider, "call image provider")
 		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
-			return w.aiService.CallImage(ctx, job.UserID, job.ModelConfigID, req)
+			return w.aiService.CallImageWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
 		})
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
@@ -556,7 +559,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 
 		sm.enter(StateCallingProvider, "call image edit provider")
 		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
-			return w.aiService.CallImage(ctx, job.UserID, job.ModelConfigID, req)
+			return w.aiService.CallImageWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
 		})
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
@@ -615,7 +618,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 				return err
 			}
 			resp, err := callProviderWithTimeout(debugCtx, providerPollTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-				return w.aiService.CallVideoPoll(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, dur)
+				return w.aiService.CallVideoPollWithBilling(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, dur, w.billingContext(job))
 			})
 			w.saveDebugInfo(job, debugResult)
 			w.appendProviderTaskEvent(job, "poll", resp, err)
@@ -659,7 +662,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 		if w.aiService.SupportsVideoTasks(job.ModelConfigID) {
 			sm.enter(StateSubmittingProviderTask, "submit async video provider task")
 			resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-				return w.aiService.CallVideoStart(ctx, job.UserID, job.ModelConfigID, req)
+				return w.aiService.CallVideoStartWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
 			})
 			w.saveDebugInfo(job, debugResult)
 			w.appendProviderTaskEvent(job, "submit", resp, err)
@@ -698,7 +701,7 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 			return err
 		}
 		resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-			return w.aiService.CallVideo(ctx, job.UserID, job.ModelConfigID, req)
+			return w.aiService.CallVideoWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
 		})
 		if err != nil {
 			w.saveDebugInfo(job, debugResult)
@@ -758,6 +761,14 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
 	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
+}
+
+func (w *Worker) billingContext(job *model.GenJob) ai.BillingContext {
+	return ai.BillingContext{
+		ProjectID:     job.ProjectID,
+		GenJobID:      &job.ID,
+		ReservationID: job.UsageReservationID,
+	}
 }
 
 type providerTaskEvent struct {
@@ -871,6 +882,9 @@ func (w *Worker) markProviderTaskFailed(job *model.GenJob, resp ai.VideoResponse
 		"next_run_at":          nil,
 		"last_heartbeat_at":    &now,
 	})
+	if job.UsageReservationID != nil {
+		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
+	}
 	log.Printf("[genjob] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
 }
 
@@ -885,6 +899,9 @@ func (w *Worker) markProviderTaskCancelled(job *model.GenJob, resp ai.VideoRespo
 		"next_run_at":          nil,
 		"last_heartbeat_at":    &now,
 	})
+	if job.UsageReservationID != nil {
+		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
+	}
 	log.Printf("[genjob] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
 }
 

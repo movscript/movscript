@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -43,11 +44,13 @@ func (h *SettingHandler) ListRefs(c *gin.Context) {
 }
 
 func (h *SettingHandler) CreateRef(c *gin.Context) {
-	var ref model.ScriptSettingRef
-	if err := c.ShouldBindJSON(&ref); err != nil {
+	var req service.ScriptSettingRefInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var ref model.ScriptSettingRef
+	service.ApplyScriptSettingRefInput(&ref, req)
 	ref.ProjectID = parseID(c.Param("id"))
 	if ref.Source == "" {
 		ref.Source = "manual"
@@ -63,10 +66,12 @@ func (h *SettingHandler) UpdateRef(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("设定引用不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&ref); err != nil {
+	var req service.ScriptSettingRefInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyScriptSettingRefInput(&ref, req)
 	h.db.Save(&ref)
 	h.db.Preload("Setting").First(&ref, ref.ID)
 	c.JSON(http.StatusOK, ref)
@@ -88,11 +93,13 @@ func (h *SettingHandler) ListRelationships(c *gin.Context) {
 }
 
 func (h *SettingHandler) CreateRelationship(c *gin.Context) {
-	var relationship model.SettingRelationship
-	if err := c.ShouldBindJSON(&relationship); err != nil {
+	var req service.SettingRelationshipInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var relationship model.SettingRelationship
+	service.ApplySettingRelationshipInput(&relationship, req)
 	relationship.ProjectID = parseID(c.Param("id"))
 	if relationship.Source == "" {
 		relationship.Source = "manual"
@@ -108,10 +115,12 @@ func (h *SettingHandler) UpdateRelationship(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("设定关系不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&relationship); err != nil {
+	var req service.SettingRelationshipInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplySettingRelationshipInput(&relationship, req)
 	h.db.Save(&relationship)
 	h.db.Preload("SourceSetting").Preload("TargetSetting").First(&relationship, relationship.ID)
 	c.JSON(http.StatusOK, relationship)
@@ -123,11 +132,13 @@ func (h *SettingHandler) DeleteRelationship(c *gin.Context) {
 }
 
 func (h *SettingHandler) Create(c *gin.Context) {
-	var s model.Setting
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.SettingInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var s model.Setting
+	service.ApplySettingInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
 	h.db.Create(&s)
 	c.JSON(http.StatusCreated, s)
@@ -139,10 +150,12 @@ func (h *SettingHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("设定不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&s); err != nil {
+	var req service.SettingInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplySettingInput(&s, req)
 	h.db.Save(&s)
 	c.JSON(http.StatusOK, s)
 }

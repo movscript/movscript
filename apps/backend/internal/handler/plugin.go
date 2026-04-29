@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/audit"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/pluginkit"
 	"gorm.io/gorm"
@@ -38,6 +39,19 @@ func (h *PluginHandler) Import(c *gin.Context) {
 	if result.Created {
 		status = http.StatusCreated
 	}
+	action := "plugin.imported"
+	if !result.Created {
+		action = "plugin.updated"
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     action,
+		TargetType: "plugin",
+		TargetID:   audit.TargetID(result.Plugin.ID),
+		Metadata: map[string]any{
+			"plugin_key": result.Plugin.PluginKey,
+			"version":    result.Plugin.Version,
+		},
+	})
 	c.JSON(status, result.Plugin)
 }
 
@@ -57,11 +71,26 @@ func (h *PluginHandler) setEnabled(c *gin.Context, enabled bool) {
 	}
 	h.db.Model(&plugin).Update("enabled", enabled)
 	plugin.Enabled = enabled
+	action := "plugin.disabled"
+	if enabled {
+		action = "plugin.enabled"
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     action,
+		TargetType: "plugin",
+		TargetID:   audit.TargetID(plugin.ID),
+		Metadata: map[string]any{
+			"plugin_key": plugin.PluginKey,
+			"enabled":    enabled,
+		},
+	})
 	c.JSON(http.StatusOK, plugin)
 }
 
 func (h *PluginHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
+	var plugin model.Plugin
+	h.db.First(&plugin, id)
 	if err := h.db.Where("plugin_id = ?", id).Delete(&model.PluginTool{}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -70,6 +99,14 @@ func (h *PluginHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "plugin.deleted",
+		TargetType: "plugin",
+		TargetID:   id,
+		Metadata: map[string]any{
+			"plugin_key": plugin.PluginKey,
+		},
+	})
 	c.Status(http.StatusNoContent)
 }
 

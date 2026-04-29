@@ -6,8 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
+	"github.com/movscript/movscript/internal/audit"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -102,18 +104,29 @@ func (h *ProjectHandler) AdminForceSetOwner(c *gin.Context) {
 		return
 	}
 
+	audit.Record(c, h.db, audit.Event{
+		Action:     "project.owner_changed",
+		TargetType: "project",
+		TargetID:   audit.TargetID(updated.ID),
+		ProjectID:  &updated.ID,
+		Metadata: map[string]any{
+			"owner_id": req.OwnerID,
+		},
+	})
 	c.JSON(http.StatusOK, updated)
 }
 
 func (h *ProjectHandler) Create(c *gin.Context) {
-	var p model.Project
-	if err := c.ShouldBindJSON(&p); err != nil {
+	var req service.ProjectCreateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	var ownerID uint
 	if u, ok := c.Get(middleware.ContextUserKey); ok {
-		p.OwnerID = u.(*model.User).ID
+		ownerID = u.(*model.User).ID
 	}
+	p := service.NewProject(req, ownerID)
 	h.db.Create(&p)
 	if p.OwnerID != 0 {
 		h.db.Create(&model.ProjectMember{ProjectID: p.ID, UserID: p.OwnerID, Role: "owner"})
@@ -139,10 +152,12 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
 		return
 	}
-	if err := c.ShouldBindJSON(&p); err != nil {
+	var req service.ProjectUpdateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	service.ApplyProjectUpdate(&p, req)
 	h.db.Save(&p)
 	c.JSON(http.StatusOK, p)
 }
@@ -153,20 +168,46 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 }
 
 func (h *ProjectHandler) AddMember(c *gin.Context) {
-	var m model.ProjectMember
-	if err := c.ShouldBindJSON(&m); err != nil {
+	var req service.ProjectMemberInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	m.ProjectID = parseID(c.Param("id"))
+	if req.Role == "" {
+		req.Role = "viewer"
+	}
+	m := model.ProjectMember{ProjectID: parseID(c.Param("id")), UserID: req.UserID, Role: req.Role}
 	h.db.Create(&m)
 	h.db.Preload("User").First(&m, m.ID)
+	audit.Record(c, h.db, audit.Event{
+		Action:     "project.member_added",
+		TargetType: "project_member",
+		TargetID:   audit.TargetID(m.ID),
+		ProjectID:  &m.ProjectID,
+		Metadata: map[string]any{
+			"project_id": m.ProjectID,
+			"user_id":    m.UserID,
+			"role":       m.Role,
+		},
+	})
 	c.JSON(http.StatusCreated, m)
 }
 
 func (h *ProjectHandler) RemoveMember(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	memberID := parseID(c.Param("memberId"))
 	h.db.Where("project_id = ? AND id = ?", c.Param("id"), c.Param("memberId")).
 		Delete(&model.ProjectMember{})
+	audit.Record(c, h.db, audit.Event{
+		Action:     "project.member_removed",
+		TargetType: "project_member",
+		TargetID:   audit.TargetID(memberID),
+		ProjectID:  &projectID,
+		Metadata: map[string]any{
+			"project_id": projectID,
+			"member_id":  memberID,
+		},
+	})
 	c.Status(http.StatusNoContent)
 }
 

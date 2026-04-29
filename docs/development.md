@@ -40,6 +40,15 @@ cd apps/backend
 go test ./...
 ```
 
+Run database migrations before starting the backend:
+
+```bash
+cd apps/backend
+go run ./cmd/migrate up
+```
+
+The server checks `schema_migrations` at startup and exits if migrations are missing or pending. Use `go run ./cmd/migrate status` to inspect pending migrations without applying them.
+
 When adding a route, update `apps/backend/internal/router/router.go` and [api.md](api.md).
 
 ## Frontend

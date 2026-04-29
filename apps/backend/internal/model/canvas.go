@@ -50,8 +50,9 @@ type CanvasEdge struct {
 type CanvasRun struct {
 	gorm.Model
 	CanvasID          uint         `gorm:"not null" json:"canvas_id"`
-	Status            string       `gorm:"default:'pending';index" json:"status"` // pending | running | done | failed
-	InputValues       string       `json:"input_values,omitempty"`                // JSON object keyed by input node_id
+	Status            string       `gorm:"default:'pending';index" json:"status"`    // pending | running | done | failed
+	InputValues       string       `json:"input_values,omitempty"`                   // JSON object keyed by input node_id
+	OutputValues      string       `gorm:"type:text" json:"output_values,omitempty"` // JSON object keyed by output node_id / param name
 	Error             string       `json:"error,omitempty"`
 	GraphSnapshot     string       `gorm:"type:text" json:"graph_snapshot,omitempty"`
 	SnapshotHash      string       `gorm:"size:64;index" json:"snapshot_hash,omitempty"`

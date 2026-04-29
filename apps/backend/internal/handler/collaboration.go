@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -24,11 +25,12 @@ func (h *UserHandler) List(c *gin.Context) {
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
-	var u model.User
-	if err := c.ShouldBindJSON(&u); err != nil {
+	var req service.UserCreateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	u := service.NewUser(req)
 	h.db.Create(&u)
 	c.JSON(http.StatusCreated, u)
 }

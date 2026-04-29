@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/service"
 	"github.com/movscript/movscript/internal/storage"
 	"gorm.io/gorm"
 )
@@ -52,11 +53,13 @@ func (h *AssetHandler) List(c *gin.Context) {
 }
 
 func (h *AssetHandler) Create(c *gin.Context) {
-	var a model.Asset
-	if err := c.ShouldBindJSON(&a); err != nil {
+	var req service.AssetInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	var a model.Asset
+	service.ApplyAssetInput(&a, req)
 	a.ProjectID = parseID(c.Param("id"))
 	h.db.Create(&a)
 	c.JSON(http.StatusCreated, a)
@@ -171,10 +174,12 @@ func (h *AssetHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if err := c.ShouldBindJSON(&a); err != nil {
+	var req service.AssetInput
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	service.ApplyAssetInput(&a, req)
 	h.db.Save(&a)
 	c.JSON(http.StatusOK, a)
 }
@@ -193,7 +198,9 @@ func (h *AssetHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	h.db.Model(&a).Updates(body)
+	if updates := service.AssetPatchUpdates(body); len(updates) > 0 {
+		h.db.Model(&a).Updates(updates)
+	}
 	h.db.Preload("Views").First(&a, a.ID)
 	h.populateAssetViewResources(c, []model.Asset{a})
 	c.JSON(http.StatusOK, a)
