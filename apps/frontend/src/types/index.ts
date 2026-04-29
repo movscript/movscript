@@ -821,12 +821,58 @@ export interface EntitySemanticSchemaSection {
 export interface EntitySemanticSchema {
   kind: CanvasEntityKind
   schemaVersion?: number
+  projection?: string
+  compatibility?: EntitySchemaCompatibility
   labelKey: string
   fallbackLabel: string
   layout?: {
     variant?: string
   }
   sections: EntitySemanticSchemaSection[]
+}
+
+export interface EntitySchemaCompatibility {
+  currentVersion: number
+  minCompatibleVersion: number
+  fieldAliases?: Record<string, string[]>
+  deprecatedFields?: string[]
+  migrations?: EntitySchemaMigration[]
+}
+
+export interface EntitySchemaMigration {
+  fromVersion: number
+  toVersion: number
+  kind: string
+  fieldId?: string
+  fromFieldId?: string
+  toFieldId?: string
+  description?: string
+}
+
+export interface EntitySchemaActionHint {
+  kind: string
+  fieldId?: string
+  fromFieldId?: string
+  toFieldId?: string
+  description: string
+}
+
+export interface EntitySchemaMigrationReport {
+  kind: CanvasEntityKind
+  schemaVersion: number
+  currentVersion: number
+  minCompatibleVersion: number
+  fieldAliases?: Record<string, string[]>
+  deprecatedFields?: string[]
+  migrations?: EntitySchemaMigration[]
+  actions: EntitySchemaActionHint[]
+}
+
+export interface EntitySemanticValues {
+  kind: CanvasEntityKind
+  id: number
+  schemaVersion: number
+  values: Record<string, unknown>
 }
 
 export interface EntityWorkflowSchemaField {
@@ -867,6 +913,8 @@ export interface EntityWorkflowSchemaSection {
 export interface EntityWorkflowSchema {
   kind: CanvasEntityKind
   schemaVersion?: number
+  projection?: string
+  compatibility?: EntitySchemaCompatibility
   labelKey: string
   fallbackLabel: string
   layout?: {
@@ -1100,4 +1148,19 @@ export interface CanvasRun {
   tasks?: CanvasTask[]
   CreatedAt: string
   UpdatedAt: string
+}
+
+export interface CanvasEntityWriteAudit {
+  ID: number
+  canvas_id: number
+  canvas_run_id?: number
+  canvas_node_id?: string
+  port_id: string
+  entity_kind: CanvasEntityKind
+  entity_id: number
+  user_id?: number
+  old_value_json?: string
+  new_value_json?: string
+  resource_binding_ids?: string
+  CreatedAt: string
 }

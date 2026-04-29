@@ -5,8 +5,8 @@ import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, Asset, AssetView, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { useUserStore } from '@/store/userStore'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { Video, Package, X, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -14,8 +14,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 
 export function ResourcePreviewDialog({ resource, onClose }: { resource: RawResource; onClose: () => void }) {
-  const userId = useUserStore(s => s.currentUser?.ID)
-  const proxyUrl = resource.direct_url ?? `${API_BASE}${resource.url}${userId ? `?uid=${userId}` : ''}`
+  const proxyUrl = resource.direct_url ?? `${API_BASE}${resource.url}`
   return (
     <Dialog.Root open onOpenChange={v => !v && onClose()}>
       <Dialog.Portal>
@@ -29,9 +28,9 @@ export function ResourcePreviewDialog({ resource, onClose }: { resource: RawReso
               </Dialog.Close>
             </div>
             {resource.type === 'video' ? (
-              <video src={proxyUrl} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-lg" />
+              <AuthedVideo src={proxyUrl} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-lg" />
             ) : (
-              <img src={proxyUrl} alt={resource.name} className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg" />
+              <AuthedImage src={proxyUrl} alt={resource.name} className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg" />
             )}
           </div>
         </Dialog.Content>
@@ -66,8 +65,6 @@ export function ResourceListItem({
 }: ResourceListItemProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState(false)
-  const userId = useUserStore(s => s.currentUser?.ID)
-  const proxyUrl = r.direct_url ?? `${API_BASE}${r.url}${userId ? `?uid=${userId}` : ''}`
   const thumbCls = thumbSize === 'sm' ? 'w-8 h-8' : 'w-10 h-10'
 
   function handleDragStart(e: React.DragEvent) {
@@ -144,7 +141,6 @@ export function AssetListItem({
 }: AssetListItemProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<RawResource | null>(null)
-  const userId = useUserStore(s => s.currentUser?.ID)
   const views = asset.views?.filter(v => v.resource) ?? []
   const firstView = views[0]
   const thumbUrl = firstView ? viewThumbUrl(firstView) : null
@@ -170,7 +166,7 @@ export function AssetListItem({
           <div className="w-7 h-7 rounded shrink-0 overflow-hidden bg-muted">
             {thumbUrl ? (
               isVid
-                ? <video src={`${thumbUrl}${userId ? `?uid=${userId}` : ''}`} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                ? <AuthedVideo src={thumbUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                 : <MediaViewer resource={firstView!.resource!} className="w-full h-full" lightbox={false} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">
@@ -191,7 +187,7 @@ export function AssetListItem({
               if (!view.resource) return null
               const res = view.resource
               const inUse = selectedResourceIds.includes(res.ID)
-              const vUrl = res.direct_url ?? `${API_BASE}${res.url}${userId ? `?uid=${userId}` : ''}`
+              const vUrl = res.direct_url ?? `${API_BASE}${res.url}`
               return (
                 <div
                   key={view.ID}
@@ -205,7 +201,7 @@ export function AssetListItem({
                   )}
                 >
                   {res.type === 'video' ? (
-                    <video src={vUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                    <AuthedVideo src={vUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                   ) : (
                     <MediaViewer resource={res} className="w-full h-full" lightbox={false} />
                   )}

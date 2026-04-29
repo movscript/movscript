@@ -13,11 +13,13 @@ interface Props {
   ownerId: number
   role?: ResourceBindingRole
   slot?: string
+  variant?: 'picker' | 'gallery'
+  maxCount?: number
 }
 
 const BASE = API_BASE_URL
 
-export function ResourceAttachments({ ownerType, ownerId, role = 'attachment', slot = '' }: Props) {
+export function ResourceAttachments({ ownerType, ownerId, role = 'attachment', slot = '', variant = 'picker', maxCount }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -34,6 +36,10 @@ export function ResourceAttachments({ ownerType, ownerId, role = 'attachment', s
   })
 
   const attached = bindings.filter((binding) => binding.resource).map((binding) => ({ binding, resource: binding.resource! }))
+  const canUpload = !maxCount || attached.length < maxCount
+  const tileClass = variant === 'gallery'
+    ? 'h-24 min-w-28 flex-1 basis-28'
+    : 'w-16 h-16'
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
@@ -62,23 +68,28 @@ export function ResourceAttachments({ ownerType, ownerId, role = 'attachment', s
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className={variant === 'gallery' ? 'grid grid-cols-2 gap-2 sm:grid-cols-3' : 'flex items-center gap-2 flex-wrap'}>
         {attached.map(({ binding, resource }) => (
           <div key={binding.ID} className="relative group">
             {resource.type === 'image' ? (
               <AuthedImage
                 src={`${BASE}${resource.url}`}
                 alt={resource.name}
-                className="w-16 h-16 object-cover rounded border border-border"
+                className={`${tileClass} object-cover rounded border border-border`}
               />
             ) : resource.type === 'video' ? (
               <AuthedVideo
                 src={`${BASE}${resource.url}`}
-                className="w-16 h-16 object-cover rounded border border-border bg-muted"
+                className={`${tileClass} object-cover rounded border border-border bg-muted`}
               />
             ) : (
-              <div className="w-16 h-16 rounded border border-border bg-muted flex items-center justify-center">
+              <div className={`${tileClass} rounded border border-border bg-muted flex items-center justify-center`}>
                 <Paperclip size={16} className="text-muted-foreground" />
+              </div>
+            )}
+            {variant === 'gallery' && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b border-x border-b border-border bg-background/90 px-2 py-1">
+                <p className="truncate text-[11px] text-foreground">{resource.name}</p>
               </div>
             )}
             <button
@@ -91,21 +102,23 @@ export function ResourceAttachments({ ownerType, ownerId, role = 'attachment', s
           </div>
         ))}
 
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={upload.isPending}
-          className="w-16 h-16 rounded border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-muted-foreground transition-colors"
-        >
-          <Upload size={14} />
-          <span className="text-xs">{upload.isPending ? '...' : t('shared.attachments.upload')}</span>
-        </button>
+        {canUpload && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={upload.isPending}
+            className={`${tileClass} rounded border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-muted-foreground transition-colors`}
+          >
+            <Upload size={14} />
+            <span className="text-xs">{upload.isPending ? '...' : t('shared.attachments.upload')}</span>
+          </button>
+        )}
       </div>
 
       <input
         ref={fileRef}
         type="file"
         className="hidden"
-        accept="image/*,video/*"
+        accept="image/*,video/*,audio/*,text/*"
         onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])}
       />
     </div>

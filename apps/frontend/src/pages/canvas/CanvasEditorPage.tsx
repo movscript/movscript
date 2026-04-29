@@ -23,7 +23,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
-import type { Asset, Canvas, CanvasEntityKind, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, EntityWorkflowSchema, NodeType, PaginatedResponse, RawResource } from '@/types'
+import type { Asset, Canvas, CanvasEntityKind, CanvasEntityWriteAudit, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, EntityWorkflowSchema, NodeType, PaginatedResponse, RawResource } from '@/types'
 import {
   TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
   InputNode, OutputNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode, EntityCardNode,
@@ -75,6 +75,7 @@ import {
   Clock3,
   CheckCircle2,
   XCircle,
+  ClipboardList,
 } from 'lucide-react'
 
 const nodeTypes = {
@@ -309,6 +310,16 @@ function encodeRuntimePortValue(port: CanvasPortDef, raw: string): CanvasPortVal
   }
 }
 
+function portForWorkflowInputNode(node: Node): CanvasPortDef {
+  const data = node.data as Partial<CanvasNodeData> & { label?: string }
+  return {
+    id: 'value',
+    label: data.paramName || data.label || node.id,
+    type: data.paramType ?? 'text',
+    required: true,
+  }
+}
+
 export function createCanvasEntityNodeData({
   entityType,
   entityId,
@@ -493,6 +504,28 @@ function formatRunDuration(run: CanvasRun) {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
+function auditValueSummary(raw?: string) {
+  if (!raw) return '-'
+  try {
+    const value = JSON.parse(raw) as {
+      type?: string
+      text?: string
+      json?: unknown
+      number?: number
+      boolean?: boolean
+      resource_ids?: number[]
+    }
+    if (Array.isArray(value.resource_ids) && value.resource_ids.length > 0) return value.resource_ids.map((id) => `#${id}`).join(', ')
+    if (value.text !== undefined) return value.text
+    if (value.number !== undefined) return String(value.number)
+    if (value.boolean !== undefined) return value.boolean ? 'true' : 'false'
+    if (value.json !== undefined) return JSON.stringify(value.json)
+    return value.type ?? '-'
+  } catch {
+    return raw
+  }
+}
+
 function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
   const { t } = useTranslation()
   if (status === 'running' || status === 'pending') {
@@ -624,6 +657,82 @@ function WorkflowRunHistory({
   )
 }
 
+function EntityWriteAuditPanel({
+  audits,
+  total,
+  page,
+  pageCount,
+  isLoading,
+  onPageChange,
+}: {
+  audits: CanvasEntityWriteAudit[]
+  total: number
+  page: number
+  pageCount: number
+  isLoading: boolean
+  onPageChange: (page: number) => void
+}) {
+  const { t, i18n } = useTranslation()
+  return (
+    <section className="flex h-full flex-col bg-background">
+      <div className="flex h-11 items-center gap-3 border-b border-border px-4">
+        <ClipboardList size={15} className="text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-foreground">{t('canvas.editor.audit.title', { defaultValue: 'Entity Write Audit' })}</p>
+          <p className="text-[10px] text-muted-foreground">{t('canvas.editor.audit.description', { defaultValue: 'Entity field writes created by canvas runs.' })}</p>
+        </div>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">{t('canvas.editor.audit.recordsCount', { count: total, defaultValue: `${total} records` })}</span>
+        <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
+          <ChevronLeft size={12} />
+        </Button>
+        <span className="w-12 text-center text-[11px] text-muted-foreground">{page}/{pageCount}</span>
+        <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
+          <ChevronRight size={12} />
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="grid grid-cols-[120px_120px_96px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+          <span>{t('canvas.editor.audit.entity', { defaultValue: 'Entity' })}</span>
+          <span>{t('canvas.editor.audit.node', { defaultValue: 'Node' })}</span>
+          <span>{t('canvas.editor.audit.port', { defaultValue: 'Port' })}</span>
+          <span>{t('canvas.editor.audit.change', { defaultValue: 'Change' })}</span>
+          <span className="text-right">{t('canvas.editor.history.startedAt', { defaultValue: 'Started' })}</span>
+        </div>
+        {isLoading && (
+          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
+            <Loader2 size={14} className="mr-2 animate-spin" />
+            {t('canvas.editor.audit.loading', { defaultValue: 'Loading audit records' })}
+          </div>
+        )}
+        {!isLoading && audits.length === 0 && (
+          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">{t('canvas.editor.audit.empty', { defaultValue: 'No entity write records yet' })}</div>
+        )}
+        {!isLoading && audits.map((audit) => (
+          <div key={audit.ID} className="grid grid-cols-[120px_120px_96px_1fr_120px] items-center border-b border-border px-4 py-2 text-xs">
+            <span className="truncate font-medium text-foreground">
+              {t(`canvas.entityTypes.${audit.entity_kind}`, { defaultValue: audit.entity_kind })} #{audit.entity_id}
+            </span>
+            <span className="truncate font-mono text-[11px] text-muted-foreground">
+              {audit.canvas_node_id || '-'}
+              {audit.canvas_run_id ? <span className="ml-1 text-muted-foreground/70">#{audit.canvas_run_id}</span> : null}
+            </span>
+            <span className="truncate font-mono text-[11px] text-muted-foreground">{audit.port_id}</span>
+            <span className="min-w-0 truncate text-muted-foreground">
+              <span className="text-muted-foreground/70">{auditValueSummary(audit.old_value_json)}</span>
+              <span className="mx-1">→</span>
+              <span className="text-foreground">{auditValueSummary(audit.new_value_json)}</span>
+              {audit.resource_binding_ids && audit.resource_binding_ids !== 'null' && audit.resource_binding_ids !== '[]' && (
+                <span className="ml-2 font-mono text-[10px] text-muted-foreground/70">{audit.resource_binding_ids}</span>
+              )}
+            </span>
+            <span className="text-right text-muted-foreground">{formatRunTime(audit.CreatedAt, i18n.language)}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function WorkflowBottomPanel({
   projectId,
   activeTab,
@@ -634,13 +743,19 @@ function WorkflowBottomPanel({
   statusFilter,
   activeRunId,
   isLoading,
+  audits,
+  auditTotal,
+  auditPage,
+  auditPageCount,
+  auditsLoading,
   onTabChange,
   onStatusFilterChange,
   onPageChange,
   onSelectRun,
+  onAuditPageChange,
 }: {
   projectId?: number
-  activeTab: 'resources' | 'history'
+  activeTab: 'resources' | 'history' | 'audit'
   runs: CanvasRun[]
   total: number
   page: number
@@ -648,10 +763,16 @@ function WorkflowBottomPanel({
   statusFilter: 'all' | CanvasRun['status']
   activeRunId: number | null
   isLoading: boolean
-  onTabChange: (tab: 'resources' | 'history') => void
+  audits: CanvasEntityWriteAudit[]
+  auditTotal: number
+  auditPage: number
+  auditPageCount: number
+  auditsLoading: boolean
+  onTabChange: (tab: 'resources' | 'history' | 'audit') => void
   onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
   onPageChange: (page: number) => void
   onSelectRun: (runId: number) => void
+  onAuditPageChange: (page: number) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -672,15 +793,26 @@ function WorkflowBottomPanel({
             <History size={12} />
             {t('canvas.editor.history.title')}
           </button>
+          <button
+            onClick={() => onTabChange('audit')}
+            className={cn('flex items-center gap-1.5 border-l border-border px-3 py-1.5 transition-colors', activeTab === 'audit' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+          >
+            <ClipboardList size={12} />
+            {t('canvas.editor.audit.title', { defaultValue: 'Entity Write Audit' })}
+          </button>
         </div>
         <span className="ml-auto text-[11px] text-muted-foreground">
-          {activeTab === 'resources' ? t('canvas.editor.resourceShelf.dragHint') : t('canvas.editor.history.runsCount', { count: total })}
+          {activeTab === 'resources'
+            ? t('canvas.editor.resourceShelf.dragHint')
+            : activeTab === 'history'
+              ? t('canvas.editor.history.runsCount', { count: total })
+              : t('canvas.editor.audit.recordsCount', { count: auditTotal, defaultValue: `${auditTotal} records` })}
         </span>
       </div>
       <div className="h-[calc(100%-2.5rem)] overflow-hidden">
         {activeTab === 'resources' ? (
           <CanvasResourceShelf projectId={projectId} variant="panel" />
-        ) : (
+        ) : activeTab === 'history' ? (
           <WorkflowRunHistory
             embedded
             runs={runs}
@@ -693,6 +825,15 @@ function WorkflowBottomPanel({
             onStatusFilterChange={onStatusFilterChange}
             onPageChange={onPageChange}
             onSelectRun={onSelectRun}
+          />
+        ) : (
+          <EntityWriteAuditPanel
+            audits={audits}
+            total={auditTotal}
+            page={auditPage}
+            pageCount={auditPageCount}
+            isLoading={auditsLoading}
+            onPageChange={onAuditPageChange}
           />
         )}
       </div>
@@ -836,14 +977,16 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const [nodeRunValues, setNodeRunValues] = useState<Record<string, string>>({})
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [runHistoryPage, setRunHistoryPage] = useState(1)
+  const [auditPage, setAuditPage] = useState(1)
   const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
-  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
+  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history' | 'audit'>('resources')
   const [clientPlugins, setClientPlugins] = useState<ClientPluginManifest[]>([])
 
   const fitViewCalledRef = useRef(false)
   const finalizedRunInvalidatedRef = useRef<number | null>(null)
   const canvasPaneRef = useRef<HTMLDivElement>(null)
   const runHistoryPageSize = 8
+  const auditPageSize = 8
 
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
@@ -874,6 +1017,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const workflowRunTotal = workflowRunsPage?.total ?? 0
   const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
 
+  const { data: auditPageData, isLoading: auditsLoading } = useQuery<PaginatedResponse<CanvasEntityWriteAudit>>({
+    queryKey: ['canvas-entity-write-audits', id, auditPage],
+    queryFn: () => api.get('/canvas-entity-write-audits', {
+      params: {
+        canvas_id: id,
+        page: auditPage,
+        page_size: auditPageSize,
+      },
+    }).then((r) => r.data),
+    enabled: !!id && canvasType === 'workflow',
+    refetchInterval: canvasType === 'workflow' ? 3000 : false,
+  })
+  const entityWriteAudits = auditPageData?.items ?? []
+  const auditTotal = auditPageData?.total ?? 0
+  const auditPageCount = Math.max(1, Math.ceil(auditTotal / auditPageSize))
+
   useEffect(() => {
     loadClientPlugins()
       .then(setClientPlugins)
@@ -888,9 +1047,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   })
 
   const selectedNodeId = selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : undefined
-  const { data: latestSelectedNodeTask } = useQuery<CanvasTask>({
+  const { data: latestSelectedNodeTask } = useQuery<CanvasTask | undefined>({
     queryKey: ['canvas-node-task', id, selectedNodeId],
-    queryFn: () => api.get(`/canvases/${id}/nodes/${selectedNodeId}/task`).then((r) => r.data),
+    queryFn: () => api.get(`/canvases/${id}/nodes/${selectedNodeId}/task`, {
+      validateStatus: (status) => status === 200 || status === 404,
+    }).then((r) => r.status === 404 ? undefined : r.data),
     enabled: !!id && !!selectedNodeId,
     refetchInterval: (query) => {
       const status = (query.state.data as CanvasTask | undefined)?.status
@@ -1039,7 +1200,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
   // Run all
   const runAll = useMutation({
-    mutationFn: (values?: Record<string, string>) => api.post(`/canvases/${id}/run`, { input_values: values ?? {} }).then((r) => r.data),
+    mutationFn: (values?: Record<string, CanvasPortValue>) => api.post(`/canvases/${id}/run`, { input_values: values ?? {} }).then((r) => r.data),
     onSuccess: (data) => {
       const runId = data?.run?.ID
       if (runId) setActiveRunId(runId)
@@ -1047,6 +1208,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       setRunHistoryPage(1)
       setWorkflowPanelTab('history')
       qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
+      qc.invalidateQueries({ queryKey: ['canvas-entity-write-audits', id] })
       setNodes((prev) => prev.map((n) => {
         const d = n.data as unknown as CanvasNodeData
         if (d.source === 'ai' || n.type === 'output') return { ...n, data: { ...d, status: 'pending', error: undefined } }
@@ -1173,7 +1335,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const inputNodes = nodes.filter((n) => n.type === 'input')
     if (inputNodes.length > 0) {
       const initial: Record<string, string> = {}
-      inputNodes.forEach((n) => { initial[n.id] = (n.data as any).inputValue ?? '' })
+      inputNodes.forEach((n) => {
+        const data = n.data as Partial<CanvasNodeData>
+        initial[n.id] = data.inputValue ?? defaultRuntimeValueForPort(portForWorkflowInputNode(n))
+      })
       setInputValues(initial)
       setRunDialogOpen(true)
     } else {
@@ -1182,6 +1347,20 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   }
 
   function handleConfirmRun() {
+    const encoded: Record<string, CanvasPortValue> = {}
+    for (const node of inputNodes) {
+      const port = portForWorkflowInputNode(node)
+      const value = encodeRuntimePortValue(port, inputValues[node.id] ?? '')
+      if (!value) {
+        toast.error(t('canvas.editor.errors.invalidRuntimeInput', { port: port.label ?? node.id, defaultValue: `Invalid input for ${port.label ?? node.id}` }))
+        return
+      }
+      if (!hasValueForPort([value]) && port.required) {
+        toast.error(t('canvas.editor.errors.requiredRuntimeInput', { port: port.label ?? node.id, defaultValue: `${port.label ?? node.id} is required` }))
+        return
+      }
+      if (hasValueForPort([value])) encoded[node.id] = value
+    }
     setNodes((prev) => prev.map((n) => {
       if (n.type === 'input' && inputValues[n.id] !== undefined) {
         return { ...n, data: { ...n.data, inputValue: inputValues[n.id] } }
@@ -1189,7 +1368,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       return n
     }))
     setRunDialogOpen(false)
-    runAll.mutate(inputValues)
+    runAll.mutate(encoded)
   }
 
   // Approval
@@ -1983,10 +2162,16 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               statusFilter={runStatusFilter}
               activeRunId={activeRunId}
               isLoading={workflowRunsLoading}
+              audits={entityWriteAudits}
+              auditTotal={auditTotal}
+              auditPage={auditPage}
+              auditPageCount={auditPageCount}
+              auditsLoading={auditsLoading}
               onTabChange={setWorkflowPanelTab}
               onStatusFilterChange={setRunStatusFilter}
               onPageChange={setRunHistoryPage}
               onSelectRun={setActiveRunId}
+              onAuditPageChange={setAuditPage}
             />
           )}
         </div>
@@ -2079,23 +2264,64 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               <h2 className="text-sm font-semibold text-foreground">{t('canvas.workflowInputTitle')}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">{t('canvas.editor.workflowInputDescription')}</p>
             </div>
-            {inputNodes.map((n) => (
-              <div key={n.id}>
-                <Label className="text-xs font-medium text-muted-foreground mb-1 block">
-                  {(n.data as any).paramName || (n.data as any).label || t('canvas.nodeLabels.input')}
-                  {(n.data as any).paramType && (
-                    <span className="ml-1 font-normal text-muted-foreground/70">({(n.data as any).paramType})</span>
+            {inputNodes.map((n, index) => {
+              const port = portForWorkflowInputNode(n)
+              const label = port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
+              const value = inputValues[n.id] ?? ''
+              return (
+                <div key={n.id}>
+                  <Label className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <span>{label}</span>
+                    <span className="font-normal text-muted-foreground/70">({port.type})</span>
+                  </Label>
+                  {port.type === 'boolean' ? (
+                    <label className="flex h-9 items-center gap-2 rounded-md border border-border px-3 text-xs text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={value === 'true'}
+                        onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.checked ? 'true' : 'false' }))}
+                        className="rounded"
+                        autoFocus={index === 0}
+                      />
+                      {t('canvas.editor.booleanEnabled', { defaultValue: 'Enabled' })}
+                    </label>
+                  ) : port.type === 'number' ? (
+                    <Input
+                      type="number"
+                      value={value}
+                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
+                      autoFocus={index === 0}
+                    />
+                  ) : port.type === 'json' ? (
+                    <Textarea
+                      rows={5}
+                      className="font-mono text-xs"
+                      value={value}
+                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
+                      autoFocus={index === 0}
+                    />
+                  ) : port.type === 'image' || port.type === 'video' || port.type === 'audio' || port.type === 'resource' ? (
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      placeholder={t('canvas.editor.resourceIdPlaceholder', { defaultValue: 'Resource ID' })}
+                      value={value}
+                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
+                      autoFocus={index === 0}
+                    />
+                  ) : (
+                    <Textarea
+                      rows={3}
+                      placeholder={t('canvas.inputContentPlaceholder')}
+                      value={value}
+                      onChange={(event) => setInputValues((prev) => ({ ...prev, [n.id]: event.target.value }))}
+                      autoFocus={index === 0}
+                    />
                   )}
-                </Label>
-                <Textarea
-                  rows={3}
-                  placeholder={t('canvas.inputContentPlaceholder')}
-                  value={inputValues[n.id] ?? ''}
-                  onChange={(e) => setInputValues((prev) => ({ ...prev, [n.id]: e.target.value }))}
-                  autoFocus={inputNodes[0]?.id === n.id}
-                />
-              </div>
-            ))}
+                </div>
+              )
+            })}
             <div className="flex gap-2 pt-1">
               <Button onClick={handleConfirmRun} className="flex-1">
                 {t('canvas.startRun')}

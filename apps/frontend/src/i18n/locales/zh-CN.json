@@ -8,6 +8,7 @@
     "cancel": "取消",
     "close": "关闭",
     "collapse": "收起",
+    "computed": "计算字段",
     "create": "创建",
     "creating": "创建中…",
     "delete": "删除",
@@ -15,10 +16,14 @@
     "emptyDescription": "（无描述）",
     "expand": "展开",
     "itemsCount": "{{count}} 项",
+    "shotsCount": "{{count}} 个镜头",
+    "storyboardRef": "分镜 #{{id}}",
     "save": "保存",
     "saving": "保存中…",
     "selected": "已选",
     "retry": "重试",
+    "readonly": "只读",
+    "related": "关联",
     "loading": "加载中...",
     "loadingShort": "加载中…",
     "switch": "切换",
@@ -1317,8 +1322,21 @@
         "empty": "暂无匹配的运行记录",
         "snapshotSummary": "{{nodes}} 节点 / {{edges}} 连接"
       },
+      "audit": {
+        "title": "实体写入审计",
+        "description": "记录画布运行写入实体字段的变更",
+        "recordsCount": "{{count}} 条记录",
+        "entity": "实体",
+        "node": "节点",
+        "port": "端口",
+        "change": "变更",
+        "loading": "加载审计记录",
+        "empty": "暂无实体写入记录"
+      },
       "errors": {
-        "nodeNotFound": "数据库中未找到节点"
+        "nodeNotFound": "数据库中未找到节点",
+        "invalidRuntimeInput": "{{port}} 输入无效",
+        "requiredRuntimeInput": "{{port}} 为必填项"
       },
       "untitled": "未命名画布",
       "nodesCount": "{{count}} 节点",
@@ -1352,7 +1370,11 @@
       "noSelectionDescription": "选择一个节点后，可以在这里编辑标签、输入来源、模型、提示词和运行参数。",
       "currentSelection": "当前选择",
       "edgesCount": "连接数量",
-      "workflowInputDescription": "填写以下输入节点的内容后，工作流将自动运行。"
+      "workflowInputDescription": "按输入节点的参数类型填写内容后，工作流将自动运行。",
+      "nodeRuntimeInputTitle": "运行时输入",
+      "nodeRuntimeInputDescription": "运行该节点前，请填写未连接的输入端口。",
+      "booleanEnabled": "启用",
+      "resourceIdPlaceholder": "资源 ID"
     },
     "unset": "未设置",
     "textInputPlaceholder": "在此输入文本…",

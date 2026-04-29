@@ -604,6 +604,12 @@ function EntityCardPanel({
   onRun: () => void
 }) {
   const { t } = useTranslation()
+  const compatibility = schema?.compatibility
+  const migrations = compatibility?.migrations ?? []
+  const aliasCount = compatibility?.fieldAliases
+    ? Object.values(compatibility.fieldAliases).reduce((sum, aliases) => sum + aliases.length, 0)
+    : 0
+  const deprecatedCount = compatibility?.deprecatedFields?.length ?? 0
   const kindLabel = data.entityKind
     ? t(schema?.labelKey ?? `canvas.entityTypes.${data.entityKind}`, { defaultValue: schema?.fallbackLabel ?? data.entityKind })
     : t('canvas.nodeLabels.entity_card')
@@ -615,21 +621,71 @@ function EntityCardPanel({
           <span className="font-medium text-foreground">{kindLabel}</span>
           <div className="flex shrink-0 items-center gap-1.5">
             {schema?.schemaVersion && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">v{schema.schemaVersion}</span>}
+            {compatibility && compatibility.minCompatibleVersion < compatibility.currentVersion && (
+              <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                v{compatibility.minCompatibleVersion}+
+              </span>
+            )}
             {data.entityId && <span className="font-mono text-muted-foreground">#{data.entityId}</span>}
           </div>
         </div>
         {data.entityTitle && <p className="mt-1 truncate text-muted-foreground">{data.entityTitle}</p>}
       </div>
+      {schema && (
+        <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {t('canvas.nodePanel.schemaProjection', { defaultValue: 'projection' })}: {schema.projection ?? 'workflow'}
+            </span>
+            <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {t('canvas.nodePanel.schemaAliases', { defaultValue: 'aliases' })}: {aliasCount}
+            </span>
+            <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {t('canvas.nodePanel.schemaMigrations', { defaultValue: 'migrations' })}: {migrations.length}
+            </span>
+            {deprecatedCount > 0 && (
+              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+                {t('common.deprecated', { defaultValue: 'deprecated' })}: {deprecatedCount}
+              </span>
+            )}
+          </div>
+          {migrations.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {migrations.map((migration, index) => (
+                <p key={`${migration.kind}-${migration.fieldId ?? migration.fromFieldId ?? index}`} className="text-[10px] text-muted-foreground">
+                  <span className="font-medium text-foreground">{migration.kind}</span>
+                  {migration.fromFieldId || migration.toFieldId ? ` · ${migration.fromFieldId ?? '?'} -> ${migration.toFieldId ?? '?'}` : ''}
+                  {migration.description ? ` · ${migration.description}` : ''}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {schema ? (
         <div className="space-y-3">
           {schema.sections.map((section) => (
             <div key={section.id} className="rounded-md border border-border bg-card">
-              <div className="border-b border-border px-3 py-2 text-xs font-medium text-foreground">
-                {t(section.labelKey, { defaultValue: section.fallbackLabel })}
+              <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs">
+                <span className="font-medium text-foreground">{t(section.labelKey, { defaultValue: section.fallbackLabel })}</span>
+                {section.layout?.columns && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {t('canvas.nodePanel.schemaColumns', { count: section.layout.columns, defaultValue: `${section.layout.columns} col` })}
+                  </span>
+                )}
               </div>
               <div className="divide-y divide-border/60">
-                {section.fields.map((field) => (
-                  <div key={field.id} className="px-3 py-2">
+                {section.fields.map((field) => {
+                  const aliases = field.workflow.aliases ?? field.aliases ?? []
+                  const migrationForField = migrations.find((migration) =>
+                    migration.fieldId === field.id
+                    || migration.fromFieldId === field.id
+                    || migration.toFieldId === field.id
+                    || migration.fromFieldId === field.workflow.portId
+                    || migration.toFieldId === field.workflow.portId
+                  )
+                  return (
+                  <div key={field.id} className={field.deprecated ? 'bg-amber-500/5 px-3 py-2' : 'px-3 py-2'}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-xs font-medium text-foreground">
@@ -638,16 +694,45 @@ function EntityCardPanel({
                         <p className="mt-0.5 text-[10px] text-muted-foreground">
                           {field.workflow.portId} · {field.valueType} · {field.control}
                         </p>
+                        {aliases.length > 0 && (
+                          <p className="mt-1 break-words text-[10px] text-muted-foreground">
+                            {t('canvas.nodePanel.schemaFieldAliases', { defaultValue: 'aliases' })}: {aliases.join(', ')}
+                          </p>
+                        )}
+                        {(field.validation || field.binding || migrationForField) && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {field.validation?.required && (
+                              <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                {t('common.required', { defaultValue: 'required' })}
+                              </span>
+                            )}
+                            {field.validation?.enum?.map((value) => (
+                              <span key={value} className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{value}</span>
+                            ))}
+                            {field.binding && (
+                              <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                {field.binding.role}/{field.binding.slot}{field.binding.isPrimary ? ' primary' : ''}
+                              </span>
+                            )}
+                            {migrationForField && (
+                              <span className="rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-700 dark:text-sky-300">
+                                {migrationForField.kind}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex shrink-0 gap-1">
                         {field.workflow.readable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">out</span>}
                         {field.workflow.writable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">in</span>}
+                        {field.workflow.maxCount ? <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">max {field.workflow.maxCount}</span> : null}
                         {field.readonly && <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t('common.readonly', { defaultValue: 'read-only' })}</span>}
                         {field.deprecated && <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">{t('common.deprecated', { defaultValue: 'deprecated' })}</span>}
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))}

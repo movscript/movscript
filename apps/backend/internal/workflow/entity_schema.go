@@ -10,12 +10,14 @@ const EntitySchemaVersion = EntitySemanticSchemaVersion
 // ports and detail-page schemas should be projections of this registry instead
 // of each owning independent field definitions.
 type EntitySemanticSchema struct {
-	Kind          string                  `json:"kind"`
-	SchemaVersion int                     `json:"schemaVersion"`
-	LabelKey      string                  `json:"labelKey"`
-	FallbackLabel string                  `json:"fallbackLabel"`
-	Layout        EntitySchemaLayout      `json:"layout,omitempty"`
-	Sections      []EntitySemanticSection `json:"sections"`
+	Kind          string                    `json:"kind"`
+	SchemaVersion int                       `json:"schemaVersion"`
+	Projection    string                    `json:"projection,omitempty"`
+	Compatibility EntitySchemaCompatibility `json:"compatibility,omitempty"`
+	LabelKey      string                    `json:"labelKey"`
+	FallbackLabel string                    `json:"fallbackLabel"`
+	Layout        EntitySchemaLayout        `json:"layout,omitempty"`
+	Sections      []EntitySemanticSection   `json:"sections"`
 }
 
 type EntitySemanticSection struct {
@@ -55,12 +57,32 @@ type FieldIO struct {
 // /workflow/entity-schemas. New domain/UI code should prefer
 // EntitySemanticSchema and derive its own projection.
 type EntitySchema struct {
-	Kind          string                `json:"kind"`
-	SchemaVersion int                   `json:"schemaVersion"`
-	LabelKey      string                `json:"labelKey"`
-	FallbackLabel string                `json:"fallbackLabel"`
-	Layout        EntitySchemaLayout    `json:"layout,omitempty"`
-	Sections      []EntitySchemaSection `json:"sections"`
+	Kind          string                    `json:"kind"`
+	SchemaVersion int                       `json:"schemaVersion"`
+	Projection    string                    `json:"projection,omitempty"`
+	Compatibility EntitySchemaCompatibility `json:"compatibility,omitempty"`
+	LabelKey      string                    `json:"labelKey"`
+	FallbackLabel string                    `json:"fallbackLabel"`
+	Layout        EntitySchemaLayout        `json:"layout,omitempty"`
+	Sections      []EntitySchemaSection     `json:"sections"`
+}
+
+type EntitySchemaCompatibility struct {
+	CurrentVersion       int                 `json:"currentVersion"`
+	MinCompatibleVersion int                 `json:"minCompatibleVersion"`
+	FieldAliases         map[string][]string `json:"fieldAliases,omitempty"`
+	DeprecatedFields     []string            `json:"deprecatedFields,omitempty"`
+	Migrations           []EntityMigration   `json:"migrations,omitempty"`
+}
+
+type EntityMigration struct {
+	FromVersion int    `json:"fromVersion"`
+	ToVersion   int    `json:"toVersion"`
+	Kind        string `json:"kind"`
+	FieldID     string `json:"fieldId,omitempty"`
+	FromFieldID string `json:"fromFieldId,omitempty"`
+	ToFieldID   string `json:"toFieldId,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 type EntitySchemaSection struct {
@@ -210,7 +232,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				textField("status", "details.productionStatus", "Status", "input", true),
 				numberField("target_storyboards", "details.targetStoryboards", "Target Storyboards", true),
 				numberField("target_scenes", "details.targetScenes", "Target Scenes", true),
-				unstoredField(textField("script", "details.scriptBody", "Script", "textarea", false)),
+				computedTextField("script", "details.scriptBody", "Script"),
 				relatedListField("scenes", "entities.scenes", "Scenes", "scene"),
 				relatedListField("storyboards", "entities.storyboards", "Storyboards", "storyboard"),
 			})},
@@ -298,8 +320,16 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 func normalizeEntitySemanticSchemas(schemas []EntitySemanticSchema) {
 	for i := range schemas {
 		schemas[i].SchemaVersion = EntitySemanticSchemaVersion
+		schemas[i].Projection = "semantic"
 		if schemas[i].Layout.Variant == "" {
 			schemas[i].Layout.Variant = "detail"
+		}
+		compat := EntitySchemaCompatibility{
+			CurrentVersion:       EntitySemanticSchemaVersion,
+			MinCompatibleVersion: 1,
+			FieldAliases:         map[string][]string{},
+			DeprecatedFields:     []string{},
+			Migrations:           []EntityMigration{},
 		}
 		for si := range schemas[i].Sections {
 			if schemas[i].Sections[si].Layout.Columns == 0 {
@@ -317,8 +347,58 @@ func normalizeEntitySemanticSchemas(schemas []EntitySemanticSchema) {
 				if field.Validation == nil && field.IO.Required {
 					field.Validation = &FieldValidation{Required: true}
 				}
+				aliases := append([]string{}, field.Aliases...)
+				aliases = append(aliases, EntityWorkflowAliases(*field)...)
+				if len(aliases) > 0 {
+					compat.FieldAliases[field.ID] = uniqueStrings(aliases)
+				}
+				if field.Deprecated {
+					compat.DeprecatedFields = append(compat.DeprecatedFields, field.ID)
+				}
 			}
 		}
+		compat.Migrations = schemaMigrations(schemas[i].Kind)
+		if len(compat.FieldAliases) == 0 {
+			compat.FieldAliases = nil
+		}
+		if len(compat.DeprecatedFields) == 0 {
+			compat.DeprecatedFields = nil
+		}
+		if len(compat.Migrations) == 0 {
+			compat.Migrations = nil
+		}
+		schemas[i].Compatibility = compat
+	}
+}
+
+func schemaMigrations(kind string) []EntityMigration {
+	switch kind {
+	case "script":
+		return []EntityMigration{
+			{
+				FromVersion: 1,
+				ToVersion:   EntitySemanticSchemaVersion,
+				Kind:        "field_alias",
+				FieldID:     "core_settings",
+				FromFieldID: "settings",
+				ToFieldID:   "core_settings",
+				Description: "Workflow port settings remains an alias for the stored core_settings field.",
+			},
+		}
+	case "shot":
+		return []EntityMigration{
+			{
+				FromVersion: 1,
+				ToVersion:   EntitySemanticSchemaVersion,
+				Kind:        "dual_write",
+				FieldID:     "prompt",
+				FromFieldID: "prompt",
+				ToFieldID:   "final_prompt",
+				Description: "Writes to prompt are mirrored to final_prompt for legacy shot prompt compatibility.",
+			},
+		}
+	default:
+		return nil
 	}
 }
 
@@ -338,7 +418,7 @@ func EntitySemanticFieldForPort(kind string, portID string) (EntitySemanticField
 	}
 	for _, section := range schema.Sections {
 		for _, field := range section.Fields {
-			if EntityWorkflowPortID(field) == portID || stringInSlice(portID, EntityWorkflowAliases(field)) || stringInSlice(portID, field.Aliases) {
+			if field.ID == portID || EntityWorkflowPortID(field) == portID || stringInSlice(portID, EntityWorkflowAliases(field)) || stringInSlice(portID, field.Aliases) {
 				return field, true
 			}
 		}
@@ -353,7 +433,7 @@ func EntityFieldForPort(kind string, portID string) (EntitySchemaField, bool) {
 	}
 	for _, section := range schema.Sections {
 		for _, field := range section.Fields {
-			if field.Workflow.PortID == portID || stringInSlice(portID, field.Workflow.Aliases) || stringInSlice(portID, field.Aliases) {
+			if field.ID == portID || field.Workflow.PortID == portID || stringInSlice(portID, field.Workflow.Aliases) || stringInSlice(portID, field.Aliases) {
 				return field, true
 			}
 		}
@@ -400,6 +480,8 @@ func projectEntityWorkflowSchema(schema EntitySemanticSchema) EntitySchema {
 	projected := EntitySchema{
 		Kind:          schema.Kind,
 		SchemaVersion: schema.SchemaVersion,
+		Projection:    "workflow",
+		Compatibility: schema.Compatibility,
 		LabelKey:      schema.LabelKey,
 		FallbackLabel: schema.FallbackLabel,
 		Layout:        schema.Layout,
@@ -498,6 +580,14 @@ func numberField(id string, labelKey string, fallback string, writable bool) Ent
 	}
 }
 
+func computedTextField(id string, labelKey string, fallback string) EntitySemanticField {
+	return EntitySemanticField{
+		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "text", Control: "computed",
+		Readonly: true,
+		IO:       FieldIO{Readable: true, Writable: false},
+	}
+}
+
 func relatedListField(id string, labelKey string, fallback string, nestedKind string) EntitySemanticField {
 	return EntitySemanticField{
 		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "json", Control: "related_entity_list",
@@ -513,15 +603,30 @@ func resourceField(id string, labelKey string, fallback string, portID string, r
 
 func mediaField(id string, labelKey string, fallback string, portID string, valueType string, role string, primary bool) EntitySemanticField {
 	maxCount := 0
+	control := "resource_gallery"
 	if primary {
 		maxCount = 1
+		control = "resource_picker"
 	}
 	return EntitySemanticField{
-		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: valueType, Control: "resource_picker",
+		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: valueType, Control: control,
 		IO:           FieldIO{Readable: true, Writable: true, MaxCount: maxCount},
 		WorkflowPort: portID,
 		Binding:      &FieldBindingMap{Role: role, Slot: portID, IsPrimary: primary, Multiple: !primary},
 	}
+}
+
+func uniqueStrings(items []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		result = append(result, item)
+	}
+	return result
 }
 
 func unstoredField(field EntitySemanticField) EntitySemanticField {

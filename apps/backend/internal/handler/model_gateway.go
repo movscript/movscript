@@ -355,22 +355,6 @@ func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipa
 	}
 	token := strings.TrimSpace(bearer[len("Bearer "):])
 
-	if strings.HasPrefix(token, "user_") || isUnsignedInteger(token) {
-		rawID := token
-		if strings.HasPrefix(token, "user_") {
-			rawID = strings.TrimPrefix(token, "user_")
-		}
-		id, err := strconv.ParseUint(rawID, 10, 64)
-		if err != nil || id == 0 {
-			return nil, false
-		}
-		var user model.User
-		if err := h.db.First(&user, uint(id)).Error; err != nil {
-			return nil, false
-		}
-		return &gatewayPrincipal{User: &user}, true
-	}
-
 	var key model.GatewayAPIKey
 	hash := hashGatewayAPIKey(token)
 	if err := h.db.Where("key_hash = ? AND is_enabled = true", hash).First(&key).Error; err != nil {
@@ -673,18 +657,6 @@ func gatewayKeyPrefix(raw string) string {
 		return raw
 	}
 	return raw[:12]
-}
-
-func isUnsignedInteger(value string) bool {
-	if value == "" {
-		return false
-	}
-	for _, r := range value {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func writeOpenAIError(c *gin.Context, status int, message, typ, param, code string) {

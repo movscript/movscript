@@ -69,6 +69,18 @@ export function StoryboardDetail({ storyboard, onClose, onDelete }: Props) {
 
         {/* Right: draft video */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <EntitySemanticForm
+            kind="storyboard"
+            ownerType="storyboard"
+            ownerId={storyboard.ID}
+            draft={draft}
+            onChange={(next) => setDraft(next as Partial<Storyboard>)}
+            onSave={(payload) => update.mutate(payload as Partial<Storyboard>)}
+            isSaving={update.isPending}
+            includeFields={['image', 'reference', 'shots']}
+            className="h-auto overflow-visible p-0"
+            showSave={false}
+          />
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-foreground">{t('details.draftVideo')}</h3>

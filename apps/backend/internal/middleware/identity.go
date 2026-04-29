@@ -1,32 +1,56 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
+	"github.com/movscript/movscript/internal/auth"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
 
 const ContextUserKey = "currentUser"
 
-// Identity reads X-User-ID header (or ?uid= query param fallback) and loads the user into gin context.
-func Identity(db *gorm.DB) gin.HandlerFunc {
+// Identity reads a signed Bearer token and loads the user into gin context.
+func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		idStr := c.GetHeader("X-User-ID")
-		if idStr == "" {
-			idStr = c.Query("uid") // fallback for native browser elements (<video>, <img>)
+		raw, ok := auth.BearerToken(c.GetHeader("Authorization"))
+		if !ok {
+			c.Next()
+			return
 		}
-		if idStr != "" {
-			id, err := strconv.ParseUint(idStr, 10, 64)
-			if err == nil {
-				var user model.User
-				if db.First(&user, id).Error == nil {
-					c.Set(ContextUserKey, &user)
-				}
+		if !auth.LooksSigned(raw) {
+			c.Next()
+			return
+		}
+
+		claims, err := tokens.Verify(raw)
+		if err != nil {
+			status := http.StatusUnauthorized
+			msg := "登录凭证无效"
+			if errors.Is(err, auth.ErrExpiredToken) {
+				msg = "登录已过期，请重新登录"
 			}
+			c.AbortWithStatusJSON(status, apierr.Response{Code: apierr.CodeAuthRequired, Message: msg, Action: apierr.ActionLogout})
+			return
+		}
+
+		var user model.User
+		if db.First(&user, claims.UserID).Error == nil {
+			c.Set(ContextUserKey, &user)
+		}
+		c.Next()
+	}
+}
+
+// RequireAuth aborts with 401 if the request has no authenticated principal.
+func RequireAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if _, ok := c.Get(ContextUserKey); !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
+			return
 		}
 		c.Next()
 	}

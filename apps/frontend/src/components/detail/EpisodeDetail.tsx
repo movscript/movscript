@@ -120,7 +120,7 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
         onChange={(next) => setDraft(next as Partial<Episode>)}
         onSave={(payload) => update.mutate(payload as Partial<Episode>)}
         isSaving={update.isPending}
-        excludeFields={['result', 'attachment', 'script', 'scenes', 'storyboards']}
+        excludeFields={['result', 'attachment', 'scenes', 'storyboards']}
         fieldRenderers={{
           status: (ctx) => (
             <div>

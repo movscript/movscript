@@ -24,13 +24,15 @@ const contextSnapshot: MCPContextSnapshot = {
 
 const drafts = new Map<string, MCPDraft>()
 let server: Server | null = null
+let contextAuthToken = ''
 
-export function updateMCPContextSnapshot(next: MCPContextSnapshot): void {
+export function updateMCPContextSnapshot(next: MCPContextSnapshot & { auth?: { token: string } | null }): void {
   contextSnapshot.route = next.route
   contextSnapshot.project = next.project
   contextSnapshot.user = next.user
   contextSnapshot.selection = next.selection
   contextSnapshot.updatedAt = next.updatedAt
+  contextAuthToken = next.auth?.token ?? ''
 }
 
 export function getMCPContextSnapshot(): MCPContextSnapshot {
@@ -540,7 +542,7 @@ function routeForEntity(entityType: string): string {
 
 async function backendGet(path: string): Promise<any> {
   const headers: Record<string, string> = {}
-  if (contextSnapshot.user?.id) headers['X-User-ID'] = String(contextSnapshot.user.id)
+  if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
 
   const res = await fetch(`${API_BASE_URL}${path}`, { headers })
   if (!res.ok) {

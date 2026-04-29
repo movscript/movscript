@@ -8,6 +8,7 @@ export function MCPContextBridge() {
   const navigate = useNavigate()
   const project = useProjectStore((s) => s.current)
   const user = useUserStore((s) => s.currentUser)
+  const token = useUserStore((s) => s.token)
 
   const snapshot = useMemo(() => ({
     route: {
@@ -27,9 +28,10 @@ export function MCPContextBridge() {
       username: user.username,
       systemRole: user.system_role,
     } : null,
+    auth: token ? { token } : null,
     selection: null,
     updatedAt: new Date().toISOString(),
-  }), [location.hash, location.pathname, location.search, project, user])
+  }), [location.hash, location.pathname, location.search, project, token, user])
 
   useEffect(() => {
     window.api?.updateMCPContext?.(snapshot)

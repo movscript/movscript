@@ -7,15 +7,13 @@ import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { generationParamLabel, generationSlotLabel } from '@/lib/paramLabels'
 import type { RawResource, ParamDef } from '@/types'
-import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 
 // Fetch a blob URL for a resource using the authed api instance.
 // Returns a revocable blob: URL, or the direct_url if available.
-async function fetchBlobUrl(resource: RawResource, userId?: number): Promise<string> {
-  const uid = userId ? `?uid=${userId}` : ''
-  const src = `${API_BASE}${resource.url}${uid}`
+async function fetchBlobUrl(resource: RawResource): Promise<string> {
+  const src = resource.direct_url ?? `${API_BASE}${resource.url}`
   const res = await api.get(src, { baseURL: '', responseType: 'blob' })
   return URL.createObjectURL(res.data)
 }
@@ -184,7 +182,6 @@ export function GenInputCard({
   const fileRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const userId = useUserStore(s => s.currentUser?.ID)
 
   const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? 'image/*' : 'image/*,video/*'
 
@@ -255,7 +252,7 @@ export function GenInputCard({
 
     // Fetch blob URL via authed api and set directly on the media element.
     // Errors are suppressed (no toast) because responseType=blob is excluded in the interceptor.
-    fetchBlobUrl(resource, userId).then((blobUrl) => {
+    fetchBlobUrl(resource).then((blobUrl) => {
       // If the media element was detached by the browser's editing engine, find it again by resource ID
       let target: HTMLImageElement | HTMLVideoElement | null = media
       if (!media.isConnected && editorRef.current) {

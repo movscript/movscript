@@ -7,6 +7,10 @@ function useAuthBlobUrl(src: string | undefined): string | undefined {
 
   useEffect(() => {
     if (!src) return
+    if (!requiresAPIAuth(src)) {
+      setBlobUrl(src)
+      return
+    }
     let active = true
     let objectUrl: string | undefined
     api.get(src, { baseURL: '', responseType: 'blob' })
@@ -26,11 +30,20 @@ function useAuthBlobUrl(src: string | undefined): string | undefined {
   return blobUrl
 }
 
+function requiresAPIAuth(src: string): boolean {
+  try {
+    const url = new URL(src, window.location.origin)
+    return url.pathname.startsWith('/api/v1/resources/')
+  } catch {
+    return src.startsWith('/api/v1/resources/')
+  }
+}
+
 interface ImgProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string | undefined
 }
 
-// Use instead of <img> for URLs that go through /api/v1/resources/:id/file (requires X-User-ID header).
+// Use instead of raw media elements for URLs that need the API Authorization header.
 export function AuthedImage({ src, className, ...props }: ImgProps) {
   const blobUrl = useAuthBlobUrl(src)
   if (!src) return null

@@ -8,6 +8,7 @@
     "cancel": "Cancel",
     "close": "Close",
     "collapse": "Collapse",
+    "computed": "Computed",
     "create": "Create",
     "creating": "Creating...",
     "delete": "Delete",
@@ -15,10 +16,14 @@
     "emptyDescription": "(No description)",
     "expand": "Expand",
     "itemsCount": "{{count}} items",
+    "shotsCount": "{{count}} shots",
+    "storyboardRef": "storyboard #{{id}}",
     "save": "Save",
     "saving": "Saving...",
     "selected": "Selected",
     "retry": "Retry",
+    "readonly": "Read-only",
+    "related": "Related",
     "loading": "Loading...",
     "loadingShort": "Loading...",
     "switch": "Switch",
@@ -1317,8 +1322,21 @@
         "empty": "No matching run records",
         "snapshotSummary": "{{nodes}} nodes / {{edges}} edges"
       },
+      "audit": {
+        "title": "Entity Write Audit",
+        "description": "Entity field changes written by canvas runs.",
+        "recordsCount": "{{count}} records",
+        "entity": "Entity",
+        "node": "Node",
+        "port": "Port",
+        "change": "Change",
+        "loading": "Loading audit records",
+        "empty": "No entity write records yet"
+      },
       "errors": {
-        "nodeNotFound": "Node not found in the database"
+        "nodeNotFound": "Node not found in the database",
+        "invalidRuntimeInput": "Invalid input for {{port}}",
+        "requiredRuntimeInput": "{{port}} is required"
       },
       "untitled": "Untitled canvas",
       "nodesCount": "{{count}} nodes",
@@ -1352,7 +1370,11 @@
       "noSelectionDescription": "Select a node to edit its label, input source, model, prompt, and run settings here.",
       "currentSelection": "Current Selection",
       "edgesCount": "Connections",
-      "workflowInputDescription": "After you fill in these input nodes, the workflow will run automatically."
+      "workflowInputDescription": "Fill each input using its parameter type, then the workflow will run automatically.",
+      "nodeRuntimeInputTitle": "Runtime Inputs",
+      "nodeRuntimeInputDescription": "Provide values for unconnected input ports before running this node.",
+      "booleanEnabled": "Enabled",
+      "resourceIdPlaceholder": "Resource ID"
     },
     "unset": "Not set",
     "textInputPlaceholder": "Enter text here...",

@@ -369,7 +369,6 @@ function safeJSONStringify(value: unknown) {
 function buildDebugHttpRequests(options: {
   route: AgentSendRoute
   modelId: number | null
-  userId: string
   messages: AgentSendDraft['outbound']['messages']
   localRuntime?: AgentSendDraft['localRuntime']
 }): DebugHttpRequest[] {
@@ -381,7 +380,7 @@ function buildDebugHttpRequests(options: {
       url: `${API_V1_BASE_URL}/ai/chat`,
       headers: {
         'Content-Type': 'application/json',
-        'X-User-ID': options.userId,
+        Authorization: 'Bearer <session-token>',
       },
       body: {
         model_config_id: options.modelId,
@@ -1931,7 +1930,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       httpRequests: buildDebugHttpRequests({
         route: localRuntimeEnabled ? 'local-runtime' : 'cloud-chat',
         modelId,
-        userId,
         messages,
         ...(localRuntime ? { localRuntime } : {}),
       }),

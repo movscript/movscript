@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
-import { useUserStore } from '@/store/userStore'
-import type { User } from '@/types'
+import { type AuthSession, useUserStore } from '@/store/userStore'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
@@ -45,7 +44,7 @@ function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
 
 export default function AuthPage() {
   const { t } = useTranslation()
-  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
+  const setSession = useUserStore((s) => s.setSession)
   const [tab, setTab] = useState<Tab>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -53,14 +52,14 @@ export default function AuthPage() {
   const [error, setError] = useState('')
 
   const login = useMutation({
-    mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as User),
-    onSuccess: setCurrentUser,
+    mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as AuthSession),
+    onSuccess: setSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.loginFailed'))
   })
 
   const register = useMutation({
-    mutationFn: () => api.post('/auth/register', { username, password }).then((r) => r.data as User),
-    onSuccess: setCurrentUser,
+    mutationFn: () => api.post('/auth/register', { username, password }).then((r) => r.data as AuthSession),
+    onSuccess: setSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
   })
 

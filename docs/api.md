@@ -118,6 +118,8 @@ Additional nested routes exist for scripts, assets, asset views, episodes, episo
 | --- | --- | --- |
 | `GET` | `/api/v1/entities/semantic-schemas` | List entity semantic schemas used as the shared field/capability registry. |
 | `GET` | `/api/v1/entities/semantic-schemas/:kind` | Read one entity semantic schema. |
+| `GET` | `/api/v1/entities/semantic-schemas/:kind/migration-report` | Read schema compatibility and migration actions for one entity kind. |
+| `GET` | `/api/v1/entities/:kind/:id/semantic-values` | Read backend-produced detail values for one entity, including stored, computed, and related-list fields. |
 | `GET` | `/api/v1/workflow/entity-schemas` | List workflow-port projections of entity semantic schemas. |
 | `GET` | `/api/v1/workflow/entity-schemas/:kind` | Read one workflow-port projection for an entity kind. |
 | `GET` | `/api/v1/canvases` | List canvases. |

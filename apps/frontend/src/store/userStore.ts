@@ -4,29 +4,37 @@ import type { User } from '@/types'
 
 interface UserStore {
   currentUser: User | null
+  token: string | null
+  tokenExpiresAt: string | null
+  setSession: (session: AuthSession | null) => void
   setCurrentUser: (u: User | null) => void
 }
 
-function syncUserId(user: User | null) {
-  // Only available in Electron (not plain browser).
-  const api = (window as { api?: { setUserId?: (id: string) => void } }).api
-  api?.setUserId?.(user ? String(user.ID) : '')
+export interface AuthSession {
+  user: User
+  token: string
+  expires_at: string
 }
 
 export const useUserStore = create<UserStore>()(
   persist(
     (set) => ({
       currentUser: null,
-      setCurrentUser: (u) => {
-        set({ currentUser: u })
-        syncUserId(u)
-      },
+      token: null,
+      tokenExpiresAt: null,
+      setSession: (session) => set({
+        currentUser: session?.user ?? null,
+        token: session?.token ?? null,
+        tokenExpiresAt: session?.expires_at ?? null,
+      }),
+      setCurrentUser: (u) => set((state) => ({
+        currentUser: u,
+        token: u ? state.token : null,
+        tokenExpiresAt: u ? state.tokenExpiresAt : null,
+      })),
     }),
     {
       name: 'movscript-user',
-      onRehydrateStorage: () => (state) => {
-        if (state?.currentUser) syncUserId(state.currentUser)
-      },
     }
   )
 )

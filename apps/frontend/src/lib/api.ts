@@ -9,9 +9,9 @@ export const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const user = useUserStore.getState().currentUser
-  if (user) {
-    config.headers['X-User-ID'] = String(user.ID)
+  const token = useUserStore.getState().token
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })

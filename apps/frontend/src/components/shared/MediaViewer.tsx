@@ -2,12 +2,11 @@ import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useTranslation } from 'react-i18next'
 import { X, Maximize2, Download } from 'lucide-react'
-import { AuthedImage } from './AuthedImage'
+import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import type { RawResource } from '@/types'
-import { useUserStore } from '@/store/userStore'
 
 interface MediaViewerProps {
   resource: RawResource
@@ -20,9 +19,8 @@ interface MediaViewerProps {
   onOpenChange?: (open: boolean) => void
 }
 
-function resolveUrl(resource: RawResource, userId?: number): string {
-  const uid = userId ? `?uid=${userId}` : ''
-  return `${API_BASE}${resource.url}${uid}`
+function resolveUrl(resource: RawResource): string {
+  return resource.direct_url ?? `${API_BASE}${resource.url}`
 }
 
 async function downloadResource(proxyUrl: string, name: string) {
@@ -42,8 +40,7 @@ async function downloadResource(proxyUrl: string, name: string) {
 export function MediaViewer({ resource, className = '', fit = 'cover', lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
-  const userId = useUserStore(s => s.currentUser?.ID)
-  const proxyUrl = resolveUrl(resource, userId)
+  const proxyUrl = resolveUrl(resource)
 
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
@@ -91,7 +88,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
             </div>
 
             {resource.type === 'video' ? (
-              <video
+              <AuthedVideo
                 src={proxyUrl}
                 controls
                 autoPlay
@@ -130,7 +127,7 @@ function ImageThumb({ proxyUrl, alt, fit }: { proxyUrl: string; alt: string; fit
 function VideoThumb({ proxyUrl, fit }: { proxyUrl: string; fit: 'cover' | 'contain' }) {
   return (
     <div className="w-full h-full flex items-center justify-center bg-muted/50">
-      <video src={proxyUrl} className={fit === 'contain' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'} muted playsInline preload="metadata" />
+      <AuthedVideo src={proxyUrl} className={fit === 'contain' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'} muted playsInline preload="metadata" />
     </div>
   )
 }

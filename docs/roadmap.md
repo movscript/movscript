@@ -21,39 +21,34 @@ The near-term direction is to make workflow canvases operate on production entit
 - Full-canvas and single-node runs reject unconnected required inputs, with backend test coverage.
 - Entity read-port validation is available for future caller-selected output-port APIs.
 - Entity write audit records can be read through an API filtered by canvas id, run id, entity kind/id, and user.
+- The canvas editor exposes entity write audit records in the workflow bottom panel.
 - Canvas task APIs lazily normalize legacy `resource_id`-only outputs into `output_values` with semantic `result`/`value` handles.
 - The canvas editor includes a task input/output inspector for the selected node and selected run.
 - The canvas editor prompts for unconnected required single-node runtime inputs, submits typed `CanvasPortValue` data, and shows the resulting node task in the inspector.
+- The canvas editor submits typed `CanvasPortValue` data for full-workflow input nodes, including text, JSON, number, boolean, and resource/media ids.
 - Entity workflow schemas include `schemaVersion`, alias/deprecated metadata, readonly state, validation hints, and layout hints.
 - Backend workflow execution supports `CanvasExecutableSpec.executor = "plugin_http"` for enabled trusted HTTP plugin tools.
 - Inline `text`, `json`, `number`, and `boolean` values propagate as `CanvasPortValue` data; `RawResource` records are reserved for persisted media/resource artifacts.
 - Full-canvas runs use a topological execution plan and execute nodes through the same `executeCanvasNode` path used by single-node runs.
 - The frontend no longer maintains per-entity local port maps or generic entity port fallbacks; entity nodes require backend schema ports.
 - A shared `EntitySemanticForm` can render editable detail fields and resource binding controls from entity semantic schemas, with per-field renderers and form slots for hybrid composition.
+- `EntitySemanticForm` separates visible semantic fields from savable fields, so readonly, related-list, and computed fields can be shown in detail UI without being written back in save payloads.
 - Asset, scene, storyboard, shot, setting, episode, final-video, and script detail surfaces use the semantic-schema-driven form for core editable fields while preserving domain-specific editors around it.
+- Detail pages can read backend-produced semantic values for stored fields, computed fields, and related entity lists through the detail-values API.
+- Semantic resource bindings distinguish single primary pickers from multi-resource galleries.
+- Scene and storyboard detail surfaces can show schema-driven nested storyboard/shot summaries.
+- Entity semantic schemas and workflow projections expose projection and compatibility metadata, including current/minimum compatible versions, field aliases, and deprecated fields.
+- Entity semantic schemas expose migration metadata, and `/entities/semantic-schemas/:kind/migration-report` returns schema compatibility actions for UI/debug clients.
+- Entity write paths canonicalize legacy alias ports before validation/write/audit behavior, so compatibility metadata and execution behavior stay aligned.
+- `EntitySemanticForm` renders visible/editable fields from backend semantic schemas without requiring draft objects to predeclare every field, while preserving frontend ownership of React controls and layout.
 
 ### P1: Semantic-Schema-Driven Product UI
 
-- Finish polishing semantic-schema-driven entity detail pages.
-  - Details pages and workflow nodes should share semantic field ids, i18n keys, binding roles, readonly state, and validation.
-  - Detail UI should consume a UI/detail projection of the semantic schema, not the workflow-port projection.
-  - Workflow schema remains a runtime port projection and must not become the source of truth for entities.
-  - Keep richer domain-specific editors composed as field renderers or slots instead of forking duplicate field definitions.
-
-- Expand schema layout expressiveness.
-  - Support resource galleries.
-  - Support related entity lists.
-  - Support readonly computed fields.
-  - Support nested storyboard/shot views where needed.
-
-- Keep frontend rendering semantic, not pixel-driven.
-  - Backend should describe fields, controls, validation, and grouping.
-  - Frontend should keep ownership of actual React components, spacing, and design-system behavior.
+- Keep expanding schema-driven controls only when new product fields require new control types.
 
 ### P2: Plugin and Extensibility Runtime
 
-- Version entity semantic schemas and their projections.
-  - Support port aliases and deprecated fields.
+- Keep plugin-facing schema compatibility docs current as entity fields evolve.
 
 ## API Documentation
 

@@ -97,36 +97,56 @@ function SemanticPortRows({
 }) {
   const { t } = useTranslation()
   const { resolvedInputs, resolvedOutputs } = resolvePorts({ nodeType, inputPorts, outputPorts, inputs, outputs })
+  const rows = pairSemanticPorts(resolvedInputs, resolvedOutputs)
   if (resolvedInputs.length === 0 && resolvedOutputs.length === 0) return null
 
   return (
     <div className="nodrag border-b border-border/60 bg-muted/15 px-2 py-2">
-      {resolvedInputs.length > 0 && (
-        <div className="space-y-1">
-          {resolvedInputs.map((port) => (
-            <SemanticPortRow key={`in-${port.id}`} port={port} side="input" />
-          ))}
-        </div>
-      )}
-      {resolvedOutputs.length > 0 && (
-        <div className={cn('space-y-1', resolvedInputs.length > 0 && 'mt-1.5 border-t border-border/50 pt-1.5')}>
-          {resolvedOutputs.map((port) => (
-            <SemanticPortRow key={`out-${port.id}`} port={port} side="output" />
-          ))}
-        </div>
-      )}
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <SemanticPortRow
+            key={`${row.inputPort ? 'in' : 'x'}-${row.outputPort ? 'out' : 'x'}-${row.port.id}`}
+            inputPort={row.inputPort}
+            outputPort={row.outputPort}
+          />
+        ))}
+      </div>
       <span className="sr-only">{t('canvas.ports.semanticRows', { defaultValue: 'Semantic input and output ports' })}</span>
     </div>
   )
 }
 
-function SemanticPortRow({ port, side }: { port: CanvasPortDef; side: 'input' | 'output' }) {
+type SemanticPortPair = {
+  port: CanvasPortDef
+  inputPort?: CanvasPortDef
+  outputPort?: CanvasPortDef
+}
+
+function pairSemanticPorts(inputPorts: CanvasPortDef[], outputPorts: CanvasPortDef[]): SemanticPortPair[] {
+  const outputById = new Map(outputPorts.map((port) => [port.id, port]))
+  const pairedOutputIds = new Set<string>()
+  const rows: SemanticPortPair[] = inputPorts.map((inputPort) => {
+    const outputPort = outputById.get(inputPort.id)
+    if (outputPort) pairedOutputIds.add(outputPort.id)
+    return { port: inputPort, inputPort, outputPort }
+  })
+  outputPorts.forEach((outputPort) => {
+    if (!pairedOutputIds.has(outputPort.id)) rows.push({ port: outputPort, inputPort: undefined, outputPort })
+  })
+  return rows
+}
+
+function SemanticPortRow({ inputPort, outputPort }: { inputPort?: CanvasPortDef; outputPort?: CanvasPortDef }) {
   const { t } = useTranslation()
+  const port = inputPort ?? outputPort
+  if (!port) return null
   const typeLabelKey = PARAM_TYPE_LABELS[port.type]
   const typeLabel = typeLabelKey ? t(typeLabelKey) : port.type
   const label = port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
   const requiredLabel = t('canvas.ports.required', { defaultValue: 'Required' })
   const maxCountLabel = port.maxCount ? t('canvas.ports.maxCount', { count: port.maxCount, defaultValue: `Max ${port.maxCount}` }) : null
+  const isInputOnly = !!inputPort && !outputPort
+  const isOutputOnly = !!outputPort && !inputPort
   const title = [
     label,
     typeLabel,
@@ -139,18 +159,39 @@ function SemanticPortRow({ port, side }: { port: CanvasPortDef; side: 'input' | 
     <div
       title={title}
       className={cn(
-        'relative flex min-h-[30px] items-center gap-1.5 rounded-md border border-border bg-background/85 px-2 py-1.5 text-[10px] shadow-sm',
-        side === 'output' ? 'justify-end pr-3 text-right' : 'pl-3'
+        'relative flex min-h-[30px] items-center gap-1.5 rounded-md border border-border bg-background/85 px-3 py-1.5 text-[10px] shadow-sm',
+        isOutputOnly && 'justify-end text-right',
+        isInputOnly && 'justify-start',
+        inputPort && outputPort && 'justify-center text-center'
       )}
     >
-      <Handle
-        id={port.id}
-        type={side === 'input' ? 'target' : 'source'}
-        position={side === 'input' ? Position.Left : Position.Right}
-        title={title}
-        style={side === 'input' ? semanticTargetHandleStyle : semanticSourceHandleStyle}
-      />
-      <div className={cn('flex min-w-0 flex-1 items-center gap-1.5', side === 'output' && 'justify-end')}>
+      {inputPort && (
+        <Handle
+          id={inputPort.id}
+          type="target"
+          position={Position.Left}
+          isConnectableStart={false}
+          isConnectableEnd
+          title={title}
+          style={semanticTargetHandleStyle}
+        />
+      )}
+      {outputPort && (
+        <Handle
+          id={outputPort.id}
+          type="source"
+          position={Position.Right}
+          isConnectableStart
+          isConnectableEnd={false}
+          title={title}
+          style={semanticSourceHandleStyle}
+        />
+      )}
+      <div className={cn(
+        'flex min-w-0 flex-1 items-center gap-1.5',
+        isOutputOnly && 'justify-end',
+        inputPort && outputPort && 'justify-center px-1'
+      )}>
         <span className="truncate font-medium text-foreground">{label}</span>
         {port.required && <span className="shrink-0 rounded-sm bg-destructive/10 px-1 py-0.5 leading-none text-destructive">*</span>}
         <span className="shrink-0 rounded border border-border bg-muted/40 px-1 py-0.5 leading-none text-muted-foreground">{typeLabel}</span>

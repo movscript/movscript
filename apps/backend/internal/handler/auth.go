@@ -2,16 +2,30 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/auth"
 	"github.com/movscript/movscript/internal/model"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-type AuthHandler struct{ db *gorm.DB }
+type AuthHandler struct {
+	db     *gorm.DB
+	tokens *auth.Manager
+}
 
-func NewAuthHandler(db *gorm.DB) *AuthHandler { return &AuthHandler{db: db} }
+func NewAuthHandler(db *gorm.DB, tokens *auth.Manager) *AuthHandler {
+	return &AuthHandler{db: db, tokens: tokens}
+}
+
+type authResponse struct {
+	User      model.User `json:"user"`
+	Token     string     `json:"token"`
+	TokenType string     `json:"token_type"`
+	ExpiresAt time.Time  `json:"expires_at"`
+}
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req struct {
@@ -52,7 +66,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, u)
+	h.respondWithCredential(c, http.StatusCreated, u)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -76,5 +90,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, u)
+	h.respondWithCredential(c, http.StatusOK, u)
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user model.User) {
+	token, expiresAt, err := h.tokens.Issue(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue auth token"})
+		return
+	}
+	c.JSON(status, authResponse{
+		User:      user,
+		Token:     token,
+		TokenType: "Bearer",
+		ExpiresAt: expiresAt,
+	})
 }

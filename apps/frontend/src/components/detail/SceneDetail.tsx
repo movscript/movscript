@@ -81,7 +81,7 @@ export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Pro
             onChange={(next) => setDraft(next as Partial<Scene>)}
             onSave={(payload) => update.mutate(payload as Partial<Scene>)}
             isSaving={update.isPending}
-            includeFields={['reference']}
+            includeFields={['reference', 'storyboards', 'shots']}
             className="h-auto overflow-visible p-0"
             showSave={false}
           />

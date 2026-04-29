@@ -6,14 +6,12 @@ import { MediaViewer } from './MediaViewer'
 import { cn } from '@/lib/utils'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { GenJob, RawResource } from '@/types'
-import { useUserStore } from '@/store/userStore'
 
 // ── PromptText ────────────────────────────────────────────────────────────────
 // Renders a prompt string, replacing @[resource:ID] tokens with inline thumbnails.
 
 function ResourceChip({ id }: { id: number }) {
   const qc = useQueryClient()
-  const userId = useUserStore(s => s.currentUser?.ID)
   const resources = qc.getQueryData<RawResource[]>(['resources']) ?? []
   const resource = resources.find(r => r.ID === id)
 
@@ -25,8 +23,7 @@ function ResourceChip({ id }: { id: number }) {
     )
   }
 
-  const uid = userId ? `?uid=${userId}` : ''
-  const url = resource.direct_url ?? `${API_BASE}${resource.url}${uid}`
+  const url = resource.direct_url ?? `${API_BASE}${resource.url}`
   return (
     <span className="inline-flex items-center gap-1 align-middle bg-muted rounded-md px-1.5 py-0.5 mx-0.5 text-[11px] text-foreground whitespace-nowrap">
       <span className="w-4 h-4 rounded overflow-hidden shrink-0 bg-muted-foreground/20 inline-block">

@@ -26,6 +26,21 @@ func TestEntityFieldUpdatesUseSchemaStorageMapping(t *testing.T) {
 	}
 }
 
+func TestNormalizeEntityPortValuesCanonicalizesAliases(t *testing.T) {
+	values, err := NormalizeEntityPortValues("script", map[string]EntityPortValue{
+		"core_settings": {Type: "json", JSON: map[string]any{"world": "near future"}},
+	})
+	if err != nil {
+		t.Fatalf("expected alias normalization to succeed: %v", err)
+	}
+	if _, ok := values["core_settings"]; ok {
+		t.Fatalf("expected semantic core_settings field to normalize away, got %#v", values)
+	}
+	if value, ok := values["settings"]; !ok || value.JSON == nil {
+		t.Fatalf("expected canonical settings workflow port value, got %#v", values)
+	}
+}
+
 func TestEntityFieldUpdatesPreserveShotPromptCompatibility(t *testing.T) {
 	updates := entityFieldUpdates("shot", map[string]EntityPortValue{
 		"prompt": {Type: "text", Text: "final camera prompt"},
@@ -57,6 +72,61 @@ func TestEntitySchemasExposeVersionAndLayoutMetadata(t *testing.T) {
 	if !field.Readonly || field.Control != "related_entity_list" || field.Layout.NestedKind != "shot" {
 		t.Fatalf("expected readonly related shots field, got %#v", field)
 	}
+	if schema.Projection != "workflow" || schema.Compatibility.CurrentVersion != EntitySchemaVersion {
+		t.Fatalf("expected workflow projection compatibility metadata, got %#v", schema.Compatibility)
+	}
+}
+
+func TestEntitySchemasExposeMigrationMetadata(t *testing.T) {
+	shot, ok := EntitySchemaForKind("shot")
+	if !ok {
+		t.Fatal("expected shot schema")
+	}
+	var dualWrite EntityMigration
+	for _, migration := range shot.Compatibility.Migrations {
+		if migration.Kind == "dual_write" && migration.FromFieldID == "prompt" && migration.ToFieldID == "final_prompt" {
+			dualWrite = migration
+			break
+		}
+	}
+	if dualWrite.Kind == "" {
+		t.Fatalf("expected shot prompt dual-write migration metadata, got %#v", shot.Compatibility.Migrations)
+	}
+
+	script, ok := EntitySchemaForKind("script")
+	if !ok {
+		t.Fatal("expected script schema")
+	}
+	var alias EntityMigration
+	for _, migration := range script.Compatibility.Migrations {
+		if migration.Kind == "field_alias" && migration.FromFieldID == "settings" && migration.ToFieldID == "core_settings" {
+			alias = migration
+			break
+		}
+	}
+	if alias.Kind == "" {
+		t.Fatalf("expected script settings alias migration metadata, got %#v", script.Compatibility.Migrations)
+	}
+}
+
+func TestEntitySchemaMigrationReportIncludesActions(t *testing.T) {
+	report, err := EntitySchemaMigrationReportForKind("shot")
+	if err != nil {
+		t.Fatalf("expected migration report: %v", err)
+	}
+	if report.Kind != "shot" || report.CurrentVersion != EntitySchemaVersion {
+		t.Fatalf("unexpected migration report header: %#v", report)
+	}
+	found := false
+	for _, action := range report.Actions {
+		if action.Kind == "dual_write" && action.FromFieldID == "prompt" && action.ToFieldID == "final_prompt" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected shot dual-write action, got %#v", report.Actions)
+	}
 }
 
 func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
@@ -82,6 +152,9 @@ func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
 	if !semanticImage.IO.Readable || !semanticImage.IO.Writable {
 		t.Fatalf("expected semantic io to describe field capability, got %#v", semanticImage.IO)
 	}
+	if semanticImage.Control != "resource_picker" {
+		t.Fatalf("expected primary media field to use resource picker, got %q", semanticImage.Control)
+	}
 	if EntityWorkflowPortID(semanticImage) != "image" {
 		t.Fatalf("expected image workflow port projection, got %q", EntityWorkflowPortID(semanticImage))
 	}
@@ -100,6 +173,40 @@ func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
 	}
 	if workflowImage.Workflow.PortID != "image" || workflowImage.Workflow.MaxCount != 1 {
 		t.Fatalf("expected workflow field to be projected from semantic field, got %#v", workflowImage.Workflow)
+	}
+}
+
+func TestSemanticSchemaDistinguishesResourceGalleryAndComputedFields(t *testing.T) {
+	script, ok := EntitySemanticSchemaForKind("script")
+	if !ok {
+		t.Fatal("expected script semantic schema")
+	}
+	var result EntitySemanticField
+	for _, section := range script.Sections {
+		for _, field := range section.Fields {
+			if field.ID == "result" {
+				result = field
+			}
+		}
+	}
+	if result.Control != "resource_gallery" || result.Binding == nil || !result.Binding.Multiple {
+		t.Fatalf("expected multi-resource result gallery, got %#v", result)
+	}
+
+	episode, ok := EntitySemanticSchemaForKind("episode")
+	if !ok {
+		t.Fatal("expected episode semantic schema")
+	}
+	var scriptBody EntitySemanticField
+	for _, section := range episode.Sections {
+		for _, field := range section.Fields {
+			if field.ID == "script" {
+				scriptBody = field
+			}
+		}
+	}
+	if scriptBody.Control != "computed" || !scriptBody.Readonly || scriptBody.IO.Writable || scriptBody.Storage != nil {
+		t.Fatalf("expected episode script to be a computed detail field, got %#v", scriptBody)
 	}
 }
 

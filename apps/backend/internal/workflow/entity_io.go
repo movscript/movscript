@@ -174,6 +174,10 @@ func (s *EntityIOService) WritePorts(ctx context.Context, kind string, id uint, 
 	if len(values) == 0 {
 		return result, nil
 	}
+	values, err := NormalizeEntityPortValues(kind, values)
+	if err != nil {
+		return result, err
+	}
 	projectID, err := s.ProjectID(ctx, kind, id, meta.ProjectID)
 	if err != nil {
 		return result, err
@@ -239,6 +243,68 @@ func (s *EntityIOService) WritePorts(ctx context.Context, kind string, id uint, 
 	}
 
 	return result, nil
+}
+
+func NormalizeEntityPortValues(kind string, values map[string]EntityPortValue) (map[string]EntityPortValue, error) {
+	if _, ok := EntitySchemaForKind(kind); !ok {
+		return nil, fmt.Errorf("unsupported entity type %q", kind)
+	}
+	normalized := map[string]EntityPortValue{}
+	for portID, value := range values {
+		field, ok := EntityFieldForPort(kind, portID)
+		if !ok {
+			return nil, fmt.Errorf("unknown port %q for entity type %q", portID, kind)
+		}
+		canonicalPortID := field.Workflow.PortID
+		if canonicalPortID == "" {
+			canonicalPortID = field.ID
+		}
+		normalized[canonicalPortID] = mergeEntityPortValue(normalized[canonicalPortID], value)
+	}
+	return normalized, nil
+}
+
+func mergeEntityPortValue(existing EntityPortValue, next EntityPortValue) EntityPortValue {
+	if entityPortValueEmpty(existing) {
+		return next
+	}
+	if strings.TrimSpace(next.Type) != "" {
+		existing.Type = next.Type
+	}
+	if strings.TrimSpace(next.Text) != "" {
+		existing.Text = next.Text
+	}
+	if next.JSON != nil {
+		existing.JSON = next.JSON
+	}
+	if next.Number != nil {
+		existing.Number = next.Number
+	}
+	if next.Boolean != nil {
+		existing.Boolean = next.Boolean
+	}
+	if len(next.ResourceIDs) > 0 {
+		seen := map[uint]bool{}
+		for _, id := range existing.ResourceIDs {
+			seen[id] = true
+		}
+		for _, id := range next.ResourceIDs {
+			if !seen[id] {
+				existing.ResourceIDs = append(existing.ResourceIDs, id)
+				seen[id] = true
+			}
+		}
+	}
+	return existing
+}
+
+func entityPortValueEmpty(value EntityPortValue) bool {
+	return strings.TrimSpace(value.Type) == "" &&
+		strings.TrimSpace(value.Text) == "" &&
+		value.JSON == nil &&
+		value.Number == nil &&
+		value.Boolean == nil &&
+		len(value.ResourceIDs) == 0
 }
 
 func (s *EntityIOService) ProjectID(ctx context.Context, kind string, id uint, fallback *uint) (uint, error) {
@@ -374,6 +440,11 @@ func ValidateEntityReadPorts(kind string, portIDs []string) error {
 }
 
 func validateEntityPortValues(kind string, values map[string]EntityPortValue) error {
+	normalized, err := NormalizeEntityPortValues(kind, values)
+	if err != nil {
+		return err
+	}
+	values = normalized
 	schema, ok := EntitySchemaForKind(kind)
 	if !ok {
 		return fmt.Errorf("unsupported entity type %q", kind)
