@@ -435,7 +435,7 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 	c.JSON(http.StatusAccepted, task)
 }
 
-// RunCanvas starts one workflow run and executes all AI nodes in topological order.
+// RunCanvas starts one canvas run and executes runnable nodes in topological order.
 func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
@@ -449,10 +449,6 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	}
 	if cv.OwnerID != user.ID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	if cv.CanvasType != "workflow" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only workflow canvases can create run records"})
 		return
 	}
 	var req struct {

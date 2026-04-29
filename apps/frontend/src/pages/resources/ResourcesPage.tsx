@@ -8,16 +8,16 @@ import {
   FolderPlus, Folder, FolderOpen, Share2,
   PlusSquare, ChevronRight, MoreHorizontal, Globe, MoveRight,
   ShieldCheck, Pencil, Eye, PenLine, X as XIcon, UserPlus,
-  LayoutGrid, List, ChevronLeft,
+  LayoutGrid, List, ChevronLeft, Download, FileText,
 } from 'lucide-react'
-import { MediaViewer } from '@/components/shared/MediaViewer'
+import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
 import { Button } from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useTranslation } from 'react-i18next'
 
-type TypeFilter = 'all' | 'image' | 'video' | 'audio'
+type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type Tab = 'mine' | 'shared'
 
 function formatBytes(bytes: number): string {
@@ -31,6 +31,7 @@ function TypeIcon({ type }: { type: string }) {
     case 'image': return <ImageIcon size={13} />
     case 'video': return <Video size={13} />
     case 'audio': return <FileAudio size={13} />
+    case 'text': return <FileText size={13} />
     default: return <File size={13} />
   }
 }
@@ -40,6 +41,7 @@ const TYPE_TABS: { labelKey: string; value: TypeFilter }[] = [
   { labelKey: 'pages.resources.types.image', value: 'image' },
   { labelKey: 'pages.resources.types.video', value: 'video' },
   { labelKey: 'pages.resources.types.audio', value: 'audio' },
+  { labelKey: 'pages.resources.types.text', value: 'text' },
 ]
 
 // ─── Folder Dialog ────────────────────────────────────────────────────────────
@@ -325,6 +327,56 @@ function MoveDialog({
   )
 }
 
+// ─── Rename Resource Dialog ──────────────────────────────────────────────────
+function RenameResourceDialog({
+  resource,
+  onClose,
+}: {
+  resource: RawResource
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [name, setName] = useState(resource.name)
+
+  const rename = useMutation({
+    mutationFn: () => api.put(`/resources/${resource.ID}`, { name: name.trim() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resources'] })
+      onClose()
+    },
+  })
+
+  return (
+    <Dialog.Root open onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
+          <Dialog.Title className="text-sm font-semibold mb-4">{t('pages.resources.renameResource')}</Dialog.Title>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">{t('forms.name')}</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && name.trim()) rename.mutate()
+              }}
+              className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div className="flex justify-end gap-2 mt-5">
+            <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button size="sm" onClick={() => rename.mutate()} disabled={!name.trim() || rename.isPending}>
+              {rename.isPending ? t('common.saving') : t('common.save')}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
 function FolderOption({ label, selected, isShared, onClick }: {
   label: string; selected: boolean; isShared?: boolean; onClick: () => void
 }) {
@@ -450,17 +502,19 @@ function AddToAssetDialog({
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({
   resource,
-  myFolders,
   onDelete,
   onAddToAsset,
   onMove,
+  onRename,
+  onDownload,
   isSharedView,
 }: {
   resource: RawResource
-  myFolders: ResourceFolder[]
   onDelete?: () => void
   onAddToAsset: () => void
   onMove: () => void
+  onRename: () => void
+  onDownload: () => void
   isSharedView?: boolean
 }) {
   const { t } = useTranslation()
@@ -470,7 +524,7 @@ function ResourceCard({
     <div className="group relative flex flex-col gap-1.5">
       {/* Preview */}
       <div className="aspect-square relative">
-        {resource.type === 'image' || resource.type === 'video' ? (
+        {resource.type === 'image' || resource.type === 'video' || resource.type === 'audio' || resource.type === 'text' ? (
           <MediaViewer resource={resource} className="w-full h-full" />
         ) : (
           <div className="w-full h-full rounded-lg bg-muted flex items-center justify-center">
@@ -501,6 +555,22 @@ function ResourceCard({
                 <PlusSquare size={13} />
                 {t('pages.resources.addToAsset')}
               </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                onSelect={onDownload}
+              >
+                <Download size={13} />
+                {t('shared.mediaViewer.download')}
+              </DropdownMenu.Item>
+              {!isSharedView && (
+                <DropdownMenu.Item
+                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                  onSelect={onRename}
+                >
+                  <Pencil size={13} />
+                  {t('pages.resources.renameResource')}
+                </DropdownMenu.Item>
+              )}
               {!isSharedView && (
                 <DropdownMenu.Item
                   className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
@@ -564,6 +634,7 @@ export default function ResourcesPage() {
   const [folderDialog, setFolderDialog] = useState<{ open: boolean; folder?: ResourceFolder | null }>({ open: false })
   const [addToAssetResource, setAddToAssetResource] = useState<RawResource | null>(null)
   const [moveResource, setMoveResource] = useState<RawResource | null>(null)
+  const [renameResource, setRenameResource] = useState<RawResource | null>(null)
   const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
@@ -808,7 +879,7 @@ export default function ResourcesPage() {
             ref={fileRef}
             type="file"
             className="hidden"
-            accept="image/*,video/*,audio/*"
+            accept="image/*,video/*,audio/*,text/*,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.css,.html,.xml,.yaml,.yml"
             multiple
             onChange={e => {
               if (!e.target.files) return
@@ -854,11 +925,12 @@ export default function ResourcesPage() {
                 <ResourceCard
                   key={r.ID}
                   resource={r}
-                  myFolders={myFolders}
                   isSharedView={isSharedView}
                   onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
                   onAddToAsset={() => setAddToAssetResource(r)}
                   onMove={() => setMoveResource(r)}
+                  onRename={() => setRenameResource(r)}
+                  onDownload={() => downloadResource(resolveResourceUrl(r), r.name)}
                 />
               ))}
             </div>
@@ -884,6 +956,14 @@ export default function ResourcesPage() {
                           <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setAddToAssetResource(r)}>
                             <PlusSquare size={13} />{t('pages.resources.addToAsset')}
                           </DropdownMenu.Item>
+                          <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => downloadResource(resolveResourceUrl(r), r.name)}>
+                            <Download size={13} />{t('shared.mediaViewer.download')}
+                          </DropdownMenu.Item>
+                          {!isSharedView && (
+                            <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setRenameResource(r)}>
+                              <Pencil size={13} />{t('pages.resources.renameResource')}
+                            </DropdownMenu.Item>
+                          )}
                           {!isSharedView && (
                             <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setMoveResource(r)}>
                               <MoveRight size={13} />{t('pages.resources.moveToFolder')}
@@ -941,6 +1021,12 @@ export default function ResourcesPage() {
           resource={moveResource}
           folders={myFolders}
           onClose={() => setMoveResource(null)}
+        />
+      )}
+      {renameResource && (
+        <RenameResourceDialog
+          resource={renameResource}
+          onClose={() => setRenameResource(null)}
         />
       )}
       {permissionsFolder && (

@@ -365,12 +365,17 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 		updates["is_shared"] = *body.IsShared
 	}
 	if body.FolderID != nil {
-		updates["folder_id"] = *body.FolderID
+		if *body.FolderID == 0 {
+			updates["folder_id"] = nil
+		} else {
+			updates["folder_id"] = *body.FolderID
+		}
 	}
 	if body.Name != "" {
 		updates["name"] = body.Name
 	}
 	h.db.Model(&r).Updates(updates)
+	h.db.First(&r, r.ID)
 	r.URL = resourceURL(c, r.ID)
 	h.populateDirectURL(c, &r)
 	c.JSON(http.StatusOK, r)
@@ -513,6 +518,8 @@ func mimeToType(mime, filename string) string {
 		return "audio"
 	case strings.HasPrefix(mime, "text/"):
 		return "text"
+	case mime == "application/json", mime == "application/xml", mime == "application/yaml", mime == "application/x-yaml":
+		return "text"
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
@@ -522,10 +529,10 @@ func mimeToType(mime, filename string) string {
 		return "video"
 	case ".mp3", ".wav", ".ogg", ".aac", ".flac":
 		return "audio"
-	case ".txt", ".md":
+	case ".txt", ".md", ".json", ".csv", ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".xml", ".yaml", ".yml", ".log":
 		return "text"
 	}
-	return "image"
+	return "file"
 }
 
 func sanitizeName(s string) string {

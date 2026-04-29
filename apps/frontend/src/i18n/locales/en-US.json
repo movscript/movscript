@@ -379,7 +379,8 @@
       "types": {
         "image": "Images",
         "video": "Videos",
-        "audio": "Audio"
+        "audio": "Audio",
+        "text": "Text"
       },
       "gridTitle": "Grid",
       "listTitle": "List",
@@ -445,7 +446,8 @@
       "pageStatus": "Page {{page}} / {{pageCount}}",
       "previousPage": "Previous",
       "nextPage": "Next",
-      "edit": "Edit"
+      "edit": "Edit",
+      "renameResource": "Rename resource"
     },
     "collaboration": {
       "roles": {

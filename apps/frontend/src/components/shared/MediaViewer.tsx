@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useTranslation } from 'react-i18next'
-import { X, Maximize2, Download } from 'lucide-react'
+import { X, Maximize2, Download, FileAudio, FileText, File } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
@@ -19,11 +21,11 @@ interface MediaViewerProps {
   onOpenChange?: (open: boolean) => void
 }
 
-function resolveUrl(resource: RawResource): string {
+export function resolveResourceUrl(resource: RawResource): string {
   return resource.direct_url ?? `${API_BASE}${resource.url}`
 }
 
-async function downloadResource(proxyUrl: string, name: string) {
+export async function downloadResource(proxyUrl: string, name: string) {
   const res = await api.get(proxyUrl, { baseURL: '', responseType: 'blob' })
   const url = URL.createObjectURL(res.data)
   const a = document.createElement('a')
@@ -35,12 +37,21 @@ async function downloadResource(proxyUrl: string, name: string) {
   URL.revokeObjectURL(url)
 }
 
+async function loadTextResource(proxyUrl: string): Promise<string> {
+  const res = await api.get<string>(proxyUrl, {
+    baseURL: '',
+    responseType: 'text',
+    transformResponse: [(data) => data],
+  })
+  return typeof res.data === 'string' ? res.data : String(res.data ?? '')
+}
+
 /** Renders a thumbnail/preview of a resource; image or video.
  *  Pass `open` + `onOpenChange` to use as a controlled lightbox without a thumbnail. */
 export function MediaViewer({ resource, className = '', fit = 'cover', lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
-  const proxyUrl = resolveUrl(resource)
+  const proxyUrl = resolveResourceUrl(resource)
 
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
@@ -54,8 +65,14 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
     >
       {resource.type === 'video' ? (
         <VideoThumb proxyUrl={proxyUrl} fit={fit} />
-      ) : (
+      ) : resource.type === 'audio' ? (
+        <IconThumb icon={<FileAudio size={24} />} />
+      ) : resource.type === 'text' ? (
+        <TextThumb proxyUrl={proxyUrl} name={resource.name} />
+      ) : resource.type === 'image' ? (
         <ImageThumb proxyUrl={proxyUrl} alt={resource.name} fit={fit} />
+      ) : (
+        <IconThumb icon={<File size={24} />} />
       )}
       {lightbox && (
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -94,12 +111,27 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
                 autoPlay
                 className="max-w-[90vw] max-h-[80vh] rounded-lg"
               />
-            ) : (
+            ) : resource.type === 'audio' ? (
+              <div className="w-[min(640px,90vw)] rounded-lg bg-background p-5">
+                <div className="flex items-center gap-3 mb-4 text-foreground">
+                  <FileAudio size={18} />
+                  <span className="text-sm truncate">{resource.name}</span>
+                </div>
+                <audio src={proxyUrl} controls autoPlay className="w-full" />
+              </div>
+            ) : resource.type === 'text' ? (
+              <TextPreview proxyUrl={proxyUrl} />
+            ) : resource.type === 'image' ? (
               <AuthedImage
                 src={proxyUrl}
                 alt={resource.name}
                 className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
               />
+            ) : (
+              <div className="w-[min(520px,90vw)] rounded-lg bg-background p-6 text-center text-muted-foreground">
+                <File size={28} className="mx-auto mb-3" />
+                <p className="text-sm">{resource.name}</p>
+              </div>
             )}
           </div>
         </Dialog.Content>
@@ -128,6 +160,56 @@ function VideoThumb({ proxyUrl, fit }: { proxyUrl: string; fit: 'cover' | 'conta
   return (
     <div className="w-full h-full flex items-center justify-center bg-muted/50">
       <AuthedVideo src={proxyUrl} className={fit === 'contain' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'} muted playsInline preload="metadata" />
+    </div>
+  )
+}
+
+function IconThumb({ icon }: { icon: ReactNode }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-muted/50 text-muted-foreground">
+      {icon}
+    </div>
+  )
+}
+
+function TextThumb({ proxyUrl, name }: { proxyUrl: string; name: string }) {
+  const { data } = useQuery({
+    queryKey: ['resource-text-thumb', proxyUrl],
+    queryFn: () => loadTextResource(proxyUrl),
+    staleTime: 5 * 60 * 1000,
+  })
+  const preview = data?.trim()
+
+  return (
+    <div className="w-full h-full bg-muted/50 p-2 text-left overflow-hidden">
+      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+        <FileText size={12} />
+        <span className="text-[10px] truncate">{name}</span>
+      </div>
+      <pre className="text-[10px] leading-4 whitespace-pre-wrap break-words text-foreground/80 font-mono">
+        {preview || name}
+      </pre>
+    </div>
+  )
+}
+
+function TextPreview({ proxyUrl }: { proxyUrl: string }) {
+  const { t } = useTranslation()
+  const { data, isLoading } = useQuery({
+    queryKey: ['resource-text-preview', proxyUrl],
+    queryFn: () => loadTextResource(proxyUrl),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  return (
+    <div className="w-[min(900px,90vw)] h-[min(720px,80vh)] rounded-lg bg-background border border-white/10 overflow-hidden">
+      <div className="h-full overflow-auto p-4">
+        {isLoading ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">{t('common.loadingShort')}</div>
+        ) : (
+          <pre className="text-sm leading-6 whitespace-pre-wrap break-words text-foreground font-mono">{data}</pre>
+        )}
+      </div>
     </div>
   )
 }

@@ -637,7 +637,7 @@ export interface RawResource {
   ID: number
   owner_id: number
   folder_id?: number
-  type: 'image' | 'video' | 'audio' | 'text'
+  type: 'image' | 'video' | 'audio' | 'text' | 'file'
   name: string
   url: string
   size: number

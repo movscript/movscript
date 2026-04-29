@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import type { ArtifactRef, Script, Setting, Asset, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource, Pipeline, PipelineNode, ProjectMember } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, LayoutTemplate, ChevronDown, GripVertical, Network, Search, X } from 'lucide-react'
+import { Plus, LayoutTemplate, GripVertical, Network, Search, X } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import {
   ScriptCreateForm, AssetCreateForm, EpisodeCreateForm, SceneCreateForm, StoryboardCreateForm, ShotCreateForm,
@@ -27,11 +27,11 @@ import PipelineEditorPage from '@/pages/pipeline/PipelineEditorPage'
 import { ArtifactWorkspaceFrame } from './ArtifactWorkspaceFrame'
 import { isWorkbenchEntityKind } from './workbenchNavigation'
 
-const BOTTOM_PANEL_DEFAULT_H = 420
-const BOTTOM_PANEL_MIN_H = 260
-const BOTTOM_PANEL_CHROME_H = 44
+const CANVAS_PANEL_DEFAULT_H = 420
+const CANVAS_PANEL_MIN_H = 260
+const CANVAS_PANEL_CHROME_H = 44
 
-type BottomPanel = 'canvas' | 'pipeline' | null
+type WorkSurface = 'canvas' | 'pipeline'
 
 interface OpenTab {
   key: string   // `${kind}:${id}`
@@ -62,8 +62,8 @@ export default function CreationPage() {
   const [finalVideoTitle, setFinalVideoTitle] = useState('')
   const [artifactSearch, setArtifactSearch] = useState('')
 
-  const [bottomPanel, setBottomPanel] = useState<BottomPanel>(null)
-  const [bottomPanelHeight, setBottomPanelHeight] = useState(BOTTOM_PANEL_DEFAULT_H)
+  const [workSurface, setWorkSurface] = useState<WorkSurface>('canvas')
+  const [canvasPanelHeight, setCanvasPanelHeight] = useState(CANVAS_PANEL_DEFAULT_H)
   const [isResizing, setIsResizing] = useState(false)
   const workspaceBodyRef = useRef<HTMLDivElement | null>(null)
 
@@ -119,6 +119,10 @@ export default function CreationPage() {
     setActiveTabKey(key)
   }
 
+  function selectTab(key: string) {
+    setActiveTabKey((current) => current === key ? null : key)
+  }
+
   function closeTab(key: string) {
     setOpenTabs((prev) => {
       const idx = prev.findIndex((t) => t.key === key)
@@ -129,6 +133,17 @@ export default function CreationPage() {
       }
       return next
     })
+  }
+
+  function startEntityDrag(e: React.DragEvent, item: { kind: EntityKind; id: number; label: string; title?: string }) {
+    const drag: EntityDragItem = {
+      kind: item.kind,
+      id: item.id,
+      label: item.label,
+      title: item.title ?? item.label,
+    }
+    e.dataTransfer.setData('application/entity-node', JSON.stringify(drag))
+    e.dataTransfer.effectAllowed = 'copy'
   }
 
   const activeTab = openTabs.find((t) => t.key === activeTabKey) ?? null
@@ -288,24 +303,24 @@ export default function CreationPage() {
     }
   }
 
-  /* ── Bottom panel ── */
-  const getBottomPanelMaxHeight = useCallback(() => {
+  /* ── Canvas split ── */
+  const getCanvasPanelMaxHeight = useCallback(() => {
     const bodyHeight = workspaceBodyRef.current?.clientHeight ?? window.innerHeight - 180
-    return Math.max(BOTTOM_PANEL_MIN_H, bodyHeight - BOTTOM_PANEL_CHROME_H)
+    return Math.max(CANVAS_PANEL_MIN_H, bodyHeight - CANVAS_PANEL_CHROME_H)
   }, [])
 
-  const clampBottomPanelHeight = useCallback((height: number) => {
-    return Math.max(BOTTOM_PANEL_MIN_H, Math.min(getBottomPanelMaxHeight(), height))
-  }, [getBottomPanelMaxHeight])
+  const clampCanvasPanelHeight = useCallback((height: number) => {
+    return Math.max(CANVAS_PANEL_MIN_H, Math.min(getCanvasPanelMaxHeight(), height))
+  }, [getCanvasPanelMaxHeight])
 
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsResizing(true)
     const startY = e.clientY
-    const startH = bottomPanelHeight
+    const startH = canvasPanelHeight
     function onMouseMove(ev: MouseEvent) {
       const delta = startY - ev.clientY
-      setBottomPanelHeight(clampBottomPanelHeight(startH + delta))
+      setCanvasPanelHeight(clampCanvasPanelHeight(startH + delta))
     }
     function onMouseUp() {
       setIsResizing(false)
@@ -314,14 +329,10 @@ export default function CreationPage() {
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-  }, [bottomPanelHeight, clampBottomPanelHeight])
+  }, [canvasPanelHeight, clampCanvasPanelHeight])
 
   useEffect(() => {
-    if (!bottomPanel) return
-
-    const clampCurrentHeight = () => {
-      setBottomPanelHeight((height) => clampBottomPanelHeight(height))
-    }
+    const clampCurrentHeight = () => setCanvasPanelHeight((height) => clampCanvasPanelHeight(height))
 
     clampCurrentHeight()
     window.addEventListener('resize', clampCurrentHeight)
@@ -335,7 +346,7 @@ export default function CreationPage() {
       window.removeEventListener('resize', clampCurrentHeight)
       observer?.disconnect()
     }
-  }, [bottomPanel, clampBottomPanelHeight])
+  }, [clampCanvasPanelHeight])
 
   /* ── Push targets ── */
   function getPushTargets(): PushTarget[] {
@@ -561,51 +572,62 @@ export default function CreationPage() {
 
       {/* ── Main content: workspace + canvas split ── */}
       <div ref={workspaceBodyRef} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex flex-1 min-h-0 flex-col overflow-hidden transition-none">
-          {/* ── Tab bar ── */}
-          {openTabs.length > 0 && (
-            <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border bg-background shrink-0 overflow-x-auto scrollbar-none">
-              {openTabs.map((tab) => {
-                const cfg = KIND_CONFIG[tab.kind]
-                const Icon = cfg.icon
-                const isActive = activeTabKey === tab.key
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTabKey(tab.key)}
+        {/* ── Tab bar ── */}
+        {openTabs.length > 0 && (
+          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border bg-background shrink-0 overflow-x-auto scrollbar-none">
+            {openTabs.map((tab) => {
+              const cfg = KIND_CONFIG[tab.kind]
+              const Icon = cfg.icon
+              const isActive = activeTabKey === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  draggable
+                  onDragStart={(event) => {
+                    startEntityDrag(event, {
+                      kind: tab.kind,
+                      id: tab.id,
+                      label: tab.label,
+                      title: entityLabel(tab.kind, tab.id) ?? tab.label,
+                    })
+                  }}
+                  onClick={() => selectTab(tab.key)}
+                  className={cn(
+                    'flex cursor-grab items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all shrink-0 group active:cursor-grabbing',
+                    isActive
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                >
+                  <Icon size={11} className={isActive ? 'text-background' : cfg.activeColor} />
+                  <span className="max-w-[100px] truncate">{tab.label}</span>
+                  <span
+                    role="button"
+                    onClick={(e) => { e.stopPropagation(); closeTab(tab.key) }}
                     className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all shrink-0 group',
+                      'ml-0.5 rounded-sm p-0.5 transition-colors',
                       isActive
-                        ? 'bg-foreground text-background'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        ? 'hover:bg-background/20 text-background/70 hover:text-background'
+                        : 'opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20'
                     )}
                   >
-                    <Icon size={11} className={isActive ? 'text-background' : cfg.activeColor} />
-                    <span className="max-w-[100px] truncate">{tab.label}</span>
-                    <span
-                      role="button"
-                      onClick={(e) => { e.stopPropagation(); closeTab(tab.key) }}
-                      className={cn(
-                        'ml-0.5 rounded-sm p-0.5 transition-colors',
-                        isActive
-                          ? 'hover:bg-background/20 text-background/70 hover:text-background'
-                          : 'opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20'
-                      )}
-                    >
-                      <X size={10} />
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {renderWorkspace()}
+                    <X size={10} />
+                  </span>
+                </button>
+              )
+            })}
           </div>
-        </div>
+        )}
 
-        {bottomPanel && (
+        {activeTab && (
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden transition-none">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {renderWorkspace()}
+            </div>
+          </div>
+        )}
+
+        {activeTab && (
           <div
             className={cn(
               'h-1 shrink-0 cursor-ns-resize border-t border-border hover:bg-muted transition-colors',
@@ -615,48 +637,40 @@ export default function CreationPage() {
           />
         )}
 
-        <div className="flex h-10 shrink-0 items-center justify-between border-t border-border bg-card px-3">
-          <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
-            <BottomPanelTab
-              active={bottomPanel === 'canvas'}
-              icon={<LayoutTemplate size={13} />}
-              label={t('work.creationCanvas')}
-              onClick={() => setBottomPanel((current) => current === 'canvas' ? null : 'canvas')}
-            />
-            <BottomPanelTab
-              active={bottomPanel === 'pipeline'}
-              icon={<Network size={13} />}
-              label={t('work.pipeline', { defaultValue: '管线' })}
-              onClick={() => setBottomPanel((current) => current === 'pipeline' ? null : 'pipeline')}
-            />
-          </div>
-          {bottomPanel ? (
-            <button
-              type="button"
-              onClick={() => setBottomPanel(null)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              title={t('common.close')}
-            >
-              <ChevronDown size={14} />
-            </button>
-          ) : null}
-        </div>
-
-        {bottomPanel && (
-          <div
-            className="shrink-0 border-t border-border relative overflow-hidden"
-            style={{ height: bottomPanelHeight }}
-          >
-            {bottomPanel === 'canvas' ? (
-              <EmbeddedCanvas
-                pushTargets={getPushTargets()}
-                onClose={() => setBottomPanel(null)}
+        {activeTab && (
+          <div className="flex h-10 shrink-0 items-center justify-between border-t border-border bg-card px-3">
+            <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
+              <BottomPanelTab
+                active={workSurface === 'canvas'}
+                icon={<LayoutTemplate size={13} />}
+                label={t('work.creationCanvas')}
+                onClick={() => setWorkSurface('canvas')}
               />
-            ) : (
-              <PipelineEditorPage embedded />
-            )}
+              <BottomPanelTab
+                active={workSurface === 'pipeline'}
+                icon={<Network size={13} />}
+                label={t('work.pipeline', { defaultValue: '管线' })}
+                onClick={() => setWorkSurface('pipeline')}
+              />
+            </div>
           </div>
         )}
+
+        <div
+          className={cn(
+            'relative overflow-hidden',
+            activeTab ? 'shrink-0 border-t border-border' : 'min-h-0 flex-1',
+          )}
+          style={activeTab ? { height: canvasPanelHeight } : undefined}
+        >
+          {!activeTab || workSurface === 'canvas' ? (
+            <EmbeddedCanvas
+              pushTargets={getPushTargets()}
+            />
+          ) : (
+            <PipelineEditorPage embedded />
+          )}
+        </div>
       </div>
 
       {/* ── Create dialog ── */}
@@ -846,12 +860,8 @@ function EntityCard({ item, kind, selected, hasTab, onClick }: EntityCardProps) 
   const cfg = KIND_CONFIG[kind]
 
   function onDragStart(e: React.DragEvent) {
-    const drag: EntityDragItem = {
-      kind,
-      id: item.id,
-      label: item.title,
-      title: item.subtitle ? `${item.title} · ${item.subtitle}` : item.title,
-    }
+    const dragTitle = item.subtitle ? `${item.title} · ${item.subtitle}` : item.title
+    const drag: EntityDragItem = { kind, id: item.id, label: item.title, title: dragTitle }
     e.dataTransfer.setData('application/entity-node', JSON.stringify(drag))
     if (item.resource) {
       e.dataTransfer.setData('application/canvas-resource', JSON.stringify(item.resource))

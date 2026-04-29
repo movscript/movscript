@@ -1300,8 +1300,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         ...(runStatusFilter !== 'all' ? { status: runStatusFilter } : {}),
       },
     }).then((r) => r.data),
-    enabled: !!id && canvasType === 'workflow',
-    refetchInterval: canvasType === 'workflow' ? 2000 : false,
+    enabled: !!id,
+    refetchInterval: (query) => {
+      const data = query.state.data as PaginatedResponse<CanvasRun> | undefined
+      return pendingResultRunIdsRef.current.size > 0 || data?.items?.some((run) => run.status === 'running' || run.status === 'pending') ? 2000 : false
+    },
   })
   const workflowRuns = workflowRunsPage?.items ?? []
   const workflowRunTotal = workflowRunsPage?.total ?? 0
@@ -1317,8 +1320,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         page_size: auditPageSize,
       },
     }).then((r) => r.data),
-    enabled: !!id && canvasType === 'workflow',
-    refetchInterval: canvasType === 'workflow' ? 3000 : false,
+    enabled: !!id,
+    refetchInterval: workflowRuns.some((run) => run.status === 'running' || run.status === 'pending') ? 3000 : false,
   })
   const entityWriteAudits = auditPageData?.items ?? []
   const auditTotal = auditPageData?.total ?? 0
@@ -1565,6 +1568,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
   const runNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
+    if (node?.type === 'input') {
+      const port = portForWorkflowInputNode(node)
+      const data = node.data as Partial<CanvasNodeData>
+      setNodeRunValues({ [port.id]: data.inputValue ?? defaultRuntimeValueForPort(port) })
+      setNodeRunDialog({ nodeId, ports: [port] })
+      return
+    }
     const ports = runtimeInputPortsForNode(node, edges)
     if (ports.length > 0) {
       setNodeRunValues(Object.fromEntries(ports.map((port) => [port.id, defaultRuntimeValueForPort(port)])))
@@ -1577,6 +1587,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const handleConfirmNodeRun = useCallback(async () => {
     if (!nodeRunDialog) return
     const encoded: Record<string, CanvasPortValue> = {}
+    const runtimeInputText = nodeRunValues[nodeRunDialog.ports[0]?.id ?? ''] ?? ''
     for (const port of nodeRunDialog.ports) {
       const value = encodeRuntimePortValue(port, nodeRunValues[port.id] ?? '')
       if (!value) {
@@ -1591,8 +1602,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     }
     setNodeRunDialog(null)
     setNodeRunValues({})
+    setNodes((prev) => prev.map((n) => {
+      if (n.id === nodeRunDialog.nodeId && n.type === 'input') {
+        return { ...n, data: { ...n.data, inputValue: runtimeInputText } }
+      }
+      return n
+    }))
     await submitRunNode(nodeRunDialog.nodeId, encoded)
-  }, [nodeRunDialog, nodeRunValues, submitRunNode, t])
+  }, [nodeRunDialog, nodeRunValues, setNodes, submitRunNode, t])
 
   const runLocalPluginNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
@@ -2254,11 +2271,9 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
             </Badge>
           )}
 
-          {canvasType === 'workflow' && (
-            <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
-              <Play size={12} /> {runAll.isPending ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
-            </Button>
-          )}
+          <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
+            <Play size={12} /> {runAll.isPending ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
+          </Button>
 
           <Button onClick={() => save.mutate()} disabled={save.isPending} size="sm" variant="outline" className="shrink-0">
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
@@ -2507,32 +2522,29 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                 : t('canvas.editor.status.idle')}
           </div>
 
-            {canvasType !== 'workflow' && <CanvasResourceShelf projectId={canvas?.project_id} />}
           </div>
 
-          {canvasType === 'workflow' && (
-            <WorkflowBottomPanel
-              projectId={canvas?.project_id}
-              activeTab={workflowPanelTab}
-              runs={workflowRuns}
-              total={workflowRunTotal}
-              page={runHistoryPage}
-              pageCount={workflowRunPageCount}
-              statusFilter={runStatusFilter}
-              activeRunId={activeRunId}
-              isLoading={workflowRunsLoading}
-              audits={entityWriteAudits}
-              auditTotal={auditTotal}
-              auditPage={auditPage}
-              auditPageCount={auditPageCount}
-              auditsLoading={auditsLoading}
-              onTabChange={setWorkflowPanelTab}
-              onStatusFilterChange={setRunStatusFilter}
-              onPageChange={setRunHistoryPage}
-              onSelectRun={setActiveRunId}
-              onAuditPageChange={setAuditPage}
-            />
-          )}
+          <WorkflowBottomPanel
+            projectId={canvas?.project_id}
+            activeTab={workflowPanelTab}
+            runs={workflowRuns}
+            total={workflowRunTotal}
+            page={runHistoryPage}
+            pageCount={workflowRunPageCount}
+            statusFilter={runStatusFilter}
+            activeRunId={activeRunId}
+            isLoading={workflowRunsLoading}
+            audits={entityWriteAudits}
+            auditTotal={auditTotal}
+            auditPage={auditPage}
+            auditPageCount={auditPageCount}
+            auditsLoading={auditsLoading}
+            onTabChange={setWorkflowPanelTab}
+            onStatusFilterChange={setRunStatusFilter}
+            onPageChange={setRunHistoryPage}
+            onSelectRun={setActiveRunId}
+            onAuditPageChange={setAuditPage}
+          />
         </div>
 
         <aside className={cn(

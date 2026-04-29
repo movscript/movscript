@@ -7,36 +7,13 @@ import type { RawResource, Asset, AssetView, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
-import { Video, Package, X, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { FileAudio, FileText, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import * as Dialog from '@radix-ui/react-dialog'
 
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 
 export function ResourcePreviewDialog({ resource, onClose }: { resource: RawResource; onClose: () => void }) {
-  const proxyUrl = resource.direct_url ?? `${API_BASE}${resource.url}`
-  return (
-    <Dialog.Root open onOpenChange={v => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/80 z-[100] backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="flex flex-col gap-2 max-w-[90vw] max-h-[90vh]">
-            <div className="flex items-center justify-between gap-4 shrink-0">
-              <span className="text-white/80 text-sm truncate max-w-[60vw]">{resource.name}</span>
-              <Dialog.Close className="text-white/70 hover:text-white transition-colors">
-                <X size={18} />
-              </Dialog.Close>
-            </div>
-            {resource.type === 'video' ? (
-              <AuthedVideo src={proxyUrl} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-lg" />
-            ) : (
-              <AuthedImage src={proxyUrl} alt={resource.name} className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg" />
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
+  return <MediaViewer resource={resource} open onOpenChange={v => !v && onClose()} />
 }
 
 // ─── Shared resource list item ────────────────────────────────────────────────
@@ -75,7 +52,7 @@ export function ResourceListItem({
 
   function handleClick() {
     if (onClick) { onClick(); return }
-    if (r.type === 'image' || r.type === 'video') setPreview(true)
+    setPreview(true)
   }
 
   return (
@@ -94,9 +71,15 @@ export function ResourceListItem({
         <div className={cn(thumbCls, 'rounded shrink-0 overflow-hidden bg-muted')}>
           {r.type === 'image' || r.type === 'video' ? (
             <MediaViewer resource={r} className="w-full h-full" lightbox={false} />
+          ) : r.type === 'text' ? (
+            <MediaViewer resource={r} className="w-full h-full" lightbox={false} />
+          ) : r.type === 'audio' ? (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+              <FileAudio size={thumbSize === 'sm' ? 12 : 14} />
+            </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              <Video size={thumbSize === 'sm' ? 12 : 14} />
+              <FileText size={thumbSize === 'sm' ? 12 : 14} />
             </div>
           )}
         </div>

@@ -22,7 +22,7 @@ export type PushTarget = CanvasPushTarget
 
 interface Props {
   pushTargets: PushTarget[]
-  onClose: () => void
+  onClose?: () => void
 }
 
 function CanvasListItem({
@@ -269,14 +269,7 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
           )}
         </div>
         {listCollapsed ? (
-          <button
-            type="button"
-            onClick={() => setListCollapsed(false)}
-            className="flex flex-1 items-start justify-center px-1 py-3 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
-            title={t('canvas.canvasList')}
-          >
-            <Layers size={16} />
-          </button>
+          <div className="flex-1" />
         ) : (
           <div className="flex-1 overflow-y-auto">
             {loadingList ? (

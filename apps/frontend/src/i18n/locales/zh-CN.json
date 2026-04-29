@@ -379,7 +379,8 @@
       "types": {
         "image": "图片",
         "video": "视频",
-        "audio": "音频"
+        "audio": "音频",
+        "text": "文本"
       },
       "gridTitle": "缩略图",
       "listTitle": "列表",
@@ -445,7 +446,8 @@
       "pageStatus": "第 {{page}} / {{pageCount}} 页",
       "previousPage": "上一页",
       "nextPage": "下一页",
-      "edit": "编辑"
+      "edit": "编辑",
+      "renameResource": "重命名资源"
     },
     "collaboration": {
       "roles": {
