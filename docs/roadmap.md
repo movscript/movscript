@@ -104,6 +104,29 @@ The near-term Agent direction is to keep one text-model path and make the platfo
 - Built-in Agent skills and tool metadata live in `apps/agent/catalog/skills` and `apps/agent/catalog/tools`.
 - First-stage skills and smoke scenarios are documented in `docs/agent/platform-skills-tools.md` and `docs/agent/smoke-tests.md`.
 - Current safe tools can read context, search/read project entities, create/list local drafts, and navigate the UI.
+- The frontend local-runtime path now sends structured `clientInput` instead of owning prompt/context assembly; `movscript-agent` builds the runtime envelope.
+
+### P0: Keep Frontend as Display Layer
+
+- Treat `movscript-agent` or a future Agent Gateway as the only owner of agent core logic.
+  - Frontend may send user text, attachment/resource references, route, active project, selection, and lightweight UI labels.
+  - Frontend must not build system prompts, skills prompts, tool prompts, planner inputs, or final model synthesis prompts.
+  - Frontend must not convert user-facing agent settings into executable manifest/tool grants.
+
+- Stabilize the Agent Provider Contract.
+  - `POST /threads`
+  - `POST /threads/:id/messages` with `clientInput`
+  - `POST /runs`
+  - `GET /runs/:id`
+  - `POST /runs/:id/approve`
+  - `POST /runs/:id/reject`
+  - `GET /capabilities`
+  - `POST /runs/preview`
+
+- Move remaining provider-specific UI state behind runtime data.
+  - Thread list should prefer runtime thread summaries.
+  - Debug should render runtime envelope/trace, not frontend-built payloads.
+  - Agent profile selection should be resolved by runtime or backend, then exposed as a manifest/profile id.
 
 ### P0: Prove the End-to-End Agent Loop
 

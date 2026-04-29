@@ -36,6 +36,10 @@ import type {
   AgentRunStep,
   AgentRuntimeOptions,
   AgentCapabilitiesResponse,
+  AgentClientAttachmentRef,
+  AgentClientInput,
+  AgentClientResourceRef,
+  AgentClientUISnapshot,
   AgentDebugContextPanel,
   AgentInputEnvelope,
   AgentRunDebugTrace,
@@ -219,12 +223,22 @@ export class AgentRuntime {
   addMessage(threadId: string, input: CreateMessageInput): AgentMessage {
     const thread = this.requireThread(threadId)
     const role = isMessageRole(input.role) ? input.role : 'user'
-    if (typeof input.content !== 'string' || input.content.trim().length === 0) {
+    const clientInput = normalizeClientInput(input.clientInput)
+    const content = role === 'user' && clientInput
+      ? buildRuntimeUserMessage(clientInput)
+      : typeof input.content === 'string' ? input.content.trim() : ''
+    if (!content) {
       throw new Error('message content is required')
     }
 
-    const message = this.createMessage(threadId, role, input.content.trim())
+    const message = this.createMessage(threadId, role, content)
     thread.messages.push(message)
+    if (clientInput) {
+      thread.metadata = {
+        ...(thread.metadata ?? {}),
+        lastClientInput: clientInput as unknown as JSONValue,
+      }
+    }
     thread.updatedAt = message.createdAt
     this.store.updateThread(thread)
     return message
@@ -234,7 +248,15 @@ export class AgentRuntime {
     if (typeof input.threadId !== 'string' || !input.threadId) {
       throw new Error('threadId is required')
     }
-    this.requireThread(input.threadId)
+    const thread = this.requireThread(input.threadId)
+    const clientInput = normalizeClientInput(input.clientInput)
+    if (clientInput) {
+      thread.metadata = {
+        ...(thread.metadata ?? {}),
+        lastClientInput: clientInput as unknown as JSONValue,
+      }
+      this.store.updateThread(thread)
+    }
 
     const now = isoNow()
     const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
@@ -250,8 +272,13 @@ export class AgentRuntime {
         ? { metadata: { approvedToolNames: normalizeApprovedToolNames(input.approvedToolNames) } }
         : {}),
     }
+    if (clientInput) {
+      run.metadata = {
+        ...(run.metadata ?? {}),
+        clientInput: clientInput as unknown as JSONValue,
+      }
+    }
     this.store.createRun(run)
-    const thread = this.requireThread(input.threadId)
     thread.lastRunStatus = run.status
     thread.updatedAt = now
     this.store.updateThread(thread)
@@ -263,8 +290,11 @@ export class AgentRuntime {
     const thread = typeof input.threadId === 'string' && input.threadId
       ? this.requireThread(input.threadId)
       : undefined
-    const explicitMessage = typeof input.message === 'string' && input.message.trim().length > 0
-      ? input.message.trim()
+    const clientInput = normalizeClientInput(input.clientInput)
+    const explicitMessage = clientInput
+      ? buildRuntimeUserMessage(clientInput)
+      : typeof input.message === 'string' && input.message.trim().length > 0
+        ? input.message.trim()
       : undefined
     const lastUser = thread
       ? [...thread.messages].reverse().find((message) => message.role === 'user')
@@ -290,7 +320,7 @@ export class AgentRuntime {
       pluginCatalog: this.pluginCatalogInfo,
       warnings: this.pluginWarnings,
     })
-    const debugContext = buildDebugContext(contextResult, memories)
+    const debugContext = buildDebugContext(contextResult, memories, clientInput)
     const policy = defaultRunPolicy('dry_run')
     const envelope: AgentInputEnvelope = {
       id: makeId('envelope'),
@@ -304,6 +334,13 @@ export class AgentRuntime {
       tools: capabilities.resolvedTools,
       policy,
       memories: memories.map(toMemoryRef),
+      ...(clientInput ? {
+        clientInput: {
+          visibleMessage: clientInput.visibleMessage,
+          attachments: clientInput.attachments,
+          ...(clientInput.uiSnapshot ? { uiSnapshot: clientInput.uiSnapshot } : {}),
+        },
+      } : {}),
       ...(agentManifest.model ? { model: agentManifest.model } : {}),
       debug: {
         source: 'runtime',
@@ -538,6 +575,7 @@ export class AgentRuntime {
       const thread = this.requireThread(run.threadId)
       const lastUser = [...thread.messages].reverse().find((message) => message.role === 'user')
       if (!lastUser) throw new Error('run requires at least one user message')
+      const clientInput = normalizeClientInput(run.metadata?.clientInput ?? thread.metadata?.lastClientInput)
 
       const contextResult = await this.callTool(run, 'movscript.get_context_pack')
       const context = extractAgentContext(contextResult)
@@ -558,7 +596,7 @@ export class AgentRuntime {
         warnings: this.pluginWarnings,
       })
       const skills = resolveAgentSkills(run.agentManifest ?? this.defaultAgentManifest, lastUser.content, this.skillCatalog)
-      const debugContext = buildDebugContext(contextResult, memories)
+      const debugContext = buildDebugContext(contextResult, memories, clientInput)
       const envelope: AgentInputEnvelope = {
         id: makeId('envelope'),
         threadId: thread.id,
@@ -572,6 +610,13 @@ export class AgentRuntime {
         tools: capabilities.resolvedTools,
         policy: defaultRunPolicy('interactive'),
         memories: memories.map(toMemoryRef),
+        ...(clientInput ? {
+          clientInput: {
+            visibleMessage: clientInput.visibleMessage,
+            attachments: clientInput.attachments,
+            ...(clientInput.uiSnapshot ? { uiSnapshot: clientInput.uiSnapshot } : {}),
+          },
+        } : {}),
         ...((run.agentManifest ?? this.defaultAgentManifest).model ? { model: (run.agentManifest ?? this.defaultAgentManifest).model } : {}),
         debug: {
           source: 'runtime',
@@ -1005,6 +1050,130 @@ function normalizeApprovedToolNames(value: unknown): string[] {
   return normalizeStringArray(value)
 }
 
+type NormalizedClientInput = {
+  visibleMessage: string
+  attachments: AgentClientAttachmentRef[]
+  uiSnapshot?: AgentClientUISnapshot
+}
+
+function normalizeClientInput(value: unknown): NormalizedClientInput | undefined {
+  if (!isRecord(value)) return undefined
+  const message = typeof value.message === 'string' ? value.message.trim() : ''
+  const attachments = normalizeClientAttachments(value.attachments)
+  const uiSnapshot = normalizeClientUISnapshot(value.uiSnapshot)
+  if (!message && attachments.length === 0) return undefined
+  return {
+    visibleMessage: message || '用户发送了附件。',
+    attachments,
+    ...(uiSnapshot ? { uiSnapshot } : {}),
+  }
+}
+
+function normalizeClientAttachments(value: unknown): AgentClientAttachmentRef[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : undefined
+    const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : undefined
+    const type = typeof item.type === 'string' && item.type.trim() ? item.type.trim() : undefined
+    const mimeType = typeof item.mimeType === 'string' && item.mimeType.trim()
+      ? item.mimeType.trim()
+      : typeof item.mime_type === 'string' && item.mime_type.trim()
+        ? item.mime_type.trim()
+        : undefined
+    const size = typeof item.size === 'number' && Number.isFinite(item.size) ? item.size : undefined
+    const resourceId = typeof item.resourceId === 'number' && Number.isFinite(item.resourceId)
+      ? item.resourceId
+      : typeof item.resource_id === 'number' && Number.isFinite(item.resource_id)
+        ? item.resource_id
+        : undefined
+    if (!id && !name && resourceId === undefined) return []
+    return [{
+      ...(id ? { id } : {}),
+      ...(name ? { name } : {}),
+      ...(type ? { type } : {}),
+      ...(mimeType ? { mimeType } : {}),
+      ...(size !== undefined ? { size } : {}),
+      ...(resourceId !== undefined ? { resourceId } : {}),
+    }]
+  })
+}
+
+function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | undefined {
+  if (!isRecord(value)) return undefined
+  const route = isRecord(value.route) ? value.route : undefined
+  const project = isRecord(value.project) ? value.project : undefined
+  const selection = isRecord(value.selection) ? value.selection : value.selection === null ? null : undefined
+  const recentResources = normalizeClientResources(value.recentResources)
+  const labels = normalizeStringArray(value.labels)
+
+  const snapshot: AgentClientUISnapshot = {
+    ...(route ? {
+      route: {
+        ...(typeof route.pathname === 'string' && route.pathname.trim() ? { pathname: route.pathname.trim() } : {}),
+        ...(typeof route.search === 'string' ? { search: route.search } : {}),
+        ...(typeof route.hash === 'string' ? { hash: route.hash } : {}),
+      },
+    } : {}),
+    ...(project ? {
+      project: {
+        ...(typeof project.id === 'number' && Number.isFinite(project.id) ? { id: project.id } : typeof project.ID === 'number' && Number.isFinite(project.ID) ? { id: project.ID } : {}),
+        ...(typeof project.name === 'string' ? { name: project.name } : {}),
+        ...(typeof project.status === 'string' ? { status: project.status } : {}),
+        ...(typeof project.description === 'string' ? { description: project.description } : {}),
+      },
+    } : {}),
+    ...(selection === null ? { selection: null } : selection ? {
+      selection: {
+        ...(typeof selection.entityType === 'string' ? { entityType: selection.entityType } : {}),
+        ...(typeof selection.entityId === 'number' || typeof selection.entityId === 'string' ? { entityId: selection.entityId } : {}),
+        ...(typeof selection.label === 'string' ? { label: selection.label } : {}),
+      },
+    } : {}),
+    ...(recentResources.length > 0 ? { recentResources } : {}),
+    ...(labels.length > 0 ? { labels } : {}),
+  }
+
+  return Object.keys(snapshot).length > 0 ? snapshot : undefined
+}
+
+function normalizeClientResources(value: unknown): AgentClientResourceRef[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const id = typeof item.id === 'number' && Number.isFinite(item.id)
+      ? item.id
+      : typeof item.ID === 'number' && Number.isFinite(item.ID)
+        ? item.ID
+        : undefined
+    const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : undefined
+    const type = typeof item.type === 'string' && item.type.trim() ? item.type.trim() : undefined
+    if (id === undefined || !name || !type) return []
+    return [{
+      id,
+      name,
+      type,
+      ...(typeof item.mimeType === 'string' ? { mimeType: item.mimeType } : typeof item.mime_type === 'string' ? { mimeType: item.mime_type } : {}),
+      ...(typeof item.size === 'number' && Number.isFinite(item.size) ? { size: item.size } : {}),
+    }]
+  })
+}
+
+function buildRuntimeUserMessage(input: NormalizedClientInput): string {
+  const sections = [input.visibleMessage]
+  if (input.attachments.length > 0) {
+    sections.push([
+      '[用户附件引用]',
+      ...input.attachments.map((attachment, index) => {
+        const identity = attachment.resourceId !== undefined ? `resource_id=${attachment.resourceId}` : attachment.id ? `id=${attachment.id}` : 'local_preview'
+        return `${index + 1}. ${attachment.name ?? '未命名附件'} (${attachment.type ?? 'file'}, ${attachment.mimeType ?? 'unknown'}, ${attachment.size ?? 0} bytes, ${identity})`
+      }),
+      '当前 runtime 只接收附件引用和元数据；需要理解媒体内容时必须使用可用工具读取资源上下文，不能假设已经读取二进制内容。',
+    ].join('\n'))
+  }
+  return sections.join('\n\n')
+}
+
 function normalizeDraftQuery(query: {
   projectId?: unknown
   kind?: unknown
@@ -1059,7 +1228,11 @@ function defaultRunPolicy(approvalMode: AgentRunPolicy['approvalMode']): AgentRu
   }
 }
 
-function buildDebugContext(contextResult: JSONValue, memories: AgentMemory[]): AgentDebugContextPanel {
+function buildDebugContext(
+  contextResult: JSONValue,
+  memories: AgentMemory[],
+  clientInput?: NormalizedClientInput,
+): AgentDebugContextPanel {
   const parsed = parseToolResult(contextResult)
   const snapshot = isRecord(parsed) && isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const project = isRecord(snapshot) && isRecord(snapshot.project) ? snapshot.project : undefined
@@ -1067,18 +1240,22 @@ function buildDebugContext(contextResult: JSONValue, memories: AgentMemory[]): A
   const route = isRecord(snapshot) && isRecord(snapshot.route) ? snapshot.route : undefined
   const user = isRecord(snapshot) && isRecord(snapshot.user) ? snapshot.user : undefined
   const selection = isRecord(snapshot) && isRecord(snapshot.selection) ? snapshot.selection : undefined
+  const ui = clientInput?.uiSnapshot
+  const uiProject = ui?.project
+  const uiSelection = ui?.selection
+  const mergedProjectId = typeof projectId === 'number' ? projectId : uiProject?.id
   return {
     route: {
-      pathname: typeof route?.pathname === 'string' ? route.pathname : '/',
-      ...(typeof route?.search === 'string' ? { search: route.search } : {}),
-      ...(typeof route?.hash === 'string' ? { hash: route.hash } : {}),
+      pathname: typeof route?.pathname === 'string' ? route.pathname : ui?.route?.pathname ?? '/',
+      ...(typeof route?.search === 'string' ? { search: route.search } : typeof ui?.route?.search === 'string' ? { search: ui.route.search } : {}),
+      ...(typeof route?.hash === 'string' ? { hash: route.hash } : typeof ui?.route?.hash === 'string' ? { hash: ui.route.hash } : {}),
     },
-    ...(project && projectId !== undefined ? {
+    ...((project || uiProject) && mergedProjectId !== undefined ? {
       project: {
-        id: projectId,
-        ...(typeof project.name === 'string' ? { name: project.name } : {}),
-        ...(typeof project.status === 'string' ? { status: project.status } : {}),
-        ...(typeof project.description === 'string' ? { description: project.description } : {}),
+        id: mergedProjectId,
+        ...(typeof project?.name === 'string' ? { name: project.name } : typeof uiProject?.name === 'string' ? { name: uiProject.name } : {}),
+        ...(typeof project?.status === 'string' ? { status: project.status } : typeof uiProject?.status === 'string' ? { status: uiProject.status } : {}),
+        ...(typeof project?.description === 'string' ? { description: project.description } : typeof uiProject?.description === 'string' ? { description: uiProject.description } : {}),
       },
     } : {}),
     ...(user && typeof user.id === 'number' && typeof user.username === 'string' ? {
@@ -1094,11 +1271,25 @@ function buildDebugContext(contextResult: JSONValue, memories: AgentMemory[]): A
         entityId: selection.entityId,
         ...(typeof selection.label === 'string' ? { label: selection.label } : {}),
       },
+    } : uiSelection && typeof uiSelection.entityType === 'string' && (typeof uiSelection.entityId === 'number' || typeof uiSelection.entityId === 'string') ? {
+      selection: {
+        entityType: uiSelection.entityType,
+        entityId: uiSelection.entityId,
+        ...(typeof uiSelection.label === 'string' ? { label: uiSelection.label } : {}),
+      },
     } : { selection: null }),
-    recentResources: normalizeDebugResources(isRecord(snapshot) ? snapshot.recentResources : undefined),
-    attachments: [],
+    recentResources: mergeDebugResources(
+      normalizeDebugResources(isRecord(snapshot) ? snapshot.recentResources : undefined),
+      ui?.recentResources ?? [],
+    ),
+    attachments: clientInput?.attachments.map((attachment) => ({
+      id: attachment.id ?? (attachment.resourceId !== undefined ? `resource-${attachment.resourceId}` : attachment.name ?? 'attachment'),
+      name: attachment.name ?? '未命名附件',
+      type: attachment.type ?? 'file',
+      ...(attachment.resourceId !== undefined ? { resourceId: attachment.resourceId } : {}),
+    })) ?? [],
     memories: memories.map(toMemoryRef),
-    labels: [],
+    labels: ui?.labels ?? [],
   }
 }
 
@@ -1118,6 +1309,25 @@ function normalizeDebugResources(value: unknown): AgentDebugContextPanel['recent
       ...(typeof item.size === 'number' ? { size: item.size } : {}),
     }]
   })
+}
+
+function mergeDebugResources(
+  base: AgentDebugContextPanel['recentResources'],
+  extra: AgentClientResourceRef[],
+): AgentDebugContextPanel['recentResources'] {
+  const byId = new Map<number, AgentDebugContextPanel['recentResources'][number]>()
+  for (const resource of base) byId.set(resource.id, resource)
+  for (const resource of extra) {
+    if (typeof resource.id !== 'number' || !resource.name || !resource.type) continue
+    byId.set(resource.id, {
+      id: resource.id,
+      name: resource.name,
+      type: resource.type,
+      ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+      ...(typeof resource.size === 'number' ? { size: resource.size } : {}),
+    })
+  }
+  return Array.from(byId.values())
 }
 
 function toMemoryRef(memory: AgentMemory): AgentInputEnvelope['memories'][number] {

@@ -166,6 +166,35 @@ test('previews plan and policy without creating a run or executing planned tools
   assert.deepEqual(client.calls.map((call) => call.name), ['movscript.get_context_pack'])
 })
 
+test('runtime builds envelope context from client input without frontend prompt assembly', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = null
+  const runtime = new AgentRuntime({ mcpClient: client })
+
+  const preview = await runtime.previewRun({
+    clientInput: {
+      message: '检查第 3 场分镜缺口',
+      attachments: [{ id: 'res-8', name: 'scene-ref.png', type: 'image', mimeType: 'image/png', size: 128, resourceId: 8 }],
+      uiSnapshot: {
+        route: { pathname: '/projects/42/storyboards' },
+        project: { id: 42, name: 'Client Project', status: 'active' },
+        selection: { entityType: 'scene', entityId: 3, label: '第 3 场' },
+        recentResources: [{ id: 8, name: 'scene-ref.png', type: 'image', mimeType: 'image/png', size: 128 }],
+        labels: ['Local Runtime'],
+      },
+    },
+  })
+
+  assert.equal(preview.context?.project?.id, 42)
+  assert.equal(preview.context?.selection?.entityType, 'scene')
+  assert.equal(preview.context?.attachments[0]?.resourceId, 8)
+  assert.equal(preview.context?.recentResources[0]?.id, 8)
+  assert.equal(preview.context?.labels[0], 'Local Runtime')
+  assert.match(preview.message, /用户附件引用/)
+  assert.equal(preview.debug?.manifestId, runtime.getDefaultAgentManifest().id)
+  assert.equal(preview.promptPreview?.messages.at(-1)?.content.includes('scene-ref.png'), true)
+})
+
 test('uses model planner when configured', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42

@@ -212,6 +212,44 @@ export interface AgentRunPreview {
   createdAt: string
 }
 
+export interface AgentClientInput {
+  message: string
+  attachments?: Array<{
+    id?: string
+    name?: string
+    type?: string
+    mimeType?: string
+    size?: number
+    resourceId?: number
+  }>
+  uiSnapshot?: {
+    route?: {
+      pathname?: string
+      search?: string
+      hash?: string
+    }
+    project?: {
+      id?: number
+      name?: string
+      status?: string
+      description?: string
+    }
+    selection?: {
+      entityType?: string
+      entityId?: number | string
+      label?: string
+    } | null
+    recentResources?: Array<{
+      id?: number
+      name?: string
+      type?: string
+      mimeType?: string
+      size?: number
+    }>
+    labels?: string[]
+  }
+}
+
 export interface AgentRunPolicy {
   approvalMode: 'interactive' | 'dry_run' | 'auto_readonly'
   maxToolCalls: number
@@ -459,18 +497,19 @@ export class LocalAgentClient {
     return this.getJSON('/threads')
   }
 
-  addMessage(threadId: string, content: string): Promise<AgentMessage> {
+  addMessage(threadId: string, content: string, clientInput?: AgentClientInput): Promise<AgentMessage> {
     return this.postJSON(`/threads/${encodeURIComponent(threadId)}/messages`, {
       role: 'user',
       content,
+      ...(clientInput ? { clientInput } : {}),
     })
   }
 
-  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[] } = {}): Promise<AgentRun> {
+  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput } = {}): Promise<AgentRun> {
     return this.postJSON('/runs', { threadId, ...input })
   }
 
-  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[] }): Promise<AgentRunPreview> {
+  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput }): Promise<AgentRunPreview> {
     return this.postJSON('/runs/preview', input)
   }
 
@@ -552,11 +591,12 @@ export class LocalAgentClient {
     return this.deleteJSON(`/memories/${encodeURIComponent(memoryId)}`)
   }
 
-  async runMessage(input: { threadId?: string; message: string; title?: string; projectId?: number }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
+  async runMessage(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     const thread = input.threadId ? await this.getThreadOrCreate(input.threadId) : await this.createThread({ title: input.title, projectId: input.projectId })
-    await this.addMessage(thread.id, input.message)
+    await this.addMessage(thread.id, input.message, input.clientInput)
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+      ...(input.clientInput ? { clientInput: input.clientInput } : {}),
     })
     options.onRunUpdate?.(run)
     const finalRun = await this.waitForRun(run.id, {

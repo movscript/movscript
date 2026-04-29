@@ -189,6 +189,50 @@ export interface AgentDebugContextPanel {
   labels: string[]
 }
 
+export interface AgentClientAttachmentRef {
+  id?: string
+  name?: string
+  type?: string
+  mimeType?: string
+  size?: number
+  resourceId?: number
+}
+
+export interface AgentClientResourceRef {
+  id?: number
+  name?: string
+  type?: string
+  mimeType?: string
+  size?: number
+}
+
+export interface AgentClientUISnapshot {
+  route?: {
+    pathname?: string
+    search?: string
+    hash?: string
+  }
+  project?: {
+    id?: number
+    name?: string
+    status?: string
+    description?: string
+  }
+  selection?: {
+    entityType?: string
+    entityId?: number | string
+    label?: string
+  } | null
+  recentResources?: AgentClientResourceRef[]
+  labels?: string[]
+}
+
+export interface AgentClientInput {
+  message?: unknown
+  attachments?: unknown
+  uiSnapshot?: unknown
+}
+
 export interface ResolvedAgentSkill extends AgentSkillManifest {
   resolvedPriority: number
   activationReason: 'manifest' | 'applies_when' | 'user_selected' | 'default'
@@ -267,6 +311,11 @@ export interface AgentInputEnvelope {
     kind: string
     content: string
   }>
+  clientInput?: {
+    visibleMessage: string
+    attachments: AgentClientAttachmentRef[]
+    uiSnapshot?: AgentClientUISnapshot
+  }
   model?: AgentManifest['model']
   debug: {
     source: 'frontend' | 'runtime'
@@ -349,12 +398,14 @@ export interface CreateThreadInput {
 export interface CreateMessageInput {
   role?: unknown
   content?: unknown
+  clientInput?: unknown
 }
 
 export interface CreateRunInput {
   threadId?: unknown
   agentManifest?: unknown
   approvedToolNames?: unknown
+  clientInput?: unknown
 }
 
 export interface PreviewRunInput {
@@ -362,6 +413,7 @@ export interface PreviewRunInput {
   message?: unknown
   agentManifest?: unknown
   approvedToolNames?: unknown
+  clientInput?: unknown
 }
 
 export interface ApproveRunInput {

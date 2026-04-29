@@ -1,6 +1,6 @@
 # MovScript Agent Final Architecture
 
-更新时间：2026-04-28
+更新时间：2026-04-29
 
 ## 当前判断
 
@@ -10,7 +10,7 @@
 
 - skills 目前主要是 agent 配置里的 `skills: [{ id, name, description }]`，前端只把 `skillIds` 放进 manifest metadata；runtime 不会解析 skill 内容，也不会把 skill 当作独立上下文包注入 planner/model。
 - tools 已有静态 `DEFAULT_TOOL_REGISTRY` 和 MCP 调用通道，但还没有把 MCP `tools/list` 动态发现结果统一纳入可执行工具目录；planner 还是规则式关键词 planner，不是基于模型 tool calling 做选择。
-- debug preview 目前是 `Outbound messages`、`Local runtime dry-run`、`Raw payload`，还没有按最终执行输入结构拆成“上下文 / skills / tools”三块。
+- local runtime 已经支持客户端只提交结构化 `clientInput`，由 runtime 构建消息、上下文、skills、tools、policy 和 prompt preview。前端仍保留 legacy cloud-chat 路径，但 local runtime 路径不再需要前端拼接 agent prompt。
 
 ## 最终目标
 
@@ -26,6 +26,40 @@ Agent Input Envelope
 ```
 
 debug 页面展示的是这个 envelope，而不是拼接后的 prompt。拼接 prompt 只是某个 model adapter 的序列化结果。
+
+## 前端边界
+
+前端必须保持展示层定位。它可以收集用户输入、附件引用和当前 UI snapshot，但不能拥有 agent 的核心决策：
+
+- 不在前端拼 system prompt、skills prompt、tool prompt 或最终模型消息。
+- 不在前端决定 planner、tool ordering、权限策略、审批策略或最终回复模型。
+- 不在前端把用户自定义 agent 转成 manifest；manifest/profile 的解析属于 agent runtime 或 agent gateway。
+- 不在前端直接执行 agent tool；前端只展示 run、plan、tool call、approval、draft 和 debug trace。
+
+前端到 agent runtime 的输入契约应保持稳定：
+
+```ts
+interface AgentClientInput {
+  message: string
+  attachments?: Array<{
+    id?: string
+    name?: string
+    type?: string
+    mimeType?: string
+    size?: number
+    resourceId?: number
+  }>
+  uiSnapshot?: {
+    route?: { pathname?: string; search?: string; hash?: string }
+    project?: { id?: number; name?: string; status?: string; description?: string }
+    selection?: { entityType?: string; entityId?: number | string; label?: string } | null
+    recentResources?: Array<{ id?: number; name?: string; type?: string; mimeType?: string; size?: number }>
+    labels?: string[]
+  }
+}
+```
+
+这使前端可以替换 agent provider：只要新 agent 实现相同 thread/run/approval/draft/debug API，前端无需理解新 agent 的内部 planner、prompt 或工具实现。
 
 ## Debug 页面结构
 
@@ -204,23 +238,22 @@ interface AgentManifestV2 {
 - runtime `normalizeAgentManifest` 将 v1 转成内部 `ResolvedAgentManifest`。
 - v1 的 `metadata.skillIds` 只作为历史字段，不再作为最终 skill 来源。
 
-### 2. Agent Input Builder
-
-新增独立 builder，避免 `AIAgentPanel` 里继续散落拼接逻辑。
+### 2. Runtime Agent Input Builder
 
 ```text
-apps/frontend/src/agent/inputBuilder.ts
-  buildAgentInputEnvelope()
-  resolveAgentManifest()
-  buildDebugSections()
+apps/agent/src/runtime/agentRuntime.ts
+  normalizeClientInput()
+  buildRuntimeUserMessage()
+  buildDebugContext()
+  compilePromptPreview()
 ```
 
 职责：
 
-- 收集 project、route、selection、recent resources、attachments。
-- 收集 active agent soul/skills/settings。
-- 请求 local agent `/inspect` 或 `/capabilities` 得到 tools/context 状态。
-- 生成 debug 页面和 runtime request 共用的 envelope。
+- 接收前端传入的 `clientInput`。
+- 从 MCP `movscript.get_context_pack` 和 `uiSnapshot` 合并 route、project、selection、recent resources、attachments。
+- 收集 active manifest、skills、tools、policy、memories。
+- 生成 runtime request、debug 页面和 model adapter 共用的 envelope。
 
 ### 3. Runtime Capability Resolver
 

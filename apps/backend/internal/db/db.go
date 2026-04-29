@@ -98,6 +98,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&model.CanvasEdge{},
 		&model.CanvasRun{},
 		&model.CanvasTask{},
+		&model.CanvasEntityWriteAudit{},
 		&model.FeatureConfig{},
 		&model.GenJob{},
 		&model.Plugin{},

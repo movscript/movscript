@@ -23,18 +23,12 @@ import {
 import {
   Badge,
   Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
   Textarea,
 } from '@movscript/ui'
-import { api } from '@/lib/api'
 import {
   localAgentClient,
   type AgentCapabilitiesResponse,
@@ -49,12 +43,10 @@ import {
 } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import type { AgentTemplate, UserAgent } from '@/store/agentStore'
 
 export default function AgentDebugPage() {
   const { t } = useTranslation()
   const currentProject = useProjectStore((s) => s.current)
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('default')
   const [previewMessage, setPreviewMessage] = useState(() => t('agents.debug.defaultPreviewMessage'))
   const [copied, setCopied] = useState(false)
 
@@ -82,43 +74,33 @@ export default function AgentDebugPage() {
     },
     retry: false,
   })
-  const { data: userAgents = [] } = useQuery<UserAgent[]>({
-    queryKey: ['agents', 'my'],
-    queryFn: () => api.get('/agents/my').then((r) => r.data),
-  })
-  const { data: templates = [] } = useQuery<AgentTemplate[]>({
-    queryKey: ['agents'],
-    queryFn: () => api.get('/agents').then((r) => r.data),
-  })
-
-  const effectiveAgents = useMemo(() => {
-    return userAgents.map((agent) => {
-      if (!agent.accept_platform_updates || !agent.source_template_id) return agent
-      const template = templates.find((item) => item.id === agent.source_template_id)
-      return template
-        ? { ...agent, soul: template.soul, skills: template.skills, platform_model_id: template.platform_model_id }
-        : agent
-    })
-  }, [templates, userAgents])
-
-  const selectedAgent = selectedAgentId === 'default'
-    ? null
-    : effectiveAgents.find((agent) => String(agent.id) === selectedAgentId) ?? null
-  const agentManifest = useMemo(() => buildLocalAgentManifest(selectedAgent), [selectedAgent])
-
   const preview = useMutation<AgentRunPreview, Error>({
     mutationFn: async () => {
       await localAgentClient.ensureRunning()
       return localAgentClient.previewRun({
-        message: previewMessage.trim() || t('agents.debug.defaultPreviewMessage'),
-        ...(agentManifest ? { agentManifest } : {}),
+        clientInput: {
+          message: previewMessage.trim() || t('agents.debug.defaultPreviewMessage'),
+          uiSnapshot: {
+            ...(currentProject ? {
+              project: {
+                id: currentProject.ID,
+                name: currentProject.name,
+                status: currentProject.status,
+                description: currentProject.description,
+              },
+            } : {}),
+            route: typeof window !== 'undefined'
+              ? { pathname: window.location.pathname, search: window.location.search, hash: window.location.hash }
+              : undefined,
+          },
+        },
       })
     },
   })
 
   const selectedTools = preview.data?.tools ?? capabilities.data?.resolvedTools
   const selectedSkills = preview.data?.skills ?? inspect.data?.skills ?? []
-  const selectedManifest = preview.data?.agentManifest ?? agentManifest ?? inspect.data?.defaultAgentManifest
+  const selectedManifest = preview.data?.agentManifest ?? inspect.data?.defaultAgentManifest
   const warnings = [
     ...(health.data?.pluginCatalog?.warnings ?? []),
     ...(inspect.data?.pluginCatalog?.warnings ?? []),
@@ -129,11 +111,10 @@ export default function AgentDebugPage() {
     health: health.data,
     inspect: inspect.data,
     capabilities: capabilities.data,
-    selectedAgent: selectedAgent ? { id: selectedAgent.id, name: selectedAgent.name } : null,
     selectedManifest,
     preview: preview.data,
     previewError: preview.error?.message,
-  }), [capabilities.data, health.data, inspect.data, preview.data, preview.error, selectedAgent, selectedManifest])
+  }), [capabilities.data, health.data, inspect.data, preview.data, preview.error, selectedManifest])
 
   async function copyRaw() {
     await navigator.clipboard.writeText(rawPayload)
@@ -194,17 +175,9 @@ export default function AgentDebugPage() {
 
             <Panel title={t('agents.debug.panels.previewInput')} icon={<Bot size={14} />}>
               <div className="space-y-2">
-                <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder={t('agents.debug.fields.agentManifest')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">{t('agents.debug.defaultRuntimeManifest')}</SelectItem>
-                    {effectiveAgents.map((agent) => (
-                      <SelectItem key={agent.id} value={String(agent.id)}>{agent.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground">
+                  {t('agents.debug.defaultRuntimeManifest')}
+                </div>
                 <Textarea
                   value={previewMessage}
                   onChange={(event) => setPreviewMessage(event.target.value)}
@@ -668,43 +641,6 @@ function CodeBlock({ value, maxHeight = '360px', className }: { value: string; m
       {value}
     </pre>
   )
-}
-
-function buildLocalAgentManifest(agent: UserAgent | null): AgentManifest | undefined {
-  if (!agent) return undefined
-  const skills = (agent.skills ?? []).map((skill, index) => ({
-    id: skill.id,
-    name: skill.name,
-    description: skill.description,
-    enabled: true,
-    priority: (agent.skills?.length ?? 0) - index,
-    instruction: skill.description,
-    metadata: {
-      source: 'movscript-ui',
-    },
-  }))
-  return {
-    schema: 'movscript.agent.v2',
-    id: `movscript.ui-agent.${agent.id}`,
-    version: String(agent.updated_at || 1),
-    name: agent.name,
-    description: agent.soul || undefined,
-    soul: agent.soul || undefined,
-    skills,
-    permissions: ['project.read', 'draft.read', 'draft.write', 'ui.navigate'],
-    tools: [
-      { name: 'movscript.search_entities', mode: 'allow', approval: 'never' },
-      { name: 'movscript.read_entity', mode: 'allow', approval: 'never' },
-      { name: 'movscript.create_draft', mode: 'allow', approval: 'never' },
-      { name: 'movscript.list_drafts', mode: 'allow', approval: 'never' },
-      { name: 'movscript.open_entity', mode: 'allow', approval: 'never' },
-    ],
-    ...(agent.platform_model_id ? { model: { provider: 'movscript', platformModelId: agent.platform_model_id } } : {}),
-    metadata: {
-      source: 'movscript-ui',
-      skillIds: (agent.skills ?? []).map((skill) => skill.id),
-    },
-  }
 }
 
 function safeJSONStringify(value: unknown): string {

@@ -78,3 +78,17 @@ type CanvasTask struct {
 	ResourceID     *uint        `json:"resource_id,omitempty"`
 	Resource       *RawResource `gorm:"foreignKey:ResourceID" json:"resource,omitempty"`
 }
+
+type CanvasEntityWriteAudit struct {
+	gorm.Model
+	CanvasID           uint   `gorm:"index" json:"canvas_id"`
+	CanvasRunID        uint   `gorm:"index" json:"canvas_run_id"`
+	CanvasNodeID       string `gorm:"index" json:"canvas_node_id"`
+	PortID             string `gorm:"not null;index" json:"port_id"`
+	EntityKind         string `gorm:"not null;index:idx_canvas_entity_write_audit_entity" json:"entity_kind"`
+	EntityID           uint   `gorm:"not null;index:idx_canvas_entity_write_audit_entity" json:"entity_id"`
+	UserID             uint   `gorm:"index" json:"user_id"`
+	OldValueJSON       string `gorm:"type:text" json:"old_value_json,omitempty"`
+	NewValueJSON       string `gorm:"type:text" json:"new_value_json,omitempty"`
+	ResourceBindingIDs string `gorm:"type:text" json:"resource_binding_ids,omitempty"`
+}

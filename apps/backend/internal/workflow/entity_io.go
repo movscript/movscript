@@ -208,49 +208,61 @@ func (s *EntityIOService) WritePorts(ctx context.Context, kind string, id uint, 
 	if err := validateEntityPortValues(kind, values); err != nil {
 		return result, err
 	}
-	if err := s.writeEntityFields(ctx, kind, id, values); err != nil {
-		return result, err
-	}
 
 	sourceType := strings.TrimSpace(meta.SourceType)
 	if sourceType == "" {
 		sourceType = "canvas"
 	}
-	for portID, value := range values {
-		field, ok := EntityFieldForPort(kind, portID)
-		if !ok || field.Binding == nil {
-			continue
+
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txSvc := &EntityIOService{db: tx}
+		oldValues, _ := txSvc.ReadPorts(ctx, kind, id)
+		if err := txSvc.writeEntityFields(ctx, kind, id, values); err != nil {
+			return err
 		}
-		for _, resourceID := range value.ResourceIDs {
-			if resourceID == 0 {
+
+		bindingIDsByPort := map[string][]uint{}
+		for portID, value := range values {
+			field, ok := EntityFieldForPort(kind, portID)
+			if !ok || field.Binding == nil {
 				continue
 			}
-			if result.PrimaryResourceID == nil {
-				rid := resourceID
-				result.PrimaryResourceID = &rid
+			for _, resourceID := range value.ResourceIDs {
+				if resourceID == 0 {
+					continue
+				}
+				if result.PrimaryResourceID == nil {
+					rid := resourceID
+					result.PrimaryResourceID = &rid
+				}
+				binding := model.ResourceBinding{
+					ProjectID:    projectID,
+					ResourceID:   resourceID,
+					OwnerType:    kind,
+					OwnerID:      id,
+					Role:         field.Binding.Role,
+					Slot:         field.Binding.Slot,
+					IsPrimary:    field.Binding.IsPrimary,
+					Status:       "selected",
+					SourceType:   sourceType,
+					CreatedByID:  uintPtrOrNil(meta.UserID),
+					MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d}`, meta.NodeID, meta.RunID),
+				}
+				if meta.CanvasID != 0 {
+					binding.SourceID = &meta.CanvasID
+				}
+				if err := tx.WithContext(ctx).Create(&binding).Error; err != nil {
+					return err
+				}
+				result.BindingIDs = append(result.BindingIDs, binding.ID)
+				bindingIDsByPort[portID] = append(bindingIDsByPort[portID], binding.ID)
 			}
-			binding := model.ResourceBinding{
-				ProjectID:    projectID,
-				ResourceID:   resourceID,
-				OwnerType:    kind,
-				OwnerID:      id,
-				Role:         field.Binding.Role,
-				Slot:         field.Binding.Slot,
-				IsPrimary:    field.Binding.IsPrimary,
-				Status:       "selected",
-				SourceType:   sourceType,
-				CreatedByID:  uintPtrOrNil(meta.UserID),
-				MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d}`, meta.NodeID, meta.RunID),
-			}
-			if meta.CanvasID != 0 {
-				binding.SourceID = &meta.CanvasID
-			}
-			if err := s.db.WithContext(ctx).Create(&binding).Error; err != nil {
-				return result, err
-			}
-			result.BindingIDs = append(result.BindingIDs, binding.ID)
 		}
+		return txSvc.createEntityWriteAudits(ctx, kind, id, values, oldValues, bindingIDsByPort, meta)
+	}); err != nil {
+		return result, err
 	}
+
 	return result, nil
 }
 
@@ -354,6 +366,9 @@ func validateEntityPortType(field EntitySchemaField, value EntityPortValue) erro
 	if valueType == "" {
 		valueType = field.ValueType
 	}
+	if valueType != field.ValueType && !(field.ValueType == "resource" && isMediaPortType(valueType)) {
+		return fmt.Errorf("port %q expects %s, got %s", field.Workflow.PortID, field.ValueType, valueType)
+	}
 	switch field.ValueType {
 	case "text", "json", "number", "boolean":
 		if strings.TrimSpace(entityPortValueText(value)) == "" && value.JSON == nil && value.Number == nil && value.Boolean == nil && len(value.ResourceIDs) == 0 {
@@ -365,9 +380,6 @@ func validateEntityPortType(field EntitySchemaField, value EntityPortValue) erro
 		}
 	default:
 		return nil
-	}
-	if valueType != field.ValueType && !(field.ValueType == "resource" && isMediaPortType(valueType)) {
-		return fmt.Errorf("port %q expects %s, got %s", field.Workflow.PortID, field.ValueType, valueType)
 	}
 	return nil
 }
@@ -400,142 +412,7 @@ func entityPortValueText(value EntityPortValue) string {
 }
 
 func (s *EntityIOService) writeEntityFields(ctx context.Context, kind string, id uint, values map[string]EntityPortValue) error {
-	updates := map[string]any{}
-	for portID, value := range values {
-		text := strings.TrimSpace(entityPortValueText(value))
-		if text == "" {
-			continue
-		}
-		switch kind + "." + portID {
-		case "script.title":
-			updates["title"] = text
-		case "script.description":
-			updates["description"] = text
-		case "script.content":
-			updates["content"] = text
-		case "script.summary":
-			updates["summary"] = text
-		case "script.characters":
-			updates["characters"] = text
-		case "script.character_profiles":
-			updates["character_profiles"] = text
-		case "script.character_relationships":
-			updates["character_relationships"] = text
-		case "script.settings":
-			updates["core_settings"] = text
-		case "script.background":
-			updates["background"] = text
-		case "script.scenes_desc":
-			updates["scenes_desc"] = text
-		case "script.hook":
-			updates["hook"] = text
-		case "script.plot_summary":
-			updates["plot_summary"] = text
-		case "script.script_points":
-			updates["script_points"] = text
-		case "setting.name":
-			updates["name"] = text
-		case "setting.alias":
-			updates["alias"] = text
-		case "setting.type":
-			updates["type"] = text
-		case "setting.description":
-			updates["description"] = text
-		case "setting.content":
-			updates["content"] = text
-		case "setting.status":
-			updates["status"] = text
-		case "setting.importance":
-			updates["importance"] = text
-		case "setting.tags":
-			updates["tags"] = text
-		case "setting.profile_json":
-			updates["profile_json"] = text
-		case "asset.name":
-			updates["name"] = text
-		case "asset.type":
-			updates["type"] = text
-		case "asset.description":
-			updates["description"] = text
-		case "asset.variant_name":
-			updates["variant_name"] = text
-		case "asset.costume":
-			updates["costume"] = text
-		case "asset.time_of_day":
-			updates["time_of_day"] = text
-		case "asset.period":
-			updates["period"] = text
-		case "asset.state":
-			updates["state"] = text
-		case "asset.style_profile":
-			updates["style_profile"] = text
-		case "asset.prompt":
-			updates["prompt"] = text
-		case "asset.negative_prompt":
-			updates["negative_prompt"] = text
-		case "episode.title":
-			updates["title"] = text
-		case "episode.synopsis":
-			updates["synopsis"] = text
-		case "scene.title":
-			updates["title"] = text
-		case "scene.notes":
-			updates["notes"] = text
-		case "scene.location":
-			updates["location"] = text
-		case "scene.time_of_day":
-			updates["time_of_day"] = text
-		case "storyboard.title":
-			updates["title"] = text
-		case "storyboard.description":
-			updates["description"] = text
-		case "storyboard.prompt":
-			updates["description"] = text
-		case "storyboard.notes":
-			updates["notes"] = text
-		case "storyboard.characters":
-			updates["characters"] = text
-		case "storyboard.actions":
-			updates["actions"] = text
-		case "storyboard.dialogue":
-			updates["dialogue"] = text
-		case "storyboard.atmosphere":
-			updates["atmosphere"] = text
-		case "storyboard.camera_angle":
-			updates["camera_angle"] = text
-		case "storyboard.camera_movement":
-			updates["camera_movement"] = text
-		case "storyboard.depth_of_field":
-			updates["depth_of_field"] = text
-		case "storyboard.lighting":
-			updates["lighting"] = text
-		case "storyboard.shot_size":
-			updates["shot_size"] = text
-		case "storyboard.angle":
-			updates["angle"] = text
-		case "storyboard.movement":
-			updates["movement"] = text
-		case "storyboard.focal_length":
-			updates["focal_length"] = text
-		case "storyboard.pacing":
-			updates["pacing"] = text
-		case "storyboard.intent":
-			updates["intent"] = text
-		case "shot.description":
-			updates["description"] = text
-		case "shot.final_description":
-			updates["final_description"] = text
-		case "shot.prompt":
-			updates["prompt"] = text
-			updates["final_prompt"] = text
-		case "shot.final_prompt":
-			updates["final_prompt"] = text
-		case "final_video.title":
-			updates["title"] = text
-		case "final_video.description":
-			updates["description"] = text
-		}
-	}
+	updates := entityFieldUpdates(kind, values)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -559,6 +436,101 @@ func (s *EntityIOService) writeEntityFields(ctx context.Context, kind string, id
 	default:
 		return fmt.Errorf("unsupported entity type %q", kind)
 	}
+}
+
+func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[string]any {
+	updates := map[string]any{}
+	for portID, value := range values {
+		text := strings.TrimSpace(entityPortValueText(value))
+		if text == "" {
+			continue
+		}
+		field, ok := EntityFieldForPort(kind, portID)
+		if !ok || field.Storage == nil || strings.TrimSpace(field.Storage.Column) == "" {
+			continue
+		}
+		updates[field.Storage.Column] = text
+		switch kind + "." + portID {
+		case "shot.prompt":
+			updates["prompt"] = text
+			updates["final_prompt"] = text
+		}
+	}
+	return updates
+}
+
+func (s *EntityIOService) createEntityWriteAudits(
+	ctx context.Context,
+	kind string,
+	id uint,
+	values map[string]EntityPortValue,
+	oldValues map[string]EntityPortValue,
+	bindingIDsByPort map[string][]uint,
+	meta EntityWriteMeta,
+) error {
+	audits := buildEntityWriteAudits(kind, id, values, oldValues, bindingIDsByPort, meta)
+	if len(audits) == 0 {
+		return nil
+	}
+	return s.db.WithContext(ctx).Create(&audits).Error
+}
+
+func buildEntityWriteAudits(
+	kind string,
+	id uint,
+	values map[string]EntityPortValue,
+	oldValues map[string]EntityPortValue,
+	bindingIDsByPort map[string][]uint,
+	meta EntityWriteMeta,
+) []model.CanvasEntityWriteAudit {
+	audits := make([]model.CanvasEntityWriteAudit, 0, len(values))
+	for portID, value := range values {
+		newValueJSON := mustMarshalString(entityPortValueAuditPayload(value))
+		oldValueJSON := ""
+		if oldValue, ok := oldValues[portID]; ok {
+			oldValueJSON = mustMarshalString(entityPortValueAuditPayload(oldValue))
+		}
+		audits = append(audits, model.CanvasEntityWriteAudit{
+			CanvasID:           meta.CanvasID,
+			CanvasRunID:        meta.RunID,
+			CanvasNodeID:       meta.NodeID,
+			PortID:             portID,
+			EntityKind:         kind,
+			EntityID:           id,
+			UserID:             meta.UserID,
+			OldValueJSON:       oldValueJSON,
+			NewValueJSON:       newValueJSON,
+			ResourceBindingIDs: mustMarshalString(bindingIDsByPort[portID]),
+		})
+	}
+	return audits
+}
+
+func entityPortValueAuditPayload(value EntityPortValue) map[string]any {
+	payload := map[string]any{
+		"type": value.Type,
+	}
+	if strings.TrimSpace(value.Text) != "" {
+		payload["text"] = value.Text
+	}
+	if value.JSON != nil {
+		payload["json"] = value.JSON
+	}
+	if value.Number != nil {
+		payload["number"] = *value.Number
+	}
+	if value.Boolean != nil {
+		payload["boolean"] = *value.Boolean
+	}
+	if len(value.ResourceIDs) > 0 {
+		payload["resource_ids"] = value.ResourceIDs
+	}
+	return payload
+}
+
+func mustMarshalString(value any) string {
+	b, _ := json.Marshal(value)
+	return string(b)
 }
 
 func firstNonEmpty(values ...string) string {

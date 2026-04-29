@@ -16,6 +16,7 @@ import {
   canStartLocalAgentFromClient,
   localAgentClient,
   type AgentHealth,
+  type AgentClientInput,
   type AgentMemory,
   type AgentMemoryKind,
   type AgentMemoryScope,
@@ -272,6 +273,7 @@ interface AgentSendDraft {
     threadId?: string
     projectId?: number
     title: string
+    clientInput?: AgentClientInput
     agentManifest?: AgentManifest
     preview?: AgentRunPreview
     previewError?: string
@@ -311,6 +313,48 @@ function compactResource(resource: RawResource): Pick<RawResource, 'ID' | 'name'
     type: resource.type,
     mime_type: resource.mime_type,
     size: resource.size,
+  }
+}
+
+function buildAgentClientInput(options: {
+  message: string
+  attachments: AgentAttachment[]
+  project: Project | null
+  recentResources: RawResource[]
+  labels: string[]
+}): AgentClientInput {
+  const route = typeof window !== 'undefined'
+    ? { pathname: window.location.pathname, search: window.location.search, hash: window.location.hash }
+    : undefined
+  return {
+    message: options.message,
+    attachments: options.attachments.map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      type: attachment.type,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
+    })),
+    uiSnapshot: {
+      ...(route ? { route } : {}),
+      ...(options.project ? {
+        project: {
+          id: options.project.ID,
+          name: options.project.name,
+          status: options.project.status,
+          description: options.project.description,
+        },
+      } : {}),
+      recentResources: options.recentResources.slice(0, 8).map((resource) => ({
+        id: resource.ID,
+        name: resource.name,
+        type: resource.type,
+        mimeType: resource.mime_type,
+        size: resource.size,
+      })),
+      labels: options.labels,
+    },
   }
 }
 
@@ -374,7 +418,8 @@ function buildDebugHttpRequests(options: {
       headers: { 'Content-Type': 'application/json' },
       body: {
         role: 'user',
-        content: options.messages.at(-1)?.content ?? '',
+        content: options.localRuntime?.clientInput?.message ?? options.messages.at(-1)?.content ?? '',
+        ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
       },
     },
     {
@@ -385,6 +430,7 @@ function buildDebugHttpRequests(options: {
       headers: { 'Content-Type': 'application/json' },
       body: {
         threadId: resolvedThreadId,
+        ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
         ...(options.localRuntime?.agentManifest ? { agentManifest: options.localRuntime.agentManifest } : {}),
       },
     },
@@ -400,32 +446,6 @@ function buildDebugHttpRequests(options: {
       label: 'Fetch final local thread',
       method: 'GET',
       url: `${baseURL}/threads/${resolvedThreadId}`,
-    },
-    {
-      id: 'local-synthesize',
-      label: 'Synthesize final assistant reply',
-      method: 'POST',
-      url: `${API_V1_BASE_URL}/ai/chat`,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': options.userId,
-      },
-      conditional: true,
-      note: 'Sent after the local run completes without pending approvals. The final system message is filled with runtime result details at execution time.',
-      body: {
-        model_config_id: options.modelId,
-        messages: [
-          {
-            role: 'system',
-            content: '你是 MovScript Agent 的最终回复模型。请基于 Local Agent Runtime 的工具执行结果，用用户语言给出简洁、可执行的回复。不要声称执行了 runtime 没有完成的动作。',
-          },
-          ...options.messages.filter((message) => message.role !== 'system'),
-          {
-            role: 'system',
-            content: '[Local Agent Runtime Result]\\n{run status, plan, steps, warnings, runtime reply}',
-          },
-        ],
-      },
     },
   )
   return requests
@@ -445,44 +465,6 @@ function formatLocalAgentAssistantContent(run: AgentRun, thread: LocalAgentThrea
   const missing = run.warnings.filter((warning) => !content.includes(warning))
   if (missing.length === 0) return content
   return `${content}\n\nWarnings:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
-}
-
-async function synthesizeLocalAgentReply(input: {
-  modelId: number | null
-  messages: Array<{ role: ChatMessage['role']; content: string }>
-  run: AgentRun
-  thread: LocalAgentThread
-  fallback: string
-}) {
-  if (!input.modelId) return input.fallback
-
-  const pendingApprovals = (input.run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
-  if (input.run.status === 'requires_action' && pendingApprovals.length > 0) {
-    return input.fallback
-  }
-
-  const workflowContext = [
-    '[Local Agent Runtime Result]',
-    `run_status: ${input.run.status}`,
-    input.run.plan ? `objective: ${input.run.plan.objective}` : null,
-    input.run.plan?.tasks.length ? `tasks:\n${input.run.plan.tasks.map((task) => `- ${task.title}: ${task.status}`).join('\n')}` : null,
-    input.run.steps.length ? `steps:\n${input.run.steps.map((step) => `- ${workflowStepTitle(step)} (${step.type}, ${step.status})${step.error ? ` error=${step.error}` : ''}`).join('\n')}` : null,
-    input.run.warnings?.length ? `warnings:\n${input.run.warnings.map((warning) => `- ${warning}`).join('\n')}` : null,
-    `runtime_reply:\n${input.fallback}`,
-  ].filter(Boolean).join('\n\n')
-
-  const { data } = await api.post('/ai/chat', {
-    model_config_id: input.modelId,
-    messages: [
-      {
-        role: 'system',
-        content: '你是 MovScript Agent 的最终回复模型。请基于 Local Agent Runtime 的工具执行结果，用用户语言给出简洁、可执行的回复。不要声称执行了 runtime 没有完成的动作。',
-      },
-      ...input.messages,
-      { role: 'system', content: workflowContext },
-    ],
-  })
-  return typeof data?.content === 'string' && data.content.trim() ? data.content : input.fallback
 }
 
 function LocalAgentWorkflow({
@@ -1423,20 +1405,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       })
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
-        const fallback = formatLocalAgentAssistantContent(finalRun, thread)
-        let content = fallback
-        try {
-          content = await synthesizeLocalAgentReply({
-            modelId,
-            messages: conv.messages.map((m) => ({ role: m.role, content: m.content })),
-            run: finalRun,
-            thread,
-            fallback,
-          })
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e)
-          content = `${fallback}\n\n模型回复整合失败：${message}`
-        }
+        const content = formatLocalAgentAssistantContent(finalRun, thread)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content,
@@ -1453,7 +1422,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       setApprovingLocalRun(false)
       setLoading(false)
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, conv.messages, modelId, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
@@ -1465,20 +1434,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       const rejectedRun = await localAgentClient.rejectRun(run.id, { approvalIds })
       setActiveLocalRun(rejectedRun)
       const thread = await localAgentClient.getThread(rejectedRun.threadId)
-      const fallback = formatLocalAgentAssistantContent(rejectedRun, thread)
-      let content = fallback
-      try {
-        content = await synthesizeLocalAgentReply({
-          modelId,
-          messages: conv.messages.map((m) => ({ role: m.role, content: m.content })),
-          run: rejectedRun,
-          thread,
-          fallback,
-        })
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e)
-        content = `${fallback}\n\n模型回复整合失败：${message}`
-      }
+      const content = formatLocalAgentAssistantContent(rejectedRun, thread)
       addMessage(userId, conv.id, {
         role: 'assistant',
         content,
@@ -1494,12 +1450,19 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       setApprovingLocalRun(false)
       setLoading(false)
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, conv.messages, modelId, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
 
   const buildSendDraft = useCallback(async (options: { includeRuntimePreview?: boolean } = {}): Promise<AgentSendDraft> => {
     const text = input.trim()
     const sentAttachments = attachments
     const visibleUserContent = text || t('agents.chat.attachmentOnlyMessage')
+    const clientInput = buildAgentClientInput({
+      message: visibleUserContent,
+      attachments: sentAttachments,
+      project: currentProject,
+      recentResources,
+      labels: contextLabels,
+    })
     const agentContext = buildAgentContext({
       mode: settings.mode,
       permissionMode: settings.permissionMode,
@@ -1524,6 +1487,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         ...(threadId ? { threadId } : {}),
         ...(currentProject?.ID ? { projectId: currentProject.ID } : {}),
         title: conv.title,
+        clientInput,
       }
 
       if (options.includeRuntimePreview) {
@@ -1535,13 +1499,13 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           try {
             localRuntime.preview = await localAgentClient.previewRun({
               ...(threadId ? { threadId } : {}),
-              message: enrichedUserContent,
+              clientInput,
             })
           } catch (e) {
             if (!threadId) throw e
             warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
             localRuntime.preview = await localAgentClient.previewRun({
-              message: enrichedUserContent,
+              clientInput,
             })
           }
         } catch (e) {
@@ -1616,7 +1580,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   ])
 
   const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {
-    if (!draft.model.id) {
+    if (!draft.model.id && draft.route !== 'local-runtime') {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
     }
@@ -1650,7 +1614,8 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         }
         const { run, thread } = await localAgentClient.runMessage({
           threadId: draft.localRuntime?.threadId,
-          message: draft.outbound.enrichedUserContent,
+          message: draft.visibleUserContent,
+          clientInput: draft.localRuntime?.clientInput,
           title: draft.localRuntime?.title ?? conv.title,
           projectId: draft.localRuntime?.projectId,
         }, {
@@ -1662,20 +1627,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           writeLocalAgentThreadIds(next)
           return next
         })
-        const fallback = formatLocalAgentAssistantContent(run, thread)
-        let content = fallback
-        try {
-          content = await synthesizeLocalAgentReply({
-            modelId: draft.model.id,
-            messages: draft.outbound.messages.filter((message) => message.role !== 'system') as Array<{ role: ChatMessage['role']; content: string }>,
-            run,
-            thread,
-            fallback,
-          })
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e)
-          content = `${fallback}\n\n模型回复整合失败：${message}`
-        }
+        const content = formatLocalAgentAssistantContent(run, thread)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content,
@@ -1722,7 +1674,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
 
   const send = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || uploading || buildingSendDraft) return
-    if (!modelId) {
+    if (!modelId && !localRuntimeEnabled) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
     }

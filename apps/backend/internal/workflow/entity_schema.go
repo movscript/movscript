@@ -20,6 +20,7 @@ type EntitySchemaField struct {
 	FallbackLabel string           `json:"fallbackLabel"`
 	ValueType     string           `json:"valueType"`
 	Control       string           `json:"control"`
+	Storage       *FieldStorageMap `json:"-"`
 	Workflow      FieldWorkflowIO  `json:"workflow"`
 	Binding       *FieldBindingMap `json:"binding,omitempty"`
 }
@@ -37,6 +38,10 @@ type FieldBindingMap struct {
 	Slot      string `json:"slot"`
 	IsPrimary bool   `json:"isPrimary"`
 	Multiple  bool   `json:"multiple"`
+}
+
+type FieldStorageMap struct {
+	Column string `json:"column"`
 }
 
 type PortDef struct {
@@ -140,7 +145,7 @@ func EntitySchemas() []EntitySchema {
 				textField("actions", "details.actions", "Actions", "textarea", true),
 				textField("dialogue", "details.dialogue", "Dialogue", "textarea", true),
 				textField("atmosphere", "details.atmosphere", "Atmosphere", "textarea", true),
-				textField("prompt", "details.prompt", "Prompt", "textarea", true),
+				storedField(textField("prompt", "details.prompt", "Prompt", "textarea", true), "description"),
 				textField("camera_angle", "details.cameraReference", "Camera Angle", "input", true),
 				textField("camera_movement", "details.cameraReference", "Camera Movement", "input", true),
 				textField("depth_of_field", "details.cameraReference", "Depth of Field", "input", true),
@@ -235,6 +240,7 @@ func section(id string, labelKey string, fallback string, fields []EntitySchemaF
 func textField(id string, labelKey string, fallback string, control string, writable bool) EntitySchemaField {
 	return EntitySchemaField{
 		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "text", Control: control,
+		Storage:  &FieldStorageMap{Column: defaultStorageColumn(id)},
 		Workflow: FieldWorkflowIO{Readable: true, Writable: writable, PortID: id},
 	}
 }
@@ -242,6 +248,7 @@ func textField(id string, labelKey string, fallback string, control string, writ
 func jsonField(id string, labelKey string, fallback string, writable bool) EntitySchemaField {
 	return EntitySchemaField{
 		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "json", Control: "json_editor",
+		Storage:  &FieldStorageMap{Column: defaultStorageColumn(id)},
 		Workflow: FieldWorkflowIO{Readable: true, Writable: writable, PortID: id},
 	}
 }
@@ -255,5 +262,19 @@ func mediaField(id string, labelKey string, fallback string, portID string, valu
 		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: valueType, Control: "resource_picker",
 		Workflow: FieldWorkflowIO{Readable: true, Writable: true, PortID: portID},
 		Binding:  &FieldBindingMap{Role: role, Slot: portID, IsPrimary: primary, Multiple: !primary},
+	}
+}
+
+func storedField(field EntitySchemaField, column string) EntitySchemaField {
+	field.Storage = &FieldStorageMap{Column: column}
+	return field
+}
+
+func defaultStorageColumn(id string) string {
+	switch id {
+	case "settings":
+		return "core_settings"
+	default:
+		return id
 	}
 }
