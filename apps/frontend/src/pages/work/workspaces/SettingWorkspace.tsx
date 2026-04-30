@@ -8,6 +8,7 @@ import { Link2, Plus, X } from 'lucide-react'
 import { ArtifactWorkspaceFrame } from '../ArtifactWorkspaceFrame'
 import type { WorkspaceFrameProps } from './types'
 import { SettingDetailEditor, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
+import { SettingAssetOverview } from '@/components/settings/SettingAssetOverview'
 
 const SETTING_ROLE_OPTIONS = [
   'protagonist',
@@ -42,6 +43,7 @@ export function SettingWorkspace({
     >
       <div className="h-full overflow-y-auto p-5">
         <SettingDetailEditor setting={setting} className="mx-auto max-w-4xl" />
+        <SettingAssetOverview setting={setting} className="mx-auto mt-6 max-w-4xl" />
         <SettingScriptBindingPanel setting={setting} />
       </div>
     </ArtifactWorkspaceFrame>

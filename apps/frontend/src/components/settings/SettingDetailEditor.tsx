@@ -16,12 +16,10 @@ export const BUILT_IN_SETTING_TYPES = [
   { value: 'concept', label: '概念' },
 ]
 
-const STATUS_OPTIONS = [
-  { value: 'draft', label: '草稿' },
-  { value: 'active', label: '当前' },
-  { value: 'past', label: '过去' },
-  { value: 'future', label: '未来' },
-  { value: 'hidden', label: '隐藏' },
+export const DEFAULT_SETTING_STATUS = 'default'
+
+export const SETTING_STATE_OPTIONS = [
+  { value: DEFAULT_SETTING_STATUS, label: '默认' },
 ]
 
 const RELATIONSHIP_TYPE_OPTIONS = [
@@ -70,10 +68,10 @@ export function SettingDetailEditor({
   })
 
   const stableTags = useMemo(() => parseTags(draft.tags), [draft.tags])
-  const stateTags = useMemo(() => normalizeStateTags(draft.state_tags, draft.status), [draft.state_tags, draft.status])
+  const stateTags = useMemo(() => normalizeSettingStateTags(draft.state_tags, draft.status), [draft.state_tags, draft.status])
   const typeValue = String(draft.type ?? '')
   const statusValue = normalizeStatus(draft.status)
-  const stateOptions = useMemo(() => buildStateOptions(stateTags, statusValue), [stateTags, statusValue])
+  const stateOptions = useMemo(() => buildSettingStateOptions(stateTags, statusValue), [stateTags, statusValue])
   const currentTags = stateTags[statusValue] ?? []
 
   function setField<K extends keyof Setting>(key: K, value: Setting[K] | string | undefined) {
@@ -85,7 +83,7 @@ export function SettingDetailEditor({
     setDraft((current) => ({
       ...current,
       status: normalized,
-      state_tags: JSON.stringify(ensureStateTags(normalizeStateTags(current.state_tags, current.status), normalized)),
+      state_tags: JSON.stringify(ensureSettingStateTags(normalizeSettingStateTags(current.state_tags, current.status), normalized)),
     }))
   }
 
@@ -122,17 +120,17 @@ export function SettingDetailEditor({
     setDraft((current) => ({
       ...current,
       status: next,
-      state_tags: JSON.stringify(ensureStateTags(normalizeStateTags(current.state_tags, current.status), next)),
+      state_tags: JSON.stringify(ensureSettingStateTags(normalizeSettingStateTags(current.state_tags, current.status), next)),
     }))
     setStateInput('')
   }
 
   function save() {
-    const nextStateTags = ensureStateTags(stateTags, statusValue)
+    const nextStateTags = ensureSettingStateTags(stateTags, statusValue)
     update.mutate({
       name: String(draft.name ?? '').trim(),
       type: typeValue.trim(),
-      status: statusValue === 'draft' && !String(draft.status ?? '').trim() ? '' : statusValue,
+      status: statusValue,
       tags: JSON.stringify(stableTags),
       state_tags: JSON.stringify(nextStateTags),
       description: String(draft.description ?? ''),
@@ -156,7 +154,7 @@ export function SettingDetailEditor({
             />
           </div>
           <div>
-            <Label className="mb-1 text-xs font-medium text-muted-foreground">当前状态</Label>
+            <Label className="mb-1 text-xs font-medium text-muted-foreground">默认素材状态</Label>
             <Input
               list="setting-status-options"
               value={statusValue}
@@ -164,7 +162,7 @@ export function SettingDetailEditor({
               placeholder="自定义状态"
             />
             <datalist id="setting-status-options">
-              {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {SETTING_STATE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </datalist>
           </div>
         </div>
@@ -293,7 +291,7 @@ export function SettingDetailEditor({
                   addTag()
                 }
               }}
-              placeholder="输入当前状态标签后回车"
+              placeholder="输入这个状态的标签后回车"
             />
           </div>
         </div>
@@ -482,7 +480,7 @@ function parseTags(value?: string) {
   return []
 }
 
-function normalizeStateTags(value?: string, status?: string): Record<string, string[]> {
+export function normalizeSettingStateTags(value?: string, status?: string): Record<string, string[]> {
   const fallbackStatus = normalizeStatus(status)
   if (!value) {
     return { [fallbackStatus]: [] }
@@ -495,7 +493,7 @@ function normalizeStateTags(value?: string, status?: string): Record<string, str
         const key = normalizeStatus(state)
         record[key] = Array.isArray(tags) ? dedupeTags(tags.map((item) => String(item))) : []
       })
-      return ensureStateTags(record, fallbackStatus)
+      return ensureSettingStateTags(record, fallbackStatus)
     }
   } catch {
     return { [fallbackStatus]: [] }
@@ -503,7 +501,7 @@ function normalizeStateTags(value?: string, status?: string): Record<string, str
   return { [fallbackStatus]: [] }
 }
 
-function ensureStateTags(stateTags: Record<string, string[]>, status: string, fallbackTags: string[] = []) {
+export function ensureSettingStateTags(stateTags: Record<string, string[]>, status: string, fallbackTags: string[] = []) {
   const normalizedStatus = normalizeStatus(status)
   return {
     ...stateTags,
@@ -511,8 +509,8 @@ function ensureStateTags(stateTags: Record<string, string[]>, status: string, fa
   }
 }
 
-function buildStateOptions(stateTags: Record<string, string[]>, status: string) {
-  const builtIns = STATUS_OPTIONS.map((option) => option.value)
+export function buildSettingStateOptions(stateTags: Record<string, string[]>, status?: string) {
+  const builtIns = SETTING_STATE_OPTIONS.map((option) => option.value)
   return Array.from(new Set([...builtIns, ...Object.keys(stateTags), normalizeStatus(status)]))
 }
 
@@ -521,11 +519,11 @@ function dedupeTags(tags: string[]) {
 }
 
 function normalizeStatus(status?: string) {
-  return String(status ?? '').trim() || 'draft'
+  return String(status ?? '').trim() || DEFAULT_SETTING_STATUS
 }
 
 export function settingStatusLabel(status?: string) {
-  return STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status ?? '未设置'
+  return SETTING_STATE_OPTIONS.find((item) => item.value === status)?.label ?? status ?? '未设置'
 }
 
 export function SettingStatusBadge({ status }: { status?: string }) {

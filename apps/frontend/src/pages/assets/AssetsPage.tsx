@@ -256,7 +256,20 @@ export default function AssetsPage() {
       )}
 
       <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.assets.createTitle')}>
-        <AssetCreateForm projectId={projectId!} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
+        <AssetCreateForm
+          key={filterSettingId || 'asset-create'}
+          projectId={projectId!}
+          initialSettingId={filterSettingId ? Number(filterSettingId) : undefined}
+          onCreated={(asset) => {
+            setFilterType(asset.type)
+            setFilterSettingId(asset.setting_id ? String(asset.setting_id) : '')
+            setSearch('')
+            setPage(1)
+            setSelectedId(asset.ID)
+          }}
+          onSuccess={() => setShowCreate(false)}
+          onCancel={() => setShowCreate(false)}
+        />
       </CreateDialog>
     </div>
   )

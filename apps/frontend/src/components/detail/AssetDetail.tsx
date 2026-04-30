@@ -9,6 +9,7 @@ import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { EntitySemanticForm } from './EntitySemanticForm'
+import { settingStatusLabel } from '@/components/settings/SettingDetailEditor'
 
 function resolveResourceSrc(resource: Asset['resource']): string | undefined {
   if (!resource?.url) return undefined
@@ -121,7 +122,7 @@ export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Pro
               {asset.setting && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {asset.setting.name}
-                  {asset.follow_setting_status && asset.effective_status ? ` · ${asset.effective_status}` : ''}
+                  {asset.state ? ` · ${settingStatusLabel(asset.state)}` : ''}
                 </p>
               )}
             </div>

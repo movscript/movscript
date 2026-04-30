@@ -26,7 +26,7 @@ import { FinalVideoDetail } from '@/pages/final-videos/FinalVideosPage'
 import PipelineEditorPage from '@/pages/pipeline/PipelineEditorPage'
 import { ArtifactWorkspaceFrame } from './ArtifactWorkspaceFrame'
 import { isWorkbenchEntityKind } from './workbenchNavigation'
-import { BUILT_IN_SETTING_TYPES, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
+import { BUILT_IN_SETTING_TYPES, DEFAULT_SETTING_STATUS, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
 
 const CANVAS_PANEL_DEFAULT_H = 420
 const CANVAS_PANEL_MIN_H = 260
@@ -761,6 +761,7 @@ function SettingCreateInlineForm({
     mutationFn: () => api.post(`/projects/${projectId}/settings`, {
       name: name.trim(),
       type: type.trim(),
+      status: DEFAULT_SETTING_STATUS,
     }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings', projectId] })

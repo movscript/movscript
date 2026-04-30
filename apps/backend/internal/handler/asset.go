@@ -114,6 +114,7 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 		variantType = viewType
 	}
 	variantName := strings.TrimSpace(c.PostForm("variant_name"))
+	state := strings.TrimSpace(c.PostForm("state"))
 	description := strings.TrimSpace(c.PostForm("description"))
 
 	mimeType := header.Header.Get("Content-Type")
@@ -157,6 +158,7 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 		Description: description,
 		VariantType: variantType,
 		VariantName: variantName,
+		State:       state,
 	}
 	if settingID := parseOptionalUint(c.PostForm("setting_id")); settingID != nil {
 		a.SettingID = settingID

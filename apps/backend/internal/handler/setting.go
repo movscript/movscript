@@ -219,6 +219,9 @@ func (h *SettingHandler) Create(c *gin.Context) {
 		return
 	}
 	s.Status = strings.TrimSpace(s.Status)
+	if s.Status == "" {
+		s.Status = "default"
+	}
 	if h.settingNameExists(s.ProjectID, s.Name, 0) {
 		c.JSON(http.StatusConflict, apierr.InvalidInput("设定名称已存在"))
 		return
@@ -245,6 +248,9 @@ func (h *SettingHandler) Update(c *gin.Context) {
 		return
 	}
 	s.Status = strings.TrimSpace(s.Status)
+	if s.Status == "" {
+		s.Status = "default"
+	}
 	if h.settingNameExists(s.ProjectID, s.Name, s.ID) {
 		c.JSON(http.StatusConflict, apierr.InvalidInput("设定名称已存在"))
 		return

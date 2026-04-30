@@ -116,8 +116,8 @@ export interface ScriptAnalysis {
   UpdatedAt: string
 }
 
-// Setting is a canonical project entity with a unique name plus type, current
-// state, state-specific tags, notes, and structured data.
+// Setting is a canonical project entity with a unique name plus type, default
+// asset state, state-specific tags, notes, and structured data.
 export interface Setting {
   ID: number
   project_id: number

@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Script, Scene, Episode, Storyboard, Setting } from '@/types'
+import type { Asset, PaginatedResponse, Script, Scene, Episode, Storyboard, Setting } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -9,6 +9,7 @@ import { Label } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { defaultContentType, type PipelineEntityType } from '@/pages/pipeline/nodeSpec'
+import { DEFAULT_SETTING_STATUS, buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from '@/components/settings/SettingDetailEditor'
 
 const SCRIPT_TYPES = [
   { type: 'main' as const, labelKey: 'domain.scriptTypes.mainAlt', color: 'bg-primary text-primary-foreground' },
@@ -160,7 +161,50 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
   )
 }
 
-export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormProps) {
+interface AssetCreateFormProps extends EntityFormProps {
+  initialSettingId?: number
+  initialState?: string
+  lockSetting?: boolean
+  onCreated?: (asset: Asset) => void
+}
+
+function assetMatchesFilter(asset: Asset, type?: unknown, settingId?: unknown, search?: unknown) {
+  const typeFilter = String(type ?? '').trim()
+  const settingFilter = String(settingId ?? '').trim()
+  const searchFilter = String(search ?? '').trim().toLowerCase()
+
+  if (typeFilter && asset.type !== typeFilter) return false
+  if (settingFilter && asset.setting_id !== Number(settingFilter)) return false
+  if (searchFilter && !asset.name.toLowerCase().includes(searchFilter)) return false
+  return true
+}
+
+function upsertAssetCache(current: Asset[] | PaginatedResponse<Asset> | undefined, asset: Asset) {
+  if (!current) return current
+  if (Array.isArray(current)) {
+    const exists = current.some((item) => item.ID === asset.ID)
+    return exists ? current.map((item) => item.ID === asset.ID ? asset : item) : [asset, ...current]
+  }
+
+  const exists = current.items.some((item) => item.ID === asset.ID)
+  return {
+    ...current,
+    total: exists ? current.total : current.total + 1,
+    items: exists
+      ? current.items.map((item) => item.ID === asset.ID ? asset : item)
+      : [asset, ...current.items].slice(0, current.page_size),
+  }
+}
+
+export function AssetCreateForm({
+  projectId,
+  onSuccess,
+  onCancel,
+  initialSettingId,
+  initialState,
+  lockSetting = false,
+  onCreated,
+}: AssetCreateFormProps) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [name, setName] = useState('')
@@ -170,8 +214,8 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const [variantName, setVariantName] = useState('')
   const [variantType, setVariantType] = useState('front')
   const [customVariantType, setCustomVariantType] = useState('')
-  const [settingId, setSettingId] = useState<number | null>(null)
-  const [followSettingStatus, setFollowSettingStatus] = useState(true)
+  const [settingId, setSettingId] = useState<number | null>(initialSettingId ?? null)
+  const [assetState, setAssetState] = useState(initialState ?? '')
   const [file, setFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -181,8 +225,19 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
     enabled: !!projectId,
   })
   const settings = rawSettings ?? []
+  const selectedSetting = settings.find((setting) => setting.ID === settingId)
+  const settingStates = selectedSetting
+    ? buildSettingStateOptions(normalizeSettingStateTags(selectedSetting.state_tags, selectedSetting.status), selectedSetting.status)
+    : []
   const effectiveType = type === 'custom' ? customType.trim() : type
   const effectiveVariantType = variantType === 'custom' ? (customVariantType.trim() || 'custom') : variantType
+  const effectiveState = assetState.trim()
+  const canCreate = !!name.trim() && !!effectiveType && !!settingId && !!effectiveState
+
+  useEffect(() => {
+    if (!selectedSetting || assetState.trim()) return
+    setAssetState(initialState || selectedSetting.status || settingStates[0] || DEFAULT_SETTING_STATUS)
+  }, [assetState, initialState, selectedSetting, settingStates])
 
   const create = useMutation({
     mutationFn: () => {
@@ -195,8 +250,9 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         fd.append('variant_type', effectiveVariantType)
         if (variantName) fd.append('variant_name', variantName)
         if (desc) fd.append('description', desc)
-        if (settingId) fd.append('setting_id', String(settingId))
-        fd.append('follow_setting_status', String(followSettingStatus))
+        fd.append('setting_id', String(settingId))
+        fd.append('state', effectiveState)
+        fd.append('follow_setting_status', 'false')
         return api.post(`/projects/${projectId}/assets/upload`, fd).then((r) => r.data)
       }
       return api.post(`/projects/${projectId}/assets`, {
@@ -205,15 +261,39 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         description: desc || undefined,
         variant_type: effectiveVariantType,
         variant_name: variantName || undefined,
-        setting_id: settingId ?? undefined,
-        follow_setting_status: followSettingStatus,
+        setting_id: settingId,
+        state: effectiveState,
+        follow_setting_status: false,
       }).then((r) => r.data)
     },
-    onSuccess: (created: { ID: number; name: string }) => {
+    onSuccess: (created: Asset) => {
+      qc.getQueryCache().findAll({ queryKey: ['assets'] }).forEach((query) => {
+        const key = query.queryKey
+        let shouldUpdate = false
+
+        if (key[1] === projectId) {
+          if (key[2] === 'setting-overview') {
+            shouldUpdate = created.setting_id === key[3]
+          } else if (key.length <= 2) {
+            shouldUpdate = true
+          } else {
+            shouldUpdate = key[5] === 1 && assetMatchesFilter(created, key[2], key[3], key[4])
+          }
+        } else if (key[1] === 'panel') {
+          const assetType = key[3] === 'all' ? '' : key[3]
+          shouldUpdate = key[2] === projectId && key[5] === 1 && assetMatchesFilter(created, assetType, undefined, key[4])
+        }
+
+        if (shouldUpdate) {
+          qc.setQueryData<Asset[] | PaginatedResponse<Asset>>(key, (current) => upsertAssetCache(current, created))
+        }
+      })
+      qc.invalidateQueries({ queryKey: ['assets'] })
       qc.invalidateQueries({ queryKey: ['assets', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       spawnPipelineNode(projectId, 'asset', created.ID, created.name)
+      onCreated?.(created)
       onSuccess()
     },
   })
@@ -227,7 +307,7 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
           placeholder={t('forms.assetName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && name.trim() && create.mutate()}
+          onKeyDown={(e) => e.key === 'Enter' && canCreate && create.mutate()}
         />
       </div>
       <div>
@@ -281,25 +361,41 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         )}
       </div>
       <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">绑定设定</Label>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">绑定设定 *</Label>
         <select
           className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
           value={settingId ?? ''}
-          onChange={(e) => setSettingId(Number(e.target.value) || null)}
+          disabled={lockSetting}
+          onChange={(e) => {
+            const nextSettingId = Number(e.target.value) || null
+            const nextSetting = settings.find((setting) => setting.ID === nextSettingId)
+            const nextStates = nextSetting
+              ? buildSettingStateOptions(normalizeSettingStateTags(nextSetting.state_tags, nextSetting.status), nextSetting.status)
+              : []
+            setSettingId(nextSettingId)
+            setAssetState(nextSetting?.status || nextStates[0] || '')
+          }}
         >
-          <option value="">{t('forms.unlinked')}</option>
+          <option value="">选择设定</option>
           {settings.map((setting) => (
             <option key={setting.ID} value={setting.ID}>{setting.name} · {setting.type}</option>
           ))}
         </select>
-        <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={followSettingStatus}
-            onChange={(e) => setFollowSettingStatus(e.target.checked)}
-          />
-          跟随设定状态
-        </label>
+      </div>
+      <div>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">绑定状态 *</Label>
+        <Input
+          list="asset-setting-state-options"
+          value={assetState}
+          onChange={(e) => setAssetState(e.target.value)}
+          placeholder={selectedSetting ? '选择或输入素材对应状态' : '请先选择设定'}
+          disabled={!selectedSetting}
+        />
+        <datalist id="asset-setting-state-options">
+          {settingStates.map((state) => (
+            <option key={state} value={state}>{settingStatusLabel(state)}</option>
+          ))}
+        </datalist>
       </div>
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
@@ -327,7 +423,7 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         </div>
       </div>
       <div className="flex gap-2 pt-1">
-        <Button onClick={() => create.mutate()} disabled={!name.trim() || !effectiveType || create.isPending} className="flex-1">
+        <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending} className="flex-1">
           {create.isPending ? t('common.creating') : t('common.create')}
         </Button>
         <Button variant="outline" onClick={onCancel}>{t('common.cancel')}</Button>

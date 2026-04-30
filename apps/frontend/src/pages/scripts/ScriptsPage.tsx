@@ -11,7 +11,8 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { ScriptDetail } from '@/components/detail'
-import { BUILT_IN_SETTING_TYPES, SettingDetailEditor, SettingStatusBadge, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
+import { BUILT_IN_SETTING_TYPES, DEFAULT_SETTING_STATUS, SettingDetailEditor, SettingStatusBadge, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
+import { SettingAssetOverview } from '@/components/settings/SettingAssetOverview'
 import { useTranslation } from 'react-i18next'
 
 type ScriptType = 'main' | 'episode' | 'scene'
@@ -166,7 +167,6 @@ function SettingsSection({ projectId }: { projectId: number }) {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState('')
-  const [newStatus, setNewStatus] = useState('')
 
   const { data: rawSettings, isLoading } = useQuery<Setting[]>({
     queryKey: ['settings', projectId, filterType],
@@ -184,7 +184,6 @@ function SettingsSection({ projectId }: { projectId: number }) {
       setShowCreate(false)
       setNewName('')
       setNewType('')
-      setNewStatus('')
     },
   })
 
@@ -268,6 +267,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             <SettingDetailEditor setting={selected} projectId={projectId} />
+            <SettingAssetOverview setting={selected} className="mt-6" />
           </div>
         </div>
       )}
@@ -276,7 +276,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
         <div className="space-y-4">
           <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.nameRequired')}</Label>
             <Input autoFocus placeholder={t('pages.scripts.settingName')} value={newName} onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate({ name: newName.trim(), type: newType.trim(), status: newStatus.trim() })} />
+              onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate({ name: newName.trim(), type: newType.trim(), status: DEFAULT_SETTING_STATUS })} />
           </div>
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">类型（可选）</Label>
@@ -290,12 +290,8 @@ function SettingsSection({ projectId }: { projectId: number }) {
               <Input className="h-8 w-44 text-xs" value={newType} onChange={(event) => setNewType(event.target.value)} placeholder="自定义类型" />
             </div>
           </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">状态（可选）</Label>
-            <Input className="h-8 text-xs" value={newStatus} onChange={(event) => setNewStatus(event.target.value)} placeholder="自定义状态" />
-          </div>
           <div className="flex gap-2 pt-1">
-            <Button onClick={() => create.mutate({ name: newName.trim(), type: newType.trim(), status: newStatus.trim() })} disabled={!newName.trim() || create.isPending} className="flex-1">
+            <Button onClick={() => create.mutate({ name: newName.trim(), type: newType.trim(), status: DEFAULT_SETTING_STATUS })} disabled={!newName.trim() || create.isPending} className="flex-1">
               {create.isPending ? t('common.creating') : t('pages.scripts.createSetting')}
             </Button>
             <Button variant="outline" onClick={() => setShowCreate(false)}>{t('common.cancel')}</Button>
