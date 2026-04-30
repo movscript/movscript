@@ -28,8 +28,6 @@ const EXACT_KEYS: Record<string, string> = {
   'not found': 'apiErrors.notFound',
   'folder not found': 'apiErrors.folderNotFound',
   'asset not found': 'apiErrors.assetNotFound',
-  'agent not found': 'apiErrors.agentNotFound',
-  'agent template not found': 'apiErrors.agentTemplateNotFound',
   'feature not found': 'apiErrors.featureNotFound',
   'model config not found': 'apiErrors.modelConfigNotFound',
   'credential not found': 'apiErrors.credentialNotFound',

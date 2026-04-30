@@ -4,12 +4,11 @@ import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { Asset, AssetView } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
-import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { EntitySemanticForm } from './EntitySemanticForm'
 import { settingStatusLabel } from '@/components/settings/SettingDetailEditor'
+import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 
 function resolveResourceSrc(resource: Asset['resource']): string | undefined {
   if (!resource?.url) return undefined
@@ -30,16 +29,29 @@ function isVideoResource(resource: Asset['resource']): boolean {
   return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
 }
 
-const ASSET_TYPE_MAP: Record<string, { labelKey: string; color: string }> = {
-  character: { labelKey: 'domain.assetTypes.character', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400' },
-  scene:     { labelKey: 'domain.assetTypes.scene',     color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
-  prop:      { labelKey: 'domain.assetTypes.prop',      color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
-  draft:     { labelKey: 'domain.assetTypes.draft',     color: 'bg-muted text-muted-foreground' },
+const SETTING_TONE_MAP: Record<string, 'violet' | 'blue' | 'amber' | 'emerald'> = {
+  character: 'violet',
+  scene: 'blue',
+  prop: 'amber',
 }
 
-const ASSET_VARIANT_LABEL: Record<string, string> = {
-  front: '正视图',
-  side: '侧视图',
+const ASSET_VARIANT_LABEL_KEYS: Record<string, string> = {
+  front: 'pages.resources.viewTypes.front',
+  side: 'pages.resources.viewTypes.side',
+  back: 'pages.resources.viewTypes.back',
+  left: 'pages.resources.viewTypes.left',
+  right: 'pages.resources.viewTypes.right',
+  detail: 'pages.resources.viewTypes.detail',
+  custom: 'pages.resources.viewTypes.custom',
+}
+
+function assetViewType(asset: Asset): string {
+  return asset.variant_type || asset.type || 'custom'
+}
+
+function viewTypeLabel(t: (key: string, options?: Record<string, unknown>) => string, type?: string) {
+  if (!type) return ''
+  return ASSET_VARIANT_LABEL_KEYS[type] ? t(ASSET_VARIANT_LABEL_KEYS[type]) : type
 }
 
 interface Props {
@@ -69,7 +81,8 @@ export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Pro
     },
   })
 
-  const typeCfg = ASSET_TYPE_MAP[asset.type] ?? ASSET_TYPE_MAP.draft
+  const viewType = assetViewType(asset)
+  const settingType = asset.setting?.type ?? ''
   const resourceSrc = resolveResourceSrc(asset.resource)
   const resourceIsVideo = isVideoResource(asset.resource)
   const legacyViews = (asset.views ?? []).filter((view) => view.resource?.ID !== asset.resource_id)
@@ -77,27 +90,29 @@ export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Pro
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {showHeader && (
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0 font-medium', typeCfg.color)}>
-              {ASSET_TYPE_MAP[asset.type] ? t(typeCfg.labelKey) : asset.type}
-            </span>
-            {asset.variant_type && (
-              <span className="text-xs px-2 py-0.5 rounded-full shrink-0 bg-muted text-muted-foreground">
-                {ASSET_VARIANT_LABEL[asset.variant_type] ?? asset.variant_type}
-              </span>
-            )}
-            <h2 className="text-sm font-semibold text-foreground truncate">{asset.name}</h2>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {onDelete && (
-              <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-                {t('common.delete')}
-              </button>
-            )}
-            {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-          </div>
-        </div>
+        <DetailHero
+          title={draft.name ?? asset.name}
+          description={draft.description ?? asset.description}
+          tone={SETTING_TONE_MAP[settingType] ?? 'emerald'}
+          eyebrow={(
+            <>
+              <HeroPill>{viewTypeLabel(t, viewType)}</HeroPill>
+              {asset.setting?.type && <HeroPill>{t(`domain.assetTypes.${asset.setting.type}`, { defaultValue: asset.setting.type })}</HeroPill>}
+              {asset.state && <HeroPill>{settingStatusLabel(asset.state)}</HeroPill>}
+            </>
+          )}
+          meta={(
+            <>
+              {asset.setting?.name && <HeroMetric label={t('canvas.entityTypes.setting')} value={asset.setting.name} />}
+              {asset.resource ? <HeroMetric label={t('details.assetViews')} value={resourceIsVideo ? 'video' : 'image'} /> : null}
+              <HeroMetric label="ID" value={`#${asset.ID}`} />
+            </>
+          )}
+          onDelete={onDelete ? () => remove.mutate() : undefined}
+          onClose={onClose}
+          deleteLabel={t('common.delete')}
+          closeLabel={t('common.close')}
+        />
       )}
 
       <div className="flex flex-1 overflow-hidden">
@@ -135,7 +150,7 @@ export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Pro
                     ? <AuthedVideo src={resourceSrc} className="w-full h-full object-cover" muted playsInline controls />
                     : <AuthedImage src={resourceSrc} alt={asset.name} className="w-full h-full object-cover" />}
                 </div>
-                <p className="text-xs text-center text-muted-foreground">{ASSET_VARIANT_LABEL[asset.variant_type ?? ''] ?? asset.variant_name ?? asset.type}</p>
+                <p className="text-xs text-center text-muted-foreground">{asset.variant_name || viewTypeLabel(t, viewType)}</p>
               </div>
             )}
             {legacyViews.map((v) => {

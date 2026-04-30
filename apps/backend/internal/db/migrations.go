@@ -71,6 +71,16 @@ func RegisteredMigrations() []Migration {
 			Name:    "setting_state_tags",
 			Up:      migrateSettingStateTags,
 		},
+		{
+			Version: "000008",
+			Name:    "remove_script_status_fields",
+			Up:      migrateRemoveScriptStatusFields,
+		},
+		{
+			Version: "000009",
+			Name:    "rename_agent_chat_feature",
+			Up:      migrateRenameAgentChatFeature,
+		},
 	}
 }
 
@@ -90,6 +100,55 @@ func migrateSettingStateTags(db *gorm.DB) error {
 	return db.Model(&model.Setting{}).
 		Where("status = ?", "extracted").
 		Update("status", "").Error
+}
+
+func migrateRemoveScriptStatusFields(db *gorm.DB) error {
+	for _, column := range []string{"status", "review_status"} {
+		if !db.Migrator().HasColumn(&model.Script{}, column) {
+			continue
+		}
+		if err := db.Migrator().DropColumn(&model.Script{}, column); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateRenameAgentChatFeature(db *gorm.DB) error {
+	var legacy model.FeatureConfig
+	legacyErr := db.Where("feature_key = ?", "agent_chat").First(&legacy).Error
+
+	var current model.FeatureConfig
+	currentErr := db.Where("feature_key = ?", "assistant_chat").First(&current).Error
+
+	if legacyErr == nil && currentErr == nil {
+		return db.Delete(&legacy).Error
+	}
+	if legacyErr == nil && errors.Is(currentErr, gorm.ErrRecordNotFound) {
+		return db.Model(&legacy).Updates(map[string]any{
+			"feature_key":  "assistant_chat",
+			"display_name": "助手对话",
+			"description":  "侧边栏助手，用于项目创作辅助对话",
+		}).Error
+	}
+	if errors.Is(legacyErr, gorm.ErrRecordNotFound) && errors.Is(currentErr, gorm.ErrRecordNotFound) {
+		return db.Create(&model.FeatureConfig{
+			FeatureKey:      "assistant_chat",
+			DisplayName:     "助手对话",
+			Description:     "侧边栏助手，用于项目创作辅助对话",
+			Capability:      "text",
+			IsEnabled:       true,
+			AllowedModelIDs: "[]",
+			AllowedRoles:    "[]",
+		}).Error
+	}
+	if legacyErr != nil && !errors.Is(legacyErr, gorm.ErrRecordNotFound) {
+		return legacyErr
+	}
+	if currentErr != nil && !errors.Is(currentErr, gorm.ErrRecordNotFound) {
+		return currentErr
+	}
+	return nil
 }
 
 func migrateAssetDirectResource(db *gorm.DB) error {
@@ -272,8 +331,6 @@ func allModels() []any {
 		&model.PluginSecret{},
 		&model.PipelineNode{},
 		&model.PipelineEdge{},
-		&model.AgentTemplate{},
-		&model.UserAgent{},
 		&model.GatewayAPIKey{},
 		&model.GatewayRateLimitCounter{},
 		&model.CloudFileConfig{},

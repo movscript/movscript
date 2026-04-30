@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Image, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
@@ -10,6 +11,20 @@ import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { AssetCreateForm } from '@/components/shared/EntityCreateForms'
 import { DEFAULT_SETTING_STATUS, buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from './SettingDetailEditor'
+
+const ASSET_VIEW_LABEL_KEYS: Record<string, string> = {
+  front: 'pages.resources.viewTypes.front',
+  side: 'pages.resources.viewTypes.side',
+  back: 'pages.resources.viewTypes.back',
+  left: 'pages.resources.viewTypes.left',
+  right: 'pages.resources.viewTypes.right',
+  detail: 'pages.resources.viewTypes.detail',
+  custom: 'pages.resources.viewTypes.custom',
+}
+
+function assetViewType(asset: Asset): string {
+  return asset.variant_type || asset.type || 'custom'
+}
 
 function viewMediaSrc(view: AssetView): string | undefined {
   if (view.resource?.url) return `${API_BASE}${view.resource.url}`
@@ -43,6 +58,7 @@ interface SettingAssetOverviewProps {
 }
 
 export function SettingAssetOverview({ setting, className }: SettingAssetOverviewProps) {
+  const { t } = useTranslation()
   const [stateFilter, setStateFilter] = useState('all')
   const [createState, setCreateState] = useState('')
   const [showCreate, setShowCreate] = useState(false)
@@ -124,6 +140,7 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {visibleAssets.map((asset) => {
             const media = assetMedia(asset)
+            const viewType = assetViewType(asset)
             return (
               <div key={asset.ID} className="overflow-hidden rounded-lg border border-border bg-background">
                 <div className="aspect-square overflow-hidden bg-muted">
@@ -140,11 +157,10 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
                 <div className="space-y-1 p-3">
                   <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
                   <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-                    <span className="rounded bg-muted px-1.5 py-0.5">{asset.type}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5">{ASSET_VIEW_LABEL_KEYS[viewType] ? t(ASSET_VIEW_LABEL_KEYS[viewType]) : viewType}</span>
                     {(asset.state || asset.effective_status) && (
                       <span className="rounded bg-muted px-1.5 py-0.5">{settingStatusLabel(asset.state || asset.effective_status)}</span>
                     )}
-                    {asset.variant_type && <span className="rounded bg-muted px-1.5 py-0.5">{asset.variant_type}</span>}
                   </div>
                 </div>
               </div>

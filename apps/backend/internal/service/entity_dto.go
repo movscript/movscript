@@ -153,7 +153,7 @@ type FinalVideoInput struct {
 
 type AssetInput struct {
 	Name                string `json:"name" binding:"required"`
-	Type                string `json:"type" binding:"required"`
+	Type                string `json:"type"`
 	ResourceID          *uint  `json:"resource_id"`
 	Description         string `json:"description"`
 	VariantType         string `json:"variant_type"`
@@ -378,6 +378,9 @@ func ApplyFinalVideoInput(v *model.FinalVideo, in FinalVideoInput) {
 func ApplyAssetInput(a *model.Asset, in AssetInput) {
 	a.Name = in.Name
 	a.Type = in.Type
+	if a.Type == "" {
+		a.Type = in.VariantType
+	}
 	a.ResourceID = in.ResourceID
 	a.Description = in.Description
 	a.VariantType = in.VariantType

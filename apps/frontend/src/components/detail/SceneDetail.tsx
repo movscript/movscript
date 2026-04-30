@@ -3,9 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Scene } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { EntitySemanticForm } from './EntitySemanticForm'
+import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 
 interface Props {
   scene: Scene
@@ -37,20 +37,23 @@ export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Pro
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {showHeader && (
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base font-mono text-muted-foreground shrink-0">{t('details.sceneLabel', { number: scene.number })}</span>
-            <h2 className="text-sm font-semibold text-foreground truncate">{scene.title}</h2>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {onDelete && (
-              <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-                {t('common.delete')}
-              </button>
-            )}
-            {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-          </div>
-        </div>
+        <DetailHero
+          title={draft.title ?? scene.title}
+          description={draft.notes ?? scene.notes}
+          tone="blue"
+          eyebrow={<HeroPill className="font-mono text-blue-700 dark:text-blue-300">{t('details.sceneLabel', { number: scene.number })}</HeroPill>}
+          meta={(
+            <>
+              {scene.location && <HeroMetric label={t('details.scenes')} value={scene.location} />}
+              {scene.time_of_day && <HeroMetric label={t('details.timeOfDay')} value={scene.time_of_day} />}
+              <HeroMetric label="ID" value={`#${scene.ID}`} />
+            </>
+          )}
+          onDelete={onDelete ? () => remove.mutate() : undefined}
+          onClose={onClose}
+          deleteLabel={t('common.delete')}
+          closeLabel={t('common.close')}
+        />
       )}
 
       <div className="flex flex-1 overflow-hidden">

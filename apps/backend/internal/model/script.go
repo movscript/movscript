@@ -4,27 +4,23 @@ import "gorm.io/gorm"
 
 type Script struct {
 	gorm.Model
-	ProjectID      uint   `gorm:"not null" json:"project_id"`
-	Title          string `gorm:"not null" json:"title"`
-	Description    string `json:"description"`
-	Content        string `json:"content"` // full script body text
-	Status         string `gorm:"default:'draft'" json:"status"`
-	ScriptType     string `gorm:"default:'main'" json:"script_type"` // main|episode|scene
-	SourceType     string `gorm:"default:'raw'" json:"source_type"`  // raw|adapted|revised
-	Version        int    `gorm:"default:1" json:"version"`
-	ParentScriptID *uint  `json:"parent_script_id,omitempty"`
-	AnalysisStatus string `gorm:"default:'pending'" json:"analysis_status"` // pending|analyzing|analyzed|failed
-	EpisodeID      *uint  `json:"episode_id,omitempty"`
-	PipelineNodeID *uint  `json:"pipeline_node_id,omitempty"`
-	AssigneeID     *uint  `json:"assignee_id,omitempty"`
-	Assignee       *User  `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
-	// Reserved for legacy entity-level review. Disabled in the frontend for now;
-	// pipeline node status is the active review source of truth.
-	ReviewStatus string           `gorm:"default:'draft'" json:"review_status"`
-	AuthorID     uint             `json:"author_id"`
-	Author       User             `json:"author,omitempty"`
-	Episodes     []Episode        `gorm:"foreignKey:ScriptID" json:"episodes,omitempty"`
-	Analyses     []ScriptAnalysis `gorm:"foreignKey:ScriptID" json:"analyses,omitempty"`
+	ProjectID      uint             `gorm:"not null" json:"project_id"`
+	Title          string           `gorm:"not null" json:"title"`
+	Description    string           `json:"description"`
+	Content        string           `json:"content"`                           // full script body text
+	ScriptType     string           `gorm:"default:'main'" json:"script_type"` // main|episode|scene
+	SourceType     string           `gorm:"default:'raw'" json:"source_type"`  // raw|adapted|revised
+	Version        int              `gorm:"default:1" json:"version"`
+	ParentScriptID *uint            `json:"parent_script_id,omitempty"`
+	AnalysisStatus string           `gorm:"default:'pending'" json:"analysis_status"` // pending|analyzing|analyzed|failed
+	EpisodeID      *uint            `json:"episode_id,omitempty"`
+	PipelineNodeID *uint            `json:"pipeline_node_id,omitempty"`
+	AssigneeID     *uint            `json:"assignee_id,omitempty"`
+	Assignee       *User            `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
+	AuthorID       uint             `json:"author_id"`
+	Author         User             `json:"author,omitempty"`
+	Episodes       []Episode        `gorm:"foreignKey:ScriptID" json:"episodes,omitempty"`
+	Analyses       []ScriptAnalysis `gorm:"foreignKey:ScriptID" json:"analyses,omitempty"`
 
 	// Content management fields (内容管理)
 	Summary                string `json:"summary"`                                  // 剧本总结

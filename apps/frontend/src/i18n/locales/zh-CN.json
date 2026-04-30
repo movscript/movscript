@@ -42,8 +42,6 @@
   },
   "apiErrors": {
     "accessDenied": "无访问权限",
-    "agentNotFound": "Agent 不存在",
-    "agentTemplateNotFound": "Agent 模板不存在",
     "aiAnalyzeFailed": "AI 分析失败：{{detail}}",
     "aiBadResponse": "AI 返回格式异常，请重试",
     "aiNotConfigured": "AI 服务未配置",
@@ -225,6 +223,16 @@
     "summaryOptional": "简介（可选）",
     "scriptTitle": "剧本标题",
     "assetName": "素材名称",
+    "resourceFile": "资源文件",
+    "selectResourceFile": "选择图片 / 视频 / 音频 / 文本文件",
+    "linkedSettingRequired": "绑定设定 *",
+    "selectSetting": "选择设定",
+    "linkedStateRequired": "绑定状态 *",
+    "assetStatePlaceholder": "选择或输入素材对应状态",
+    "selectSettingFirst": "请先选择设定",
+    "assetVariantType": "视图类型",
+    "customVariantType": "自定义视图类型",
+    "variantName": "视图名称",
     "episodeTitle": "分集标题",
     "sceneTitle": "分场标题",
     "storyboardTitle": "分镜标题",
@@ -373,6 +381,9 @@
       "empty": "暂无素材",
       "createOne": "新建一个",
       "createTitle": "新建素材",
+      "settingFilter": "设定素材",
+      "settingFallback": "设定 #{{id}}",
+      "unlinkedSetting": "未绑定设定",
       "pagination": "{{total}} 个素材 · {{page}}/{{pageCount}}"
     },
     "resources": {
@@ -1939,9 +1950,9 @@
           "name": "剧本 AI 分析",
           "description": "对剧本内容进行智能分析，提取人物、背景、场景等关键信息。"
         },
-        "agent_chat": {
-          "name": "AI 助手对话",
-          "description": "侧边栏 AI 助手，用于项目创作辅助对话。"
+        "assistant_chat": {
+          "name": "助手对话",
+          "description": "侧边栏助手，用于项目创作辅助对话。"
         },
         "canvas_text": {
           "name": "画布·文本生成",

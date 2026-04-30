@@ -485,7 +485,7 @@ interface BuildAgentInputEnvelopeDraftInput {
   message: string
   conversationId: string
   threadId?: string
-  agent: UserAgent | AgentTemplate | null
+  agentManifest?: AgentManifest
   project?: Project
   route: {
     pathname: string

@@ -10,6 +10,21 @@ import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { FileAudio, FileText, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const ASSET_VIEW_TYPES = ['front', 'side', 'back', 'left', 'right', 'detail', 'custom'] as const
+const ASSET_VIEW_LABEL_KEYS: Record<string, string> = {
+  front: 'pages.resources.viewTypes.front',
+  side: 'pages.resources.viewTypes.side',
+  back: 'pages.resources.viewTypes.back',
+  left: 'pages.resources.viewTypes.left',
+  right: 'pages.resources.viewTypes.right',
+  detail: 'pages.resources.viewTypes.detail',
+  custom: 'pages.resources.viewTypes.custom',
+}
+
+function assetViewType(asset: Asset): string {
+  return asset.variant_type || asset.type || 'custom'
+}
+
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 
 export function ResourcePreviewDialog({ resource, onClose }: { resource: RawResource; onClose: () => void }) {
@@ -128,6 +143,7 @@ export function AssetListItem({
   const firstView = views[0]
   const thumbUrl = firstView ? viewThumbUrl(firstView) : null
   const isVid = firstView?.resource?.type === 'video'
+  const viewType = assetViewType(asset)
 
   function handleDragStart(e: React.DragEvent, res: RawResource) {
     e.dataTransfer.setData('application/resource-id', String(res.ID))
@@ -159,7 +175,11 @@ export function AssetListItem({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-foreground truncate leading-tight">{asset.name}</p>
-            <p className="text-[10px] text-muted-foreground capitalize">{t(`domain.assetTypes.${asset.type}`, { defaultValue: asset.type })}</p>
+            <p className="text-[10px] text-muted-foreground truncate">
+              {asset.setting?.name ?? (asset.setting_id ? t('pages.assets.settingFallback', { id: asset.setting_id }) : t('pages.assets.unlinkedSetting'))}
+              {' · '}
+              {ASSET_VIEW_LABEL_KEYS[viewType] ? t(ASSET_VIEW_LABEL_KEYS[viewType]) : viewType}
+            </p>
           </div>
           {trailing}
         </div>
@@ -213,7 +233,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   const [tab, setTab] = useState<'resources' | 'assets'>('resources')
   const [keyword, setKeyword] = useState('')
   const [resourceType, setResourceType] = useState<'all' | 'image' | 'video'>('all')
-  const [assetType, setAssetType] = useState<'all' | 'character' | 'scene' | 'prop' | 'draft'>('all')
+  const [assetType, setAssetType] = useState<'all' | typeof ASSET_VIEW_TYPES[number]>('all')
   const [resourcePage, setResourcePage] = useState(1)
   const [assetPage, setAssetPage] = useState(1)
   const current = useProjectStore(s => s.current)
@@ -320,10 +340,9 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
             className="w-full px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="all">{t('shared.resourcePanel.allAssets')}</option>
-            <option value="character">{t('domain.assetTypes.character')}</option>
-            <option value="scene">{t('domain.assetTypes.scene')}</option>
-            <option value="prop">{t('domain.assetTypes.prop')}</option>
-            <option value="draft">{t('domain.assetTypes.draft')}</option>
+            {ASSET_VIEW_TYPES.map((type) => (
+              <option key={type} value={type}>{t(ASSET_VIEW_LABEL_KEYS[type])}</option>
+            ))}
           </select>
         )}
       </div>

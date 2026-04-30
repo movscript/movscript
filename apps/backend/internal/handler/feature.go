@@ -140,7 +140,7 @@ func (h *FeatureHandler) ListDefs(c *gin.Context) {
 
 // Update sets is_enabled, allowed_model_ids, default_model_id, and/or allowed_roles for a feature.
 func (h *FeatureHandler) Update(c *gin.Context) {
-	key := c.Param("key")
+	key := ai.NormalizeFeatureKey(c.Param("key"))
 	var f model.FeatureConfig
 	if err := h.db.Where("feature_key = ?", key).First(&f).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "feature not found"})
@@ -180,7 +180,7 @@ func (h *FeatureHandler) Update(c *gin.Context) {
 
 // UpdatePrompt sets the system prompt override and/or max tokens override for a feature.
 func (h *FeatureHandler) UpdatePrompt(c *gin.Context) {
-	key := c.Param("key")
+	key := ai.NormalizeFeatureKey(c.Param("key"))
 	var f model.FeatureConfig
 	if err := h.db.Where("feature_key = ?", key).First(&f).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "feature not found"})
@@ -207,7 +207,7 @@ func (h *FeatureHandler) UpdatePrompt(c *gin.Context) {
 // GetPublic returns the feature def + config for a single feature key.
 // This is a public endpoint (no auth required) used by tool pages to load input slot definitions.
 func (h *FeatureHandler) GetPublic(c *gin.Context) {
-	key := c.Param("key")
+	key := ai.NormalizeFeatureKey(c.Param("key"))
 	var f model.FeatureConfig
 	if err := h.db.Where("feature_key = ?", key).First(&f).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "feature not found"})

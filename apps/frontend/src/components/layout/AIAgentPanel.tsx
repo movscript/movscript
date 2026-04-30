@@ -1639,10 +1639,10 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
   const { data: textModels = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', 'agent_chat'],
+    queryKey: ['models', 'assistant_chat'],
     queryFn: async () => {
       try {
-        return await api.get('/models?feature=agent_chat').then((r) => r.data)
+        return await api.get('/models?feature=assistant_chat').then((r) => r.data)
       } catch {
         return await api.get('/models?capability=text').then((r) => r.data)
       }

@@ -13,18 +13,15 @@ import { Button } from '@movscript/ui'
 import { AssetDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
-const TYPES = ['character', 'scene', 'prop', 'draft'] as const
-const TYPE_LABEL_KEYS: Record<string, string> = {
-  character: 'domain.assetTypes.character',
-  scene: 'domain.assetTypes.scene',
-  prop: 'domain.assetTypes.prop',
-  draft: 'domain.assetTypes.draft',
-}
-const TYPE_COLORS: Record<string, string> = {
-  character: 'bg-muted text-foreground',
-  scene: 'bg-muted text-foreground',
-  prop: 'bg-muted text-foreground',
-  draft: 'bg-muted text-foreground',
+const VIEW_TYPES = ['front', 'side', 'back', 'left', 'right', 'detail', 'custom'] as const
+const VIEW_TYPE_LABEL_KEYS: Record<string, string> = {
+  front: 'pages.resources.viewTypes.front',
+  side: 'pages.resources.viewTypes.side',
+  back: 'pages.resources.viewTypes.back',
+  left: 'pages.resources.viewTypes.left',
+  right: 'pages.resources.viewTypes.right',
+  detail: 'pages.resources.viewTypes.detail',
+  custom: 'pages.resources.viewTypes.custom',
 }
 
 function viewMediaSrc(view: AssetView): string | undefined {
@@ -48,6 +45,16 @@ function isVideoRawResource(resource?: RawResource): boolean {
   return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
 }
 
+function assetViewType(asset: Asset): string {
+  return asset.variant_type || asset.type || 'custom'
+}
+
+function assetSettingLabel(asset: Asset, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (asset.setting?.name) return asset.setting.name
+  if (asset.setting_id) return t('pages.assets.settingFallback', { id: asset.setting_id })
+  return t('pages.assets.unlinkedSetting')
+}
+
 // --- Shared sub-components ---
 
 function AssetThumb({ asset, className }: { asset: Asset; className?: string }) {
@@ -69,6 +76,7 @@ function AssetThumb({ asset, className }: { asset: Asset; className?: string }) 
 
 function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
   const { t } = useTranslation()
+  const viewType = assetViewType(asset)
   return (
     <button
       onClick={onClick}
@@ -83,10 +91,11 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
       <div className="p-3">
         <p className="text-sm font-medium truncate">{asset.name}</p>
         <div className="flex items-center justify-between mt-1">
-          <span className={cn('text-xs px-1.5 py-0.5 rounded-full', TYPE_COLORS[asset.type] ?? 'bg-muted text-muted-foreground')}>
-            {TYPE_LABEL_KEYS[asset.type] ? t(TYPE_LABEL_KEYS[asset.type]) : asset.type}
+          <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-foreground">
+            {VIEW_TYPE_LABEL_KEYS[viewType] ? t(VIEW_TYPE_LABEL_KEYS[viewType]) : viewType}
           </span>
         </div>
+        <p className="mt-1 text-xs text-muted-foreground truncate">{assetSettingLabel(asset, t)}</p>
       </div>
     </button>
   )
@@ -94,6 +103,7 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
 
 function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
   const { t } = useTranslation()
+  const viewType = assetViewType(asset)
   return (
     <button
       onClick={onClick}
@@ -107,7 +117,9 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{asset.name}</p>
-        <p className="text-xs text-muted-foreground">{TYPE_LABEL_KEYS[asset.type] ? t(TYPE_LABEL_KEYS[asset.type]) : asset.type}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {assetSettingLabel(asset, t)} · {VIEW_TYPE_LABEL_KEYS[viewType] ? t(VIEW_TYPE_LABEL_KEYS[viewType]) : viewType}
+        </p>
       </div>
     </button>
   )
@@ -118,7 +130,7 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
 export default function AssetsPage() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
-  const [filterType, setFilterType] = useState('')
+  const [filterViewType, setFilterViewType] = useState('')
   const [filterSettingId, setFilterSettingId] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -128,13 +140,13 @@ export default function AssetsPage() {
   const pageSize = 24
 
   const { data, isLoading } = useQuery<PaginatedResponse<Asset>>({
-    queryKey: ['assets', projectId, filterType, filterSettingId, search, page],
+    queryKey: ['assets', projectId, filterViewType, filterSettingId, search, page],
     queryFn: () =>
       api.get(`/projects/${projectId}/assets`, {
         params: {
           page,
           page_size: pageSize,
-          type: filterType || undefined,
+          type: filterViewType || undefined,
           setting_id: filterSettingId || undefined,
           q: search.trim() || undefined,
         },
@@ -156,8 +168,8 @@ export default function AssetsPage() {
 
   const filterTabs = [
     { value: '', label: t('common.all') },
-    ...TYPES.map((type) => ({ value: type, label: t(TYPE_LABEL_KEYS[type]) })),
-    ...Array.from(new Set(assets.map((asset) => asset.type).filter((type) => !TYPE_LABEL_KEYS[type]))).map((type) => ({ value: type, label: type })),
+    ...VIEW_TYPES.map((type) => ({ value: type, label: t(VIEW_TYPE_LABEL_KEYS[type]) })),
+    ...Array.from(new Set(assets.map(assetViewType).filter((type) => !VIEW_TYPE_LABEL_KEYS[type]))).map((type) => ({ value: type, label: type })),
   ]
 
   return (
@@ -167,8 +179,8 @@ export default function AssetsPage() {
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background shrink-0 flex-wrap">
           <div className="flex gap-0.5 overflow-x-auto scrollbar-none flex-1 min-w-0">
             {filterTabs.map((t) => (
-              <button key={t.value} onClick={() => { setFilterType(t.value); setPage(1); setSelectedId(null) }}
-                className={cn('px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors', filterType === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
+              <button key={t.value} onClick={() => { setFilterViewType(t.value); setPage(1); setSelectedId(null) }}
+                className={cn('px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors', filterViewType === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
                 {t.label}
               </button>
             ))}
@@ -191,7 +203,7 @@ export default function AssetsPage() {
             }}
             value={filterSettingId}
           >
-            <option value="">设定素材</option>
+            <option value="">{t('pages.assets.settingFilter')}</option>
             {settings.map((setting: { ID: number; name: string }) => (
               <option key={setting.ID} value={setting.ID}>{setting.name}</option>
             ))}
@@ -261,7 +273,7 @@ export default function AssetsPage() {
           projectId={projectId!}
           initialSettingId={filterSettingId ? Number(filterSettingId) : undefined}
           onCreated={(asset) => {
-            setFilterType(asset.type)
+            setFilterViewType(assetViewType(asset))
             setFilterSettingId(asset.setting_id ? String(asset.setting_id) : '')
             setSearch('')
             setPage(1)

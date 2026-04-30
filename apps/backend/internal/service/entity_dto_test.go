@@ -83,6 +83,21 @@ func TestEntityPatchUpdatesBlockReviewAndStatusFields(t *testing.T) {
 	}
 }
 
+func TestApplyAssetInputDefaultsTypeToVariantType(t *testing.T) {
+	var asset model.Asset
+	ApplyAssetInput(&asset, AssetInput{
+		Name:        "hero front",
+		VariantType: "front",
+	})
+
+	if asset.Type != "front" {
+		t.Fatalf("Type = %q, want front", asset.Type)
+	}
+	if asset.VariantType != "front" {
+		t.Fatalf("VariantType = %q, want front", asset.VariantType)
+	}
+}
+
 func TestPipelineNodeInputCreatesDraftNodeWithServerOwnedFields(t *testing.T) {
 	node := NewPipelineNode(PipelineNodeInput{
 		Type:        "script_writing",

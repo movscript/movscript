@@ -3,13 +3,14 @@ package ai
 // Feature key constants — must match FeatureConfig.FeatureKey in DB.
 const (
 	// Internal features — used by canvas, shots, scripts; not shown in admin tool config.
-	FeatureScriptAnalyze = "script_analyze"
-	FeatureAgentChat     = "agent_chat"
-	FeatureCanvasText    = "canvas_text"
-	FeatureCanvasImage   = "canvas_image"
-	FeatureCanvasVideo   = "canvas_video"
-	FeatureShotRefImage  = "shot_ref_image"
-	FeatureShotRefVideo  = "shot_ref_video"
+	FeatureScriptAnalyze   = "script_analyze"
+	FeatureAssistantChat   = "assistant_chat"
+	FeatureCanvasText      = "canvas_text"
+	FeatureCanvasImage     = "canvas_image"
+	FeatureCanvasVideo     = "canvas_video"
+	FeatureShotRefImage    = "shot_ref_image"
+	FeatureShotRefVideo    = "shot_ref_video"
+	LegacyFeatureAgentChat = "agent_chat"
 
 	// Tool features — the 6 user-facing tools shown in admin feature config.
 	FeatureRefImageGen     = "ref_image_gen"
@@ -66,6 +67,13 @@ func (f *FeatureDef) Caps() []string {
 	return []string{f.RequiredCap}
 }
 
+func NormalizeFeatureKey(key string) string {
+	if key == LegacyFeatureAgentChat {
+		return FeatureAssistantChat
+	}
+	return key
+}
+
 // FeatureCatalog is the hardcoded list of all product features.
 var FeatureCatalog = []FeatureDef{
 	// ── Internal features ────────────────────────────────────────────────────
@@ -78,8 +86,8 @@ var FeatureCatalog = []FeatureDef{
 		MaxTokens:    2000, Temperature: 0,
 	},
 	{
-		ID: FeatureAgentChat, DisplayName: "AI 助手对话", IsInternal: true,
-		Description:  "侧边栏 AI 助手，用于项目创作辅助对话",
+		ID: FeatureAssistantChat, DisplayName: "助手对话", IsInternal: true,
+		Description:  "侧边栏助手，用于项目创作辅助对话",
 		RequiredCap:  CapabilityText,
 		SystemPrompt: `你是短剧制作助手，帮助用户处理剧本创作、分镜设计、场景规划。回答简洁专业，直接给出可操作建议。`,
 		MaxTokens:    4096, Temperature: 0.7,
@@ -171,6 +179,7 @@ func ToolFeatureKeys() []string {
 
 // GetFeatureDef returns the FeatureDef for the given feature key, or nil if not found.
 func GetFeatureDef(id string) *FeatureDef {
+	id = NormalizeFeatureKey(id)
 	for i := range FeatureCatalog {
 		if FeatureCatalog[i].ID == id {
 			return &FeatureCatalog[i]

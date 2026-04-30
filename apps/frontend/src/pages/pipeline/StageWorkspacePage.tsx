@@ -90,7 +90,7 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
         pipeline_node_id: node.ID,
       }).then((r) => r.data),
     getLabel: (item) => (item as Script).title,
-    getSub: (item) => { const s = item as Script; return `${s.script_type} · ${s.status}` },
+    getSub: (item) => (item as Script).script_type,
     getPatchUrl: (item) => `/scripts/${item.ID}`,
     getAssigneeId: (item) => (item as Script).assignee_id,
   },

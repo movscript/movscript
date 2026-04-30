@@ -38,9 +38,9 @@ func NewAssetHandler(db *gorm.DB, store storage.Storage) *AssetHandler {
 
 func (h *AssetHandler) List(c *gin.Context) {
 	assets := make([]model.Asset, 0)
-	q := h.db.Where("project_id = ?", c.Param("id"))
+	q := h.db.Model(&model.Asset{}).Where("project_id = ?", c.Param("id"))
 	if t := c.Query("type"); t != "" {
-		q = q.Where("type = ?", t)
+		q = q.Where("type = ? OR variant_type = ?", t, t)
 	}
 	if settingID := c.Query("setting_id"); settingID != "" {
 		q = q.Where("setting_id = ?", settingID)
@@ -58,13 +58,22 @@ func (h *AssetHandler) List(c *gin.Context) {
 			pageSize = 100
 		}
 		var total int64
-		q.Count(&total)
-		q.Preload("Setting").Preload("Resource").Preload("Views").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets)
+		if err := q.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if err := q.Preload("Setting").Preload("Resource").Preload("Views").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 		h.populateAssetResources(c, assets)
 		c.JSON(http.StatusOK, gin.H{"total": total, "items": assets, "page": page, "page_size": pageSize})
 		return
 	}
-	q.Preload("Setting").Preload("Resource").Preload("Views").Order("created_at desc").Find(&assets)
+	if err := q.Preload("Setting").Preload("Resource").Preload("Views").Order("created_at desc").Find(&assets).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	h.populateAssetResources(c, assets)
 	c.JSON(http.StatusOK, assets)
 }
@@ -82,7 +91,7 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, a)
 }
 
-// Upload creates an asset with a default "front" view from a multipart file.
+// Upload creates an asset with a view type from a multipart file.
 func (h *AssetHandler) Upload(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
@@ -101,10 +110,6 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 	if name == "" {
 		name = header.Filename
 	}
-	assetType := c.PostForm("type")
-	if assetType == "" {
-		assetType = "prop"
-	}
 	viewType := c.PostForm("view_type")
 	if viewType == "" {
 		viewType = "front"
@@ -112,6 +117,10 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 	variantType := strings.TrimSpace(c.PostForm("variant_type"))
 	if variantType == "" {
 		variantType = viewType
+	}
+	assetType := strings.TrimSpace(c.PostForm("type"))
+	if assetType == "" {
+		assetType = variantType
 	}
 	variantName := strings.TrimSpace(c.PostForm("variant_name"))
 	state := strings.TrimSpace(c.PostForm("state"))

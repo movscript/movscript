@@ -4,10 +4,10 @@ import { api } from '@/lib/api'
 import type { Script, Episode, Scene, EpisodeScene } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Link, X } from 'lucide-react'
-import { Button } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { EntitySemanticForm } from './EntitySemanticForm'
+import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
   draft: 'domain.episodeStatus.draft',
@@ -94,22 +94,28 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {showHeader && (
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base font-bold text-muted-foreground font-mono shrink-0">
-              EP{String(episode.number).padStart(2, '0')}
-            </span>
-            <h2 className="text-sm font-semibold text-foreground truncate">{episode.title}</h2>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {onDelete && (
-              <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-                {t('common.delete')}
-              </button>
-            )}
-            {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-          </div>
-        </div>
+        <DetailHero
+          title={draft.title ?? episode.title}
+          description={draft.synopsis ?? episode.synopsis}
+          tone="violet"
+          eyebrow={(
+            <>
+              <HeroPill className="font-mono text-violet-700 dark:text-violet-300">EP{String(episode.number).padStart(2, '0')}</HeroPill>
+              {episode.status && <HeroPill>{t(STATUS_LABEL_KEYS[episode.status] ?? episode.status, { defaultValue: episode.status })}</HeroPill>}
+            </>
+          )}
+          meta={(
+            <>
+              <HeroMetric label={t('entities.scenes')} value={episodeScenes.length} />
+              <HeroMetric label={t('entities.storyboards')} value={episode.target_storyboards ?? '-'} />
+              <HeroMetric label="ID" value={`#${episode.ID}`} />
+            </>
+          )}
+          onDelete={onDelete ? () => remove.mutate() : undefined}
+          onClose={onClose}
+          deleteLabel={t('common.delete')}
+          closeLabel={t('common.close')}
+        />
       )}
 
       <EntitySemanticForm

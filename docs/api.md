@@ -193,17 +193,9 @@ Legacy tasks that only have `resource_id` are normalized lazily when task APIs r
 | `GET` | `/api/v1/registry/plugins` | Proxy plugin registry index. |
 | `GET` | `/api/v1/registry/plugins/:id` | Proxy plugin registry manifest. |
 
-## Agents
+## Local Agent Runtime
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/v1/agents` | List public agent templates. |
-| `GET` | `/api/v1/agents/my` | List current user's agents. |
-| `POST` | `/api/v1/agents/my` | Create user agent. |
-| `PUT` | `/api/v1/agents/my/:id` | Update user agent. |
-| `DELETE` | `/api/v1/agents/my/:id` | Delete user agent. |
-
-The standalone local agent service exposes its own API on `http://127.0.0.1:28765`; see [agent/README.md](agent/README.md).
+The Go backend does not own agent templates, user agents, threads, runs, memories, or tool policy. The standalone local agent service exposes its own API on `http://127.0.0.1:28765`; see [agent/README.md](agent/README.md).
 
 ## Admin Routes
 
@@ -216,7 +208,6 @@ Key groups:
 - Feature model routing and prompt overrides.
 - User quotas and usage logs.
 - Resource storage stats.
-- Agent template management.
 - Cloud file storage configs.
 - Provider debug calls and job debug inspection.
 

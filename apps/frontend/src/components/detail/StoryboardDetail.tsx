@@ -4,9 +4,9 @@ import { api } from '@/lib/api'
 import type { Storyboard } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Camera } from 'lucide-react'
-import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { EntitySemanticForm } from './EntitySemanticForm'
+import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 
 interface Props {
   storyboard: Storyboard
@@ -36,21 +36,28 @@ export function StoryboardDetail({ storyboard, onClose, onDelete }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs text-muted-foreground shrink-0">{t('details.storyboardLabel', { order: storyboard.order })}</span>
-          <h2 className="text-sm font-semibold text-foreground truncate">{storyboard.title || t('details.storyboardLabel', { order: storyboard.order })}</h2>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onDelete && (
-            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-              {t('common.delete')}
-            </button>
-          )}
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-        </div>
-      </div>
+      <DetailHero
+        title={draft.title || storyboard.title || t('details.storyboardLabel', { order: storyboard.order })}
+        description={draft.description || storyboard.description || storyboard.intent || storyboard.actions}
+        tone="sky"
+        eyebrow={(
+          <>
+            <HeroPill>{t('details.storyboardLabel', { order: storyboard.order })}</HeroPill>
+            {storyboard.status && <HeroPill>{storyboard.status}</HeroPill>}
+          </>
+        )}
+        meta={(
+          <>
+            {storyboard.duration ? <HeroMetric label={t('details.duration')} value={storyboard.duration} /> : null}
+            {storyboard.camera_movement && <HeroMetric label={t('details.cameraReference')} value={storyboard.camera_movement} />}
+            <HeroMetric label="ID" value={`#${storyboard.ID}`} />
+          </>
+        )}
+        onDelete={onDelete ? () => remove.mutate() : undefined}
+        onClose={onClose}
+        deleteLabel={t('common.delete')}
+        closeLabel={t('common.close')}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: storyboard planning */}

@@ -67,8 +67,6 @@ export interface Script {
   title: string
   description: string
   content: string // full script body text
-  status: string
-  review_status?: ReviewStatus
   script_type: 'main' | 'episode' | 'scene'
   source_type?: 'raw' | 'adapted' | 'revised'
   version?: number

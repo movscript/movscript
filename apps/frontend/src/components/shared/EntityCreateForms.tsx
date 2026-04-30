@@ -17,17 +17,14 @@ const SCRIPT_TYPES = [
   { type: 'scene' as const, labelKey: 'domain.scriptTypes.scene', color: 'bg-primary text-primary-foreground' },
 ]
 
-const ASSET_TYPES = [
-  { type: 'character', labelKey: 'domain.assetTypes.character' },
-  { type: 'scene', labelKey: 'domain.assetTypes.scene' },
-  { type: 'prop', labelKey: 'domain.assetTypes.prop' },
-  { type: 'draft', labelKey: 'domain.assetTypes.draft' },
-]
-
 const ASSET_VARIANT_TYPES = [
-  { type: 'front', labelKey: 'resources.viewTypes.front' },
-  { type: 'side', labelKey: 'resources.viewTypes.side' },
-  { type: 'custom', labelKey: 'resources.viewTypes.custom' },
+  { type: 'front', labelKey: 'pages.resources.viewTypes.front' },
+  { type: 'side', labelKey: 'pages.resources.viewTypes.side' },
+  { type: 'back', labelKey: 'pages.resources.viewTypes.back' },
+  { type: 'left', labelKey: 'pages.resources.viewTypes.left' },
+  { type: 'right', labelKey: 'pages.resources.viewTypes.right' },
+  { type: 'detail', labelKey: 'pages.resources.viewTypes.detail' },
+  { type: 'custom', labelKey: 'pages.resources.viewTypes.custom' },
 ]
 
 export interface EntityFormProps {
@@ -173,7 +170,7 @@ function assetMatchesFilter(asset: Asset, type?: unknown, settingId?: unknown, s
   const settingFilter = String(settingId ?? '').trim()
   const searchFilter = String(search ?? '').trim().toLowerCase()
 
-  if (typeFilter && asset.type !== typeFilter) return false
+  if (typeFilter && asset.type !== typeFilter && asset.variant_type !== typeFilter) return false
   if (settingFilter && asset.setting_id !== Number(settingFilter)) return false
   if (searchFilter && !asset.name.toLowerCase().includes(searchFilter)) return false
   return true
@@ -208,8 +205,6 @@ export function AssetCreateForm({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [name, setName] = useState('')
-  const [type, setType] = useState('character')
-  const [customType, setCustomType] = useState('')
   const [desc, setDesc] = useState('')
   const [variantName, setVariantName] = useState('')
   const [variantType, setVariantType] = useState('front')
@@ -229,8 +224,8 @@ export function AssetCreateForm({
   const settingStates = selectedSetting
     ? buildSettingStateOptions(normalizeSettingStateTags(selectedSetting.state_tags, selectedSetting.status), selectedSetting.status)
     : []
-  const effectiveType = type === 'custom' ? customType.trim() : type
   const effectiveVariantType = variantType === 'custom' ? (customVariantType.trim() || 'custom') : variantType
+  const effectiveType = effectiveVariantType
   const effectiveState = assetState.trim()
   const canCreate = !!name.trim() && !!effectiveType && !!settingId && !!effectiveState
 
@@ -311,13 +306,13 @@ export function AssetCreateForm({
         />
       </div>
       <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">资源文件</Label>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.resourceFile')}</Label>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           className="w-full rounded border border-dashed border-border px-3 py-2 text-left text-xs text-muted-foreground hover:border-ring"
         >
-          {file ? file.name : '选择图片 / 视频 / 音频 / 文本文件'}
+          {file ? file.name : t('forms.selectResourceFile')}
         </button>
         <input
           ref={fileRef}
@@ -328,40 +323,7 @@ export function AssetCreateForm({
         />
       </div>
       <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.type')}</Label>
-        <div className="flex flex-wrap gap-2">
-          {ASSET_TYPES.map((assetType) => (
-            <button
-              key={assetType.type}
-              onClick={() => setType(assetType.type)}
-              className={cn(
-                'px-3 py-1.5 text-xs rounded-full border transition-colors',
-                type === assetType.type
-                  ? 'bg-foreground text-background border-transparent'
-                  : 'border-border text-muted-foreground hover:border-ring'
-              )}
-            >
-              {t(assetType.labelKey)}
-            </button>
-          ))}
-          <button
-            onClick={() => setType('custom')}
-            className={cn(
-              'px-3 py-1.5 text-xs rounded-full border transition-colors',
-              type === 'custom'
-                ? 'bg-foreground text-background border-transparent'
-                : 'border-border text-muted-foreground hover:border-ring'
-            )}
-          >
-            {t('resources.viewTypes.custom')}
-          </button>
-        </div>
-        {type === 'custom' && (
-          <Input className="mt-2" value={customType} onChange={(e) => setCustomType(e.target.value)} placeholder="asset type" />
-        )}
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">绑定设定 *</Label>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedSettingRequired')}</Label>
         <select
           className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
           value={settingId ?? ''}
@@ -376,19 +338,19 @@ export function AssetCreateForm({
             setAssetState(nextSetting?.status || nextStates[0] || '')
           }}
         >
-          <option value="">选择设定</option>
+          <option value="">{t('forms.selectSetting')}</option>
           {settings.map((setting) => (
             <option key={setting.ID} value={setting.ID}>{setting.name} · {setting.type}</option>
           ))}
         </select>
       </div>
       <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">绑定状态 *</Label>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedStateRequired')}</Label>
         <Input
           list="asset-setting-state-options"
           value={assetState}
           onChange={(e) => setAssetState(e.target.value)}
-          placeholder={selectedSetting ? '选择或输入素材对应状态' : '请先选择设定'}
+          placeholder={selectedSetting ? t('forms.assetStatePlaceholder') : t('forms.selectSettingFirst')}
           disabled={!selectedSetting}
         />
         <datalist id="asset-setting-state-options">
@@ -403,7 +365,7 @@ export function AssetCreateForm({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">素材类型</Label>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.assetVariantType')}</Label>
           <select
             className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
             value={variantType}
@@ -414,11 +376,11 @@ export function AssetCreateForm({
             ))}
           </select>
           {variantType === 'custom' && (
-            <Input className="mt-2" value={customVariantType} onChange={(e) => setCustomVariantType(e.target.value)} placeholder="custom variant" />
+            <Input className="mt-2" value={customVariantType} onChange={(e) => setCustomVariantType(e.target.value)} placeholder={t('forms.customVariantType')} />
           )}
         </div>
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">变体名称</Label>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.variantName')}</Label>
           <Input value={variantName} onChange={(e) => setVariantName(e.target.value)} />
         </div>
       </div>

@@ -19,47 +19,6 @@ export interface Conversation {
   updatedAt: number
 }
 
-export interface AgentSkill {
-  id: string
-  name: string
-  description: string
-}
-
-export interface CustomModel {
-  id: string
-  name: string
-  base_url: string
-  api_key: string
-  model_id: string
-}
-
-// Platform template from GET /agents
-export interface AgentTemplate {
-  id: number
-  name: string
-  platform_model_id: number | null
-  custom_model: CustomModel | null
-  soul: string
-  skills: AgentSkill[]
-  created_at: number
-  updated_at: number
-}
-
-// User's own agent from GET /agents/my
-export interface UserAgent {
-  id: number
-  name: string
-  source_template_id: number | null
-  accept_platform_updates: boolean
-  platform_model_id: number | null
-  custom_model: CustomModel | null
-  soul: string
-  skills: AgentSkill[]
-  created_at: number
-  updated_at: number
-}
-
-// Legacy settings for fallback when no agent is selected
 export interface AgentSettings {
   modelId: number | null
   mode: AgentWorkMode

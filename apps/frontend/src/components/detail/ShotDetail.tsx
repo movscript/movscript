@@ -10,6 +10,7 @@ import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { EntitySemanticForm } from './EntitySemanticForm'
+import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 
 interface Props {
   shot: Shot
@@ -49,23 +50,28 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0 gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs text-muted-foreground shrink-0">{t('details.shotLabel', { order: shot.order })}</span>
-          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', SHOT_STATUS_COLORS[shot.status])}>
-            {t(SHOT_STATUS_LABEL_KEYS[shot.status])}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onDelete && (
-            <button onClick={() => remove.mutate()} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-              {t('common.delete')}
-            </button>
-          )}
-          {onClose && <Button variant="outline" size="sm" onClick={onClose}>{t('common.close')}</Button>}
-        </div>
-      </div>
+      <DetailHero
+        title={t('details.shotLabel', { order: shot.order })}
+        description={draft.final_description || draft.description || shot.final_description || shot.description}
+        tone="amber"
+        eyebrow={(
+          <>
+            <HeroPill>{t('entities.shots')}</HeroPill>
+            <HeroPill className={cn(SHOT_STATUS_COLORS[shot.status])}>{t(SHOT_STATUS_LABEL_KEYS[shot.status])}</HeroPill>
+          </>
+        )}
+        meta={(
+          <>
+            {shot.storyboard_id ? <HeroMetric label={t('entities.storyboards')} value={`#${shot.storyboard_id}`} /> : null}
+            {shot.is_approved ? <HeroMetric label={t('details.productionStatus')} value={t('domain.shotStatus.approved')} /> : null}
+            <HeroMetric label="ID" value={`#${shot.ID}`} />
+          </>
+        )}
+        onDelete={onDelete ? () => remove.mutate() : undefined}
+        onClose={onClose}
+        deleteLabel={t('common.delete')}
+        closeLabel={t('common.close')}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: shot settings */}

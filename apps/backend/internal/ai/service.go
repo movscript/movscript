@@ -215,6 +215,7 @@ func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, err
 // If the feature has AllowedModelIDs configured, results are filtered to those IDs.
 // If the feature is disabled or not found, an empty list is returned without error.
 func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error) {
+	featureKey = NormalizeFeatureKey(featureKey)
 	var cfg model.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&cfg).Error; err != nil {
 		return nil, fmt.Errorf("feature %q not found", featureKey)
@@ -269,6 +270,7 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 // Falls back to any text model when the feature is unconfigured.
 // When multiple configs share the highest priority, one is chosen randomly.
 func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelID string, err error) {
+	featureKey = NormalizeFeatureKey(featureKey)
 	var fcfg model.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&fcfg).Error; err != nil {
 		return s.GetAnyTextModel()

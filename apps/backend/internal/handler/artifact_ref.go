@@ -78,7 +78,6 @@ func (h *ArtifactRefHandler) scriptRefs(projectID uint) []ArtifactRef {
 			ID:             script.ID,
 			Title:          fallbackTitle(script.Title, "未命名剧本"),
 			Subtitle:       subtitle,
-			Status:         script.Status,
 			PipelineNodeID: script.PipelineNodeID,
 			EntityContext:  ArtifactEntityContext{EpisodeID: script.EpisodeID},
 			CreatedAt:      script.CreatedAt.Format(timeFormatRFC3339),

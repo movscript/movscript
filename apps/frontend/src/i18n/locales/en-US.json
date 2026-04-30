@@ -42,8 +42,6 @@
   },
   "apiErrors": {
     "accessDenied": "Access denied",
-    "agentNotFound": "Agent not found",
-    "agentTemplateNotFound": "Agent template not found",
     "aiAnalyzeFailed": "AI analysis failed: {{detail}}",
     "aiBadResponse": "AI returned an invalid format. Please try again.",
     "aiNotConfigured": "AI service is not configured",
@@ -225,6 +223,16 @@
     "summaryOptional": "Summary (optional)",
     "scriptTitle": "Script title",
     "assetName": "Asset name",
+    "resourceFile": "Resource file",
+    "selectResourceFile": "Select image / video / audio / text file",
+    "linkedSettingRequired": "Linked setting *",
+    "selectSetting": "Select setting",
+    "linkedStateRequired": "Linked state *",
+    "assetStatePlaceholder": "Select or enter the matching asset state",
+    "selectSettingFirst": "Select a setting first",
+    "assetVariantType": "View type",
+    "customVariantType": "Custom view type",
+    "variantName": "View name",
     "episodeTitle": "Episode title",
     "sceneTitle": "Scene title",
     "storyboardTitle": "Storyboard title",
@@ -373,6 +381,9 @@
       "empty": "No assets",
       "createOne": "Create one",
       "createTitle": "New Asset",
+      "settingFilter": "Setting assets",
+      "settingFallback": "Setting #{{id}}",
+      "unlinkedSetting": "Unlinked setting",
       "pagination": "{{total}} assets · {{page}}/{{pageCount}}"
     },
     "resources": {
@@ -1939,9 +1950,9 @@
           "name": "Script AI Analysis",
           "description": "Analyze script content and extract key information such as characters, background, and scenes."
         },
-        "agent_chat": {
-          "name": "AI Assistant Chat",
-          "description": "Sidebar AI assistant for project creation support."
+        "assistant_chat": {
+          "name": "Assistant Chat",
+          "description": "Sidebar assistant for project creation support."
         },
         "canvas_text": {
           "name": "Canvas Text Generation",

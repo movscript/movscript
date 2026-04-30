@@ -107,14 +107,17 @@ export function EntitySemanticForm({
   }
 
   return (
-    <div className={cn('h-full overflow-y-auto p-5 space-y-4', className)}>
+    <div className={cn('h-full overflow-y-auto bg-background p-5 space-y-5', className)}>
       {renderBefore}
       {visibleSections.map((section) => (
-        <div key={section.id} className="space-y-3">
+        <section key={section.id} className="rounded-lg border border-border/70 bg-card/80 p-3.5 shadow-sm">
           {visibleSections.length > 1 && (
-            <p className="text-xs font-medium text-muted-foreground">
-              {t(section.labelKey, { defaultValue: section.fallbackLabel })}
-            </p>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="h-px w-4 bg-primary/50" />
+              <p className="text-xs font-semibold text-foreground">
+                {t(section.labelKey, { defaultValue: section.fallbackLabel })}
+              </p>
+            </div>
           )}
           <div className="space-y-3">
             {section.fields.map((field) => (
@@ -131,13 +134,15 @@ export function EntitySemanticForm({
               />
             ))}
           </div>
-        </div>
+        </section>
       ))}
       {renderAfter}
       {showSave && (
-        <Button onClick={() => onSave(buildPayload())} disabled={isSaving || !hasSavableFields(visibleSections)} className="w-full gap-1.5" size="sm">
-          <Save size={13} /> {isSaving ? t('common.saving') : t('common.save')}
-        </Button>
+        <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-border bg-background/95 p-3 backdrop-blur">
+          <Button onClick={() => onSave(buildPayload())} disabled={isSaving || !hasSavableFields(visibleSections)} className="w-full gap-1.5" size="sm">
+            <Save size={13} /> {isSaving ? t('common.saving') : t('common.save')}
+          </Button>
+        </div>
       )}
     </div>
   )
@@ -206,8 +211,7 @@ function renderDefaultSemanticField({
 }) {
   if (field.binding) {
     return (
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{label}</Label>
+      <FieldBlock label={label}>
         <ResourceAttachments
           ownerType={ownerType}
           ownerId={ownerId}
@@ -216,7 +220,7 @@ function renderDefaultSemanticField({
           variant={field.control === 'resource_gallery' || field.binding.multiple ? 'gallery' : 'picker'}
           maxCount={field.io.maxCount}
         />
-      </div>
+      </FieldBlock>
     )
   }
 
@@ -230,34 +234,38 @@ function renderDefaultSemanticField({
 
   if (field.control === 'textarea' || field.control === 'json_editor') {
     return (
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{label}</Label>
+      <FieldBlock label={label} prominent={isProminentTextField(field)}>
         <Textarea
-          className={cn(field.control === 'json_editor' && 'font-mono')}
-          rows={field.control === 'json_editor' ? 4 : 3}
+          className={cn(
+            'resize-none border-border/70 bg-background/80 shadow-none transition-colors focus-visible:ring-2',
+            field.control === 'json_editor' && 'font-mono text-xs leading-5',
+            field.control !== 'json_editor' && 'leading-6',
+            isProminentTextField(field) && 'min-h-36 text-[15px] leading-7',
+          )}
+          rows={semanticTextareaRows(field)}
           value={stringValue(value)}
           onChange={(event) => onChange(event.target.value)}
         />
-      </div>
+      </FieldBlock>
     )
   }
 
   if (field.valueType === 'number' || field.control === 'number') {
     return (
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{label}</Label>
+      <FieldBlock label={label}>
         <Input
           type="number"
+          className="border-border/70 bg-background/80 shadow-none"
           value={numberInputValue(value)}
           onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
         />
-      </div>
+      </FieldBlock>
     )
   }
 
   if (field.valueType === 'boolean' || field.control === 'checkbox') {
     return (
-      <label className="flex items-center gap-2 text-sm text-foreground">
+      <label className="flex items-center gap-2 rounded-md border border-border/70 bg-background/80 px-3 py-2 text-sm text-foreground">
         <input
           type="checkbox"
           checked={Boolean(value)}
@@ -268,10 +276,43 @@ function renderDefaultSemanticField({
     )
   }
 
+  if (field.control === 'select' || field.validation?.enum?.length) {
+    const options = field.validation?.enum ?? []
+    return (
+      <FieldBlock label={label}>
+        <select
+          className="h-9 w-full rounded-md border border-border/70 bg-background/80 px-3 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+          value={stringValue(value)}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </FieldBlock>
+    )
+  }
+
   return (
-    <div>
-      <Label className="text-xs font-medium text-muted-foreground mb-1">{label}</Label>
-      <Input value={stringValue(value)} onChange={(event) => onChange(event.target.value)} />
+    <FieldBlock label={label} prominent={field.id === 'title' || field.id === 'name'}>
+      <Input
+        className={cn(
+          'border-border/70 bg-background/80 shadow-none',
+          (field.id === 'title' || field.id === 'name') && 'font-medium',
+        )}
+        value={stringValue(value)}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </FieldBlock>
+  )
+}
+
+function FieldBlock({ label, children, prominent = false }: { label: string; children: ReactNode; prominent?: boolean }) {
+  return (
+    <div className={cn(
+      'rounded-md border border-border/60 bg-background/65 p-3 transition-colors focus-within:border-primary/50 focus-within:bg-background',
+      prominent && 'bg-background',
+    )}>
+      <Label className="mb-2 text-xs font-semibold text-muted-foreground">{label}</Label>
+      {children}
     </div>
   )
 }
@@ -288,7 +329,7 @@ function ReadonlySemanticField({
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+    <div className="rounded-md border border-border/70 bg-background/65 px-3 py-2.5">
       <div className="mb-1 flex items-center justify-between gap-2">
         <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
         <FieldStateBadge field={field} t={t} />
@@ -311,7 +352,7 @@ function RelatedEntityListField({
 }) {
   const items = arrayValue(value)
   return (
-    <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+    <div className="rounded-md border border-border/70 bg-background/65 px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
         <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -346,7 +387,7 @@ function RelatedEntityCard({ item, index, kind }: { item: unknown; index: number
   const meta = relatedEntityMeta(record, kind, t)
 
   return (
-    <div className="rounded border border-border/70 bg-background px-2.5 py-2 text-xs">
+    <div className="rounded-md border border-border/70 bg-card px-2.5 py-2 text-xs">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground">{title}</p>
@@ -407,6 +448,17 @@ function semanticFieldValue(field: EntitySemanticSchemaField, draft: EntityDraft
 
 function hasSavableFields(sections: Array<{ fields: EntitySemanticSchemaField[] }>) {
   return sections.some((section) => section.fields.some(isSemanticSavableField))
+}
+
+function isProminentTextField(field: EntitySemanticSchemaField) {
+  return ['content', 'description', 'synopsis', 'prompt', 'final_prompt', 'final_description', 'plot_summary', 'notes', 'actions', 'dialogue', 'atmosphere', 'style_profile', 'intent'].includes(field.id)
+}
+
+function semanticTextareaRows(field: EntitySemanticSchemaField) {
+  if (field.control === 'json_editor') return 5
+  if (['content', 'prompt', 'final_prompt'].includes(field.id)) return 8
+  if (['description', 'synopsis', 'plot_summary', 'final_description'].includes(field.id)) return 6
+  return 4
 }
 
 function arrayValue(value: unknown): unknown[] {

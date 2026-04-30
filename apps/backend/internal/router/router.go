@@ -62,8 +62,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	modelGatewayH := handler.NewModelGatewayHandler(db, aiService)
 	debugH := handler.NewDebugHandler(db, encKey, registry)
 	pipelineH := handler.NewPipelineHandler(db)
-	agentDefH := handler.NewAgentDefHandler(db)
-	userAgentH := handler.NewUserAgentHandler(db)
 	pluginH := handler.NewPluginHandler(db)
 	registryH := handler.NewRegistryHandler()
 	workflowSchemas := handler.NewWorkflowSchemaHandler(db)
@@ -298,15 +296,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.DELETE("/setting-refs/:id", settings.DeleteRef)
 			protected.PUT("/setting-relationships/:id", settings.UpdateRelationship)
 			protected.DELETE("/setting-relationships/:id", settings.DeleteRelationship)
-
-			// agent templates (public read, admin write)
-			v1.GET("/agents", agentDefH.List)
-
-			// user agents (per-user CRUD, requires login)
-			protected.GET("/agents/my", userAgentH.List)
-			protected.POST("/agents/my", userAgentH.Create)
-			protected.PUT("/agents/my/:id", userAgentH.Update)
-			protected.DELETE("/agents/my/:id", userAgentH.Delete)
 
 			// admin routes — super_admin only
 			admin := protected.Group("/admin", middleware.RequireSystemRole("super_admin"))

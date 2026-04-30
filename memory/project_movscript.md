@@ -18,7 +18,7 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
 ## 关键实体关系（截至 2026-04-23，更新于 2026-04-23）
 
 - **Project** 新增 `total_episodes int`（目标集数，用于进度展示）
-- **Script** 类型：main | episode | scene；`status: draft | final`（已有字段，前端可编辑）
+- **Script** 类型：main | episode | scene；不再维护实体级 `status` / `review_status`，审核/生产状态统一由 `PipelineNode.status` 承载
 - **Setting** (新实体)：人物/场景/道具设定，属于 Project，可选关联 Script
   - type: character | scene | prop
   - routes: `GET/POST /projects/:id/settings`, `PUT/DELETE /settings/:id`
@@ -140,7 +140,7 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
 ### AI Agent 面板（全局右侧）
 - 组件：`components/layout/AIAgentPanel.tsx`
 - 布局：右侧折叠面板（折叠时 w-9，展开时 w-72），在 `App.tsx` 的 `<main>` 内作为 flex item
-- 后端：`POST /api/v1/agent/chat`，通过 `Registry.GetAny()` 调用任意可用文本 provider
+- 运行时：本地 `movscript-agent` 服务负责 agent thread/run/memory/tool policy；Go backend 不再提供 Agent 业务 API
 - 功能：多轮对话，Enter 发送，Shift+Enter 换行，清空按钮
 
 ### 侧边栏进度面板
@@ -177,7 +177,6 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
 - `POST /projects/:id/settings` — 创建设定 ✓
 - `PUT/DELETE /settings/:id` — 设定更新/删除 ✓
 - `GET /projects/:id/progress` — 项目进度统计（含 total_episodes 目标集数、shots.is_approved 终稿通过数）✓
-- `POST /api/v1/agent/chat` — AI agent 对话接口（handler: `handler/agent.go`）✓
 
 ## Why / How to apply
 重构动机：原先各实体页面缺少视觉浏览模式，Episode/Storyboard/Shot 需强制选择父级才能看列表。
