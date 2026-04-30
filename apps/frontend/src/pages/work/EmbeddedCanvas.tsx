@@ -9,7 +9,7 @@ import { Input } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { CanvasWorkspace, type CanvasPushTarget } from '@/pages/canvas/CanvasEditorPage'
-import { Check, CheckCircle2, Layers, Loader2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, X, XCircle } from 'lucide-react'
+import { Check, CheckCircle2, Layers, Loader2, PanelLeftClose, PanelLeftOpen, Pencil, Play, Plus, Workflow, X, XCircle } from 'lucide-react'
 
 export interface EntityDragItem {
   kind: 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
@@ -73,6 +73,12 @@ function CanvasListItem({
     rename.mutate(name)
   }
 
+  function onDragStart(e: React.DragEvent) {
+    if (canvas.canvas_type !== 'workflow') return
+    e.dataTransfer.setData('application/canvas-workflow', JSON.stringify(canvas))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
   const statusIcon = latestRun?.status === 'done'
     ? <CheckCircle2 size={10} className="text-emerald-500" />
     : latestRun?.status === 'failed'
@@ -87,11 +93,14 @@ function CanvasListItem({
 
   return (
     <div
+      draggable={canvas.canvas_type === 'workflow'}
+      onDragStart={onDragStart}
       onClick={() => {
         if (!isEditing) onSelect()
       }}
       className={cn(
         'w-full cursor-pointer border-b border-border/50 px-2.5 py-2 text-left transition-colors',
+        canvas.canvas_type === 'workflow' && 'cursor-grab active:cursor-grabbing',
         active ? 'border-l-2 border-l-primary bg-background' : 'hover:bg-background/60'
       )}
     >
@@ -187,13 +196,51 @@ function CanvasListItem({
   )
 }
 
+function CanvasThumbItem({
+  canvas,
+  active,
+  onSelect,
+}: {
+  canvas: Canvas
+  active: boolean
+  onSelect: () => void
+}) {
+  const { t } = useTranslation()
+
+  function onDragStart(e: React.DragEvent) {
+    if (canvas.canvas_type !== 'workflow') return
+    e.dataTransfer.setData('application/canvas-workflow', JSON.stringify(canvas))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
+  return (
+    <button
+      type="button"
+      draggable={canvas.canvas_type === 'workflow'}
+      onDragStart={onDragStart}
+      onClick={onSelect}
+      title={`${canvas.name} · ${canvas.canvas_type === 'workflow' ? t('canvas.types.workflow') : t('canvas.types.inspiration')}`}
+      className={cn(
+        'flex h-9 w-9 items-center justify-center rounded-md border text-muted-foreground transition-colors',
+        canvas.canvas_type === 'workflow' && 'cursor-grab active:cursor-grabbing',
+        active
+          ? 'border-primary bg-primary/10 text-primary'
+          : 'border-border bg-background hover:bg-muted hover:text-foreground'
+      )}
+      aria-label={canvas.name}
+    >
+      {canvas.canvas_type === 'workflow' ? <Workflow size={15} /> : <Layers size={15} />}
+    </button>
+  )
+}
+
 export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
 
   const [activeCanvasId, setActiveCanvasId] = useState<number | null>(null)
-  const [listCollapsed, setListCollapsed] = useState(false)
+  const [listCollapsed, setListCollapsed] = useState(true)
 
   const { data: canvases = [], isLoading: loadingList } = useQuery<Canvas[]>({
     queryKey: ['canvases-project', projectId],
@@ -269,7 +316,32 @@ export function EmbeddedCanvas({ pushTargets, onClose }: Props) {
           )}
         </div>
         {listCollapsed ? (
-          <div className="flex-1" />
+          <div className="flex-1 overflow-y-auto px-1 py-2">
+            <div className="flex flex-col items-center gap-1.5">
+              {loadingList ? (
+                <Loader2 size={14} className="mt-2 animate-spin text-muted-foreground" />
+              ) : canvases.map((canvas) => (
+                <CanvasThumbItem
+                  key={canvas.ID}
+                  canvas={canvas}
+                  active={activeCanvasId === canvas.ID}
+                  onSelect={() => setActiveCanvasId(canvas.ID)}
+                />
+              ))}
+              {!loadingList && canvases.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => createCanvas.mutate('inspiration')}
+                  disabled={createCanvas.isPending}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+                  title={t('canvas.newCanvas')}
+                  aria-label={t('canvas.newCanvas')}
+                >
+                  <Plus size={15} />
+                </button>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
             {loadingList ? (

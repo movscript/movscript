@@ -5,7 +5,7 @@ import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '../nodeCatalog'
 import { Boxes, Trash2 } from 'lucide-react'
 
 const CONTEXT_MENU_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
-const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card'])
+const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card', 'approval'])
 
 interface Props {
   x: number

@@ -6,7 +6,6 @@ import { Calculator, Link2, Lock, Save } from 'lucide-react'
 import { api } from '@/lib/api'
 import type {
   CanvasEntityKind,
-  EntitySchemaMigrationReport,
   EntitySemanticSchema,
   EntitySemanticSchemaField,
   EntitySemanticValues,
@@ -76,10 +75,6 @@ export function EntitySemanticForm({
     queryFn: () => api.get(`/entities/${kind}/${ownerId}/semantic-values`).then((r) => r.data),
     enabled: ownerId > 0,
   })
-  const { data: migrationReport } = useQuery<EntitySchemaMigrationReport>({
-    queryKey: ['entity-schema-migration-report', kind],
-    queryFn: () => api.get(`/entities/semantic-schemas/${kind}/migration-report`).then((r) => r.data),
-  })
 
   const visibleSections = useMemo(() => {
     if (!schema) return []
@@ -114,9 +109,6 @@ export function EntitySemanticForm({
   return (
     <div className={cn('h-full overflow-y-auto p-5 space-y-4', className)}>
       {renderBefore}
-      {schema && (
-        <SchemaCompatibilityNotice schema={schema} migrationReport={migrationReport} />
-      )}
       {visibleSections.map((section) => (
         <div key={section.id} className="space-y-3">
           {visibleSections.length > 1 && (
@@ -147,60 +139,6 @@ export function EntitySemanticForm({
           <Save size={13} /> {isSaving ? t('common.saving') : t('common.save')}
         </Button>
       )}
-    </div>
-  )
-}
-
-function SchemaCompatibilityNotice({
-  schema,
-  migrationReport,
-}: {
-  schema: EntitySemanticSchema
-  migrationReport?: EntitySchemaMigrationReport
-}) {
-  const { t } = useTranslation()
-  const aliases = migrationReport?.fieldAliases ?? schema.compatibility?.fieldAliases
-  const aliasCount = aliases ? Object.values(aliases).reduce((sum, items) => sum + items.length, 0) : 0
-  const deprecatedCount = (migrationReport?.deprecatedFields ?? schema.compatibility?.deprecatedFields ?? []).length
-  const migrations = migrationReport?.migrations ?? schema.compatibility?.migrations ?? []
-  if (aliasCount === 0 && deprecatedCount === 0 && migrations.length === 0) return null
-
-  return (
-    <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          {t('canvas.nodePanel.schemaProjection', { defaultValue: 'projection' })}: {schema.projection ?? 'semantic'}
-        </span>
-        <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          v{migrationReport?.currentVersion ?? schema.compatibility?.currentVersion ?? schema.schemaVersion}
-        </span>
-        {aliasCount > 0 && (
-          <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            {t('canvas.nodePanel.schemaAliases', { defaultValue: 'aliases' })}: {aliasCount}
-          </span>
-        )}
-        {migrations.length > 0 && (
-          <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            {t('canvas.nodePanel.schemaMigrations', { defaultValue: 'migrations' })}: {migrations.length}
-          </span>
-        )}
-        {deprecatedCount > 0 && (
-          <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
-            {t('common.deprecated', { defaultValue: 'deprecated' })}: {deprecatedCount}
-          </span>
-        )}
-      </div>
-      {migrationReport?.actions?.length ? (
-        <div className="mt-2 space-y-1">
-          {migrationReport.actions.slice(0, 3).map((action, index) => (
-            <p key={`${action.kind}-${action.fieldId ?? action.fromFieldId ?? index}`} className="text-[10px] text-muted-foreground">
-              <span className="font-medium text-foreground">{action.kind}</span>
-              {action.fromFieldId || action.toFieldId ? ` · ${action.fromFieldId ?? '?'} -> ${action.toFieldId ?? '?'}` : ''}
-              {action.description ? ` · ${action.description}` : ''}
-            </p>
-          ))}
-        </div>
-      ) : null}
     </div>
   )
 }

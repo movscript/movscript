@@ -103,7 +103,8 @@ const nodeTypes = {
 }
 
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
-const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card'])
+const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card', 'approval'])
+const MEDIA_NODE_TYPES = new Set<string>(['text', 'image', 'video', 'audio'])
 
 export interface CanvasPushTarget {
   kind: 'asset' | 'storyboard' | 'scene' | 'final_video'
@@ -188,6 +189,9 @@ function defaultHandleForNode(node: Node | undefined, side: 'source' | 'target')
 function portsForNode(node: Node | undefined, side: 'source' | 'target'): CanvasPortDef[] {
   if (!node) return []
   const data = node.data as Partial<CanvasNodeData>
+  if (side === 'target' && MEDIA_NODE_TYPES.has(String(node.type)) && data.source !== 'ai') {
+    return []
+  }
   if (node.type === 'input') {
     return side === 'source'
       ? [{ id: 'value', label: data.paramName || (data as any).label || node.id, type: data.paramType ?? 'text', required: true }]
@@ -200,8 +204,8 @@ function portsForNode(node: Node | undefined, side: 'source' | 'target'): Canvas
   }
   if (node.type === 'resource_sink') {
     return side === 'target'
-      ? [{ id: 'input', label: data.paramName || (data as any).label || node.id, type: data.paramType ?? 'resource', required: true }]
-      : [{ id: 'resource', label: data.paramName || (data as any).label || node.id, type: 'resource' }]
+      ? [{ id: 'input', label: 'resource', type: 'resource', required: true }]
+      : []
   }
   const customPorts = side === 'source' ? data.outputPorts : data.inputPorts
   if (customPorts) return customPorts
@@ -487,6 +491,10 @@ export function createCanvasEntityNodeData({
     outputPorts: ports?.outputs,
     textContent: label,
   }
+}
+
+function readOnlyMediaPortPatch(source: CanvasNodeData['source']): Partial<CanvasNodeData> {
+  return source === 'ai' ? { inputPorts: undefined } : { inputPorts: [] }
 }
 
 function resourceToNodeType(resource: RawResource): NodeType {
@@ -1229,8 +1237,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const [canvasType, setCanvasType] = useState<CanvasType>('inspiration')
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
-  const [libraryCollapsed, setLibraryCollapsed] = useState(false)
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
+  const [libraryCollapsed, setLibraryCollapsed] = useState(true)
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(true)
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
 
@@ -1805,6 +1813,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       data: {
         ...baseData,
         label: resource.name,
+        ...readOnlyMediaPortPatch('upload'),
         source: 'upload',
         resourceId: resource.ID,
         resource,
@@ -1814,6 +1823,39 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     }
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, setNodes, t])
+
+  const addWorkflowReferenceNodeAt = useCallback(async (workflowCanvas: Canvas, clientPosition: { x: number; y: number }) => {
+    if (String(workflowCanvas.ID) === id) {
+      toast.error(t('canvas.editor.errors.selfReferenceWorkflow', { defaultValue: 'A canvas cannot reference itself.' }))
+      return
+    }
+    try {
+      const referencedCanvas = workflowCanvas.nodes
+        ? workflowCanvas
+        : await api.get(`/canvases/${workflowCanvas.ID}`).then((r) => r.data as Canvas)
+      if ((referencedCanvas.canvas_type ?? 'inspiration') !== 'workflow') return
+      const ports = deriveCanvasReferencePorts(referencedCanvas)
+      const position = screenToFlowPosition(clientPosition)
+      const baseData = createNodeData('canvas', t)
+      const newNode: Node = {
+        id: genId(),
+        type: 'canvas',
+        position,
+        data: {
+          ...baseData,
+          label: referencedCanvas.name,
+          source: 'ai',
+          referencedCanvasId: referencedCanvas.ID,
+          inputPorts: ports.inputs,
+          outputPorts: ports.outputs,
+        },
+        style: { width: 220 },
+      }
+      setNodes((prev) => [...prev, newNode])
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.errors.workflowReferenceFailed', { defaultValue: 'Failed to add workflow reference.' }))
+    }
+  }, [id, screenToFlowPosition, setNodes, t])
 
   const addPluginNodeAt = useCallback((plugin: ClientPluginManifest, clientPosition?: { x: number; y: number }) => {
     const contribution = plugin.contributes?.canvasNodes?.[0]
@@ -2017,7 +2059,15 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const sourcePort = portForHandle(sourceNode, 'source', sourceHandle)
     const targetPort = portForHandle(targetNode, 'target', targetHandle)
 
-    if (!arePortTypesCompatible(sourcePort?.type, targetPort?.type)) {
+    if (!sourcePort || !targetPort) {
+      toast.error(
+        t('canvas.editor.invalidConnection', { defaultValue: 'Invalid connection' }),
+        t('canvas.editor.missingPortConnection', { defaultValue: 'This node does not accept that connection.' })
+      )
+      return
+    }
+
+    if (!arePortTypesCompatible(sourcePort.type, targetPort.type)) {
       toast.error(
         t('canvas.editor.invalidConnection', { defaultValue: 'Invalid connection' }),
         `${portLabel(sourcePort)} -> ${portLabel(targetPort)}`
@@ -2095,6 +2145,17 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       }
       return
     }
+    const workflowCanvasPayload = e.dataTransfer.getData('application/canvas-workflow')
+    if (workflowCanvasPayload) {
+      const clientPosition = { x: e.clientX, y: e.clientY }
+      try {
+        const workflowCanvas = JSON.parse(workflowCanvasPayload) as Canvas
+        void addWorkflowReferenceNodeAt(workflowCanvas, clientPosition)
+      } catch {
+        // Ignore malformed drag data from outside the app.
+      }
+      return
+    }
     const entityPayload = e.dataTransfer.getData('application/entity-node')
     if (entityPayload) {
       try {
@@ -2128,10 +2189,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, entitySchemaByKind, screenToFlowPosition, setNodes])
+  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, entitySchemaByKind, screenToFlowPosition, setNodes])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/entity-node')) {
+    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/canvas-workflow') || e.dataTransfer.types.includes('application/entity-node')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -2231,7 +2292,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                 onChange={(e) => setCanvasName(e.target.value)}
                 placeholder={t('canvas.editor.untitled')}
               />
-              <Badge variant="outline" className="hidden shrink-0 gap-1 border-border font-medium text-muted-foreground sm:flex">
+              <Badge variant="outline" className="hidden h-7 shrink-0 items-center gap-1 border-border font-medium leading-none text-muted-foreground sm:flex">
                 <Workflow size={12} />
                 {t('canvas.editor.nodesCount', { count: nodes.length })}
               </Badge>
@@ -2271,11 +2332,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
             </Badge>
           )}
 
-          <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
+          <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="h-8 shrink-0">
             <Play size={12} /> {runAll.isPending ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
           </Button>
 
-          <Button onClick={() => save.mutate()} disabled={save.isPending} size="sm" variant="outline" className="shrink-0">
+          <Button onClick={() => save.mutate()} disabled={save.isPending} size="sm" variant="outline" className="h-8 shrink-0">
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
             {save.isPending ? t('common.saving') : t('common.save')}
           </Button>

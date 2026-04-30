@@ -62,7 +62,7 @@ export default function CreationPage() {
   const [finalVideoTitle, setFinalVideoTitle] = useState('')
   const [artifactSearch, setArtifactSearch] = useState('')
 
-  const [workSurface, setWorkSurface] = useState<WorkSurface>('canvas')
+  const [workSurface, setWorkSurface] = useState<WorkSurface | null>('canvas')
   const [canvasPanelHeight, setCanvasPanelHeight] = useState(CANVAS_PANEL_DEFAULT_H)
   const [isResizing, setIsResizing] = useState(false)
   const workspaceBodyRef = useRef<HTMLDivElement | null>(null)
@@ -348,6 +348,10 @@ export default function CreationPage() {
     }
   }, [clampCanvasPanelHeight])
 
+  const toggleWorkSurface = useCallback((surface: WorkSurface) => {
+    setWorkSurface((current) => current === surface ? null : surface)
+  }, [])
+
   /* ── Push targets ── */
   function getPushTargets(): PushTarget[] {
     const targets: PushTarget[] = []
@@ -627,7 +631,7 @@ export default function CreationPage() {
           </div>
         )}
 
-        {activeTab && (
+        {activeTab && workSurface && (
           <div
             className={cn(
               'h-1 shrink-0 cursor-ns-resize border-t border-border hover:bg-muted transition-colors',
@@ -637,40 +641,40 @@ export default function CreationPage() {
           />
         )}
 
-        {activeTab && (
-          <div className="flex h-10 shrink-0 items-center justify-between border-t border-border bg-card px-3">
-            <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
-              <BottomPanelTab
-                active={workSurface === 'canvas'}
-                icon={<LayoutTemplate size={13} />}
-                label={t('work.creationCanvas')}
-                onClick={() => setWorkSurface('canvas')}
+        <div className="flex h-10 shrink-0 items-center justify-between border-t border-border bg-card px-3">
+          <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
+            <BottomPanelTab
+              active={workSurface === 'canvas'}
+              icon={<LayoutTemplate size={13} />}
+              label={t('work.creationCanvas')}
+              onClick={() => toggleWorkSurface('canvas')}
+            />
+            <BottomPanelTab
+              active={workSurface === 'pipeline'}
+              icon={<Network size={13} />}
+              label={t('work.pipeline', { defaultValue: '管线' })}
+              onClick={() => toggleWorkSurface('pipeline')}
+            />
+          </div>
+        </div>
+
+        {workSurface && (
+          <div
+            className={cn(
+              'relative overflow-hidden',
+              activeTab ? 'shrink-0 border-t border-border' : 'min-h-0 flex-1',
+            )}
+            style={activeTab ? { height: canvasPanelHeight } : undefined}
+          >
+            {workSurface === 'canvas' ? (
+              <EmbeddedCanvas
+                pushTargets={getPushTargets()}
               />
-              <BottomPanelTab
-                active={workSurface === 'pipeline'}
-                icon={<Network size={13} />}
-                label={t('work.pipeline', { defaultValue: '管线' })}
-                onClick={() => setWorkSurface('pipeline')}
-              />
-            </div>
+            ) : (
+              <PipelineEditorPage embedded />
+            )}
           </div>
         )}
-
-        <div
-          className={cn(
-            'relative overflow-hidden',
-            activeTab ? 'shrink-0 border-t border-border' : 'min-h-0 flex-1',
-          )}
-          style={activeTab ? { height: canvasPanelHeight } : undefined}
-        >
-          {!activeTab || workSurface === 'canvas' ? (
-            <EmbeddedCanvas
-              pushTargets={getPushTargets()}
-            />
-          ) : (
-            <PipelineEditorPage embedded />
-          )}
-        </div>
       </div>
 
       {/* ── Create dialog ── */}

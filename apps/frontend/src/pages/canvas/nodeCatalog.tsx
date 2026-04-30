@@ -116,8 +116,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     category: 'flow',
     icon: HardDrive,
     inputs: [port('input', 'resource')],
-    outputs: [port('resource', 'resource')],
-    defaultData: { source: 'manual', label: 'Save Resource', paramName: 'resource', paramType: 'resource' },
+    outputs: [],
+    defaultData: { source: 'manual', label: 'Save Resource', paramName: '' },
   },
   {
     type: 'approval',

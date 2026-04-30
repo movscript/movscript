@@ -144,7 +144,12 @@ export function Sidebar() {
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/lib/clientPlugins').ClientPluginManifest[]>([])
   const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true' } catch { return false }
+    try {
+      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+      return stored === null ? true : stored === 'true'
+    } catch {
+      return true
+    }
   })
   useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
 

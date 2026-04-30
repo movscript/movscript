@@ -612,8 +612,8 @@ var modelPresetSources = []ModelDef{
 		SupportedParams: volcenSeedream5LiteParams()},
 
 	// Seedance video generation (async task API — uses volcen adapter).
-	{ID: "volcengine:seedance-1-0-lite-t2v", ModelID: "doubao-seedance-1.0-lite-t2v-250428",
-		DisplayName: "Seedance 1.0 Lite 文生视频", Capabilities: []string{CapabilityVideo},
+	{ID: "volcengine:seedance-1-0-lite-t2v", ModelID: "doubao-seedance-1-0-lite-t2v-250428",
+		DisplayName: "Seedance 1-0 Lite 文生视频", Capabilities: []string{CapabilityVideo},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true,
 		MaxInputImages:       0,
@@ -625,8 +625,8 @@ var modelPresetSources = []ModelDef{
 			false, true, true, false, false,
 		)},
 
-	{ID: "volcengine:seedance-1-0-lite-i2v", ModelID: "doubao-seedance-1.0-lite-i2v-250428",
-		DisplayName: "Seedance 1.0 Lite 图生视频", Capabilities: []string{CapabilityVideoI2V},
+	{ID: "volcengine:seedance-1-0-lite-i2v", ModelID: "doubao-seedance-1-0-lite-i2v-250428",
+		DisplayName: "Seedance 1-0 Lite 图生视频", Capabilities: []string{CapabilityVideoI2V},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true, AcceptsImageInput: true,
 		MaxInputImages:  4,
@@ -638,8 +638,8 @@ var modelPresetSources = []ModelDef{
 			false, false, true, false, false,
 		)},
 
-	{ID: "volcengine:seedance-1-0-pro-fast", ModelID: "doubao-seedance-1.0-pro-fast-251015",
-		DisplayName: "Seedance 1.0 Pro Fast 视频", Capabilities: []string{CapabilityVideo},
+	{ID: "volcengine:seedance-1-0-pro-fast", ModelID: "doubao-seedance-1-0-pro-fast-251015",
+		DisplayName: "Seedance 1-0 Pro Fast 视频", Capabilities: []string{CapabilityVideo},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true,
 		MaxInputImages:       0,
@@ -651,7 +651,7 @@ var modelPresetSources = []ModelDef{
 			false, true, true, false, false,
 		)},
 
-	{ID: "volcengine:seedance-1-5-pro", ModelID: "doubao-seedance-1.5-pro-251215",
+	{ID: "volcengine:seedance-1-5-pro", ModelID: "doubao-seedance-1-5-pro-251215",
 		DisplayName: "Seedance 1.5 Pro 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true, AcceptsImageInput: true,
@@ -664,7 +664,7 @@ var modelPresetSources = []ModelDef{
 			true, true, true, false, true,
 		)},
 
-	{ID: "volcengine:seedance-2-0", ModelID: "doubao-seedance-2.0-260128",
+	{ID: "volcengine:seedance-2-0", ModelID: "doubao-seedance-2-0-260128",
 		DisplayName: "Seedance 2.0 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true, AcceptsImageInput: true,
@@ -677,7 +677,7 @@ var modelPresetSources = []ModelDef{
 			true, false, false, true, false,
 		)},
 
-	{ID: "volcengine:seedance-2-0-fast", ModelID: "doubao-seedance-2.0-fast-260128",
+	{ID: "volcengine:seedance-2-0-fast", ModelID: "doubao-seedance-2-0-fast-260128",
 		DisplayName: "Seedance 2.0 Fast 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V},
 		BillingMode: BillingPerSecond, AdapterType: AdapterVolcen,
 		AllowModelIDOverride: true, AcceptsImageInput: true,
@@ -789,7 +789,7 @@ var modelPresetSources = []ModelDef{
 		DisplayName: "Grok 4.20 Fast", Capabilities: []string{CapabilityText},
 		BillingMode: BillingPerToken, AdapterType: AdapterOpenAICompat,
 		MaxInputImages:   -1,
-		RefInputUSDPer1M: 1.00, RefOutputUSDPer1M: 5.00},
+		RefInputUSDPer1M: 1 - 00, RefOutputUSDPer1M: 5.00},
 
 	{ID: "xai:grok-4.20-auto", ModelID: "grok-4.20-auto",
 		DisplayName: "Grok 4.20 Auto", Capabilities: []string{CapabilityText, CapabilityReasoning},

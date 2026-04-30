@@ -48,8 +48,8 @@ export function ArtifactWorkspaceFrame({
     : false
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden bg-background">
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', cfg.accentSoft)}>
@@ -81,20 +81,17 @@ export function ArtifactWorkspaceFrame({
           </div>
         </header>
 
-        <main className="flex min-h-0 flex-1 overflow-hidden">
-          <div className="min-w-0 flex-1 overflow-hidden">{children}</div>
-        </main>
-      </div>
-
-      <div className="hidden shrink-0 lg:block">
         <ArtifactReviewRail
           node={node}
           canSubmit={canSubmit}
           canReview={canReview}
           onNodeUpdated={onNodeUpdated}
         />
-      </div>
 
+        <main className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1 overflow-hidden">{children}</div>
+        </main>
+      </div>
     </div>
   )
 }

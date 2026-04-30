@@ -55,6 +55,13 @@ const semanticSourceHandleStyle: React.CSSProperties = {
 const semanticInputHandleId = (portId: string) => `in:${portId}`
 const semanticOutputHandleId = (portId: string) => `out:${portId}`
 
+const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video', 'audio'])
+
+function mediaNodeInputPorts(nodeType: string, data: CanvasNodeData): CanvasNodeData['inputPorts'] {
+  if (!MEDIA_NODE_TYPES.has(nodeType)) return data.inputPorts
+  return data.source === 'ai' ? data.inputPorts : []
+}
+
 const PARAM_TYPE_LABELS: Record<string, string> = {
   text: 'canvas.paramTypes.text',
   image: 'canvas.paramTypes.image',
@@ -226,11 +233,11 @@ function resourceSinkPorts(data: CanvasNodeData): { inputs: CanvasPortDef[]; out
   return {
     inputs: [{
       id: 'input',
-      label: data.paramName || 'resource',
-      type: data.paramType ?? 'resource',
+      label: 'resource',
+      type: 'resource',
       required: true,
     }],
-    outputs: [{ id: 'resource', label: data.paramName || 'resource', type: 'resource' }],
+    outputs: [],
   }
 }
 
@@ -361,7 +368,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
         status={status}
         actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      <SemanticPortRows nodeType="text" />
+      <SemanticPortRows nodeType="text" inputPorts={mediaNodeInputPorts('text', data)} />
       {data.source === 'manual' ? (
         <textarea
           className="flex-1 w-full px-3 py-2 text-xs resize-none focus:outline-none bg-transparent nodrag nowheel text-foreground placeholder:text-muted-foreground/50 rounded-b-xl min-h-[60px]"
@@ -396,7 +403,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
         </>}
       />
-      <SemanticPortRows nodeType="image" />
+      <SemanticPortRows nodeType="image" inputPorts={mediaNodeInputPorts('image', data)} />
       <div className="flex-1 bg-muted/30 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
         {imgUrl
           ? <AuthedImage src={imgUrl} alt="" className="w-full h-full object-cover" />
@@ -421,7 +428,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
           {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
         </>}
       />
-      <SemanticPortRows nodeType="video" />
+      <SemanticPortRows nodeType="video" inputPorts={mediaNodeInputPorts('video', data)} />
       <div className="flex-1 bg-zinc-900 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
         {videoUrl
           ? <AuthedVideo src={videoUrl} className="w-full h-full object-cover" controls />
@@ -443,7 +450,7 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         status={status}
         actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
       />
-      <SemanticPortRows nodeType="audio" />
+      <SemanticPortRows nodeType="audio" inputPorts={mediaNodeInputPorts('audio', data)} />
       <div className="flex-1 px-3 py-3 rounded-b-xl flex items-center">
         {audioUrl
           ? <AuthedAudio src={audioUrl} controls className="w-full h-6" />
@@ -736,7 +743,9 @@ export function ResourceSinkNode({ data, selected }: NodeProps & { data: NodeDat
       />
       <SemanticPortRows nodeType="resource_sink" inputPorts={ports.inputs} outputPorts={ports.outputs} />
       <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-        <ParamMeta name={data.paramName ?? 'resource'} type={data.paramType ?? 'resource'} />
+        <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
+          <span className="truncate font-medium text-foreground">{data.paramName || t('canvas.nodePanel.randomFileName')}</span>
+        </div>
         {hasOutput
           ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.resourceSaved')}</span>
           : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}

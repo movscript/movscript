@@ -25,6 +25,10 @@ interface Props {
   allowRun?: boolean
 }
 
+function readOnlyMediaPortPatch(source: CanvasNodeData['source']): Partial<CanvasNodeData> {
+  return source === 'ai' ? { inputPorts: undefined } : { inputPorts: [] }
+}
+
 // ── @mention prompt textarea ──────────────────────────────────────────────────
 
 function PromptTextarea({
@@ -178,7 +182,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['resources'] })
-      onUpdate(nodeId, { source: 'upload', resourceId: r.ID, resource: r, status: 'done' })
+      onUpdate(nodeId, { ...readOnlyMediaPortPatch('upload'), source: 'upload', resourceId: r.ID, resource: r, status: 'done' })
     }
   })
 
@@ -253,10 +257,9 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     return (
       <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
-        <ParamFields
-          name={data.paramName ?? 'resource'}
-          type={data.paramType ?? 'resource'}
-          onUpdate={(patch) => onUpdate(nodeId, patch)}
+        <FileNameField
+          value={data.paramName ?? ''}
+          onUpdate={(value) => onUpdate(nodeId, { paramName: value, paramType: undefined })}
         />
         <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.resourceSinkHint')}
@@ -455,7 +458,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             {sourceOptions.map((s) => (
               <button
                 key={s}
-                onClick={() => { setSource(s); onUpdate(nodeId, { source: s }) }}
+                onClick={() => { setSource(s); onUpdate(nodeId, { ...readOnlyMediaPortPatch(s), source: s }) }}
                 className={`flex-1 py-1.5 rounded border text-xs transition-colors ${
                   source === s ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground hover:border-border/80'
                 }`}
@@ -491,7 +494,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
                 value={data.resourceId ?? ''}
                 onChange={(e) => {
                   const r = resources.find((r) => r.ID === Number(e.target.value))
-                  if (r) onUpdate(nodeId, { source: 'upload', resourceId: r.ID, resource: r, status: 'done' })
+                  if (r) onUpdate(nodeId, { ...readOnlyMediaPortPatch('upload'), source: 'upload', resourceId: r.ID, resource: r, status: 'done' })
                 }}
               >
                 <option value="">{t('canvas.nodePanel.selectResource')}</option>
@@ -793,6 +796,21 @@ function LabelField({ label, onUpdate }: { label: string; onUpdate: (v: string) 
         value={label}
         onChange={(e) => onUpdate(e.target.value)}
         className="text-sm"
+      />
+    </div>
+  )
+}
+
+function FileNameField({ value, onUpdate }: { value: string; onUpdate: (v: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div>
+      <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.fileName')}</Label>
+      <Input
+        value={value}
+        onChange={(e) => onUpdate(e.target.value)}
+        className="text-sm"
+        placeholder={t('canvas.nodePanel.fileNamePlaceholder')}
       />
     </div>
   )

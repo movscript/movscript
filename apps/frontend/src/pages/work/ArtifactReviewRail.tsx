@@ -65,42 +65,41 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
   const busy = transition.isPending
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-border bg-card">
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">审核</h2>
+    <section className="shrink-0 border-b border-border bg-card px-4 py-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold text-foreground">审核状态</h2>
             <span className={cn('rounded px-2 py-0.5 text-xs font-medium', meta.className)}>{meta.label}</span>
+            <p className="text-xs text-muted-foreground">{meta.description}</p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">{meta.description}</p>
-        </section>
 
-        {node.description && (
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold text-foreground">节点说明</h3>
-            <p className="rounded-md border border-border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              {node.description}
-            </p>
-          </section>
-        )}
+          {(node.description || (node.status === 'rejected' && node.review_note)) && (
+            <div className="flex flex-col gap-2 text-xs lg:flex-row lg:items-start">
+              {node.description && (
+                <p className="min-w-0 rounded-md border border-border bg-background px-3 py-2 leading-relaxed text-muted-foreground lg:max-w-xl">
+                  <span className="font-medium text-foreground">节点说明：</span>
+                  {node.description}
+                </p>
+              )}
 
-        {node.status === 'rejected' && node.review_note && (
-          <section className="space-y-2">
-            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400">
-              <FileWarning size={13} />
-              打回原因
-            </h3>
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
-              {node.review_note}
-            </p>
-          </section>
-        )}
-      </div>
+              {node.status === 'rejected' && node.review_note && (
+                <p className="flex min-w-0 items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-2 leading-relaxed text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300 lg:max-w-xl">
+                  <FileWarning size={13} className="mt-0.5 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="font-medium">打回原因：</span>
+                    {node.review_note}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
-      <div className="border-t border-border p-4 space-y-2">
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end xl:max-w-[460px]">
         {(node.status === 'draft' || node.status === 'rejected') && (
           <Button
-            className="w-full gap-1.5"
+            className="gap-1.5"
             size="sm"
             onClick={() => transition.mutate({ action: 'submit' })}
             disabled={!canSubmit || busy}
@@ -114,7 +113,7 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
         {node.status === 'under_review' && (
           <>
             <Button
-              className="w-full gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
               size="sm"
               onClick={() => transition.mutate({ action: 'approve' })}
               disabled={!canReview || busy}
@@ -127,7 +126,7 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
             {!showRejectInput ? (
               <Button
                 variant="outline"
-                className="w-full gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+                className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
                 size="sm"
                 onClick={() => setShowRejectInput(true)}
                 disabled={!canReview || busy}
@@ -136,7 +135,7 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
                 打回修改
               </Button>
             ) : (
-              <div className="space-y-2">
+              <div className="w-full space-y-2 sm:min-w-[320px]">
                 <Textarea
                   value={rejectNote}
                   rows={3}
@@ -166,7 +165,7 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
         {node.status === 'final' && (
           <Button
             variant="outline"
-            className="w-full gap-1.5"
+            className="gap-1.5"
             size="sm"
             onClick={() => transition.mutate({ action: 'reopen' })}
             disabled={!canReview || busy}
@@ -178,18 +177,19 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
         )}
 
         {node.status !== 'under_review' && node.status !== 'final' && !canSubmit && (
-          <p className="text-[11px] text-muted-foreground">只有执行人、负责人或项目管理者可以提交审核。</p>
+          <p className="basis-full text-[11px] text-muted-foreground">只有执行人、负责人或项目管理者可以提交审核。</p>
         )}
         {node.status === 'under_review' && !canReview && (
-          <p className="text-[11px] text-muted-foreground">只有负责人或项目管理者可以审核，执行人不能审核自己的任务。</p>
+          <p className="basis-full text-[11px] text-muted-foreground">只有负责人或项目管理者可以审核，执行人不能审核自己的任务。</p>
         )}
         {node.status === 'draft' && (
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="flex basis-full items-center gap-1.5 text-[11px] text-muted-foreground sm:justify-end">
             <Clock size={12} />
             保存内容后再提交审核。
           </div>
         )}
       </div>
-    </aside>
+      </div>
+    </section>
   )
 }

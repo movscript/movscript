@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -1936,7 +1937,7 @@ func (h *CanvasHandler) completeResourceSinkTask(ctx context.Context, task *mode
 		h.failTask(task, node, nd, err.Error())
 		return nil
 	}
-	outputValue := canvasPortValueFromResource(&r.ID, firstNonEmptyString(nd.ParamType, "resource"))
+	outputValue := canvasPortValueFromResource(&r.ID, "resource")
 	outputs := map[string]canvasPortValue{
 		defaultCanvasSourceHandleForNode(node.Type, nd): outputValue,
 		"": outputValue,
@@ -1974,16 +1975,32 @@ func canvasPortValueResourcePayload(value canvasPortValue) ([]byte, string, stri
 	}
 }
 
-func canvasResourceSinkName(node *model.CanvasNode, nd nodeData, taskID uint, ext string) string {
-	base := firstNonEmptyString(nd.ParamName, node.Label, node.NodeID, "canvas_output")
-	base = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(base, "_"), "._-")
-	if base == "" {
-		base = "canvas_output"
-	}
+func canvasResourceSinkName(_ *model.CanvasNode, nd nodeData, taskID uint, ext string) string {
 	if ext == "" {
 		ext = "bin"
 	}
-	return fmt.Sprintf("%s_%d.%s", base, taskID, ext)
+	name := sanitizeCanvasResourceFileName(nd.ParamName)
+	if name == "" {
+		return fmt.Sprintf("resource_%s.%s", randomCanvasResourceNameToken(taskID), ext)
+	}
+	if filepath.Ext(name) != "" {
+		return name
+	}
+	return fmt.Sprintf("%s.%s", name, ext)
+}
+
+func sanitizeCanvasResourceFileName(name string) string {
+	name = strings.TrimSpace(filepath.Base(name))
+	name = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(name, "_"), "._-")
+	return name
+}
+
+func randomCanvasResourceNameToken(taskID uint) string {
+	var b [6]byte
+	if _, err := cryptorand.Read(b[:]); err == nil {
+		return hex.EncodeToString(b[:])
+	}
+	return fmt.Sprintf("%d_%d", taskID, time.Now().UnixNano())
 }
 
 func defaultCanvasSourceHandle(nodeType string) string {
