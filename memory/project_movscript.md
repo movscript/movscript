@@ -23,7 +23,7 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
   - type: character | scene | prop
   - routes: `GET/POST /projects/:id/settings`, `PUT/DELETE /settings/:id`
 - **Asset** 新增 `setting_id` 字段，可绑定到 Setting
-- **Episode** 新增 `target_storyboards int`、`target_scenes int`（该集目标分镜/分场数）
+- **Episode** 只保存分集自身标题、集号、梗概，以及剧本/设定/分场/分镜引用；不再维护实体级制作状态或目标分镜/分场数
 - **Storyboard** `scene_id` 和 `episode_id` 均为可选（nullable），`project_id` 必填
   - 创建：`POST /projects/:id/storyboards`（分场/分集均可选）
   - 列表：`GET /projects/:id/storyboards?scene_id=&episode_id=&status=`（三个过滤均可选）
@@ -82,7 +82,7 @@ Project → Scripts / Settings / Assets → Episodes → (Scenes ← many:many) 
   - 设定 Tab：人物/场景/道具设定的完整 CRUD
 - `/assets` — AssetsPage（多视角图上传，角色/场景/道具可绑定 Setting）
 - `/episodes` — EpisodesPage（**项目级列表**，可选按剧本过滤）
-- `/scenes` — ScenesPage（时段 tab 过滤）
+- `/scenes` — ScenesPage（项目级分场列表与详情）
 - `/storyboards` — StoryboardsPage（**项目级列表**，分场/分集关联均可选，可事后修改）
 - `/shots` — ShotsPage（**项目级列表**，分镜关联可选，独立镜头支持）
 

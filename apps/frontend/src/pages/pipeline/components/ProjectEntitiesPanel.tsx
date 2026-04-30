@@ -122,10 +122,8 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
 
   function statusLabel(status?: string) {
     if (!status) return undefined
-    return t(`domain.episodeStatus.${status}`, {
-      defaultValue: t(`domain.reviewStatus.${status}`, {
-        defaultValue: t(`domain.shotStatus.${status}`, { defaultValue: status }),
-      }),
+    return t(`domain.reviewStatus.${status}`, {
+      defaultValue: t(`domain.shotStatus.${status}`, { defaultValue: status }),
     })
   }
 
@@ -156,8 +154,6 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
                   key={e.ID}
                   title={t('pipeline.entities.episodeTitle', { number: e.number, title: e.title ? ` · ${e.title}` : '' })}
                   subtitle={e.synopsis}
-                  status={e.status}
-                  statusLabel={statusLabel(e.status)}
                   onLinkClick={onLinkEntity ? () => onLinkEntity('episode', e.ID, t('pipeline.entities.episodeLabel', { number: e.number })) : undefined}
                 />
               ))}
@@ -184,7 +180,6 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
                 <EntityCard
                   key={s.ID}
                   title={t('pipeline.entities.sceneTitle', { number: s.number, title: s.title ? ` · ${s.title}` : '' })}
-                  subtitle={s.location}
                   onLinkClick={onLinkEntity ? () => onLinkEntity('scene', s.ID, t('pipeline.entities.sceneLabel', { number: s.number })) : undefined}
                 />
               ))}

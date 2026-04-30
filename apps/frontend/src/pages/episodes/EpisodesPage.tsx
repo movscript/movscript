@@ -11,23 +11,6 @@ import { Button } from '@movscript/ui'
 import { EpisodeDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
-const STATUS_LABEL_KEYS: Record<string, string> = {
-  draft: 'domain.episodeStatus.draft',
-  scripted: 'domain.episodeStatus.scripted',
-  storyboarded: 'domain.episodeStatus.storyboarded',
-  generating: 'domain.episodeStatus.generating',
-  editing: 'domain.episodeStatus.editing',
-  done: 'domain.episodeStatus.done',
-}
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  scripted: 'bg-muted text-muted-foreground',
-  storyboarded: 'bg-muted text-muted-foreground',
-  generating: 'bg-amber-100 text-amber-700',
-  editing: 'bg-blue-100 text-blue-700',
-  done: 'bg-emerald-100 text-emerald-700',
-}
-
 export default function EpisodesPage() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -95,7 +78,6 @@ export default function EpisodesPage() {
                   className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-lg font-bold text-muted-foreground/50 font-mono">EP{String(e.number).padStart(2, '0')}</span>
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded-full', STATUS_COLORS[e.status] ?? 'bg-muted text-muted-foreground')}>{STATUS_LABEL_KEYS[e.status] ? t(STATUS_LABEL_KEYS[e.status]) : e.status}</span>
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-1">{e.title}</h3>
                   {e.synopsis && <p className="text-xs text-muted-foreground line-clamp-2">{e.synopsis}</p>}

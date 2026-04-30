@@ -100,7 +100,7 @@ const ENTITY_DEFS: Record<PipelineEntityType, EntityDef> = {
     label: 'Scene',
     apiPath: (pid) => `/projects/${pid}/scenes`,
     listPath: (pid) => `/projects/${pid}/scenes`,
-    defaultBody: (t, node) => ({ title: node.name || t('pipeline.detail.defaultTitles.scene'), location: '', pipeline_node_id: node.ID }),
+    defaultBody: (t, node) => ({ title: node.name || t('pipeline.detail.defaultTitles.scene'), pipeline_node_id: node.ID }),
   },
   final_video: {
     entityType: 'final_video',
@@ -747,7 +747,7 @@ function buildEntityOptions(
         return {
           id: scene.ID,
           label: t('pipeline.entities.sceneTitle', { number: scene.number, title: scene.title ? ` · ${scene.title}` : '' }),
-          subtitle: scene.location,
+          subtitle: '',
         }
       }
       case 'final_video': {

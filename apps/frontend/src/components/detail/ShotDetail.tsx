@@ -51,12 +51,12 @@ export function ShotDetail({ shot, onClose, onDelete }: Props) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DetailHero
+        kind="shot"
         title={t('details.shotLabel', { order: shot.order })}
         description={draft.final_description || draft.description || shot.final_description || shot.description}
         tone="amber"
         eyebrow={(
           <>
-            <HeroPill>{t('entities.shots')}</HeroPill>
             <HeroPill className={cn(SHOT_STATUS_COLORS[shot.status])}>{t(SHOT_STATUS_LABEL_KEYS[shot.status])}</HeroPill>
           </>
         )}

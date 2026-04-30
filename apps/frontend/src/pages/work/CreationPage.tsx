@@ -118,6 +118,7 @@ export default function CreationPage() {
       return [...prev, { key, kind, id, label }]
     })
     setActiveTabKey(key)
+    setWorkSurface(null)
   }
 
   function selectTab(key: string) {
@@ -270,7 +271,6 @@ export default function CreationPage() {
           id: episode.ID,
           title: episode.title || `EP${episode.number}`,
           subtitle: `EP${String(episode.number).padStart(2, '0')}`,
-          status: episode.status,
           pipeline_node_id: episode.pipeline_node_id,
         }))
       case 'scene':
@@ -278,7 +278,7 @@ export default function CreationPage() {
           kind: 'scene',
           id: scene.ID,
           title: scene.title || `${t('details.sceneLabel', { number: scene.number })}`,
-          subtitle: scene.location || t('details.sceneLabel', { number: scene.number }),
+          subtitle: t('details.sceneLabel', { number: scene.number }),
           pipeline_node_id: scene.pipeline_node_id,
         }))
       case 'setting':
@@ -536,7 +536,10 @@ export default function CreationPage() {
       </div>
 
       {/* ── Middle: item cards strip ── */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-card shrink-0">
+      <div className={cn(
+        'flex items-center gap-2 border-b border-border bg-card shrink-0',
+        activeTab ? 'px-3 py-1.5' : 'px-4 py-2.5'
+      )}>
         <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none min-w-0">
           {items.length === 0 ? (
             <span className="text-xs text-muted-foreground py-1">
@@ -558,6 +561,7 @@ export default function CreationPage() {
                   kind={activeKind}
                   selected={isActive}
                   hasTab={isOpen}
+                  compact={!!activeTab}
                   onClick={() => openTab(activeKind, item.id, item.title)}
                 />
               )
@@ -852,10 +856,11 @@ interface EntityCardProps {
   kind: WorkArtifactKind
   selected: boolean
   hasTab: boolean
+  compact?: boolean
   onClick: () => void
 }
 
-function EntityCard({ item, kind, selected, hasTab, onClick }: EntityCardProps) {
+function EntityCard({ item, kind, selected, hasTab, compact = false, onClick }: EntityCardProps) {
   const cfg = KIND_CONFIG[kind]
 
   function onDragStart(e: React.DragEvent) {
@@ -874,7 +879,8 @@ function EntityCard({ item, kind, selected, hasTab, onClick }: EntityCardProps) 
       onDragStart={onDragStart}
       onClick={onClick}
       className={cn(
-        'h-12 w-[168px] shrink-0 flex items-center gap-2 px-3 rounded-lg border transition-all text-left',
+        'shrink-0 flex items-center gap-2 rounded-md border transition-all text-left',
+        compact ? 'h-9 w-[144px] px-2' : 'h-12 w-[168px] px-3',
         'cursor-grab active:cursor-grabbing hover:shadow-sm',
         selected
           ? 'bg-foreground text-background border-transparent shadow-sm'
@@ -886,7 +892,7 @@ function EntityCard({ item, kind, selected, hasTab, onClick }: EntityCardProps) 
       <GripVertical size={11} className={cn('shrink-0', selected ? 'text-background/50' : 'text-muted-foreground/40')} />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium truncate leading-tight">{item.title}</p>
-        {item.subtitle && (
+        {item.subtitle && !compact && (
           <p className={cn('text-[10px] truncate leading-tight mt-0.5', selected ? 'text-background/60' : 'text-muted-foreground')}>
             {item.subtitle}
           </p>

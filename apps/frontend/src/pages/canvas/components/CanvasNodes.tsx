@@ -1,7 +1,7 @@
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useQuery } from '@tanstack/react-query'
-import type { CanvasEntityKind, CanvasNodeData, CanvasPortDef, EntitySemanticValues, EntityWorkflowSchema, EntityWorkflowSchemaField } from '@/types'
+import type { CanvasNodeData, CanvasPortDef, EntitySemanticValues, EntityWorkflowSchema } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
@@ -15,17 +15,7 @@ import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
 import { CANVAS_NODE_META } from '../nodeCatalog'
 import { api } from '@/lib/api'
-
-const ENTITY_ICONS: Record<CanvasEntityKind, React.ReactNode> = {
-  script: <FileText size={12} />,
-  setting: <Database size={12} />,
-  asset: <Image size={12} />,
-  episode: <Video size={12} />,
-  scene: <Camera size={12} />,
-  storyboard: <Layers3 size={12} />,
-  shot: <Video size={12} />,
-  final_video: <Video size={12} />,
-}
+import { buildEntityPreviewFields, EntityPreviewFieldList, ENTITY_KIND_META } from '@/components/entity/EntitySurface'
 
 const targetHandleStyle: React.CSSProperties = {
   width: 14, height: 14, borderRadius: '50%',
@@ -898,116 +888,24 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
     queryFn: () => api.get(`/entities/${kind}/${data.entityId}/semantic-values`).then((r) => r.data),
     enabled: !!kind && !!data.entityId,
   })
-  const fields = entityPreviewFields(schema, semanticValues?.values, t)
+  const fields = buildEntityPreviewFields({ schema, values: semanticValues?.values, t, limit: 3 })
+  const Icon = kind ? ENTITY_KIND_META[kind].icon : FileText
 
   return (
     <NodeCard selected={selected}>
       <NodeHeader
-        icon={kind ? ENTITY_ICONS[kind] : <FileText size={12} />}
+        icon={<Icon size={12} />}
         label={label}
         accent="bg-slate-50 dark:bg-slate-950/35"
       />
       <SemanticPortRows nodeType="entity_card" inputPorts={inputPorts} outputPorts={outputPorts} />
-      <div className="space-y-2 px-3 py-2">
+      <div className="space-y-1.5 px-3 py-2">
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
           <span className="rounded border border-border bg-background px-1.5 py-0.5 leading-none">{kindLabel}</span>
           {data.entityId && <span className="font-mono">#{data.entityId}</span>}
         </div>
-        {fields.length > 0 ? (
-          <div className="space-y-1.5">
-            {fields.map((field) => (
-              <div key={field.id} className="rounded-md border border-border bg-background/85 px-2 py-1.5">
-                <div className="flex items-center gap-1.5 text-[10px]">
-                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">{field.label}</span>
-                  {field.readable && <span className="rounded border border-border bg-muted/50 px-1 py-0.5 leading-none text-muted-foreground">out</span>}
-                  {field.writable && <span className="rounded border border-border bg-muted/50 px-1 py-0.5 leading-none text-muted-foreground">in</span>}
-                </div>
-                <p className={cn(
-                  'mt-1 text-[11px] leading-snug',
-                  field.hasValue ? 'line-clamp-2 text-muted-foreground' : 'italic text-muted-foreground/45'
-                )}>
-                  {field.summary}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs italic text-muted-foreground/45">
-            {data.textContent || t('canvas.entityCard.noPreview')}
-          </p>
-        )}
+        <EntityPreviewFieldList fields={fields} emptyText={data.textContent || t('canvas.entityCard.noPreview')} />
       </div>
     </NodeCard>
   )
-}
-
-type EntityPreviewField = {
-  id: string
-  label: string
-  summary: string
-  hasValue: boolean
-  readable: boolean
-  writable: boolean
-}
-
-function entityPreviewFields(schema: EntityWorkflowSchema | undefined, values: Record<string, unknown> | undefined, t: (key: string, options?: any) => string): EntityPreviewField[] {
-  if (!schema) return []
-  const fields = schema.sections.flatMap((section) => section.fields)
-    .filter((field) => !field.deprecated && (field.workflow.readable || field.workflow.writable))
-    .map((field) => {
-      const value = values?.[field.id]
-      const summary = summarizeEntityValue(value)
-      return {
-        id: field.id,
-        label: field.labelKey ? t(field.labelKey, { defaultValue: entityFieldFallbackLabel(field) }) : entityFieldFallbackLabel(field),
-        summary: summary || t('canvas.entityCard.noValue'),
-        hasValue: !!summary,
-        readable: field.workflow.readable,
-        writable: field.workflow.writable,
-      }
-    })
-  return fields
-    .sort((a, b) => Number(b.hasValue) - Number(a.hasValue) || Number(b.readable) - Number(a.readable))
-    .slice(0, 5)
-}
-
-function entityFieldFallbackLabel(field: EntityWorkflowSchemaField) {
-  return field.fallbackLabel || field.workflow.portId || field.id
-}
-
-function summarizeEntityValue(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return compactText(value)
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (Array.isArray(value)) {
-    if (value.length === 0) return ''
-    const sample = value.slice(0, 3).map(summarizeEntityListItem).filter(Boolean).join(', ')
-    return value.length > 3 ? `${sample} +${value.length - 3}` : sample
-  }
-  if (typeof value === 'object') {
-    const item = value as Record<string, unknown>
-    const title = item.title ?? item.name ?? item.label ?? item.number ?? item.ID ?? item.id
-    if (title !== undefined) return compactText(String(title))
-    try {
-      return compactText(JSON.stringify(value))
-    } catch {
-      return String(value)
-    }
-  }
-  return String(value)
-}
-
-function summarizeEntityListItem(value: unknown): string {
-  if (typeof value === 'number') return `#${value}`
-  if (typeof value === 'string') return compactText(value)
-  if (typeof value === 'object' && value) {
-    const item = value as Record<string, unknown>
-    const title = item.title ?? item.name ?? item.label ?? item.number ?? item.ID ?? item.id
-    if (title !== undefined) return compactText(String(title))
-  }
-  return summarizeEntityValue(value)
-}
-
-function compactText(value: string) {
-  return value.replace(/\s+/g, ' ').trim()
 }

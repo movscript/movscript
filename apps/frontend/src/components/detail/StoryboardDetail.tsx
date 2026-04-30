@@ -37,6 +37,7 @@ export function StoryboardDetail({ storyboard, onClose, onDelete }: Props) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DetailHero
+        kind="storyboard"
         title={draft.title || storyboard.title || t('details.storyboardLabel', { order: storyboard.order })}
         description={draft.description || storyboard.description || storyboard.intent || storyboard.actions}
         tone="sky"

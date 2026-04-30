@@ -355,14 +355,13 @@
     "episodeNumber": "Episode Number",
     "episodeSynopsis": "Synopsis",
     "productionStatus": "Production Status",
-    "targetStoryboards": "Target Storyboards",
-    "targetScenes": "Target Scenes",
     "linkedScenes": "Linked Scenes",
     "noLinkedScenes": "No linked scenes",
     "sceneFallback": "Scene #{{id}}",
     "selectSceneLink": "Select a scene to link",
     "link": "Link",
     "sceneLabel": "Scene {{number}}",
+    "sceneNumber": "Scene Number",
     "shotLabel": "Shot {{order}}",
     "storyboardLabel": "Storyboard #{{order}}",
     "shotShortLabel": "Shot {{order}}",
@@ -1489,6 +1488,9 @@
     "selectOrCreate": "Select or create a canvas"
   },
   "shared": {
+    "title": "Title",
+    "description": "Description",
+    "scriptTitle": "Script title",
     "attachments": {
       "remove": "Remove",
       "upload": "Upload"

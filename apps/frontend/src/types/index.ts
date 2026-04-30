@@ -227,13 +227,17 @@ export interface Scene {
   ID: number
   project_id: number
   pipeline_node_id?: number
+  script_id?: number | null
+  script?: Script
   number: number
   title: string
-  location: string
-  time_of_day: string
   notes: string
   review_status?: ReviewStatus
+  settings?: Setting[]
   storyboards?: Storyboard[]
+  final_videos?: FinalVideo[]
+  CreatedAt: string
+  UpdatedAt: string
 }
 
 export interface EpisodeScene {
@@ -249,12 +253,12 @@ export interface Episode {
   title: string
   number: number
   synopsis: string
-  status: string
   review_status?: ReviewStatus
-  script_id?: number // optional — can be created without a script
-  target_storyboards?: number
-  target_scenes?: number
+  script_id?: number | null // optional — can be created without a script
+  script?: Script
+  settings?: Setting[]
   scenes?: Scene[]
+  storyboards?: Storyboard[]
   CreatedAt: string
   UpdatedAt: string
 }

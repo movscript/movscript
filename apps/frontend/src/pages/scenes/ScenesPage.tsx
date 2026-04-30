@@ -63,7 +63,6 @@ export default function ScenesPage() {
                     <span className="text-sm font-mono text-muted-foreground">{t('details.sceneLabel', { number: String(s.number).padStart(2, '0') })}</span>
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.title}</h3>
-                  {s.location && <p className="text-xs text-muted-foreground truncate">📍 {s.location}</p>}
                 </button>
               ))}
             </div>

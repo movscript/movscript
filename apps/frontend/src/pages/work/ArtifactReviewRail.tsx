@@ -65,13 +65,13 @@ export function ArtifactReviewRail({ node, canSubmit = false, canReview = false,
   const busy = transition.isPending
 
   return (
-    <section className="shrink-0 border-b border-border bg-card px-4 py-3">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-2">
+    <section className="shrink-0 border-b border-border bg-card px-3 py-2">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground">审核状态</h2>
             <span className={cn('rounded px-2 py-0.5 text-xs font-medium', meta.className)}>{meta.label}</span>
-            <p className="text-xs text-muted-foreground">{meta.description}</p>
+            <p className="hidden text-xs text-muted-foreground md:block">{meta.description}</p>
           </div>
 
           {(node.description || (node.status === 'rejected' && node.review_note)) && (

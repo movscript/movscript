@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -36,9 +37,21 @@ func (h *EpisodeHandler) ListByProject(c *gin.Context) {
 		q = q.Where("pipeline_node_id = ?", nid)
 	}
 	if len(scriptIDs) > 0 {
-		q.Order("number").Find(&episodes)
+		q.Order("number").
+			Preload("Script").
+			Preload("Settings").
+			Preload("Scenes").
+			Preload("Storyboards", func(db *gorm.DB) *gorm.DB { return db.Order(`"order", id`) }).
+			Preload("Storyboards.Shots", func(db *gorm.DB) *gorm.DB { return db.Order(`"order", id`) }).
+			Find(&episodes)
 	} else {
-		q.Order("number").Find(&episodes)
+		q.Order("number").
+			Preload("Script").
+			Preload("Settings").
+			Preload("Scenes").
+			Preload("Storyboards", func(db *gorm.DB) *gorm.DB { return db.Order(`"order", id`) }).
+			Preload("Storyboards.Shots", func(db *gorm.DB) *gorm.DB { return db.Order(`"order", id`) }).
+			Find(&episodes)
 	}
 	c.JSON(http.StatusOK, episodes)
 }
@@ -107,10 +120,11 @@ func (h *EpisodeHandler) Update(c *gin.Context) {
 		return
 	}
 	service.ApplyEpisodeInput(&e, req)
-	e.ScriptID = nil
-	var script model.Script
-	if err := h.db.Where("project_id = ? AND episode_id = ? AND script_type = ?", e.ProjectID, e.ID, "episode").Order("updated_at desc, id desc").First(&script).Error; err == nil {
-		e.ScriptID = &script.ID
+	if e.ScriptID == nil {
+		var script model.Script
+		if err := h.db.Where("project_id = ? AND episode_id = ? AND script_type = ?", e.ProjectID, e.ID, "episode").Order("updated_at desc, id desc").First(&script).Error; err == nil {
+			e.ScriptID = &script.ID
+		}
 	}
 	h.db.Save(&e)
 	c.JSON(http.StatusOK, e)
@@ -130,14 +144,125 @@ func (h *EpisodeHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	if rawScriptID, ok := body["script_id"]; ok {
+		scriptID, err := optionalUintFromJSON(rawScriptID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+			return
+		}
+		if scriptID != nil {
+			if err := h.validateEpisodeScript(e.ProjectID, *scriptID); err != nil {
+				c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+				return
+			}
+		}
+	}
 	if updates := service.EpisodePatchUpdates(body); len(updates) > 0 {
 		h.db.Model(&e).Updates(updates)
 	}
-	h.db.First(&e, e.ID)
+	if rawSettingIDs, ok := body["setting_ids"]; ok {
+		settingIDs, err := uintSliceFromJSON(rawSettingIDs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+			return
+		}
+		if err := h.replaceEpisodeSettings(&e, settingIDs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "分集设定引用同步失败: " + err.Error()})
+			return
+		}
+	}
+	if rawStoryboardIDs, ok := body["storyboard_ids"]; ok {
+		storyboardIDs, err := uintSliceFromJSON(rawStoryboardIDs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+			return
+		}
+		if err := h.replaceEpisodeStoryboards(&e, storyboardIDs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "分集分镜引用同步失败: " + err.Error()})
+			return
+		}
+	}
+	h.db.
+		Preload("Script").
+		Preload("Settings").
+		Preload("Scenes").
+		Preload("Storyboards", func(db *gorm.DB) *gorm.DB { return db.Order(`"order", id`) }).
+		Preload("Storyboards.Shots", func(db *gorm.DB) *gorm.DB { return db.Order(`"order", id`) }).
+		First(&e, e.ID)
 	c.JSON(http.StatusOK, e)
 }
 
 func (h *EpisodeHandler) Delete(c *gin.Context) {
 	h.db.Delete(&model.Episode{}, c.Param("id"))
 	c.Status(http.StatusNoContent)
+}
+
+func (h *EpisodeHandler) replaceEpisodeSettings(episode *model.Episode, settingIDs []uint) error {
+	if len(settingIDs) > 0 {
+		var settings []model.Setting
+		if err := h.db.Where("project_id = ? AND id IN ?", episode.ProjectID, settingIDs).Find(&settings).Error; err != nil {
+			return err
+		}
+		if len(settings) != len(settingIDs) {
+			return fmt.Errorf("部分设定不存在或不属于当前项目")
+		}
+	}
+	if err := h.db.Where("episode_id = ?", episode.ID).Delete(&model.EpisodeSettingRef{}).Error; err != nil {
+		return err
+	}
+	refs := make([]model.EpisodeSettingRef, 0, len(settingIDs))
+	for index, settingID := range settingIDs {
+		refs = append(refs, model.EpisodeSettingRef{
+			ProjectID: episode.ProjectID,
+			EpisodeID: episode.ID,
+			SettingID: settingID,
+			Order:     index,
+		})
+	}
+	if len(refs) > 0 {
+		return h.db.Create(&refs).Error
+	}
+	return nil
+}
+
+func (h *EpisodeHandler) replaceEpisodeStoryboards(episode *model.Episode, storyboardIDs []uint) error {
+	if len(storyboardIDs) > 0 {
+		var count int64
+		if err := h.db.Model(&model.Storyboard{}).
+			Where("project_id = ? AND id IN ?", episode.ProjectID, storyboardIDs).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if int(count) != len(storyboardIDs) {
+			return fmt.Errorf("部分分镜不存在或不属于当前项目")
+		}
+	}
+	return h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Storyboard{}).
+			Where("episode_id = ?", episode.ID).
+			Update("episode_id", nil).Error; err != nil {
+			return err
+		}
+		for index, storyboardID := range storyboardIDs {
+			if err := tx.Model(&model.Storyboard{}).
+				Where("project_id = ? AND id = ?", episode.ProjectID, storyboardID).
+				Updates(map[string]interface{}{"episode_id": episode.ID, "order": index + 1}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (h *EpisodeHandler) validateEpisodeScript(projectID uint, scriptID uint) error {
+	var count int64
+	if err := h.db.Model(&model.Script{}).
+		Where("project_id = ? AND id = ? AND script_type = ?", projectID, scriptID, "episode").
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("分集剧本不存在或不属于当前项目")
+	}
+	return nil
 }

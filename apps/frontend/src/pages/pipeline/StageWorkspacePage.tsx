@@ -159,7 +159,7 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
         pipeline_node_id: node.ID,
       }).then((r) => r.data),
     getLabel: (item) => (item as Episode).title,
-    getSub: (item) => { const e = item as Episode; return `EP${e.number} · ${e.status}` },
+    getSub: (item) => { const e = item as Episode; return `EP${e.number}` },
     getPatchUrl: (item) => `/episodes/${item.ID}`,
     getAssigneeId: () => undefined,
   },
@@ -188,12 +188,10 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
     createFn: (pid, node) =>
       api.post(`/projects/${pid}/scenes`, {
         title: node.name || '新分场',
-        location: '',
-        time_of_day: 'day',
         pipeline_node_id: node.ID,
       }).then((r) => r.data),
     getLabel: (item) => (item as Scene).title,
-    getSub: (item) => { const s = item as Scene; return `${s.location || ''} · ${s.time_of_day || ''}` },
+    getSub: (item) => `场景 ${(item as Scene).number}`,
     getPatchUrl: (item) => `/scenes/${item.ID}`,
     getAssigneeId: () => undefined,
   },

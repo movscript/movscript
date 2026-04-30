@@ -91,6 +91,7 @@ export function AssetDetail({ asset, onClose, onDelete, showHeader = true }: Pro
     <div className="flex flex-col h-full overflow-hidden">
       {showHeader && (
         <DetailHero
+          kind="asset"
           title={draft.name ?? asset.name}
           description={draft.description ?? asset.description}
           tone={SETTING_TONE_MAP[settingType] ?? 'emerald'}

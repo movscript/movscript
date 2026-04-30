@@ -79,6 +79,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DetailHero
+        kind="script"
         title={draft.title ?? script.title}
         description={draft.summary || draft.description || script.summary || script.description}
         tone={typeCfg?.tone ?? 'neutral'}

@@ -81,7 +81,42 @@ func RegisteredMigrations() []Migration {
 			Name:    "rename_agent_chat_feature",
 			Up:      migrateRenameAgentChatFeature,
 		},
+		{
+			Version: "000010",
+			Name:    "episode_scene_reference_tables",
+			Up:      migrateEpisodeSceneReferenceTables,
+		},
+		{
+			Version: "000011",
+			Name:    "remove_episode_scene_definition_fields",
+			Up:      migrateRemoveEpisodeSceneDefinitionFields,
+		},
 	}
+}
+
+func migrateRemoveEpisodeSceneDefinitionFields(db *gorm.DB) error {
+	for _, stmt := range []string{
+		`ALTER TABLE episodes DROP COLUMN IF EXISTS status`,
+		`ALTER TABLE episodes DROP COLUMN IF EXISTS target_storyboards`,
+		`ALTER TABLE episodes DROP COLUMN IF EXISTS target_scenes`,
+		`ALTER TABLE scenes DROP COLUMN IF EXISTS location`,
+		`ALTER TABLE scenes DROP COLUMN IF EXISTS time_of_day`,
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateEpisodeSceneReferenceTables(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&model.Episode{},
+		&model.Scene{},
+		&model.EpisodeSettingRef{},
+		&model.SceneSettingRef{},
+		&model.Storyboard{},
+	)
 }
 
 func migrateSettingRelationshipCategory(db *gorm.DB) error {
@@ -304,7 +339,9 @@ func allModels() []any {
 		&model.Asset{},
 		&model.AssetView{},
 		&model.Episode{},
+		&model.EpisodeSettingRef{},
 		&model.Scene{},
+		&model.SceneSettingRef{},
 		&model.EpisodeScene{},
 		&model.Storyboard{},
 		&model.Shot{},

@@ -355,14 +355,13 @@
     "episodeNumber": "集数编号",
     "episodeSynopsis": "剧情概要",
     "productionStatus": "制作状态",
-    "targetStoryboards": "目标分镜数",
-    "targetScenes": "目标分场数",
     "linkedScenes": "关联分场",
     "noLinkedScenes": "暂无关联分场",
     "sceneFallback": "场景 #{{id}}",
     "selectSceneLink": "选择分场关联",
     "link": "关联",
     "sceneLabel": "场{{number}}",
+    "sceneNumber": "场次编号",
     "shotLabel": "镜头 {{order}}",
     "storyboardLabel": "分镜 #{{order}}",
     "shotShortLabel": "镜{{order}}",
@@ -1489,6 +1488,9 @@
     "selectOrCreate": "选择或新建一个画布"
   },
   "shared": {
+    "title": "标题",
+    "description": "描述",
+    "scriptTitle": "剧本标题",
     "attachments": {
       "remove": "移除",
       "upload": "上传"

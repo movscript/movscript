@@ -203,12 +203,42 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 			return nil, err
 		}
 		return compactStoryboards(boards), nil
+	case "episode.settings":
+		var episode model.Episode
+		if err := s.db.WithContext(ctx).Preload("Settings").First(&episode, id).Error; err != nil {
+			return nil, err
+		}
+		return compactSettings(episode.Settings), nil
+	case "episode.scripts":
+		var episode model.Episode
+		if err := s.db.WithContext(ctx).Preload("Script").First(&episode, id).Error; err != nil {
+			return nil, err
+		}
+		if episode.Script == nil {
+			return []map[string]any{}, nil
+		}
+		return compactScripts([]model.Script{*episode.Script}), nil
 	case "scene.storyboards":
 		var boards []model.Storyboard
 		if err := s.db.WithContext(ctx).Where("scene_id = ?", id).Order(`"order"`).Preload("Shots").Find(&boards).Error; err != nil {
 			return nil, err
 		}
 		return compactStoryboards(boards), nil
+	case "scene.settings":
+		var scene model.Scene
+		if err := s.db.WithContext(ctx).Preload("Settings").First(&scene, id).Error; err != nil {
+			return nil, err
+		}
+		return compactSettings(scene.Settings), nil
+	case "scene.scripts":
+		var scene model.Scene
+		if err := s.db.WithContext(ctx).Preload("Script").First(&scene, id).Error; err != nil {
+			return nil, err
+		}
+		if scene.Script == nil {
+			return []map[string]any{}, nil
+		}
+		return compactScripts([]model.Script{*scene.Script}), nil
 	case "scene.shots":
 		var boardIDs []uint
 		if err := s.db.WithContext(ctx).Model(&model.Storyboard{}).Where("scene_id = ?", id).Pluck("id", &boardIDs).Error; err != nil {
@@ -221,6 +251,12 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 			}
 		}
 		return compactShots(shots), nil
+	case "scene.final_videos":
+		var videos []model.FinalVideo
+		if err := s.db.WithContext(ctx).Where("scene_id = ?", id).Order(`"order", id`).Find(&videos).Error; err != nil {
+			return nil, err
+		}
+		return compactFinalVideos(videos), nil
 	case "storyboard.shots":
 		var shots []model.Shot
 		if err := s.db.WithContext(ctx).Where("storyboard_id = ?", id).Order(`"order"`).Find(&shots).Error; err != nil {
@@ -234,14 +270,12 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 
 func compactScene(scene model.Scene, order int) map[string]any {
 	return map[string]any{
-		"ID":          scene.ID,
-		"kind":        "scene",
-		"order":       order,
-		"number":      scene.Number,
-		"title":       scene.Title,
-		"location":    scene.Location,
-		"time_of_day": scene.TimeOfDay,
-		"status":      scene.ReviewStatus,
+		"ID":     scene.ID,
+		"kind":   "scene",
+		"order":  order,
+		"number": scene.Number,
+		"title":  scene.Title,
+		"status": scene.ReviewStatus,
 	}
 }
 
@@ -256,6 +290,51 @@ func compactStoryboards(boards []model.Storyboard) []map[string]any {
 			"description": board.Description,
 			"status":      board.Status,
 			"shots_count": len(board.Shots),
+		})
+	}
+	return items
+}
+
+func compactSettings(settings []model.Setting) []map[string]any {
+	items := make([]map[string]any, 0, len(settings))
+	for _, setting := range settings {
+		items = append(items, map[string]any{
+			"ID":          setting.ID,
+			"kind":        "setting",
+			"name":        setting.Name,
+			"type":        setting.Type,
+			"description": setting.Description,
+			"status":      setting.Status,
+		})
+	}
+	return items
+}
+
+func compactScripts(scripts []model.Script) []map[string]any {
+	items := make([]map[string]any, 0, len(scripts))
+	for _, script := range scripts {
+		items = append(items, map[string]any{
+			"ID":          script.ID,
+			"kind":        "script",
+			"title":       script.Title,
+			"description": script.Description,
+			"script_type": script.ScriptType,
+			"order":       script.Order,
+		})
+	}
+	return items
+}
+
+func compactFinalVideos(videos []model.FinalVideo) []map[string]any {
+	items := make([]map[string]any, 0, len(videos))
+	for _, video := range videos {
+		items = append(items, map[string]any{
+			"ID":          video.ID,
+			"kind":        "final_video",
+			"order":       video.Order,
+			"title":       video.Title,
+			"description": video.Description,
+			"status":      video.Status,
 		})
 	}
 	return items

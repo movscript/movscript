@@ -63,8 +63,8 @@ func TestScriptPatchUpdatesWhitelistClientFields(t *testing.T) {
 
 func TestEntityPatchUpdatesBlockReviewAndStatusFields(t *testing.T) {
 	cases := map[string]map[string]any{
-		"episode":     EpisodePatchUpdates(map[string]any{"project_id": 2, "script_id": 3, "review_status": "approved", "status": "done", "title": "ok"}),
-		"scene":       ScenePatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "title": "ok"}),
+		"episode":     EpisodePatchUpdates(map[string]any{"project_id": 2, "script_id": 3, "review_status": "approved", "status": "done", "target_storyboards": 10, "target_scenes": 4, "title": "ok"}),
+		"scene":       ScenePatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "location": "old", "time_of_day": "day", "title": "ok"}),
 		"storyboard":  StoryboardPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "title": "ok"}),
 		"shot":        ShotPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "is_approved": true, "description": "ok"}),
 		"final_video": FinalVideoPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "status": "done", "title": "ok"}),
@@ -72,13 +72,17 @@ func TestEntityPatchUpdatesBlockReviewAndStatusFields(t *testing.T) {
 	}
 
 	for name, updates := range cases {
-		for _, forbidden := range []string{"id", "project_id", "pipeline_node_id", "review_status", "status", "is_approved"} {
+		for _, forbidden := range []string{"id", "project_id", "pipeline_node_id", "review_status", "status", "is_approved", "target_storyboards", "target_scenes", "location", "time_of_day"} {
 			if _, ok := updates[forbidden]; ok {
 				t.Fatalf("%s included forbidden field %q in updates: %#v", name, forbidden, updates)
 			}
 		}
-		if len(updates) != 1 {
-			t.Fatalf("%s updates = %#v, want exactly one allowed field", name, updates)
+		wantAllowed := 1
+		if name == "episode" {
+			wantAllowed = 2
+		}
+		if len(updates) != wantAllowed {
+			t.Fatalf("%s updates = %#v, want %d allowed fields", name, updates, wantAllowed)
 		}
 	}
 }

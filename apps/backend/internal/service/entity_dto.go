@@ -90,19 +90,15 @@ type ScriptInput struct {
 }
 
 type EpisodeInput struct {
-	Title             string `json:"title" binding:"required"`
-	Number            int    `json:"number"`
-	Synopsis          string `json:"synopsis"`
-	TargetStoryboards int    `json:"target_storyboards"`
-	TargetScenes      int    `json:"target_scenes"`
+	Title    string `json:"title" binding:"required"`
+	Number   int    `json:"number"`
+	Synopsis string `json:"synopsis"`
 }
 
 type SceneInput struct {
-	Number    int    `json:"number"`
-	Title     string `json:"title"`
-	Location  string `json:"location"`
-	TimeOfDay string `json:"time_of_day"`
-	Notes     string `json:"notes"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Notes  string `json:"notes"`
 }
 
 type StoryboardInput struct {
@@ -317,15 +313,11 @@ func ApplyEpisodeInput(e *model.Episode, in EpisodeInput) {
 	e.Title = in.Title
 	e.Number = in.Number
 	e.Synopsis = in.Synopsis
-	e.TargetStoryboards = in.TargetStoryboards
-	e.TargetScenes = in.TargetScenes
 }
 
 func ApplySceneInput(s *model.Scene, in SceneInput) {
 	s.Number = in.Number
 	s.Title = in.Title
-	s.Location = in.Location
-	s.TimeOfDay = in.TimeOfDay
 	s.Notes = in.Notes
 }
 
@@ -444,8 +436,8 @@ func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelat
 
 var projectPatchFields = stringSet("name", "description", "total_episodes", "pipeline_template")
 var scriptPatchFields = stringSet("title", "description", "content", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "hook", "plot_summary", "script_points", "order")
-var episodePatchFields = stringSet("title", "number", "synopsis", "target_storyboards", "target_scenes")
-var scenePatchFields = stringSet("number", "title", "location", "time_of_day", "notes")
+var episodePatchFields = stringSet("title", "number", "synopsis", "script_id")
+var scenePatchFields = stringSet("number", "title", "notes", "script_id")
 var storyboardPatchFields = stringSet("scene_id", "episode_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "camera_angle", "camera_movement", "depth_of_field", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")
 var shotPatchFields = stringSet("storyboard_id", "assignee_id", "order", "description", "prompt", "canvas_id", "final_description", "final_prompt")
 var finalVideoPatchFields = stringSet("episode_id", "scene_id", "storyboard_id", "shot_id", "title", "description", "order")

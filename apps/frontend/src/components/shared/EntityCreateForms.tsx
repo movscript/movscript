@@ -475,11 +475,10 @@ export function SceneCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [title, setTitle] = useState('')
-  const [location, setLocation] = useState('')
 
   const create = useMutation({
     mutationFn: () =>
-      api.post(`/projects/${projectId}/scenes`, { title, location: location || undefined, time_of_day: 'day' }).then((r) => r.data),
+      api.post(`/projects/${projectId}/scenes`, { title }).then((r) => r.data),
     onSuccess: (created: Scene) => {
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
@@ -499,10 +498,6 @@ export function SceneCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && title.trim() && create.mutate()}
         />
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.locationOptional')}</Label>
-        <Input placeholder={t('forms.shootingLocation')} value={location} onChange={(e) => setLocation(e.target.value)} />
       </div>
       <div className="flex gap-2 pt-1">
         <Button onClick={() => create.mutate()} disabled={!title.trim() || create.isPending} className="flex-1">

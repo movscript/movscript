@@ -107,13 +107,13 @@ export function EntitySemanticForm({
   }
 
   return (
-    <div className={cn('h-full overflow-y-auto bg-background p-5 space-y-5', className)}>
+    <div className={cn('h-full overflow-y-auto bg-background p-4', className)}>
       {renderBefore}
       {visibleSections.map((section) => (
-        <section key={section.id} className="rounded-lg border border-border/70 bg-card/80 p-3.5 shadow-sm">
+        <section key={section.id} className="border-b border-border/70 py-4 first:pt-0 last:border-b-0">
           {visibleSections.length > 1 && (
             <div className="mb-3 flex items-center gap-2">
-              <span className="h-px w-4 bg-primary/50" />
+              <span className="h-3 w-0.5 rounded-full bg-primary/60" />
               <p className="text-xs font-semibold text-foreground">
                 {t(section.labelKey, { defaultValue: section.fallbackLabel })}
               </p>
@@ -123,6 +123,7 @@ export function EntitySemanticForm({
             {section.fields.map((field) => (
               <SemanticField
                 key={field.id}
+                kind={kind}
                 field={field}
                 ownerType={ownerType}
                 ownerId={ownerId}
@@ -138,7 +139,7 @@ export function EntitySemanticForm({
       ))}
       {renderAfter}
       {showSave && (
-        <div className="sticky bottom-0 -mx-5 -mb-5 border-t border-border bg-background/95 p-3 backdrop-blur">
+        <div className="sticky bottom-0 -mx-4 -mb-4 border-t border-border bg-background/95 p-3 backdrop-blur">
           <Button onClick={() => onSave(buildPayload())} disabled={isSaving || !hasSavableFields(visibleSections)} className="w-full gap-1.5" size="sm">
             <Save size={13} /> {isSaving ? t('common.saving') : t('common.save')}
           </Button>
@@ -149,6 +150,7 @@ export function EntitySemanticForm({
 }
 
 function SemanticField({
+  kind,
   field,
   ownerType,
   ownerId,
@@ -158,6 +160,7 @@ function SemanticField({
   onDraftChange,
   renderer,
 }: {
+  kind: CanvasEntityKind
   field: EntitySemanticSchemaField
   ownerType: ResourceBindingOwnerType
   ownerId: number
@@ -168,7 +171,7 @@ function SemanticField({
   renderer?: (ctx: EntitySemanticFieldRenderContext) => ReactNode
 }) {
   const { t } = useTranslation()
-  const label = t(field.labelKey, { defaultValue: field.fallbackLabel })
+  const label = semanticFieldLabel(kind, field, t)
   const readonly = isSemanticDisplayField(field)
 
   const defaultField = renderDefaultSemanticField({ field, ownerType, ownerId, value, onChange, label, t })
@@ -190,6 +193,22 @@ function SemanticField({
   }
 
   return <>{defaultField}</>
+}
+
+function semanticFieldLabel(
+  kind: CanvasEntityKind,
+  field: EntitySemanticSchemaField,
+  t: (key: string, options?: Record<string, unknown>) => string,
+) {
+  if (kind === 'episode') {
+    if (field.id === 'title') return t('forms.episodeTitle', { defaultValue: 'Episode title' })
+    if (field.id === 'number') return t('details.episodeNumber', { defaultValue: 'Episode Number' })
+  }
+  if (kind === 'scene') {
+    if (field.id === 'title') return t('forms.sceneTitle', { defaultValue: 'Scene title' })
+    if (field.id === 'number') return t('details.sceneNumber', { defaultValue: 'Scene Number' })
+  }
+  return t(field.labelKey, { defaultValue: field.fallbackLabel })
 }
 
 function renderDefaultSemanticField({
@@ -512,7 +531,7 @@ function relatedEntityMeta(record: Record<string, unknown>, kind: string | undef
     return storyboardId ? t('common.storyboardRef', { id: storyboardId, defaultValue: 'storyboard #{{id}}' }) : ''
   }
   if (kind === 'scene') {
-    return [stringRecordValue(record.location), stringRecordValue(record.time_of_day)].filter(Boolean).join(' · ')
+    return ''
   }
   return ''
 }

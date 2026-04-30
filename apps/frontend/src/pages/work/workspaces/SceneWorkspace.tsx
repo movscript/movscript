@@ -20,7 +20,7 @@ export function SceneWorkspace({
     <ArtifactWorkspaceFrame
       kind="scene"
       title={scene.title}
-      subtitle={`场景 ${scene.number} · ${scene.location || '未设置地点'}`}
+      subtitle={`场景 ${scene.number}`}
       node={node}
       pipeline={pipeline}
       members={members}
