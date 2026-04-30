@@ -295,7 +295,7 @@ function SceneReferenceOverview({
       <ReferenceSection icon={Clapperboard} title={t('entities.shots')} count={shots.length}>
         {shots.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {shots.slice(0, 12).map((shot, index) => <ReferenceChip key={shot.ID} label={`${index + 1}. ${t('details.shotLabel', { order: shot.order })}`} sub={shot.status} />)}
+            {shots.slice(0, 12).map((shot, index) => <ReferenceChip key={shot.ID} label={`${index + 1}. ${t('details.shotTitle', { order: shot.order })}`} />)}
             {shots.length > 12 && <ReferenceChip label={`+${shots.length - 12}`} sub={t('common.more', { defaultValue: '更多' })} />}
           </div>
         ) : (
@@ -310,8 +310,7 @@ function SceneReferenceOverview({
               <ReferenceCard
                 key={video.ID}
                 title={video.title || t('entities.finalVideos')}
-                subtitle={video.description || video.status}
-                badge={video.status}
+                subtitle={video.description}
               />
             ))}
           </div>

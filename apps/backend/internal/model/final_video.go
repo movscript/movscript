@@ -14,6 +14,4 @@ type FinalVideo struct {
 	PipelineNodeID *uint  `json:"pipeline_node_id,omitempty"`
 	Title          string `json:"title"`
 	Description    string `json:"description"`
-	Status         string `gorm:"default:'draft'" json:"status"`
-	Order          int    `json:"order"`
 }

@@ -17,7 +17,7 @@ func NewFinalVideoHandler(db *gorm.DB) *FinalVideoHandler { return &FinalVideoHa
 // ListByProject returns all final videos for a project.
 func (h *FinalVideoHandler) ListByProject(c *gin.Context) {
 	videos := make([]model.FinalVideo, 0)
-	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\", id")
+	q := h.db.Where("project_id = ?", c.Param("id")).Order("id")
 	if eid := c.Query("episode_id"); eid != "" {
 		q = q.Where("episode_id = ?", eid)
 	}
@@ -47,16 +47,8 @@ func (h *FinalVideoHandler) CreateByProject(c *gin.Context) {
 	var v model.FinalVideo
 	service.ApplyFinalVideoInput(&v, req)
 	v.ProjectID = parseID(c.Param("id"))
-	if v.Order == 0 {
-		var count int64
-		h.db.Model(&model.FinalVideo{}).Where("project_id = ?", v.ProjectID).Count(&count)
-		v.Order = int(count) + 1
-	}
 	if v.Title == "" {
 		v.Title = "成片"
-	}
-	if v.Status == "" {
-		v.Status = "draft"
 	}
 	h.db.Create(&v)
 	c.JSON(http.StatusCreated, v)

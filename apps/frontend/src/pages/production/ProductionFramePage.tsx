@@ -142,7 +142,6 @@ export default function ProductionFramePage() {
 
   const metrics = useMemo(() => {
     const storyboardTotal = progress?.storyboards.total ?? safeCount(storyboards)
-    const storyboardApproved = progress?.storyboards.approved ?? (storyboards?.filter((x) => x.status === 'approved').length ?? 0)
     const shotTotal = progress?.shots.total ?? safeCount(shots)
     const shotApproved = progress?.shots.is_approved ?? (shots?.filter((x) => x.is_approved).length ?? 0)
     const reviewTasks = pipeline?.nodes.filter((x) => x.status === 'under_review').length ?? 0
@@ -154,12 +153,10 @@ export default function ProductionFramePage() {
       scenes: progress?.scenes ?? safeCount(scenes),
       assets: progress?.assets ?? safeCount(assets),
       storyboardTotal,
-      storyboardApproved,
       shotTotal,
       shotApproved,
       reviewTasks,
       openTasks,
-      storyboardPct: pct(storyboardApproved, storyboardTotal),
       shotPct: pct(shotApproved, shotTotal),
     }
   }, [assets, episodes, pipeline, progress, scenes, scripts, shots, storyboards])
@@ -229,7 +226,7 @@ export default function ProductionFramePage() {
             </Panel>
 
             <Panel title="完成度" icon={CheckCircle2}>
-              <ProgressMetric label="分镜确认" value={metrics.storyboardPct} detail={`${metrics.storyboardApproved}/${metrics.storyboardTotal}`} />
+              <ProgressMetric label="分镜数量" value={metrics.storyboardTotal > 0 ? 100 : 0} detail={`${metrics.storyboardTotal}`} />
               <ProgressMetric label="镜头锁定" value={metrics.shotPct} detail={`${metrics.shotApproved}/${metrics.shotTotal}`} />
               <ProgressMetric label="资产覆盖" value={Math.min(100, metrics.assets * 18)} detail={`${metrics.assets} 个资产`} />
             </Panel>
@@ -447,7 +444,6 @@ function ShotTaskBoard() {
               <p className="font-mono text-xs text-muted-foreground">{shot.id}</p>
               <h3 className="mt-1 text-sm font-semibold">{shot.title}</h3>
             </div>
-            <Badge variant="outline">{shot.status}</Badge>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{shot.intent}</p>
           <div className="mt-4 flex items-center justify-between border-t border-border pt-3">

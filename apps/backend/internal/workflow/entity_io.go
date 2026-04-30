@@ -159,12 +159,6 @@ func (s *EntityIOService) readComputedPorts(ctx context.Context, kind string, id
 			return fmt.Errorf("storyboard not found")
 		}
 		addComputedText("prompt", strings.TrimSpace(strings.Join([]string{item.Description, item.Actions, item.Dialogue, item.Atmosphere}, "\n")))
-	case "shot":
-		var item model.Shot
-		if err := s.db.WithContext(ctx).Select("prompt", "final_prompt").First(&item, id).Error; err != nil {
-			return fmt.Errorf("shot not found")
-		}
-		addComputedText("prompt", firstNonEmpty(item.FinalPrompt, item.Prompt))
 	}
 	return nil
 }
@@ -557,11 +551,6 @@ func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[stri
 			updates[field.Storage.Column] = *value.Number
 		} else {
 			updates[field.Storage.Column] = text
-		}
-		switch kind + "." + portID {
-		case "shot.prompt":
-			updates["prompt"] = text
-			updates["final_prompt"] = text
 		}
 	}
 	return updates

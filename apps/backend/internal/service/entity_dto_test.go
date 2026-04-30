@@ -65,9 +65,9 @@ func TestEntityPatchUpdatesBlockReviewAndStatusFields(t *testing.T) {
 	cases := map[string]map[string]any{
 		"episode":     EpisodePatchUpdates(map[string]any{"project_id": 2, "script_id": 3, "review_status": "approved", "status": "done", "target_storyboards": 10, "target_scenes": 4, "title": "ok"}),
 		"scene":       ScenePatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "location": "old", "time_of_day": "day", "title": "ok"}),
-		"storyboard":  StoryboardPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "title": "ok"}),
+		"storyboard":  StoryboardPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "setting_id": 9, "title": "ok"}),
 		"shot":        ShotPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "is_approved": true, "description": "ok"}),
-		"final_video": FinalVideoPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "status": "done", "title": "ok"}),
+		"final_video": FinalVideoPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "status": "done", "order": 9, "title": "ok"}),
 		"asset":       AssetPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "name": "ok"}),
 	}
 
@@ -77,8 +77,13 @@ func TestEntityPatchUpdatesBlockReviewAndStatusFields(t *testing.T) {
 				t.Fatalf("%s included forbidden field %q in updates: %#v", name, forbidden, updates)
 			}
 		}
+		if name == "final_video" {
+			if _, ok := updates["order"]; ok {
+				t.Fatalf("%s included forbidden field %q in updates: %#v", name, "order", updates)
+			}
+		}
 		wantAllowed := 1
-		if name == "episode" {
+		if name == "episode" || name == "storyboard" {
 			wantAllowed = 2
 		}
 		if len(updates) != wantAllowed {

@@ -120,13 +120,6 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
     enabled: !!project,
   })
 
-  function statusLabel(status?: string) {
-    if (!status) return undefined
-    return t(`domain.reviewStatus.${status}`, {
-      defaultValue: t(`domain.shotStatus.${status}`, { defaultValue: status }),
-    })
-  }
-
   return (
     <div className="w-60 border-l border-border bg-card flex flex-col shrink-0 overflow-hidden">
       <div className="px-3 py-2.5 border-b border-border shrink-0">
@@ -207,8 +200,6 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
                   key={sb.ID}
                   title={sb.title || t('details.storyboardLabel', { order: sb.order })}
                   subtitle={sb.description}
-                  status={sb.status}
-                  statusLabel={statusLabel(sb.status)}
                   onLinkClick={onLinkEntity ? () => onLinkEntity('storyboard', sb.ID, sb.title || t('details.storyboardLabel', { order: sb.order })) : undefined}
                 />
               ))}
@@ -234,11 +225,9 @@ export function ProjectEntitiesPanel({ onLinkEntity }: Props) {
               ) : shots.map((sh) => (
                 <EntityCard
                   key={sh.ID}
-                  title={t('details.shotLabel', { order: sh.order })}
+                  title={t('details.shotTitle', { order: sh.order })}
                   subtitle={sh.description}
-                  status={sh.status}
-                  statusLabel={statusLabel(sh.status)}
-                  onLinkClick={onLinkEntity ? () => onLinkEntity('shot', sh.ID, t('details.shotLabel', { order: sh.order })) : undefined}
+                  onLinkClick={onLinkEntity ? () => onLinkEntity('shot', sh.ID, t('details.shotTitle', { order: sh.order })) : undefined}
                 />
               ))}
             </div>

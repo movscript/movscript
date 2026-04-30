@@ -91,7 +91,44 @@ func RegisteredMigrations() []Migration {
 			Name:    "remove_episode_scene_definition_fields",
 			Up:      migrateRemoveEpisodeSceneDefinitionFields,
 		},
+		{
+			Version: "000012",
+			Name:    "storyboard_setting_and_remove_status",
+			Up:      migrateStoryboardSettingAndRemoveStatus,
+		},
+		{
+			Version: "000013",
+			Name:    "remove_final_video_status_and_order",
+			Up:      migrateRemoveFinalVideoStatusAndOrder,
+		},
 	}
+}
+
+func migrateRemoveFinalVideoStatusAndOrder(db *gorm.DB) error {
+	for _, column := range []string{"status", "order"} {
+		if !db.Migrator().HasColumn(&model.FinalVideo{}, column) {
+			continue
+		}
+		if err := db.Migrator().DropColumn(&model.FinalVideo{}, column); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateStoryboardSettingAndRemoveStatus(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.Storyboard{}); err != nil {
+		return err
+	}
+	for _, column := range []string{"status", "camera_angle", "camera_movement", "depth_of_field"} {
+		if !db.Migrator().HasColumn(&model.Storyboard{}, column) {
+			continue
+		}
+		if err := db.Migrator().DropColumn(&model.Storyboard{}, column); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateRemoveEpisodeSceneDefinitionFields(db *gorm.DB) error {

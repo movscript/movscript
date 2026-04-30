@@ -404,7 +404,7 @@ export default function CreationPage() {
           <ArtifactWorkspaceFrame
             kind="final_video"
             title={item.title || t('pages.finalVideos.defaultTitle')}
-            subtitle={item.status}
+            subtitle={item.description}
             node={node}
             pipeline={pipeline}
             members={members}
@@ -715,7 +715,6 @@ function FinalVideoCreateInlineForm({
   const create = useMutation({
     mutationFn: () => api.post(`/projects/${projectId}/final-videos`, {
       title: title.trim() || t('pages.finalVideos.defaultTitle'),
-      status: 'draft',
     }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })

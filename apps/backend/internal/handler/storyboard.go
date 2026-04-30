@@ -17,17 +17,14 @@ func NewStoryboardHandler(db *gorm.DB) *StoryboardHandler { return &StoryboardHa
 // List returns storyboards for a scene.
 func (h *StoryboardHandler) List(c *gin.Context) {
 	boards := make([]model.Storyboard, 0)
-	h.db.Where("scene_id = ?", c.Param("id")).Order("\"order\"").Preload("Shots").Find(&boards)
+	h.db.Where("scene_id = ?", c.Param("id")).Order("\"order\"").Preload("Setting").Preload("Shots").Find(&boards)
 	c.JSON(http.StatusOK, boards)
 }
 
 // ListByEpisode returns storyboards for an episode.
 func (h *StoryboardHandler) ListByEpisode(c *gin.Context) {
 	boards := make([]model.Storyboard, 0)
-	q := h.db.Where("episode_id = ?", c.Param("id")).Order("\"order\"").Preload("Shots")
-	if s := c.Query("status"); s != "" {
-		q = q.Where("status = ?", s)
-	}
+	q := h.db.Where("episode_id = ?", c.Param("id")).Order("\"order\"").Preload("Setting").Preload("Shots")
 	q.Find(&boards)
 	c.JSON(http.StatusOK, boards)
 }
@@ -35,15 +32,15 @@ func (h *StoryboardHandler) ListByEpisode(c *gin.Context) {
 // ListByProject returns all storyboards for a project.
 func (h *StoryboardHandler) ListByProject(c *gin.Context) {
 	boards := make([]model.Storyboard, 0)
-	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\"").Preload("Shots")
-	if s := c.Query("status"); s != "" {
-		q = q.Where("status = ?", s)
-	}
+	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\"").Preload("Setting").Preload("Shots")
 	if sid := c.Query("scene_id"); sid != "" {
 		q = q.Where("scene_id = ?", sid)
 	}
 	if eid := c.Query("episode_id"); eid != "" {
 		q = q.Where("episode_id = ?", eid)
+	}
+	if sid := c.Query("setting_id"); sid != "" {
+		q = q.Where("setting_id = ?", sid)
 	}
 	if nid := c.Query("pipeline_node_id"); nid != "" {
 		q = q.Where("pipeline_node_id = ?", nid)

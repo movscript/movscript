@@ -256,47 +256,42 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 		},
 		{
 			Kind: "storyboard", LabelKey: "canvas.entityTypes.storyboard", FallbackLabel: "Storyboard",
-			Sections: []EntitySemanticSection{section("storyboard", "details.storyboardLabel", "Storyboard", []EntitySemanticField{
+			Sections: []EntitySemanticSection{section("storyboard", "canvas.entityTypes.storyboard", "Storyboard", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				mediaField("image", "details.referenceImages", "Image", "image", "image", "final", true),
+				mediaField("raw_source", "details.rawSourceVideo", "Raw Source", "raw_source", "video", "source", true),
 				resourceField("reference", "details.referenceAssets", "Reference", "reference", "reference", false),
 				numberField("scene_id", "forms.parentSceneOptional", "Scene", true),
 				numberField("episode_id", "forms.parentEpisodeOptional", "Episode", true),
-				textField("title", "shared.storyboardTitle", "Title", "input", true),
-				textField("description", "shared.storyboardDescription", "Description", "textarea", true),
-				textField("notes", "details.finalPromptNotes", "Notes", "textarea", true),
+				numberField("setting_id", "forms.linkedSettingOptional", "Setting", true),
+				textField("title", "forms.storyboardTitle", "Title", "input", true),
+				textField("description", "forms.storyboardDescription", "Description", "textarea", true),
+				textField("notes", "details.notes", "Notes", "textarea", true),
 				jsonField("characters", "details.characters", "Characters", true),
 				textField("actions", "details.actions", "Actions", "textarea", true),
 				textField("dialogue", "details.dialogue", "Dialogue", "textarea", true),
 				textField("atmosphere", "details.atmosphere", "Atmosphere", "textarea", true),
 				storedField(textField("prompt", "details.prompt", "Prompt", "textarea", true), "description"),
-				textField("camera_angle", "details.cameraReference", "Camera Angle", "input", true),
-				textField("camera_movement", "details.cameraReference", "Camera Movement", "input", true),
-				textField("depth_of_field", "details.cameraReference", "Depth of Field", "input", true),
 				textField("lighting", "details.lighting", "Lighting", "input", true),
-				textField("shot_size", "details.shotLabel", "Shot Size", "input", true),
-				textField("angle", "details.cameraReference", "Angle", "input", true),
-				textField("movement", "details.cameraReference", "Movement", "input", true),
-				textField("focal_length", "details.cameraReference", "Focal Length", "input", true),
-				textField("pacing", "details.duration", "Pacing", "input", true),
+				textField("shot_size", "details.shotSize", "Shot Size", "input", true),
+				textField("angle", "details.cameraAngle", "Angle", "input", true),
+				textField("movement", "details.cameraMovement", "Movement", "input", true),
+				textField("focal_length", "details.focalLength", "Focal Length", "input", true),
+				textField("pacing", "details.pacing", "Pacing", "input", true),
 				numberField("duration", "details.duration", "Duration", true),
-				textField("intent", "details.finalPromptNotes", "Intent", "textarea", true),
-				textField("status", "details.productionStatus", "Status", "input", true),
+				textField("intent", "details.intent", "Intent", "textarea", true),
 				relatedListField("shots", "entities.shots", "Shots", "shot"),
 			})},
 		},
 		{
 			Kind: "shot", LabelKey: "canvas.entityTypes.shot", FallbackLabel: "Shot",
-			Sections: []EntitySemanticSection{section("shot", "details.shotLabel", "Shot", []EntitySemanticField{
+			Sections: []EntitySemanticSection{section("shot", "canvas.entityTypes.shot", "Shot", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				mediaField("video", "details.generatedVideo", "Video", "video", "video", "final", true),
+				mediaField("raw_source", "details.rawSource", "Raw Source", "raw_source", "video", "source", true),
 				resourceField("reference", "details.referenceAssets", "Reference", "reference", "reference", false),
 				numberField("storyboard_id", "forms.parentStoryboardOptional", "Storyboard", true),
 				textField("description", "shared.shotDescription", "Description", "textarea", true),
-				textField("prompt", "details.prompt", "Prompt", "textarea", true),
-				textField("final_description", "details.finalShotDescription", "Final Description", "textarea", true),
-				textField("final_prompt", "details.finalPromptNotes", "Final Prompt", "textarea", true),
-				textField("status", "details.productionStatus", "Status", "input", true),
 			})},
 		},
 		{
@@ -311,8 +306,6 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				numberField("shot_id", "forms.parentShotOptional", "Shot", true),
 				textField("title", "shared.title", "Title", "input", true),
 				textField("description", "shared.description", "Description", "textarea", true),
-				textField("status", "pages.finalVideos.statusLabel", "Status", "input", true),
-				numberField("order", "pages.finalVideos.order", "Order", true),
 			})},
 		},
 	}
@@ -389,17 +382,7 @@ func schemaMigrations(kind string) []EntityMigration {
 			},
 		}
 	case "shot":
-		return []EntityMigration{
-			{
-				FromVersion: 1,
-				ToVersion:   EntitySemanticSchemaVersion,
-				Kind:        "dual_write",
-				FieldID:     "prompt",
-				FromFieldID: "prompt",
-				ToFieldID:   "final_prompt",
-				Description: "Writes to prompt are mirrored to final_prompt for legacy shot prompt compatibility.",
-			},
-		}
+		return nil
 	default:
 		return nil
 	}

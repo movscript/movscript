@@ -263,11 +263,59 @@ func (h *AssetHandler) Patch(c *gin.Context) {
 	}
 	if updates := service.AssetPatchUpdates(body); len(updates) > 0 {
 		h.db.Model(&a).Updates(updates)
+		if rawResourceID, ok := updates["resource_id"]; ok {
+			h.syncDirectAssetResourceBinding(a.ProjectID, a.ID, rawResourceID)
+		}
 	}
 	h.db.Preload("Setting").Preload("Resource").Preload("Views").First(&a, a.ID)
 	items := []model.Asset{a}
 	h.populateAssetResources(c, items)
 	c.JSON(http.StatusOK, items[0])
+}
+
+func (h *AssetHandler) syncDirectAssetResourceBinding(projectID uint, assetID uint, rawResourceID any) {
+	resourceID, ok := normalizeResourceID(rawResourceID)
+	if !ok {
+		return
+	}
+	rb := NewResourceBindingHandler(h.db)
+	h.db.Where("project_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND is_primary = ?", projectID, "asset", assetID, "final", true).
+		Delete(&model.ResourceBinding{})
+	_ = rb.createBinding(model.ResourceBinding{
+		ProjectID:  projectID,
+		ResourceID: resourceID,
+		OwnerType:  "asset",
+		OwnerID:    assetID,
+		Role:       "final",
+		Slot:       "raw",
+		IsPrimary:  true,
+		Status:     "selected",
+		SourceType: "manual",
+	})
+}
+
+func normalizeResourceID(raw any) (uint, bool) {
+	switch value := raw.(type) {
+	case uint:
+		return value, value > 0
+	case int:
+		return uint(value), value > 0
+	case int64:
+		return uint(value), value > 0
+	case float64:
+		if value <= 0 {
+			return 0, false
+		}
+		return uint(value), true
+	case string:
+		parsed, err := strconv.ParseUint(value, 10, 64)
+		if err != nil || parsed == 0 {
+			return 0, false
+		}
+		return uint(parsed), true
+	default:
+		return 0, false
+	}
 }
 
 func (h *AssetHandler) Delete(c *gin.Context) {

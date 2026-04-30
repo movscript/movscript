@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Asset, PaginatedResponse, Script, Scene, Episode, Storyboard, Setting } from '@/types'
+import type { Asset, PaginatedResponse, Script, Scene, Episode, Storyboard, Setting, RawResource } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -9,22 +9,13 @@ import { Label } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { defaultContentType, type PipelineEntityType } from '@/pages/pipeline/nodeSpec'
-import { DEFAULT_SETTING_STATUS, buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from '@/components/settings/SettingDetailEditor'
+import { buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from '@/components/settings/SettingDetailEditor'
+import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 
 const SCRIPT_TYPES = [
   { type: 'main' as const, labelKey: 'domain.scriptTypes.mainAlt', color: 'bg-primary text-primary-foreground' },
   { type: 'episode' as const, labelKey: 'domain.scriptTypes.episode', color: 'bg-primary text-primary-foreground' },
   { type: 'scene' as const, labelKey: 'domain.scriptTypes.scene', color: 'bg-primary text-primary-foreground' },
-]
-
-const ASSET_VARIANT_TYPES = [
-  { type: 'front', labelKey: 'pages.resources.viewTypes.front' },
-  { type: 'side', labelKey: 'pages.resources.viewTypes.side' },
-  { type: 'back', labelKey: 'pages.resources.viewTypes.back' },
-  { type: 'left', labelKey: 'pages.resources.viewTypes.left' },
-  { type: 'right', labelKey: 'pages.resources.viewTypes.right' },
-  { type: 'detail', labelKey: 'pages.resources.viewTypes.detail' },
-  { type: 'custom', labelKey: 'pages.resources.viewTypes.custom' },
 ]
 
 export interface EntityFormProps {
@@ -205,14 +196,15 @@ export function AssetCreateForm({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [name, setName] = useState('')
-  const [desc, setDesc] = useState('')
-  const [variantName, setVariantName] = useState('')
-  const [variantType, setVariantType] = useState('front')
-  const [customVariantType, setCustomVariantType] = useState('')
   const [settingId, setSettingId] = useState<number | null>(initialSettingId ?? null)
   const [assetState, setAssetState] = useState(initialState ?? '')
   const [file, setFile] = useState<File | null>(null)
+  const [selectedResource, setSelectedResource] = useState<RawResource | null>(null)
+  const [resourceSearch, setResourceSearch] = useState('')
+  const [resourceType, setResourceType] = useState<ResourceTypeFilter>('all')
+  const [resourcePage, setResourcePage] = useState(1)
   const fileRef = useRef<HTMLInputElement>(null)
+  const resourcePageSize = 6
 
   const { data: rawSettings } = useQuery<Setting[]>({
     queryKey: ['settings', projectId],
@@ -224,42 +216,53 @@ export function AssetCreateForm({
   const settingStates = selectedSetting
     ? buildSettingStateOptions(normalizeSettingStateTags(selectedSetting.state_tags, selectedSetting.status), selectedSetting.status)
     : []
-  const effectiveVariantType = variantType === 'custom' ? (customVariantType.trim() || 'custom') : variantType
-  const effectiveType = effectiveVariantType
   const effectiveState = assetState.trim()
-  const canCreate = !!name.trim() && !!effectiveType && !!settingId && !!effectiveState
+  const effectiveType = selectedSetting?.type || 'asset'
+  const hasResource = !!file || !!selectedResource
+  const canCreate = !!name.trim() && !!settingId && !!effectiveState && hasResource
 
-  useEffect(() => {
-    if (!selectedSetting || assetState.trim()) return
-    setAssetState(initialState || selectedSetting.status || settingStates[0] || DEFAULT_SETTING_STATUS)
-  }, [assetState, initialState, selectedSetting, settingStates])
+  const { data: resourcesData, isLoading: isLoadingResources } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['resources', 'asset-create', resourceType, resourceSearch, resourcePage],
+    queryFn: () =>
+      api.get('/resources', {
+        params: {
+          page: resourcePage,
+          page_size: resourcePageSize,
+          type: resourceType === 'all' ? 'image,video,audio,text,file' : resourceType,
+          q: resourceSearch.trim() || undefined,
+        },
+      }).then((r) => r.data),
+  })
+  const resources = resourcesData?.items ?? []
+  const resourceTotal = resourcesData?.total ?? 0
+  const resourcePageCount = Math.max(1, Math.ceil(resourceTotal / resourcePageSize))
 
   const create = useMutation({
     mutationFn: () => {
-      if (file) {
-        const fd = new FormData()
-        fd.append('file', file)
-        fd.append('name', name)
-        fd.append('type', effectiveType)
-        fd.append('view_type', effectiveVariantType)
-        fd.append('variant_type', effectiveVariantType)
-        if (variantName) fd.append('variant_name', variantName)
-        if (desc) fd.append('description', desc)
-        fd.append('setting_id', String(settingId))
-        fd.append('state', effectiveState)
-        fd.append('follow_setting_status', 'false')
-        return api.post(`/projects/${projectId}/assets/upload`, fd).then((r) => r.data)
-      }
-      return api.post(`/projects/${projectId}/assets`, {
-        name,
+      const payload = {
+        name: name.trim(),
         type: effectiveType,
-        description: desc || undefined,
-        variant_type: effectiveVariantType,
-        variant_name: variantName || undefined,
+        variant_type: 'raw',
         setting_id: settingId,
         state: effectiveState,
-        follow_setting_status: false,
-      }).then((r) => r.data)
+        follow_setting_status: true,
+      }
+      if (selectedResource) {
+        return api.post(`/projects/${projectId}/assets`, {
+          ...payload,
+          resource_id: selectedResource.ID,
+        }).then((r) => r.data)
+      }
+      const fd = new FormData()
+      fd.append('file', file!)
+      fd.append('name', payload.name)
+      fd.append('type', payload.type)
+      fd.append('view_type', 'raw')
+      fd.append('variant_type', payload.variant_type)
+      fd.append('setting_id', String(payload.setting_id))
+      fd.append('state', payload.state)
+      fd.append('follow_setting_status', 'true')
+      return api.post(`/projects/${projectId}/assets/upload`, fd).then((r) => r.data)
     },
     onSuccess: (created: Asset) => {
       qc.getQueryCache().findAll({ queryKey: ['assets'] }).forEach((query) => {
@@ -306,11 +309,17 @@ export function AssetCreateForm({
         />
       </div>
       <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.resourceFile')}</Label>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.rawResourceRequired')}</Label>
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
-          className="w-full rounded border border-dashed border-border px-3 py-2 text-left text-xs text-muted-foreground hover:border-ring"
+          onClick={() => {
+            setSelectedResource(null)
+            fileRef.current?.click()
+          }}
+          className={cn(
+            'w-full rounded border border-dashed px-3 py-2 text-left text-xs hover:border-ring',
+            file ? 'border-primary/50 bg-primary/5 text-foreground' : 'border-border text-muted-foreground',
+          )}
         >
           {file ? file.name : t('forms.selectResourceFile')}
         </button>
@@ -319,9 +328,38 @@ export function AssetCreateForm({
           type="file"
           className="hidden"
           accept="image/*,video/*,audio/*,text/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const nextFile = e.target.files?.[0] ?? null
+            setFile(nextFile)
+            if (nextFile) setSelectedResource(null)
+          }}
         />
       </div>
+      <ResourceLibraryPicker
+        resources={resources}
+        selectedResource={selectedResource}
+        search={resourceSearch}
+        type={resourceType}
+        page={resourcePage}
+        pageCount={resourcePageCount}
+        total={resourceTotal}
+        isLoading={isLoadingResources}
+        onSearch={(next) => {
+          setResourceSearch(next)
+          setResourcePage(1)
+        }}
+        onType={(next) => {
+          setResourceType(next)
+          setResourcePage(1)
+        }}
+        onPage={setResourcePage}
+        onSelect={(resource) => {
+          setSelectedResource(resource)
+          setFile(null)
+          if (!name.trim()) setName(resource.name)
+        }}
+        onClear={() => setSelectedResource(null)}
+      />
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedSettingRequired')}</Label>
         <select
@@ -346,43 +384,17 @@ export function AssetCreateForm({
       </div>
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedStateRequired')}</Label>
-        <Input
-          list="asset-setting-state-options"
+        <select
+          className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground disabled:opacity-60"
           value={assetState}
-          onChange={(e) => setAssetState(e.target.value)}
-          placeholder={selectedSetting ? t('forms.assetStatePlaceholder') : t('forms.selectSettingFirst')}
           disabled={!selectedSetting}
-        />
-        <datalist id="asset-setting-state-options">
+          onChange={(e) => setAssetState(e.target.value)}
+        >
+          <option value="">{selectedSetting ? t('forms.selectAssetState') : t('forms.selectSettingFirst')}</option>
           {settingStates.map((state) => (
             <option key={state} value={state}>{settingStatusLabel(state)}</option>
           ))}
-        </datalist>
-      </div>
-      <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
-        <Textarea className="resize-none" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.assetVariantType')}</Label>
-          <select
-            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
-            value={variantType}
-            onChange={(e) => setVariantType(e.target.value)}
-          >
-            {ASSET_VARIANT_TYPES.map((item) => (
-              <option key={item.type} value={item.type}>{t(item.labelKey)}</option>
-            ))}
-          </select>
-          {variantType === 'custom' && (
-            <Input className="mt-2" value={customVariantType} onChange={(e) => setCustomVariantType(e.target.value)} placeholder={t('forms.customVariantType')} />
-          )}
-        </div>
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.variantName')}</Label>
-          <Input value={variantName} onChange={(e) => setVariantName(e.target.value)} />
-        </div>
+        </select>
       </div>
       <div className="flex gap-2 pt-1">
         <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending} className="flex-1">
@@ -516,6 +528,7 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
   const [desc, setDesc] = useState('')
   const [sceneId, setSceneId] = useState<number | null>(null)
   const [episodeId, setEpisodeId] = useState<number | null>(null)
+  const [settingId, setSettingId] = useState<number | null>(null)
 
   const { data: rawScenes } = useQuery<Scene[]>({
     queryKey: ['scenes', projectId],
@@ -531,14 +544,21 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
   })
   const episodes = rawEpisodes ?? []
 
+  const { data: rawSettings } = useQuery<Setting[]>({
+    queryKey: ['settings', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const settings = rawSettings ?? []
+
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/storyboards`, {
         title: title || undefined,
         description: desc || undefined,
-        status: 'draft',
         scene_id: sceneId ?? undefined,
         episode_id: episodeId ?? undefined,
+        setting_id: settingId ?? undefined,
       }).then((r) => r.data),
     onSuccess: (created: Storyboard) => {
       qc.invalidateQueries({ queryKey: ['storyboards-project', projectId] })
@@ -588,6 +608,19 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
           >
             <option value="">{t('forms.unlinked')}</option>
             {episodes.map((e) => <option key={e.ID} value={e.ID}>EP{e.number} {e.title}</option>)}
+          </select>
+        </div>
+      )}
+      {settings.length > 0 && (
+        <div>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedSettingOptional')}</Label>
+          <select
+            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+            value={settingId ?? ''}
+            onChange={(e) => setSettingId(Number(e.target.value) || null)}
+          >
+            <option value="">{t('forms.unlinked')}</option>
+            {settings.map((setting) => <option key={setting.ID} value={setting.ID}>{setting.name} · {setting.type}</option>)}
           </select>
         </div>
       )}

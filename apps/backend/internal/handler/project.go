@@ -236,19 +236,8 @@ func (h *ProjectHandler) Progress(c *gin.Context) {
 		Count  int64
 	}
 
-	// Storyboard breakdown — use project_id directly
-	var sbBreakdown []statusCount
-	h.db.Model(&model.Storyboard{}).
-		Select("status, count(*) as count").
-		Where("project_id = ?", pid).
-		Group("status").
-		Scan(&sbBreakdown)
-	sbMap := map[string]int64{}
 	var sbTotal int64
-	for _, r := range sbBreakdown {
-		sbMap[r.Status] = r.Count
-		sbTotal += r.Count
-	}
+	h.db.Model(&model.Storyboard{}).Where("project_id = ?", pid).Count(&sbTotal)
 
 	// Shot breakdown — use project_id directly
 	var shotBreakdown []statusCount
@@ -275,9 +264,7 @@ func (h *ProjectHandler) Progress(c *gin.Context) {
 		"assets":         assetCount,
 		"members":        memberCount,
 		"storyboards": gin.H{
-			"total":    sbTotal,
-			"draft":    sbMap["draft"],
-			"approved": sbMap["approved"],
+			"total": sbTotal,
 		},
 		"shots": gin.H{
 			"total":        shotTotal,

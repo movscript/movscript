@@ -401,7 +401,7 @@ function EpisodeReferenceOverview({
               {t('pages.episodes.autoShots', { count: storyboardShotCount, defaultValue: `自动引用 ${storyboardShotCount} 个镜头` })}
             </p>
             <div className="flex flex-wrap gap-2">
-              {orderedShots.slice(0, 16).map((shot, index) => <ReferenceChip key={shot.ID} label={`${index + 1}. ${t('details.shotLabel', { order: shot.order })}`} sub={shot.status} />)}
+              {orderedShots.slice(0, 16).map((shot, index) => <ReferenceChip key={shot.ID} label={`${index + 1}. ${t('details.shotTitle', { order: shot.order })}`} />)}
               {orderedShots.length > 16 && <ReferenceChip label={`+${orderedShots.length - 16}`} sub={t('common.more', { defaultValue: '更多' })} />}
             </div>
           </div>

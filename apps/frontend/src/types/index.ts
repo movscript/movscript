@@ -270,6 +270,8 @@ export interface Storyboard {
   project_id: number
   scene_id?: number | null
   episode_id?: number | null
+  setting_id?: number | null
+  setting?: Setting
   pipeline_node_id?: number
   assignee_id?: number
   assignee?: User
@@ -282,9 +284,6 @@ export interface Storyboard {
   dialogue: string
   atmosphere: string
   // Camera parameters
-  camera_angle: string    // close-up|medium|wide|extreme-wide|overhead|pov
-  camera_movement: string // static|pan|tilt|dolly|zoom|handheld
-  depth_of_field: string  // shallow|normal|deep
   lighting: string
   duration: number
   shot_size?: string    // close_up|near|medium|full|wide|extreme_wide
@@ -293,7 +292,6 @@ export interface Storyboard {
   focal_length?: string // wide|standard|telephoto
   pacing?: string       // fast_cut|long_take|pause
   intent?: string       // 镜头意图
-  status: 'draft' | 'approved'
   review_status?: ReviewStatus
   shots?: Shot[]
   CreatedAt: string
@@ -313,19 +311,13 @@ export interface Shot {
   assignee?: User
   order: number
   description: string
-  prompt: string
   canvas_id?: number
-  // Final version fields — stored separately from working draft above
-  final_description?: string
-  final_prompt?: string
   is_approved?: boolean
   review_status?: ReviewStatus
   status: ShotStatus
   CreatedAt: string
   UpdatedAt: string
 }
-
-export type FinalVideoStatus = 'draft' | 'editing' | 'ready' | 'approved'
 
 export interface FinalVideo {
   ID: number
@@ -337,8 +329,6 @@ export interface FinalVideo {
   pipeline_node_id?: number
   title: string
   description: string
-  status: FinalVideoStatus
-  order: number
   CreatedAt: string
   UpdatedAt: string
 }
@@ -378,7 +368,7 @@ export interface Progress {
   scenes: number
   assets: number
   members: number
-  storyboards: { total: number; draft: number; approved: number }
+  storyboards: { total: number }
   shots: { total: number; draft: number; prompt_ready: number; generating: number; generated: number; approved: number; is_approved: number }
 }
 

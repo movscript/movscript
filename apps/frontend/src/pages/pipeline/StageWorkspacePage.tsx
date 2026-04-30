@@ -107,7 +107,7 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
         pipeline_node_id: node.ID,
       }).then((r) => r.data),
     getLabel: (item) => { const s = item as Storyboard; return s.title || `分镜 #${s.ID}` },
-    getSub: (item) => (item as Storyboard).status ?? '',
+    getSub: (item) => (item as Storyboard).description,
     getPatchUrl: (item) => `/storyboards/${item.ID}`,
     getAssigneeId: (item) => (item as Storyboard).assignee_id,
   },
@@ -175,7 +175,7 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
         pipeline_node_id: node.ID,
       }).then((r) => r.data),
     getLabel: (item) => (item as FinalVideo).title || `成片 #${item.ID}`,
-    getSub: (item) => (item as FinalVideo).status ?? '',
+    getSub: () => '',
     getPatchUrl: (item) => `/final-videos/${item.ID}`,
     getAssigneeId: () => undefined,
   },
@@ -382,7 +382,7 @@ function FinalVideoWorkspace({
     <ArtifactWorkspaceFrame
       kind="final_video"
       title={video.title || t('pages.finalVideos.defaultTitle')}
-      subtitle={video.status}
+      subtitle={video.description}
       node={node}
       pipeline={pipeline}
       members={members}
@@ -394,7 +394,6 @@ function FinalVideoWorkspace({
             <h2 className="text-base font-semibold text-foreground truncate">{video.title || t('pages.finalVideos.defaultTitle')}</h2>
             {video.description && <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{video.description}</p>}
           </div>
-          <span className="text-xs text-muted-foreground shrink-0">{video.status}</span>
         </div>
         {resource ? (
           <MediaViewer resource={resource} fit="contain" className="aspect-video w-full rounded-lg" />

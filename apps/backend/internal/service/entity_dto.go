@@ -102,39 +102,34 @@ type SceneInput struct {
 }
 
 type StoryboardInput struct {
-	SceneID        *uint   `json:"scene_id"`
-	EpisodeID      *uint   `json:"episode_id"`
-	AssigneeID     *uint   `json:"assignee_id"`
-	Order          int     `json:"order"`
-	Title          string  `json:"title"`
-	Description    string  `json:"description"`
-	Notes          string  `json:"notes"`
-	Characters     string  `json:"characters"`
-	Actions        string  `json:"actions"`
-	Dialogue       string  `json:"dialogue"`
-	Atmosphere     string  `json:"atmosphere"`
-	CameraAngle    string  `json:"camera_angle"`
-	CameraMovement string  `json:"camera_movement"`
-	DepthOfField   string  `json:"depth_of_field"`
-	Lighting       string  `json:"lighting"`
-	Duration       float64 `json:"duration"`
-	ShotSize       string  `json:"shot_size"`
-	Angle          string  `json:"angle"`
-	Movement       string  `json:"movement"`
-	FocalLength    string  `json:"focal_length"`
-	Pacing         string  `json:"pacing"`
-	Intent         string  `json:"intent"`
+	SceneID     *uint   `json:"scene_id"`
+	EpisodeID   *uint   `json:"episode_id"`
+	SettingID   *uint   `json:"setting_id"`
+	AssigneeID  *uint   `json:"assignee_id"`
+	Order       int     `json:"order"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Notes       string  `json:"notes"`
+	Characters  string  `json:"characters"`
+	Actions     string  `json:"actions"`
+	Dialogue    string  `json:"dialogue"`
+	Atmosphere  string  `json:"atmosphere"`
+	Lighting    string  `json:"lighting"`
+	Duration    float64 `json:"duration"`
+	ShotSize    string  `json:"shot_size"`
+	Angle       string  `json:"angle"`
+	Movement    string  `json:"movement"`
+	FocalLength string  `json:"focal_length"`
+	Pacing      string  `json:"pacing"`
+	Intent      string  `json:"intent"`
 }
 
 type ShotInput struct {
-	StoryboardID     *uint  `json:"storyboard_id"`
-	AssigneeID       *uint  `json:"assignee_id"`
-	Order            int    `json:"order"`
-	Description      string `json:"description"`
-	Prompt           string `json:"prompt"`
-	CanvasID         *uint  `json:"canvas_id"`
-	FinalDescription string `json:"final_description"`
-	FinalPrompt      string `json:"final_prompt"`
+	StoryboardID *uint  `json:"storyboard_id"`
+	AssigneeID   *uint  `json:"assignee_id"`
+	Order        int    `json:"order"`
+	Description  string `json:"description"`
+	CanvasID     *uint  `json:"canvas_id"`
 }
 
 type FinalVideoInput struct {
@@ -144,7 +139,6 @@ type FinalVideoInput struct {
 	ShotID       *uint  `json:"shot_id"`
 	Title        string `json:"title"`
 	Description  string `json:"description"`
-	Order        int    `json:"order"`
 }
 
 type AssetInput struct {
@@ -324,6 +318,7 @@ func ApplySceneInput(s *model.Scene, in SceneInput) {
 func ApplyStoryboardInput(b *model.Storyboard, in StoryboardInput) {
 	b.SceneID = in.SceneID
 	b.EpisodeID = in.EpisodeID
+	b.SettingID = in.SettingID
 	b.AssigneeID = in.AssigneeID
 	b.Order = in.Order
 	b.Title = in.Title
@@ -333,9 +328,6 @@ func ApplyStoryboardInput(b *model.Storyboard, in StoryboardInput) {
 	b.Actions = in.Actions
 	b.Dialogue = in.Dialogue
 	b.Atmosphere = in.Atmosphere
-	b.CameraAngle = in.CameraAngle
-	b.CameraMovement = in.CameraMovement
-	b.DepthOfField = in.DepthOfField
 	b.Lighting = in.Lighting
 	b.Duration = in.Duration
 	b.ShotSize = in.ShotSize
@@ -351,10 +343,7 @@ func ApplyShotInput(s *model.Shot, in ShotInput) {
 	s.AssigneeID = in.AssigneeID
 	s.Order = in.Order
 	s.Description = in.Description
-	s.Prompt = in.Prompt
 	s.CanvasID = in.CanvasID
-	s.FinalDescription = in.FinalDescription
-	s.FinalPrompt = in.FinalPrompt
 }
 
 func ApplyFinalVideoInput(v *model.FinalVideo, in FinalVideoInput) {
@@ -364,7 +353,6 @@ func ApplyFinalVideoInput(v *model.FinalVideo, in FinalVideoInput) {
 	v.ShotID = in.ShotID
 	v.Title = in.Title
 	v.Description = in.Description
-	v.Order = in.Order
 }
 
 func ApplyAssetInput(a *model.Asset, in AssetInput) {
@@ -438,9 +426,9 @@ var projectPatchFields = stringSet("name", "description", "total_episodes", "pip
 var scriptPatchFields = stringSet("title", "description", "content", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "hook", "plot_summary", "script_points", "order")
 var episodePatchFields = stringSet("title", "number", "synopsis", "script_id")
 var scenePatchFields = stringSet("number", "title", "notes", "script_id")
-var storyboardPatchFields = stringSet("scene_id", "episode_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "camera_angle", "camera_movement", "depth_of_field", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")
-var shotPatchFields = stringSet("storyboard_id", "assignee_id", "order", "description", "prompt", "canvas_id", "final_description", "final_prompt")
-var finalVideoPatchFields = stringSet("episode_id", "scene_id", "storyboard_id", "shot_id", "title", "description", "order")
+var storyboardPatchFields = stringSet("scene_id", "episode_id", "setting_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")
+var shotPatchFields = stringSet("storyboard_id", "assignee_id", "order", "description", "canvas_id")
+var finalVideoPatchFields = stringSet("episode_id", "scene_id", "storyboard_id", "shot_id", "title", "description")
 var assetPatchFields = stringSet("name", "type", "resource_id", "description", "variant_type", "variant_name", "costume", "time_of_day", "period", "state", "style_profile", "prompt", "negative_prompt", "is_primary", "setting_id", "follow_setting_status")
 
 func ProjectPatchUpdates(body map[string]any) map[string]any {

@@ -253,7 +253,7 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 		return compactShots(shots), nil
 	case "scene.final_videos":
 		var videos []model.FinalVideo
-		if err := s.db.WithContext(ctx).Where("scene_id = ?", id).Order(`"order", id`).Find(&videos).Error; err != nil {
+		if err := s.db.WithContext(ctx).Where("scene_id = ?", id).Order("id").Find(&videos).Error; err != nil {
 			return nil, err
 		}
 		return compactFinalVideos(videos), nil
@@ -288,7 +288,7 @@ func compactStoryboards(boards []model.Storyboard) []map[string]any {
 			"order":       board.Order,
 			"title":       board.Title,
 			"description": board.Description,
-			"status":      board.Status,
+			"setting_id":  board.SettingID,
 			"shots_count": len(board.Shots),
 		})
 	}
@@ -331,10 +331,8 @@ func compactFinalVideos(videos []model.FinalVideo) []map[string]any {
 		items = append(items, map[string]any{
 			"ID":          video.ID,
 			"kind":        "final_video",
-			"order":       video.Order,
 			"title":       video.Title,
 			"description": video.Description,
-			"status":      video.Status,
 		})
 	}
 	return items
@@ -349,7 +347,6 @@ func compactShots(shots []model.Shot) []map[string]any {
 			"storyboard_id": shot.StoryboardID,
 			"order":         shot.Order,
 			"description":   firstNonEmpty(shot.FinalDescription, shot.Description),
-			"prompt":        firstNonEmpty(shot.FinalPrompt, shot.Prompt),
 			"status":        shot.Status,
 			"is_approved":   shot.IsApproved,
 		})

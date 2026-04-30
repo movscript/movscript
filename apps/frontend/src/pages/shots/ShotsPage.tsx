@@ -7,7 +7,6 @@ import { Plus, Camera, Play, SkipBack, SkipForward, X, ListVideo } from 'lucide-
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ShotCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
-import { SHOT_STATUS_COLORS as STATUS_COLORS, SHOT_STATUS_LABEL_KEYS as STATUS_LABEL_KEYS } from '@/constants/shot'
 import { Button } from '@movscript/ui'
 import { ShotDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
@@ -137,7 +136,7 @@ export default function ShotsPage() {
   }
 
   function getShotDescription(s: Shot): string {
-    return s.final_description || s.description || t('common.emptyDescription')
+    return s.description || t('common.emptyDescription')
   }
 
   function playSingle(shot: Shot) {
@@ -218,9 +217,6 @@ export default function ShotsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono shrink-0">{getShotLabel(s)}</span>
                     <span className="text-sm truncate flex-1">{getShotDescription(s)}</span>
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded-full shrink-0', STATUS_COLORS[s.status])}>
-                      {t(STATUS_LABEL_KEYS[s.status])}
-                    </span>
                   </div>
                 </button>
               ))
@@ -232,11 +228,6 @@ export default function ShotsPage() {
                       className="w-full text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-mono text-muted-foreground">{getShotLabel(s)}</span>
-                        <div className="flex items-center gap-1">
-                          <span className={cn('text-xs px-1.5 py-0.5 rounded-full', STATUS_COLORS[s.status])}>
-                            {t(STATUS_LABEL_KEYS[s.status])}
-                          </span>
-                        </div>
                       </div>
                       <p className="text-sm text-foreground line-clamp-3">{getShotDescription(s)}</p>
                       {!s.storyboard_id && <span className="text-xs text-muted-foreground/50 mt-1 block">{t('pages.shots.independent')}</span>}

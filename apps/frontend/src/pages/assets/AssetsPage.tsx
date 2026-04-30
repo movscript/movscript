@@ -12,17 +12,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { AssetDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
-
-const VIEW_TYPES = ['front', 'side', 'back', 'left', 'right', 'detail', 'custom'] as const
-const VIEW_TYPE_LABEL_KEYS: Record<string, string> = {
-  front: 'pages.resources.viewTypes.front',
-  side: 'pages.resources.viewTypes.side',
-  back: 'pages.resources.viewTypes.back',
-  left: 'pages.resources.viewTypes.left',
-  right: 'pages.resources.viewTypes.right',
-  detail: 'pages.resources.viewTypes.detail',
-  custom: 'pages.resources.viewTypes.custom',
-}
+import { normalizeSettingStateTags, settingStatusLabel } from '@/components/settings/SettingDetailEditor'
 
 function viewMediaSrc(view: AssetView): string | undefined {
   if (view.resource?.url) return `${API_BASE}${view.resource.url}`
@@ -45,14 +35,32 @@ function isVideoRawResource(resource?: RawResource): boolean {
   return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
 }
 
-function assetViewType(asset: Asset): string {
-  return asset.variant_type || asset.type || 'custom'
-}
-
 function assetSettingLabel(asset: Asset, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (asset.setting?.name) return asset.setting.name
   if (asset.setting_id) return t('pages.assets.settingFallback', { id: asset.setting_id })
   return t('pages.assets.unlinkedSetting')
+}
+
+function settingTags(setting?: Setting): string[] {
+  if (!setting?.tags) return []
+  try {
+    const parsed = JSON.parse(setting.tags)
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean)
+  } catch {
+    return setting.tags.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function assetStateLabel(asset: Asset): string {
+  return asset.state || asset.effective_status || asset.setting?.status || ''
+}
+
+function assetStateTags(asset: Asset): string[] {
+  const state = assetStateLabel(asset)
+  if (!asset.setting || !state) return []
+  const states = normalizeSettingStateTags(asset.setting.state_tags, asset.setting.status)
+  return states[state] ?? []
 }
 
 // --- Shared sub-components ---
@@ -76,7 +84,8 @@ function AssetThumb({ asset, className }: { asset: Asset; className?: string }) 
 
 function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
   const { t } = useTranslation()
-  const viewType = assetViewType(asset)
+  const state = assetStateLabel(asset)
+  const tags = Array.from(new Set([...settingTags(asset.setting), ...assetStateTags(asset)])).slice(0, 3)
   return (
     <button
       onClick={onClick}
@@ -90,12 +99,16 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
       </div>
       <div className="p-3">
         <p className="text-sm font-medium truncate">{asset.name}</p>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-foreground">
-            {VIEW_TYPE_LABEL_KEYS[viewType] ? t(VIEW_TYPE_LABEL_KEYS[viewType]) : viewType}
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground truncate">{assetSettingLabel(asset, t)}</p>
+        <p className="mt-1 text-xs text-muted-foreground truncate">
+          {assetSettingLabel(asset, t)}{state ? ` / ${settingStatusLabel(state)}` : ''}
+        </p>
+        {tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {tags.map((tag) => (
+              <span key={tag} className="max-w-full truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{tag}</span>
+            ))}
+          </div>
+        )}
       </div>
     </button>
   )
@@ -103,7 +116,8 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
 
 function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
   const { t } = useTranslation()
-  const viewType = assetViewType(asset)
+  const state = assetStateLabel(asset)
+  const tags = Array.from(new Set([...settingTags(asset.setting), ...assetStateTags(asset)])).slice(0, 2)
   return (
     <button
       onClick={onClick}
@@ -118,8 +132,9 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{asset.name}</p>
         <p className="text-xs text-muted-foreground truncate">
-          {assetSettingLabel(asset, t)} · {VIEW_TYPE_LABEL_KEYS[viewType] ? t(VIEW_TYPE_LABEL_KEYS[viewType]) : viewType}
+          {assetSettingLabel(asset, t)}{state ? ` / ${settingStatusLabel(state)}` : ''}
         </p>
+        {tags.length > 0 && <p className="text-[11px] text-muted-foreground/80 truncate">{tags.join(' / ')}</p>}
       </div>
     </button>
   )
@@ -130,7 +145,6 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
 export default function AssetsPage() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
-  const [filterViewType, setFilterViewType] = useState('')
   const [filterSettingId, setFilterSettingId] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -140,13 +154,12 @@ export default function AssetsPage() {
   const pageSize = 24
 
   const { data, isLoading } = useQuery<PaginatedResponse<Asset>>({
-    queryKey: ['assets', projectId, filterViewType, filterSettingId, search, page],
+    queryKey: ['assets', projectId, filterSettingId, search, page],
     queryFn: () =>
       api.get(`/projects/${projectId}/assets`, {
         params: {
           page,
           page_size: pageSize,
-          type: filterViewType || undefined,
           setting_id: filterSettingId || undefined,
           q: search.trim() || undefined,
         },
@@ -166,26 +179,12 @@ export default function AssetsPage() {
   const selected = assets.find((a) => a.ID === selectedId) ?? null
   const detailOpen = selectedId !== null
 
-  const filterTabs = [
-    { value: '', label: t('common.all') },
-    ...VIEW_TYPES.map((type) => ({ value: type, label: t(VIEW_TYPE_LABEL_KEYS[type]) })),
-    ...Array.from(new Set(assets.map(assetViewType).filter((type) => !VIEW_TYPE_LABEL_KEYS[type]))).map((type) => ({ value: type, label: type })),
-  ]
-
   return (
     <div className="flex h-full overflow-hidden bg-background">
       {/* Left list panel */}
       <div className={cn('flex flex-col border-r border-border bg-card overflow-hidden', detailOpen ? 'w-72 shrink-0' : 'flex-1')}>
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background shrink-0 flex-wrap">
-          <div className="flex gap-0.5 overflow-x-auto scrollbar-none flex-1 min-w-0">
-            {filterTabs.map((t) => (
-              <button key={t.value} onClick={() => { setFilterViewType(t.value); setPage(1); setSelectedId(null) }}
-                className={cn('px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors', filterViewType === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-1 min-w-28">
+          <div className="relative flex-1 min-w-40">
             <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
@@ -273,7 +272,6 @@ export default function AssetsPage() {
           projectId={projectId!}
           initialSettingId={filterSettingId ? Number(filterSettingId) : undefined}
           onCreated={(asset) => {
-            setFilterViewType(assetViewType(asset))
             setFilterSettingId(asset.setting_id ? String(asset.setting_id) : '')
             setSearch('')
             setPage(1)

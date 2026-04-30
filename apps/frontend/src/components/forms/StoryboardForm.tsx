@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Episode, Scene, Storyboard } from '@/types'
+import type { Episode, Scene, Setting, Storyboard } from '@/types'
 import { Save } from 'lucide-react'
 import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
 import { useProjectStore } from '@/store/projectStore'
@@ -77,6 +77,12 @@ export function StoryboardForm({ storyboard, draft, onChange, onSave, isSaving }
     enabled: !!projectId,
   })
 
+  const { data: settings = [] } = useQuery<Setting[]>({
+    queryKey: ['settings', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+
   return (
     <div className="h-full overflow-y-auto p-5 space-y-3">
       <div className="grid grid-cols-2 gap-3">
@@ -102,6 +108,17 @@ export function StoryboardForm({ storyboard, draft, onChange, onSave, isSaving }
             {episodes.map((e) => <option key={e.ID} value={e.ID}>EP{e.number} {e.title}</option>)}
           </select>
         </div>
+      </div>
+      <div>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.linkedSettingOptional')}</Label>
+        <select
+          className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+          value={draft.setting_id ?? ''}
+          onChange={(e) => onChange({ ...draft, setting_id: Number(e.target.value) || null })}
+        >
+          <option value="">{t('forms.unlinked')}</option>
+          {settings.map((setting) => <option key={setting.ID} value={setting.ID}>{setting.name} · {setting.type}</option>)}
+        </select>
       </div>
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.title')}</Label>
@@ -130,21 +147,21 @@ export function StoryboardForm({ storyboard, draft, onChange, onSave, isSaving }
         <Textarea rows={2} value={draft.atmosphere ?? ''} onChange={(e) => onChange({ ...draft, atmosphere: e.target.value })} />
       </div>
       <div className="space-y-2.5 pt-2 border-t border-border">
-        <p className="text-xs font-medium text-muted-foreground">镜头参数</p>
+        <p className="text-xs font-medium text-muted-foreground">{t('details.cameraParameters')}</p>
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">镜头意图</Label>
+          <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.intent')}</Label>
           <Textarea
             rows={2}
-            placeholder="这个分镜要传达的情绪、信息或叙事功能"
+            placeholder={t('details.intentPlaceholder')}
             value={draft.intent ?? ''}
             onChange={(e) => onChange({ ...draft, intent: e.target.value })}
           />
         </div>
-        <PillSelector label="景别" options={SHOT_SIZE_OPTIONS} value={draft.shot_size} onChange={(v) => onChange({ ...draft, shot_size: v })} />
-        <PillSelector label="角度" options={SHOT_ANGLE_OPTIONS} value={draft.angle} onChange={(v) => onChange({ ...draft, angle: v })} />
-        <PillSelector label="运动" options={SHOT_MOVEMENT_OPTIONS} value={draft.movement} onChange={(v) => onChange({ ...draft, movement: v })} />
-        <PillSelector label="焦距" options={SHOT_FOCAL_LENGTH_OPTIONS} value={draft.focal_length} onChange={(v) => onChange({ ...draft, focal_length: v })} />
-        <PillSelector label="节奏" options={SHOT_PACING_OPTIONS} value={draft.pacing} onChange={(v) => onChange({ ...draft, pacing: v })} />
+        <PillSelector label={t('details.shotSize')} options={SHOT_SIZE_OPTIONS} value={draft.shot_size} onChange={(v) => onChange({ ...draft, shot_size: v })} />
+        <PillSelector label={t('details.cameraAngle')} options={SHOT_ANGLE_OPTIONS} value={draft.angle} onChange={(v) => onChange({ ...draft, angle: v })} />
+        <PillSelector label={t('details.cameraMovement')} options={SHOT_MOVEMENT_OPTIONS} value={draft.movement} onChange={(v) => onChange({ ...draft, movement: v })} />
+        <PillSelector label={t('details.focalLength')} options={SHOT_FOCAL_LENGTH_OPTIONS} value={draft.focal_length} onChange={(v) => onChange({ ...draft, focal_length: v })} />
+        <PillSelector label={t('details.pacing')} options={SHOT_PACING_OPTIONS} value={draft.pacing} onChange={(v) => onChange({ ...draft, pacing: v })} />
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.lighting')}</Label>
@@ -162,6 +179,17 @@ export function StoryboardForm({ storyboard, draft, onChange, onSave, isSaving }
           ownerType="storyboard"
           ownerId={storyboard.ID}
           role="reference"
+        />
+      </div>
+      <div className="space-y-2 pt-2 border-t border-border">
+        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('details.rawSourceVideo')}</Label>
+        <ResourceAttachments
+          ownerType="storyboard"
+          ownerId={storyboard.ID}
+          role="source"
+          slot="raw_source"
+          variant="gallery"
+          maxCount={1}
         />
       </div>
       <Button onClick={() => onSave(draft)} disabled={isSaving} className="w-full gap-1.5" size="sm">

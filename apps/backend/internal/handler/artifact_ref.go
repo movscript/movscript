@@ -133,9 +133,8 @@ func (h *ArtifactRefHandler) storyboardRefs(projectID uint) []ArtifactRef {
 			ID:             storyboard.ID,
 			Title:          fallbackTitle(storyboard.Title, "分镜 #"+intToString(storyboard.Order)),
 			Subtitle:       storyboard.Description,
-			Status:         storyboard.Status,
 			PipelineNodeID: storyboard.PipelineNodeID,
-			EntityContext:  ArtifactEntityContext{EpisodeID: storyboard.EpisodeID, SceneID: storyboard.SceneID},
+			EntityContext:  ArtifactEntityContext{EpisodeID: storyboard.EpisodeID, SceneID: storyboard.SceneID, SettingID: storyboard.SettingID},
 			CreatedAt:      storyboard.CreatedAt.Format(timeFormatRFC3339),
 			UpdatedAt:      storyboard.UpdatedAt.Format(timeFormatRFC3339),
 		})
@@ -182,7 +181,6 @@ func (h *ArtifactRefHandler) finalVideoRefs(c *gin.Context, projectID uint) []Ar
 			ID:             video.ID,
 			Title:          fallbackTitle(video.Title, "成片"),
 			Subtitle:       video.Description,
-			Status:         video.Status,
 			PipelineNodeID: video.PipelineNodeID,
 			EntityContext: ArtifactEntityContext{
 				EpisodeID:    video.EpisodeID,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Episode, FinalVideo, FinalVideoStatus, ResourceBinding, Scene, Shot, Storyboard } from '@/types'
+import type { Episode, FinalVideo, ResourceBinding, Scene, Shot, Storyboard } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { CreateDialog } from '@/components/shared/CreateDialog'
@@ -15,20 +15,6 @@ import { useTranslation } from 'react-i18next'
 
 type ViewMode = 'grid' | 'list'
 type FilterMode = 'all' | 'episode' | 'scene' | 'storyboard' | 'shot'
-
-const STATUS_LABEL_KEYS: Record<FinalVideoStatus, string> = {
-  draft: 'pages.finalVideos.status.draft',
-  editing: 'pages.finalVideos.status.editing',
-  ready: 'pages.finalVideos.status.ready',
-  approved: 'pages.finalVideos.status.approved',
-}
-
-const STATUS_COLORS: Record<FinalVideoStatus, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  editing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  ready: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-}
 
 function emptyToNull(value: string): number | null {
   const parsed = Number(value)
@@ -99,7 +85,7 @@ export default function FinalVideosPage() {
       return storyboards.map((item) => ({ id: item.ID, label: item.title || t('details.storyboardLabel', { order: item.order }) }))
     }
     if (filterMode === 'shot') {
-      return shots.map((item) => ({ id: item.ID, label: `${t('details.shotLabel', { order: item.order })} ${item.description || ''}` }))
+      return shots.map((item) => ({ id: item.ID, label: `${t('details.shotTitle', { order: item.order })} ${item.description || ''}` }))
     }
     return []
   }, [episodes, filterMode, scenes, shots, storyboards, t])
@@ -107,7 +93,7 @@ export default function FinalVideosPage() {
   function bindingLabel(item: FinalVideo): string {
     if (item.shot_id) {
       const shot = shots.find((s) => s.ID === item.shot_id)
-      return shot ? `${t('details.shotLabel', { order: shot.order })} ${shot.description || ''}` : t('pages.finalVideos.boundShot', { id: item.shot_id })
+      return shot ? `${t('details.shotTitle', { order: shot.order })} ${shot.description || ''}` : t('pages.finalVideos.boundShot', { id: item.shot_id })
     }
     if (item.storyboard_id) {
       const storyboard = storyboards.find((s) => s.ID === item.storyboard_id)
@@ -228,9 +214,6 @@ function FinalVideoGridCard({ video, selected, binding, onClick }: { video: Fina
       <div className="p-3">
         <div className="flex items-center gap-2 mb-1">
           <p className="text-sm font-medium truncate flex-1">{video.title || t('common.emptyTitle')}</p>
-          <span className={cn('text-xs px-1.5 py-0.5 rounded-full shrink-0', STATUS_COLORS[video.status])}>
-            {t(STATUS_LABEL_KEYS[video.status])}
-          </span>
         </div>
         <p className="text-xs text-muted-foreground truncate">{binding}</p>
       </div>
@@ -253,9 +236,6 @@ function FinalVideoListRow({ video, selected, binding, onClick }: { video: Final
         <p className="text-sm font-medium truncate">{video.title || t('common.emptyTitle')}</p>
         <p className="text-xs text-muted-foreground truncate">{binding}</p>
       </div>
-      <span className={cn('text-xs px-1.5 py-0.5 rounded-full shrink-0', STATUS_COLORS[video.status])}>
-        {t(STATUS_LABEL_KEYS[video.status])}
-      </span>
     </button>
   )
 }
@@ -276,7 +256,7 @@ function FinalVideoCreateForm({ projectId, onSuccess, onCancel }: { projectId: n
   const [title, setTitle] = useState('')
 
   const create = useMutation({
-    mutationFn: () => api.post(`/projects/${projectId}/final-videos`, { title: title || t('pages.finalVideos.defaultTitle'), status: 'draft' }).then((r) => r.data),
+    mutationFn: () => api.post(`/projects/${projectId}/final-videos`, { title: title || t('pages.finalVideos.defaultTitle') }).then((r) => r.data),
     onSuccess: (created: FinalVideo) => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })
       qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
@@ -356,8 +336,6 @@ export function FinalVideoDetail({
       scene_id: draft.scene_id,
       storyboard_id: draft.storyboard_id,
       shot_id: draft.shot_id,
-      status: draft.status,
-      order: draft.order,
     }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })
@@ -386,9 +364,6 @@ export function FinalVideoDetail({
           <div className="flex items-center gap-2 min-w-0">
             <Film size={15} className="text-muted-foreground shrink-0" />
             <span className="text-sm font-medium truncate">{video.title || t('common.emptyTitle')}</span>
-            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', STATUS_COLORS[video.status])}>
-              {t(STATUS_LABEL_KEYS[video.status])}
-            </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {onDelete && (
@@ -416,21 +391,23 @@ export function FinalVideoDetail({
               video: () => (
                 <div>
                   <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.mediaResource')}</Label>
-                  <ResourceAttachments ownerType="final_video" ownerId={video.ID} role="final" slot="video" />
-                </div>
-              ),
-              status: (ctx) => (
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground mb-1">{ctx.label}</Label>
-                  <select className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground" value={(ctx.value as FinalVideoStatus | undefined) ?? 'draft'} onChange={(event) => ctx.setValue(event.target.value as FinalVideoStatus)}>
-                    {(['draft', 'editing', 'ready', 'approved'] as const).map((status) => <option key={status} value={status}>{t(STATUS_LABEL_KEYS[status])}</option>)}
-                  </select>
+                  <ResourceAttachments
+                    ownerType="final_video"
+                    ownerId={video.ID}
+                    role="final"
+                    slot="video"
+                    allowLibrarySelect
+                    libraryType="video"
+                    libraryTypeOptions={['video']}
+                    maxCount={1}
+                    accept="video/*"
+                  />
                 </div>
               ),
               episode_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={episodes} emptyLabel={t('forms.unlinked')} labelFor={(episode) => `EP${episode.number} ${episode.title}`} />,
               scene_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={scenes} emptyLabel={t('forms.unlinked')} labelFor={(scene) => `${t('details.sceneLabel', { number: scene.number })} ${scene.title}`} />,
               storyboard_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={storyboards} emptyLabel={t('forms.unlinked')} labelFor={(storyboard) => storyboard.title || t('details.storyboardLabel', { order: storyboard.order })} />,
-              shot_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={shots} emptyLabel={t('forms.unlinked')} labelFor={(shot) => `${t('details.shotLabel', { order: shot.order })} ${shot.description}`} />,
+              shot_id: (ctx) => <FinalVideoBindingField ctx={ctx} items={shots} emptyLabel={t('forms.unlinked')} labelFor={(shot) => `${t('details.shotTitle', { order: shot.order })} ${shot.description}`} />,
             }}
           />
         </div>

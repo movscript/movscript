@@ -41,19 +41,6 @@ func TestNormalizeEntityPortValuesCanonicalizesAliases(t *testing.T) {
 	}
 }
 
-func TestEntityFieldUpdatesPreserveShotPromptCompatibility(t *testing.T) {
-	updates := entityFieldUpdates("shot", map[string]EntityPortValue{
-		"prompt": {Type: "text", Text: "final camera prompt"},
-	})
-
-	if got := updates["prompt"]; got != "final camera prompt" {
-		t.Fatalf("expected prompt update, got %#v", got)
-	}
-	if got := updates["final_prompt"]; got != "final camera prompt" {
-		t.Fatalf("expected final_prompt compatibility update, got %#v", got)
-	}
-}
-
 func TestEntitySchemasExposeVersionAndLayoutMetadata(t *testing.T) {
 	schema, ok := EntitySchemaForKind("storyboard")
 	if !ok {
@@ -78,21 +65,6 @@ func TestEntitySchemasExposeVersionAndLayoutMetadata(t *testing.T) {
 }
 
 func TestEntitySchemasExposeMigrationMetadata(t *testing.T) {
-	shot, ok := EntitySchemaForKind("shot")
-	if !ok {
-		t.Fatal("expected shot schema")
-	}
-	var dualWrite EntityMigration
-	for _, migration := range shot.Compatibility.Migrations {
-		if migration.Kind == "dual_write" && migration.FromFieldID == "prompt" && migration.ToFieldID == "final_prompt" {
-			dualWrite = migration
-			break
-		}
-	}
-	if dualWrite.Kind == "" {
-		t.Fatalf("expected shot prompt dual-write migration metadata, got %#v", shot.Compatibility.Migrations)
-	}
-
 	script, ok := EntitySchemaForKind("script")
 	if !ok {
 		t.Fatal("expected script schema")
@@ -110,22 +82,22 @@ func TestEntitySchemasExposeMigrationMetadata(t *testing.T) {
 }
 
 func TestEntitySchemaMigrationReportIncludesActions(t *testing.T) {
-	report, err := EntitySchemaMigrationReportForKind("shot")
+	report, err := EntitySchemaMigrationReportForKind("script")
 	if err != nil {
 		t.Fatalf("expected migration report: %v", err)
 	}
-	if report.Kind != "shot" || report.CurrentVersion != EntitySchemaVersion {
+	if report.Kind != "script" || report.CurrentVersion != EntitySchemaVersion {
 		t.Fatalf("unexpected migration report header: %#v", report)
 	}
 	found := false
 	for _, action := range report.Actions {
-		if action.Kind == "dual_write" && action.FromFieldID == "prompt" && action.ToFieldID == "final_prompt" {
+		if action.Kind == "deprecated_field" && action.FromFieldID == "settings" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected shot dual-write action, got %#v", report.Actions)
+		t.Fatalf("expected script settings deprecation action, got %#v", report.Actions)
 	}
 }
 
@@ -257,7 +229,7 @@ func TestValidateEntityPortValuesRejectsMaxCount(t *testing.T) {
 
 func TestValidateEntityReadPortsRejectsUnknownPort(t *testing.T) {
 	err := ValidateEntityReadPorts("shot", []string{"prompt", "missing"})
-	if err == nil || !strings.Contains(err.Error(), `unknown port "missing"`) {
+	if err == nil || !strings.Contains(err.Error(), `unknown port "prompt"`) {
 		t.Fatalf("expected unknown read port error, got %v", err)
 	}
 }

@@ -88,9 +88,6 @@ function ProjectProgress({ projectId }: { projectId: number }) {
 
   if (!progress) return null
 
-  const sbPct = progress.storyboards.total > 0
-    ? Math.round((progress.storyboards.approved / progress.storyboards.total) * 100)
-    : 0
   const shotPct = progress.shots.total > 0
     ? Math.round((progress.shots.is_approved / progress.shots.total) * 100)
     : 0
@@ -114,10 +111,9 @@ function ProjectProgress({ projectId }: { projectId: number }) {
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">{t('sidebar.progress.storyboards')}</span>
           <span className="text-muted-foreground font-mono tabular-nums">
-            {progress.storyboards.approved}/{progress.storyboards.total}
+            {progress.storyboards.total}
           </span>
         </div>
-        <ProgressBar value={sbPct} className="h-1" />
       </div>
 
       <div className="space-y-1">

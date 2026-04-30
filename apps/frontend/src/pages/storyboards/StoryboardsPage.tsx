@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Storyboard, Scene, Episode } from '@/types'
+import type { Storyboard, Scene, Episode, Setting } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Plus, Layers } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
@@ -11,30 +11,12 @@ import { Button } from '@movscript/ui'
 import { StoryboardDetail } from '@/components/detail'
 import { useTranslation } from 'react-i18next'
 
-const ANGLE_LABEL_KEYS: Record<string, string> = {
-  'close-up': 'domain.cameraAngles.close-up',
-  medium: 'domain.cameraAngles.medium',
-  wide: 'domain.cameraAngles.wide',
-  'extreme-wide': 'domain.cameraAngles.extreme-wide',
-  overhead: 'domain.cameraAngles.overhead',
-  pov: 'domain.cameraAngles.pov',
-}
-const MOVE_LABEL_KEYS: Record<string, string> = {
-  static: 'domain.cameraMoves.static',
-  pan: 'domain.cameraMoves.pan',
-  tilt: 'domain.cameraMoves.tilt',
-  dolly: 'domain.cameraMoves.dolly',
-  zoom: 'domain.cameraMoves.zoom',
-  handheld: 'domain.cameraMoves.handheld',
-}
-
 export default function StoryboardsPage() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterMode, setFilterMode] = useState<'all' | 'scene' | 'episode'>('all')
   const [filterSceneId, setFilterSceneId] = useState<number | null>(null)
   const [filterEpisodeId, setFilterEpisodeId] = useState<number | null>(null)
-  const [filterStatus, setFilterStatus] = useState<'' | 'draft' | 'approved'>('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
@@ -52,6 +34,13 @@ export default function StoryboardsPage() {
   })
   const episodes = rawEpisodes ?? []
 
+  const { data: rawSettings } = useQuery<Setting[]>({
+    queryKey: ['settings', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const settings = rawSettings ?? []
+
   const { data: rawBoards, isLoading } = useQuery<Storyboard[]>({
     queryKey: ['storyboards-project', projectId, filterSceneId, filterEpisodeId],
     queryFn: () => {
@@ -63,16 +52,10 @@ export default function StoryboardsPage() {
     enabled: !!projectId,
   })
   const allBoards = rawBoards ?? []
-  const storyboards = allBoards.filter((b) => !filterStatus || b.status === filterStatus)
+  const storyboards = allBoards
 
   const selected = allBoards.find((b) => b.ID === selectedId) ?? null
   const detailOpen = selectedId !== null
-
-  const statusTabs = [
-    { value: '' as const, label: t('common.all') },
-    { value: 'draft' as const, label: t('domain.shotStatus.draft') },
-    { value: 'approved' as const, label: t('pages.storyboards.approved') },
-  ]
 
   return (
     <div className="flex h-full overflow-hidden bg-background">
@@ -104,14 +87,6 @@ export default function StoryboardsPage() {
             )}
             <Button onClick={() => setShowCreate(true)} size="icon" className="shrink-0 h-7 w-7"><Plus size={14} /></Button>
           </div>
-          <div className="flex gap-0.5">
-            {statusTabs.map((t) => (
-              <button key={t.value} onClick={() => setFilterStatus(t.value)}
-                className={cn('flex-1 py-1 text-xs rounded-md transition-colors', filterStatus === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
-                {t.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -138,6 +113,7 @@ export default function StoryboardsPage() {
               {storyboards.map((b) => {
                 const scene = b.scene_id ? scenes.find((s) => s.ID === b.scene_id) : null
                 const episode = b.episode_id ? episodes.find((e) => e.ID === b.episode_id) : null
+                const setting = b.setting ?? (b.setting_id ? settings.find((s) => s.ID === b.setting_id) : null)
                 return (
                   <button key={b.ID} onClick={() => setSelectedId(b.ID)}
                     className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
@@ -148,10 +124,11 @@ export default function StoryboardsPage() {
                     <div className="flex flex-wrap gap-1 mt-1">
                       {scene && <span className="text-xs text-muted-foreground truncate">{t('details.sceneLabel', { number: scene.number })} {scene.title}</span>}
                       {episode && <span className="text-xs text-muted-foreground truncate">EP{episode.number} {episode.title}</span>}
+                      {setting && <span className="text-xs text-muted-foreground truncate">{setting.name}</span>}
                     </div>
                     <div className="flex gap-1 flex-wrap mt-1">
-                      {b.camera_angle && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{ANGLE_LABEL_KEYS[b.camera_angle] ? t(ANGLE_LABEL_KEYS[b.camera_angle]) : b.camera_angle}</span>}
-                      {b.camera_movement && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{MOVE_LABEL_KEYS[b.camera_movement] ? t(MOVE_LABEL_KEYS[b.camera_movement]) : b.camera_movement}</span>}
+                      {b.shot_size && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{b.shot_size}</span>}
+                      {b.movement && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{b.movement}</span>}
                     </div>
                   </button>
                 )

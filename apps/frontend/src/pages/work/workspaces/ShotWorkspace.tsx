@@ -35,7 +35,7 @@ export function ShotWorkspace({
   return (
     <ArtifactWorkspaceFrame
       kind="shot"
-      title={`镜头 #${shot.order}`}
+      title={`镜头 ${shot.order}`}
       subtitle={storyboard ? `来自 ${storyboard.title || `分镜 #${storyboard.order}`}` : '独立镜头'}
       node={node}
       pipeline={pipeline}

@@ -722,7 +722,7 @@ function buildEntityOptions(
         const shot = item as Shot
         return {
           id: shot.ID,
-          label: t('details.shotLabel', { order: shot.order }),
+          label: t('details.shotTitle', { order: shot.order }),
           subtitle: shot.description,
         }
       }
@@ -755,7 +755,7 @@ function buildEntityOptions(
         return {
           id: finalVideo.ID,
           label: finalVideo.title || t('pipeline.detail.entityFallback.finalVideo', { id: finalVideo.ID }),
-          subtitle: finalVideo.status,
+          subtitle: finalVideo.description,
         }
       }
       default:

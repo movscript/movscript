@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Image, Plus } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import { Button } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
@@ -10,21 +9,7 @@ import type { Asset, AssetView, PaginatedResponse, RawResource, Setting } from '
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { AssetCreateForm } from '@/components/shared/EntityCreateForms'
-import { DEFAULT_SETTING_STATUS, buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from './SettingDetailEditor'
-
-const ASSET_VIEW_LABEL_KEYS: Record<string, string> = {
-  front: 'pages.resources.viewTypes.front',
-  side: 'pages.resources.viewTypes.side',
-  back: 'pages.resources.viewTypes.back',
-  left: 'pages.resources.viewTypes.left',
-  right: 'pages.resources.viewTypes.right',
-  detail: 'pages.resources.viewTypes.detail',
-  custom: 'pages.resources.viewTypes.custom',
-}
-
-function assetViewType(asset: Asset): string {
-  return asset.variant_type || asset.type || 'custom'
-}
+import { buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from './SettingDetailEditor'
 
 function viewMediaSrc(view: AssetView): string | undefined {
   if (view.resource?.url) return `${API_BASE}${view.resource.url}`
@@ -52,18 +37,35 @@ function assetMedia(asset: Asset) {
   return { src, isVideo }
 }
 
+function parseTags(value?: string) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean)
+  } catch {
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
 interface SettingAssetOverviewProps {
   setting: Setting
   className?: string
 }
 
 export function SettingAssetOverview({ setting, className }: SettingAssetOverviewProps) {
-  const { t } = useTranslation()
   const [stateFilter, setStateFilter] = useState('all')
   const [createState, setCreateState] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const stableTags = useMemo(() => parseTags(setting.tags), [setting.tags])
   const stateTags = useMemo(() => normalizeSettingStateTags(setting.state_tags, setting.status), [setting.state_tags, setting.status])
   const stateOptions = useMemo(() => buildSettingStateOptions(stateTags, setting.status), [stateTags, setting.status])
+  const visibleTags = useMemo(() => {
+    const currentStateTags = stateFilter === 'all'
+      ? Array.from(new Set(Object.values(stateTags).flat().map((item) => item.trim()).filter(Boolean)))
+      : stateTags[stateFilter] ?? []
+    return Array.from(new Set([...stableTags, ...currentStateTags]))
+  }, [stableTags, stateFilter, stateTags])
 
   const { data, isLoading } = useQuery<PaginatedResponse<Asset>>({
     queryKey: ['assets', setting.project_id, 'setting-overview', setting.ID],
@@ -81,10 +83,10 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
   const assets = data?.items ?? []
   const visibleAssets = stateFilter === 'all'
     ? assets
-    : assets.filter((asset) => (asset.state || asset.effective_status || '').trim() === stateFilter)
+    : assets.filter((asset) => (asset.state || asset.effective_status || setting.status || '').trim() === stateFilter)
 
   function openCreate(nextState?: string) {
-    setCreateState(nextState || setting.status || stateOptions[0] || DEFAULT_SETTING_STATUS)
+    setCreateState(nextState || setting.status || stateOptions[0] || '')
     setShowCreate(true)
   }
 
@@ -93,7 +95,7 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">素材全览</h3>
-          <p className="mt-1 text-xs text-muted-foreground">素材在创建时绑定到这个设定的具体状态。</p>
+          <p className="mt-1 text-xs text-muted-foreground">素材绑定到这个设定的具体状态。</p>
         </div>
         <Button type="button" size="sm" className="h-8 gap-1.5" onClick={() => openCreate(stateFilter === 'all' ? undefined : stateFilter)}>
           <Plus size={13} />
@@ -113,7 +115,7 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
           全部 <span className="ml-1 opacity-70">{assets.length}</span>
         </button>
         {stateOptions.map((state) => {
-          const count = assets.filter((asset) => (asset.state || asset.effective_status || '').trim() === state).length
+          const count = assets.filter((asset) => (asset.state || asset.effective_status || setting.status || '').trim() === state).length
           return (
             <button
               key={state}
@@ -130,17 +132,25 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
         })}
       </div>
 
+      {visibleTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {visibleTags.map((tag) => (
+            <span key={tag} className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{tag}</span>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <p className="rounded-md border border-border p-4 text-center text-xs text-muted-foreground">加载素材中</p>
       ) : visibleAssets.length === 0 ? (
         <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
-          暂无素材。可以直接添加并绑定到设定状态，也可以切换到某个状态后添加。
+          暂无素材。可以直接添加预览并绑定到这个设定状态。
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {visibleAssets.map((asset) => {
             const media = assetMedia(asset)
-            const viewType = assetViewType(asset)
+            const state = asset.state || asset.effective_status || setting.status || ''
             return (
               <div key={asset.ID} className="overflow-hidden rounded-lg border border-border bg-background">
                 <div className="aspect-square overflow-hidden bg-muted">
@@ -156,12 +166,8 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
                 </div>
                 <div className="space-y-1 p-3">
                   <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
-                  <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-                    <span className="rounded bg-muted px-1.5 py-0.5">{ASSET_VIEW_LABEL_KEYS[viewType] ? t(ASSET_VIEW_LABEL_KEYS[viewType]) : viewType}</span>
-                    {(asset.state || asset.effective_status) && (
-                      <span className="rounded bg-muted px-1.5 py-0.5">{settingStatusLabel(asset.state || asset.effective_status)}</span>
-                    )}
-                  </div>
+                  {state && <p className="truncate text-[11px] text-muted-foreground">{settingStatusLabel(state)}</p>}
+                  <p className="truncate text-[11px] text-muted-foreground">{asset.resource?.name ?? '预览'}</p>
                 </div>
               </div>
             )
@@ -176,9 +182,6 @@ export function SettingAssetOverview({ setting, className }: SettingAssetOvervie
           initialSettingId={setting.ID}
           initialState={createState}
           lockSetting
-          onCreated={(asset) => {
-            if (asset.state) setStateFilter(asset.state)
-          }}
           onSuccess={() => setShowCreate(false)}
           onCancel={() => setShowCreate(false)}
         />
