@@ -22,24 +22,28 @@ type templateDef struct {
 var pipelineTemplates = map[string]templateDef{
 	"full_production": {
 		Nodes: []templateNodeDef{
-			{Type: "raw_script", ContentType: "script", Name: "底稿写作", PosX: 100, PosY: 200},
-			{Type: "episode_writing", ContentType: "script", Name: "分集剧本创作", PosX: 320, PosY: 200},
-			{Type: "scene_writing", ContentType: "script", Name: "分场剧本创作", PosX: 540, PosY: 200},
-			{Type: "storyboard_creation", ContentType: "storyboard", Name: "分镜创作", PosX: 760, PosY: 200},
-			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 980, PosY: 200},
-			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 1200, PosY: 200},
+			{Type: "script_writing", ContentType: "script", Name: "剧本创作", PosX: 100, PosY: 200},
+			{Type: "setting_creation", ContentType: "setting", Name: "设定创作", PosX: 320, PosY: 200},
+			{Type: "episode_writing", ContentType: "script", Name: "分集剧本创作", PosX: 540, PosY: 200},
+			{Type: "scene_writing", ContentType: "script", Name: "分场剧本创作", PosX: 760, PosY: 200},
+			{Type: "storyboard_creation", ContentType: "storyboard", Name: "分镜创作", PosX: 980, PosY: 200},
+			{Type: "asset_creation", ContentType: "asset", Name: "资产创作", PosX: 1200, PosY: 200},
+			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 1420, PosY: 200},
+			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 1640, PosY: 200},
 		},
-		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}},
+		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}, {6, 7}},
 	},
 	"from_script": {
 		Nodes: []templateNodeDef{
-			{Type: "episode_writing", ContentType: "script", Name: "分集剧本创作", PosX: 100, PosY: 200},
-			{Type: "scene_writing", ContentType: "script", Name: "分场剧本创作", PosX: 320, PosY: 200},
-			{Type: "storyboard_creation", ContentType: "storyboard", Name: "分镜创作", PosX: 540, PosY: 200},
-			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 760, PosY: 200},
-			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 980, PosY: 200},
+			{Type: "setting_creation", ContentType: "setting", Name: "设定创作", PosX: 100, PosY: 200},
+			{Type: "episode_writing", ContentType: "script", Name: "分集剧本创作", PosX: 320, PosY: 200},
+			{Type: "scene_writing", ContentType: "script", Name: "分场剧本创作", PosX: 540, PosY: 200},
+			{Type: "storyboard_creation", ContentType: "storyboard", Name: "分镜创作", PosX: 760, PosY: 200},
+			{Type: "asset_creation", ContentType: "asset", Name: "资产创作", PosX: 980, PosY: 200},
+			{Type: "shot_production", ContentType: "shot", Name: "镜头生产", PosX: 1200, PosY: 200},
+			{Type: "episode_edit", ContentType: "final_video", Name: "剧集剪辑", PosX: 1420, PosY: 200},
 		},
-		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}},
+		Edges: [][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}},
 	},
 	"from_storyboard": {
 		Nodes: []templateNodeDef{
@@ -67,10 +71,14 @@ func createPipelineFromTemplate(db *gorm.DB, projectID uint, template string) {
 
 	created := make([]model.PipelineNode, len(def.Nodes))
 	for i, nd := range def.Nodes {
+		contentType := nd.ContentType
+		if contentType == "" {
+			contentType = pipelineContentTypeForNode(nd.Type)
+		}
 		node := model.PipelineNode{
 			ProjectID:   projectID,
 			Type:        nd.Type,
-			ContentType: pipelineContentTypeForNode(nd.Type),
+			ContentType: contentType,
 			Name:        nd.Name,
 			Status:      "draft",
 			PosX:        nd.PosX,

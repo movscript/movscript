@@ -1,7 +1,7 @@
 import type { PipelineContentType } from '@/types'
 
 export type PipelineNodeCategory = 'work' | 'custom'
-export type PipelineEntityType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video'
+export type PipelineEntityType = 'script' | 'setting' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video'
 export type PipelineScriptType = 'main' | 'episode' | 'scene'
 
 export interface PipelineNodeSpec {
@@ -15,6 +15,7 @@ export interface PipelineNodeSpec {
 
 export const PIPELINE_NODE_SPECS: Record<string, PipelineNodeSpec> = {
   script_writing:      { type: 'script_writing',      category: 'work',     contentType: 'script',     canCreateEntity: false, canLinkEntity: false },
+  setting_creation:    { type: 'setting_creation',    category: 'work',     contentType: 'setting',    entityType: 'setting', canCreateEntity: false, canLinkEntity: false },
   episode_writing:     { type: 'episode_writing',     category: 'work',     contentType: 'script',     canCreateEntity: false, canLinkEntity: false },
   scene_writing:       { type: 'scene_writing',       category: 'work',     contentType: 'script',     canCreateEntity: false, canLinkEntity: false },
   storyboard_creation: { type: 'storyboard_creation', category: 'work',     contentType: 'storyboard', canCreateEntity: false, canLinkEntity: false },
@@ -27,7 +28,7 @@ export const PIPELINE_NODE_SPECS: Record<string, PipelineNodeSpec> = {
 }
 
 export const WORK_NODE_TYPES = Object.values(PIPELINE_NODE_SPECS)
-  .filter((spec) => spec.category === 'work')
+  .filter((spec) => spec.category === 'work' && spec.type !== 'raw_script')
   .map((spec) => spec.type)
 
 export const NODE_TYPE_OPTIONS = [...WORK_NODE_TYPES, 'custom']

@@ -31,6 +31,7 @@ type Contributions struct {
 	Tools       []ToolContribution       `json:"tools,omitempty"`
 	Cards       []CardContribution       `json:"cards,omitempty"`
 	CanvasNodes []CanvasNodeContribution `json:"canvasNodes,omitempty"`
+	Workflows   []WorkflowContribution   `json:"workflows,omitempty"`
 	Commands    []CommandContribution    `json:"commands,omitempty"`
 }
 
@@ -88,12 +89,24 @@ type CanvasNodeContribution struct {
 	Title       string          `json:"title"`
 	Description string          `json:"description,omitempty"`
 	Tool        string          `json:"tool,omitempty"`
+	Workflow    string          `json:"workflow,omitempty"`
 	Inputs      []CanvasPortDef `json:"inputs,omitempty"`
 	Outputs     []CanvasPortDef `json:"outputs,omitempty"`
 	Card        string          `json:"card,omitempty"`
 	Icon        string          `json:"icon,omitempty"`
 	Category    string          `json:"category,omitempty"`
 	DefaultData json.RawMessage `json:"defaultData,omitempty"`
+}
+
+type WorkflowContribution struct {
+	ID          string          `json:"id"`
+	Title       string          `json:"title"`
+	Description string          `json:"description,omitempty"`
+	WorkflowKey string          `json:"workflowKey,omitempty"`
+	Version     string          `json:"version,omitempty"`
+	Inputs      []CanvasPortDef `json:"inputs,omitempty"`
+	Outputs     []CanvasPortDef `json:"outputs,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
 }
 
 type CommandContribution struct {
@@ -173,6 +186,31 @@ func ValidateManifest(m *Manifest) error {
 			return fmt.Errorf("card %q references unknown tool %q", card.ID, card.Tool)
 		}
 	}
+	seenWorkflows := map[string]bool{}
+	for _, wf := range m.Contributes.Workflows {
+		if strings.TrimSpace(wf.ID) == "" {
+			return errors.New("workflow id is required")
+		}
+		if seenWorkflows[wf.ID] {
+			return fmt.Errorf("duplicate workflow id %q", wf.ID)
+		}
+		seenWorkflows[wf.ID] = true
+		if strings.TrimSpace(wf.Title) == "" {
+			return fmt.Errorf("workflow %q title is required", wf.ID)
+		}
+		if strings.TrimSpace(wf.WorkflowKey) == "" {
+			return fmt.Errorf("workflow %q workflowKey is required", wf.ID)
+		}
+		if strings.ContainsAny(wf.WorkflowKey, " \t\r\n/\\") {
+			return fmt.Errorf("workflow %q workflowKey must not contain whitespace or path separators", wf.ID)
+		}
+		if err := validateCanvasPorts(wf.ID, "workflow input", wf.Inputs); err != nil {
+			return err
+		}
+		if err := validateCanvasPorts(wf.ID, "workflow output", wf.Outputs); err != nil {
+			return err
+		}
+	}
 	seenNodes := map[string]bool{}
 	for _, node := range m.Contributes.CanvasNodes {
 		if strings.TrimSpace(node.Type) == "" {
@@ -187,6 +225,9 @@ func ValidateManifest(m *Manifest) error {
 		}
 		if node.Tool != "" && !seenTools[node.Tool] {
 			return fmt.Errorf("canvas node %q references unknown tool %q", node.Type, node.Tool)
+		}
+		if node.Workflow != "" && !seenWorkflows[node.Workflow] {
+			return fmt.Errorf("canvas node %q references unknown workflow %q", node.Type, node.Workflow)
 		}
 		if err := validateCanvasPorts(node.Type, "input", node.Inputs); err != nil {
 			return err

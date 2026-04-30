@@ -46,17 +46,17 @@ func TestScriptPatchUpdatesWhitelistClientFields(t *testing.T) {
 		"assignee_id":             float64(55),
 		"character_profiles":      `[{"name":"old"}]`,
 		"character_relationships": `[{"source":"c1","target":"c2"}]`,
-		"core_settings":           `["old rule"]`,
+		"core_settings":           "episode rule",
 		"background":              "old background",
 		"scenes_desc":             `["old scene"]`,
 	})
 
-	for _, forbidden := range []string{"id", "project_id", "author_id", "pipeline_node_id", "review_status", "status", "deleted_at", "character_profiles", "character_relationships", "core_settings", "background", "scenes_desc"} {
+	for _, forbidden := range []string{"id", "project_id", "author_id", "pipeline_node_id", "review_status", "status", "deleted_at", "character_profiles", "character_relationships", "background", "scenes_desc"} {
 		if _, ok := updates[forbidden]; ok {
 			t.Fatalf("forbidden field %q was included in updates: %#v", forbidden, updates)
 		}
 	}
-	if updates["title"] != "allowed title" || updates["content"] != "allowed content" || updates["assignee_id"] != float64(55) {
+	if updates["title"] != "allowed title" || updates["content"] != "allowed content" || updates["assignee_id"] != float64(55) || updates["core_settings"] != "episode rule" {
 		t.Fatalf("expected allowed fields to survive, got %#v", updates)
 	}
 }

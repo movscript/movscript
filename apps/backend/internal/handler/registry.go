@@ -26,6 +26,15 @@ func (h *RegistryHandler) GetPlugin(c *gin.Context) {
 	h.proxy(c, "/plugins/"+id+"/manifest.json")
 }
 
+func (h *RegistryHandler) ListWorkflows(c *gin.Context) {
+	h.proxy(c, "/workflows/index.json")
+}
+
+func (h *RegistryHandler) GetWorkflow(c *gin.Context) {
+	id := c.Param("id")
+	h.proxy(c, "/workflows/"+id+"/manifest.json")
+}
+
 func (h *RegistryHandler) proxy(c *gin.Context, path string) {
 	base := os.Getenv("PLUGIN_REGISTRY_URL")
 	if base == "" {

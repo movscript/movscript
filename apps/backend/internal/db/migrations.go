@@ -101,7 +101,83 @@ func RegisteredMigrations() []Migration {
 			Name:    "remove_final_video_status_and_order",
 			Up:      migrateRemoveFinalVideoStatusAndOrder,
 		},
+		{
+			Version: "000014",
+			Name:    "settings_pipeline_node_id",
+			Up:      migrateSettingsPipelineNodeID,
+		},
+		{
+			Version: "000015",
+			Name:    "structured_script_fields",
+			Up:      migrateStructuredScriptFields,
+		},
+		{
+			Version: "000016",
+			Name:    "script_episode_planning_fields",
+			Up:      migrateScriptEpisodePlanningFields,
+		},
+		{
+			Version: "000017",
+			Name:    "script_analysis_feature_channels",
+			Up:      migrateScriptAnalysisFeatureChannels,
+		},
 	}
+}
+
+func migrateScriptAnalysisFeatureChannels(db *gorm.DB) error {
+	features := []model.FeatureConfig{
+		{FeatureKey: "main_script_analyze", DisplayName: "主剧本 AI 分析", Description: "拆解主剧本，提取分集剧本、分场剧本和项目设定候选", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "episode_script_analyze", DisplayName: "分集剧本 AI 分析", Description: "分析分集剧本，提取标题、描述、提纲、钩子和涉及分场", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "scene_script_analyze", DisplayName: "分场剧本 AI 分析", Description: "分析分场剧本，提取时间、人物、场景、情节、氛围和提纲", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+	}
+	for _, feature := range features {
+		var existing model.FeatureConfig
+		err := db.Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("lookup feature %s: %w", feature.FeatureKey, err)
+		}
+		if err := db.Create(&feature).Error; err != nil {
+			return fmt.Errorf("seed feature %s: %w", feature.FeatureKey, err)
+		}
+	}
+	return nil
+}
+
+func migrateScriptEpisodePlanningFields(db *gorm.DB) error {
+	return db.Exec(`
+		ALTER TABLE scripts
+			ADD COLUMN IF NOT EXISTS planned_scene_count bigint DEFAULT 0,
+			ADD COLUMN IF NOT EXISTS planned_character_count bigint DEFAULT 0
+	`).Error
+}
+
+func migrateStructuredScriptFields(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.Script{}); err != nil {
+		return err
+	}
+	return db.Exec(`
+		UPDATE scripts
+		SET raw_source = content
+		WHERE (raw_source IS NULL OR raw_source = '')
+			AND content IS NOT NULL
+			AND content <> ''
+	`).Error
+}
+
+func migrateSettingsPipelineNodeID(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.Setting{}); err != nil {
+		return err
+	}
+	return db.Exec(`
+		UPDATE settings e SET pipeline_node_id = pn.id
+		FROM pipeline_nodes pn
+		WHERE pn.entity_type = 'setting'
+			AND pn.entity_id = e.id
+			AND e.pipeline_node_id IS NULL
+	`).Error
 }
 
 func migrateRemoveFinalVideoStatusAndOrder(db *gorm.DB) error {

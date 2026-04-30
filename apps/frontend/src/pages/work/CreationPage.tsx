@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
-import type { ArtifactRef, Script, Setting, Asset, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource, Pipeline, PipelineNode, ProjectMember } from '@/types'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
+import type { ArtifactRef, Script, Setting, Asset, AssetView, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource, Pipeline, PipelineNode, ProjectMember } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, LayoutTemplate, GripVertical, Network, Search, X } from 'lucide-react'
+import { Plus, LayoutTemplate, GripVertical, Network, Search, X, Image as ImageIcon } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import {
   ScriptCreateForm, AssetCreateForm, EpisodeCreateForm, SceneCreateForm, StoryboardCreateForm, ShotCreateForm,
@@ -22,6 +23,7 @@ import { ShotWorkspace } from './workspaces/ShotWorkspace'
 import { EmptyWorkspace } from './workspaces/EmptyWorkspace'
 import { EmbeddedCanvas, type EntityDragItem, type PushTarget } from './EmbeddedCanvas'
 import { Button, Input, Label, Textarea } from '@movscript/ui'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { FinalVideoDetail } from '@/pages/final-videos/FinalVideosPage'
 import PipelineEditorPage from '@/pages/pipeline/PipelineEditorPage'
 import { ArtifactWorkspaceFrame } from './ArtifactWorkspaceFrame'
@@ -49,6 +51,77 @@ interface WorkListItem {
   status?: string
   pipeline_node_id?: number
   resource?: RawResource
+  previews?: WorkListPreview[]
+  previewCount?: number
+}
+
+interface WorkListPreview {
+  key: string
+  src: string
+  isVideo: boolean
+}
+
+function resourceMediaSrc(resource?: RawResource): string | undefined {
+  if (!resource?.url) return undefined
+  return `${API_BASE}${resource.url}`
+}
+
+function viewMediaSrc(view: AssetView): string | undefined {
+  if (view.resource?.url) return `${API_BASE}${view.resource.url}`
+  if (view.image_url) return view.image_url.startsWith('http') ? view.image_url : `${API_BASE}${view.image_url}`
+  return undefined
+}
+
+function isVideoResource(resource?: RawResource): boolean {
+  return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
+}
+
+function isVideoView(view: AssetView): boolean {
+  return view.resource?.type === 'video' || !!view.resource?.mime_type?.startsWith('video/')
+}
+
+function assetPreviews(asset: Asset, limit = 4): WorkListPreview[] {
+  const candidates: WorkListPreview[] = []
+  const resourceSrc = resourceMediaSrc(asset.resource)
+  if (resourceSrc) {
+    candidates.push({
+      key: `resource:${asset.resource?.ID ?? resourceSrc}`,
+      src: resourceSrc,
+      isVideo: isVideoResource(asset.resource),
+    })
+  }
+
+  for (const view of asset.views ?? []) {
+    const src = viewMediaSrc(view)
+    if (!src) continue
+    candidates.push({
+      key: `view:${view.ID}:${src}`,
+      src,
+      isVideo: view.resource ? isVideoView(view) : false,
+    })
+  }
+
+  const seen = new Set<string>()
+  return candidates.filter((preview) => {
+    if (seen.has(preview.src)) return false
+    seen.add(preview.src)
+    return true
+  }).slice(0, limit)
+}
+
+function settingPreviews(settingId: number, assets: Asset[], limit = 4): WorkListPreview[] {
+  const previews: WorkListPreview[] = []
+  const seen = new Set<string>()
+  for (const asset of assets) {
+    if (asset.setting_id !== settingId) continue
+    for (const preview of assetPreviews(asset, limit)) {
+      if (seen.has(preview.src)) continue
+      seen.add(preview.src)
+      previews.push(preview)
+      if (previews.length >= limit) return previews
+    }
+  }
+  return previews
 }
 
 export default function CreationPage() {
@@ -288,6 +361,22 @@ export default function CreationPage() {
           title: setting.name,
           subtitle: setting.description || settingTypeLabel(setting.type),
           status: setting.status,
+          previews: settingPreviews(setting.ID, assets),
+          previewCount: assets.filter((asset) => asset.setting_id === setting.ID && assetPreviews(asset, 1).length > 0).length,
+        }))
+      case 'asset':
+        return assets.map((asset) => ({
+          kind: 'asset',
+          id: asset.ID,
+          title: asset.name,
+          subtitle: asset.setting?.name
+            ?? (asset.setting_id ? settings.find((setting) => setting.ID === asset.setting_id)?.name : undefined)
+            ?? asset.type,
+          status: asset.state || asset.effective_status || asset.review_status,
+          pipeline_node_id: asset.pipeline_node_id,
+          resource: asset.resource ?? asset.views?.find((view) => view.resource)?.resource,
+          previews: assetPreviews(asset, 3),
+          previewCount: assetPreviews(asset, 8).length,
         }))
       default:
         return artifactRefs
@@ -861,6 +950,8 @@ interface EntityCardProps {
 
 function EntityCard({ item, kind, selected, hasTab, compact = false, onClick }: EntityCardProps) {
   const cfg = KIND_CONFIG[kind]
+  const previews = item.previews ?? []
+  const showPreview = !compact && previews.length > 0 && (kind === 'setting' || kind === 'asset')
 
   function onDragStart(e: React.DragEvent) {
     const dragTitle = item.subtitle ? `${item.title} · ${item.subtitle}` : item.title
@@ -879,7 +970,7 @@ function EntityCard({ item, kind, selected, hasTab, compact = false, onClick }: 
       onClick={onClick}
       className={cn(
         'shrink-0 flex items-center gap-2 rounded-md border transition-all text-left',
-        compact ? 'h-9 w-[144px] px-2' : 'h-12 w-[168px] px-3',
+        compact ? 'h-9 w-[144px] px-2' : showPreview ? 'h-20 w-[220px] p-2' : 'h-12 w-[168px] px-3',
         'cursor-grab active:cursor-grabbing hover:shadow-sm',
         selected
           ? 'bg-foreground text-background border-transparent shadow-sm'
@@ -889,6 +980,14 @@ function EntityCard({ item, kind, selected, hasTab, compact = false, onClick }: 
       )}
     >
       <GripVertical size={11} className={cn('shrink-0', selected ? 'text-background/50' : 'text-muted-foreground/40')} />
+      {showPreview && (
+        <EntityCardPreview
+          previews={previews}
+          title={item.title}
+          selected={selected}
+          extraCount={Math.max(0, (item.previewCount ?? previews.length) - previews.length)}
+        />
+      )}
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium truncate leading-tight">{item.title}</p>
         {item.subtitle && !compact && (
@@ -898,5 +997,46 @@ function EntityCard({ item, kind, selected, hasTab, compact = false, onClick }: 
         )}
       </div>
     </button>
+  )
+}
+
+function EntityCardPreview({
+  previews,
+  title,
+  selected,
+  extraCount,
+}: {
+  previews: WorkListPreview[]
+  title: string
+  selected: boolean
+  extraCount: number
+}) {
+  return (
+    <div className={cn(
+      'relative grid h-14 w-16 shrink-0 overflow-hidden rounded-md bg-muted',
+      previews.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
+      previews.length > 2 && 'grid-rows-2',
+      selected && 'bg-background/15',
+    )}>
+      {previews.slice(0, 4).map((preview) => (
+        <div key={preview.key} className="min-h-0 min-w-0 overflow-hidden">
+          {preview.isVideo ? (
+            <AuthedVideo src={preview.src} className="h-full w-full object-cover" muted playsInline />
+          ) : (
+            <AuthedImage src={preview.src} alt={title} className="h-full w-full object-cover" />
+          )}
+        </div>
+      ))}
+      {previews.length === 0 && (
+        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+          <ImageIcon size={16} />
+        </div>
+      )}
+      {extraCount > 0 && (
+        <span className="absolute bottom-1 right-1 rounded bg-black/65 px-1 text-[10px] font-medium leading-4 text-white">
+          +{extraCount}
+        </span>
+      )}
+    </div>
   )
 }

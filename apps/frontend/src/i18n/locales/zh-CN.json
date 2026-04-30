@@ -583,11 +583,11 @@
       "templates": {
         "fullProduction": {
           "label": "完整制作",
-          "description": "从底稿开始，覆盖所有环节"
+          "description": "从剧本和设定开始，覆盖完整生产环节"
         },
         "fromScript": {
           "label": "有剧本二创",
-          "description": "已有剧本，从分集开始生产"
+          "description": "已有剧本，先整理设定再进入分集生产"
         },
         "fromStoryboard": {
           "label": "有分镜",
@@ -599,8 +599,8 @@
         }
       },
       "templateSteps": {
-        "draftWriting": "底稿写作",
         "mainScript": "主剧本",
+        "settingCreation": "设定创作",
         "episodeScript": "分集剧本",
         "sceneScript": "分场剧本",
         "storyboardScript": "分镜脚本",
@@ -947,6 +947,10 @@
         "label": "剧本创作",
         "desc": "创作主剧本"
       },
+      "setting_creation": {
+        "label": "设定创作",
+        "desc": "创作人物、场景和道具设定"
+      },
       "episode_writing": {
         "label": "分集剧本创作",
         "desc": "创作分集剧本"
@@ -1079,6 +1083,7 @@
     "detail": {
       "entities": {
         "script": "剧本",
+        "setting": "设定",
         "episode": "分集",
         "scene": "分场",
         "storyboard": "分镜",
@@ -1088,6 +1093,7 @@
       },
       "entityFallback": {
         "script": "剧本 #{{id}}",
+        "setting": "设定 #{{id}}",
         "asset": "素材 #{{id}}",
         "finalVideo": "成片 #{{id}}"
       },
@@ -1126,6 +1132,7 @@
     },
     "contentTypes": {
       "script": "剧本",
+      "setting": "设定",
       "storyboard": "分镜",
       "shot": "镜头",
       "asset": "素材",
@@ -1713,6 +1720,7 @@
       "projects": "项目管理",
       "logs": "用量日志",
       "debug": "调试",
+      "uiPreview": "UI 预览",
       "storage": "资源存储",
       "cloudFiles": "输入中转"
     },
@@ -1965,6 +1973,9 @@
       "autoHighestPriority": "自动（优先级最高）",
       "accessRoles": "访问权限",
       "accessRolesHint": "（留空 = 所有角色可用）",
+      "systemFeatures": "系统功能",
+      "toolFeatures": "工具功能",
+      "empty": "暂无可配置功能",
       "catalog": {
         "script_analyze": {
           "name": "剧本 AI 分析",

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Script, Setting } from '@/types'
+import { API_BASE_URL as API_BASE } from '@/lib/config'
+import type { Asset, AssetView, PaginatedResponse, RawResource, Script, Setting } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, FileText, Users } from 'lucide-react'
+import { Plus, FileText, Users, Image as ImageIcon } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,7 @@ import { ScriptDetail } from '@/components/detail'
 import { BUILT_IN_SETTING_TYPES, DEFAULT_SETTING_STATUS, SettingDetailEditor, SettingStatusBadge, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
 import { SettingAssetOverview } from '@/components/settings/SettingAssetOverview'
 import { useTranslation } from 'react-i18next'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 
 type ScriptType = 'main' | 'episode' | 'scene'
 type PageTab = 'scripts' | 'settings'
@@ -25,6 +27,60 @@ const SCRIPT_TYPES: { type: ScriptType; labelKey: string; color: string }[] = [
 ]
 
 const SCRIPT_TYPE_MAP = Object.fromEntries(SCRIPT_TYPES.map((t) => [t.type, t]))
+
+interface SettingPreview {
+  key: string
+  src: string
+  isVideo: boolean
+}
+
+function resourceMediaSrc(resource?: RawResource): string | undefined {
+  if (!resource?.url) return undefined
+  return `${API_BASE}${resource.url}`
+}
+
+function viewMediaSrc(view: AssetView): string | undefined {
+  if (view.resource?.url) return `${API_BASE}${view.resource.url}`
+  if (view.image_url) return view.image_url.startsWith('http') ? view.image_url : `${API_BASE}${view.image_url}`
+  return undefined
+}
+
+function isVideoResource(resource?: RawResource): boolean {
+  return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
+}
+
+function isVideoView(view: AssetView): boolean {
+  return view.resource?.type === 'video' || !!view.resource?.mime_type?.startsWith('video/')
+}
+
+function assetPreviewCandidates(asset: Asset): SettingPreview[] {
+  const candidates: SettingPreview[] = []
+  const resourceSrc = resourceMediaSrc(asset.resource)
+  if (resourceSrc) {
+    candidates.push({ key: `resource:${asset.resource?.ID ?? resourceSrc}`, src: resourceSrc, isVideo: isVideoResource(asset.resource) })
+  }
+  for (const view of asset.views ?? []) {
+    const src = viewMediaSrc(view)
+    if (!src) continue
+    candidates.push({ key: `view:${view.ID}:${src}`, src, isVideo: view.resource ? isVideoView(view) : false })
+  }
+  return candidates
+}
+
+function settingAssetPreviews(settingId: number, assets: Asset[], limit = 4): SettingPreview[] {
+  const previews: SettingPreview[] = []
+  const seen = new Set<string>()
+  for (const asset of assets) {
+    if (asset.setting_id !== settingId) continue
+    for (const preview of assetPreviewCandidates(asset)) {
+      if (seen.has(preview.src)) continue
+      seen.add(preview.src)
+      previews.push(preview)
+      if (previews.length >= limit) return previews
+    }
+  }
+  return previews
+}
 
 // ─── Scripts Section ────────────────────────────────────────────────────────
 
@@ -175,7 +231,15 @@ function SettingsSection({ projectId }: { projectId: number }) {
         .then((r) => r.data),
     enabled: !!projectId,
   })
+  const { data: rawSettingAssets } = useQuery<PaginatedResponse<Asset>>({
+    queryKey: ['assets', projectId, 'settings-preview'],
+    queryFn: () =>
+      api.get(`/projects/${projectId}/assets`, { params: { page: 1, page_size: 200 } })
+        .then((r) => r.data),
+    enabled: !!projectId,
+  })
   const settings = rawSettings ?? []
+  const settingAssets = rawSettingAssets?.items ?? []
 
   const create = useMutation({
     mutationFn: (s: Partial<Setting>) => api.post(`/projects/${projectId}/settings`, s).then((r) => r.data),
@@ -228,24 +292,30 @@ function SettingsSection({ projectId }: { projectId: number }) {
             ) : detailOpen ? (
               settings.map((s) => (
                 <button key={s.ID} onClick={() => selectSetting(s)}
-                  className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
-                  <div className="flex items-center gap-2">
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
-                    <span className="text-sm font-medium truncate flex-1">{s.name}</span>
+                  className={cn('flex w-full items-center gap-2.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-background', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
+                  <SettingPreviewThumb previews={settingAssetPreviews(s.ID, settingAssets, 4)} title={s.name} compact />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
+                      <span className="text-sm font-medium truncate flex-1">{s.name}</span>
+                    </div>
+                    {s.status && <div className="mt-1.5"><SettingStatusBadge status={s.status} /></div>}
                   </div>
-                  {s.status && <div className="mt-1.5"><SettingStatusBadge status={s.status} /></div>}
                 </button>
               ))
             ) : (
               <div className="p-4 grid grid-cols-2 xl:grid-cols-3 gap-3">
                 {settings.map((s) => (
-                  <button key={s.ID} onClick={() => selectSetting(s)} className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
-                      {s.status && <SettingStatusBadge status={s.status} />}
+                  <button key={s.ID} onClick={() => selectSetting(s)} className="overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-ring hover:shadow-sm">
+                    <SettingPreviewThumb previews={settingAssetPreviews(s.ID, settingAssets, 4)} title={s.name} />
+                    <div className="p-3">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
+                        {s.status && <SettingStatusBadge status={s.status} />}
+                      </div>
+                      <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.name}</h3>
+                      {s.description && <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>}
                     </div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.name}</h3>
-                    {s.description && <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>}
                   </button>
                 ))}
               </div>
@@ -298,6 +368,39 @@ function SettingsSection({ projectId }: { projectId: number }) {
           </div>
         </div>
       </CreateDialog>
+    </div>
+  )
+}
+
+function SettingPreviewThumb({
+  previews,
+  title,
+  compact = false,
+}: {
+  previews: SettingPreview[]
+  title: string
+  compact?: boolean
+}) {
+  return (
+    <div className={cn(
+      'grid shrink-0 overflow-hidden bg-muted text-muted-foreground',
+      compact ? 'h-10 w-10 rounded-md' : 'aspect-[4/3] w-full',
+      previews.length <= 1 ? 'grid-cols-1' : 'grid-cols-2',
+      previews.length > 2 && 'grid-rows-2',
+    )}>
+      {previews.length === 0 ? (
+        <div className="flex h-full w-full items-center justify-center">
+          <ImageIcon size={compact ? 15 : 22} />
+        </div>
+      ) : previews.map((preview) => (
+        <div key={preview.key} className="min-h-0 min-w-0 overflow-hidden">
+          {preview.isVideo ? (
+            <AuthedVideo src={preview.src} className="h-full w-full object-cover" muted playsInline />
+          ) : (
+            <AuthedImage src={preview.src} alt={title} className="h-full w-full object-cover" />
+          )}
+        </div>
+      ))}
     </div>
   )
 }

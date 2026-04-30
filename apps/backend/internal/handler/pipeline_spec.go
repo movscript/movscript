@@ -20,6 +20,7 @@ type pipelineNodeSpec struct {
 
 var pipelineNodeSpecs = map[string]pipelineNodeSpec{
 	"script_writing":      {Type: "script_writing", Category: "work", ContentType: "script"},
+	"setting_creation":    {Type: "setting_creation", Category: "work", ContentType: "setting", EntityType: "setting"},
 	"episode_writing":     {Type: "episode_writing", Category: "work", ContentType: "script"},
 	"scene_writing":       {Type: "scene_writing", Category: "work", ContentType: "script"},
 	"storyboard_creation": {Type: "storyboard_creation", Category: "work", ContentType: "storyboard"},
@@ -60,7 +61,7 @@ func pipelineContentTypeForNode(nodeType string) string {
 
 func pipelineContentTypeForBinding(nodeType, entityType string) string {
 	switch entityType {
-	case "script", "storyboard", "shot", "asset", "episode", "scene", "final_video":
+	case "script", "setting", "storyboard", "shot", "asset", "episode", "scene", "final_video":
 		return entityType
 	default:
 		return pipelineContentTypeForNode(nodeType)
@@ -87,7 +88,7 @@ func pipelineScriptTypeForNode(nodeType string) string {
 func (h *PipelineHandler) GetNodeSpecs(c *gin.Context) {
 	specs := make([]pipelineNodeSpec, 0, len(pipelineNodeSpecs))
 	order := []string{
-		"script_writing", "episode_writing", "scene_writing", "storyboard_creation", "asset_creation", "raw_script", "shot_production", "episode_edit",
+		"script_writing", "setting_creation", "episode_writing", "scene_writing", "storyboard_creation", "asset_creation", "shot_production", "episode_edit",
 		"custom",
 	}
 	for _, key := range order {
@@ -119,6 +120,8 @@ func (h *PipelineHandler) syncPipelineEntityBinding(tx *gorm.DB, node model.Pipe
 			return fmt.Errorf("该节点只能关联%s类型剧本", expectedType)
 		}
 		return tx.Model(&script).Updates(updates).Error
+	case "setting":
+		result = tx.Model(&model.Setting{}).Where("id = ? AND project_id = ?", *node.EntityID, node.ProjectID).Updates(updates)
 	case "storyboard":
 		result = tx.Model(&model.Storyboard{}).Where("id = ? AND project_id = ?", *node.EntityID, node.ProjectID).Updates(updates)
 	case "shot":
@@ -151,6 +154,8 @@ func (h *PipelineHandler) clearPipelineEntityBinding(tx *gorm.DB, node model.Pip
 	switch node.EntityType {
 	case "script":
 		return tx.Model(&model.Script{}).Where("id = ? AND pipeline_node_id = ?", *node.EntityID, node.ID).Updates(updates).Error
+	case "setting":
+		return tx.Model(&model.Setting{}).Where("id = ? AND pipeline_node_id = ?", *node.EntityID, node.ID).Updates(updates).Error
 	case "storyboard":
 		return tx.Model(&model.Storyboard{}).Where("id = ? AND pipeline_node_id = ?", *node.EntityID, node.ID).Updates(updates).Error
 	case "shot":

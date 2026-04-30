@@ -165,14 +165,14 @@ const TEMPLATES = [
     labelKey: 'pages.projects.templates.fullProduction.label',
     descriptionKey: 'pages.projects.templates.fullProduction.description',
     icon: FileEdit,
-    stepKeys: ['pages.projects.templateSteps.draftWriting', 'pages.projects.templateSteps.mainScript', 'pages.projects.templateSteps.episodeScript', 'pages.projects.templateSteps.sceneScript', 'pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
+    stepKeys: ['pages.projects.templateSteps.mainScript', 'pages.projects.templateSteps.settingCreation', 'pages.projects.templateSteps.episodeScript', 'pages.projects.templateSteps.sceneScript', 'pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
   },
   {
     key: 'from_script',
     labelKey: 'pages.projects.templates.fromScript.label',
     descriptionKey: 'pages.projects.templates.fromScript.description',
     icon: FileText,
-    stepKeys: ['pages.projects.templateSteps.mainScript', 'pages.projects.templateSteps.episodeScript', 'pages.projects.templateSteps.sceneScript', 'pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
+    stepKeys: ['pages.projects.templateSteps.mainScript', 'pages.projects.templateSteps.settingCreation', 'pages.projects.templateSteps.episodeScript', 'pages.projects.templateSteps.sceneScript', 'pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
   },
   {
     key: 'from_storyboard',

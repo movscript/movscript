@@ -58,12 +58,13 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name       string `json:"name" binding:"required"`
-		ProjectID  *uint  `json:"project_id"`
-		CanvasType string `json:"canvas_type"`
-		Stage      string `json:"stage"`
-		RefType    string `json:"ref_type"`
-		RefID      *uint  `json:"ref_id"`
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+		ProjectID   *uint  `json:"project_id"`
+		CanvasType  string `json:"canvas_type"`
+		Stage       string `json:"stage"`
+		RefType     string `json:"ref_type"`
+		RefID       *uint  `json:"ref_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -77,13 +78,15 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		return
 	}
 	cv := model.Canvas{
-		OwnerID:    user.ID,
-		Name:       req.Name,
-		ProjectID:  req.ProjectID,
-		CanvasType: req.CanvasType,
-		Stage:      req.Stage,
-		RefType:    req.RefType,
-		RefID:      req.RefID,
+		OwnerID:     user.ID,
+		Name:        req.Name,
+		Description: strings.TrimSpace(req.Description),
+		ProjectID:   req.ProjectID,
+		CanvasType:  req.CanvasType,
+		Stage:       req.Stage,
+		RefType:     req.RefType,
+		RefID:       req.RefID,
+		Visibility:  "private",
 	}
 	if err := h.createCanvas(&cv); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -139,7 +142,7 @@ func (h *CanvasHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if cv.OwnerID != user.ID {
+	if cv.OwnerID != user.ID && !(cv.CanvasType == "workflow" && cv.Visibility == "public") {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
@@ -163,7 +166,9 @@ func (h *CanvasHandler) Patch(c *gin.Context) {
 	}
 
 	var req struct {
-		Name *string `json:"name"`
+		Name        *string  `json:"name"`
+		Description *string  `json:"description"`
+		Tags        []string `json:"tags"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -176,6 +181,13 @@ func (h *CanvasHandler) Patch(c *gin.Context) {
 			return
 		}
 		cv.Name = name
+	}
+	if req.Description != nil {
+		cv.Description = strings.TrimSpace(*req.Description)
+	}
+	if req.Tags != nil && cv.CanvasType == "workflow" {
+		tagsRaw, _ := json.Marshal(cleanWorkflowTags(req.Tags))
+		cv.WorkflowTags = string(tagsRaw)
 	}
 	if err := h.db.Save(&cv).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

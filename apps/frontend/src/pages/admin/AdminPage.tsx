@@ -11,6 +11,7 @@ import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { DebugPage } from './DebugPage'
+import { UIPreviewPage } from './UIPreviewPage'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -2522,19 +2523,46 @@ function FeatureConfigTab() {
       )}
 
       <div className="space-y-3">
-        {features.filter((f) => !f.is_internal).map((f) => (
-          <FeatureRow
-            key={f.feature_key}
-            feature={f}
-            isPending={update.isPending || updatePrompt.isPending}
-            onUpdate={(data) => update.mutate({ key: f.feature_key, data })}
-            onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
-            onGoToModels={() => setSearchParams({ tab: 'models' })}
-          />
-        ))}
+        {features.filter(isScriptAnalysisFeature).length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">{t('admin.features.systemFeatures')}</p>
+            {features.filter(isScriptAnalysisFeature).map((f) => (
+              <FeatureRow
+                key={f.feature_key}
+                feature={f}
+                isPending={update.isPending || updatePrompt.isPending}
+                onUpdate={(data) => update.mutate({ key: f.feature_key, data })}
+                onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
+                onGoToModels={() => setSearchParams({ tab: 'models' })}
+              />
+            ))}
+          </div>
+        )}
+        {features.filter((f) => !f.is_internal).length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">{t('admin.features.toolFeatures')}</p>
+            {features.filter((f) => !f.is_internal).map((f) => (
+              <FeatureRow
+                key={f.feature_key}
+                feature={f}
+                isPending={update.isPending || updatePrompt.isPending}
+                onUpdate={(data) => update.mutate({ key: f.feature_key, data })}
+                onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
+                onGoToModels={() => setSearchParams({ tab: 'models' })}
+              />
+            ))}
+          </div>
+        )}
+        {features.filter((f) => isScriptAnalysisFeature(f) || !f.is_internal).length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">{t('admin.features.empty')}</p>
+        )}
       </div>
     </div>
   )
+}
+
+function isScriptAnalysisFeature(feature: FeatureConfig) {
+  return ['script_analyze', 'main_script_analyze', 'episode_script_analyze', 'scene_script_analyze'].includes(feature.feature_key)
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────
@@ -2901,7 +2929,7 @@ export default function AdminPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab') ?? 'models'
-  const tab = ['models', 'features', 'users', 'projects', 'logs', 'debug', 'storage', 'cloud-files'].includes(requestedTab)
+  const tab = ['models', 'features', 'users', 'projects', 'logs', 'debug', 'storage', 'cloud-files', 'ui-preview'].includes(requestedTab)
     ? requestedTab
     : 'models'
 
@@ -2928,6 +2956,7 @@ export default function AdminPage() {
           <TabsTrigger value="projects">{t('admin.tabs.projects')}</TabsTrigger>
           <TabsTrigger value="logs">{t('admin.tabs.logs')}</TabsTrigger>
           <TabsTrigger value="debug">{t('admin.tabs.debug')}</TabsTrigger>
+          <TabsTrigger value="ui-preview">{t('admin.tabs.uiPreview')}</TabsTrigger>
           <TabsTrigger value="storage">{t('admin.tabs.storage')}</TabsTrigger>
           <TabsTrigger value="cloud-files">{t('admin.tabs.cloudFiles')}</TabsTrigger>
         </TabsList>
@@ -2948,6 +2977,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="debug" className="mt-6">
           <DebugPage />
+        </TabsContent>
+        <TabsContent value="ui-preview" className="mt-6">
+          <UIPreviewPage />
         </TabsContent>
         <TabsContent value="storage" className="mt-6">
           <StorageTab />

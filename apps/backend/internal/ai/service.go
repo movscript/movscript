@@ -290,18 +290,12 @@ func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelI
 	}
 	base.Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").Scan(&rows)
 
-	// Collect all configs that match the required capability.
-	type candidate struct {
-		cfg      model.AIModelConfig
-		def      *ModelDef
-		priority int
-	}
-	var candidates []candidate
+	var candidates []featureModelCandidate
 	for _, row := range rows {
 		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
 		for _, cap := range def.Capabilities {
 			if cap == fcfg.Capability {
-				candidates = append(candidates, candidate{cfg: row.AIModelConfig, def: def, priority: row.Priority})
+				candidates = append(candidates, featureModelCandidate{cfg: row.AIModelConfig, def: def, priority: row.Priority})
 				break
 			}
 		}
@@ -310,13 +304,32 @@ func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelI
 		return 0, "", fmt.Errorf("no available model for feature %q", featureKey)
 	}
 
-	// Among candidates with the highest priority, pick one at random.
-	chosen := pickByPriority(candidates, func(c candidate) int { return c.priority })
-	mid := chosen.cfg.ModelIDOverride
-	if mid == "" {
-		mid = chosen.def.ModelID
+	chosen, mid, ok := selectFeatureModel(candidates, fcfg.DefaultModelID)
+	if !ok {
+		return 0, "", fmt.Errorf("no available model for feature %q", featureKey)
 	}
 	return chosen.cfg.ID, mid, nil
+}
+
+type featureModelCandidate struct {
+	cfg      model.AIModelConfig
+	def      *ModelDef
+	priority int
+}
+
+func selectFeatureModel(candidates []featureModelCandidate, defaultModelID *uint) (featureModelCandidate, string, bool) {
+	if len(candidates) == 0 {
+		return featureModelCandidate{}, "", false
+	}
+	if defaultModelID != nil {
+		for _, candidate := range candidates {
+			if candidate.cfg.ID == *defaultModelID {
+				return candidate, resolveModelID(candidate.cfg, candidate.def), true
+			}
+		}
+	}
+	chosen := pickByPriority(candidates, func(c featureModelCandidate) int { return c.priority })
+	return chosen, resolveModelID(chosen.cfg, chosen.def), true
 }
 
 // markDefault sets IsDefault=true on the model whose ID matches defaultID.

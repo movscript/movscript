@@ -30,9 +30,9 @@ type PipelineNode struct {
 	LeadID *uint `json:"lead_id,omitempty"`
 	Lead   *User `gorm:"foreignKey:LeadID" json:"lead,omitempty"`
 	// Content type for stage workspace routing
-	ContentType string `gorm:"default:'custom'" json:"content_type"` // script|storyboard|shot|asset|episode|scene|custom
+	ContentType string `gorm:"default:'custom'" json:"content_type"` // script|setting|storyboard|shot|asset|episode|scene|final_video|custom
 	// Optional link to a content entity
-	EntityType string `json:"entity_type,omitempty"` // script|storyboard|shot|asset|episode|scene
+	EntityType string `json:"entity_type,omitempty"` // script|setting|storyboard|shot|asset|episode|scene|final_video
 	EntityID   *uint  `json:"entity_id,omitempty"`
 	// Legacy position fields kept for old clients/data. Tree view no longer depends on them.
 	PosX float64 `json:"pos_x"`

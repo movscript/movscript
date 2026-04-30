@@ -11,6 +11,7 @@ import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { EntitySemanticForm } from './EntitySemanticForm'
 import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
+import { StoryboardPreviewStrip } from '@/components/shared/StoryboardPreviewStrip'
 
 interface Props {
   scene: Scene
@@ -101,6 +102,13 @@ export function SceneDetail({ scene, onClose, onDelete, showHeader = true }: Pro
             projectId={projectId}
             onPatch={(payload) => updateReferences.mutate(payload)}
             isSaving={updateReferences.isPending}
+          />
+
+          <StoryboardPreviewStrip
+            projectId={projectId}
+            storyboards={scene.storyboards ?? []}
+            title={t('pages.scenes.storyboardPreview', { defaultValue: '本场分镜预览' })}
+            className="overflow-hidden rounded-lg border border-border"
           />
 
           <EntitySemanticForm

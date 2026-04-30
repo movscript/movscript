@@ -65,6 +65,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	pluginH := handler.NewPluginHandler(db)
 	registryH := handler.NewRegistryHandler()
 	workflowSchemas := handler.NewWorkflowSchemaHandler(db)
+	workflowMarketH := handler.NewWorkflowMarketHandler(db)
 	auditH := handler.NewAuditHandler(db)
 
 	cloudFileCfgH := handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey)
@@ -147,10 +148,13 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.GET("/plugins/tools", pluginH.ToolCatalog)
 			protected.GET("/plugins/cards", pluginH.CardCatalog)
 			protected.GET("/plugins/canvas-nodes", pluginH.CanvasNodeCatalog)
+			protected.GET("/plugins/workflows", pluginH.WorkflowCatalog)
 
 			// registry proxy (avoids CORS; reads PLUGIN_REGISTRY_URL env)
 			v1.GET("/registry/plugins", registryH.ListPlugins)
 			v1.GET("/registry/plugins/:id", registryH.GetPlugin)
+			v1.GET("/registry/workflows", registryH.ListWorkflows)
+			v1.GET("/registry/workflows/:id", registryH.GetWorkflow)
 
 			// entity schemas and workflow projections
 			protected.GET("/entities/semantic-schemas", workflowSchemas.ListEntitySemanticSchemas)
@@ -159,6 +163,13 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.GET("/entities/:kind/:id/semantic-values", workflowSchemas.GetEntitySemanticValues)
 			protected.GET("/workflow/entity-schemas", workflowSchemas.ListEntitySchemas)
 			protected.GET("/workflow/entity-schemas/:kind", workflowSchemas.GetEntitySchema)
+			protected.GET("/workflows/templates", workflowMarketH.ListTemplates)
+			protected.POST("/workflows/templates/:key/install", workflowMarketH.InstallTemplate)
+			protected.GET("/workflows/market", workflowMarketH.ListMarket)
+			protected.GET("/workflows/by-key/:key", workflowMarketH.GetByKey)
+			protected.POST("/workflows/:id/publish", workflowMarketH.Publish)
+			protected.POST("/workflows/:id/unpublish", workflowMarketH.Unpublish)
+			protected.POST("/workflows/:id/clone", workflowMarketH.Clone)
 
 			// canvases
 			protected.GET("/canvases", canvases.List)
@@ -232,6 +243,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.PUT("/projects/:id/scripts/:scriptId", scripts.Update)
 			protected.DELETE("/projects/:id/scripts/:scriptId", scripts.Delete)
 			protected.POST("/projects/:id/scripts/:scriptId/analyze", scripts.Analyze)
+			protected.POST("/projects/:id/scripts/:scriptId/analyze/stream", scripts.AnalyzeStream)
 			protected.PATCH("/scripts/:id", scripts.Patch)
 
 			// episodes directly under project (script optional)

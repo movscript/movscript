@@ -16,7 +16,7 @@ import {
 } from '@/lib/pipelinePermissions'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
-import type { Asset, Episode, FinalVideo, Pipeline, PipelineNode, Project, ProjectMember, Scene, Script, Shot, Storyboard } from '@/types'
+import type { Asset, Episode, FinalVideo, Pipeline, PipelineNode, Project, ProjectMember, Scene, Script, Setting, Shot, Storyboard } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -27,7 +27,7 @@ import type { TFunction } from 'i18next'
 import { scriptTypeForPipelineNode, type PipelineEntityType } from '../nodeSpec'
 import { workbenchPathForPipelineNode } from '@/pages/work/workbenchNavigation'
 
-type ContentEntity = Script | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
+type ContentEntity = Script | Setting | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
 
 const ASSIGNMENT_LOG = '[movscript:pipeline-assignment]'
 
@@ -64,6 +64,18 @@ const ENTITY_DEFS: Record<PipelineEntityType, EntityDef> = {
     defaultBody: (_t, node) => ({
       title: node.name || '新剧本',
       script_type: scriptTypeForPipelineNode(node.type),
+      pipeline_node_id: node.ID,
+    }),
+  },
+  setting: {
+    entityType: 'setting',
+    label: 'Setting',
+    apiPath: (pid) => `/projects/${pid}/settings`,
+    listPath: (pid) => `/projects/${pid}/settings`,
+    defaultBody: (_t, node) => ({
+      name: node.name || '新设定',
+      type: 'character',
+      status: 'default',
       pipeline_node_id: node.ID,
     }),
   },
@@ -672,12 +684,14 @@ function invalidateEntityQueries(entityTypeToInvalidate: PipelineEntityType) {
 
 function entityRoute(entityType: PipelineEntityType): string {
   if (entityType === 'final_video') return '/final-videos'
+  if (entityType === 'setting') return '/settings'
   return `/${entityType}s`
 }
 
 function pipelineEntityTypeFromString(value?: string): PipelineEntityType | undefined {
   if (
     value === 'script' ||
+    value === 'setting' ||
     value === 'storyboard' ||
     value === 'shot' ||
     value === 'asset' ||
@@ -708,6 +722,14 @@ function buildEntityOptions(
           id: script.ID,
           label: script.title || t('pipeline.detail.entityFallback.script', { id: script.ID }),
           subtitle: t(`domain.scriptTypes.${script.script_type}`, { defaultValue: script.script_type }),
+        }
+      }
+      case 'setting': {
+        const setting = item as Setting
+        return {
+          id: setting.ID,
+          label: setting.name || t('pipeline.detail.entityFallback.setting', { id: setting.ID }),
+          subtitle: setting.type,
         }
       }
       case 'storyboard': {

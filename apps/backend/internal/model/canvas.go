@@ -8,16 +8,21 @@ import (
 
 type Canvas struct {
 	gorm.Model
-	OwnerID    uint         `gorm:"not null" json:"owner_id"`
-	Owner      User         `json:"owner,omitempty"`
-	Name       string       `gorm:"not null" json:"name"`
-	CanvasType string       `gorm:"default:'inspiration'" json:"canvas_type"` // inspiration|workflow
-	ProjectID  *uint        `json:"project_id,omitempty"`
-	Stage      string       `json:"stage"`    // script_analysis|asset_prep|storyboard|generation|editing
-	RefType    string       `json:"ref_type"` // asset_view|storyboard|scene
-	RefID      *uint        `json:"ref_id,omitempty"`
-	Nodes      []CanvasNode `gorm:"foreignKey:CanvasID" json:"nodes,omitempty"`
-	Edges      []CanvasEdge `gorm:"foreignKey:CanvasID" json:"edges,omitempty"`
+	OwnerID      uint         `gorm:"not null" json:"owner_id"`
+	Owner        User         `json:"owner,omitempty"`
+	Name         string       `gorm:"not null" json:"name"`
+	Description  string       `gorm:"size:512" json:"description,omitempty"`
+	CanvasType   string       `gorm:"default:'inspiration'" json:"canvas_type"` // inspiration|workflow
+	ProjectID    *uint        `json:"project_id,omitempty"`
+	Stage        string       `json:"stage"`    // script_analysis|asset_prep|storyboard|generation|editing
+	RefType      string       `json:"ref_type"` // asset_view|storyboard|scene
+	RefID        *uint        `json:"ref_id,omitempty"`
+	Visibility   string       `gorm:"default:'private';index" json:"visibility"` // private|public
+	WorkflowKey  string       `gorm:"size:160;index" json:"workflow_key,omitempty"`
+	WorkflowTags string       `gorm:"type:text" json:"workflow_tags,omitempty"` // JSON array for marketplace filtering
+	PublishedAt  *time.Time   `json:"published_at,omitempty"`
+	Nodes        []CanvasNode `gorm:"foreignKey:CanvasID" json:"nodes,omitempty"`
+	Edges        []CanvasEdge `gorm:"foreignKey:CanvasID" json:"edges,omitempty"`
 }
 
 // CanvasNode stores a React Flow node persisted to DB.

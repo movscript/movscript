@@ -72,21 +72,33 @@ type AIModelConfigInput struct {
 }
 
 type ScriptInput struct {
-	Title          string `json:"title" binding:"required"`
-	Description    string `json:"description"`
-	Content        string `json:"content"`
-	ScriptType     string `json:"script_type"`
-	SourceType     string `json:"source_type"`
-	Version        int    `json:"version"`
-	ParentScriptID *uint  `json:"parent_script_id"`
-	EpisodeID      *uint  `json:"episode_id"`
-	AssigneeID     *uint  `json:"assignee_id"`
-	Summary        string `json:"summary"`
-	Characters     string `json:"characters"`
-	Hook           string `json:"hook"`
-	PlotSummary    string `json:"plot_summary"`
-	ScriptPoints   string `json:"script_points"`
-	Order          int    `json:"order"`
+	Title                  string `json:"title" binding:"required"`
+	Description            string `json:"description"`
+	Content                string `json:"content"`
+	RawSource              string `json:"raw_source"`
+	ScriptType             string `json:"script_type"`
+	SourceType             string `json:"source_type"`
+	Version                int    `json:"version"`
+	ParentScriptID         *uint  `json:"parent_script_id"`
+	EpisodeID              *uint  `json:"episode_id"`
+	AssigneeID             *uint  `json:"assignee_id"`
+	Summary                string `json:"summary"`
+	Characters             string `json:"characters"`
+	CoreSettings           string `json:"core_settings"`
+	Hook                   string `json:"hook"`
+	PlotSummary            string `json:"plot_summary"`
+	ScriptPoints           string `json:"script_points"`
+	PlannedSceneCount      int    `json:"planned_scene_count"`
+	PlannedCharacterCount  int    `json:"planned_character_count"`
+	TimeText               string `json:"time_text"`
+	LocationText           string `json:"location_text"`
+	StructuredCharacters   string `json:"structured_characters"`
+	PlotBeats              string `json:"plot_beats"`
+	Atmosphere             string `json:"atmosphere"`
+	StructureJSON          string `json:"structure_json"`
+	EntityCandidates       string `json:"entity_candidates"`
+	RelationshipCandidates string `json:"relationship_candidates"`
+	Order                  int    `json:"order"`
 }
 
 type EpisodeInput struct {
@@ -161,6 +173,7 @@ type AssetInput struct {
 }
 
 type SettingInput struct {
+	PipelineNodeID   *uint  `json:"pipeline_node_id"`
 	ScriptID         *uint  `json:"script_id"`
 	SourceScriptID   *uint  `json:"source_script_id"`
 	SourceAnalysisID *uint  `json:"source_analysis_id"`
@@ -289,6 +302,7 @@ func ApplyScriptInput(s *model.Script, in ScriptInput) {
 	s.Title = in.Title
 	s.Description = in.Description
 	s.Content = in.Content
+	s.RawSource = in.RawSource
 	s.ScriptType = in.ScriptType
 	s.SourceType = in.SourceType
 	s.Version = in.Version
@@ -297,9 +311,20 @@ func ApplyScriptInput(s *model.Script, in ScriptInput) {
 	s.AssigneeID = in.AssigneeID
 	s.Summary = in.Summary
 	s.Characters = in.Characters
+	s.CoreSettings = in.CoreSettings
 	s.Hook = in.Hook
 	s.PlotSummary = in.PlotSummary
 	s.ScriptPoints = in.ScriptPoints
+	s.PlannedSceneCount = in.PlannedSceneCount
+	s.PlannedCharacterCount = in.PlannedCharacterCount
+	s.TimeText = in.TimeText
+	s.LocationText = in.LocationText
+	s.StructuredCharacters = in.StructuredCharacters
+	s.PlotBeats = in.PlotBeats
+	s.Atmosphere = in.Atmosphere
+	s.StructureJSON = in.StructureJSON
+	s.EntityCandidates = in.EntityCandidates
+	s.RelationshipCandidates = in.RelationshipCandidates
 	s.Order = in.Order
 }
 
@@ -423,7 +448,7 @@ func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelat
 }
 
 var projectPatchFields = stringSet("name", "description", "total_episodes", "pipeline_template")
-var scriptPatchFields = stringSet("title", "description", "content", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "hook", "plot_summary", "script_points", "order")
+var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "core_settings", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
 var episodePatchFields = stringSet("title", "number", "synopsis", "script_id")
 var scenePatchFields = stringSet("number", "title", "notes", "script_id")
 var storyboardPatchFields = stringSet("scene_id", "episode_id", "setting_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")

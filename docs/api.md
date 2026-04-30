@@ -131,6 +131,13 @@ Additional nested routes exist for scripts, assets, asset views, episodes, episo
 | `GET` | `/api/v1/entities/:kind/:id/semantic-values` | Read backend-produced detail values for one entity, including stored, computed, and related-list fields. |
 | `GET` | `/api/v1/workflow/entity-schemas` | List workflow-port projections of entity semantic schemas. |
 | `GET` | `/api/v1/workflow/entity-schemas/:kind` | Read one workflow-port projection for an entity kind. |
+| `GET` | `/api/v1/workflows/templates` | List backend-provided reusable workflow templates. |
+| `POST` | `/api/v1/workflows/templates/:key/install` | Create a private workflow canvas from a built-in template. |
+| `GET` | `/api/v1/workflows/market` | List workflow market entries, including built-in templates and published public workflows. Supports `source=template|public` and `q`. |
+| `GET` | `/api/v1/workflows/by-key/:key` | Resolve an accessible workflow market entry by stable workflow key. |
+| `POST` | `/api/v1/workflows/:id/publish` | Publish an owned workflow canvas to the workflow market. |
+| `POST` | `/api/v1/workflows/:id/unpublish` | Remove an owned workflow canvas from the workflow market. |
+| `POST` | `/api/v1/workflows/:id/clone` | Clone an owned or public workflow canvas into the current user's private workflows. |
 | `GET` | `/api/v1/canvases` | List canvases. |
 | `GET` | `/api/v1/canvas-entity-write-audits` | List entity write audit records. Supports `canvas_id`, `run_id`/`canvas_run_id`, `entity_kind`, `entity_id`, `user_id`, `page`, and `page_size`. |
 | `POST` | `/api/v1/canvases` | Create canvas. |
@@ -178,6 +185,10 @@ Legacy tasks that only have `resource_id` are normalized lazily when task APIs r
 - `executor: "ai_model"` for backend model-backed text/image/video/audio-capability execution.
 - `executor: "plugin_http"` for trusted backend plugin tools with an HTTP runtime. The plugin response can return `{ "outputs": { "<port>": <CanvasPortValue or scalar> } }`, or a top-level `result`/`value`/`data`/`content`.
 
+### Workflow Market
+
+Workflow canvases can be published with `visibility: "public"` and a stable `workflow_key`. Public workflows can be read, referenced by other workflow canvases, and cloned by other authenticated users. Built-in workflow keys use values such as `template:text-generation` and `template:image-generation`; the install route uses the suffix such as `/workflows/templates/image-generation/install`.
+
 ## Plugins and Registry
 
 | Method | Path | Description |
@@ -190,8 +201,11 @@ Legacy tasks that only have `resource_id` are normalized lazily when task APIs r
 | `GET` | `/api/v1/plugins/tools` | List enabled plugin tools. |
 | `GET` | `/api/v1/plugins/cards` | List enabled plugin cards. |
 | `GET` | `/api/v1/plugins/canvas-nodes` | List enabled plugin canvas nodes. |
+| `GET` | `/api/v1/plugins/workflows` | List enabled plugin workflow contributions. |
 | `GET` | `/api/v1/registry/plugins` | Proxy plugin registry index. |
 | `GET` | `/api/v1/registry/plugins/:id` | Proxy plugin registry manifest. |
+| `GET` | `/api/v1/registry/workflows` | Proxy workflow registry index. |
+| `GET` | `/api/v1/registry/workflows/:id` | Proxy workflow registry manifest. |
 
 ## Local Agent Runtime
 

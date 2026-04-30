@@ -29,6 +29,7 @@ function workNodeTypeForEntity(entityType: PipelineEntityType, scriptType?: Scri
   if (scriptType === 'episode') return 'episode_writing'
   if (scriptType === 'scene') return 'scene_writing'
   if (entityType === 'script') return 'script_writing'
+  if (entityType === 'setting') return 'setting_creation'
   if (entityType === 'storyboard') return 'storyboard_creation'
   if (entityType === 'shot') return 'shot_production'
   if (entityType === 'asset') return 'asset_creation'

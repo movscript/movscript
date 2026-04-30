@@ -2667,7 +2667,7 @@ func (h *CanvasHandler) loadReferencedWorkflowCanvas(nd nodeData, user *model.Us
 	if err := h.db.Preload("Nodes").Preload("Edges").First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
 		return model.Canvas{}, fmt.Errorf("referenced canvas not found")
 	}
-	if ref.OwnerID != user.ID {
+	if ref.OwnerID != user.ID && ref.Visibility != "public" {
 		return model.Canvas{}, fmt.Errorf("referenced canvas is not accessible")
 	}
 	if ref.CanvasType != "workflow" {

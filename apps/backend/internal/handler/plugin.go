@@ -148,6 +148,21 @@ func (h *PluginHandler) CanvasNodeCatalog(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
+func (h *PluginHandler) WorkflowCatalog(c *gin.Context) {
+	plugins := h.enabledPlugins()
+	out := make([]pluginWorkflowResp, 0)
+	for _, p := range plugins {
+		m, ok := parseStoredManifest(p)
+		if !ok {
+			continue
+		}
+		for _, workflow := range m.Contributes.Workflows {
+			out = append(out, pluginWorkflowResp{PluginID: p.ID, PluginKey: p.PluginKey, WorkflowContribution: workflow})
+		}
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 func (h *PluginHandler) enabledPlugins() []model.Plugin {
 	var plugins []model.Plugin
 	h.db.Where("enabled = ?", true).Order("id").Find(&plugins)
@@ -164,6 +179,12 @@ type pluginCanvasNodeResp struct {
 	PluginID  uint   `json:"plugin_id"`
 	PluginKey string `json:"plugin_key"`
 	pluginkit.CanvasNodeContribution
+}
+
+type pluginWorkflowResp struct {
+	PluginID  uint   `json:"plugin_id"`
+	PluginKey string `json:"plugin_key"`
+	pluginkit.WorkflowContribution
 }
 
 func parseStoredManifest(p model.Plugin) (*pluginkit.Manifest, bool) {

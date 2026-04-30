@@ -140,6 +140,61 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
   )
 }
 
+function SettingFilterRail({
+  settings,
+  value,
+  total,
+  onChange,
+}: {
+  settings: Setting[]
+  value: string
+  total: number
+  onChange: (value: string) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto px-3 pb-3 scrollbar-none">
+      <button
+        type="button"
+        onClick={() => onChange('')}
+        className={cn(
+          'flex h-14 min-w-32 shrink-0 flex-col justify-center rounded-md border px-3 text-left transition-colors',
+          value === ''
+            ? 'border-transparent bg-foreground text-background shadow-sm'
+            : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/30',
+        )}
+      >
+        <span className="text-xs font-semibold">{t('shared.resourcePanel.allAssets', { defaultValue: '全部素材' })}</span>
+        <span className={cn('mt-1 text-[11px]', value === '' ? 'text-background/65' : 'text-muted-foreground')}>
+          {value === '' ? t('common.itemsCount', { count: total }) : t('common.all')}
+        </span>
+      </button>
+      {settings.map((setting) => {
+        const active = value === String(setting.ID)
+        return (
+          <button
+            key={setting.ID}
+            type="button"
+            onClick={() => onChange(String(setting.ID))}
+            className={cn(
+              'flex h-14 min-w-[168px] max-w-[220px] shrink-0 flex-col justify-center rounded-md border px-3 text-left transition-colors',
+              active
+                ? 'border-transparent bg-foreground text-background shadow-sm'
+                : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/30',
+            )}
+          >
+            <span className="truncate text-xs font-semibold">{setting.name}</span>
+            <span className={cn('mt-1 truncate text-[11px]', active ? 'text-background/65' : 'text-muted-foreground')}>
+              {setting.type || t('canvas.entityTypes.setting')}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // --- Page ---
 
 export default function AssetsPage() {
@@ -183,39 +238,37 @@ export default function AssetsPage() {
     <div className="flex h-full overflow-hidden bg-background">
       {/* Left list panel */}
       <div className={cn('flex flex-col border-r border-border bg-card overflow-hidden', detailOpen ? 'w-72 shrink-0' : 'flex-1')}>
-        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background shrink-0 flex-wrap">
-          <div className="relative flex-1 min-w-40">
-            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); setSelectedId(null) }}
-              placeholder={t('pages.assets.searchPlaceholder')}
-              className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-            />
+        <div className="border-b border-border bg-background shrink-0">
+          <div className="flex items-center gap-2 px-3 py-2.5 flex-wrap">
+            <div className="relative flex-1 min-w-40">
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); setSelectedId(null) }}
+                placeholder={t('pages.assets.searchPlaceholder')}
+                className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button onClick={() => setShowCreate(true)} size="icon" className="h-7 w-7"><Plus size={14} /></Button>
+              {!detailOpen && (
+                <div className="flex rounded-lg border border-border overflow-hidden">
+                  <button onClick={() => setViewMode('grid')} className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title={t('pages.assets.gridTitle')}><LayoutGrid size={13} /></button>
+                  <button onClick={() => setViewMode('list')} className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title={t('pages.assets.listTitle')}><List size={13} /></button>
+                </div>
+              )}
+            </div>
           </div>
-          <select
-            className="h-7 max-w-40 rounded-md border border-border bg-background px-2 text-xs text-foreground"
-            onChange={(e) => {
+          <SettingFilterRail
+            settings={settings}
+            value={filterSettingId}
+            total={total}
+            onChange={(nextValue) => {
               setSelectedId(null)
               setPage(1)
-              setFilterSettingId(e.target.value)
+              setFilterSettingId(nextValue)
             }}
-            value={filterSettingId}
-          >
-            <option value="">{t('pages.assets.settingFilter')}</option>
-            {settings.map((setting: { ID: number; name: string }) => (
-              <option key={setting.ID} value={setting.ID}>{setting.name}</option>
-            ))}
-          </select>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button onClick={() => setShowCreate(true)} size="icon" className="h-7 w-7"><Plus size={14} /></Button>
-            {!detailOpen && (
-              <div className="flex rounded-lg border border-border overflow-hidden">
-                <button onClick={() => setViewMode('grid')} className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title={t('pages.assets.gridTitle')}><LayoutGrid size={13} /></button>
-                <button onClick={() => setViewMode('list')} className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`} title={t('pages.assets.listTitle')}><List size={13} /></button>
-              </div>
-            )}
-          </div>
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto">

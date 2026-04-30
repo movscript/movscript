@@ -3,14 +3,17 @@ package ai
 // Feature key constants — must match FeatureConfig.FeatureKey in DB.
 const (
 	// Internal features — used by canvas, shots, scripts; not shown in admin tool config.
-	FeatureScriptAnalyze   = "script_analyze"
-	FeatureAssistantChat   = "assistant_chat"
-	FeatureCanvasText      = "canvas_text"
-	FeatureCanvasImage     = "canvas_image"
-	FeatureCanvasVideo     = "canvas_video"
-	FeatureShotRefImage    = "shot_ref_image"
-	FeatureShotRefVideo    = "shot_ref_video"
-	LegacyFeatureAgentChat = "agent_chat"
+	FeatureScriptAnalyze        = "script_analyze"
+	FeatureMainScriptAnalyze    = "main_script_analyze"
+	FeatureEpisodeScriptAnalyze = "episode_script_analyze"
+	FeatureSceneScriptAnalyze   = "scene_script_analyze"
+	FeatureAssistantChat        = "assistant_chat"
+	FeatureCanvasText           = "canvas_text"
+	FeatureCanvasImage          = "canvas_image"
+	FeatureCanvasVideo          = "canvas_video"
+	FeatureShotRefImage         = "shot_ref_image"
+	FeatureShotRefVideo         = "shot_ref_video"
+	LegacyFeatureAgentChat      = "agent_chat"
 
 	// Tool features — the 6 user-facing tools shown in admin feature config.
 	FeatureRefImageGen     = "ref_image_gen"
@@ -84,6 +87,30 @@ var FeatureCatalog = []FeatureDef{
 		SystemPrompt: `你是专业剧本编辑助手，分析用户提供的剧本内容。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
 		OutputSchema: `{"summary":"剧本提纲","characters":"人物补充说明","character_profiles":[{"id":"c1","name":"姓名","identity":"身份","traits":"性格/特征","goal":"欲望/目标","notes":"补充"}],"character_relationships":[{"id":"r1","source":"c1","target":"c2","label":"关系","type":"alliance|family|love|conflict|secret|other"}],"core_settings":["核心设定"],"background":"一句话时代背景","scenes_desc":["详细场景说明"],"hook":"核心钩子","plot_summary":"剧情推演提纲","script_points":[{"id":"p1","content":"关键点","beat_type":"hook|reversal|conflict|release|none","tags":["标签"]}]}`,
 		MaxTokens:    2000, Temperature: 0,
+	},
+	{
+		ID: FeatureMainScriptAnalyze, DisplayName: "主剧本 AI 分析", IsInternal: true,
+		Description:  "拆解主剧本，提取分集剧本、分场剧本和项目设定候选",
+		RequiredCap:  CapabilityText,
+		SystemPrompt: `你是短剧主剧本结构编辑。你的任务是把总剧本文档拆成可确认的分集剧本、分场剧本和设定候选。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
+		OutputSchema: `{"title":"标题","description":"描述","summary":"总提纲","episode_scripts":[{"id":"ep1","order":1,"title":"分集标题","description":"描述","outline":"提纲","hook":"钩子","content":"从原文拆出的分集剧本文本","scene_refs":["sc1"]}],"scene_scripts":[{"id":"sc1","episode_id":"ep1","order":1,"title":"分场标题","description":"描述","outline":"提纲","content":"从原文拆出的分场剧本文本","time_text":"时间","location_text":"场景","characters":["人物"],"plot":"情节","atmosphere":"氛围"}],"settings":[{"id":"set1","type":"character|scene|prop|world_rule","name":"名称","description":"描述"}]}`,
+		MaxTokens:    4200, Temperature: 0,
+	},
+	{
+		ID: FeatureEpisodeScriptAnalyze, DisplayName: "分集剧本 AI 分析", IsInternal: true,
+		Description:  "分析分集剧本，提取标题、描述、提纲、钩子和涉及分场",
+		RequiredCap:  CapabilityText,
+		SystemPrompt: `你是短剧分集剧本结构编辑。你的任务是填写分集级结构：标题、描述、提纲、钩子、涉及分场和本集设定。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
+		OutputSchema: `{"title":"分集标题","description":"一句话描述","summary":"本集提纲","hook":"本集钩子","plot_summary":"剧情推演","involved_scenes":[{"id":"sc1","order":1,"title":"分场标题","description":"描述","outline":"提纲","content":"分场文本"}],"core_settings":["本集设定"],"planned_scene_count":0}`,
+		MaxTokens:    3600, Temperature: 0,
+	},
+	{
+		ID: FeatureSceneScriptAnalyze, DisplayName: "分场剧本 AI 分析", IsInternal: true,
+		Description:  "分析分场剧本，提取时间、人物、场景、情节、氛围和提纲",
+		RequiredCap:  CapabilityText,
+		SystemPrompt: `你是短剧分场剧本结构编辑。你的任务是填写分场级结构：标题、描述、提纲、时间、人物、场景、情节和氛围。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
+		OutputSchema: `{"title":"分场标题","description":"一句话描述","summary":"分场提纲","time_text":"时间","location_text":"场景/地点","structured_characters":[{"id":"c1","name":"人物","role":"作用","state":"状态","evidence":"证据"}],"plot_beats":[{"id":"b1","label":"情节点","plot":"情节","mood":"情绪","evidence":"证据"}],"atmosphere":"氛围"}`,
+		MaxTokens:    3000, Temperature: 0,
 	},
 	{
 		ID: FeatureAssistantChat, DisplayName: "助手对话", IsInternal: true,

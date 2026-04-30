@@ -168,6 +168,7 @@ func backfillPipelineLinks(db *gorm.DB) error {
 				WHEN type IN ('storyboard_creation','storyboard_script','storyboard') THEN 'storyboard'
 				WHEN type IN ('shot_production','shot') THEN 'shot'
 				WHEN type IN ('asset_creation','asset') THEN 'asset'
+				WHEN type IN ('setting_creation','setting') THEN 'setting'
 				WHEN type IN ('episode') THEN 'episode'
 				WHEN type IN ('episode_edit','final_video') THEN 'final_video'
 				WHEN type IN ('scene') THEN 'scene'
@@ -193,6 +194,11 @@ func backfillPipelineLinks(db *gorm.DB) error {
 			UPDATE assets e SET pipeline_node_id = pn.id
 			FROM pipeline_nodes pn
 			WHERE pn.entity_type = 'asset' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
+		`,
+		`
+			UPDATE settings e SET pipeline_node_id = pn.id
+			FROM pipeline_nodes pn
+			WHERE pn.entity_type = 'setting' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
 		`,
 		`
 			UPDATE episodes e SET pipeline_node_id = pn.id
@@ -221,6 +227,9 @@ func backfillPipelineLinks(db *gorm.DB) error {
 func seedDefaultFeatureConfigs(db *gorm.DB) error {
 	seedFeatures := []model.FeatureConfig{
 		{FeatureKey: "script_analyze", DisplayName: "剧本 AI 分析", Description: "对剧本内容进行智能分析，提取人物、背景、场景等关键信息", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "main_script_analyze", DisplayName: "主剧本 AI 分析", Description: "拆解主剧本，提取分集剧本、分场剧本和项目设定候选", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "episode_script_analyze", DisplayName: "分集剧本 AI 分析", Description: "分析分集剧本，提取标题、描述、提纲、钩子和涉及分场", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "scene_script_analyze", DisplayName: "分场剧本 AI 分析", Description: "分析分场剧本，提取时间、人物、场景、情节、氛围和提纲", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "agent_chat", DisplayName: "AI 助手对话", Description: "侧边栏 AI 助手，用于项目创作辅助对话", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "canvas_text", DisplayName: "画布·文本生成", Description: "画布工作流中的文本生成节点", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "canvas_image", DisplayName: "画布·图像生成", Description: "画布工作流中的图像生成节点", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},

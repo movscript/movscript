@@ -3,17 +3,28 @@ import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
+  Database,
+  FileText,
   GanttChartSquare,
+  ImagePlus,
+  Inbox,
+  ListChecks,
   Loader2,
   MoreHorizontal,
   Network,
   Plus,
+  Search,
+  ShieldCheck,
+  Sparkles,
   Trash2,
   TreePine,
 } from 'lucide-react'
@@ -84,12 +95,32 @@ const NODE_STATUS_META: Record<string, { dot: string; badge: string; label: stri
 }
 
 const WORK_GROUP_META: Record<WorkGroupId, { label: string; description: string }> = {
-  script: { label: '文本结构', description: '剧本、分集、场景' },
+  script: { label: '文本结构', description: '剧本、设定、分集、场景' },
   visual: { label: '视觉设计', description: '分镜、素材' },
   production: { label: '镜头生产', description: '镜头执行与生成' },
   post: { label: '剪辑交付', description: '成片与交付' },
   custom: { label: '其他工作', description: '自定义工作项' },
 }
+
+type PipelineStageId = 'script' | 'setting' | 'asset' | 'storyboard' | 'shot' | 'delivery'
+
+interface PipelineStageDef {
+  id: PipelineStageId
+  label: string
+  description: string
+  icon: React.ElementType
+}
+
+const PIPELINE_STAGES: PipelineStageDef[] = [
+  { id: 'script', label: '剧本整理', description: '版本、增量分析、结构化候选', icon: FileText },
+  { id: 'setting', label: '设定准备', description: '角色、场景、道具、关系确认', icon: Database },
+  { id: 'asset', label: '素材准备', description: '素材需求、覆盖矩阵、锁定状态', icon: ImagePlus },
+  { id: 'storyboard', label: '分镜脚本生产', description: '分场拆分、画面描述、机位', icon: ClipboardList },
+  { id: 'shot', label: '镜头生产', description: '视频生成、版本、返工和选片', icon: Sparkles },
+  { id: 'delivery', label: '成片交付', description: '镜头序列、缺失检查、版本交付', icon: ShieldCheck },
+]
+
+const STAGE_LABELS = Object.fromEntries(PIPELINE_STAGES.map((stage) => [stage.id, stage.label])) as Record<PipelineStageId, string>
 
 function edgeRelationType(edge: PipelineEdge) {
   return edge.relation_type || EDGE_RELATION_HIERARCHY
@@ -137,13 +168,14 @@ function buildPipelineLayout(nodes: PipelineNode[], edges: PipelineEdge[]): Pipe
 }
 
 function workGroupIdForNode(node: PipelineNode): WorkGroupId {
-  if (['raw_script', 'script_writing', 'episode_writing', 'scene_writing'].includes(node.type)) return 'script'
+  if (['raw_script', 'script_writing', 'setting_creation', 'episode_writing', 'scene_writing'].includes(node.type)) return 'script'
   if (['storyboard_creation', 'asset_creation'].includes(node.type)) return 'visual'
   if (node.type === 'shot_production') return 'production'
   if (node.type === 'episode_edit') return 'post'
 
   switch (node.content_type) {
     case 'script':
+    case 'setting':
     case 'episode':
     case 'scene':
       return 'script'
@@ -157,6 +189,21 @@ function workGroupIdForNode(node: PipelineNode): WorkGroupId {
     default:
       return 'custom'
   }
+}
+
+function stageIdForNode(node: PipelineNode): PipelineStageId {
+  if (['raw_script', 'script_writing', 'episode_writing', 'scene_writing'].includes(node.type)) return 'script'
+  if (node.type === 'setting_creation' || node.content_type === 'setting') return 'setting'
+  if (node.type === 'asset_creation' || node.content_type === 'asset') return 'asset'
+  if (node.type === 'storyboard_creation' || node.content_type === 'storyboard') return 'storyboard'
+  if (node.type === 'shot_production' || node.content_type === 'shot') return 'shot'
+  if (node.type === 'episode_edit' || node.content_type === 'final_video') return 'delivery'
+  if (node.content_type === 'script' || node.content_type === 'episode' || node.content_type === 'scene') return 'script'
+  return 'script'
+}
+
+function stageDef(stageId: PipelineStageId) {
+  return PIPELINE_STAGES.find((stage) => stage.id === stageId) ?? PIPELINE_STAGES[0]
 }
 
 function buildDependencyGraphLayout(nodes: PipelineNode[], edges: PipelineEdge[], useStoredPositions = true): DependencyGraphLayout {
@@ -257,6 +304,7 @@ export default function PipelineEditorPage({ embedded = false }: PipelineEditorP
   const project = useProjectStore((s) => s.current)
 
   const [activeTab, setActiveTab] = useState<'tasks' | 'dependencies' | 'schedule'>('tasks')
+  const [activeStage, setActiveStage] = useState<PipelineStageId>('script')
   const [selectedNode, setSelectedNode] = useState<PipelineNode | null>(null)
   const [workspaceNode, setWorkspaceNode] = useState<PipelineNode | null>(null)
   const [isAddNodeOpen, setIsAddNodeOpen] = useState(false)
@@ -270,6 +318,15 @@ export default function PipelineEditorPage({ embedded = false }: PipelineEditorP
   })
 
   const layout = useMemo(() => buildPipelineLayout(pipeline?.nodes ?? [], pipeline?.edges ?? []), [pipeline])
+  const stageNodes = useMemo(() => {
+    const byStage = new Map<PipelineStageId, PipelineNode[]>()
+    for (const stage of PIPELINE_STAGES) byStage.set(stage.id, [])
+    for (const column of layout.workColumns) {
+      const stageId = stageIdForNode(column.node)
+      byStage.set(stageId, [...(byStage.get(stageId) ?? []), column.node])
+    }
+    return byStage
+  }, [layout.workColumns])
   const activeWorkspaceNode = workspaceNode ?? (embedded ? selectedNode : null)
 
   useEffect(() => {
@@ -376,8 +433,8 @@ export default function PipelineEditorPage({ embedded = false }: PipelineEditorP
 
   function openWorkspace(node: PipelineNode) {
     setSelectedNode(node)
+    setActiveStage(stageIdForNode(node))
     if (embedded) return
-    setWorkspaceNode(node)
   }
 
   function enterNodeWorkspace(node: PipelineNode) {
@@ -439,103 +496,21 @@ export default function PipelineEditorPage({ embedded = false }: PipelineEditorP
               <Loader2 size={24} className="animate-spin text-muted-foreground" />
             </div>
           ) : activeTab === 'tasks' ? (
-            <div className="h-full flex overflow-hidden bg-background">
-              <aside className="w-80 shrink-0 border-r border-border bg-card flex flex-col min-h-0">
-                <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      {t('pipeline.tree.stageSequence', { defaultValue: '生产阶段' })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t('pipeline.tree.stageCount', { count: layout.workColumns.length, defaultValue: '{{count}} 个工作项' })}
-                    </p>
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 shrink-0"
-                    onClick={() => setIsAddNodeOpen(true)}
-                    title={t('pipeline.tree.addRoot')}
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                {layout.workColumns.length > 0 ? (
-                  <div className="space-y-3">
-                      {layout.workGroups.map((group) => {
-                        const collapsed = collapsedGroups[group.id] ?? false
-                        return (
-                          <section key={group.id} className="space-y-2">
-                            <button
-                              type="button"
-                              className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/60"
-                              onClick={() => toggleWorkGroup(group.id)}
-                            >
-                              <span className="min-w-0">
-                                <span className="block text-xs font-semibold text-foreground">{group.label}</span>
-                                <span className="block truncate text-[11px] text-muted-foreground">{group.description}</span>
-                              </span>
-                              <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-                                {group.columns.length}
-                                <ChevronDown size={13} className={cn('transition-transform', collapsed && '-rotate-90')} />
-                              </span>
-                            </button>
-
-                            {!collapsed && group.columns.map((column) => {
-                              const index = layout.workColumns.findIndex((item) => item.node.ID === column.node.ID)
-                        const active =
-                          selectedNode?.ID === column.node.ID ||
-                          workspaceNode?.ID === column.node.ID
-
-                        return (
-                          <div key={column.node.ID} className="relative">
-                            <PipelineFlowCard
-                              node={column.node}
-                              selected={selectedNode?.ID === column.node.ID}
-                              workspaceActive={workspaceNode?.ID === column.node.ID}
-                              expanded={active}
-                              onSelect={() => openWorkspace(column.node)}
-                              onEnterWorkspace={() => enterNodeWorkspace(column.node)}
-                              onDelete={() => setPendingDelete(column.node)}
-                              onMoveBefore={index > 0 ? () => moveWorkNode(index, -1) : undefined}
-                              onMoveAfter={index < layout.workColumns.length - 1 ? () => moveWorkNode(index, 1) : undefined}
-                            />
-                          </div>
-                        )
-                            })}
-                          </section>
-                        )
-                      })}
-                  </div>
-                ) : (
-                  <div className="flex h-[320px] flex-col items-center justify-center gap-3 text-center">
-                    <TreePine size={28} className="text-muted-foreground/60" />
-                    <p className="text-sm text-muted-foreground">{t('pipeline.editor.empty')}</p>
-                    <Button size="sm" onClick={() => setIsAddNodeOpen(true)}>
-                      <Plus size={13} className="mr-1.5" />
-                      {t('pipeline.tree.addRoot')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-              </aside>
-
-              <div className="flex-1 min-w-0 bg-card/30">
-                {activeWorkspaceNode ? (
-                  <StageWorkspaceContent
-                    key={activeWorkspaceNode.ID}
-                    nodeId={activeWorkspaceNode.ID}
-                    embedded
-                    onBack={() => setWorkspaceNode(null)}
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    {t('pipeline.workspace.inlineEmpty', { defaultValue: '选择一个工作项后，实体工作区会在这里展示。' })}
-                  </div>
-                )}
-              </div>
-            </div>
+            <PipelineStageWorkbench
+              activeStage={activeStage}
+              selectedNode={selectedNode}
+              stageNodes={stageNodes}
+              allNodes={layout.workColumns.map((column) => column.node)}
+              onStageChange={(stageId) => {
+                setActiveStage(stageId)
+                const firstNode = stageNodes.get(stageId)?.[0]
+                if (firstNode) setSelectedNode(firstNode)
+              }}
+              onSelectNode={openWorkspace}
+              onOpenWorkspace={enterNodeWorkspace}
+              onDeleteNode={(node) => setPendingDelete(node)}
+              onAddNode={() => setIsAddNodeOpen(true)}
+            />
           ) : activeTab === 'dependencies' ? (
             <DependencyGraph
               nodes={pipeline?.nodes ?? []}
@@ -557,7 +532,7 @@ export default function PipelineEditorPage({ embedded = false }: PipelineEditorP
           )}
         </div>
 
-        {selectedNode ? (
+        {selectedNode && activeTab !== 'tasks' ? (
           <NodeDetailPanel
             node={selectedNode}
             onClose={() => setSelectedNode(null)}
@@ -581,6 +556,488 @@ export default function PipelineEditorPage({ embedded = false }: PipelineEditorP
         onCancel={() => setPendingDelete(null)}
         isPending={deleteNode.isPending}
       />
+    </div>
+  )
+}
+
+type PipelineMetricTone = 'neutral' | 'emerald' | 'amber' | 'sky'
+
+function PipelineStageWorkbench({
+  activeStage,
+  selectedNode,
+  stageNodes,
+  allNodes,
+  onStageChange,
+  onSelectNode,
+  onOpenWorkspace,
+  onDeleteNode,
+  onAddNode,
+}: {
+  activeStage: PipelineStageId
+  selectedNode: PipelineNode | null
+  stageNodes: Map<PipelineStageId, PipelineNode[]>
+  allNodes: PipelineNode[]
+  onStageChange: (stageId: PipelineStageId) => void
+  onSelectNode: (node: PipelineNode) => void
+  onOpenWorkspace: (node: PipelineNode) => void
+  onDeleteNode: (node: PipelineNode) => void
+  onAddNode: () => void
+}) {
+  const stage = stageDef(activeStage)
+  const nodes = stageNodes.get(activeStage) ?? []
+  const selectedInStage = selectedNode && stageIdForNode(selectedNode) === activeStage ? selectedNode : nodes[0] ?? null
+  const StageIcon = stage.icon
+
+  return (
+    <div className="grid h-full grid-cols-[230px_minmax(0,1fr)_280px] overflow-hidden bg-background">
+      <aside className="flex min-h-0 flex-col border-r border-border bg-card">
+        <div className="border-b border-border px-3 py-3">
+          <div className="flex items-center gap-2">
+            <TreePine size={15} className="text-primary" />
+            <p className="text-sm font-semibold text-foreground">生产管线</p>
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            阶段是入口，工作项从阶段中进入画布或实体工作区。
+          </p>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-2">
+          <div className="space-y-1">
+            {PIPELINE_STAGES.map((item) => {
+              const count = stageNodes.get(item.id)?.length ?? 0
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onStageChange(item.id)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',
+                    activeStage === item.id ? 'bg-primary/10 text-foreground ring-1 ring-primary/20' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  )}
+                >
+                  <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', activeStage === item.id ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground')}>
+                    <Icon size={14} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-semibold">{item.label}</span>
+                    <span className="mt-0.5 block truncate text-[10px] opacity-75">{item.description}</span>
+                  </span>
+                  <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] leading-none">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="border-t border-border p-2">
+          <Button size="sm" variant="outline" className="h-8 w-full justify-start text-xs" onClick={onAddNode}>
+            <Plus size={13} className="mr-1.5" />
+            添加工作项
+          </Button>
+        </div>
+      </aside>
+
+      <main className="min-w-0 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-background/95 px-5 py-4 backdrop-blur">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <StageIcon size={16} />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">{stage.label}</h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{stage.description}</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-xs">
+              <Search size={13} className="mr-1.5" />
+              筛选
+            </Button>
+            <Button size="sm" className="h-8 text-xs" onClick={onAddNode}>
+              <Plus size={13} className="mr-1.5" />
+              新建
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <div className="grid gap-3 md:grid-cols-4">
+            {stageMetrics(activeStage, nodes, allNodes).map((metric) => (
+              <PipelineStageMetric key={metric.label} {...metric} />
+            ))}
+          </div>
+
+          <StagePrimaryWorkspace stageId={activeStage} />
+
+          <section className="rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground">生产工作项</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">确认后的任务才进入这里；候选和缺口先留在阶段工作区处理。</p>
+              </div>
+              <span className="rounded border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground">{nodes.length} 项</span>
+            </div>
+            <div className="divide-y divide-border/70">
+              {nodes.length > 0 ? nodes.map((node) => (
+                <StageNodeRow
+                  key={node.ID}
+                  node={node}
+                  selected={selectedNode?.ID === node.ID}
+                  onSelect={() => onSelectNode(node)}
+                  onOpenWorkspace={() => onOpenWorkspace(node)}
+                  onDelete={() => onDeleteNode(node)}
+                />
+              )) : (
+                <div className="flex min-h-28 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+                  <Inbox size={22} className="text-muted-foreground/60" />
+                  <p className="text-xs text-muted-foreground">这个阶段还没有正式工作项。可以先处理上方候选，再批量生成任务。</p>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onAddNode}>
+                    <Plus size={13} className="mr-1.5" />
+                    添加工作项
+                  </Button>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <StageSummaryPanel
+        stageId={activeStage}
+        selectedNode={selectedInStage}
+        nodeCount={nodes.length}
+        onOpenWorkspace={selectedInStage ? () => onOpenWorkspace(selectedInStage) : undefined}
+        onDelete={selectedInStage ? () => onDeleteNode(selectedInStage) : undefined}
+      />
+    </div>
+  )
+}
+
+function stageMetrics(stageId: PipelineStageId, nodes: PipelineNode[], allNodes: PipelineNode[]): Array<{ label: string; value: string; tone: PipelineMetricTone }> {
+  const finalCount = nodes.filter((node) => node.status === 'final').length
+  const reviewCount = nodes.filter((node) => node.status === 'under_review').length
+  const rejectedCount = nodes.filter((node) => node.status === 'rejected').length
+  const total = nodes.length
+
+  if (stageId === 'script') {
+    return [
+      { label: '工作项', value: String(total), tone: 'neutral' },
+      { label: '增量候选', value: '14', tone: 'sky' },
+      { label: '冲突', value: '3', tone: 'amber' },
+      { label: '已完成', value: String(finalCount), tone: 'emerald' },
+    ]
+  }
+  if (stageId === 'asset') {
+    return [
+      { label: '工作项', value: String(total), tone: 'neutral' },
+      { label: '缺失素材', value: '7', tone: 'amber' },
+      { label: '待审', value: String(reviewCount || 5), tone: 'sky' },
+      { label: '已锁定', value: String(finalCount), tone: 'emerald' },
+    ]
+  }
+  if (stageId === 'delivery') {
+    return [
+      { label: '工作项', value: String(total), tone: 'neutral' },
+      { label: '全局工作项', value: String(allNodes.length), tone: 'sky' },
+      { label: '返工', value: String(rejectedCount), tone: 'amber' },
+      { label: '已交付', value: String(finalCount), tone: 'emerald' },
+    ]
+  }
+  return [
+    { label: '工作项', value: String(total), tone: 'neutral' },
+    { label: '待处理', value: String(Math.max(0, total - finalCount)), tone: 'sky' },
+    { label: '返工', value: String(rejectedCount), tone: 'amber' },
+    { label: '已完成', value: String(finalCount), tone: 'emerald' },
+  ]
+}
+
+function PipelineStageMetric({ label, value, tone }: { label: string; value: string; tone: PipelineMetricTone }) {
+  return (
+    <div className={cn(
+      'rounded-lg border px-3 py-2.5',
+      tone === 'emerald' && 'border-emerald-500/25 bg-emerald-500/10',
+      tone === 'sky' && 'border-sky-500/25 bg-sky-500/10',
+      tone === 'amber' && 'border-amber-500/25 bg-amber-500/10',
+      tone === 'neutral' && 'border-border bg-card',
+    )}>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-semibold leading-none text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function StagePrimaryWorkspace({ stageId }: { stageId: PipelineStageId }) {
+  if (stageId === 'asset') return <AssetPreparationMatrix />
+  if (stageId === 'storyboard') return <StoryboardPreparationList />
+  if (stageId === 'shot') return <ShotProductionList />
+  if (stageId === 'delivery') return <DeliveryCheckList />
+  if (stageId === 'setting') return <SettingInboxList />
+  return <ScriptAnalysisInbox />
+}
+
+function ScriptAnalysisInbox() {
+  return (
+    <StagePanel title="智能分析收件箱" subtitle="剧本增量先进入候选，不直接覆盖设定、素材或分镜。">
+      <StageCandidateRow kind="新增" title="Scene 08 雨夜巷口" source="Script v12 L340-L392" action="创建分场候选并提取角色状态" status="待确认" selected />
+      <StageCandidateRow kind="修改" title="林夏受伤描述增强" source="Script v12 L361" action="作为局部状态进入设定准备" status="待合并" />
+      <StageCandidateRow kind="冲突" title="顾言动机前后不一致" source="v11/v12 差异" action="进入冲突处理，不自动更新人物档案" status="需判断" warning />
+    </StagePanel>
+  )
+}
+
+function SettingInboxList() {
+  return (
+    <StagePanel title="设定候选处理" subtitle="确认角色、场景、道具和关系，写入长期设定库。">
+      <StageCandidateRow kind="角色" title="林夏 · 雨夜受伤状态" source="Scene 08 / Shot 04" action="作为角色状态，不覆盖基础设定" status="待创建素材需求" selected />
+      <StageCandidateRow kind="道具" title="旧伞" source="第 2 集反复出现 3 次" action="创建为道具设定，并生成参考素材" status="待创建" />
+      <StageCandidateRow kind="关系" title="林夏 与 顾言关系变化" source="Scene 07 -> Scene 08" action="更新局部关系，不改全局人物关系" status="需确认" warning />
+    </StagePanel>
+  )
+}
+
+function AssetPreparationMatrix() {
+  return (
+    <StagePanel title="素材覆盖矩阵" subtitle="素材准备管缺口和覆盖，单个需求再打开画布生成。">
+      <StageCandidateRow kind="角色" title="林夏 / 雨夜受伤 / 正面半身" source="Setting #12 + Scene 08" action="打开画布：状态卡 + 图像生成" status="缺失" selected warning />
+      <StageCandidateRow kind="角色" title="林夏 / 雨夜受伤 / 表情组" source="Setting #12" action="复用主视觉，生成情绪组" status="待生成" />
+      <StageCandidateRow kind="场景" title="雨夜巷口 / 环境参考" source="Setting #31" action="锁定 9:16 场景基底" status="待审" />
+    </StagePanel>
+  )
+}
+
+function StoryboardPreparationList() {
+  return (
+    <StagePanel title="分镜脚本拆分" subtitle="从分场剧本生成分镜候选，确认后再创建 Storyboard。">
+      <StageCandidateRow kind="Scene 08" title="巷口远景建立" source="雨夜巷口" action="远景 / 低机位 / 建立空间压迫感" status="待出图" selected />
+      <StageCandidateRow kind="Scene 08" title="近景情绪压迫" source="林夏受伤状态" action="近景 / 雨水和擦伤 / 压抑愤怒" status="缺素材" warning />
+      <StageCandidateRow kind="Scene 08" title="反打顾言沉默" source="顾言关系变化" action="肩后反打 / 保持距离" status="待确认" />
+    </StagePanel>
+  )
+}
+
+function ShotProductionList() {
+  return (
+    <StagePanel title="镜头生产队列" subtitle="基于已确认分镜和素材生成视频镜头，管理版本和返工。">
+      <StageCandidateRow kind="Shot" title="S08-04 推近特写" source="Storyboard #22" action="5s / 缓慢推近 / 雨水反光" status="可生成" selected />
+      <StageCandidateRow kind="Shot" title="S08-05 反打沉默" source="Storyboard #23" action="4s / 肩后反打 / 轻微手持" status="阻塞" warning />
+      <StageCandidateRow kind="版本" title="S07-02 v3" source="已生成视频" action="动作过快，建议降低 pacing" status="待选片" />
+    </StagePanel>
+  )
+}
+
+function DeliveryCheckList() {
+  return (
+    <StagePanel title="成片交付检查" subtitle="检查镜头序列、缺失片段、版本锁定和审核记录。">
+      <StageCandidateRow kind="序列" title="EP02 Scene 08" source="24 个镜头" action="2 个镜头未锁定，暂不可最终交付" status="缺失" selected warning />
+      <StageCandidateRow kind="版本" title="EP02 cut v3" source="上次合成" action="更新 3 个镜头后重新合成" status="待重合成" />
+      <StageCandidateRow kind="交付" title="竖屏 9:16 母版" source="FinalVideo" action="所有镜头锁定后输出" status="未开始" />
+    </StagePanel>
+  )
+}
+
+function StagePanel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-3 py-2.5">
+        <div>
+          <p className="text-xs font-semibold text-foreground">{title}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
+        </div>
+        <Button size="xs" variant="outline" className="h-7 shrink-0">批量处理</Button>
+      </div>
+      <div className="divide-y divide-border/70">{children}</div>
+    </section>
+  )
+}
+
+function StageCandidateRow({
+  kind,
+  title,
+  source,
+  action,
+  status,
+  selected,
+  warning,
+}: {
+  kind: string
+  title: string
+  source: string
+  action: string
+  status: string
+  selected?: boolean
+  warning?: boolean
+}) {
+  return (
+    <div className={cn('grid grid-cols-[34px_1fr_1.1fr_112px] gap-3 px-3 py-2.5', selected && 'bg-primary/5')}>
+      <div className="pt-1">
+        <input type="checkbox" checked={selected} readOnly className="h-3.5 w-3.5" />
+      </div>
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">{kind}</span>
+          <p className="truncate text-xs font-medium text-foreground">{title}</p>
+        </div>
+        <p className="mt-1 truncate text-[10px] text-muted-foreground">{source}</p>
+      </div>
+      <p className="min-w-0 truncate text-[11px] leading-7 text-muted-foreground">{action}</p>
+      <div className="flex items-center justify-end">
+        <span className={cn(
+          'rounded border px-1.5 py-1 text-[10px] leading-none',
+          warning ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-border bg-background text-muted-foreground',
+        )}>
+          {status}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function StageNodeRow({
+  node,
+  selected,
+  onSelect,
+  onOpenWorkspace,
+  onDelete,
+}: {
+  node: PipelineNode
+  selected?: boolean
+  onSelect: () => void
+  onOpenWorkspace: () => void
+  onDelete: () => void
+}) {
+  const { t } = useTranslation()
+  const meta = getPipelineNodeMeta(node.type)
+  const status = NODE_STATUS_META[node.status] ?? NODE_STATUS_META.draft
+  const Icon = meta.icon
+  const typeLabel = t(`pipeline.nodeTypes.${node.type}.label`, { defaultValue: meta.label })
+  const statusLabel = t(`pipeline.status.${node.status}`, { defaultValue: status.label })
+  const canOpen = node.content_type !== 'custom' && !!node.content_type
+
+  return (
+    <div
+      className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 transition-colors', selected ? 'bg-primary/5' : 'hover:bg-muted/40')}
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', meta.accent)}>
+          <Icon size={15} className={meta.iconColor} />
+        </span>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', status.dot)} />
+            <p className="truncate text-xs font-semibold text-foreground">{node.name}</p>
+          </div>
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{typeLabel}</p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <span className={cn('mr-1 rounded px-1.5 py-0.5 text-[10px] font-medium', status.badge)}>{statusLabel}</span>
+        {canOpen ? (
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onOpenWorkspace() }} title={t('pipeline.node.enterWorkspace')}>
+            <ArrowRight size={14} />
+          </Button>
+        ) : null}
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete() }} title={t('common.delete')}>
+          <Trash2 size={14} />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function StageSummaryPanel({
+  stageId,
+  selectedNode,
+  nodeCount,
+  onOpenWorkspace,
+  onDelete,
+}: {
+  stageId: PipelineStageId
+  selectedNode: PipelineNode | null
+  nodeCount: number
+  onOpenWorkspace?: () => void
+  onDelete?: () => void
+}) {
+  const { t } = useTranslation()
+  const stage = stageDef(stageId)
+  const StageIcon = stage.icon
+  const status = selectedNode ? (NODE_STATUS_META[selectedNode.status] ?? NODE_STATUS_META.draft) : null
+
+  return (
+    <aside className="flex min-h-0 flex-col border-l border-border bg-card">
+      <div className="border-b border-border px-3 py-3">
+        <div className="flex items-center gap-2">
+          <ListChecks size={14} className="text-muted-foreground" />
+          <p className="text-sm font-semibold text-foreground">阶段摘要</p>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">管线负责进度、影响和审核；画布负责单项生成。</p>
+      </div>
+      <div className="flex-1 min-h-0 space-y-4 overflow-y-auto p-3">
+        <section>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">当前阶段</p>
+          <div className="rounded-lg border border-border bg-background p-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <StageIcon size={15} />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-foreground">{stage.label}</p>
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{nodeCount} 个正式工作项</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">选中工作项</p>
+          {selectedNode ? (
+            <div className="space-y-2 rounded-lg border border-border bg-background p-3">
+              <p className="line-clamp-2 text-xs font-semibold text-foreground">{selectedNode.name}</p>
+              <div className="flex items-center gap-1.5">
+                {status && <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', status.badge)}>{t(`pipeline.status.${selectedNode.status}`, { defaultValue: status.label })}</span>}
+                <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">{selectedNode.content_type}</span>
+              </div>
+              {selectedNode.entity_id ? (
+                <p className="truncate text-[10px] text-emerald-600">
+                  {t('pipeline.node.linkedEntity', { type: selectedNode.entity_type, id: selectedNode.entity_id })}
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">还未绑定正式实体。</p>
+              )}
+              <div className="flex gap-2 pt-1">
+                {onOpenWorkspace ? <Button size="sm" className="h-8 flex-1 text-xs" onClick={onOpenWorkspace}>打开工作区</Button> : null}
+                {onDelete ? <Button size="sm" variant="outline" className="h-8 text-xs text-destructive hover:text-destructive" onClick={onDelete}>删除</Button> : null}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+              选择一个工作项查看摘要。
+            </div>
+          )}
+        </section>
+
+        <section>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">阶段规则</p>
+          <div className="space-y-1.5">
+            <StageRule ok label="候选先确认，再进入正式工作项" />
+            <StageRule ok label="画布从具体工作项打开" />
+            <StageRule label="剧本增量只标记影响，不自动覆盖" />
+          </div>
+        </section>
+      </div>
+    </aside>
+  )
+}
+
+function StageRule({ label, ok }: { label: string; ok?: boolean }) {
+  const Icon = ok ? CheckCircle2 : AlertTriangle
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <Icon size={12} className={cn('shrink-0', ok ? 'text-emerald-600' : 'text-amber-600')} />
+      <span className="min-w-0 flex-1">{label}</span>
     </div>
   )
 }

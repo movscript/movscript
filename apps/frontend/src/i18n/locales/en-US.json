@@ -583,11 +583,11 @@
       "templates": {
         "fullProduction": {
           "label": "Full Production",
-          "description": "Start from a draft and cover the complete process."
+          "description": "Start from script and settings, then cover the complete process."
         },
         "fromScript": {
           "label": "Script Adaptation",
-          "description": "Start episode production from an existing script."
+          "description": "Start from an existing script, curate settings, then produce episodes."
         },
         "fromStoryboard": {
           "label": "Storyboard Ready",
@@ -599,8 +599,8 @@
         }
       },
       "templateSteps": {
-        "draftWriting": "Draft Writing",
         "mainScript": "Main Script",
+        "settingCreation": "Setting Creation",
         "episodeScript": "Episode Script",
         "sceneScript": "Scene Script",
         "storyboardScript": "Storyboard Script",
@@ -947,6 +947,10 @@
         "label": "Script Writing",
         "desc": "Create the main script"
       },
+      "setting_creation": {
+        "label": "Setting Creation",
+        "desc": "Create character, scene, and prop settings"
+      },
       "episode_writing": {
         "label": "Episode Script Writing",
         "desc": "Create episode scripts"
@@ -1079,6 +1083,7 @@
     "detail": {
       "entities": {
         "script": "Script",
+        "setting": "Setting",
         "episode": "Episode",
         "scene": "Scene",
         "storyboard": "Storyboard",
@@ -1088,6 +1093,7 @@
       },
       "entityFallback": {
         "script": "Script #{{id}}",
+        "setting": "Setting #{{id}}",
         "asset": "Asset #{{id}}",
         "finalVideo": "Final Video #{{id}}"
       },
@@ -1126,6 +1132,7 @@
     },
     "contentTypes": {
       "script": "Script",
+      "setting": "Setting",
       "storyboard": "Storyboard",
       "shot": "Shot",
       "asset": "Asset",
@@ -1713,6 +1720,7 @@
       "projects": "Projects",
       "logs": "Usage Logs",
       "debug": "Debug",
+      "uiPreview": "UI Preview",
       "storage": "Resource Storage",
       "cloudFiles": "Input Relay"
     },
@@ -1965,6 +1973,9 @@
       "autoHighestPriority": "Auto (highest priority)",
       "accessRoles": "Access roles",
       "accessRolesHint": "(blank = available to all roles)",
+      "systemFeatures": "System features",
+      "toolFeatures": "Tool features",
+      "empty": "No configurable features",
       "catalog": {
         "script_analyze": {
           "name": "Script AI Analysis",

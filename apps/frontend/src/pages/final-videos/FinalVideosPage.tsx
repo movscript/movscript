@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Episode, FinalVideo, ResourceBinding, Scene, Shot, Storyboard } from '@/types'
+import type { Episode, FinalVideo, PaginatedResponse, RawResource, ResourceBinding, Scene, Shot, Storyboard } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { MediaViewer } from '@/components/shared/MediaViewer'
-import { ResourceAttachments } from '@/components/shared/ResourceAttachments'
+import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 import { EntitySemanticForm, type EntitySemanticFieldRenderContext } from '@/components/detail/EntitySemanticForm'
 import { cn } from '@/lib/utils'
 import { defaultContentType } from '@/pages/pipeline/nodeSpec'
@@ -319,6 +319,10 @@ export function FinalVideoDetail({
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<FinalVideo>>(video)
+  const [resourceSearch, setResourceSearch] = useState('')
+  const [resourceType, setResourceType] = useState<ResourceTypeFilter>('video')
+  const [resourcePage, setResourcePage] = useState(1)
+  const resourcePageSize = 6
 
   useEffect(() => setDraft(video), [video])
 
@@ -327,6 +331,22 @@ export function FinalVideoDetail({
     queryFn: () => api.get(`/projects/${projectId}/entities/final_video/${video.ID}/resources`, { params: { role: 'final' } }).then((r) => r.data),
     enabled: !!projectId,
   })
+  const { data: resourcesData, isLoading: isLoadingResources } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['resources', 'final-video-detail', resourceType, resourceSearch, resourcePage],
+    queryFn: () =>
+      api.get('/resources', {
+        params: {
+          page: resourcePage,
+          page_size: resourcePageSize,
+          type: resourceType === 'all' ? 'image,video,audio,text,file' : resourceType,
+          q: resourceSearch.trim() || undefined,
+        },
+      }).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const resources = resourcesData?.items ?? []
+  const resourceTotal = resourcesData?.total ?? 0
+  const resourcePageCount = Math.max(1, Math.ceil(resourceTotal / resourcePageSize))
 
   const update = useMutation({
     mutationFn: (payload?: Partial<FinalVideo>) => api.patch(`/final-videos/${video.ID}`, payload ?? {
@@ -348,6 +368,23 @@ export function FinalVideoDetail({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })
       onDelete?.()
+    },
+  })
+
+  const bindFinalResource = useMutation({
+    mutationFn: async (resource: RawResource) => {
+      await Promise.all(finalBindings.map((binding) => api.delete(`/resource-bindings/${binding.ID}`)))
+      return api.post(`/projects/${projectId}/resource-bindings`, {
+        resource_id: resource.ID,
+        owner_type: 'final_video',
+        owner_id: video.ID,
+        role: 'final',
+        slot: 'video',
+        source_type: 'manual',
+      }).then((r) => r.data as ResourceBinding)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resource-bindings', projectId, 'final_video', video.ID, 'final'] })
     },
   })
 
@@ -391,16 +428,26 @@ export function FinalVideoDetail({
               video: () => (
                 <div>
                   <Label className="text-xs font-medium text-muted-foreground mb-1">{t('pages.finalVideos.mediaResource')}</Label>
-                  <ResourceAttachments
-                    ownerType="final_video"
-                    ownerId={video.ID}
-                    role="final"
-                    slot="video"
-                    allowLibrarySelect
-                    libraryType="video"
-                    libraryTypeOptions={['video']}
-                    maxCount={1}
-                    accept="video/*"
+                  <ResourceLibraryPicker
+                    resources={resources}
+                    selectedResource={selectedResource ?? null}
+                    search={resourceSearch}
+                    type={resourceType}
+                    page={resourcePage}
+                    pageCount={resourcePageCount}
+                    total={resourceTotal}
+                    isLoading={isLoadingResources || bindFinalResource.isPending}
+                    typeOptions={['video']}
+                    onSearch={(next) => {
+                      setResourceSearch(next)
+                      setResourcePage(1)
+                    }}
+                    onType={(next) => {
+                      setResourceType(next)
+                      setResourcePage(1)
+                    }}
+                    onPage={setResourcePage}
+                    onSelect={(resource) => bindFinalResource.mutate(resource)}
                   />
                 </div>
               ),

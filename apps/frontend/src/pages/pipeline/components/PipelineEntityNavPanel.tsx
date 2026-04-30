@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Film, Clapperboard, Layers, GripVertical, ChevronDown, ChevronRight, Image } from 'lucide-react'
+import { Film, Clapperboard, Layers, GripVertical, ChevronDown, ChevronRight, Image, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/store/projectStore'
-import type { Episode, Scene, Storyboard, Asset } from '@/types'
+import type { Episode, Scene, Storyboard, Asset, Setting } from '@/types'
 import { cn } from '@/lib/utils'
 
 // ── Drag data type ────────────────────────────────────────────────────────────
@@ -21,6 +21,14 @@ export const PIPELINE_ENTITY_DRAG_TYPE = 'application/pipeline-entity'
 // ── Section definitions ───────────────────────────────────────────────────────
 
 const SECTIONS = [
+  {
+    key: 'setting',
+    labelKey: 'entities.settings',
+    icon: Database,
+    iconColor: 'text-teal-500',
+    bgColor: 'bg-teal-500/10',
+    suggestedNodeType: 'setting_creation',
+  },
   {
     key: 'episode',
     labelKey: 'entities.episodes',
@@ -93,7 +101,7 @@ export function PipelineEntityNavPanel() {
   const { t } = useTranslation()
   const project = useProjectStore((s) => s.current)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    episode: true, scene: false, storyboard: false, asset: false,
+    setting: true, episode: true, scene: false, storyboard: false, asset: false,
   })
 
   function toggle(key: string) {
@@ -103,6 +111,13 @@ export function PipelineEntityNavPanel() {
   const { data: episodes = [] } = useQuery<Episode[]>({
     queryKey: ['pipeline-nav-episodes', project?.ID],
     queryFn: () => api.get(`/projects/${project!.ID}/episodes`).then((r) => r.data),
+    enabled: !!project,
+    staleTime: 30_000,
+  })
+
+  const { data: settings = [] } = useQuery<Setting[]>({
+    queryKey: ['pipeline-nav-settings', project?.ID],
+    queryFn: () => api.get(`/projects/${project!.ID}/settings`).then((r) => r.data),
     enabled: !!project,
     staleTime: 30_000,
   })
@@ -129,6 +144,12 @@ export function PipelineEntityNavPanel() {
   })
 
   const itemsMap: Record<string, DraggableItemProps[]> = {
+    setting: settings.map((s) => ({
+      entityType: 'setting',
+      entityId: s.ID,
+      label: `${s.name}${s.type ? ` · ${s.type}` : ''}`,
+      suggestedNodeType: 'setting_creation',
+    })),
     episode: episodes.map((e) => ({
       entityType: 'episode',
       entityId: e.ID,

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -31,24 +32,7 @@ func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 }
 
 func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
-	msgs := make([]*arkmodel.ChatCompletionMessage, 0, len(req.Messages))
-	for _, m := range req.Messages {
-		role := m.Role
-		content := arkmodel.ChatCompletionMessageContent{StringValue: &m.Content}
-		msgs = append(msgs, &arkmodel.ChatCompletionMessage{
-			Role:    role,
-			Content: &content,
-		})
-	}
-
-	arkReq := arkmodel.CreateChatCompletionRequest{
-		Model:    req.Model,
-		Messages: msgs,
-	}
-	if req.MaxTokens > 0 {
-		n := req.MaxTokens
-		arkReq.MaxTokens = &n
-	}
+	arkReq := buildVolcenChatRequest(req)
 
 	resp, err := a.client.CreateChatCompletion(ctx, arkReq)
 	if err != nil {
@@ -69,6 +53,94 @@ func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (Text
 		},
 		Debug: takeDebug(ctx),
 	}, nil
+}
+
+func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
+	arkReq := buildVolcenChatRequest(req)
+	arkReq.StreamOptions = &arkmodel.StreamOptions{IncludeUsage: true}
+
+	stream, err := a.client.CreateChatCompletionStream(ctx, arkReq)
+	if err != nil {
+		return nil, fmt.Errorf("volcen text stream: %w", err)
+	}
+
+	out := make(chan TextStreamEvent)
+	go func() {
+		defer close(out)
+		defer stream.Close()
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				out <- TextStreamEvent{Done: true}
+				return
+			}
+			if err != nil {
+				return
+			}
+			event := TextStreamEvent{}
+			if len(resp.Choices) > 0 && resp.Choices[0] != nil {
+				choice := resp.Choices[0]
+				event.Role = choice.Delta.Role
+				event.ContentDelta = choice.Delta.Content
+				if choice.FinishReason != "" {
+					event.FinishReason = string(choice.FinishReason)
+				}
+			}
+			if resp.Usage != nil {
+				event.Usage = TokenUsage{
+					InputTokens:  resp.Usage.PromptTokens,
+					OutputTokens: resp.Usage.CompletionTokens,
+				}
+			}
+			out <- event
+		}
+	}()
+	return out, nil
+}
+
+func buildVolcenChatRequest(req TextRequest) arkmodel.CreateChatCompletionRequest {
+	msgs := make([]*arkmodel.ChatCompletionMessage, 0, len(req.Messages))
+	for _, m := range req.Messages {
+		role := m.Role
+		content := arkmodel.ChatCompletionMessageContent{StringValue: &m.Content}
+		msgs = append(msgs, &arkmodel.ChatCompletionMessage{
+			Role:    role,
+			Content: &content,
+		})
+	}
+
+	arkReq := arkmodel.CreateChatCompletionRequest{
+		Model:    req.Model,
+		Messages: msgs,
+	}
+	if req.MaxTokens > 0 {
+		n := req.MaxTokens
+		arkReq.MaxTokens = &n
+	}
+	if req.Temperature >= 0 {
+		t := req.Temperature
+		arkReq.Temperature = &t
+	}
+	for key, value := range req.ExtraParams {
+		switch key {
+		case "top_p":
+			if n, ok := numberValue(value); ok {
+				v := float32(n)
+				arkReq.TopP = &v
+			}
+		case "presence_penalty":
+			if n, ok := numberValue(value); ok {
+				v := float32(n)
+				arkReq.PresencePenalty = &v
+			}
+		case "frequency_penalty":
+			if n, ok := numberValue(value); ok {
+				v := float32(n)
+				arkReq.FrequencyPenalty = &v
+			}
+		}
+	}
+	return arkReq
 }
 
 func (a *VolcenAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { EntitySemanticForm } from './EntitySemanticForm'
 import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
+import { StoryboardPreviewStrip } from '@/components/shared/StoryboardPreviewStrip'
 
 interface Props {
   episode: Episode
@@ -158,7 +159,7 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
           <EpisodeReferenceOverview
             episode={episode}
             episodeScripts={episodeScripts}
@@ -173,6 +174,12 @@ export function EpisodeDetail({ episode, onClose, onDelete, showHeader = true }:
             onUnlinkScene={(sceneId) => unlinkScene.mutate(sceneId)}
             onPatch={(payload) => updateReferences.mutate(payload)}
             isSaving={updateReferences.isPending || linkScene.isPending || unlinkScene.isPending}
+          />
+          <StoryboardPreviewStrip
+            projectId={projectId}
+            storyboards={episode.storyboards ?? []}
+            title={t('pages.episodes.storyboardPreview', { defaultValue: '本集分镜预览' })}
+            className="overflow-hidden rounded-lg border border-border"
           />
         </div>
       </div>

@@ -5,15 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/scriptanalysis"
 	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
+
+type scriptAnalyzeRequest struct {
+	Content string `json:"content"`
+	Preview bool   `json:"preview"`
+}
 
 type ScriptHandler struct {
 	db  *gorm.DB
@@ -59,8 +66,13 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 	var s model.Script
 	service.ApplyScriptInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
+	normalizeScriptDefaults(&s)
 	if err := h.validateScriptEpisodeBinding(&s); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if err := h.validateSingleMainScript(&s); err != nil {
+		c.JSON(http.StatusConflict, apierr.Conflict(err.Error()))
 		return
 	}
 	if user := currentUser(c); user != nil {
@@ -97,9 +109,16 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	projectID := s.ProjectID
 	service.ApplyScriptInput(&s, req)
+	s.ProjectID = projectID
+	normalizeScriptDefaults(&s)
 	if err := h.validateScriptEpisodeBinding(&s); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if err := h.validateSingleMainScript(&s); err != nil {
+		c.JSON(http.StatusConflict, apierr.Conflict(err.Error()))
 		return
 	}
 	if err := h.db.Save(&s).Error; err != nil {
@@ -135,6 +154,7 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 	if scriptType, ok := body["script_type"].(string); ok {
 		next.ScriptType = scriptType
 	}
+	normalizeScriptDefaults(&next)
 	if rawEpisodeID, ok := body["episode_id"]; ok {
 		next.EpisodeID = nil
 		switch v := rawEpisodeID.(type) {
@@ -161,6 +181,10 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
+	if err := h.validateSingleMainScript(&next); err != nil {
+		c.JSON(http.StatusConflict, apierr.Conflict(err.Error()))
+		return
+	}
 	updates := service.ScriptPatchUpdates(body)
 	if next.ScriptType == "main" {
 		updates["episode_id"] = nil
@@ -177,6 +201,53 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, s)
+}
+
+func normalizeScriptDefaults(s *model.Script) {
+	if s.ScriptType == "" {
+		s.ScriptType = "main"
+	}
+	if s.SourceType == "" {
+		s.SourceType = "raw"
+	}
+	if s.Version == 0 {
+		s.Version = 1
+	}
+	if strings.TrimSpace(s.RawSource) == "" {
+		s.RawSource = s.Content
+	}
+	if strings.TrimSpace(s.Content) == "" {
+		s.Content = s.RawSource
+	}
+	if strings.TrimSpace(s.RawSource) != "" {
+		s.Content = s.RawSource
+	}
+}
+
+func (h *ScriptHandler) validateSingleMainScript(s *model.Script) error {
+	if s.ScriptType != "main" {
+		return nil
+	}
+	var count int64
+	if err := h.db.Model(&model.Script{}).
+		Where("project_id = ? AND script_type = ? AND id <> ?", s.ProjectID, "main", s.ID).
+		Count(&count).Error; err != nil {
+		return validateSingleMainScriptCount(*s, count, err)
+	}
+	return validateSingleMainScriptCount(*s, count, nil)
+}
+
+func validateSingleMainScriptCount(s model.Script, count int64, queryErr error) error {
+	if s.ScriptType != "main" {
+		return nil
+	}
+	if queryErr != nil {
+		return queryErr
+	}
+	if count > 0 {
+		return fmt.Errorf("一个项目只能有一个总剧本")
+	}
+	return nil
 }
 
 func (h *ScriptHandler) validateScriptEpisodeBinding(s *model.Script) error {
@@ -237,154 +308,244 @@ func (h *ScriptHandler) Analyze(c *gin.Context) {
 	}
 
 	// Allow overriding content via request body
-	var body struct {
-		Content string `json:"content"`
-	}
+	var body scriptAnalyzeRequest
 	c.ShouldBindJSON(&body)
-	content := body.Content
-	if content == "" {
-		content = s.Content
-	}
+	content := resolveScriptAnalysisContent(s, body.Content)
 	if strings.TrimSpace(content) == "" {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("剧本内容不能为空"))
 		return
 	}
 
-	modelConfigID, _, err := h.svc.GetForFeature("script_analyze")
+	featureKey := scriptAnalysisFeatureKey(s.ScriptType)
+	modelConfigID, _, err := h.svc.GetForFeature(featureKey)
+	if err != nil && featureKey != ai.FeatureScriptAnalyze {
+		modelConfigID, _, err = h.svc.GetForFeature(ai.FeatureScriptAnalyze)
+	}
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "暂无可用的 AI 提供商，请先在 AI 配置中添加并启用提供商"})
 		return
 	}
-	h.db.Model(&s).Update("analysis_status", "analyzing")
+	if !body.Preview {
+		h.db.Model(&s).Update("analysis_status", "analyzing")
+	}
 
 	var userID uint
 	if u := currentUser(c); u != nil {
 		userID = u.ID
 	}
 
-	prompt := `请分析以下剧本内容，提取关键信息并以纯JSON格式返回。不要有任何额外文字，只返回JSON对象。
-
-JSON结构如下：
-{
-  "summary": "剧本提纲，用条目概括主要内容",
-  "characters": "人物补充说明，保留无法结构化但有用的信息",
-  "character_profiles": [
-    {
-      "id": "c1",
-      "name": "人物姓名",
-      "identity": "身份",
-      "traits": "性格/特征",
-      "goal": "欲望/目标",
-      "notes": "补充说明"
-    }
-  ],
-  "character_relationships": [
-    {
-      "id": "r1",
-      "source": "c1",
-      "target": "c2",
-      "label": "关系说明",
-      "type": "alliance|family|love|conflict|secret|other"
-    }
-  ],
-  "core_settings": ["核心设定，多条，每条描述一条规则、关系或限制"],
-  "background": "时代背景，用一句尽可能短的话描述",
-  "scenes_desc": [
-    {
-      "id": "s1",
-      "name": "场景名称或地点",
-      "time_of_day": "day|night|dawn|dusk|unknown",
-      "period": "时期/年代",
-      "description": "空间、时间、氛围、可见元素和调度重点"
-    }
-  ],
-  "props": [
-    {
-      "id": "pr1",
-      "name": "道具名称",
-      "category": "类别",
-      "usage": "剧情用途",
-      "visual_notes": "外观、材质、状态"
-    }
-  ],
-  "hook": "核心钩子，最吸引观众的悬念或看点",
-  "plot_summary": "剧情推演提纲，按条目交代主要情节走向",
-  "script_points": [
-    {
-      "id": "p1",
-      "content": "剧本正文中的一个关键点或段落摘要",
-      "beat_type": "hook|reversal|conflict|release|none",
-      "tags": ["标签1", "标签2"]
-    }
-  ]
-}
-
-剧本内容：
-` + content
-
-	resp, err := h.svc.CallText(context.Background(), userID, modelConfigID, ai.TextRequest{
-		MaxTokens: 2000,
-		Messages: []ai.Message{
-			{Role: "user", Content: prompt},
-		},
+	analysisResult, err := scriptanalysis.NewAnalyzer(h.svc).Analyze(context.Background(), scriptanalysis.Request{
+		UserID:        userID,
+		ModelConfigID: modelConfigID,
+		Script:        s,
+		Content:       content,
 	})
 	if err != nil {
+		if !body.Preview {
+			h.db.Model(&s).Update("analysis_status", "failed")
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI 分析失败: " + err.Error()})
 		return
 	}
 
-	// Extract JSON from response (handle markdown code blocks)
-	raw := strings.TrimSpace(resp.Content)
-	if idx := strings.Index(raw, "```json"); idx >= 0 {
-		raw = raw[idx+7:]
-		if end := strings.Index(raw, "```"); end >= 0 {
-			raw = raw[:end]
-		}
-	} else if idx := strings.Index(raw, "```"); idx >= 0 {
-		raw = raw[idx+3:]
-		if end := strings.Index(raw, "```"); end >= 0 {
-			raw = raw[:end]
-		}
+	result := analysisResult.Payload
+	analysisScript := s
+	if len(result) > 0 {
+		analysisScript = scriptFromAnalysisResult(s, result)
 	}
-	raw = strings.TrimSpace(raw)
-
-	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		h.db.Model(&s).Update("analysis_status", "failed")
-		// Return raw content so user can see what AI returned
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "AI 返回格式异常，请重试",
-			"raw":   resp.Content,
+	if body.Preview {
+		c.JSON(http.StatusOK, gin.H{
+			"script":       analysisScript,
+			"analysis":     analysisFromResult(&s, modelConfigID, analysisResult, result),
+			"result":       result,
+			"raw_response": analysisResult.RawResponse,
+			"preview_only": true,
 		})
 		return
 	}
 
 	// Update script fields
-	s.Summary = analysisFieldToText(result["summary"])
-	s.Characters = analysisFieldToText(result["characters"])
-	s.Hook = analysisFieldToText(result["hook"])
-	s.PlotSummary = analysisFieldToText(result["plot_summary"])
-	if points, ok := result["script_points"]; ok {
-		s.ScriptPoints = analysisFieldToJSON(points)
+	if len(result) > 0 {
+		s = analysisScript
 	}
 	s.AnalysisStatus = "analyzed"
 	h.db.Save(&s)
 
+	analysis := analysisFromResult(&s, modelConfigID, analysisResult, result)
+	h.db.Create(&analysis)
+
+	c.JSON(http.StatusOK, s)
+}
+
+func (h *ScriptHandler) AnalyzeStream(c *gin.Context) {
+	if h.svc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI service not configured"})
+		return
+	}
+
+	var s model.Script
+	if err := h.db.First(&s, c.Param("scriptId")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("剧本不存在"))
+		return
+	}
+
+	var body scriptAnalyzeRequest
+	c.ShouldBindJSON(&body)
+	content := resolveScriptAnalysisContent(s, body.Content)
+	if strings.TrimSpace(content) == "" {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("剧本内容不能为空"))
+		return
+	}
+
+	featureKey := scriptAnalysisFeatureKey(s.ScriptType)
+	modelConfigID, _, err := h.svc.GetForFeature(featureKey)
+	if err != nil && featureKey != ai.FeatureScriptAnalyze {
+		modelConfigID, _, err = h.svc.GetForFeature(ai.FeatureScriptAnalyze)
+	}
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "暂无可用的 AI 提供商，请先在 AI 配置中添加并启用提供商"})
+		return
+	}
+
+	var userID uint
+	if u := currentUser(c); u != nil {
+		userID = u.ID
+	}
+
+	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Status(http.StatusOK)
+	flusher, _ := c.Writer.(http.Flusher)
+	write := func(event string, payload any) {
+		line, _ := json.Marshal(gin.H{"event": event, "data": payload})
+		fmt.Fprintf(c.Writer, "%s\n", line)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+
+	write("status", gin.H{"message": "开始 " + scriptAnalysisFeatureLabel(s.ScriptType) + " AI 分析"})
+	analysisResult, err := scriptanalysis.NewAnalyzer(h.svc).AnalyzeStream(c.Request.Context(), scriptanalysis.Request{
+		UserID:        userID,
+		ModelConfigID: modelConfigID,
+		Script:        s,
+		Content:       content,
+	}, func(event scriptanalysis.StreamEvent) {
+		switch event.Kind {
+		case "delta":
+			write("delta", gin.H{"text": event.Delta})
+		case "status":
+			write("status", gin.H{"message": event.Label})
+		}
+	})
+	if err != nil {
+		write("error", gin.H{"message": "AI 分析失败: " + err.Error()})
+		return
+	}
+
+	result := analysisResult.Payload
+	analysisScript := s
+	if len(result) > 0 {
+		analysisScript = scriptFromAnalysisResult(s, result)
+	}
+	write("result", gin.H{
+		"script":       analysisScript,
+		"analysis":     analysisFromResult(&s, modelConfigID, analysisResult, result),
+		"result":       result,
+		"raw_response": analysisResult.RawResponse,
+		"preview_only": true,
+	})
+}
+
+func resolveScriptAnalysisContent(s model.Script, override string) string {
+	if override != "" {
+		return override
+	}
+	if s.RawSource != "" {
+		return s.RawSource
+	}
+	return s.Content
+}
+
+func scriptAnalysisFeatureKey(scriptType string) string {
+	switch scriptType {
+	case "main":
+		return ai.FeatureMainScriptAnalyze
+	case "episode":
+		return ai.FeatureEpisodeScriptAnalyze
+	case "scene":
+		return ai.FeatureSceneScriptAnalyze
+	default:
+		return ai.FeatureScriptAnalyze
+	}
+}
+
+func scriptAnalysisFeatureLabel(scriptType string) string {
+	switch scriptType {
+	case "main":
+		return "主剧本"
+	case "episode":
+		return "分集剧本"
+	case "scene":
+		return "分场剧本"
+	default:
+		return "剧本"
+	}
+}
+
+func scriptFromAnalysisResult(s model.Script, result map[string]interface{}) model.Script {
+	if title := analysisFieldToText(result["title"]); title != "" {
+		s.Title = title
+	}
+	if description := analysisFieldToText(result["description"]); description != "" {
+		s.Description = description
+	}
+	s.Summary = analysisFieldToText(result["summary"])
+	s.Characters = analysisFieldToText(result["characters"])
+	s.CoreSettings = analysisFieldToText(result["core_settings"])
+	if s.CoreSettings == "" {
+		s.CoreSettings = analysisFieldToText(result["settings"])
+	}
+	s.Hook = analysisFieldToText(result["hook"])
+	s.PlotSummary = analysisFieldToText(result["plot_summary"])
+	s.PlannedSceneCount = analysisFieldToInt(result["planned_scene_count"])
+	s.PlannedCharacterCount = analysisFieldToInt(result["planned_character_count"])
+	s.TimeText = analysisFieldToText(result["time_text"])
+	s.LocationText = analysisFieldToText(result["location_text"])
+	s.StructuredCharacters = analysisFieldToJSON(result["structured_characters"])
+	s.PlotBeats = analysisFieldToJSON(result["plot_beats"])
+	s.Atmosphere = analysisFieldToText(result["atmosphere"])
+	s.StructureJSON = analysisFieldToJSON(result)
+	s.EntityCandidates = analysisFieldToJSON(result["entity_candidates"])
+	s.RelationshipCandidates = analysisFieldToJSON(result["relationship_candidates"])
+	if points, ok := result["script_points"]; ok {
+		s.ScriptPoints = analysisFieldToJSON(points)
+	}
+	if s.ScriptPoints == "" {
+		if scenes, ok := result["involved_scenes"]; ok {
+			s.ScriptPoints = analysisFieldToJSON(scenes)
+		}
+	}
+	return s
+}
+
+func analysisFromResult(s *model.Script, modelConfigID uint, analysisResult scriptanalysis.Result, result map[string]interface{}) model.ScriptAnalysis {
 	modelConfigIDForAnalysis := modelConfigID
 	analysis := model.ScriptAnalysis{
 		ProjectID:              s.ProjectID,
 		ScriptID:               s.ID,
 		Status:                 "draft",
-		Summary:                s.Summary,
+		Summary:                analysisFieldToText(result["summary"]),
 		WorldSetting:           analysisFieldToText(result["background"]),
 		CharacterExtractJSON:   analysisFieldToJSON(result["character_profiles"]),
-		SceneExtractJSON:       analysisFieldToJSON(result["scenes_desc"]),
+		SceneExtractJSON:       firstAnalysisJSON(result, "scenes_desc", "scene_scripts", "involved_scenes"),
 		RelationshipJSON:       analysisFieldToJSON(result["character_relationships"]),
-		CoreSettingJSON:        analysisFieldToJSON(result["core_settings"]),
-		ScriptPointJSON:        s.ScriptPoints,
+		CoreSettingJSON:        firstAnalysisJSON(result, "core_settings", "settings"),
+		ScriptPointJSON:        analysisFieldToJSON(result["script_points"]),
 		SourceModelConfigID:    &modelConfigIDForAnalysis,
-		Prompt:                 prompt,
-		RawResponse:            resp.Content,
+		Prompt:                 analysisResult.Prompt,
+		RawResponse:            analysisResult.RawResponse,
 		NormalizedResponseJSON: analysisFieldToJSON(result),
 	}
 	if props, ok := result["props"]; ok {
@@ -392,13 +553,18 @@ JSON结构如下：
 	} else if props, ok := result["prop_extracts"]; ok {
 		analysis.PropExtractJSON = analysisFieldToJSON(props)
 	}
-	h.db.Create(&analysis)
-	if err := h.syncAnalysisToSettings(&s, &analysis, result); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设定同步失败: " + err.Error()})
-		return
-	}
+	return analysis
+}
 
-	c.JSON(http.StatusOK, s)
+func firstAnalysisJSON(result map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := result[key]; ok {
+			if text := analysisFieldToJSON(value); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 func (h *ScriptHandler) syncAnalysisToSettings(s *model.Script, analysis *model.ScriptAnalysis, result map[string]interface{}) error {
@@ -856,6 +1022,20 @@ func analysisFieldToText(v interface{}) string {
 		}
 	}
 	return ""
+}
+
+func analysisFieldToInt(v interface{}) int {
+	switch value := v.(type) {
+	case float64:
+		return int(value)
+	case int:
+		return value
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(value))
+		return n
+	default:
+		return 0
+	}
 }
 
 func analysisFieldToJSON(v interface{}) string {

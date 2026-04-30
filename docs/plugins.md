@@ -56,6 +56,16 @@ Minimal manifest:
         "tool": "outline",
         "category": "writing"
       }
+    ],
+    "workflows": [
+      {
+        "id": "image-flow",
+        "title": "Image Generation Flow",
+        "workflowKey": "template:image-generation",
+        "inputs": [{ "id": "prompt", "type": "text", "required": true }],
+        "outputs": [{ "id": "image", "type": "image" }],
+        "tags": ["image", "starter"]
+      }
     ]
   }
 }
@@ -67,6 +77,8 @@ Validation rules include:
 - `id` cannot contain whitespace or path separators.
 - Tool IDs must be unique within a manifest.
 - Cards and canvas nodes that reference tools must reference tools declared in the same manifest.
+- Workflow IDs must be unique within a manifest and must provide a stable `workflowKey`.
+- Canvas nodes that reference workflows must reference workflows declared in the same manifest.
 
 ## Import API
 
@@ -114,6 +126,7 @@ Enabled plugin contributions are exposed through:
 GET /api/v1/plugins/tools
 GET /api/v1/plugins/cards
 GET /api/v1/plugins/canvas-nodes
+GET /api/v1/plugins/workflows
 ```
 
 Registry proxy endpoints:
@@ -121,9 +134,29 @@ Registry proxy endpoints:
 ```text
 GET /api/v1/registry/plugins
 GET /api/v1/registry/plugins/:id
+GET /api/v1/registry/workflows
+GET /api/v1/registry/workflows/:id
 ```
 
 The proxy base URL defaults to `https://registry.movscript.com` and can be overridden with `PLUGIN_REGISTRY_URL`.
+
+## Reusable Workflows
+
+The backend exposes reusable workflow templates and a public workflow market:
+
+```text
+GET /api/v1/workflows/templates
+POST /api/v1/workflows/templates/:key/install
+GET /api/v1/workflows/market
+GET /api/v1/workflows/by-key/:key
+POST /api/v1/workflows/:id/publish
+POST /api/v1/workflows/:id/unpublish
+POST /api/v1/workflows/:id/clone
+```
+
+Built-in workflow keys currently include `template:text-generation`, `template:image-generation`, and `template:input-output`; the install route uses the suffix, for example `POST /api/v1/workflows/templates/image-generation/install`. Installing a template creates a normal private workflow canvas. Publishing an owned workflow sets `visibility` to `public`, assigns or preserves `workflow_key`, and makes it available in `/api/v1/workflows/market` for other users to inspect, reference, or clone.
+
+Plugins can declare workflow dependencies in `contributes.workflows`. A plugin canvas node can reference one of those workflow contribution IDs through its `workflow` field; hosts should resolve the contribution's `workflowKey` through `/api/v1/workflows/by-key/:key` or clone/install it before wiring a canvas reference node.
 
 ## CLI Status
 

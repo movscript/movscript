@@ -1,6 +1,6 @@
 import {
   ArrowRight, Box, CalendarDays, Camera, ChevronDown, ChevronRight,
-  Clapperboard, FileEdit, Film, Hammer, Layers, MoreHorizontal,
+  Clapperboard, Database, FileEdit, Film, Hammer, Layers, MoreHorizontal,
   PenLine, Plus, Scissors, Trash2,
 } from 'lucide-react'
 import type React from 'react'
@@ -23,6 +23,7 @@ interface NodeTypeMeta {
 
 export const NODE_TYPE_META: Record<string, NodeTypeMeta> = {
   script_writing:       { label: 'Script Writing',         icon: PenLine,      category: 'work',     desc: 'Create the main script',               accent: 'bg-blue-500/10 text-blue-600',       iconColor: 'text-blue-500' },
+  setting_creation:     { label: 'Setting Creation',       icon: Database,     category: 'work',     desc: 'Create characters, scenes, and props', accent: 'bg-teal-500/10 text-teal-600',       iconColor: 'text-teal-500' },
   episode_writing:      { label: 'Episode Script Writing', icon: Film,         category: 'work',     desc: 'Create episode scripts',               accent: 'bg-violet-500/10 text-violet-600',   iconColor: 'text-violet-500' },
   scene_writing:        { label: 'Scene Script Writing',   icon: Clapperboard, category: 'work',     desc: 'Create scene scripts',                 accent: 'bg-indigo-500/10 text-indigo-600',   iconColor: 'text-indigo-500' },
   storyboard_creation:  { label: 'Storyboard Creation',    icon: Layers,       category: 'work',     desc: 'Create storyboard scripts',            accent: 'bg-cyan-500/10 text-cyan-600',       iconColor: 'text-cyan-500' },

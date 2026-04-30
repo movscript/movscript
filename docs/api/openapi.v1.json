@@ -166,6 +166,36 @@
           "path": { "type": "string" }
         }
       },
+      "WorkflowPort": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "type": { "type": "string" },
+          "required": { "type": "boolean" },
+          "maxCount": { "type": "integer" }
+        },
+        "required": ["id"]
+      },
+      "WorkflowMarketItem": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string", "enum": ["template", "public"] },
+          "canvas_id": { "type": "integer" },
+          "key": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "category": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "inputs": { "type": "array", "items": { "$ref": "#/components/schemas/WorkflowPort" } },
+          "outputs": { "type": "array", "items": { "$ref": "#/components/schemas/WorkflowPort" } },
+          "owner_id": { "type": "integer" },
+          "node_count": { "type": "integer" },
+          "edge_count": { "type": "integer" },
+          "published_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["source", "key", "name"]
+      },
       "AuditLog": {
         "type": "object",
         "properties": {
@@ -285,6 +315,64 @@
         "security": [{ "bearerAuth": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PluginImport" } } } },
         "responses": { "200": { "description": "Plugin", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Plugin" } } } }, "201": { "description": "Plugin", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Plugin" } } } } }
+      }
+    },
+    "/api/v1/workflows/templates": {
+      "get": {
+        "operationId": "listWorkflowTemplates",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Workflow templates", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/WorkflowMarketItem" } } } } } }
+      }
+    },
+    "/api/v1/workflows/templates/{key}/install": {
+      "post": {
+        "operationId": "installWorkflowTemplate",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "201": { "description": "Workflow canvas" } }
+      }
+    },
+    "/api/v1/workflows/market": {
+      "get": {
+        "operationId": "listWorkflowMarket",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "source", "in": "query", "schema": { "type": "string", "enum": ["template", "public"] } },
+          { "name": "q", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Workflow market items", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/WorkflowMarketItem" } } } } } }
+      }
+    },
+    "/api/v1/workflows/by-key/{key}": {
+      "get": {
+        "operationId": "getWorkflowByKey",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Workflow market item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkflowMarketItem" } } } } }
+      }
+    },
+    "/api/v1/workflows/{id}/publish": {
+      "post": {
+        "operationId": "publishWorkflow",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow canvas" } }
+      }
+    },
+    "/api/v1/workflows/{id}/unpublish": {
+      "post": {
+        "operationId": "unpublishWorkflow",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow canvas" } }
+      }
+    },
+    "/api/v1/workflows/{id}/clone": {
+      "post": {
+        "operationId": "cloneWorkflow",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "201": { "description": "Workflow canvas" } }
       }
     },
     "/api/v1/admin/audit-logs": {

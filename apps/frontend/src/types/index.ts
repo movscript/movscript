@@ -12,7 +12,7 @@ export interface Project {
 }
 
 export type PipelineNodeStatus = 'draft' | 'under_review' | 'rejected' | 'final'
-export type PipelineContentType = 'script' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video' | 'custom'
+export type PipelineContentType = 'script' | 'setting' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video' | 'custom'
 
 export interface PipelineNode {
   ID: number
@@ -67,6 +67,7 @@ export interface Script {
   title: string
   description: string
   content: string // full script body text
+  raw_source?: string
   script_type: 'main' | 'episode' | 'scene'
   source_type?: 'raw' | 'adapted' | 'revised'
   version?: number
@@ -89,6 +90,16 @@ export interface Script {
   hook: string        // 钩子（分集剧本）
   plot_summary: string // 剧情推演总结（分集剧本）
   script_points?: string // JSON array of structured episode script points
+  planned_scene_count?: number
+  planned_character_count?: number
+  time_text?: string
+  location_text?: string
+  structured_characters?: string
+  plot_beats?: string
+  atmosphere?: string
+  structure_json?: string
+  entity_candidates?: string
+  relationship_candidates?: string
   CreatedAt: string
   UpdatedAt: string
 }
@@ -119,6 +130,7 @@ export interface ScriptAnalysis {
 export interface Setting {
   ID: number
   project_id: number
+  pipeline_node_id?: number
   script_id?: number // optional link to a script
   source_script_id?: number
   source_analysis_id?: number

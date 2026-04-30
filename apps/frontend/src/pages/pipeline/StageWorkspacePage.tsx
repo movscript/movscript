@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, UserCircle, ChevronDown, XCircle, Package, Film, Clapperboard } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, FileText, Layers, Camera, Settings2, UserCircle, ChevronDown, XCircle, Package, Film, Clapperboard, Database } from 'lucide-react'
 import { api } from '@/lib/api'
 import {
   canManagePipelineNodeAssignment,
@@ -10,7 +10,7 @@ import {
 } from '@/lib/pipelinePermissions'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
-import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, FinalVideo, PipelineContentType, Project, ProjectMember, ResourceBinding } from '@/types'
+import type { Pipeline, PipelineNode, Script, Storyboard, Shot, Asset, Episode, Scene, FinalVideo, Setting, PipelineContentType, Project, ProjectMember, ResourceBinding } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ScriptWorkspace } from '@/pages/work/workspaces/ScriptWorkspace'
@@ -19,6 +19,7 @@ import { ShotWorkspace } from '@/pages/work/workspaces/ShotWorkspace'
 import { AssetWorkspace } from '@/pages/work/workspaces/AssetWorkspace'
 import { EpisodeWorkspace } from '@/pages/work/workspaces/EpisodeWorkspace'
 import { SceneWorkspace } from '@/pages/work/workspaces/SceneWorkspace'
+import { SettingWorkspace } from '@/pages/work/workspaces/SettingWorkspace'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { useTranslation } from 'react-i18next'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -27,7 +28,7 @@ import { ArtifactWorkspaceFrame } from '@/pages/work/ArtifactWorkspaceFrame'
 
 // ── Content type config ───────────────────────────────────────────────────────
 
-type ContentItem = Script | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
+type ContentItem = Script | Setting | Storyboard | Shot | Asset | Episode | Scene | FinalVideo
 
 const ASSIGNMENT_LOG = '[movscript:pipeline-assignment]'
 
@@ -93,6 +94,24 @@ const CONTENT_TYPE_CONFIG: Record<PipelineContentType, ContentTypeCfg> = {
     getSub: (item) => (item as Script).script_type,
     getPatchUrl: (item) => `/scripts/${item.ID}`,
     getAssigneeId: (item) => (item as Script).assignee_id,
+  },
+  setting: {
+    icon: Database,
+    entityType: 'setting',
+    listKey: (pid) => ['settings', pid],
+    listFn: (pid, nodeId) =>
+      api.get(`/projects/${pid}/settings?pipeline_node_id=${nodeId}`).then((r) => r.data),
+    createFn: (pid, node) =>
+      api.post(`/projects/${pid}/settings`, {
+        name: node.name || '新设定',
+        type: 'character',
+        status: 'default',
+        pipeline_node_id: node.ID,
+      }).then((r) => r.data),
+    getLabel: (item) => (item as Setting).name,
+    getSub: (item) => (item as Setting).type ?? '',
+    getPatchUrl: (item) => `/settings/${item.ID}`,
+    getAssigneeId: () => undefined,
   },
   storyboard: {
     icon: Layers,
@@ -348,6 +367,7 @@ function DetailPanel({
 }) {
   const frameProps = { node, pipeline, members, onNodeUpdated }
   if (contentType === 'script') return <ScriptWorkspace script={item as Script} {...frameProps} />
+  if (contentType === 'setting') return <SettingWorkspace setting={item as Setting} {...frameProps} />
   if (contentType === 'storyboard') return <StoryboardWorkspace storyboard={item as Storyboard} {...frameProps} />
   if (contentType === 'shot') return <ShotWorkspace shot={item as Shot} {...frameProps} />
   if (contentType === 'asset') return <AssetWorkspace asset={item as Asset} {...frameProps} />

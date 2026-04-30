@@ -84,6 +84,8 @@ export interface CanvasNodeContribution {
   title: string
   description?: string
   tool?: string
+  /** ID of a workflow contribution from this plugin to invoke as a reusable workflow node. */
+  workflow?: string
   inputs?: CanvasPortDef[]
   outputs?: CanvasPortDef[]
   card?: string
@@ -92,10 +94,23 @@ export interface CanvasNodeContribution {
   defaultData?: Record<string, unknown>
 }
 
+export interface PluginWorkflowContribution {
+  id: string
+  title: string
+  description?: string
+  /** Stable public workflow key from the workflow market or registry. */
+  workflowKey: string
+  version?: string
+  inputs?: CanvasPortDef[]
+  outputs?: CanvasPortDef[]
+  tags?: string[]
+}
+
 export interface PluginContributions {
   tools?: PluginToolContribution[]
   cards?: PluginCardContribution[]
   canvasNodes?: CanvasNodeContribution[]
+  workflows?: PluginWorkflowContribution[]
   commands?: Array<{ id: string; title: string; tool?: string }>
 }
 
