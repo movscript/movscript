@@ -113,29 +113,24 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Load model def and validate capability match.
-	var mcfg model.AIModelConfig
-	if err := h.db.First(&mcfg, req.ModelConfigID).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "model config not found"})
+	preflight, err := h.aiService.PreflightGeneration(ai.GenerationPreflightRequest{
+		ModelConfigID: req.ModelConfigID,
+		OutputType:    jobType,
+		ExtraParams:   req.ExtraParams,
+		AspectRatio:   req.AspectRatio,
+		Duration:      req.Duration,
+		ImageCount:    imageCount,
+		VideoCount:    videoCount,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	mcfg := preflight.Config
+
 	var cred model.AICredential
 	if err := h.db.First(&cred, mcfg.CredentialID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "credential not found"})
-		return
-	}
-	def := ai.ResolveModelDef(mcfg.ModelDefID, cred.AdapterType, mcfg.CustomDisplayName, mcfg.CustomCapabilities, mcfg.CustomBillingMode, mcfg.CustomAcceptsImage, mcfg.CustomMaxInputImages, mcfg.CustomMaxInputVideos, mcfg.CustomImageEditField, mcfg.CustomSupportedParams)
-	if valErr := ai.ValidateGenRequest(def, ai.GenRequest{
-		ModelConfigID: req.ModelConfigID,
-		OutputType:    jobType,
-		ImageCount:    imageCount,
-		VideoCount:    videoCount,
-	}); valErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": valErr.Error()})
-		return
-	}
-	if valErr := ai.ValidateGenerationParams(def, jobType, req.ExtraParams, req.AspectRatio, req.Duration); valErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": valErr.Error()})
 		return
 	}
 

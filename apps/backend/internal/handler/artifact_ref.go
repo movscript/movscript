@@ -90,10 +90,16 @@ func (h *ArtifactRefHandler) scriptRefs(projectID uint) []ArtifactRef {
 
 func (h *ArtifactRefHandler) assetRefs(c *gin.Context, projectID uint) []ArtifactRef {
 	var assets []model.Asset
-	h.db.Preload("Views").Where("project_id = ?", projectID).Order("updated_at desc").Find(&assets)
+	h.db.Preload("Resource").Preload("Views").Where("project_id = ?", projectID).Order("updated_at desc").Find(&assets)
 	refs := make([]ArtifactRef, 0, len(assets))
 	for _, asset := range assets {
-		resource := h.firstBoundResource(c, projectID, "asset", asset.ID, "thumbnail", "final")
+		resource := asset.Resource
+		if resource != nil {
+			resource.URL = resourceURL(c, resource.ID)
+		}
+		if resource == nil {
+			resource = h.firstBoundResource(c, projectID, "asset", asset.ID, "thumbnail", "final")
+		}
 		if resource == nil {
 			for _, view := range asset.Views {
 				resource = h.firstBoundResource(c, projectID, "asset_view", view.ID, "thumbnail", "final", "reference")

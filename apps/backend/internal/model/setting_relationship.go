@@ -12,7 +12,8 @@ type SettingRelationship struct {
 	TargetSetting   Setting `gorm:"foreignKey:TargetSettingID" json:"target_setting,omitempty"`
 	ScopeScriptID   *uint   `gorm:"index" json:"scope_script_id,omitempty"`
 	ScopeScript     *Script `gorm:"foreignKey:ScopeScriptID" json:"scope_script,omitempty"`
-	Type            string  `json:"type"` // alliance|family|love|conflict|secret|other
+	Category        string  `gorm:"not null;default:'relationship';index" json:"category"`
+	Type            string  `json:"type"`
 	Label           string  `json:"label"`
 	Description     string  `gorm:"type:text" json:"description"`
 	Source          string  `gorm:"default:'manual'" json:"source"` // ai|manual

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
@@ -29,7 +31,7 @@ func (h *SettingHandler) List(c *gin.Context) {
 
 func (h *SettingHandler) ListRefs(c *gin.Context) {
 	refs := make([]model.ScriptSettingRef, 0)
-	q := h.db.Preload("Setting").Where("project_id = ?", c.Param("id"))
+	q := h.db.Preload("Setting").Preload("Script").Where("project_id = ?", c.Param("id"))
 	if scriptID := c.Query("script_id"); scriptID != "" {
 		q = q.Where("script_id = ?", scriptID)
 	}
@@ -85,6 +87,9 @@ func (h *SettingHandler) DeleteRef(c *gin.Context) {
 func (h *SettingHandler) ListRelationships(c *gin.Context) {
 	relationships := make([]model.SettingRelationship, 0)
 	q := h.db.Preload("SourceSetting").Preload("TargetSetting").Where("project_id = ?", c.Param("id"))
+	if category := c.Query("category"); category != "" {
+		q = q.Where("category = ?", category)
+	}
 	if scriptID := c.Query("scope_script_id"); scriptID != "" {
 		q = q.Where("scope_script_id = ?", scriptID)
 	}
@@ -104,6 +109,17 @@ func (h *SettingHandler) CreateRelationship(c *gin.Context) {
 	if relationship.Source == "" {
 		relationship.Source = "manual"
 	}
+	if relationship.Category == "" {
+		relationship.Category = "relationship"
+	}
+	if err := h.validateRelationship(&relationship); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if h.relationshipExists(&relationship, 0) {
+		c.JSON(http.StatusConflict, apierr.InvalidInput("设定关系已存在"))
+		return
+	}
 	h.db.Create(&relationship)
 	h.db.Preload("SourceSetting").Preload("TargetSetting").First(&relationship, relationship.ID)
 	c.JSON(http.StatusCreated, relationship)
@@ -121,6 +137,17 @@ func (h *SettingHandler) UpdateRelationship(c *gin.Context) {
 		return
 	}
 	service.ApplySettingRelationshipInput(&relationship, req)
+	if relationship.Category == "" {
+		relationship.Category = "relationship"
+	}
+	if err := h.validateRelationship(&relationship); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if h.relationshipExists(&relationship, relationship.ID) {
+		c.JSON(http.StatusConflict, apierr.InvalidInput("设定关系已存在"))
+		return
+	}
 	h.db.Save(&relationship)
 	h.db.Preload("SourceSetting").Preload("TargetSetting").First(&relationship, relationship.ID)
 	c.JSON(http.StatusOK, relationship)
@@ -129,6 +156,52 @@ func (h *SettingHandler) UpdateRelationship(c *gin.Context) {
 func (h *SettingHandler) DeleteRelationship(c *gin.Context) {
 	h.db.Delete(&model.SettingRelationship{}, c.Param("id"))
 	c.Status(http.StatusNoContent)
+}
+
+func (h *SettingHandler) validateRelationship(r *model.SettingRelationship) error {
+	if r.ProjectID == 0 {
+		return fmt.Errorf("项目 ID 无效")
+	}
+	if r.SourceSettingID == 0 || r.TargetSettingID == 0 {
+		return fmt.Errorf("关系两端设定不能为空")
+	}
+	if r.SourceSettingID == r.TargetSettingID {
+		return fmt.Errorf("关系两端不能是同一个设定")
+	}
+	if strings.TrimSpace(r.Category) == "" {
+		return fmt.Errorf("关系分类不能为空")
+	}
+	var sourceSetting model.Setting
+	if err := h.db.Where("id = ? AND project_id = ?", r.SourceSettingID, r.ProjectID).First(&sourceSetting).Error; err != nil {
+		return fmt.Errorf("起点设定不存在或不属于当前项目")
+	}
+	var targetSetting model.Setting
+	if err := h.db.Where("id = ? AND project_id = ?", r.TargetSettingID, r.ProjectID).First(&targetSetting).Error; err != nil {
+		return fmt.Errorf("终点设定不存在或不属于当前项目")
+	}
+	if r.ScopeScriptID != nil {
+		var script model.Script
+		if err := h.db.Where("id = ? AND project_id = ?", *r.ScopeScriptID, r.ProjectID).First(&script).Error; err != nil {
+			return fmt.Errorf("作用域剧本不存在或不属于当前项目")
+		}
+	}
+	return nil
+}
+
+func (h *SettingHandler) relationshipExists(r *model.SettingRelationship, excludeID uint) bool {
+	q := h.db.Model(&model.SettingRelationship{}).
+		Where("project_id = ? AND source_setting_id = ? AND target_setting_id = ? AND category = ? AND type = ?", r.ProjectID, r.SourceSettingID, r.TargetSettingID, r.Category, r.Type)
+	if r.ScopeScriptID == nil {
+		q = q.Where("scope_script_id IS NULL")
+	} else {
+		q = q.Where("scope_script_id = ?", *r.ScopeScriptID)
+	}
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	var count int64
+	q.Count(&count)
+	return count > 0
 }
 
 func (h *SettingHandler) Create(c *gin.Context) {
@@ -140,6 +213,16 @@ func (h *SettingHandler) Create(c *gin.Context) {
 	var s model.Setting
 	service.ApplySettingInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
+	s.Name = strings.TrimSpace(s.Name)
+	if s.Name == "" {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("设定名称不能为空"))
+		return
+	}
+	s.Status = strings.TrimSpace(s.Status)
+	if h.settingNameExists(s.ProjectID, s.Name, 0) {
+		c.JSON(http.StatusConflict, apierr.InvalidInput("设定名称已存在"))
+		return
+	}
 	h.db.Create(&s)
 	c.JSON(http.StatusCreated, s)
 }
@@ -156,6 +239,16 @@ func (h *SettingHandler) Update(c *gin.Context) {
 		return
 	}
 	service.ApplySettingInput(&s, req)
+	s.Name = strings.TrimSpace(s.Name)
+	if s.Name == "" {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("设定名称不能为空"))
+		return
+	}
+	s.Status = strings.TrimSpace(s.Status)
+	if h.settingNameExists(s.ProjectID, s.Name, s.ID) {
+		c.JSON(http.StatusConflict, apierr.InvalidInput("设定名称已存在"))
+		return
+	}
 	h.db.Save(&s)
 	c.JSON(http.StatusOK, s)
 }
@@ -163,4 +256,14 @@ func (h *SettingHandler) Update(c *gin.Context) {
 func (h *SettingHandler) Delete(c *gin.Context) {
 	h.db.Delete(&model.Setting{}, c.Param("id"))
 	c.Status(http.StatusNoContent)
+}
+
+func (h *SettingHandler) settingNameExists(projectID uint, name string, excludeID uint) bool {
+	q := h.db.Model(&model.Setting{}).Where("project_id = ? AND name = ?", projectID, name)
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	var count int64
+	q.Count(&count)
+	return count > 0
 }

@@ -415,6 +415,7 @@
       "viewType": "视角类型",
       "viewTypes": {
         "front": "正面",
+        "side": "侧视图",
         "back": "背面",
         "left": "左侧",
         "right": "右侧",
@@ -1753,6 +1754,18 @@
       "options": "可选值",
       "defaultValue": "默认值",
       "defaultOn": "默认开启",
+      "modes": {
+        "inherit": "继承默认",
+        "profile": "差异 Profile",
+        "override": "完整覆盖",
+        "none": "不支持参数"
+      },
+      "inheritSummary": "继承当前接口和能力的默认参数：{{params}}",
+      "noneValue": "无",
+      "noneSummary": "该模型会显式拒绝所有可配置生成参数。",
+      "profileDeny": "禁用参数",
+      "profileAdd": "新增模型专属参数",
+      "noAdapterDefaults": "无 adapter 默认参数",
       "templates": {
         "aspect_ratio": "画面比例",
         "duration": "时长(秒)",
@@ -1776,7 +1789,10 @@
         "draft": "样片模式",
         "size": "尺寸",
         "sequential_image_generation": "组图",
-        "optimize_prompt_mode": "提示词优化"
+        "optimize_prompt_mode": "提示词优化",
+        "max_tokens": "最大输出 Token",
+        "temperature": "随机性",
+        "json_mode": "JSON 输出"
       }
     },
     "models": {

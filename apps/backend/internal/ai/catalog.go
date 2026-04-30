@@ -35,6 +35,17 @@ type ParamDef struct {
 	Step    float64     `json:"step,omitempty"`
 }
 
+// ModelParamProfile describes a model-specific delta on top of adapter params.
+// It is the preferred JSON shape for AIModelConfig.CustomSupportedParams.
+// For backward compatibility, CustomSupportedParams may still be a []ParamDef
+// full override.
+type ModelParamProfile struct {
+	Allow    []string            `json:"allow,omitempty"`
+	Deny     []string            `json:"deny,omitempty"`
+	Override map[string]ParamDef `json:"override,omitempty"`
+	Add      []ParamDef          `json:"add,omitempty"`
+}
+
 // AdapterParamSet describes the default generation controls exposed by an adapter
 // for a capability. Model configs inherit these controls unless admins override
 // CustomSupportedParams to restrict or remove parameters for a specific model.
@@ -144,6 +155,14 @@ func commonImageParams() []ParamDef {
 	}
 }
 
+func commonTextParams() []ParamDef {
+	return []ParamDef{
+		{Key: "max_tokens", Label: "最大输出 Token", Type: "number", Min: 1, Max: 1_000_000, Step: 1},
+		{Key: "temperature", Label: "随机性", Type: "number", Default: -1, Min: -1, Max: 2, Step: 0.1},
+		{Key: "json_mode", Label: "JSON 输出", Type: "boolean", Default: false},
+	}
+}
+
 func openAICompatVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
@@ -228,6 +247,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理或第三方兼容接口）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityText, Params: commonTextParams()},
 			{Capability: CapabilityImage, Params: commonImageParams()},
 			{Capability: CapabilityImageEdit, Params: commonImageParams()},
 			{Capability: CapabilityVideo, Params: openAICompatVideoParams()},
@@ -243,6 +263,9 @@ var AdapterDefs = []AdapterDef{
 		CredFields: []CredField{
 			{Key: "api_key", Label: "API Key", Required: true},
 			{Key: "base_url", Label: "Base URL（可选，用于代理或第三方兼容接口）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityText, Params: commonTextParams()},
 		},
 	},
 	{
@@ -269,6 +292,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityText, Params: commonTextParams()},
 			{Capability: CapabilityImage, Params: volcenImageParams()},
 			{Capability: CapabilityImageEdit, Params: volcenImageParams()},
 			{Capability: CapabilityVideo, Params: volcenVideoParams()},
@@ -286,6 +310,7 @@ var AdapterDefs = []AdapterDef{
 			{Key: "base_url", Label: "Base URL（可选，用于代理）", Required: false},
 		},
 		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityText, Params: commonTextParams()},
 			{Capability: CapabilityImage, Params: geminiImageParams()},
 			{Capability: CapabilityImageEdit, Params: geminiImageParams()},
 			{Capability: CapabilityVideo, Params: geminiVideoParams()},
@@ -950,11 +975,162 @@ func DefaultParamsForAdapter(adapterType string, capabilities []string) []ParamD
 	return out
 }
 
+// ResolveEffectiveParams resolves the runtime parameter schema for one model.
+// Empty modelParamConfig inherits adapter defaults. A legacy []ParamDef value is
+// treated as a full explicit override. A ModelParamProfile value is applied as a
+// delta over the adapter defaults.
+func ResolveEffectiveParams(adapterType string, capabilities []string, modelParamConfig string) ([]ParamDef, bool) {
+	if modelParamConfig == "" {
+		return DefaultParamsForAdapter(adapterType, capabilities), false
+	}
+	var legacy []ParamDef
+	if err := json.Unmarshal([]byte(modelParamConfig), &legacy); err == nil {
+		return NormalizeParamDefsForUI(legacy), true
+	}
+
+	var profile ModelParamProfile
+	if err := json.Unmarshal([]byte(modelParamConfig), &profile); err != nil {
+		return nil, true
+	}
+	params := DefaultParamsForAdapter(adapterType, capabilities)
+	params = applyModelParamProfile(params, profile)
+	return NormalizeParamDefsForUI(params), true
+}
+
+func applyModelParamProfile(params []ParamDef, profile ModelParamProfile) []ParamDef {
+	out := make([]ParamDef, 0, len(params)+len(profile.Add)+len(profile.Override))
+	allow := stringSet(profile.Allow)
+	deny := stringSet(profile.Deny)
+	for _, p := range params {
+		p = normalizeParamDefKey(p)
+		if len(allow) > 0 && !allow[p.Key] {
+			continue
+		}
+		if deny[p.Key] {
+			continue
+		}
+		out = append(out, cloneParamDef(p))
+	}
+
+	for key, patch := range profile.Override {
+		patch = normalizeParamDefKey(patch)
+		if patch.Key == "" {
+			patch.Key = normalizeParamKey(key)
+		}
+		if patch.Key == "" || deny[patch.Key] {
+			continue
+		}
+		if len(allow) > 0 && !allow[patch.Key] {
+			continue
+		}
+		merged := false
+		for i := range out {
+			if out[i].Key == patch.Key {
+				out[i] = mergeParamDef(out[i], patch)
+				merged = true
+				break
+			}
+		}
+		if !merged {
+			out = append(out, normalizeParamDefKey(patch))
+		}
+	}
+
+	for _, p := range profile.Add {
+		p = normalizeParamDefKey(p)
+		if p.Key == "" || deny[p.Key] {
+			continue
+		}
+		if len(allow) > 0 && !allow[p.Key] {
+			continue
+		}
+		replaced := false
+		for i := range out {
+			if out[i].Key == p.Key {
+				out[i] = mergeParamDef(out[i], p)
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			out = append(out, p)
+		}
+	}
+
+	return out
+}
+
+func mergeParamDef(base, patch ParamDef) ParamDef {
+	out := cloneParamDef(base)
+	if patch.Key != "" {
+		out.Key = patch.Key
+	}
+	if patch.Label != "" {
+		out.Label = patch.Label
+	}
+	if patch.Type != "" {
+		out.Type = patch.Type
+	}
+	if patch.Options != nil {
+		out.Options = append([]string{}, patch.Options...)
+	}
+	if patch.Default != nil {
+		out.Default = patch.Default
+	}
+	if patch.Min != 0 {
+		out.Min = patch.Min
+	}
+	if patch.Max != 0 {
+		out.Max = patch.Max
+	}
+	if patch.Step != 0 {
+		out.Step = patch.Step
+	}
+	return out
+}
+
 func cloneParamDef(p ParamDef) ParamDef {
 	if len(p.Options) > 0 {
 		p.Options = append([]string{}, p.Options...)
 	}
 	return p
+}
+
+func normalizeParamDefKey(p ParamDef) ParamDef {
+	p.Key = normalizeParamKey(p.Key)
+	return p
+}
+
+func normalizeParamKey(key string) string {
+	switch key {
+	case "ratio":
+		return "aspect_ratio"
+	case "size":
+		return "image_size"
+	case "guidance_scale":
+		return "prompt_strength"
+	case "max_images":
+		return "image_count"
+	case "camera_fixed":
+		return "fixed_camera"
+	case "generate_audio":
+		return "audio"
+	default:
+		return key
+	}
+}
+
+func stringSet(values []string) map[string]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(values))
+	for _, v := range values {
+		if key := normalizeParamKey(v); key != "" {
+			out[key] = true
+		}
+	}
+	return out
 }
 
 // ResolveModelDef builds a ModelDef entirely from the Custom* fields stored in AIModelConfig.
@@ -1016,15 +1192,7 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 	if customImageEditField != "" {
 		def.ImageEditField = customImageEditField
 	}
-	if customSupportedParams != "" {
-		def.SupportedParamsExplicit = true
-		var params []ParamDef
-		if err := json.Unmarshal([]byte(customSupportedParams), &params); err == nil {
-			def.SupportedParams = NormalizeParamDefsForUI(params)
-		}
-	} else {
-		def.SupportedParams = DefaultParamsForAdapter(adapterType, def.Capabilities)
-	}
+	def.SupportedParams, def.SupportedParamsExplicit = ResolveEffectiveParams(adapterType, def.Capabilities, customSupportedParams)
 	return def
 }
 

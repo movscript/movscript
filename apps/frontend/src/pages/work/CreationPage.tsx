@@ -26,6 +26,7 @@ import { FinalVideoDetail } from '@/pages/final-videos/FinalVideosPage'
 import PipelineEditorPage from '@/pages/pipeline/PipelineEditorPage'
 import { ArtifactWorkspaceFrame } from './ArtifactWorkspaceFrame'
 import { isWorkbenchEntityKind } from './workbenchNavigation'
+import { BUILT_IN_SETTING_TYPES, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
 
 const CANVAS_PANEL_DEFAULT_H = 420
 const CANVAS_PANEL_MIN_H = 260
@@ -285,7 +286,7 @@ export default function CreationPage() {
           kind: 'setting',
           id: setting.ID,
           title: setting.name,
-          subtitle: setting.description || t(`domain.settingTypes.${setting.type === 'world_rule' ? 'worldRule' : setting.type}`, { defaultValue: setting.type }),
+          subtitle: setting.description || settingTypeLabel(setting.type),
           status: setting.status,
         }))
       default:
@@ -754,21 +755,12 @@ function SettingCreateInlineForm({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [name, setName] = useState('')
-  const [type, setType] = useState<Setting['type']>('character')
-  const [description, setDescription] = useState('')
-
-  const settingTypes: { type: Setting['type']; labelKey: string }[] = [
-    { type: 'character', labelKey: 'domain.settingTypes.character' },
-    { type: 'scene', labelKey: 'domain.settingTypes.scene' },
-    { type: 'prop', labelKey: 'domain.settingTypes.prop' },
-    { type: 'world_rule', labelKey: 'domain.settingTypes.worldRule' },
-  ]
+  const [type, setType] = useState('')
 
   const create = useMutation({
     mutationFn: () => api.post(`/projects/${projectId}/settings`, {
       name: name.trim(),
-      type,
-      description: description.trim() || undefined,
+      type: type.trim(),
     }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings', projectId] })
@@ -789,28 +781,30 @@ function SettingCreateInlineForm({
         />
       </div>
       <div>
-        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.typeRequired')}</Label>
+        <Label className="mb-1 text-xs font-medium text-muted-foreground">类型（可选）</Label>
         <div className="flex flex-wrap gap-2">
-          {settingTypes.map((item) => (
+          {BUILT_IN_SETTING_TYPES.map((item) => (
             <button
-              key={item.type}
+              key={item.value}
               type="button"
-              onClick={() => setType(item.type)}
+              onClick={() => setType(item.value)}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-xs transition-colors',
-                type === item.type
+                'rounded-md border px-3 py-1.5 text-xs transition-colors',
+                type === item.value
                   ? 'border-transparent bg-foreground text-background'
                   : 'border-border text-muted-foreground hover:border-ring hover:text-foreground',
               )}
             >
-              {t(item.labelKey)}
+              {item.label}
             </button>
           ))}
+          <Input
+            className="h-8 w-44 text-xs"
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+            placeholder="自定义类型"
+          />
         </div>
-      </div>
-      <div>
-        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.summaryOptional')}</Label>
-        <Textarea className="resize-none" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} />
       </div>
       <div className="flex gap-2 pt-1">
         <Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending} className="flex-1">

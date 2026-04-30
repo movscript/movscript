@@ -274,6 +274,23 @@ func TestCanvasRunTaskFailureSummaryFallsBackToNodeIDAndLimitsFailures(t *testin
 	}
 }
 
+func TestMarshalParamsForPreflight(t *testing.T) {
+	if got := marshalParamsForPreflight(nil); got != "" {
+		t.Fatalf("expected empty params to marshal as empty string, got %q", got)
+	}
+	got := marshalParamsForPreflight(map[string]any{"duration": "5", "web_search": true})
+	if got == "" {
+		t.Fatal("expected params JSON")
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+		t.Fatalf("expected valid JSON, got %q: %v", got, err)
+	}
+	if parsed["duration"] != "5" || parsed["web_search"] != true {
+		t.Fatalf("unexpected params JSON: %#v", parsed)
+	}
+}
+
 func uintPtr(value uint) *uint {
 	return &value
 }

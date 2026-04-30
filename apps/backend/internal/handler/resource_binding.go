@@ -121,6 +121,7 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 		projectID, input.ResourceID, input.OwnerType, input.OwnerID, input.Role, input.Slot, input.Version,
 	).First(&existing).Error
 	if duplicate == nil {
+		h.backfillAssetResource(existing)
 		h.db.Preload("Resource").First(&existing, existing.ID)
 		populateBindingResourceURLs(c, []model.ResourceBinding{existing})
 		c.JSON(http.StatusOK, existing)
@@ -161,6 +162,7 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 	if binding.IsPrimary {
 		h.clearOtherPrimaryBindings(binding)
 	}
+	h.backfillAssetResource(binding)
 	h.db.Preload("Resource").First(&binding, binding.ID)
 	populateBindingResourceURLs(c, []model.ResourceBinding{binding})
 	c.JSON(http.StatusCreated, binding)
@@ -188,7 +190,37 @@ func (h *ResourceBindingHandler) createBinding(binding model.ResourceBinding) er
 	if binding.IsPrimary {
 		h.clearOtherPrimaryBindings(binding)
 	}
+	h.backfillAssetResource(binding)
 	return nil
+}
+
+func (h *ResourceBindingHandler) backfillAssetResource(binding model.ResourceBinding) {
+	if binding.OwnerType != "asset" || binding.ResourceID == 0 {
+		return
+	}
+	h.db.Model(&model.Asset{}).
+		Where("id = ? AND resource_id IS NULL", binding.OwnerID).
+		Update("resource_id", binding.ResourceID)
+}
+
+func (h *ResourceBindingHandler) clearAssetResourceIfDeleted(binding model.ResourceBinding) {
+	if binding.OwnerType != "asset" || binding.ResourceID == 0 {
+		return
+	}
+	var replacement model.ResourceBinding
+	err := h.db.
+		Where("owner_type = ? AND owner_id = ? AND resource_id <> ?", "asset", binding.OwnerID, binding.ResourceID).
+		Order("is_primary desc, sort_order, created_at").
+		First(&replacement).Error
+	if err == nil {
+		h.db.Model(&model.Asset{}).
+			Where("id = ? AND resource_id = ?", binding.OwnerID, binding.ResourceID).
+			Update("resource_id", replacement.ResourceID)
+		return
+	}
+	h.db.Model(&model.Asset{}).
+		Where("id = ? AND resource_id = ?", binding.OwnerID, binding.ResourceID).
+		Update("resource_id", nil)
 }
 
 func (h *ResourceBindingHandler) Patch(c *gin.Context) {
@@ -277,10 +309,16 @@ func (h *ResourceBindingHandler) Patch(c *gin.Context) {
 }
 
 func (h *ResourceBindingHandler) Delete(c *gin.Context) {
-	if err := h.db.Delete(&model.ResourceBinding{}, c.Param("id")).Error; err != nil {
+	var binding model.ResourceBinding
+	if err := h.db.First(&binding, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, apierr.NotFound("资源绑定不存在"))
+		return
+	}
+	if err := h.db.Delete(&binding).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
+	h.clearAssetResourceIfDeleted(binding)
 	c.Status(http.StatusNoContent)
 }
 

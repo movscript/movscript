@@ -87,13 +87,20 @@ func hasCap(def *ModelDef, cap string) bool {
 // against the model-declared SupportedParams. It is intentionally provider
 // neutral; provider adapters still translate validated params to native fields.
 func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio string, duration int) error {
+	_, err := ValidateAndNormalizeGenerationParams(def, jobType, extraParams, aspectRatio, duration)
+	return err
+}
+
+// ValidateAndNormalizeGenerationParams validates user params against the
+// resolved model schema and returns canonical-key params for request builders.
+func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio string, duration int) (map[string]any, error) {
 	if def == nil {
-		return fmt.Errorf("model definition not found")
+		return nil, fmt.Errorf("model definition not found")
 	}
 
 	params, err := parseExtraParams(extraParams)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if aspectRatio != "" {
@@ -102,38 +109,38 @@ func ValidateGenerationParams(def *ModelDef, jobType, extraParams, aspectRatio s
 	if duration != 0 {
 		params["duration"] = duration
 	}
-	params = NormalizeGenerationParams(params)
+	params = CanonicalizeGenerationParams(params)
 	if len(params) == 0 {
-		return nil
+		return params, nil
 	}
 	if len(def.SupportedParams) == 0 {
 		if def.SupportedParamsExplicit {
 			for key := range params {
-				return fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
+				return nil, fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
 			}
 		}
-		return nil
+		return params, nil
 	}
 
 	supported := make(map[string]ParamDef, len(def.SupportedParams))
 	for _, p := range def.SupportedParams {
 		supported[p.Key] = p
-		for _, alias := range paramKeyAliases(p.Key) {
-			supported[alias] = p
-		}
 	}
 
 	for key, val := range params {
 		p, ok := supported[key]
 		if !ok {
-			return fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
+			return nil, fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
 		}
 		if err := validateParamValue(p, val); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return validateCrossParamRules(params)
+	if err := validateCrossParamRules(params); err != nil {
+		return nil, err
+	}
+	return params, nil
 }
 
 func paramKeyAliases(key string) []string {
@@ -247,10 +254,10 @@ func validateCrossParamRules(params map[string]any) error {
 		}
 	}
 
-	if maxImages, ok := numberValue(params["max_images"]); ok && maxImages > 0 {
+	if maxImages, ok := numberValue(params["image_count"]); ok && maxImages > 0 {
 		mode, _ := stringValue(params["sequential_image_generation"])
 		if mode != "auto" {
-			return fmt.Errorf("parameter \"max_images\" only applies when \"sequential_image_generation\" is auto")
+			return fmt.Errorf("parameter \"image_count\" only applies when \"sequential_image_generation\" is auto")
 		}
 	}
 

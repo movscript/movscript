@@ -116,21 +116,23 @@ export interface ScriptAnalysis {
   UpdatedAt: string
 }
 
-// Setting is the "bible" entry for a character, scene location, or prop.
+// Setting is a canonical project entity with a unique name plus type, current
+// state, state-specific tags, notes, and structured data.
 export interface Setting {
   ID: number
   project_id: number
   script_id?: number // optional link to a script
   source_script_id?: number
   source_analysis_id?: number
-  type: 'character' | 'scene' | 'prop' | 'world_rule'
+  type?: string
   name: string
   alias?: string
-  description: string
-  content: string
-  status?: 'extracted' | 'confirmed' | 'locked'
-  importance?: 'main' | 'supporting' | 'background'
+  description?: string
+  content?: string
+  status?: string
+  importance?: string
   tags?: string
+  state_tags?: string
   profile_json?: string
   CreatedAt: string
   UpdatedAt: string
@@ -140,6 +142,7 @@ export interface ScriptSettingRef {
   ID: number
   project_id: number
   script_id: number
+  script?: Script
   setting_id: number
   setting?: Setting
   role?: string
@@ -165,7 +168,8 @@ export interface SettingRelationship {
   target_setting_id: number
   target_setting?: Setting
   scope_script_id?: number
-  type?: 'alliance' | 'family' | 'love' | 'conflict' | 'secret' | 'other'
+  category?: string
+  type?: string
   label?: string
   description?: string
   source?: 'ai' | 'manual'
@@ -195,9 +199,11 @@ export interface Asset {
   project_id: number
   pipeline_node_id?: number
   name: string
-  type: 'character' | 'scene' | 'prop' | 'draft'
+  type: string
+  resource_id?: number
+  resource?: RawResource
   description: string
-  variant_type?: 'base' | 'costume' | 'time_of_day' | 'period' | 'state' | 'expression' | 'custom'
+  variant_type?: string
   variant_name?: string
   costume?: string
   time_of_day?: string
@@ -208,8 +214,10 @@ export interface Asset {
   negative_prompt?: string
   is_primary?: boolean
   review_status?: ReviewStatus
+  effective_status?: string
   setting_id?: number // optional link to a Setting
   setting?: Setting
+  follow_setting_status?: boolean
   views?: AssetView[]
   CreatedAt: string
   UpdatedAt: string
@@ -409,7 +417,7 @@ export interface AIModelConfig {
   custom_max_input_images: number
   custom_max_input_videos: number
   custom_image_edit_field: string
-  custom_supported_params: string // JSON: ParamDef[]
+  custom_supported_params: string // JSON: ParamDef[] or ModelParamProfile
   CreatedAt: string
   UpdatedAt: string
 }
@@ -468,6 +476,13 @@ export interface ParamDef {
   min?: number
   max?: number
   step?: number
+}
+
+export interface ModelParamProfile {
+  allow?: string[]
+  deny?: string[]
+  override?: Record<string, ParamDef>
+  add?: ParamDef[]
 }
 
 // PublicModel is the user-facing model representation.

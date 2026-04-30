@@ -10,16 +10,16 @@ import (
 
 func TestEntityFieldUpdatesUseSchemaStorageMapping(t *testing.T) {
 	updates := entityFieldUpdates("script", map[string]EntityPortValue{
-		"title":    {Type: "text", Text: "New title"},
-		"settings": {Type: "json", JSON: map[string]any{"world": "near future"}},
-		"result":   {Type: "resource", ResourceIDs: []uint{7}},
+		"title":  {Type: "text", Text: "New title"},
+		"hook":   {Type: "text", Text: "Opening conflict"},
+		"result": {Type: "resource", ResourceIDs: []uint{7}},
 	})
 
 	if got := updates["title"]; got != "New title" {
 		t.Fatalf("expected title update, got %#v", got)
 	}
-	if got := updates["core_settings"]; got != `{"world":"near future"}` {
-		t.Fatalf("expected settings to map to core_settings JSON text, got %#v", got)
+	if got := updates["hook"]; got != "Opening conflict" {
+		t.Fatalf("expected hook update, got %#v", got)
 	}
 	if _, ok := updates["result"]; ok {
 		t.Fatalf("resource binding port should not produce field update: %#v", updates)
@@ -97,15 +97,15 @@ func TestEntitySchemasExposeMigrationMetadata(t *testing.T) {
 	if !ok {
 		t.Fatal("expected script schema")
 	}
-	var alias EntityMigration
+	var deprecated EntityMigration
 	for _, migration := range script.Compatibility.Migrations {
-		if migration.Kind == "field_alias" && migration.FromFieldID == "settings" && migration.ToFieldID == "core_settings" {
-			alias = migration
+		if migration.Kind == "deprecated_field" && migration.FromFieldID == "settings" {
+			deprecated = migration
 			break
 		}
 	}
-	if alias.Kind == "" {
-		t.Fatalf("expected script settings alias migration metadata, got %#v", script.Compatibility.Migrations)
+	if deprecated.Kind == "" {
+		t.Fatalf("expected script settings deprecation metadata, got %#v", script.Compatibility.Migrations)
 	}
 }
 
@@ -216,6 +216,24 @@ func TestValidateEntityPortValuesRejectsReadonlyPort(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "not writable") {
 		t.Fatalf("expected readonly port error, got %v", err)
+	}
+}
+
+func TestScriptCharacterArchivePortsAreReadonlyDeprecated(t *testing.T) {
+	for _, portID := range []string{"character_profiles", "character_relationships", "settings", "background", "scenes_desc"} {
+		field, ok := EntityFieldForPort("script", portID)
+		if !ok {
+			t.Fatalf("expected script port %q", portID)
+		}
+		if !field.Deprecated || !field.Readonly || !field.Workflow.Readable || field.Workflow.Writable {
+			t.Fatalf("expected %q to be readonly deprecated, got %#v", portID, field)
+		}
+		err := validateEntityPortValues("script", map[string]EntityPortValue{
+			portID: {Type: "json", JSON: []any{map[string]any{"name": "old"}}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "not writable") {
+			t.Fatalf("expected readonly port error for %q, got %v", portID, err)
+		}
 	}
 }
 

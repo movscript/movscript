@@ -70,10 +70,6 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.syncScriptFieldsToSettings(&s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设定同步失败: " + err.Error()})
-		return
-	}
 	if err := h.syncEpisodeScriptCompatibility(&s); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "分集剧本关联同步失败: " + err.Error()})
 		return
@@ -108,10 +104,6 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 	}
 	if err := h.db.Save(&s).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if err := h.syncScriptFieldsToSettings(&s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设定同步失败: " + err.Error()})
 		return
 	}
 	if err := h.syncEpisodeScriptCompatibility(&s); err != nil {
@@ -181,10 +173,6 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 		}
 	}
 	h.db.First(&s, s.ID)
-	if err := h.syncScriptFieldsToSettings(&s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设定同步失败: " + err.Error()})
-		return
-	}
 	if err := h.syncEpisodeScriptCompatibility(&s); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "分集剧本关联同步失败: " + err.Error()})
 		return
@@ -375,15 +363,6 @@ JSON结构如下：
 	// Update script fields
 	s.Summary = analysisFieldToText(result["summary"])
 	s.Characters = analysisFieldToText(result["characters"])
-	if profiles, ok := result["character_profiles"]; ok {
-		s.CharacterProfiles = analysisFieldToJSON(profiles)
-	}
-	if relationships, ok := result["character_relationships"]; ok {
-		s.CharacterRelationships = analysisFieldToJSON(relationships)
-	}
-	s.CoreSettings = analysisFieldToText(result["core_settings"])
-	s.Background = analysisFieldToText(result["background"])
-	s.ScenesDesc = analysisFieldToText(result["scenes_desc"])
 	s.Hook = analysisFieldToText(result["hook"])
 	s.PlotSummary = analysisFieldToText(result["plot_summary"])
 	if points, ok := result["script_points"]; ok {
@@ -398,10 +377,10 @@ JSON结构如下：
 		ScriptID:               s.ID,
 		Status:                 "draft",
 		Summary:                s.Summary,
-		WorldSetting:           s.Background,
-		CharacterExtractJSON:   s.CharacterProfiles,
+		WorldSetting:           analysisFieldToText(result["background"]),
+		CharacterExtractJSON:   analysisFieldToJSON(result["character_profiles"]),
 		SceneExtractJSON:       analysisFieldToJSON(result["scenes_desc"]),
-		RelationshipJSON:       s.CharacterRelationships,
+		RelationshipJSON:       analysisFieldToJSON(result["character_relationships"]),
 		CoreSettingJSON:        analysisFieldToJSON(result["core_settings"]),
 		ScriptPointJSON:        s.ScriptPoints,
 		SourceModelConfigID:    &modelConfigIDForAnalysis,
@@ -427,14 +406,6 @@ func (h *ScriptHandler) syncAnalysisToSettings(s *model.Script, analysis *model.
 	return h.syncSettingsFromResult(s, analysis, result, "ai")
 }
 
-func (h *ScriptHandler) syncScriptFieldsToSettings(s *model.Script) error {
-	result, ok := scriptFieldsToSettingResult(s)
-	if !ok {
-		return nil
-	}
-	return h.syncSettingsFromResult(s, nil, result, "manual")
-}
-
 func (h *ScriptHandler) syncSettingsFromResult(s *model.Script, analysis *model.ScriptAnalysis, result map[string]interface{}, source string) error {
 	return h.db.Transaction(func(tx *gorm.DB) error {
 		settingByLocalID := make(map[string]model.Setting)
@@ -454,6 +425,16 @@ func (h *ScriptHandler) syncSettingsFromResult(s *model.Script, analysis *model.
 		if _, ok := result["scenes_desc"]; ok {
 			syncedTypes["scene"] = true
 			ids, err := syncSettingList(tx, s, analysis, "scene", "location", result["scenes_desc"], source, settingByLocalID)
+			if err != nil {
+				return err
+			}
+			for _, id := range ids {
+				activeSettingIDs[id] = true
+			}
+		}
+		if _, ok := result["background"]; ok {
+			syncedTypes["world_rule"] = true
+			ids, err := syncSettingList(tx, s, analysis, "world_rule", "world_rule", result["background"], source, settingByLocalID)
 			if err != nil {
 				return err
 			}
@@ -525,7 +506,6 @@ func syncSettingList(tx *gorm.DB, s *model.Script, analysis *model.ScriptAnalysi
 			Name:           name,
 			Description:    description,
 			Content:        content,
-			Status:         "extracted",
 			Importance:     settingImportance(s.ScriptType),
 			ProfileJSON:    profileJSON,
 		}
@@ -634,10 +614,15 @@ func syncSettingRelationships(tx *gorm.DB, s *model.Script, raw interface{}, sou
 		if !sourceOK || !targetOK || sourceSetting.ID == targetSetting.ID {
 			continue
 		}
+		category := firstStringFromMap(item, "category")
+		if category == "" {
+			category = "relationship"
+		}
 		relationship := model.SettingRelationship{
 			ProjectID:       s.ProjectID,
 			SourceSettingID: sourceSetting.ID,
 			TargetSettingID: targetSetting.ID,
+			Category:        category,
 			Type:            firstStringFromMap(item, "type"),
 			Label:           firstStringFromMap(item, "label"),
 			Description:     firstStringFromMap(item, "description", "notes"),
@@ -647,7 +632,7 @@ func syncSettingRelationships(tx *gorm.DB, s *model.Script, raw interface{}, sou
 			relationship.ScopeScriptID = &s.ID
 		}
 		var existing model.SettingRelationship
-		q := tx.Where("project_id = ? AND source_setting_id = ? AND target_setting_id = ? AND type = ?", relationship.ProjectID, relationship.SourceSettingID, relationship.TargetSettingID, relationship.Type)
+		q := tx.Where("project_id = ? AND source_setting_id = ? AND target_setting_id = ? AND category = ? AND type = ?", relationship.ProjectID, relationship.SourceSettingID, relationship.TargetSettingID, relationship.Category, relationship.Type)
 		if relationship.ScopeScriptID == nil {
 			q = q.Where("scope_script_id IS NULL")
 		} else {
@@ -656,6 +641,7 @@ func syncSettingRelationships(tx *gorm.DB, s *model.Script, raw interface{}, sou
 		err := q.First(&existing).Error
 		if err == nil {
 			if err := tx.Model(&existing).Updates(map[string]interface{}{
+				"category":    relationship.Category,
 				"label":       relationship.Label,
 				"description": relationship.Description,
 				"source":      relationship.Source,
@@ -672,29 +658,6 @@ func syncSettingRelationships(tx *gorm.DB, s *model.Script, raw interface{}, sou
 		}
 	}
 	return nil
-}
-
-func scriptFieldsToSettingResult(s *model.Script) (map[string]interface{}, bool) {
-	result := make(map[string]interface{})
-	if strings.TrimSpace(s.CharacterProfiles) != "" {
-		result["character_profiles"] = decodeSettingField(s.CharacterProfiles)
-	}
-	if strings.TrimSpace(s.CharacterRelationships) != "" {
-		result["character_relationships"] = decodeSettingField(s.CharacterRelationships)
-	}
-	return result, len(result) > 0
-}
-
-func decodeSettingField(raw string) interface{} {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return nil
-	}
-	var parsed interface{}
-	if err := json.Unmarshal([]byte(value), &parsed); err == nil {
-		return parsed
-	}
-	return value
 }
 
 func confidenceForSource(source string) float64 {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,19 @@ type AssetHandler struct {
 	store storage.Storage
 }
 
+func parseOptionalUint(raw string) *uint {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parsed, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || parsed == 0 {
+		return nil
+	}
+	value := uint(parsed)
+	return &value
+}
+
 func NewAssetHandler(db *gorm.DB, store storage.Storage) *AssetHandler {
 	return &AssetHandler{db: db, store: store}
 }
@@ -27,6 +41,9 @@ func (h *AssetHandler) List(c *gin.Context) {
 	q := h.db.Where("project_id = ?", c.Param("id"))
 	if t := c.Query("type"); t != "" {
 		q = q.Where("type = ?", t)
+	}
+	if settingID := c.Query("setting_id"); settingID != "" {
+		q = q.Where("setting_id = ?", settingID)
 	}
 	if nid := c.Query("pipeline_node_id"); nid != "" {
 		q = q.Where("pipeline_node_id = ?", nid)
@@ -42,13 +59,13 @@ func (h *AssetHandler) List(c *gin.Context) {
 		}
 		var total int64
 		q.Count(&total)
-		q.Preload("Views").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets)
-		h.populateAssetViewResources(c, assets)
+		q.Preload("Setting").Preload("Resource").Preload("Views").Order("created_at desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&assets)
+		h.populateAssetResources(c, assets)
 		c.JSON(http.StatusOK, gin.H{"total": total, "items": assets, "page": page, "page_size": pageSize})
 		return
 	}
-	q.Preload("Views").Order("created_at desc").Find(&assets)
-	h.populateAssetViewResources(c, assets)
+	q.Preload("Setting").Preload("Resource").Preload("Views").Order("created_at desc").Find(&assets)
+	h.populateAssetResources(c, assets)
 	c.JSON(http.StatusOK, assets)
 }
 
@@ -92,6 +109,12 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 	if viewType == "" {
 		viewType = "front"
 	}
+	variantType := strings.TrimSpace(c.PostForm("variant_type"))
+	if variantType == "" {
+		variantType = viewType
+	}
+	variantName := strings.TrimSpace(c.PostForm("variant_name"))
+	description := strings.TrimSpace(c.PostForm("description"))
 
 	mimeType := header.Header.Get("Content-Type")
 	r := model.RawResource{
@@ -127,9 +150,21 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 	})
 
 	a := model.Asset{
-		ProjectID: parseID(c.Param("id")),
-		Name:      name,
-		Type:      assetType,
+		ProjectID:   parseID(c.Param("id")),
+		Name:        name,
+		Type:        assetType,
+		ResourceID:  &r.ID,
+		Description: description,
+		VariantType: variantType,
+		VariantName: variantName,
+	}
+	if settingID := parseOptionalUint(c.PostForm("setting_id")); settingID != nil {
+		a.SettingID = settingID
+	}
+	if follow := c.PostForm("follow_setting_status"); follow == "false" || follow == "0" {
+		a.FollowSettingStatus = false
+	} else {
+		a.FollowSettingStatus = true
 	}
 	h.db.Create(&a)
 
@@ -143,6 +178,18 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 	_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
 		ProjectID:   a.ProjectID,
 		ResourceID:  r.ID,
+		OwnerType:   "asset",
+		OwnerID:     a.ID,
+		Role:        "final",
+		Slot:        viewType,
+		IsPrimary:   true,
+		Status:      "selected",
+		SourceType:  "upload",
+		CreatedByID: &user.ID,
+	})
+	_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+		ProjectID:   a.ProjectID,
+		ResourceID:  r.ID,
 		OwnerType:   "asset_view",
 		OwnerID:     view.ID,
 		Role:        "final",
@@ -153,19 +200,21 @@ func (h *AssetHandler) Upload(c *gin.Context) {
 		CreatedByID: &user.ID,
 	})
 
-	h.db.Preload("Views").First(&a, a.ID)
-	h.populateAssetViewResources(c, []model.Asset{a})
-	c.JSON(http.StatusCreated, a)
+	h.db.Preload("Setting").Preload("Resource").Preload("Views").First(&a, a.ID)
+	items := []model.Asset{a}
+	h.populateAssetResources(c, items)
+	c.JSON(http.StatusCreated, items[0])
 }
 
 func (h *AssetHandler) Get(c *gin.Context) {
 	var a model.Asset
-	if err := h.db.Preload("Views").First(&a, c.Param("assetId")).Error; err != nil {
+	if err := h.db.Preload("Setting").Preload("Resource").Preload("Views").First(&a, c.Param("assetId")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	h.populateAssetViewResources(c, []model.Asset{a})
-	c.JSON(http.StatusOK, a)
+	items := []model.Asset{a}
+	h.populateAssetResources(c, items)
+	c.JSON(http.StatusOK, items[0])
 }
 
 func (h *AssetHandler) Update(c *gin.Context) {
@@ -181,7 +230,10 @@ func (h *AssetHandler) Update(c *gin.Context) {
 	}
 	service.ApplyAssetInput(&a, req)
 	h.db.Save(&a)
-	c.JSON(http.StatusOK, a)
+	h.db.Preload("Setting").Preload("Resource").Preload("Views").First(&a, a.ID)
+	items := []model.Asset{a}
+	h.populateAssetResources(c, items)
+	c.JSON(http.StatusOK, items[0])
 }
 
 // Patch applies a partial update to an asset.
@@ -201,9 +253,10 @@ func (h *AssetHandler) Patch(c *gin.Context) {
 	if updates := service.AssetPatchUpdates(body); len(updates) > 0 {
 		h.db.Model(&a).Updates(updates)
 	}
-	h.db.Preload("Views").First(&a, a.ID)
-	h.populateAssetViewResources(c, []model.Asset{a})
-	c.JSON(http.StatusOK, a)
+	h.db.Preload("Setting").Preload("Resource").Preload("Views").First(&a, a.ID)
+	items := []model.Asset{a}
+	h.populateAssetResources(c, items)
+	c.JSON(http.StatusOK, items[0])
 }
 
 func (h *AssetHandler) Delete(c *gin.Context) {
@@ -309,6 +362,21 @@ func (h *AssetHandler) UploadView(c *gin.Context) {
 	h.db.Create(&view)
 	var asset model.Asset
 	if err := h.db.Select("id, project_id").First(&asset, assetID).Error; err == nil {
+		if asset.ResourceID == nil {
+			h.db.Model(&asset).Update("resource_id", r.ID)
+		}
+		_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+			ProjectID:   asset.ProjectID,
+			ResourceID:  r.ID,
+			OwnerType:   "asset",
+			OwnerID:     asset.ID,
+			Role:        "final",
+			Slot:        viewType,
+			IsPrimary:   true,
+			Status:      "selected",
+			SourceType:  "upload",
+			CreatedByID: &user.ID,
+		})
 		_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
 			ProjectID:   asset.ProjectID,
 			ResourceID:  r.ID,
@@ -322,7 +390,7 @@ func (h *AssetHandler) UploadView(c *gin.Context) {
 			CreatedByID: &user.ID,
 		})
 	}
-	h.populateAssetViewResources(c, []model.Asset{{Views: []model.AssetView{view}}})
+	h.populateAssetResources(c, []model.Asset{{Views: []model.AssetView{view}}})
 	c.JSON(http.StatusCreated, view)
 }
 
@@ -330,6 +398,35 @@ func (h *AssetHandler) UploadView(c *gin.Context) {
 func (h *AssetHandler) DeleteView(c *gin.Context) {
 	h.db.Delete(&model.AssetView{}, c.Param("viewId"))
 	c.Status(http.StatusNoContent)
+}
+
+func (h *AssetHandler) populateAssetResources(c *gin.Context, assets []model.Asset) {
+	for i := range assets {
+		if assets[i].Resource == nil {
+			assets[i].Resource = h.firstDirectAssetResource(c, assets[i].ProjectID, assets[i].ID)
+		}
+		if assets[i].Resource != nil {
+			assets[i].Resource.URL = resourceURL(c, assets[i].Resource.ID)
+		}
+		assets[i].EffectiveStatus = assets[i].ReviewStatus
+		if assets[i].FollowSettingStatus && assets[i].Setting != nil && assets[i].Setting.Status != "" {
+			assets[i].EffectiveStatus = assets[i].Setting.Status
+		}
+	}
+	h.populateAssetViewResources(c, assets)
+}
+
+func (h *AssetHandler) firstDirectAssetResource(c *gin.Context, projectID uint, assetID uint) *model.RawResource {
+	var binding model.ResourceBinding
+	err := h.db.Preload("Resource").
+		Where("project_id = ? AND owner_type = ? AND owner_id = ? AND role IN ?", projectID, "asset", assetID, []string{"final", "thumbnail", "reference"}).
+		Order("is_primary desc, sort_order, created_at").
+		First(&binding).Error
+	if err != nil || binding.Resource == nil {
+		return nil
+	}
+	binding.Resource.URL = resourceURL(c, binding.Resource.ID)
+	return binding.Resource
 }
 
 func (h *AssetHandler) populateAssetViewResources(c *gin.Context, assets []model.Asset) {

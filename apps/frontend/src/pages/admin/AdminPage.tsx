@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, Project, User } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -415,6 +415,60 @@ function serializeParamDefs(params: ParamDef[]): string {
   return JSON.stringify(normalized)
 }
 
+function emptyParamProfile(): ModelParamProfile {
+  return { deny: [], override: {}, add: [] }
+}
+
+function parseModelParamProfile(value: string): ModelParamProfile {
+  if (!value.trim()) return emptyParamProfile()
+  try {
+    const parsed = JSON.parse(value)
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return emptyParamProfile()
+    const raw = parsed as ModelParamProfile
+    const profile: ModelParamProfile = {}
+    if (Array.isArray(raw.allow)) profile.allow = raw.allow.map(String).filter(Boolean)
+    if (Array.isArray(raw.deny)) profile.deny = raw.deny.map(String).filter(Boolean)
+    if (raw.override && typeof raw.override === 'object' && !Array.isArray(raw.override)) {
+      profile.override = {}
+      Object.entries(raw.override).forEach(([key, param]) => {
+        if (param && typeof param === 'object') profile.override![key] = normalizeParamDefForAdmin(param as ParamDef)
+      })
+    }
+    if (Array.isArray(raw.add)) profile.add = raw.add.filter((p) => p && typeof p === 'object').map((p) => normalizeParamDefForAdmin(p as ParamDef))
+    return profile
+  } catch {
+    return emptyParamProfile()
+  }
+}
+
+function serializeModelParamProfile(profile: ModelParamProfile): string {
+  const next: ModelParamProfile = {}
+  const allow = (profile.allow ?? []).map(String).map((s) => s.trim()).filter(Boolean)
+  const deny = (profile.deny ?? []).map(String).map((s) => s.trim()).filter(Boolean)
+  const add = parseParamDefs(serializeParamDefs(profile.add ?? []))
+  const overrideEntries = Object.entries(profile.override ?? {})
+    .map(([key, param]) => [key.trim(), parseParamDefs(serializeParamDefs([{ ...param, key: param.key || key }]))[0]] as const)
+    .filter(([key, param]) => key && param)
+  if (allow.length > 0) next.allow = allow
+  if (deny.length > 0) next.deny = deny
+  if (overrideEntries.length > 0) {
+    next.override = {}
+    overrideEntries.forEach(([key, param]) => { next.override![key] = param })
+  }
+  if (add.length > 0) next.add = add
+  return JSON.stringify(next)
+}
+
+function isProfileParamConfig(value: string): boolean {
+  if (!value.trim()) return true
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
 function splitOptions(value: string): string[] {
   return value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
 }
@@ -440,6 +494,11 @@ const PARAM_TEMPLATES: Record<string, ParamDef> = {
   execution_expires_after: { key: 'execution_expires_after', label: 'Expiration (seconds)', type: 'number', min: 1, step: 1 },
   preset: { key: 'preset', label: 'Preset', type: 'select', options: ['normal', 'fun', 'spicy', 'custom'], default: 'normal' },
   draft: { key: 'draft', label: 'Draft Mode', type: 'boolean', default: false },
+  max_tokens: { key: 'max_tokens', label: 'Max Tokens', type: 'number', min: 1, max: 1000000, step: 1 },
+  temperature: { key: 'temperature', label: 'Temperature', type: 'number', default: -1, min: -1, max: 2, step: 0.1 },
+  json_mode: { key: 'json_mode', label: 'JSON Mode', type: 'boolean', default: false },
+  sequential_image_generation: { key: 'sequential_image_generation', label: 'Sequential Images', type: 'select', options: ['disabled', 'auto'], default: 'disabled' },
+  optimize_prompt_mode: { key: 'optimize_prompt_mode', label: 'Prompt Optimization', type: 'select', options: ['standard', 'fast'], default: 'standard' },
 }
 
 function paramTemplateLabel(key: string, fallback: string, t: (key: string, values?: Record<string, unknown>) => string) {
@@ -574,6 +633,119 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function ParamConfigBuilder({
+  value,
+  onChange,
+  adapterParams,
+}: {
+  value: string
+  onChange: (next: string) => void
+  adapterParams: ParamDef[]
+}) {
+  const { t } = useTranslation()
+  const mode: 'inherit' | 'profile' | 'override' | 'none' = !value.trim()
+    ? 'inherit'
+    : value.trim() === '[]'
+      ? 'none'
+      : isProfileParamConfig(value)
+        ? 'profile'
+        : 'override'
+  const profile = parseModelParamProfile(value)
+  const adapterKeys = adapterParams.map((p) => p.key)
+  const denied = new Set(profile.deny ?? [])
+  const overrideParams = Object.entries(profile.override ?? {}).map(([key, param]) => ({ ...param, key: param.key || key }))
+
+  const setMode = (next: 'inherit' | 'profile' | 'override' | 'none') => {
+    if (next === 'inherit') onChange('')
+    if (next === 'none') onChange('[]')
+    if (next === 'override') onChange(serializeParamDefs(adapterParams))
+    if (next === 'profile') onChange(serializeModelParamProfile(emptyParamProfile()))
+  }
+
+  const updateProfile = (next: ModelParamProfile) => onChange(serializeModelParamProfile(next))
+
+  const toggleDeny = (key: string) => {
+    const next = new Set(profile.deny ?? [])
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    updateProfile({ ...profile, deny: Array.from(next) })
+  }
+
+  const updateOverride = (params: ParamDef[]) => {
+    const override: Record<string, ParamDef> = {}
+    params.forEach((p) => { if (p.key) override[p.key] = p })
+    updateProfile({ ...profile, override })
+  }
+
+  const modeButton = (key: typeof mode, label: string) => (
+    <button
+      type="button"
+      onClick={() => setMode(key)}
+      className={cn(
+        'text-xs px-2 py-1 rounded border transition-colors',
+        mode === key ? 'border-ring bg-accent text-foreground' : 'border-border text-muted-foreground hover:border-ring/50'
+      )}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {modeButton('inherit', t('admin.params.modes.inherit'))}
+        {modeButton('profile', t('admin.params.modes.profile'))}
+        {modeButton('override', t('admin.params.modes.override'))}
+        {modeButton('none', t('admin.params.modes.none'))}
+      </div>
+      {mode === 'inherit' && (
+        <div className="rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+          {t('admin.params.inheritSummary', { params: adapterKeys.length ? adapterKeys.join(', ') : t('admin.params.noneValue') })}
+        </div>
+      )}
+      {mode === 'none' && (
+        <div className="rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+          {t('admin.params.noneSummary')}
+        </div>
+      )}
+      {mode === 'override' && <ParamBuilder value={value} onChange={onChange} />}
+      {mode === 'profile' && (
+        <div className="space-y-3 rounded border border-border bg-background p-3">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">{t('admin.params.profileDeny')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {adapterParams.length === 0 && <span className="text-xs text-muted-foreground/70">{t('admin.params.noAdapterDefaults')}</span>}
+              {adapterParams.map((param) => (
+                <button
+                  type="button"
+                  key={param.key}
+                  onClick={() => toggleDeny(param.key)}
+                  className={cn(
+                    'text-xs px-2 py-0.5 rounded border transition-colors',
+                    denied.has(param.key) ? 'border-destructive/60 bg-destructive/10 text-destructive' : 'border-border text-muted-foreground hover:border-ring/50'
+                  )}
+                >
+                  {paramTemplateLabel(param.key, param.label || param.key, t)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <ParamBuilder value={serializeParamDefs(overrideParams)} onChange={(next) => updateOverride(parseParamDefs(next))} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">{t('admin.params.profileAdd')}</p>
+            <ParamBuilder
+              value={serializeParamDefs(profile.add ?? [])}
+              onChange={(next) => updateProfile({ ...profile, add: parseParamDefs(next) })}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -742,7 +914,7 @@ function ModelManagementTab() {
     setAddMaxInputImages(0)
     setAddMaxInputVideos(0)
     setAddImageEditField('')
-    setAddSupportedParams(serializeParamDefs(adapterParamsForCapabilities(adapter, defaultCaps)))
+    setAddSupportedParams('')
     setAddPriceForm(defaultPriceForm())
     setRemoteModels([])
     setRemoteError('')
@@ -1041,7 +1213,7 @@ function ModelManagementTab() {
                       setAddMaxInputImages(preset.max_input_images ?? 0)
                       setAddMaxInputVideos(preset.max_input_videos ?? 0)
                       setAddImageEditField(preset.image_edit_field ?? '')
-                      setAddSupportedParams(serializeParamDefs(adapterParamsForCapabilities(currentAdapter, preset.capabilities)))
+                      setAddSupportedParams('')
                       setShowPresets(false)
                     }
 
@@ -1152,7 +1324,7 @@ function ModelManagementTab() {
                                     setAddBillingMode(inferBilling(next))
                                     const needsImage = next.some(c => c === 'image_edit' || c === 'video_i2v' || c === 'video_v2v')
                                     setAddAcceptsImage(needsImage)
-                                    setAddSupportedParams(serializeParamDefs(adapterParamsForCapabilities(currentAdapter, next)))
+                                    setAddSupportedParams('')
                                   }
                                 }}
                                 className={cn(
@@ -1223,7 +1395,11 @@ function ModelManagementTab() {
                           </div>
                         </div>
 
-                        <ParamBuilder value={addSupportedParams} onChange={setAddSupportedParams} />
+                        <ParamConfigBuilder
+                          value={addSupportedParams}
+                          onChange={setAddSupportedParams}
+                          adapterParams={adapterParamsForCapabilities(currentAdapter, addCapabilities)}
+                        />
 
                         {(() => {
                           const fakeDef = { billing_mode: addBillingMode }
@@ -1315,7 +1491,7 @@ function ModelManagementTab() {
                                 priority: String(cfg.priority ?? 0),
                                 capabilities: nextCaps,
                                 billing_mode: cfg.custom_billing_mode || 'per_token',
-                                supported_params: cfg.custom_supported_params || serializeParamDefs(adapterParamsForCapabilities(adapter, nextCaps)),
+                                supported_params: cfg.custom_supported_params || '',
                               })
                             }}
                             className="text-muted-foreground/50 hover:text-foreground"
@@ -1378,7 +1554,7 @@ function ModelManagementTab() {
                                           setEditForm((f) => ({
                                             ...f,
                                             capabilities: next,
-                                            supported_params: serializeParamDefs(adapterParamsForCapabilities(adapter, next)),
+                                            supported_params: '',
                                           }))
                                         }
                                       }}
@@ -1410,9 +1586,10 @@ function ModelManagementTab() {
                                 ))}
                               </div>
                             </div>
-                            <ParamBuilder
+                            <ParamConfigBuilder
                               value={editForm.supported_params}
                               onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
+                              adapterParams={adapterParamsForCapabilities(adapter, editForm.capabilities)}
                             />
                             <div className="flex gap-2">
                               <Button

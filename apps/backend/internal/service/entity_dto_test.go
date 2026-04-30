@@ -34,19 +34,24 @@ func TestProjectUpdateInputDoesNotOverwriteServerOwnedFields(t *testing.T) {
 
 func TestScriptPatchUpdatesWhitelistClientFields(t *testing.T) {
 	updates := ScriptPatchUpdates(map[string]any{
-		"id":               float64(99),
-		"project_id":       float64(88),
-		"author_id":        float64(77),
-		"pipeline_node_id": float64(66),
-		"review_status":    "approved",
-		"status":           "done",
-		"deleted_at":       "2026-04-29T00:00:00Z",
-		"title":            "allowed title",
-		"content":          "allowed content",
-		"assignee_id":      float64(55),
+		"id":                      float64(99),
+		"project_id":              float64(88),
+		"author_id":               float64(77),
+		"pipeline_node_id":        float64(66),
+		"review_status":           "approved",
+		"status":                  "done",
+		"deleted_at":              "2026-04-29T00:00:00Z",
+		"title":                   "allowed title",
+		"content":                 "allowed content",
+		"assignee_id":             float64(55),
+		"character_profiles":      `[{"name":"old"}]`,
+		"character_relationships": `[{"source":"c1","target":"c2"}]`,
+		"core_settings":           `["old rule"]`,
+		"background":              "old background",
+		"scenes_desc":             `["old scene"]`,
 	})
 
-	for _, forbidden := range []string{"id", "project_id", "author_id", "pipeline_node_id", "review_status", "status", "deleted_at"} {
+	for _, forbidden := range []string{"id", "project_id", "author_id", "pipeline_node_id", "review_status", "status", "deleted_at", "character_profiles", "character_relationships", "core_settings", "background", "scenes_desc"} {
 		if _, ok := updates[forbidden]; ok {
 			t.Fatalf("forbidden field %q was included in updates: %#v", forbidden, updates)
 		}

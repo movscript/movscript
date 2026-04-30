@@ -42,6 +42,134 @@ type modelConfigWithProvider struct {
 	AdapterType  string
 }
 
+type GenerationPreflightRequest struct {
+	ModelConfigID uint
+	OutputType    string
+	ExtraParams   string
+	AspectRatio   string
+	Duration      int
+	ImageCount    int
+	VideoCount    int
+}
+
+type GenerationPreflightResult struct {
+	Config           model.AIModelConfig
+	Def              *ModelDef
+	NormalizedParams map[string]any
+}
+
+type TextPreflightResult struct {
+	Config *model.AIModelConfig
+	Def    *ModelDef
+}
+
+// PreflightGeneration validates model capability, input media limits, and
+// generation params before a caller constructs provider-specific requests.
+func (s *AIService) PreflightGeneration(req GenerationPreflightRequest) (GenerationPreflightResult, error) {
+	var cfg model.AIModelConfig
+	if err := s.db.First(&cfg, req.ModelConfigID).Error; err != nil {
+		return GenerationPreflightResult{}, fmt.Errorf("model config not found")
+	}
+	if !cfg.IsEnabled {
+		return GenerationPreflightResult{}, fmt.Errorf("model config id=%d is disabled", req.ModelConfigID)
+	}
+	var cred model.AICredential
+	if err := s.db.First(&cred, cfg.CredentialID).Error; err != nil {
+		return GenerationPreflightResult{}, fmt.Errorf("credential not found")
+	}
+	if !cred.IsEnabled {
+		return GenerationPreflightResult{}, fmt.Errorf("credential for model config id=%d is disabled", req.ModelConfigID)
+	}
+	def := resolveDefFromConfig(cfg, cred.AdapterType)
+	if err := ValidateGenRequest(def, GenRequest{
+		ModelConfigID: req.ModelConfigID,
+		OutputType:    req.OutputType,
+		ImageCount:    req.ImageCount,
+		VideoCount:    req.VideoCount,
+	}); err != nil {
+		return GenerationPreflightResult{}, err
+	}
+	params, err := ValidateAndNormalizeGenerationParams(def, req.OutputType, req.ExtraParams, req.AspectRatio, req.Duration)
+	if err != nil {
+		return GenerationPreflightResult{}, err
+	}
+	return GenerationPreflightResult{
+		Config:           cfg,
+		Def:              def,
+		NormalizedParams: params,
+	}, nil
+}
+
+// PreflightText validates text model capability and text request parameters.
+// It also normalizes validated params back into req so callers can pass the
+// same TextRequest to CallText/CallTextStream.
+func (s *AIService) PreflightText(modelConfigID uint, req *TextRequest) (TextPreflightResult, error) {
+	if req == nil {
+		return TextPreflightResult{}, fmt.Errorf("text request is required")
+	}
+	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityText)
+	if err != nil {
+		return TextPreflightResult{}, err
+	}
+	rawParams := textRequestParamsForValidation(*req)
+	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityText, marshalParamsForValidation(rawParams), "", 0)
+	if err != nil {
+		return TextPreflightResult{}, err
+	}
+	applyTextPreflightParams(req, params)
+	return TextPreflightResult{Config: &cfg, Def: def}, nil
+}
+
+func textRequestParamsForValidation(req TextRequest) map[string]any {
+	params := map[string]any{}
+	if req.MaxTokens > 0 {
+		params["max_tokens"] = req.MaxTokens
+	}
+	if req.Temperature >= 0 {
+		params["temperature"] = req.Temperature
+	}
+	if req.JSONMode {
+		params["json_mode"] = true
+	}
+	for k, v := range req.ExtraParams {
+		params[k] = v
+	}
+	return params
+}
+
+func applyTextPreflightParams(req *TextRequest, params map[string]any) {
+	if n, ok := numberValue(params["max_tokens"]); ok {
+		req.MaxTokens = int(n)
+	}
+	if n, ok := numberValue(params["temperature"]); ok {
+		req.Temperature = float32(n)
+	}
+	if b, ok := boolValue(params["json_mode"]); ok {
+		req.JSONMode = b
+	}
+	extra := make(map[string]any, len(params))
+	for k, v := range params {
+		switch k {
+		case "max_tokens", "temperature", "json_mode":
+			continue
+		default:
+			extra[k] = v
+		}
+	}
+	req.ExtraParams = extra
+}
+
+func marshalParamsForValidation(params map[string]any) string {
+	if len(params) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(params)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // GetModelsByCapability returns enabled model configs whose resolved definition includes capability.
 func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, error) {
 	var rows []modelConfigWithProvider

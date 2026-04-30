@@ -1516,10 +1516,15 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
-		resp, err := h.svc.CallText(ctx, user.ID, nd.ModelDbID, ai.TextRequest{
+		textReq := ai.TextRequest{
 			Messages:  []ai.Message{{Role: "user", Content: nd.Prompt}},
 			MaxTokens: 2048,
-		})
+		}
+		if _, err := h.svc.PreflightText(nd.ModelDbID, &textReq); err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		resp, err := h.svc.CallText(ctx, user.ID, nd.ModelDbID, textReq)
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -1652,11 +1657,18 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 			return
 		}
 		maxTokens := intParam(params, "max_tokens", 2048)
-		resp, err := h.svc.CallText(ctx, user.ID, modelDbID, ai.TextRequest{
+		textReq := ai.TextRequest{
 			Messages:    []ai.Message{{Role: "user", Content: prompt}},
 			MaxTokens:   maxTokens,
+			Temperature: float32(floatParam(params, "temperature", -1)),
+			JSONMode:    boolParam(params, "json_mode", false),
 			ExtraParams: params,
-		})
+		}
+		if _, err := h.svc.PreflightText(modelDbID, &textReq); err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		resp, err := h.svc.CallText(ctx, user.ID, modelDbID, textReq)
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -1669,6 +1681,18 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 			h.failTask(task, node, nd, "prompt is required")
 			return
 		}
+		preflight, err := h.svc.PreflightGeneration(ai.GenerationPreflightRequest{
+			ModelConfigID: modelDbID,
+			OutputType:    spec.Capability,
+			ExtraParams:   marshalParamsForPreflight(params),
+			AspectRatio:   spec.AspectRatio,
+			ImageCount:    len(imageData),
+		})
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		params = ai.NormalizeGenerationParams(preflight.NormalizedParams)
 		seed := int64PtrParam(params, "seed")
 		watermark := boolPtrParam(params, "watermark")
 		resp, err := h.svc.CallImage(ctx, user.ID, modelDbID, ai.ImageRequest{
@@ -1677,13 +1701,13 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 			Quality:             stringParam(params, "quality", ""),
 			Size:                stringParam(params, "size", stringParam(params, "image_size", "")),
 			Style:               stringParam(params, "style", ""),
-			AspectRatio:         spec.AspectRatio,
+			AspectRatio:         firstNonEmptyString(spec.AspectRatio, stringParam(params, "aspect_ratio", "")),
 			Seed:                seed,
 			GuidanceScale:       floatParam(params, "guidance_scale", 0),
 			Watermark:           watermark,
 			OutputFormat:        stringParam(params, "output_format", ""),
-			SequentialMode:      stringParam(params, "sequential_mode", ""),
-			SequentialMaxImages: intParam(params, "sequential_max_images", 0),
+			SequentialMode:      stringParam(params, "sequential_image_generation", stringParam(params, "sequential_mode", "")),
+			SequentialMaxImages: intParam(params, "max_images", intParam(params, "sequential_max_images", 0)),
 			WebSearch:           boolParam(params, "web_search", false),
 			OptimizePromptMode:  stringParam(params, "optimize_prompt_mode", ""),
 			InputImageDataList:  imageData,
@@ -1704,18 +1728,33 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 			h.failTask(task, node, nd, "prompt is required")
 			return
 		}
+		duration := firstPositive(spec.Duration, intParam(params, "duration", 0))
+		preflight, err := h.svc.PreflightGeneration(ai.GenerationPreflightRequest{
+			ModelConfigID: modelDbID,
+			OutputType:    spec.Capability,
+			ExtraParams:   marshalParamsForPreflight(params),
+			AspectRatio:   spec.AspectRatio,
+			Duration:      duration,
+			ImageCount:    len(imageData),
+			VideoCount:    len(videoData),
+		})
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		params = ai.NormalizeGenerationParams(preflight.NormalizedParams)
 		videoReq := ai.VideoRequest{
 			Prompt:                prompt,
 			InputImageDataList:    imageData,
-			Duration:              firstPositive(spec.Duration, intParam(params, "duration", 0)),
+			Duration:              duration,
 			Frames:                intParam(params, "frames", 0),
 			Seed:                  int64PtrParam(params, "seed"),
 			Width:                 intParam(params, "width", 0),
 			Height:                intParam(params, "height", 0),
-			AspectRatio:           spec.AspectRatio,
+			AspectRatio:           firstNonEmptyString(spec.AspectRatio, stringParam(params, "aspect_ratio", "")),
 			Ratio:                 stringParam(params, "ratio", ""),
 			Quality:               stringParam(params, "quality", ""),
-			Size:                  stringParam(params, "size", ""),
+			Size:                  stringParam(params, "size", stringParam(params, "image_size", "")),
 			ResolutionName:        stringParam(params, "resolution", stringParam(params, "resolution_name", "")),
 			Preset:                stringParam(params, "preset", ""),
 			CameraFixed:           boolPtrParam(params, "camera_fixed"),
@@ -1765,6 +1804,17 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 		h.updateNodeData(node, nd)
 	}
 	h.updateRunStatus(task.CanvasRunID)
+}
+
+func marshalParamsForPreflight(params map[string]any) string {
+	if len(params) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(params)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 type pluginHTTPRuntimeSpec struct {

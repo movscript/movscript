@@ -175,11 +175,11 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				textField("content", "details.scriptBody", "Script Body", "textarea", true),
 				textField("summary", "details.scriptSummary", "Summary", "textarea", true),
 				jsonField("characters", "details.characters", "Characters", true),
-				jsonField("character_profiles", "details.characterProfiles", "Character Profiles", true),
-				jsonField("character_relationships", "details.characterRelationshipGraph", "Character Relationships", true),
-				workflowPort(jsonField("core_settings", "details.coreSettings", "Core Settings", true), "settings"),
-				textField("background", "details.background", "Background", "textarea", true),
-				textField("scenes_desc", "details.scenes", "Scenes", "textarea", true),
+				deprecatedReadonlyField(jsonField("character_profiles", "details.characterProfiles", "Character Profiles", false)),
+				deprecatedReadonlyField(jsonField("character_relationships", "details.characterRelationshipGraph", "Character Relationships", false)),
+				workflowPort(deprecatedReadonlyField(jsonField("core_settings", "details.coreSettings", "Core Settings", false)), "settings"),
+				deprecatedReadonlyField(textField("background", "details.background", "Background", "textarea", false)),
+				deprecatedReadonlyField(textField("scenes_desc", "details.scenes", "Scenes", "textarea", false)),
 				textField("hook", "details.hook", "Hook", "textarea", true),
 				textField("plot_summary", "details.plotSummary", "Plot Summary", "textarea", true),
 				jsonField("script_points", "details.generatePoints", "Script Points", true),
@@ -187,18 +187,19 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 		},
 		{
 			Kind: "setting", LabelKey: "canvas.entityTypes.setting", FallbackLabel: "Setting",
-			Sections: []EntitySemanticSection{section("profile", "details.contentManagement", "Profile", []EntitySemanticField{
+			Sections: []EntitySemanticSection{section("identity", "canvas.entityTypes.setting", "Identity", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				resourceField("reference", "details.referenceAssets", "Reference", "reference", "reference", false),
 				textField("name", "project.scripts.settingName", "Name", "input", true),
-				textField("alias", "details.characterIdentity", "Alias", "input", true),
 				textField("type", "shared.type", "Type", "input", true),
-				textField("description", "shared.description", "Description", "textarea", true),
-				textField("content", "project.scripts.settingContent", "Content", "textarea", true),
 				textField("status", "details.productionStatus", "Status", "input", true),
-				textField("importance", "details.characterGoal", "Importance", "input", true),
 				jsonField("tags", "details.pointTagsPlaceholder", "Tags", true),
-				jsonField("profile_json", "details.characterProfiles", "Profile JSON", true),
+				jsonField("state_tags", "details.pointTagsPlaceholder", "State Tags", true),
+				textField("description", "shared.description", "Description", "textarea", true),
+				textField("content", "project.scripts.settingContent", "Notes", "textarea", true),
+				textField("alias", "details.characterIdentity", "Alias", "input", true),
+				textField("importance", "details.characterGoal", "Importance", "input", true),
+				jsonField("profile_json", "details.contentManagement", "Optional Structured Data", true),
 			})},
 		},
 		{
@@ -209,6 +210,9 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				resourceField("reference", "details.referenceAssets", "Reference", "reference", "reference", false),
 				textField("name", "shared.assetName", "Name", "input", true),
 				textField("type", "shared.type", "Type", "input", true),
+				numberField("resource_id", "details.attachments", "Resource", true),
+				numberField("setting_id", "canvas.entityTypes.setting", "Setting", true),
+				checkboxField("follow_setting_status", "details.productionStatus", "Follow Setting Status", true),
 				textField("description", "shared.description", "Description", "textarea", true),
 				textField("variant_type", "details.assetViews", "Variant Type", "input", true),
 				textField("variant_name", "details.assetViews", "Variant", "input", true),
@@ -378,11 +382,11 @@ func schemaMigrations(kind string) []EntityMigration {
 			{
 				FromVersion: 1,
 				ToVersion:   EntitySemanticSchemaVersion,
-				Kind:        "field_alias",
+				Kind:        "deprecated_field",
 				FieldID:     "core_settings",
 				FromFieldID: "settings",
-				ToFieldID:   "core_settings",
-				Description: "Workflow port settings remains an alias for the stored core_settings field.",
+				ToFieldID:   "setting.profile_json",
+				Description: "Script core settings are readonly legacy data; write canonical settings to Setting records bound to the script.",
 			},
 		}
 	case "shot":
@@ -572,9 +576,24 @@ func jsonField(id string, labelKey string, fallback string, writable bool) Entit
 	}
 }
 
+func deprecatedReadonlyField(field EntitySemanticField) EntitySemanticField {
+	field.Deprecated = true
+	field.Readonly = true
+	field.IO.Writable = false
+	return field
+}
+
 func numberField(id string, labelKey string, fallback string, writable bool) EntitySemanticField {
 	return EntitySemanticField{
 		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "number", Control: "number",
+		Storage: &FieldStorageMap{Column: defaultStorageColumn(id)},
+		IO:      FieldIO{Readable: true, Writable: writable},
+	}
+}
+
+func checkboxField(id string, labelKey string, fallback string, writable bool) EntitySemanticField {
+	return EntitySemanticField{
+		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "boolean", Control: "checkbox",
 		Storage: &FieldStorageMap{Column: defaultStorageColumn(id)},
 		IO:      FieldIO{Readable: true, Writable: writable},
 	}

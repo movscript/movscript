@@ -2,30 +2,35 @@ package model
 
 import "gorm.io/gorm"
 
-// AssetType: character | scene | prop
+// Asset is a project-facing material record. New assets should point directly
+// to one RawResource; AssetView remains for legacy multi-view display.
 type Asset struct {
 	gorm.Model
-	ProjectID      uint   `gorm:"not null" json:"project_id"`
-	PipelineNodeID *uint  `json:"pipeline_node_id,omitempty"`
-	Name           string `gorm:"not null" json:"name"`
-	Type           string `gorm:"not null" json:"type"`
-	Description    string `json:"description"`
-	VariantType    string `gorm:"default:'base'" json:"variant_type"` // base|costume|time_of_day|period|state|expression|custom
-	VariantName    string `json:"variant_name"`
-	Costume        string `json:"costume"`
-	TimeOfDay      string `json:"time_of_day"`
-	Period         string `json:"period"`
-	State          string `json:"state"`
-	StyleProfile   string `json:"style_profile"`
-	Prompt         string `gorm:"type:text" json:"prompt"`
-	NegativePrompt string `gorm:"type:text" json:"negative_prompt"`
-	IsPrimary      bool   `json:"is_primary"`
+	ProjectID      uint         `gorm:"not null" json:"project_id"`
+	PipelineNodeID *uint        `json:"pipeline_node_id,omitempty"`
+	Name           string       `gorm:"not null" json:"name"`
+	Type           string       `gorm:"not null" json:"type"`
+	ResourceID     *uint        `gorm:"index" json:"resource_id,omitempty"`
+	Resource       *RawResource `gorm:"foreignKey:ResourceID" json:"resource,omitempty"`
+	Description    string       `json:"description"`
+	VariantType    string       `gorm:"default:'base'" json:"variant_type"` // front|side|base|costume|time_of_day|period|state|expression|custom
+	VariantName    string       `json:"variant_name"`
+	Costume        string       `json:"costume"`
+	TimeOfDay      string       `json:"time_of_day"`
+	Period         string       `json:"period"`
+	State          string       `json:"state"`
+	StyleProfile   string       `json:"style_profile"`
+	Prompt         string       `gorm:"type:text" json:"prompt"`
+	NegativePrompt string       `gorm:"type:text" json:"negative_prompt"`
+	IsPrimary      bool         `json:"is_primary"`
 	// Reserved for legacy entity-level review. Disabled in the frontend for now;
 	// pipeline node status is the active review source of truth.
-	ReviewStatus string      `gorm:"default:'draft'" json:"review_status"`
-	SettingID    *uint       `json:"setting_id,omitempty"` // optional link to a Setting
-	Setting      *Setting    `gorm:"foreignKey:SettingID" json:"setting,omitempty"`
-	Views        []AssetView `gorm:"foreignKey:AssetID" json:"views,omitempty"`
+	ReviewStatus        string      `gorm:"default:'draft'" json:"review_status"`
+	SettingID           *uint       `json:"setting_id,omitempty"` // optional link to a Setting
+	Setting             *Setting    `gorm:"foreignKey:SettingID" json:"setting,omitempty"`
+	FollowSettingStatus bool        `gorm:"default:true" json:"follow_setting_status"`
+	EffectiveStatus     string      `gorm:"-" json:"effective_status,omitempty"`
+	Views               []AssetView `gorm:"foreignKey:AssetID" json:"views,omitempty"`
 }
 
 // AssetView represents one visual angle/variant of an asset.

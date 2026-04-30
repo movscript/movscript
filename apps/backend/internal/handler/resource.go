@@ -432,6 +432,18 @@ func (h *ResourceHandler) AddToAsset(c *gin.Context) {
 	_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
 		ProjectID:   asset.ProjectID,
 		ResourceID:  rid,
+		OwnerType:   "asset",
+		OwnerID:     asset.ID,
+		Role:        "final",
+		Slot:        body.ViewType,
+		IsPrimary:   true,
+		Status:      "selected",
+		SourceType:  "manual",
+		CreatedByID: &user.ID,
+	})
+	_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+		ProjectID:   asset.ProjectID,
+		ResourceID:  rid,
 		OwnerType:   "asset_view",
 		OwnerID:     view.ID,
 		Role:        "final",
@@ -441,6 +453,9 @@ func (h *ResourceHandler) AddToAsset(c *gin.Context) {
 		SourceType:  "manual",
 		CreatedByID: &user.ID,
 	})
+	if asset.ResourceID == nil {
+		h.db.Model(&asset).Update("resource_id", rid)
+	}
 	c.JSON(http.StatusCreated, view)
 }
 

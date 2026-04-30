@@ -72,26 +72,21 @@ type AIModelConfigInput struct {
 }
 
 type ScriptInput struct {
-	Title                  string `json:"title" binding:"required"`
-	Description            string `json:"description"`
-	Content                string `json:"content"`
-	ScriptType             string `json:"script_type"`
-	SourceType             string `json:"source_type"`
-	Version                int    `json:"version"`
-	ParentScriptID         *uint  `json:"parent_script_id"`
-	EpisodeID              *uint  `json:"episode_id"`
-	AssigneeID             *uint  `json:"assignee_id"`
-	Summary                string `json:"summary"`
-	Characters             string `json:"characters"`
-	CharacterProfiles      string `json:"character_profiles"`
-	CharacterRelationships string `json:"character_relationships"`
-	CoreSettings           string `json:"core_settings"`
-	Background             string `json:"background"`
-	ScenesDesc             string `json:"scenes_desc"`
-	Hook                   string `json:"hook"`
-	PlotSummary            string `json:"plot_summary"`
-	ScriptPoints           string `json:"script_points"`
-	Order                  int    `json:"order"`
+	Title          string `json:"title" binding:"required"`
+	Description    string `json:"description"`
+	Content        string `json:"content"`
+	ScriptType     string `json:"script_type"`
+	SourceType     string `json:"source_type"`
+	Version        int    `json:"version"`
+	ParentScriptID *uint  `json:"parent_script_id"`
+	EpisodeID      *uint  `json:"episode_id"`
+	AssigneeID     *uint  `json:"assignee_id"`
+	Summary        string `json:"summary"`
+	Characters     string `json:"characters"`
+	Hook           string `json:"hook"`
+	PlotSummary    string `json:"plot_summary"`
+	ScriptPoints   string `json:"script_points"`
+	Order          int    `json:"order"`
 }
 
 type EpisodeInput struct {
@@ -157,33 +152,37 @@ type FinalVideoInput struct {
 }
 
 type AssetInput struct {
-	Name           string `json:"name" binding:"required"`
-	Type           string `json:"type" binding:"required"`
-	Description    string `json:"description"`
-	VariantType    string `json:"variant_type"`
-	VariantName    string `json:"variant_name"`
-	Costume        string `json:"costume"`
-	TimeOfDay      string `json:"time_of_day"`
-	Period         string `json:"period"`
-	State          string `json:"state"`
-	StyleProfile   string `json:"style_profile"`
-	Prompt         string `json:"prompt"`
-	NegativePrompt string `json:"negative_prompt"`
-	IsPrimary      bool   `json:"is_primary"`
-	SettingID      *uint  `json:"setting_id"`
+	Name                string `json:"name" binding:"required"`
+	Type                string `json:"type" binding:"required"`
+	ResourceID          *uint  `json:"resource_id"`
+	Description         string `json:"description"`
+	VariantType         string `json:"variant_type"`
+	VariantName         string `json:"variant_name"`
+	Costume             string `json:"costume"`
+	TimeOfDay           string `json:"time_of_day"`
+	Period              string `json:"period"`
+	State               string `json:"state"`
+	StyleProfile        string `json:"style_profile"`
+	Prompt              string `json:"prompt"`
+	NegativePrompt      string `json:"negative_prompt"`
+	IsPrimary           bool   `json:"is_primary"`
+	SettingID           *uint  `json:"setting_id"`
+	FollowSettingStatus *bool  `json:"follow_setting_status"`
 }
 
 type SettingInput struct {
 	ScriptID         *uint  `json:"script_id"`
 	SourceScriptID   *uint  `json:"source_script_id"`
 	SourceAnalysisID *uint  `json:"source_analysis_id"`
-	Type             string `json:"type" binding:"required"`
+	Type             string `json:"type"`
 	Name             string `json:"name" binding:"required"`
 	Alias            string `json:"alias"`
 	Description      string `json:"description"`
 	Content          string `json:"content"`
+	Status           string `json:"status"`
 	Importance       string `json:"importance"`
 	Tags             string `json:"tags"`
+	StateTags        string `json:"state_tags"`
 	ProfileJSON      string `json:"profile_json"`
 }
 
@@ -206,6 +205,7 @@ type SettingRelationshipInput struct {
 	SourceSettingID uint   `json:"source_setting_id" binding:"required"`
 	TargetSettingID uint   `json:"target_setting_id" binding:"required"`
 	ScopeScriptID   *uint  `json:"scope_script_id"`
+	Category        string `json:"category"`
 	Type            string `json:"type"`
 	Label           string `json:"label"`
 	Description     string `json:"description"`
@@ -307,11 +307,6 @@ func ApplyScriptInput(s *model.Script, in ScriptInput) {
 	s.AssigneeID = in.AssigneeID
 	s.Summary = in.Summary
 	s.Characters = in.Characters
-	s.CharacterProfiles = in.CharacterProfiles
-	s.CharacterRelationships = in.CharacterRelationships
-	s.CoreSettings = in.CoreSettings
-	s.Background = in.Background
-	s.ScenesDesc = in.ScenesDesc
 	s.Hook = in.Hook
 	s.PlotSummary = in.PlotSummary
 	s.ScriptPoints = in.ScriptPoints
@@ -383,6 +378,7 @@ func ApplyFinalVideoInput(v *model.FinalVideo, in FinalVideoInput) {
 func ApplyAssetInput(a *model.Asset, in AssetInput) {
 	a.Name = in.Name
 	a.Type = in.Type
+	a.ResourceID = in.ResourceID
 	a.Description = in.Description
 	a.VariantType = in.VariantType
 	a.VariantName = in.VariantName
@@ -395,6 +391,11 @@ func ApplyAssetInput(a *model.Asset, in AssetInput) {
 	a.NegativePrompt = in.NegativePrompt
 	a.IsPrimary = in.IsPrimary
 	a.SettingID = in.SettingID
+	if in.FollowSettingStatus != nil {
+		a.FollowSettingStatus = *in.FollowSettingStatus
+	} else if a.ID == 0 {
+		a.FollowSettingStatus = true
+	}
 }
 
 func ApplySettingInput(s *model.Setting, in SettingInput) {
@@ -406,8 +407,10 @@ func ApplySettingInput(s *model.Setting, in SettingInput) {
 	s.Alias = in.Alias
 	s.Description = in.Description
 	s.Content = in.Content
+	s.Status = in.Status
 	s.Importance = in.Importance
 	s.Tags = in.Tags
+	s.StateTags = in.StateTags
 	s.ProfileJSON = in.ProfileJSON
 }
 
@@ -430,19 +433,20 @@ func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelat
 	r.SourceSettingID = in.SourceSettingID
 	r.TargetSettingID = in.TargetSettingID
 	r.ScopeScriptID = in.ScopeScriptID
+	r.Category = in.Category
 	r.Type = in.Type
 	r.Label = in.Label
 	r.Description = in.Description
 }
 
 var projectPatchFields = stringSet("name", "description", "total_episodes", "pipeline_template")
-var scriptPatchFields = stringSet("title", "description", "content", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "character_profiles", "character_relationships", "core_settings", "background", "scenes_desc", "hook", "plot_summary", "script_points", "order")
+var scriptPatchFields = stringSet("title", "description", "content", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "hook", "plot_summary", "script_points", "order")
 var episodePatchFields = stringSet("title", "number", "synopsis", "target_storyboards", "target_scenes")
 var scenePatchFields = stringSet("number", "title", "location", "time_of_day", "notes")
 var storyboardPatchFields = stringSet("scene_id", "episode_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "camera_angle", "camera_movement", "depth_of_field", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")
 var shotPatchFields = stringSet("storyboard_id", "assignee_id", "order", "description", "prompt", "canvas_id", "final_description", "final_prompt")
 var finalVideoPatchFields = stringSet("episode_id", "scene_id", "storyboard_id", "shot_id", "title", "description", "order")
-var assetPatchFields = stringSet("name", "type", "description", "variant_type", "variant_name", "costume", "time_of_day", "period", "state", "style_profile", "prompt", "negative_prompt", "is_primary", "setting_id")
+var assetPatchFields = stringSet("name", "type", "resource_id", "description", "variant_type", "variant_name", "costume", "time_of_day", "period", "state", "style_profile", "prompt", "negative_prompt", "is_primary", "setting_id", "follow_setting_status")
 
 func ProjectPatchUpdates(body map[string]any) map[string]any {
 	return allowPatchFields(body, projectPatchFields)

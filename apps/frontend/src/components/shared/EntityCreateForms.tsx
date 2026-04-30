@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Script, Scene, Episode, Storyboard } from '@/types'
+import type { Script, Scene, Episode, Storyboard, Setting } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -21,6 +21,12 @@ const ASSET_TYPES = [
   { type: 'scene', labelKey: 'domain.assetTypes.scene' },
   { type: 'prop', labelKey: 'domain.assetTypes.prop' },
   { type: 'draft', labelKey: 'domain.assetTypes.draft' },
+]
+
+const ASSET_VARIANT_TYPES = [
+  { type: 'front', labelKey: 'resources.viewTypes.front' },
+  { type: 'side', labelKey: 'resources.viewTypes.side' },
+  { type: 'custom', labelKey: 'resources.viewTypes.custom' },
 ]
 
 export interface EntityFormProps {
@@ -159,19 +165,50 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const qc = useQueryClient()
   const [name, setName] = useState('')
   const [type, setType] = useState('character')
+  const [customType, setCustomType] = useState('')
   const [desc, setDesc] = useState('')
   const [variantName, setVariantName] = useState('')
-  const [variantType, setVariantType] = useState('base')
+  const [variantType, setVariantType] = useState('front')
+  const [customVariantType, setCustomVariantType] = useState('')
+  const [settingId, setSettingId] = useState<number | null>(null)
+  const [followSettingStatus, setFollowSettingStatus] = useState(true)
+  const [file, setFile] = useState<File | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const { data: rawSettings } = useQuery<Setting[]>({
+    queryKey: ['settings', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const settings = rawSettings ?? []
+  const effectiveType = type === 'custom' ? customType.trim() : type
+  const effectiveVariantType = variantType === 'custom' ? (customVariantType.trim() || 'custom') : variantType
 
   const create = useMutation({
-    mutationFn: () =>
-      api.post(`/projects/${projectId}/assets`, {
+    mutationFn: () => {
+      if (file) {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('name', name)
+        fd.append('type', effectiveType)
+        fd.append('view_type', effectiveVariantType)
+        fd.append('variant_type', effectiveVariantType)
+        if (variantName) fd.append('variant_name', variantName)
+        if (desc) fd.append('description', desc)
+        if (settingId) fd.append('setting_id', String(settingId))
+        fd.append('follow_setting_status', String(followSettingStatus))
+        return api.post(`/projects/${projectId}/assets/upload`, fd).then((r) => r.data)
+      }
+      return api.post(`/projects/${projectId}/assets`, {
         name,
-        type,
+        type: effectiveType,
         description: desc || undefined,
-        variant_type: variantType || 'base',
+        variant_type: effectiveVariantType,
         variant_name: variantName || undefined,
-      }).then((r) => r.data),
+        setting_id: settingId ?? undefined,
+        follow_setting_status: followSettingStatus,
+      }).then((r) => r.data)
+    },
     onSuccess: (created: { ID: number; name: string }) => {
       qc.invalidateQueries({ queryKey: ['assets', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
@@ -194,6 +231,23 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         />
       </div>
       <div>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">资源文件</Label>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="w-full rounded border border-dashed border-border px-3 py-2 text-left text-xs text-muted-foreground hover:border-ring"
+        >
+          {file ? file.name : '选择图片 / 视频 / 音频 / 文本文件'}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          accept="image/*,video/*,audio/*,text/*"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      </div>
+      <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.type')}</Label>
         <div className="flex flex-wrap gap-2">
           {ASSET_TYPES.map((assetType) => (
@@ -210,7 +264,42 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
               {t(assetType.labelKey)}
             </button>
           ))}
+          <button
+            onClick={() => setType('custom')}
+            className={cn(
+              'px-3 py-1.5 text-xs rounded-full border transition-colors',
+              type === 'custom'
+                ? 'bg-foreground text-background border-transparent'
+                : 'border-border text-muted-foreground hover:border-ring'
+            )}
+          >
+            {t('resources.viewTypes.custom')}
+          </button>
         </div>
+        {type === 'custom' && (
+          <Input className="mt-2" value={customType} onChange={(e) => setCustomType(e.target.value)} placeholder="asset type" />
+        )}
+      </div>
+      <div>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">绑定设定</Label>
+        <select
+          className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+          value={settingId ?? ''}
+          onChange={(e) => setSettingId(Number(e.target.value) || null)}
+        >
+          <option value="">{t('forms.unlinked')}</option>
+          {settings.map((setting) => (
+            <option key={setting.ID} value={setting.ID}>{setting.name} · {setting.type}</option>
+          ))}
+        </select>
+        <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={followSettingStatus}
+            onChange={(e) => setFollowSettingStatus(e.target.checked)}
+          />
+          跟随设定状态
+        </label>
       </div>
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
@@ -218,8 +307,19 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">变体类型</Label>
-          <Input value={variantType} onChange={(e) => setVariantType(e.target.value)} />
+          <Label className="text-xs font-medium text-muted-foreground mb-1">素材类型</Label>
+          <select
+            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
+            value={variantType}
+            onChange={(e) => setVariantType(e.target.value)}
+          >
+            {ASSET_VARIANT_TYPES.map((item) => (
+              <option key={item.type} value={item.type}>{t(item.labelKey)}</option>
+            ))}
+          </select>
+          {variantType === 'custom' && (
+            <Input className="mt-2" value={customVariantType} onChange={(e) => setCustomVariantType(e.target.value)} placeholder="custom variant" />
+          )}
         </div>
         <div>
           <Label className="text-xs font-medium text-muted-foreground mb-1">变体名称</Label>
@@ -227,7 +327,7 @@ export function AssetCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
         </div>
       </div>
       <div className="flex gap-2 pt-1">
-        <Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending} className="flex-1">
+        <Button onClick={() => create.mutate()} disabled={!name.trim() || !effectiveType || create.isPending} className="flex-1">
           {create.isPending ? t('common.creating') : t('common.create')}
         </Button>
         <Button variant="outline" onClick={onCancel}>{t('common.cancel')}</Button>

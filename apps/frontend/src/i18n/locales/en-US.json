@@ -415,6 +415,7 @@
       "viewType": "View Type",
       "viewTypes": {
         "front": "Front",
+        "side": "Side",
         "back": "Back",
         "left": "Left",
         "right": "Right",
@@ -1753,6 +1754,18 @@
       "options": "Options",
       "defaultValue": "Default",
       "defaultOn": "Default on",
+      "modes": {
+        "inherit": "Inherit Defaults",
+        "profile": "Delta Profile",
+        "override": "Full Override",
+        "none": "No Parameters"
+      },
+      "inheritSummary": "Inherit default parameters for the current adapter and capabilities: {{params}}",
+      "noneValue": "none",
+      "noneSummary": "This model explicitly rejects all configurable generation parameters.",
+      "profileDeny": "Disabled Parameters",
+      "profileAdd": "Additional Model Parameters",
+      "noAdapterDefaults": "No adapter default parameters",
       "templates": {
         "aspect_ratio": "Aspect Ratio",
         "duration": "Duration (seconds)",
@@ -1776,7 +1789,10 @@
         "draft": "Draft Mode",
         "size": "Size",
         "sequential_image_generation": "Sequential Images",
-        "optimize_prompt_mode": "Prompt Optimization"
+        "optimize_prompt_mode": "Prompt Optimization",
+        "max_tokens": "Max Tokens",
+        "temperature": "Temperature",
+        "json_mode": "JSON Mode"
       }
     },
     "models": {

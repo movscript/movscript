@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
-import type { Asset, AssetView, PaginatedResponse } from '@/types'
+import type { Asset, AssetView, RawResource, Setting, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { Plus, Image, LayoutGrid, List, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
@@ -33,18 +33,27 @@ function viewMediaSrc(view: AssetView): string | undefined {
   return undefined
 }
 
+function resourceMediaSrc(resource?: RawResource): string | undefined {
+  if (!resource?.url) return undefined
+  return `${API_BASE}${resource.url}`
+}
+
 function isVideoResource(view: AssetView): boolean {
   if (view.resource?.type === 'video') return true
   if (view.resource?.mime_type?.startsWith('video/')) return true
   return false
 }
 
+function isVideoRawResource(resource?: RawResource): boolean {
+  return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
+}
+
 // --- Shared sub-components ---
 
 function AssetThumb({ asset, className }: { asset: Asset; className?: string }) {
   const firstView = asset.views?.[0]
-  const src = firstView ? viewMediaSrc(firstView) : undefined
-  const isVid = firstView ? isVideoResource(firstView) : false
+  const src = resourceMediaSrc(asset.resource) ?? (firstView ? viewMediaSrc(firstView) : undefined)
+  const isVid = asset.resource ? isVideoRawResource(asset.resource) : firstView ? isVideoResource(firstView) : false
 
   if (!src) {
     return (
@@ -75,7 +84,7 @@ function AssetGridCard({ asset, selected, onClick }: { asset: Asset; selected: b
         <p className="text-sm font-medium truncate">{asset.name}</p>
         <div className="flex items-center justify-between mt-1">
           <span className={cn('text-xs px-1.5 py-0.5 rounded-full', TYPE_COLORS[asset.type] ?? 'bg-muted text-muted-foreground')}>
-            {t(TYPE_LABEL_KEYS[asset.type] ?? asset.type)}
+            {TYPE_LABEL_KEYS[asset.type] ? t(TYPE_LABEL_KEYS[asset.type]) : asset.type}
           </span>
         </div>
       </div>
@@ -98,7 +107,7 @@ function AssetListRow({ asset, selected, onClick }: { asset: Asset; selected: bo
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{asset.name}</p>
-        <p className="text-xs text-muted-foreground">{t(TYPE_LABEL_KEYS[asset.type] ?? asset.type)}</p>
+        <p className="text-xs text-muted-foreground">{TYPE_LABEL_KEYS[asset.type] ? t(TYPE_LABEL_KEYS[asset.type]) : asset.type}</p>
       </div>
     </button>
   )
@@ -110,6 +119,7 @@ export default function AssetsPage() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterType, setFilterType] = useState('')
+  const [filterSettingId, setFilterSettingId] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -118,17 +128,23 @@ export default function AssetsPage() {
   const pageSize = 24
 
   const { data, isLoading } = useQuery<PaginatedResponse<Asset>>({
-    queryKey: ['assets', projectId, filterType, search, page],
+    queryKey: ['assets', projectId, filterType, filterSettingId, search, page],
     queryFn: () =>
       api.get(`/projects/${projectId}/assets`, {
         params: {
           page,
           page_size: pageSize,
           type: filterType || undefined,
+          setting_id: filterSettingId || undefined,
           q: search.trim() || undefined,
         },
       })
         .then((r) => r.data),
+    enabled: !!projectId,
+  })
+  const { data: settings = [] } = useQuery<Setting[]>({
+    queryKey: ['settings', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),
     enabled: !!projectId,
   })
   const assets = data?.items ?? []
@@ -141,6 +157,7 @@ export default function AssetsPage() {
   const filterTabs = [
     { value: '', label: t('common.all') },
     ...TYPES.map((type) => ({ value: type, label: t(TYPE_LABEL_KEYS[type]) })),
+    ...Array.from(new Set(assets.map((asset) => asset.type).filter((type) => !TYPE_LABEL_KEYS[type]))).map((type) => ({ value: type, label: type })),
   ]
 
   return (
@@ -165,6 +182,20 @@ export default function AssetsPage() {
               className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
+          <select
+            className="h-7 max-w-40 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+            onChange={(e) => {
+              setSelectedId(null)
+              setPage(1)
+              setFilterSettingId(e.target.value)
+            }}
+            value={filterSettingId}
+          >
+            <option value="">设定素材</option>
+            {settings.map((setting: { ID: number; name: string }) => (
+              <option key={setting.ID} value={setting.ID}>{setting.name}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-1 shrink-0">
             <Button onClick={() => setShowCreate(true)} size="icon" className="h-7 w-7"><Plus size={14} /></Button>
             {!detailOpen && (

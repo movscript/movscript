@@ -3,20 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Script, Setting } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, FileText, Users, Save } from 'lucide-react'
+import { Plus, FileText, Users } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { ScriptDetail } from '@/components/detail'
-import { EntitySemanticForm } from '@/components/detail/EntitySemanticForm'
+import { BUILT_IN_SETTING_TYPES, SettingDetailEditor, SettingStatusBadge, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
 import { useTranslation } from 'react-i18next'
 
 type ScriptType = 'main' | 'episode' | 'scene'
-type SettingType = 'character' | 'scene' | 'prop' | 'world_rule'
 type PageTab = 'scripts' | 'settings'
 
 const SCRIPT_TYPES: { type: ScriptType; labelKey: string; color: string }[] = [
@@ -25,15 +23,7 @@ const SCRIPT_TYPES: { type: ScriptType; labelKey: string; color: string }[] = [
   { type: 'scene',   labelKey: 'domain.scriptTypes.scene',   color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
 ]
 
-const SETTING_TYPES: { type: SettingType; labelKey: string; color: string }[] = [
-  { type: 'character', labelKey: 'domain.settingTypes.character', color: 'bg-muted text-muted-foreground' },
-  { type: 'scene',     labelKey: 'domain.settingTypes.scene',     color: 'bg-muted text-muted-foreground' },
-  { type: 'prop',      labelKey: 'domain.settingTypes.prop',      color: 'bg-muted text-muted-foreground' },
-  { type: 'world_rule', labelKey: 'domain.settingTypes.worldRule', color: 'bg-muted text-muted-foreground' },
-]
-
 const SCRIPT_TYPE_MAP = Object.fromEntries(SCRIPT_TYPES.map((t) => [t.type, t]))
-const SETTING_TYPE_MAP = Object.fromEntries(SETTING_TYPES.map((t) => [t.type, t]))
 
 // ─── Scripts Section ────────────────────────────────────────────────────────
 
@@ -171,13 +161,12 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 function SettingsSection({ projectId }: { projectId: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [filterType, setFilterType] = useState<SettingType | ''>('')
+  const [filterType, setFilterType] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [draft, setDraft] = useState<Partial<Setting>>({})
   const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState<SettingType>('character')
-  const [newDesc, setNewDesc] = useState('')
+  const [newType, setNewType] = useState('')
+  const [newStatus, setNewStatus] = useState('')
 
   const { data: rawSettings, isLoading } = useQuery<Setting[]>({
     queryKey: ['settings', projectId, filterType],
@@ -190,13 +179,13 @@ function SettingsSection({ projectId }: { projectId: number }) {
 
   const create = useMutation({
     mutationFn: (s: Partial<Setting>) => api.post(`/projects/${projectId}/settings`, s).then((r) => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings', projectId] }); setShowCreate(false); setNewName(''); setNewDesc('') },
-  })
-
-  const update = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Setting> }) =>
-      api.put(`/settings/${id}`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', projectId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', projectId] })
+      setShowCreate(false)
+      setNewName('')
+      setNewType('')
+      setNewStatus('')
+    },
   })
 
   const remove = useMutation({
@@ -207,8 +196,14 @@ function SettingsSection({ projectId }: { projectId: number }) {
   const selected = settings.find((s) => s.ID === selectedId) ?? null
   const detailOpen = selectedId !== null
 
-  function selectSetting(s: Setting) { setSelectedId(s.ID); setDraft({ ...s }) }
-  const filterTabs = [{ value: '' as const, label: t('common.all') }, ...SETTING_TYPES.map((type) => ({ value: type.type, label: t(type.labelKey) }))]
+  function selectSetting(s: Setting) { setSelectedId(s.ID) }
+  const customTypes = Array.from(new Set(settings.map((setting) => setting.type).filter(Boolean) as string[]))
+    .filter((type) => !BUILT_IN_SETTING_TYPES.some((item) => item.value === type))
+  const filterTabs = [
+    { value: '', label: t('common.all') },
+    ...BUILT_IN_SETTING_TYPES.map((type) => ({ value: type.value, label: type.label })),
+    ...customTypes.map((type) => ({ value: type, label: type })),
+  ]
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -236,17 +231,19 @@ function SettingsSection({ projectId }: { projectId: number }) {
                 <button key={s.ID} onClick={() => selectSetting(s)}
                   className={cn('w-full text-left px-3 py-2.5 border-b border-border hover:bg-background transition-colors', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
                   <div className="flex items-center gap-2">
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded shrink-0', SETTING_TYPE_MAP[s.type]?.color ?? 'bg-muted text-muted-foreground')}>{SETTING_TYPE_MAP[s.type] ? t(SETTING_TYPE_MAP[s.type].labelKey) : s.type}</span>
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
                     <span className="text-sm font-medium truncate flex-1">{s.name}</span>
                   </div>
+                  {s.status && <div className="mt-1.5"><SettingStatusBadge status={s.status} /></div>}
                 </button>
               ))
             ) : (
               <div className="p-4 grid grid-cols-2 xl:grid-cols-3 gap-3">
                 {settings.map((s) => (
                   <button key={s.ID} onClick={() => selectSetting(s)} className="text-left bg-background border border-border rounded-lg p-4 hover:border-ring hover:shadow-sm transition-all">
-                    <div className="flex items-start justify-between mb-2">
-                      <span className={cn('text-xs px-2 py-0.5 rounded-full', SETTING_TYPE_MAP[s.type]?.color ?? 'bg-muted text-muted-foreground')}>{SETTING_TYPE_MAP[s.type] ? t(SETTING_TYPE_MAP[s.type].labelKey) : s.type}</span>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
+                      {s.status && <SettingStatusBadge status={s.status} />}
                     </div>
                     <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.name}</h3>
                     {s.description && <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>}
@@ -261,7 +258,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-3 min-w-0">
-              <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0', SETTING_TYPE_MAP[selected.type]?.color ?? '')}>{SETTING_TYPE_MAP[selected.type] ? t(SETTING_TYPE_MAP[selected.type].labelKey) : selected.type}</span>
+              <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(selected.type)}</span>
               <h2 className="text-sm font-semibold text-foreground truncate">{selected.name}</h2>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -269,31 +266,9 @@ function SettingsSection({ projectId }: { projectId: number }) {
               <button onClick={() => remove.mutate(selected.ID)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">{t('common.delete')}</button>
             </div>
           </div>
-          <EntitySemanticForm
-            kind="setting"
-            ownerType="setting"
-            ownerId={selected.ID}
-            draft={draft}
-            onChange={(next) => setDraft(next as Partial<Setting>)}
-            onSave={(payload) => update.mutate({ id: selected.ID, data: payload as Partial<Setting> })}
-            isSaving={update.isPending}
-            excludeFields={['result', 'reference']}
-            fieldRenderers={{
-              type: (ctx) => (
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground mb-1">{ctx.label}</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {SETTING_TYPES.map((type) => (
-                      <button key={type.type} onClick={() => ctx.setValue(type.type)}
-                        className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', ctx.value === type.type ? cn(type.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
-                        {t(type.labelKey)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ),
-            }}
-          />
+          <div className="flex-1 overflow-y-auto p-5">
+            <SettingDetailEditor setting={selected} projectId={projectId} />
+          </div>
         </div>
       )}
 
@@ -301,22 +276,26 @@ function SettingsSection({ projectId }: { projectId: number }) {
         <div className="space-y-4">
           <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.nameRequired')}</Label>
             <Input autoFocus placeholder={t('pages.scripts.settingName')} value={newName} onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate({ name: newName, description: newDesc, type: newType })} />
+              onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate({ name: newName.trim(), type: newType.trim(), status: newStatus.trim() })} />
           </div>
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.typeRequired')}</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">类型（可选）</Label>
             <div className="flex flex-wrap gap-2">
-              {SETTING_TYPES.map((type) => (
-                <button key={type.type} onClick={() => setNewType(type.type)}
-                  className={cn('px-3 py-1.5 text-xs rounded-full border transition-colors', newType === type.type ? cn(type.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring')}>
-                  {t(type.labelKey)}
+              {BUILT_IN_SETTING_TYPES.map((type) => (
+                <button key={type.value} onClick={() => setNewType(type.value)}
+                  className={cn('px-3 py-1.5 text-xs rounded-md border transition-colors', newType === type.value ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:border-ring')}>
+                  {type.label}
                 </button>
               ))}
+              <Input className="h-8 w-44 text-xs" value={newType} onChange={(event) => setNewType(event.target.value)} placeholder="自定义类型" />
             </div>
           </div>
-          <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label><Textarea className="resize-none" rows={2} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} /></div>
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground mb-1">状态（可选）</Label>
+            <Input className="h-8 text-xs" value={newStatus} onChange={(event) => setNewStatus(event.target.value)} placeholder="自定义状态" />
+          </div>
           <div className="flex gap-2 pt-1">
-            <Button onClick={() => create.mutate({ name: newName, description: newDesc, type: newType })} disabled={!newName.trim() || create.isPending} className="flex-1">
+            <Button onClick={() => create.mutate({ name: newName.trim(), type: newType.trim(), status: newStatus.trim() })} disabled={!newName.trim() || create.isPending} className="flex-1">
               {create.isPending ? t('common.creating') : t('pages.scripts.createSetting')}
             </Button>
             <Button variant="outline" onClick={() => setShowCreate(false)}>{t('common.cancel')}</Button>

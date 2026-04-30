@@ -196,6 +196,10 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		Tools:       req.Tools,
 		ToolChoice:  req.ToolChoice,
 	}
+	if _, err := h.svc.PreflightText(modelConfigID, &textReq); err != nil {
+		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "", "unsupported_parameter")
+		return
+	}
 	if principal.Key != nil {
 		estimate, err := h.svc.EstimateTextCost(modelConfigID, textReq)
 		if err != nil {

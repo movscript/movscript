@@ -56,7 +56,65 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&model.UsageReservation{}, &model.UsageLog{}, &model.GenJob{}, &model.GatewayRateLimitCounter{})
 			},
 		},
+		{
+			Version: "000005",
+			Name:    "setting_relationship_category",
+			Up:      migrateSettingRelationshipCategory,
+		},
+		{
+			Version: "000006",
+			Name:    "asset_direct_resource_and_setting_status",
+			Up:      migrateAssetDirectResource,
+		},
+		{
+			Version: "000007",
+			Name:    "setting_state_tags",
+			Up:      migrateSettingStateTags,
+		},
 	}
+}
+
+func migrateSettingRelationshipCategory(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.SettingRelationship{}); err != nil {
+		return err
+	}
+	return db.Model(&model.SettingRelationship{}).
+		Where("category = ?", "character_relation").
+		Update("category", "relationship").Error
+}
+
+func migrateSettingStateTags(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.Setting{}); err != nil {
+		return err
+	}
+	return db.Model(&model.Setting{}).
+		Where("status = ?", "extracted").
+		Update("status", "").Error
+}
+
+func migrateAssetDirectResource(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.Asset{}); err != nil {
+		return err
+	}
+	return db.Exec(`
+		UPDATE assets
+		SET resource_id = picked.resource_id
+		FROM (
+			SELECT DISTINCT ON (av.asset_id)
+				av.asset_id,
+				rb.resource_id
+			FROM asset_views av
+			JOIN resource_bindings rb
+				ON rb.owner_type = 'asset_view'
+				AND rb.owner_id = av.id
+				AND rb.deleted_at IS NULL
+			WHERE av.deleted_at IS NULL
+			ORDER BY av.asset_id, rb.is_primary DESC, rb.sort_order ASC, rb.created_at ASC
+		) picked
+		WHERE assets.id = picked.asset_id
+			AND assets.deleted_at IS NULL
+			AND assets.resource_id IS NULL
+	`).Error
 }
 
 func RunMigrations(db *gorm.DB) error {
