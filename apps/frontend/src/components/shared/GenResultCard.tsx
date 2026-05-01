@@ -5,7 +5,7 @@ import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { MediaViewer } from './MediaViewer'
 import { cn } from '@/lib/utils'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
-import type { GenJob, RawResource } from '@/types'
+import type { Job, RawResource } from '@/types'
 
 // ── PromptText ────────────────────────────────────────────────────────────────
 // Renders a prompt string, replacing @[resource:ID] tokens with inline thumbnails.
@@ -253,7 +253,7 @@ function resourceName(resource: ContextResource): string {
   return resource.name
 }
 
-function getContextResources(job: GenJob, snapshot: JobContextSnapshot | null): ContextResource[] {
+function getContextResources(job: Job, snapshot: JobContextSnapshot | null): ContextResource[] {
   if (job.input_resources && job.input_resources.length > 0) return job.input_resources
   if (snapshot?.input_resources && snapshot.input_resources.length > 0) {
     return snapshot.input_resources.map((r) => ({ ID: r.id, name: r.name, type: r.type }))
@@ -261,7 +261,7 @@ function getContextResources(job: GenJob, snapshot: JobContextSnapshot | null): 
   return []
 }
 
-function getContextParams(job: GenJob, snapshot: JobContextSnapshot | null): Record<string, unknown> {
+function getContextParams(job: Job, snapshot: JobContextSnapshot | null): Record<string, unknown> {
   const params: Record<string, unknown> = {}
   const snapParams = snapshot?.params
   const aspect = snapParams?.aspect_ratio ?? job.aspect_ratio
@@ -274,7 +274,7 @@ function getContextParams(job: GenJob, snapshot: JobContextSnapshot | null): Rec
   )
 }
 
-function getModelLabel(job: GenJob, snapshot: JobContextSnapshot | null) {
+function getModelLabel(job: Job, snapshot: JobContextSnapshot | null) {
   const name = snapshot?.model?.display_name ||
     job.model_display ||
     job.model_config?.custom_display_name ||
@@ -305,7 +305,7 @@ function ResourceContextChip({ resource }: { resource: ContextResource }) {
   )
 }
 
-export function GenJobContextSummary({ job, className }: { job: GenJob; className?: string }) {
+export function JobContextSummary({ job, className }: { job: Job; className?: string }) {
   const { t } = useTranslation()
   const snapshot = parseRequestContext(job.request_context)
   const model = getModelLabel(job, snapshot)

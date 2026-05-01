@@ -15,7 +15,6 @@ type Script struct {
 	ParentScriptID *uint            `json:"parent_script_id,omitempty"`
 	AnalysisStatus string           `gorm:"default:'pending'" json:"analysis_status"` // pending|analyzing|analyzed|failed
 	EpisodeID      *uint            `json:"episode_id,omitempty"`
-	PipelineNodeID *uint            `json:"pipeline_node_id,omitempty"`
 	AssigneeID     *uint            `json:"assignee_id,omitempty"`
 	Assignee       *User            `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
 	AuthorID       uint             `json:"author_id"`

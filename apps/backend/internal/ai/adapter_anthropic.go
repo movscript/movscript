@@ -42,7 +42,7 @@ func (a *AnthropicAdapter) TextGenerate(ctx context.Context, req TextRequest) (T
 
 	maxTokens := int64(req.MaxTokens)
 	if maxTokens == 0 {
-		maxTokens = 1024
+		maxTokens = DefaultTextMaxTokens
 	}
 
 	params := anthropic.MessageNewParams{

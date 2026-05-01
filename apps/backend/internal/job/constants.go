@@ -1,6 +1,6 @@
-package genjob
+package job
 
-// Job status constants — match the gen_jobs.status DB column values.
+// Job status constants — match the jobs.status DB column values.
 const (
 	StatusPending   = "pending"
 	StatusRunning   = "running"

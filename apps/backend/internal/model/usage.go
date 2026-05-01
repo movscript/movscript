@@ -31,7 +31,7 @@ type UsageReservation struct {
 	AIModelConfigID uint          `gorm:"not null;index" json:"ai_model_config_id"`
 	GatewayAPIKeyID *uint         `gorm:"index" json:"gateway_api_key_id,omitempty"`
 	ProjectID       *uint         `gorm:"index" json:"project_id,omitempty"`
-	GenJobID        *uint         `gorm:"index" json:"gen_job_id,omitempty"`
+	JobID           *uint         `gorm:"index" json:"job_id,omitempty"`
 	OperationType   string        `gorm:"not null;index" json:"operation_type"` // text|image|video
 	EstimatedCost   float64       `gorm:"not null;default:0" json:"estimated_cost"`
 	ActualCost      float64       `gorm:"not null;default:0" json:"actual_cost"`

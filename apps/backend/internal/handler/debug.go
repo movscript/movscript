@@ -143,7 +143,7 @@ func maskHeader(v string) string {
 	return "***"
 }
 
-// ListJobs returns GenJobs with full debug info for the job monitor.
+// ListJobs returns Jobs with full debug info for the job monitor.
 // GET /admin/debug/jobs?status=&limit=&offset=
 func (h *DebugHandler) ListJobs(c *gin.Context) {
 	status := c.Query("status") // optional filter
@@ -156,7 +156,7 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 		offset = 0
 	}
 
-	q := h.db.Model(&model.GenJob{}).
+	q := h.db.Model(&model.Job{}).
 		Preload("OutputResource")
 	if status != "" {
 		q = q.Where("status = ?", status)
@@ -165,17 +165,17 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 	var total int64
 	q.Count(&total)
 
-	var jobs []model.GenJob
+	var jobs []model.Job
 	q.Order("id DESC").Limit(limit).Offset(offset).Find(&jobs)
 
 	type jobDetail struct {
-		model.GenJob
+		model.Job
 		DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
 	}
 
 	out := make([]jobDetail, 0, len(jobs))
 	for _, j := range jobs {
-		d := jobDetail{GenJob: j}
+		d := jobDetail{Job: j}
 		if j.DebugInfo != "" {
 			var dr ai.DebugCallResult
 			if err := json.Unmarshal([]byte(j.DebugInfo), &dr); err == nil {
@@ -225,21 +225,21 @@ func (h *DebugHandler) ProviderCall(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// GetJob returns a single GenJob with full debug info.
+// GetJob returns a single Job with full debug info.
 // GET /admin/debug/jobs/:id
 func (h *DebugHandler) GetJob(c *gin.Context) {
 	id := c.Param("id")
-	var job model.GenJob
+	var job model.Job
 	if err := h.db.Preload("OutputResource").First(&job, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
 		return
 	}
 
 	type jobDetail struct {
-		model.GenJob
+		model.Job
 		DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
 	}
-	d := jobDetail{GenJob: job}
+	d := jobDetail{Job: job}
 	if job.DebugInfo != "" {
 		var dr ai.DebugCallResult
 		if err := json.Unmarshal([]byte(job.DebugInfo), &dr); err == nil {

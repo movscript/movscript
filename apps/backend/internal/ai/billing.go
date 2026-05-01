@@ -26,7 +26,7 @@ func lockingUpdate() clause.Locking {
 type BillingContext struct {
 	ProjectID       *uint
 	GatewayAPIKeyID *uint
-	GenJobID        *uint
+	JobID           *uint
 	ReservationID   *uint
 }
 
@@ -90,7 +90,7 @@ func (s *AIService) ReserveQuota(ctx context.Context, userID, modelConfigID uint
 			AIModelConfigID: modelConfigID,
 			GatewayAPIKeyID: billing.GatewayAPIKeyID,
 			ProjectID:       billing.ProjectID,
-			GenJobID:        billing.GenJobID,
+			JobID:           billing.JobID,
 			OperationType:   estimate.OperationType,
 			EstimatedCost:   0,
 			Status:          ReservationStatusReserved,
@@ -121,7 +121,7 @@ func (s *AIService) ReserveQuota(ctx context.Context, userID, modelConfigID uint
 			AIModelConfigID: modelConfigID,
 			GatewayAPIKeyID: billing.GatewayAPIKeyID,
 			ProjectID:       billing.ProjectID,
-			GenJobID:        billing.GenJobID,
+			JobID:           billing.JobID,
 			OperationType:   estimate.OperationType,
 			EstimatedCost:   estimate.Cost,
 			Status:          ReservationStatusReserved,
@@ -134,10 +134,10 @@ func (s *AIService) ReserveQuota(ctx context.Context, userID, modelConfigID uint
 	return &reservation, nil
 }
 
-func (s *AIService) SetReservationGenJob(ctx context.Context, reservationID, genJobID uint) error {
+func (s *AIService) SetReservationJob(ctx context.Context, reservationID, jobID uint) error {
 	return s.db.WithContext(ctx).Model(&model.UsageReservation{}).
 		Where("id = ? AND status = ?", reservationID, ReservationStatusReserved).
-		Update("gen_job_id", genJobID).Error
+		Update("job_id", jobID).Error
 }
 
 func (s *AIService) ReleaseReservation(ctx context.Context, reservationID uint, reason string) error {

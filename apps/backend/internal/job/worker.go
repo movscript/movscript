@@ -1,4 +1,4 @@
-package genjob
+package job
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Worker is a pool of goroutines that execute pending GenJob records.
+// Worker is a pool of goroutines that execute pending Job records.
 type Worker struct {
 	db            *gorm.DB
 	aiService     *ai.AIService
@@ -63,7 +63,7 @@ func (w *Worker) cloudupService() *cloudup.Service {
 	}
 	svc, err := cloudup.NewFromDBConfigs(rows, w.encryptionKey)
 	if err != nil {
-		log.Printf("[genjob] cloudup init error: %v", err)
+		log.Printf("[job] cloudup init error: %v", err)
 		return nil
 	}
 	return svc
@@ -91,10 +91,10 @@ func (w *Worker) loop(ctx context.Context) {
 func (w *Worker) processOne(ctx context.Context) {
 	w.requeueStaleRunningJobs(ctx)
 
-	var job model.GenJob
+	var job model.Job
 	// Atomically claim a pending job using PostgreSQL FOR UPDATE SKIP LOCKED.
 	result := w.db.Raw(`
-		UPDATE gen_jobs
+		UPDATE jobs
 		SET status='running',
 			started_at=NOW(),
 			finished_at=NULL,
@@ -104,7 +104,7 @@ func (w *Worker) processOne(ctx context.Context) {
 			error_msg='',
 			updated_at=NOW()
 		WHERE id = (
-			SELECT id FROM gen_jobs
+			SELECT id FROM jobs
 			WHERE status='pending'
 				AND deleted_at IS NULL
 				AND (next_run_at IS NULL OR next_run_at <= NOW())
@@ -122,14 +122,14 @@ func (w *Worker) processOne(ctx context.Context) {
 
 	maxAttempts := effectiveMaxAttempts(&job)
 	newJobStateMachine(w, &job).enter(StateClaimed, fmt.Sprintf("worker claimed job (attempt %d/%d)", job.AttemptCount, maxAttempts))
-	log.Printf("[genjob] picked job #%d type=%s user=%d attempt=%d/%d", job.ID, job.JobType, job.UserID, job.AttemptCount, maxAttempts)
+	log.Printf("[job] picked job #%d type=%s user=%d attempt=%d/%d", job.ID, job.JobType, job.UserID, job.AttemptCount, maxAttempts)
 
 	if err := w.execute(ctx, &job); err != nil {
 		w.completeFailure(&job, err)
 	}
 }
 
-func (w *Worker) completeFailure(job *model.GenJob, err error) {
+func (w *Worker) completeFailure(job *model.Job, err error) {
 	if err == nil {
 		return
 	}
@@ -148,7 +148,7 @@ func (w *Worker) completeFailure(job *model.GenJob, err error) {
 			"finished_at":       nil,
 		})
 		newJobStateMachine(w, job).finish(StateRetryScheduled, fmt.Sprintf("retry scheduled at %s", nextRun.Format(time.RFC3339)))
-		log.Printf("[genjob] job #%d failed attempt %d/%d, retry at %s: %v", job.ID, job.AttemptCount, maxAttempts, nextRun.Format(time.RFC3339), err)
+		log.Printf("[job] job #%d failed attempt %d/%d, retry at %s: %v", job.ID, job.AttemptCount, maxAttempts, nextRun.Format(time.RFC3339), err)
 		return
 	}
 
@@ -162,12 +162,12 @@ func (w *Worker) completeFailure(job *model.GenJob, err error) {
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, err.Error())
 	}
-	log.Printf("[genjob] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
+	log.Printf("[job] job #%d failed after %d/%d attempts: %v", job.ID, job.AttemptCount, maxAttempts, err)
 }
 
 func (w *Worker) isJobCancelled(jobID uint) bool {
 	var status string
-	if err := w.db.Model(&model.GenJob{}).
+	if err := w.db.Model(&model.Job{}).
 		Select("status").
 		Where("id = ?", jobID).
 		Scan(&status).Error; err != nil {
@@ -176,7 +176,7 @@ func (w *Worker) isJobCancelled(jobID uint) bool {
 	return status == StatusCancelled
 }
 
-func (w *Worker) abortIfCancelled(ctx context.Context, job *model.GenJob, sm *jobStateMachine) error {
+func (w *Worker) abortIfCancelled(ctx context.Context, job *model.Job, sm *jobStateMachine) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -193,7 +193,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 		return
 	}
 	threshold := time.Now().Add(-staleRunningTimeout)
-	var jobs []model.GenJob
+	var jobs []model.Job
 	if err := w.db.Where(`
 		status = ?
 		AND deleted_at IS NULL
@@ -202,7 +202,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 		Order("updated_at asc").
 		Limit(10).
 		Find(&jobs).Error; err != nil {
-		log.Printf("[genjob] stale running scan failed: %v", err)
+		log.Printf("[job] stale running scan failed: %v", err)
 		return
 	}
 	if len(jobs) == 0 {
@@ -221,11 +221,11 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 				"next_run_at": &nextRun,
 				"finished_at": nil,
 			}).Error; err != nil {
-				log.Printf("[genjob] stale provider task job #%d requeue failed: %v", job.ID, err)
+				log.Printf("[job] stale provider task job #%d requeue failed: %v", job.ID, err)
 				continue
 			}
 			newJobStateMachine(w, job).finish(StateWaitingProviderTask, msg)
-			log.Printf("[genjob] stale provider task job #%d scheduled for polling", job.ID)
+			log.Printf("[job] stale provider task job #%d scheduled for polling", job.ID)
 			continue
 		}
 
@@ -238,11 +238,11 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 				"next_run_at": &now,
 				"finished_at": nil,
 			}).Error; err != nil {
-				log.Printf("[genjob] stale job #%d requeue failed: %v", job.ID, err)
+				log.Printf("[job] stale job #%d requeue failed: %v", job.ID, err)
 				continue
 			}
 			newJobStateMachine(w, job).finish(StateRetryScheduled, msg)
-			log.Printf("[genjob] stale running job #%d requeued", job.ID)
+			log.Printf("[job] stale running job #%d requeued", job.ID)
 			continue
 		}
 
@@ -253,11 +253,11 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 			"finished_at": &now,
 			"next_run_at": nil,
 		}).Error; err != nil {
-			log.Printf("[genjob] stale job #%d fail update failed: %v", job.ID, err)
+			log.Printf("[job] stale job #%d fail update failed: %v", job.ID, err)
 			continue
 		}
 		newJobStateMachine(w, job).fail(fmt.Errorf("%s", msg))
-		log.Printf("[genjob] stale running job #%d marked failed", job.ID)
+		log.Printf("[job] stale running job #%d marked failed", job.ID)
 	}
 }
 
@@ -270,12 +270,12 @@ func (w *Worker) heartbeat(ctx context.Context, jobID uint) {
 			return
 		case <-ticker.C:
 			now := time.Now()
-			w.db.Model(&model.GenJob{}).Where("id = ? AND status = ?", jobID, StatusRunning).Update("last_heartbeat_at", &now)
+			w.db.Model(&model.Job{}).Where("id = ? AND status = ?", jobID, StatusRunning).Update("last_heartbeat_at", &now)
 		}
 	}
 }
 
-func effectiveMaxAttempts(job *model.GenJob) int {
+func effectiveMaxAttempts(job *model.Job) int {
 	if job.MaxAttempts > 0 {
 		return job.MaxAttempts
 	}
@@ -319,7 +319,7 @@ func callProviderWithTimeout[T any](ctx context.Context, timeout time.Duration, 
 	}
 }
 
-func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
+func (w *Worker) execute(ctx context.Context, job *model.Job) (err error) {
 	callCtx, cancel := context.WithTimeout(ctx, jobExecutionTimeout)
 	defer cancel()
 	heartbeatCtx, stopHeartbeat := context.WithCancel(callCtx)
@@ -759,14 +759,14 @@ func (w *Worker) execute(ctx context.Context, job *model.GenJob) (err error) {
 	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
-	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
+	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }
 
-func (w *Worker) billingContext(job *model.GenJob) ai.BillingContext {
+func (w *Worker) billingContext(job *model.Job) ai.BillingContext {
 	return ai.BillingContext{
 		ProjectID:     job.ProjectID,
-		GenJobID:      &job.ID,
+		JobID:         &job.ID,
 		ReservationID: job.UsageReservationID,
 	}
 }
@@ -782,7 +782,7 @@ type providerTaskEvent struct {
 	At        time.Time `json:"at"`
 }
 
-func (w *Worker) appendProviderTaskEvent(job *model.GenJob, action string, resp ai.VideoResponse, err error) {
+func (w *Worker) appendProviderTaskEvent(job *model.Job, action string, resp ai.VideoResponse, err error) {
 	var history []providerTaskEvent
 	if job.ProviderTaskHistory != "" {
 		_ = json.Unmarshal([]byte(job.ProviderTaskHistory), &history)
@@ -824,7 +824,7 @@ func (w *Worker) appendProviderTaskEvent(job *model.GenJob, action string, resp 
 	}
 }
 
-func (w *Worker) scheduleSubmittedProviderTask(job *model.GenJob, resp ai.VideoResponse, sm *jobStateMachine) {
+func (w *Worker) scheduleSubmittedProviderTask(job *model.Job, resp ai.VideoResponse, sm *jobStateMachine) {
 	nextRun := time.Now().Add(videoPollInterval)
 	status := firstNonEmpty(resp.Status, ai.VideoStatusSubmitted)
 	updates := map[string]any{
@@ -845,10 +845,10 @@ func (w *Worker) scheduleSubmittedProviderTask(job *model.GenJob, resp ai.VideoR
 	job.ProviderTaskKind = resp.TaskKind
 	job.ProviderTaskStatus = status
 	sm.finish(StateWaitingProviderTask, fmt.Sprintf("provider task %s accepted; next poll at %s", resp.TaskID, nextRun.Format(time.RFC3339)))
-	log.Printf("[genjob] job #%d submitted provider task %s; poll at %s", job.ID, resp.TaskID, nextRun.Format(time.RFC3339))
+	log.Printf("[job] job #%d submitted provider task %s; poll at %s", job.ID, resp.TaskID, nextRun.Format(time.RFC3339))
 }
 
-func (w *Worker) scheduleProviderPoll(job *model.GenJob, message string, sm *jobStateMachine) {
+func (w *Worker) scheduleProviderPoll(job *model.Job, message string, sm *jobStateMachine) {
 	nextRun := time.Now().Add(videoPollInterval)
 	updates := map[string]any{
 		"status":      StatusPending,
@@ -862,10 +862,10 @@ func (w *Worker) scheduleProviderPoll(job *model.GenJob, message string, sm *job
 		return
 	}
 	sm.finish(StateWaitingProviderTask, fmt.Sprintf("%s; next poll at %s", firstNonEmpty(message, "provider task still running"), nextRun.Format(time.RFC3339)))
-	log.Printf("[genjob] job #%d provider task %s pending; next poll at %s", job.ID, job.ProviderTaskID, nextRun.Format(time.RFC3339))
+	log.Printf("[job] job #%d provider task %s pending; next poll at %s", job.ID, job.ProviderTaskID, nextRun.Format(time.RFC3339))
 }
 
-func (w *Worker) markProviderTaskFailed(job *model.GenJob, resp ai.VideoResponse, err error) {
+func (w *Worker) markProviderTaskFailed(job *model.Job, resp ai.VideoResponse, err error) {
 	now := time.Now()
 	msg := firstNonEmpty(resp.Message)
 	if msg == "" && err != nil {
@@ -885,10 +885,10 @@ func (w *Worker) markProviderTaskFailed(job *model.GenJob, resp ai.VideoResponse
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
-	log.Printf("[genjob] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
+	log.Printf("[job] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
 }
 
-func (w *Worker) markProviderTaskCancelled(job *model.GenJob, resp ai.VideoResponse, message string) {
+func (w *Worker) markProviderTaskCancelled(job *model.Job, resp ai.VideoResponse, message string) {
 	now := time.Now()
 	msg := firstNonEmpty(message, resp.Message, "video generation cancelled")
 	w.db.Model(job).Updates(map[string]any{
@@ -902,10 +902,10 @@ func (w *Worker) markProviderTaskCancelled(job *model.GenJob, resp ai.VideoRespo
 	if job.UsageReservationID != nil {
 		_ = w.aiService.ReleaseReservation(context.Background(), *job.UsageReservationID, msg)
 	}
-	log.Printf("[genjob] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
+	log.Printf("[job] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
 }
 
-func (w *Worker) cancelProviderTask(ctx context.Context, job *model.GenJob, taskID, taskKind string) (ai.VideoResponse, error) {
+func (w *Worker) cancelProviderTask(ctx context.Context, job *model.Job, taskID, taskKind string) (ai.VideoResponse, error) {
 	if taskID == "" {
 		return ai.VideoResponse{}, nil
 	}
@@ -921,7 +921,7 @@ func (w *Worker) cancelProviderTask(ctx context.Context, job *model.GenJob, task
 	return resp, nil
 }
 
-func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, resp ai.VideoResponse, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.Job, resp ai.VideoResponse, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
@@ -978,11 +978,11 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.GenJob, re
 	}
 	sm.succeed("job marked succeeded")
 	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
-	log.Printf("[genjob] job #%d succeeded → resource #%d", job.ID, resourceID)
+	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }
 
-func (w *Worker) prepareImageInputReferences(job *model.GenJob, mediaList []ai.MediaData) string {
+func (w *Worker) prepareImageInputReferences(job *model.Job, mediaList []ai.MediaData) string {
 	if len(mediaList) == 0 {
 		return ""
 	}
@@ -1007,7 +1007,7 @@ func (w *Worker) prepareImageInputReferences(job *model.GenJob, mediaList []ai.M
 	}
 }
 
-func (w *Worker) preparePublicMediaReferences(job *model.GenJob, mediaList []ai.MediaData) {
+func (w *Worker) preparePublicMediaReferences(job *model.Job, mediaList []ai.MediaData) {
 	for i := range mediaList {
 		if mediaList[i].PresignedURL != "" {
 			continue
@@ -1037,7 +1037,7 @@ func (w *Worker) modelAdapterType(modelConfigID uint) string {
 // ensureCloudUpload checks the resource's CloudUploads cache; if no valid entry exists,
 // uploads via the provider Files API or configured cloud backends and caches the result.
 // Returns zero-value UploadResult if no uploader is enabled or upload fails.
-func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData, requirePublicURL bool) (cloudup.UploadResult, uint) {
+func (w *Worker) ensureCloudUpload(job *model.Job, media ai.MediaData, requirePublicURL bool) (cloudup.UploadResult, uint) {
 	// Find the resource ID for this media data (first input resource).
 	resourceID := media.ResourceID
 	if resourceID == 0 {
@@ -1107,7 +1107,7 @@ func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData, requir
 				return cloudup.UploadResult{FileID: fileID}, 0
 			}
 			if err != nil {
-				log.Printf("[genjob] provider file upload for resource #%d failed: %v", resourceID, err)
+				log.Printf("[job] provider file upload for resource #%d failed: %v", resourceID, err)
 			}
 		}
 	}
@@ -1119,7 +1119,7 @@ func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData, requir
 
 	configID, result, err := svc.UploadWithFallback(ctx, media.Bytes, filename, mimeType)
 	if err != nil {
-		log.Printf("[genjob] cloud upload for resource #%d failed: %v", resourceID, err)
+		log.Printf("[job] cloud upload for resource #%d failed: %v", resourceID, err)
 		return cloudup.UploadResult{}, 0
 	}
 
@@ -1137,7 +1137,7 @@ func (w *Worker) ensureCloudUpload(job *model.GenJob, media ai.MediaData, requir
 	return result, configID
 }
 
-func (w *Worker) saveDebugInfo(job *model.GenJob, result *ai.DebugCallResult) {
+func (w *Worker) saveDebugInfo(job *model.Job, result *ai.DebugCallResult) {
 	if result == nil {
 		return
 	}
@@ -1149,15 +1149,15 @@ func (w *Worker) saveDebugInfo(job *model.GenJob, result *ai.DebugCallResult) {
 }
 
 // saveBytes stores raw bytes directly (used when the adapter downloads auth-gated content).
-func (w *Worker) saveBytes(ctx context.Context, job *model.GenJob, data []byte, mimeType string) (uint, error) {
+func (w *Worker) saveBytes(ctx context.Context, job *model.Job, data []byte, mimeType string) (uint, error) {
 	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
-		log.Printf("[genjob] video normalization skipped for job #%d: %v", job.ID, err)
+		log.Printf("[job] video normalization skipped for job #%d: %v", job.ID, err)
 	} else if changed {
 		data = normalized
 		mimeType = normalizedMime
 	}
 	resType := typeFromMime(mimeType)
-	name := fmt.Sprintf("genjob_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
+	name := fmt.Sprintf("job_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
 
 	r := model.RawResource{
@@ -1182,7 +1182,7 @@ func (w *Worker) saveBytes(ctx context.Context, job *model.GenJob, data []byte, 
 }
 
 // saveResult downloads the provider URL (or decodes a data URI), stores it, and creates a RawResource record.
-func (w *Worker) saveResult(ctx context.Context, job *model.GenJob, providerURL, mimeType string) (uint, error) {
+func (w *Worker) saveResult(ctx context.Context, job *model.Job, providerURL, mimeType string) (uint, error) {
 	var data []byte
 	providerURL = strings.TrimSpace(providerURL)
 	if err := validateProviderResultURL(providerURL); err != nil {
@@ -1225,14 +1225,14 @@ func (w *Worker) saveResult(ctx context.Context, job *model.GenJob, providerURL,
 	}
 
 	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
-		log.Printf("[genjob] video normalization skipped for job #%d: %v", job.ID, err)
+		log.Printf("[job] video normalization skipped for job #%d: %v", job.ID, err)
 	} else if changed {
 		data = normalized
 		mimeType = normalizedMime
 	}
 
 	resType := typeFromMime(mimeType)
-	name := fmt.Sprintf("genjob_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
+	name := fmt.Sprintf("job_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
 
 	r := model.RawResource{
@@ -1293,7 +1293,7 @@ func (w *Worker) resourceURL(id *uint) (string, error) {
 
 // loadInputResources reads all input resource bytes from storage, classified by type.
 // It reads both the new InputResourceIDs JSON array and the legacy InputResourceID field.
-func (w *Worker) loadInputResources(job *model.GenJob) (imageData, videoData []ai.MediaData) {
+func (w *Worker) loadInputResources(job *model.Job) (imageData, videoData []ai.MediaData) {
 	ids := parseResourceIDs(job.InputResourceIDs)
 	// Append legacy single ID if not already in the list.
 	if job.InputResourceID != nil {
@@ -1328,7 +1328,7 @@ func (w *Worker) loadInputResources(job *model.GenJob) (imageData, videoData []a
 		}
 		data, mime, presigned, err := w.readResourceBytes(r)
 		if err != nil || len(data) == 0 {
-			log.Printf("[genjob] failed to read resource #%d: %v", r.ID, err)
+			log.Printf("[job] failed to read resource #%d: %v", r.ID, err)
 			continue
 		}
 		md := ai.MediaData{Bytes: data, MimeType: mime, PresignedURL: presigned, ResourceID: r.ID}

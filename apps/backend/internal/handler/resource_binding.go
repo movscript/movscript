@@ -428,7 +428,7 @@ func validBindingStatus(value string) bool {
 
 func validBindingSourceType(value string) bool {
 	switch value {
-	case "upload", "gen_job", "canvas", "import", "manual", "legacy":
+	case "upload", "job", "canvas", "import", "manual", "legacy":
 		return true
 	default:
 		return false

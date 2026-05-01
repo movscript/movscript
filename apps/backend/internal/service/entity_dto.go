@@ -1,23 +1,17 @@
 package service
 
-import (
-	"time"
-
-	"github.com/movscript/movscript/internal/model"
-)
+import "github.com/movscript/movscript/internal/model"
 
 type ProjectCreateInput struct {
-	Name             string `json:"name" binding:"required"`
-	Description      string `json:"description"`
-	TotalEpisodes    int    `json:"total_episodes"`
-	PipelineTemplate string `json:"pipeline_template"`
+	Name          string `json:"name" binding:"required"`
+	Description   string `json:"description"`
+	TotalEpisodes int    `json:"total_episodes"`
 }
 
 type ProjectUpdateInput struct {
-	Name             string `json:"name" binding:"required"`
-	Description      string `json:"description"`
-	TotalEpisodes    int    `json:"total_episodes"`
-	PipelineTemplate string `json:"pipeline_template"`
+	Name          string `json:"name" binding:"required"`
+	Description   string `json:"description"`
+	TotalEpisodes int    `json:"total_episodes"`
 }
 
 type ProjectMemberInput struct {
@@ -27,27 +21,6 @@ type ProjectMemberInput struct {
 
 type UserCreateInput struct {
 	Username string `json:"username" binding:"required"`
-}
-
-type PipelineEdgeInput struct {
-	FromNodeID   uint   `json:"from_node_id" binding:"required"`
-	ToNodeID     uint   `json:"to_node_id" binding:"required"`
-	RelationType string `json:"relation_type"`
-}
-
-type PipelineNodeInput struct {
-	ParentID    *uint      `json:"parent_id"`
-	Type        string     `json:"type" binding:"required"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	AssigneeID  *uint      `json:"assignee_id"`
-	LeadID      *uint      `json:"lead_id"`
-	DueDate     *time.Time `json:"due_date"`
-	ContentType string     `json:"content_type"`
-	EntityType  string     `json:"entity_type"`
-	EntityID    *uint      `json:"entity_id"`
-	PosX        float64    `json:"pos_x"`
-	PosY        float64    `json:"pos_y"`
 }
 
 type AIModelConfigInput struct {
@@ -173,7 +146,6 @@ type AssetInput struct {
 }
 
 type SettingInput struct {
-	PipelineNodeID   *uint  `json:"pipeline_node_id"`
 	ScriptID         *uint  `json:"script_id"`
 	SourceScriptID   *uint  `json:"source_script_id"`
 	SourceAnalysisID *uint  `json:"source_analysis_id"`
@@ -216,47 +188,15 @@ type SettingRelationshipInput struct {
 
 func NewProject(in ProjectCreateInput, ownerID uint) model.Project {
 	return model.Project{
-		Name:             in.Name,
-		Description:      in.Description,
-		OwnerID:          ownerID,
-		TotalEpisodes:    in.TotalEpisodes,
-		PipelineTemplate: in.PipelineTemplate,
+		Name:          in.Name,
+		Description:   in.Description,
+		OwnerID:       ownerID,
+		TotalEpisodes: in.TotalEpisodes,
 	}
 }
 
 func NewUser(in UserCreateInput) model.User {
 	return model.User{Username: in.Username}
-}
-
-func NewPipelineEdge(in PipelineEdgeInput, projectID uint) model.PipelineEdge {
-	relationType := in.RelationType
-	if relationType == "" {
-		relationType = "hierarchy"
-	}
-	return model.PipelineEdge{
-		ProjectID:    projectID,
-		FromNodeID:   in.FromNodeID,
-		ToNodeID:     in.ToNodeID,
-		RelationType: relationType,
-	}
-}
-
-func NewPipelineNode(in PipelineNodeInput, projectID uint) model.PipelineNode {
-	return model.PipelineNode{
-		ProjectID:   projectID,
-		Type:        in.Type,
-		Name:        in.Name,
-		Status:      "draft",
-		Description: in.Description,
-		AssigneeID:  in.AssigneeID,
-		LeadID:      in.LeadID,
-		DueDate:     in.DueDate,
-		ContentType: in.ContentType,
-		EntityType:  in.EntityType,
-		EntityID:    in.EntityID,
-		PosX:        in.PosX,
-		PosY:        in.PosY,
-	}
 }
 
 func NewAIModelConfig(in AIModelConfigInput, credentialID uint) model.AIModelConfig {
@@ -295,7 +235,6 @@ func ApplyProjectUpdate(p *model.Project, in ProjectUpdateInput) {
 	p.Name = in.Name
 	p.Description = in.Description
 	p.TotalEpisodes = in.TotalEpisodes
-	p.PipelineTemplate = in.PipelineTemplate
 }
 
 func ApplyScriptInput(s *model.Script, in ScriptInput) {
@@ -447,7 +386,7 @@ func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelat
 	r.Description = in.Description
 }
 
-var projectPatchFields = stringSet("name", "description", "total_episodes", "pipeline_template")
+var projectPatchFields = stringSet("name", "description", "total_episodes")
 var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "core_settings", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
 var episodePatchFields = stringSet("title", "number", "synopsis", "script_id")
 var scenePatchFields = stringSet("number", "title", "notes", "script_id")

@@ -19,9 +19,6 @@ func NewSceneHandler(db *gorm.DB) *SceneHandler { return &SceneHandler{db: db} }
 func (h *SceneHandler) List(c *gin.Context) {
 	scenes := make([]model.Scene, 0)
 	q := h.db.Where("project_id = ?", c.Param("id"))
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
-	}
 	q.Order("number").
 		Preload("Script").
 		Preload("Settings").
@@ -73,7 +70,7 @@ func (h *SceneHandler) Update(c *gin.Context) {
 
 // Patch applies a partial update to a scene.
 // Note: review_status is retained for legacy compatibility but is not enabled
-// in the current frontend; pipeline node status owns review workflow.
+// in the current frontend.
 func (h *SceneHandler) Patch(c *gin.Context) {
 	var s model.Scene
 	if err := h.db.First(&s, c.Param("sceneId")).Error; err != nil {

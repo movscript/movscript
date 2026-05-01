@@ -41,7 +41,7 @@ apps/backend/
   internal/config/         Environment loading
   internal/crypto/         AES-256-GCM helpers for provider credentials
   internal/db/             GORM connection and AutoMigrate
-  internal/genjob/         Async generation state machine and worker
+  internal/job/         Async generation state machine and worker
   internal/handler/        HTTP handlers
   internal/model/          GORM models
   internal/pluginkit/      Plugin manifest parsing and import logic
@@ -95,7 +95,7 @@ Handlers live in `apps/backend/internal/handler/`. Most handlers directly use `h
 
 ### AI Routing
 
-AI feature keys and capability constants live in `apps/backend/internal/ai/feature.go`. Admin model configuration resolves into runtime `ModelDef` values. Generation jobs go through `apps/backend/internal/genjob` and provider implementations in `apps/backend/internal/ai`.
+AI feature keys and capability constants live in `apps/backend/internal/ai/feature.go`. Admin model configuration resolves into runtime `ModelDef` values. Generation jobs go through `apps/backend/internal/job` and provider implementations in `apps/backend/internal/ai`.
 
 ### Frontend API Access
 
@@ -121,7 +121,7 @@ The local agent server owns thread/run lifecycle, policy checks, tool metadata, 
 | Add a database-backed entity | `apps/backend/internal/model/*`, handler, router, frontend types |
 | Add an AI provider | `apps/backend/internal/ai/adapter_*.go`, `registry.go`, catalog/debug tests |
 | Change model/feature configuration | `apps/backend/internal/ai/feature.go`, `catalog.go`, admin frontend pages |
-| Change generation job behavior | `apps/backend/internal/genjob/*`, `apps/backend/internal/ai/*` |
+| Change generation job behavior | `apps/backend/internal/job/*`, `apps/backend/internal/ai/*` |
 | Change object storage behavior | `apps/backend/internal/storage/*`, `internal/cloudup/*` |
 | Change frontend API types | `apps/frontend/src/types/index.ts` |
 | Change i18n copy | `apps/frontend/src/i18n/locales/*.json` |

@@ -4,13 +4,10 @@ import "gorm.io/gorm"
 
 type Episode struct {
 	gorm.Model
-	ProjectID      uint   `json:"project_id"` // direct project reference
-	PipelineNodeID *uint  `json:"pipeline_node_id,omitempty"`
-	Title          string `gorm:"not null" json:"title"`
-	Number         int    `json:"number"`
-	Synopsis       string `json:"synopsis"`
-	// Reserved for legacy entity-level review. Disabled in the frontend for now;
-	// pipeline node status is the active review source of truth.
+	ProjectID    uint    `json:"project_id"` // direct project reference
+	Title        string  `gorm:"not null" json:"title"`
+	Number       int     `json:"number"`
+	Synopsis     string  `json:"synopsis"`
 	ReviewStatus string  `gorm:"default:'draft'" json:"review_status"`
 	ScriptID     *uint   `json:"script_id,omitempty"` // optional — nil if created without a script
 	Script       *Script `gorm:"foreignKey:ScriptID" json:"script,omitempty"`

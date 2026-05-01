@@ -131,9 +131,6 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	if p.OwnerID != 0 {
 		h.db.Create(&model.ProjectMember{ProjectID: p.ID, UserID: p.OwnerID, Role: "owner"})
 	}
-	if p.PipelineTemplate != "" && p.PipelineTemplate != "custom" {
-		createPipelineFromTemplate(h.db, p.ID, p.PipelineTemplate)
-	}
 	c.JSON(http.StatusCreated, p)
 }
 

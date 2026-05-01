@@ -1,7 +1,6 @@
 import CreationPage from '@/pages/work/CreationPage'
-import { StageWorkspaceContent } from '@/pages/pipeline/StageWorkspacePage'
 
-export type WorkbenchMode = 'free' | 'pipeline-node'
+export type WorkbenchMode = 'free'
 
 interface WorkbenchContentProps {
   mode: WorkbenchMode
@@ -11,21 +10,9 @@ interface WorkbenchContentProps {
 }
 
 export function WorkbenchContent({
-  mode,
-  nodeId,
   embedded = false,
   onBack,
 }: WorkbenchContentProps) {
-  if (mode === 'pipeline-node') {
-    return (
-      <StageWorkspaceContent
-        nodeId={nodeId}
-        embedded={embedded}
-        onBack={onBack}
-      />
-    )
-  }
-
   return <CreationPage />
 }
 

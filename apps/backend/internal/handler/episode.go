@@ -33,9 +33,6 @@ func (h *EpisodeHandler) ListByProject(c *gin.Context) {
 	if len(scriptIDs) > 0 {
 		q = h.db.Where("project_id = ? OR script_id IN ?", projectID, scriptIDs)
 	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
-	}
 	if len(scriptIDs) > 0 {
 		q.Order("number").
 			Preload("Script").
@@ -132,7 +129,7 @@ func (h *EpisodeHandler) Update(c *gin.Context) {
 
 // Patch applies a partial update to an episode.
 // Note: review_status is retained for legacy compatibility but is not enabled
-// in the current frontend; pipeline node status owns review workflow.
+// in the current frontend.
 func (h *EpisodeHandler) Patch(c *gin.Context) {
 	var e model.Episode
 	if err := h.db.First(&e, c.Param("id")).Error; err != nil {

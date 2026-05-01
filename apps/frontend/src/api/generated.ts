@@ -31,14 +31,12 @@ export interface components {
       "owner_id": number
       "status": string
       "total_episodes"?: number
-      "pipeline_template"?: string
     }
     "ProjectCreate": {
       "name": string
       "description"?: string
       "status"?: string
       "total_episodes"?: number
-      "pipeline_template"?: string
     }
     "ProjectMember": {
       "ID": number
@@ -60,7 +58,7 @@ export interface components {
       "owner_id"?: number
       "project_id"?: number
     }
-    "GenJob": {
+    "Job": {
       "ID": number
       "job_type": string
       "status": string
@@ -69,7 +67,7 @@ export interface components {
       "result_resource_id"?: number
       "error"?: string
     }
-    "GenJobCreate": {
+    "JobCreate": {
       "job_type": string
       "model_config_id": number
       "feature_key"?: string
@@ -175,16 +173,16 @@ export interface paths {
       }
     }
   }
-  "/api/v1/gen-jobs": {
+  "/api/v1/jobs": {
     get: {
       responses: {
-        "200": { content: { 'application/json': Array<components['schemas']["GenJob"]> } }
+        "200": { content: { 'application/json': Array<components['schemas']["Job"]> } }
       }
     }
     post: {
-      requestBody: { content: { 'application/json': components['schemas']["GenJobCreate"] } }
+      requestBody: { content: { 'application/json': components['schemas']["JobCreate"] } }
       responses: {
-        "201": { content: { 'application/json': components['schemas']["GenJob"] } }
+        "201": { content: { 'application/json': components['schemas']["Job"] } }
       }
     }
   }
@@ -210,4 +208,3 @@ export interface paths {
     }
   }
 }
-

@@ -11,20 +11,12 @@ interface SceneWorkspaceProps extends WorkspaceFrameProps {
 
 export function SceneWorkspace({
   scene,
-  node,
-  pipeline,
-  members,
-  onNodeUpdated,
 }: SceneWorkspaceProps) {
   return (
     <ArtifactWorkspaceFrame
       kind="scene"
       title={scene.title}
       subtitle={`场景 ${scene.number}`}
-      node={node}
-      pipeline={pipeline}
-      members={members}
-      onNodeUpdated={onNodeUpdated}
     >
       <SceneDetail scene={scene} showHeader={false} />
     </ArtifactWorkspaceFrame>

@@ -1,4 +1,4 @@
-package genjob
+package job
 
 import (
 	"encoding/json"
@@ -40,11 +40,11 @@ type StateTraceEntry struct {
 
 type jobStateMachine struct {
 	w     *Worker
-	job   *model.GenJob
+	job   *model.Job
 	trace []StateTraceEntry
 }
 
-func newJobStateMachine(w *Worker, job *model.GenJob) *jobStateMachine {
+func newJobStateMachine(w *Worker, job *model.Job) *jobStateMachine {
 	sm := &jobStateMachine{w: w, job: job}
 	if job.StateTrace != "" {
 		_ = json.Unmarshal([]byte(job.StateTrace), &sm.trace)
@@ -149,7 +149,7 @@ func (sm *jobStateMachine) persist(state JobExecutionState) {
 	})
 }
 
-func MarkRetryScheduled(db *gorm.DB, job *model.GenJob, message string) {
+func MarkRetryScheduled(db *gorm.DB, job *model.Job, message string) {
 	sm := &jobStateMachine{w: &Worker{db: db}, job: job}
 	if job.StateTrace != "" {
 		_ = json.Unmarshal([]byte(job.StateTrace), &sm.trace)

@@ -18,10 +18,6 @@ export function StoryboardWorkspace({
   storyboard,
   scenes = [],
   episodes = [],
-  node,
-  pipeline,
-  members,
-  onNodeUpdated,
 }: StoryboardWorkspaceProps) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -44,11 +40,7 @@ export function StoryboardWorkspace({
         episode ? `EP${String(episode.number).padStart(2, '0')}` : null,
         scene ? `场景 ${scene.number}` : null,
       ].filter(Boolean).join(' · ') || '未关联剧集/场景'}
-      node={node}
-      pipeline={pipeline}
-      members={members}
       isSaving={update.isPending}
-      onNodeUpdated={onNodeUpdated}
     >
       <div className="h-full min-w-0 overflow-hidden">
         <StoryboardForm

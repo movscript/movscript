@@ -26,20 +26,12 @@ interface SettingWorkspaceProps extends WorkspaceFrameProps {
 
 export function SettingWorkspace({
   setting,
-  node,
-  pipeline,
-  members,
-  onNodeUpdated,
 }: SettingWorkspaceProps) {
   return (
     <ArtifactWorkspaceFrame
       kind="setting"
       title={setting.name}
       subtitle={settingTypeLabel(setting.type)}
-      node={node}
-      pipeline={pipeline}
-      members={members}
-      onNodeUpdated={onNodeUpdated}
     >
       <div className="h-full overflow-y-auto p-5">
         <SettingDetailEditor setting={setting} className="mx-auto max-w-4xl" />

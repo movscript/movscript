@@ -94,15 +94,6 @@
     "notFound": "资源不存在",
     "passwordHashFailed": "密码处理失败",
     "permissionDenied": "权限不足",
-    "pipelineAlreadyDraft": "节点已经是草稿状态",
-    "pipelineApproveState": "只有审核中的节点可以批准",
-    "pipelineAssigneeMemberRequired": "执行者必须是项目成员",
-    "pipelineLeadMemberRequired": "负责人必须是项目成员",
-    "pipelineManageAssignmentRequired": "需要所有者、导演或节点负责人权限",
-    "pipelineRejectState": "只有审核中的节点可以拒绝",
-    "pipelineReviewPermissionRequired": "需要所有者、导演或非自审负责人权限",
-    "pipelineSubmitPermissionRequired": "需要执行者、负责人、导演或所有者权限",
-    "pipelineSubmitState": "只有草稿或被拒绝的节点可以提交审核",
     "projectNotFound": "项目不存在",
     "providerCancellationFailed": "服务商取消失败：{{detail}}",
     "runNotFound": "运行记录不存在",
@@ -567,11 +558,6 @@
         "editing": "剪辑",
         "done": "完成"
       },
-      "selectTemplateTitle": "选择生产管线模板",
-      "templateHint": "选择适合你项目的生产管线，创建后可在管线页面自定义调整",
-      "blankPipeline": "空白管线",
-      "nextStep": "下一步",
-      "backToTemplate": "返回选择模板",
       "nameRequired": "项目名称 *",
       "namePlaceholder": "给项目起个名字",
       "descriptionOptional": "项目描述（可选）",
@@ -580,32 +566,9 @@
       "empty": "还没有项目",
       "emptyHint": "创建你的第一个短剧项目，开始管理剧本、分集和素材",
       "createFirst": "创建第一个项目",
-      "templates": {
-        "fullProduction": {
-          "label": "完整制作",
-          "description": "从剧本和设定开始，覆盖完整生产环节"
-        },
-        "fromScript": {
-          "label": "有剧本二创",
-          "description": "已有剧本，先整理设定再进入分集生产"
-        },
-        "fromStoryboard": {
-          "label": "有分镜",
-          "description": "已有分镜脚本，直接进行镜头生产"
-        },
-        "custom": {
-          "label": "自定义",
-          "description": "从空白开始，手动构建生产管线"
-        }
-      },
       "templateSteps": {
-        "mainScript": "主剧本",
-        "settingCreation": "设定创作",
         "episodeScript": "分集剧本",
-        "sceneScript": "分场剧本",
-        "storyboardScript": "分镜脚本",
-        "shotProduction": "镜头生产",
-        "episodeEditing": "剧集剪辑"
+        "sceneScript": "分场剧本"
       }
     },
     "jobs": {
@@ -928,231 +891,9 @@
       }
     }
   },
-  "pipeline": {
-    "status": {
-      "draft": "草稿",
-      "under_review": "审核中",
-      "rejected": "已拒绝",
-      "final": "已定稿"
-    },
-    "categories": {
-      "work": "工作",
-      "custom": "自定义",
-      "tool": "工具",
-      "workNodes": "工作节点",
-      "toolNodes": "工具节点"
-    },
-    "nodeTypes": {
-      "script_writing": {
-        "label": "剧本创作",
-        "desc": "创作主剧本"
-      },
-      "setting_creation": {
-        "label": "设定创作",
-        "desc": "创作人物、场景和道具设定"
-      },
-      "episode_writing": {
-        "label": "分集剧本创作",
-        "desc": "创作分集剧本"
-      },
-      "scene_writing": {
-        "label": "分场剧本创作",
-        "desc": "创作分场剧本"
-      },
-      "storyboard_creation": {
-        "label": "分镜创作",
-        "desc": "分镜脚本创作"
-      },
-      "asset_creation": {
-        "label": "素材创作",
-        "desc": "人物/场景/道具创作"
-      },
-      "raw_script": {
-        "label": "底稿写作",
-        "desc": "原始底稿/大纲"
-      },
-      "shot_production": {
-        "label": "镜头生产",
-        "desc": "AI 生成镜头"
-      },
-      "episode_edit": {
-        "label": "剧集剪辑",
-        "desc": "后期剪辑制作"
-      },
-      "ref_image_gen": {
-        "label": "参考生图",
-        "desc": "以参考图生成新图像"
-      },
-      "ref_video_gen": {
-        "label": "参考生视频",
-        "desc": "以参考视频生成视频"
-      },
-      "style_transfer": {
-        "label": "画风迁移",
-        "desc": "迁移参考图的艺术风格"
-      },
-      "motion_imitation": {
-        "label": "动作迁移",
-        "desc": "迁移参考视频的动作"
-      },
-      "multi_angle": {
-        "label": "多角度",
-        "desc": "生成多角度视图"
-      },
-      "custom": {
-        "label": "自定义",
-        "desc": "自由定义类型"
-      }
-    },
-    "editor": {
-      "subtitle": "内容生产管线",
-      "dagView": "DAG 视图",
-      "treeView": "树形视图",
-      "ganttView": "甘特图",
-      "taskLayer": "任务层",
-      "dependencyLayer": "依赖层",
-      "scheduleLayer": "排期层",
-      "fitView": "适应画面",
-      "empty": "管线为空 · 新增工作项开始组织生产流程"
-    },
-    "tree": {
-      "addRoot": "新增工作项",
-      "addChild": "添加子节点",
-      "addChildTo": "给「{{name}}」添加子节点",
-      "structure": "节点结构",
-      "statusAndActions": "状态与操作",
-      "nodeType": "节点类型"
-    },
-    "contextMenu": {
-      "addNode": "添加节点",
-      "hint": "选择节点类型拖入画布"
-    },
-    "delete": {
-      "title": "确认删除节点",
-      "description": "此操作无法撤销，关联的审核记录也将被移除。",
-      "deleting": "删除中…",
-      "confirm": "确认删除"
-    },
-    "gantt": {
-      "empty": "暂无节点",
-      "noDueDate": "未设置截止日期"
-    },
-    "dependency": {
-      "empty": "暂无依赖关系"
-    },
-    "node": {
-      "fallbackName": "节点 {{id}}",
-      "linkedEntity": "已关联 {{type}} #{{id}}",
-      "dragConnect": "拖拽连线",
-      "enterWorkspace": "在工作台打开实体",
-      "lockedHint": "等待上游完成",
-      "customStage": "自定义阶段",
-      "actions": {
-        "submit": "提交审核",
-        "approve": "批准",
-        "reject": "拒绝",
-        "reopen": "重新开放"
-      }
-    },
-    "toolNode": {
-      "noModels": "暂无模型",
-      "selectModel": "选择模型",
-      "status": "状态",
-      "error": "错误"
-    },
-    "entities": {
-      "title": "项目内容",
-      "hint": "点击链接图标关联到节点",
-      "linkToNode": "关联到节点",
-      "emptyEpisodes": "暂无分集",
-      "emptyScenes": "暂无分场",
-      "emptyStoryboards": "暂无分镜",
-      "emptyShots": "暂无镜头",
-      "episodeTitle": "第 {{number}} 集{{title}}",
-      "sceneTitle": "场景 {{number}}{{title}}",
-      "episodeLabel": "第{{number}}集",
-      "sceneLabel": "场景{{number}}"
-    },
-    "nav": {
-      "title": "内容导航",
-      "hint": "拖拽至画布创建关联节点",
-      "emptySection": "暂无{{section}}",
-      "footerLine1": "拖拽到画布空白处",
-      "footerLine2": "自动创建关联工作项"
-    },
-    "detail": {
-      "entities": {
-        "script": "剧本",
-        "setting": "设定",
-        "episode": "分集",
-        "scene": "分场",
-        "storyboard": "分镜",
-        "shot": "镜头",
-        "asset": "素材",
-        "final_video": "成片"
-      },
-      "entityFallback": {
-        "script": "剧本 #{{id}}",
-        "setting": "设定 #{{id}}",
-        "asset": "素材 #{{id}}",
-        "finalVideo": "成片 #{{id}}"
-      },
-      "defaultTitles": {
-        "episode": "新分集",
-        "scene": "新分场",
-        "storyboard": "新分镜"
-      },
-      "nodeName": "节点名称",
-      "addDescription": "添加描述...",
-      "assignee": "执行者",
-      "assigneeFallback": "未分配执行者时由 {{name}} 兜底",
-      "lead": "阶段负责人",
-      "unassigned": "未分配",
-      "dueDate": "截止日期",
-      "linkEntity": "关联{{entity}}",
-      "linkedEntity": "已关联 {{entity}} #{{id}}",
-      "view": "查看",
-      "loadingEntities": "加载中...",
-      "selectExistingEntity": "选择已有{{entity}}",
-      "noExistingEntity": "暂无可关联{{entity}}",
-      "linkSelected": "关联选中实体",
-      "changeLink": "更换关联",
-      "unlinkEntity": "取消关联{{entity}}",
-      "createAndLink": "创建并关联{{entity}}",
-      "rejectReason": "拒绝原因",
-      "resubmit": "重新提交",
-      "approveFinal": "批准定稿",
-      "reject": "拒绝",
-      "rejectPlaceholder": "请填写拒绝原因...",
-      "confirmReject": "确认拒绝",
-      "reopen": "重新开放（级联回退下游）",
-      "clickToEdit": "点击编辑...",
-      "contentType": "内容类型",
-      "openWorkspace": "在工作台打开实体"
-    },
-    "contentTypes": {
-      "script": "剧本",
-      "setting": "设定",
-      "storyboard": "分镜",
-      "shot": "镜头",
-      "asset": "素材",
-      "episode": "分集",
-      "scene": "分场",
-      "final_video": "成片",
-      "custom": "自定义"
-    },
-    "workspace": {
-      "empty": "暂无内容，点击右上角新建",
-      "customHint": "自定义阶段，请在内容库中管理相关内容",
-      "createFirst": "新建第一个{{type}}",
-      "inlineEmpty": "选择一个节点后，工作区会在这里展示。",
-      "resizeHandle": "拖动调整工作区高度"
-    }
-  },
   "work": {
     "creationCanvas": "创作画布",
     "collapseCanvas": "收起画布",
-    "pipeline": "管线",
     "searchPlaceholder": "搜索{{entity}}…",
     "noSearchResults": "没有匹配的产物",
     "emptyKindHint": "暂无{{entity}}，点击右侧新建",
@@ -2260,7 +2001,6 @@
       "myAgents": "我的 Agent",
       "agentDebug": "Agent 调试",
       "production": "生产中台",
-      "pipeline": "管线",
       "creation": "工作台",
       "collaboration": "协作",
       "user": "用户资料",

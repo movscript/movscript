@@ -1,4 +1,4 @@
-package genjob
+package job
 
 import (
 	"context"

@@ -8,7 +8,6 @@ import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { defaultContentType, type PipelineEntityType } from '@/pages/pipeline/nodeSpec'
 import { buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from '@/components/settings/SettingDetailEditor'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 
@@ -22,33 +21,6 @@ export interface EntityFormProps {
   projectId: number
   onSuccess: () => void
   onCancel: () => void
-}
-
-function workNodeTypeForEntity(entityType: PipelineEntityType, scriptType?: Script['script_type']) {
-  if (entityType === 'final_video') return 'episode_edit'
-  if (scriptType === 'episode') return 'episode_writing'
-  if (scriptType === 'scene') return 'scene_writing'
-  if (entityType === 'script') return 'script_writing'
-  if (entityType === 'setting') return 'setting_creation'
-  if (entityType === 'storyboard') return 'storyboard_creation'
-  if (entityType === 'shot') return 'shot_production'
-  if (entityType === 'asset') return 'asset_creation'
-  if (entityType === 'episode') return 'episode_writing'
-  if (entityType === 'scene') return 'scene_writing'
-  return 'script_writing'
-}
-
-function spawnPipelineNode(projectId: number, entityType: PipelineEntityType, entityId: number, name: string, scriptType?: Script['script_type']) {
-  const workType = workNodeTypeForEntity(entityType, scriptType)
-  api.post(`/projects/${projectId}/pipeline/nodes`, {
-    type: workType,
-    name,
-    content_type: entityType || defaultContentType(workType),
-    entity_type: entityType,
-    entity_id: entityId,
-    pos_x: 0,
-    pos_y: 0,
-  }).catch(() => {/* fire-and-forget */})
 }
 
 export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormProps) {
@@ -76,12 +48,10 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
         script_type: type,
         episode_id: episodeId ?? undefined,
       }).then((r) => r.data),
-    onSuccess: (created: Script) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
       qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'script', created.ID, created.title, type)
       onSuccess()
     },
   })
@@ -290,8 +260,6 @@ export function AssetCreateForm({
       qc.invalidateQueries({ queryKey: ['assets'] })
       qc.invalidateQueries({ queryKey: ['assets', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'asset', created.ID, created.name)
       onCreated?.(created)
       onSuccess()
     },
@@ -432,8 +400,6 @@ export function EpisodeCreateForm({ projectId, onSuccess, onCancel }: EntityForm
       }
       qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'episode', created.ID, created.title)
       onSuccess()
     },
   })
@@ -492,10 +458,8 @@ export function SceneCreateForm({ projectId, onSuccess, onCancel }: EntityFormPr
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/scenes`, { title }).then((r) => r.data),
-    onSuccess: (created: Scene) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'scene', created.ID, created.title)
       onSuccess()
     },
   })
@@ -561,11 +525,9 @@ export function StoryboardCreateForm({ projectId, onSuccess, onCancel }: EntityF
         episode_id: episodeId ?? undefined,
         setting_id: settingId ?? undefined,
       }).then((r) => r.data),
-    onSuccess: (created: Storyboard) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['storyboards-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'storyboard', created.ID, created.title || created.description || `#${created.ID}`)
       onSuccess()
     },
   })
@@ -655,11 +617,9 @@ export function ShotCreateForm({ projectId, onSuccess, onCancel }: EntityFormPro
       }
       return api.post(`/projects/${projectId}/shots`, { description: desc || undefined, status: 'draft' }).then((r) => r.data)
     },
-    onSuccess: (created: { ID: number; description?: string }) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shots-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      spawnPipelineNode(projectId, 'shot', created.ID, created.description || `Shot #${created.ID}`)
       onSuccess()
     },
   })

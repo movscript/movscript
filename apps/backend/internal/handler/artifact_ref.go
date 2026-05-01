@@ -22,16 +22,15 @@ type ArtifactEntityContext struct {
 }
 
 type ArtifactRef struct {
-	Kind           string                `json:"kind"`
-	ID             uint                  `json:"id"`
-	Title          string                `json:"title"`
-	Subtitle       string                `json:"subtitle,omitempty"`
-	Status         string                `json:"status,omitempty"`
-	PipelineNodeID *uint                 `json:"pipeline_node_id,omitempty"`
-	EntityContext  ArtifactEntityContext `json:"entity_context"`
-	Resource       *model.RawResource    `json:"resource,omitempty"`
-	CreatedAt      string                `json:"created_at"`
-	UpdatedAt      string                `json:"updated_at"`
+	Kind          string                `json:"kind"`
+	ID            uint                  `json:"id"`
+	Title         string                `json:"title"`
+	Subtitle      string                `json:"subtitle,omitempty"`
+	Status        string                `json:"status,omitempty"`
+	EntityContext ArtifactEntityContext `json:"entity_context"`
+	Resource      *model.RawResource    `json:"resource,omitempty"`
+	CreatedAt     string                `json:"created_at"`
+	UpdatedAt     string                `json:"updated_at"`
 }
 
 func (h *ArtifactRefHandler) ListByProject(c *gin.Context) {
@@ -74,14 +73,13 @@ func (h *ArtifactRefHandler) scriptRefs(projectID uint) []ArtifactRef {
 			}
 		}
 		refs = append(refs, ArtifactRef{
-			Kind:           "script",
-			ID:             script.ID,
-			Title:          fallbackTitle(script.Title, "未命名剧本"),
-			Subtitle:       subtitle,
-			PipelineNodeID: script.PipelineNodeID,
-			EntityContext:  ArtifactEntityContext{EpisodeID: script.EpisodeID},
-			CreatedAt:      script.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:      script.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "script",
+			ID:            script.ID,
+			Title:         fallbackTitle(script.Title, "未命名剧本"),
+			Subtitle:      subtitle,
+			EntityContext: ArtifactEntityContext{EpisodeID: script.EpisodeID},
+			CreatedAt:     script.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     script.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
@@ -108,16 +106,15 @@ func (h *ArtifactRefHandler) assetRefs(c *gin.Context, projectID uint) []Artifac
 			}
 		}
 		refs = append(refs, ArtifactRef{
-			Kind:           "asset",
-			ID:             asset.ID,
-			Title:          fallbackTitle(asset.Name, "未命名素材"),
-			Subtitle:       asset.Type,
-			Status:         asset.ReviewStatus,
-			PipelineNodeID: asset.PipelineNodeID,
-			EntityContext:  ArtifactEntityContext{SettingID: asset.SettingID},
-			Resource:       resource,
-			CreatedAt:      asset.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:      asset.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "asset",
+			ID:            asset.ID,
+			Title:         fallbackTitle(asset.Name, "未命名素材"),
+			Subtitle:      asset.Type,
+			Status:        asset.ReviewStatus,
+			EntityContext: ArtifactEntityContext{SettingID: asset.SettingID},
+			Resource:      resource,
+			CreatedAt:     asset.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     asset.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
@@ -129,14 +126,13 @@ func (h *ArtifactRefHandler) storyboardRefs(projectID uint) []ArtifactRef {
 	refs := make([]ArtifactRef, 0, len(storyboards))
 	for _, storyboard := range storyboards {
 		refs = append(refs, ArtifactRef{
-			Kind:           "storyboard",
-			ID:             storyboard.ID,
-			Title:          fallbackTitle(storyboard.Title, "分镜 #"+intToString(storyboard.Order)),
-			Subtitle:       storyboard.Description,
-			PipelineNodeID: storyboard.PipelineNodeID,
-			EntityContext:  ArtifactEntityContext{EpisodeID: storyboard.EpisodeID, SceneID: storyboard.SceneID, SettingID: storyboard.SettingID},
-			CreatedAt:      storyboard.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:      storyboard.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "storyboard",
+			ID:            storyboard.ID,
+			Title:         fallbackTitle(storyboard.Title, "分镜 #"+intToString(storyboard.Order)),
+			Subtitle:      storyboard.Description,
+			EntityContext: ArtifactEntityContext{EpisodeID: storyboard.EpisodeID, SceneID: storyboard.SceneID, SettingID: storyboard.SettingID},
+			CreatedAt:     storyboard.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     storyboard.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
@@ -156,15 +152,14 @@ func (h *ArtifactRefHandler) shotRefs(projectID uint) []ArtifactRef {
 			}
 		}
 		refs = append(refs, ArtifactRef{
-			Kind:           "shot",
-			ID:             shot.ID,
-			Title:          "镜头 #" + intToString(shot.Order),
-			Subtitle:       fallbackTitle(shot.FinalDescription, shot.Description),
-			Status:         shot.Status,
-			PipelineNodeID: shot.PipelineNodeID,
-			EntityContext:  ctx,
-			CreatedAt:      shot.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:      shot.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "shot",
+			ID:            shot.ID,
+			Title:         "镜头 #" + intToString(shot.Order),
+			Subtitle:      fallbackTitle(shot.FinalDescription, shot.Description),
+			Status:        shot.Status,
+			EntityContext: ctx,
+			CreatedAt:     shot.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     shot.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
@@ -177,11 +172,10 @@ func (h *ArtifactRefHandler) finalVideoRefs(c *gin.Context, projectID uint) []Ar
 	for _, video := range videos {
 		resource := h.firstBoundResource(c, projectID, "final_video", video.ID, "final", "output", "draft")
 		refs = append(refs, ArtifactRef{
-			Kind:           "final_video",
-			ID:             video.ID,
-			Title:          fallbackTitle(video.Title, "成片"),
-			Subtitle:       video.Description,
-			PipelineNodeID: video.PipelineNodeID,
+			Kind:     "final_video",
+			ID:       video.ID,
+			Title:    fallbackTitle(video.Title, "成片"),
+			Subtitle: video.Description,
 			EntityContext: ArtifactEntityContext{
 				EpisodeID:    video.EpisodeID,
 				SceneID:      video.SceneID,

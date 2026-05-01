@@ -30,9 +30,6 @@ func (h *FinalVideoHandler) ListByProject(c *gin.Context) {
 	if shid := c.Query("shot_id"); shid != "" {
 		q = q.Where("shot_id = ?", shid)
 	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
-	}
 	q.Find(&videos)
 	c.JSON(http.StatusOK, videos)
 }

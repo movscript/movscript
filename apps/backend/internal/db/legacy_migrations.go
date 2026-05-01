@@ -10,7 +10,6 @@ import (
 
 func runLegacyCleanupAndBackfill(db *gorm.DB) error {
 	statements := []string{
-		// PipelineNode is the only production task unit; remove old standalone task tables.
 		"DROP TABLE IF EXISTS task_comments",
 		"DROP TABLE IF EXISTS tasks",
 
@@ -59,8 +58,6 @@ func runLegacyCleanupAndBackfill(db *gorm.DB) error {
 		"ALTER TABLE assets DROP COLUMN IF EXISTS reference_ids",
 		"ALTER TABLE asset_views DROP COLUMN IF EXISTS resource_id",
 
-		"UPDATE pipeline_edges SET relation_type = 'hierarchy' WHERE relation_type IS NULL OR relation_type = ''",
-
 		// Backfill storyboard.project_id from linked scene.
 		`
 			UPDATE storyboards sb
@@ -88,9 +85,6 @@ func runLegacyCleanupAndBackfill(db *gorm.DB) error {
 		return err
 	}
 	if err := migrateShotCameraParams(db); err != nil {
-		return err
-	}
-	if err := backfillPipelineLinks(db); err != nil {
 		return err
 	}
 	return nil
@@ -154,70 +148,6 @@ func migrateShotCameraParams(db *gorm.DB) error {
 
 	for _, col := range shotParamCols {
 		if err := execSQL(db, "ALTER TABLE shots DROP COLUMN IF EXISTS "+col); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func backfillPipelineLinks(db *gorm.DB) error {
-	statements := []string{
-		`
-			UPDATE pipeline_nodes SET content_type = CASE
-				WHEN type IN ('script_writing','raw_script','main_script','episode_writing','episode_script','scene_writing','scene_script') THEN 'script'
-				WHEN type IN ('storyboard_creation','storyboard_script','storyboard') THEN 'storyboard'
-				WHEN type IN ('shot_production','shot') THEN 'shot'
-				WHEN type IN ('asset_creation','asset') THEN 'asset'
-				WHEN type IN ('setting_creation','setting') THEN 'setting'
-				WHEN type IN ('episode') THEN 'episode'
-				WHEN type IN ('episode_edit','final_video') THEN 'final_video'
-				WHEN type IN ('scene') THEN 'scene'
-				ELSE 'custom'
-			END
-		`,
-		`
-			UPDATE scripts e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'script' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE storyboards e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'storyboard' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE shots e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'shot' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE assets e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'asset' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE settings e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'setting' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE episodes e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'episode' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE scenes e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'scene' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-		`
-			UPDATE final_videos e SET pipeline_node_id = pn.id
-			FROM pipeline_nodes pn
-			WHERE pn.entity_type = 'final_video' AND pn.entity_id = e.id AND e.pipeline_node_id IS NULL
-		`,
-	}
-	for _, statement := range statements {
-		if err := execSQL(db, statement); err != nil {
 			return err
 		}
 	}

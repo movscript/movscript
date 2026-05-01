@@ -20,13 +20,16 @@ type VolcenAdapter struct {
 	client  *arkruntime.Client
 }
 
+const volcenTextMaxTokensLimit = 131072
+const volcenHTTPTimeout = 10 * time.Minute
+
 func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 	if baseURL == "" {
 		baseURL = "https://ark.cn-beijing.volces.com/api/v3"
 	}
 	c := arkruntime.NewClientWithApiKey(apiKey,
 		arkruntime.WithBaseUrl(baseURL),
-		arkruntime.WithHTTPClient(debugHTTPClient(apiKey, 30*time.Second)),
+		arkruntime.WithHTTPClient(debugHTTPClient(apiKey, volcenHTTPTimeout)),
 	)
 	return &VolcenAdapter{baseURL: baseURL, client: c}
 }
@@ -75,6 +78,7 @@ func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				return
 			}
 			if err != nil {
+				out <- TextStreamEvent{Error: fmt.Sprintf("volcen text stream receive: %v", err)}
 				return
 			}
 			event := TextStreamEvent{}
@@ -82,6 +86,9 @@ func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				choice := resp.Choices[0]
 				event.Role = choice.Delta.Role
 				event.ContentDelta = choice.Delta.Content
+				if choice.Delta.ReasoningContent != nil {
+					event.ReasoningDelta = *choice.Delta.ReasoningContent
+				}
 				if choice.FinishReason != "" {
 					event.FinishReason = string(choice.FinishReason)
 				}
@@ -115,6 +122,9 @@ func buildVolcenChatRequest(req TextRequest) arkmodel.CreateChatCompletionReques
 	}
 	if req.MaxTokens > 0 {
 		n := req.MaxTokens
+		if n > volcenTextMaxTokensLimit {
+			n = volcenTextMaxTokensLimit
+		}
 		arkReq.MaxTokens = &n
 	}
 	if req.Temperature >= 0 {
@@ -277,7 +287,7 @@ func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 		return startResp, nil
 	}
 
-	// Legacy synchronous path for direct callers. The genjob worker uses
+	// Legacy synchronous path for direct callers. The job worker uses
 	// VideoStart/VideoPoll so submitted task IDs are persisted before polling.
 	for i := 0; i < 60; i++ {
 		select {

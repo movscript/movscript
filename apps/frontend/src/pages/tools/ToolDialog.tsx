@@ -4,14 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
-import type { RawResource, NodeType, GenJob, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
+import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
 import {
   ArrowLeft, Wand2, Loader2,
   Bug, Copy, Check, History, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
-import { GenJobContextSummary, GenResultCard } from '@/components/shared/GenResultCard'
+import { JobContextSummary, GenResultCard } from '@/components/shared/GenResultCard'
 import type { InputSlotDef } from '@/components/shared/GenInputCard'
 import { GenInputCard } from '@/components/shared/GenInputCard'
 import {
@@ -58,7 +58,7 @@ function buildCurl(d: DebugCallResult): string {
 
 // ── DebugPanel ────────────────────────────────────────────────────────────────
 
-function DebugPanel({ job }: { job: GenJob }) {
+function DebugPanel({ job }: { job: Job }) {
   const { t, i18n } = useTranslation()
   const params = job.extra_params ? (() => { try { return JSON.parse(job.extra_params!) } catch { return {} } })() : {}
   const debug: DebugCallResult | null = job.debug_info ? (() => {
@@ -106,7 +106,7 @@ function DebugPanel({ job }: { job: GenJob }) {
         <KV label={t('tools.debug.configId')} value={String(job.model_config_id)} />
         {job.started_at && <KV label={t('tools.debug.started')} value={new Date(job.started_at).toLocaleTimeString(i18n.language)} />}
         {job.finished_at && <KV label={t('tools.debug.finished')} value={new Date(job.finished_at).toLocaleTimeString(i18n.language)} />}
-        {job.error_msg && <KV label={t('pipeline.toolNode.error')} value={job.error_msg} color="text-destructive" />}
+        {job.error_msg && <KV label={t('common.error')} value={job.error_msg} color="text-destructive" />}
       </div>
 
       {/* ── Job 调用上下文（worker 填入）── */}
@@ -190,7 +190,7 @@ function GenerationCard({
   onReuse,
   debugMode,
 }: {
-  job: GenJob
+  job: Job
   outputType: 'image' | 'video'
   onReuse: () => void
   debugMode: boolean
@@ -205,7 +205,7 @@ function GenerationCard({
       error={job.error_msg}
       timestamp={job.CreatedAt}
       onReuse={onReuse}
-      contextPanel={<GenJobContextSummary job={job} />}
+      contextPanel={<JobContextSummary job={job} />}
       debugPanel={debugMode ? <DebugPanel job={job} /> : undefined}
       compact
     />
@@ -330,9 +330,9 @@ export function ToolDialog({
     }
     return warnings
   })()
-  const { data: jobsData } = useQuery<PaginatedResponse<GenJob>>({
-    queryKey: ['gen-jobs', _nodeType, historyPage],
-    queryFn: () => api.get('/gen-jobs', {
+  const { data: jobsData } = useQuery<PaginatedResponse<Job>>({
+    queryKey: ['jobs', _nodeType, historyPage],
+    queryFn: () => api.get('/jobs', {
       params: { feature: _nodeType, page: historyPage, page_size: historyPageSize },
     }).then((r) => r.data),
     refetchInterval: activeJobId ? 3000 : 30000,
@@ -400,7 +400,7 @@ export function ToolDialog({
     const { aspect_ratio, duration, ...remainingParams } = extraParams as Record<string, string | number | boolean>
     const durationValue = duration === undefined || duration === '' ? undefined : Number(duration)
     try {
-      const job = await api.post('/gen-jobs', {
+      const job = await api.post('/jobs', {
         model_config_id: selectedModelId,
         job_type: effectiveJobType,
         prompt: prompt.trim(),
@@ -409,12 +409,12 @@ export function ToolDialog({
         extra_params: Object.keys(remainingParams).length > 0 ? JSON.stringify(remainingParams) : undefined,
         input_resource_ids: attachments.map((a) => a.ID),
         feature_key: _nodeType,
-      }).then((r) => r.data as GenJob)
+      }).then((r) => r.data as Job)
       setActiveJobId(job.ID)
       setHistoryPage(1)
       setPrompt('')
       setAttachments([])
-      qc.invalidateQueries({ queryKey: ['gen-jobs', _nodeType] })
+      qc.invalidateQueries({ queryKey: ['jobs', _nodeType] })
     } catch { /* toast handled by interceptor */ }
   }
 

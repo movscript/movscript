@@ -10,18 +10,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
-	"github.com/movscript/movscript/internal/genjob"
+	jobrunner "github.com/movscript/movscript/internal/job"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
 
-type GenJobHandler struct {
+type JobHandler struct {
 	db        *gorm.DB
 	aiService *ai.AIService
 }
 
-type genJobResponse struct {
-	model.GenJob
+type jobResponse struct {
+	model.Job
 	InputResources  []model.RawResource  `json:"input_resources,omitempty"`
 	ModelConfig     *model.AIModelConfig `json:"model_config,omitempty"`
 	ProviderName    string               `json:"provider_name,omitempty"`
@@ -29,17 +29,17 @@ type genJobResponse struct {
 	ModelIdentifier string               `json:"model_identifier,omitempty"`
 }
 
-type genJobContextSnapshot struct {
-	Model          genJobModelSnapshot      `json:"model"`
-	JobType        string                   `json:"job_type"`
-	FeatureKey     string                   `json:"feature_key,omitempty"`
-	Prompt         string                   `json:"prompt"`
-	Params         genJobParamsSnapshot     `json:"params"`
-	InputResources []genJobResourceSnapshot `json:"input_resources,omitempty"`
-	CreatedAt      time.Time                `json:"created_at"`
+type jobContextSnapshot struct {
+	Model          jobModelSnapshot      `json:"model"`
+	JobType        string                `json:"job_type"`
+	FeatureKey     string                `json:"feature_key,omitempty"`
+	Prompt         string                `json:"prompt"`
+	Params         jobParamsSnapshot     `json:"params"`
+	InputResources []jobResourceSnapshot `json:"input_resources,omitempty"`
+	CreatedAt      time.Time             `json:"created_at"`
 }
 
-type genJobModelSnapshot struct {
+type jobModelSnapshot struct {
 	ConfigID     uint   `json:"config_id"`
 	DisplayName  string `json:"display_name"`
 	Identifier   string `json:"identifier"`
@@ -48,13 +48,13 @@ type genJobModelSnapshot struct {
 	CredentialID uint   `json:"credential_id"`
 }
 
-type genJobParamsSnapshot struct {
+type jobParamsSnapshot struct {
 	AspectRatio string         `json:"aspect_ratio,omitempty"`
 	Duration    int            `json:"duration,omitempty"`
 	ExtraParams map[string]any `json:"extra_params,omitempty"`
 }
 
-type genJobResourceSnapshot struct {
+type jobResourceSnapshot struct {
 	ID       uint   `json:"id"`
 	Name     string `json:"name"`
 	Type     string `json:"type"`
@@ -62,12 +62,12 @@ type genJobResourceSnapshot struct {
 	Size     int64  `json:"size,omitempty"`
 }
 
-func NewGenJobHandler(db *gorm.DB, aiService *ai.AIService) *GenJobHandler {
-	return &GenJobHandler{db: db, aiService: aiService}
+func NewJobHandler(db *gorm.DB, aiService *ai.AIService) *JobHandler {
+	return &JobHandler{db: db, aiService: aiService}
 }
 
 // Create enqueues a new generation job and returns immediately with status=pending.
-func (h *GenJobHandler) Create(c *gin.Context) {
+func (h *JobHandler) Create(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
@@ -147,8 +147,8 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 	if len(allIDs) > 0 {
 		legacyInputID = &allIDs[0]
 	}
-	requestContext := buildGenJobContextSnapshot(mcfg, cred, req.Prompt, req.ExtraParams, req.AspectRatio, req.Duration, jobType, req.FeatureKey, orderedResources(inputResources, allIDs), time.Now())
-	estimate, err := h.estimateGenJobCost(req.ModelConfigID, jobType, req.Duration, req.ExtraParams, req.AspectRatio)
+	requestContext := buildJobContextSnapshot(mcfg, cred, req.Prompt, req.ExtraParams, req.AspectRatio, req.Duration, jobType, req.FeatureKey, orderedResources(inputResources, allIDs), time.Now())
+	estimate, err := h.estimateJobCost(req.ModelConfigID, jobType, req.Duration, req.ExtraParams, req.AspectRatio)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -163,13 +163,13 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		return
 	}
 
-	job := model.GenJob{
+	job := model.Job{
 		UserID:             user.ID,
 		ModelConfigID:      req.ModelConfigID,
 		JobType:            jobType,
 		FeatureKey:         req.FeatureKey,
-		Status:             genjob.StatusPending,
-		MaxAttempts:        genjob.DefaultMaxAttempts,
+		Status:             jobrunner.StatusPending,
+		MaxAttempts:        jobrunner.DefaultMaxAttempts,
 		Prompt:             req.Prompt,
 		ExtraParams:        req.ExtraParams,
 		AspectRatio:        req.AspectRatio,
@@ -185,12 +185,12 @@ func (h *GenJobHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	_ = h.aiService.SetReservationGenJob(c.Request.Context(), reservation.ID, job.ID)
-	c.JSON(http.StatusCreated, h.buildJobResponses(c, []model.GenJob{job})[0])
+	_ = h.aiService.SetReservationJob(c.Request.Context(), reservation.ID, job.ID)
+	c.JSON(http.StatusCreated, h.buildJobResponses(c, []model.Job{job})[0])
 }
 
 // loadInputResources loads resources by ID and returns them plus image/video counts.
-func (h *GenJobHandler) loadInputResources(ids []uint) (resources []model.RawResource, imageCount, videoCount int, err error) {
+func (h *JobHandler) loadInputResources(ids []uint) (resources []model.RawResource, imageCount, videoCount int, err error) {
 	if len(ids) == 0 {
 		return nil, 0, 0, nil
 	}
@@ -232,7 +232,7 @@ func mergeIDs(arr []uint, single *uint) []uint {
 	return result
 }
 
-func parseJobInputIDs(job model.GenJob) []uint {
+func parseJobInputIDs(job model.Job) []uint {
 	var ids []uint
 	if job.InputResourceIDs != "" {
 		_ = json.Unmarshal([]byte(job.InputResourceIDs), &ids)
@@ -262,8 +262,8 @@ func orderedResources(resources []model.RawResource, ids []uint) []model.RawReso
 	return ordered
 }
 
-func buildGenJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredential, prompt, extraParams, aspectRatio string, duration int, jobType, featureKey string, inputResources []model.RawResource, createdAt time.Time) string {
-	params := genJobParamsSnapshot{
+func buildJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredential, prompt, extraParams, aspectRatio string, duration int, jobType, featureKey string, inputResources []model.RawResource, createdAt time.Time) string {
+	params := jobParamsSnapshot{
 		AspectRatio: aspectRatio,
 		Duration:    duration,
 	}
@@ -273,9 +273,9 @@ func buildGenJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredentia
 			params.ExtraParams = parsed
 		}
 	}
-	resources := make([]genJobResourceSnapshot, 0, len(inputResources))
+	resources := make([]jobResourceSnapshot, 0, len(inputResources))
 	for _, r := range inputResources {
-		resources = append(resources, genJobResourceSnapshot{
+		resources = append(resources, jobResourceSnapshot{
 			ID:       r.ID,
 			Name:     r.Name,
 			Type:     r.Type,
@@ -283,11 +283,11 @@ func buildGenJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredentia
 			Size:     r.Size,
 		})
 	}
-	snapshot := genJobContextSnapshot{
-		Model: genJobModelSnapshot{
+	snapshot := jobContextSnapshot{
+		Model: jobModelSnapshot{
 			ConfigID:     mcfg.ID,
-			DisplayName:  genJobModelDisplay(mcfg),
-			Identifier:   genJobModelIdentifier(mcfg),
+			DisplayName:  jobModelDisplay(mcfg),
+			Identifier:   jobModelIdentifier(mcfg),
 			ModelDefID:   mcfg.ModelDefID,
 			ProviderName: cred.DisplayName,
 			CredentialID: mcfg.CredentialID,
@@ -306,7 +306,7 @@ func buildGenJobContextSnapshot(mcfg model.AIModelConfig, cred model.AICredentia
 	return string(b)
 }
 
-func (h *GenJobHandler) estimateGenJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
+func (h *JobHandler) estimateJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
 	extra := map[string]any{}
 	if extraParams != "" {
 		_ = json.Unmarshal([]byte(extraParams), &extra)
@@ -355,17 +355,17 @@ func (h *GenJobHandler) estimateGenJobCost(modelConfigID uint, jobType string, d
 	}
 }
 
-func genJobModelDisplay(mcfg model.AIModelConfig) string {
+func jobModelDisplay(mcfg model.AIModelConfig) string {
 	return firstNonEmptyHandler(mcfg.CustomDisplayName, mcfg.ModelDefID, "Model")
 }
 
-func genJobModelIdentifier(mcfg model.AIModelConfig) string {
+func jobModelIdentifier(mcfg model.AIModelConfig) string {
 	return firstNonEmptyHandler(mcfg.ModelIDOverride, mcfg.ModelDefID)
 }
 
-func (h *GenJobHandler) buildJobResponses(c *gin.Context, jobs []model.GenJob) []genJobResponse {
+func (h *JobHandler) buildJobResponses(c *gin.Context, jobs []model.Job) []jobResponse {
 	if len(jobs) == 0 {
-		return []genJobResponse{}
+		return []jobResponse{}
 	}
 
 	resourceIDSet := make(map[uint]bool)
@@ -425,9 +425,9 @@ func (h *GenJobHandler) buildJobResponses(c *gin.Context, jobs []model.GenJob) [
 		}
 	}
 
-	resp := make([]genJobResponse, 0, len(jobs))
+	resp := make([]jobResponse, 0, len(jobs))
 	for _, job := range jobs {
-		item := genJobResponse{GenJob: job}
+		item := jobResponse{Job: job}
 		inputIDs := parseJobInputIDs(job)
 		item.InputResources = make([]model.RawResource, 0, len(inputIDs))
 		seenResources := make(map[uint]bool, len(inputIDs))
@@ -443,8 +443,8 @@ func (h *GenJobHandler) buildJobResponses(c *gin.Context, jobs []model.GenJob) [
 		if cfg, ok := configsByID[job.ModelConfigID]; ok {
 			cfgCopy := cfg
 			item.ModelConfig = &cfgCopy
-			item.ModelDisplay = genJobModelDisplay(cfg)
-			item.ModelIdentifier = genJobModelIdentifier(cfg)
+			item.ModelDisplay = jobModelDisplay(cfg)
+			item.ModelIdentifier = jobModelIdentifier(cfg)
 			if cred, ok := credentialsByID[cfg.CredentialID]; ok {
 				item.ProviderName = cred.DisplayName
 			}
@@ -455,7 +455,7 @@ func (h *GenJobHandler) buildJobResponses(c *gin.Context, jobs []model.GenJob) [
 }
 
 // List returns the current user's generation jobs (newest first).
-func (h *GenJobHandler) List(c *gin.Context) {
+func (h *JobHandler) List(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
@@ -484,7 +484,7 @@ func (h *GenJobHandler) List(c *gin.Context) {
 		offset = 0
 	}
 
-	q := h.db.Model(&model.GenJob{}).Where("user_id = ?", user.ID)
+	q := h.db.Model(&model.Job{}).Where("user_id = ?", user.ID)
 	if status := c.Query("status"); status != "" {
 		q = q.Where("status = ?", status)
 	}
@@ -504,7 +504,7 @@ func (h *GenJobHandler) List(c *gin.Context) {
 	var total int64
 	q.Count(&total)
 
-	var jobs []model.GenJob
+	var jobs []model.Job
 	q.Preload("OutputResource").Order("id desc").Limit(limit).Offset(offset).Find(&jobs)
 	resp := h.buildJobResponses(c, jobs)
 	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
@@ -516,14 +516,14 @@ func (h *GenJobHandler) List(c *gin.Context) {
 }
 
 // Get returns a single job by ID with its output resource.
-func (h *GenJobHandler) Get(c *gin.Context) {
+func (h *JobHandler) Get(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
 
-	var job model.GenJob
+	var job model.Job
 	if err := h.db.Preload("OutputResource").First(&job, c.Param("id")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -533,18 +533,18 @@ func (h *GenJobHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, h.buildJobResponses(c, []model.GenJob{job})[0])
+	c.JSON(http.StatusOK, h.buildJobResponses(c, []model.Job{job})[0])
 }
 
 // Retry requeues a failed generation job for manual retry.
-func (h *GenJobHandler) Retry(c *gin.Context) {
+func (h *JobHandler) Retry(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
 
-	var job model.GenJob
+	var job model.Job
 	if err := h.db.First(&job, c.Param("id")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -553,11 +553,11 @@ func (h *GenJobHandler) Retry(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
-	if job.Status == genjob.StatusSucceeded {
+	if job.Status == jobrunner.StatusSucceeded {
 		c.JSON(http.StatusConflict, gin.H{"error": "succeeded jobs cannot be retried"})
 		return
 	}
-	if job.Status == genjob.StatusRunning {
+	if job.Status == jobrunner.StatusRunning {
 		c.JSON(http.StatusConflict, gin.H{"error": "running jobs cannot be retried until they fail or time out"})
 		return
 	}
@@ -565,10 +565,10 @@ func (h *GenJobHandler) Retry(c *gin.Context) {
 	now := time.Now()
 	maxAttempts := job.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = genjob.DefaultMaxAttempts
+		maxAttempts = jobrunner.DefaultMaxAttempts
 	}
 	if err := h.db.Model(&job).Updates(map[string]any{
-		"status":                genjob.StatusPending,
+		"status":                jobrunner.StatusPending,
 		"attempt_count":         0,
 		"max_attempts":          maxAttempts,
 		"error_msg":             "",
@@ -584,7 +584,7 @@ func (h *GenJobHandler) Retry(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	genjob.MarkRetryScheduled(h.db, &job, "manual retry requested")
+	jobrunner.MarkRetryScheduled(h.db, &job, "manual retry requested")
 
 	if err := h.db.Preload("OutputResource").First(&job, job.ID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -595,14 +595,14 @@ func (h *GenJobHandler) Retry(c *gin.Context) {
 
 // Cancel requests cancellation for a video generation job.
 // Provider-side cancellation is currently supported for Volcengine async video tasks.
-func (h *GenJobHandler) Cancel(c *gin.Context) {
+func (h *JobHandler) Cancel(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
 
-	var job model.GenJob
+	var job model.Job
 	if err := h.db.First(&job, c.Param("id")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -611,18 +611,18 @@ func (h *GenJobHandler) Cancel(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
-	if !isVideoGenJob(job.JobType) {
+	if !isVideoJob(job.JobType) {
 		c.JSON(http.StatusConflict, gin.H{"error": "only video generation jobs can be cancelled"})
 		return
 	}
 	switch job.Status {
-	case genjob.StatusCancelled:
+	case jobrunner.StatusCancelled:
 		c.JSON(http.StatusOK, job)
 		return
-	case genjob.StatusSucceeded, genjob.StatusFailed:
+	case jobrunner.StatusSucceeded, jobrunner.StatusFailed:
 		c.JSON(http.StatusConflict, gin.H{"error": "finished jobs cannot be cancelled"})
 		return
-	case genjob.StatusPending, genjob.StatusRunning:
+	case jobrunner.StatusPending, jobrunner.StatusRunning:
 	default:
 		c.JSON(http.StatusConflict, gin.H{"error": "job cannot be cancelled from status " + job.Status})
 		return
@@ -648,7 +648,7 @@ func (h *GenJobHandler) Cancel(c *gin.Context) {
 
 	now := time.Now()
 	if err := h.db.Model(&job).Updates(map[string]any{
-		"status":               genjob.StatusCancelled,
+		"status":               jobrunner.StatusCancelled,
 		"provider_task_status": providerStatus,
 		"error_msg":            message,
 		"next_run_at":          nil,
@@ -669,14 +669,14 @@ func (h *GenJobHandler) Cancel(c *gin.Context) {
 }
 
 // Delete cancels a pending job or removes a finished job record.
-func (h *GenJobHandler) Delete(c *gin.Context) {
+func (h *JobHandler) Delete(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
 
-	var job model.GenJob
+	var job model.Job
 	if err := h.db.First(&job, c.Param("id")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -687,10 +687,10 @@ func (h *GenJobHandler) Delete(c *gin.Context) {
 	}
 
 	// Only cancel pending jobs; running jobs should use the explicit cancel endpoint.
-	if job.Status == genjob.StatusPending {
+	if job.Status == jobrunner.StatusPending {
 		now := time.Now()
 		h.db.Model(&job).Updates(map[string]any{
-			"status":            genjob.StatusCancelled,
+			"status":            jobrunner.StatusCancelled,
 			"error_msg":         "cancelled by user",
 			"finished_at":       &now,
 			"next_run_at":       nil,
@@ -699,7 +699,7 @@ func (h *GenJobHandler) Delete(c *gin.Context) {
 		if job.UsageReservationID != nil {
 			_ = h.aiService.ReleaseReservation(c.Request.Context(), *job.UsageReservationID, "cancelled by user")
 		}
-	} else if job.Status == genjob.StatusRunning {
+	} else if job.Status == jobrunner.StatusRunning {
 		c.JSON(http.StatusConflict, gin.H{"error": "running jobs must be cancelled before deletion"})
 		return
 	} else {
@@ -708,7 +708,7 @@ func (h *GenJobHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func isVideoGenJob(jobType string) bool {
+func isVideoJob(jobType string) bool {
 	switch jobType {
 	case ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
 		return true

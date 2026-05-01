@@ -66,6 +66,9 @@ func TestAnalyzerSinglePass(t *testing.T) {
 	if !caller.requests[0].JSONMode {
 		t.Fatalf("JSONMode = false, want true")
 	}
+	if caller.requests[0].MaxTokens != ai.DefaultTextMaxTokens {
+		t.Fatalf("MaxTokens = %d, want %d", caller.requests[0].MaxTokens, ai.DefaultTextMaxTokens)
+	}
 	if !strings.Contains(result.Prompt, "测试剧本") {
 		t.Fatalf("prompt does not include script title")
 	}
@@ -74,12 +77,8 @@ func TestAnalyzerSinglePass(t *testing.T) {
 	}
 }
 
-func TestAnalyzerChunksAndReducesLongContent(t *testing.T) {
-	caller := &fakeTextCaller{responses: []string{
-		`{"summary":"片段1"}`,
-		`{"summary":"片段2"}`,
-		`{"summary":"合并"}`,
-	}}
+func TestAnalyzerUsesFullContextForLongContent(t *testing.T) {
+	caller := &fakeTextCaller{responses: []string{`{"summary":"完整长剧本分析"}`}}
 	longContent := strings.Repeat("一", defaultMaxChunkRunes) + "\n" + strings.Repeat("二", 20)
 	result, err := NewAnalyzer(caller).Analyze(context.Background(), Request{
 		Script:  model.Script{Title: "长剧本", ScriptType: "episode"},
@@ -88,17 +87,17 @@ func TestAnalyzerChunksAndReducesLongContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
-	if len(caller.requests) != 3 {
-		t.Fatalf("request count = %d, want 3", len(caller.requests))
+	if len(caller.requests) != 1 {
+		t.Fatalf("request count = %d, want 1 full-context request", len(caller.requests))
 	}
-	if result.PartialCount != 2 {
-		t.Fatalf("partial count = %d, want 2", result.PartialCount)
+	if result.PartialCount != 0 {
+		t.Fatalf("partial count = %d, want 0", result.PartialCount)
 	}
-	if result.Payload["summary"] != "合并" {
+	if result.Payload["summary"] != "完整长剧本分析" {
 		t.Fatalf("summary = %v", result.Payload["summary"])
 	}
-	if result.Payload["analysis_chunks"] != 2 {
-		t.Fatalf("analysis_chunks = %v, want 2", result.Payload["analysis_chunks"])
+	if !strings.Contains(result.Prompt, strings.Repeat("二", 20)) {
+		t.Fatalf("prompt does not include full long content tail")
 	}
 }
 
@@ -156,5 +155,109 @@ func TestAnalyzerStreamReturnsRawResponseWhenJSONParseFails(t *testing.T) {
 	}
 	if result.RawResponse != "非 JSON 流式内容" {
 		t.Fatalf("raw response = %q", result.RawResponse)
+	}
+}
+
+func TestAnalyzerStreamReturnsErrorWhenNoContentArrives(t *testing.T) {
+	caller := &fakeStreamTextCaller{
+		events: []ai.TextStreamEvent{
+			{ReasoningDelta: "正在分析"},
+			{FinishReason: "content_filter"},
+			{Done: true},
+		},
+	}
+	var emitted []StreamEvent
+	_, err := NewAnalyzer(caller).AnalyzeStream(context.Background(), Request{
+		Script:  model.Script{Title: "测试剧本", ScriptType: "main"},
+		Content: "短剧本",
+	}, func(event StreamEvent) {
+		emitted = append(emitted, event)
+	})
+	if err == nil {
+		t.Fatalf("AnalyzeStream returned nil error, want no-content error")
+	}
+	if !strings.Contains(err.Error(), "AI stream returned no content") {
+		t.Fatalf("error = %q, want no-content detail", err.Error())
+	}
+	if !strings.Contains(err.Error(), "reasoning_events=1") {
+		t.Fatalf("error = %q, want reasoning event detail", err.Error())
+	}
+	if !strings.Contains(err.Error(), "finish_reason=content_filter") {
+		t.Fatalf("error = %q, want finish reason detail", err.Error())
+	}
+	if len(emitted) != 1 || emitted[0].Kind != "reasoning" || emitted[0].Delta != "正在分析" {
+		t.Fatalf("emitted = %#v, want one reasoning progress event", emitted)
+	}
+}
+
+func TestAnalyzerStreamReturnsReceiveErrorDuringReasoning(t *testing.T) {
+	caller := &fakeStreamTextCaller{
+		events: []ai.TextStreamEvent{
+			{ReasoningDelta: "正在分析"},
+			{Error: "volcen text stream receive: context deadline exceeded"},
+		},
+	}
+	var emitted []StreamEvent
+	_, err := NewAnalyzer(caller).AnalyzeStream(context.Background(), Request{
+		Script:  model.Script{Title: "测试剧本", ScriptType: "main"},
+		Content: "短剧本",
+	}, func(event StreamEvent) {
+		emitted = append(emitted, event)
+	})
+	if err == nil {
+		t.Fatalf("AnalyzeStream returned nil error, want receive error")
+	}
+	if !strings.Contains(err.Error(), "volcen text stream receive") {
+		t.Fatalf("error = %q, want stream receive detail", err.Error())
+	}
+	if strings.Contains(err.Error(), "AI stream returned no content") {
+		t.Fatalf("error = %q, should not be reported as no content", err.Error())
+	}
+	if len(emitted) != 1 || emitted[0].Kind != "reasoning" || emitted[0].Delta != "正在分析" {
+		t.Fatalf("emitted = %#v, want reasoning event before error", emitted)
+	}
+}
+
+func TestAnalyzerStreamUsesFullContextForLongContent(t *testing.T) {
+	caller := &fakeStreamTextCaller{
+		events: []ai.TextStreamEvent{
+			{ContentDelta: `{"summary":"完整流式长剧本分析"}`},
+			{Done: true},
+		},
+	}
+	var emitted []StreamEvent
+	longContent := strings.Repeat("一", defaultMaxChunkRunes) + "\n" + strings.Repeat("二", 20)
+	result, err := NewAnalyzer(caller).AnalyzeStream(context.Background(), Request{
+		Script:  model.Script{Title: "长剧本", ScriptType: "episode"},
+		Content: longContent,
+	}, func(event StreamEvent) {
+		emitted = append(emitted, event)
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeStream returned error: %v", err)
+	}
+	if len(caller.requests) != 1 {
+		t.Fatalf("request count = %d, want 1 full-context streaming request", len(caller.requests))
+	}
+	if caller.requests[0].MaxTokens != ai.DefaultTextMaxTokens {
+		t.Fatalf("MaxTokens = %d, want %d", caller.requests[0].MaxTokens, ai.DefaultTextMaxTokens)
+	}
+	if result.PartialCount != 0 {
+		t.Fatalf("partial count = %d, want 0", result.PartialCount)
+	}
+	if result.Payload["summary"] != "完整流式长剧本分析" {
+		t.Fatalf("summary = %v", result.Payload["summary"])
+	}
+	if !strings.Contains(result.Prompt, strings.Repeat("二", 20)) {
+		t.Fatalf("prompt does not include full long content tail")
+	}
+	deltas := 0
+	for _, event := range emitted {
+		if event.Kind == "delta" {
+			deltas++
+		}
+	}
+	if deltas != 1 {
+		t.Fatalf("delta event count = %d, want 1", deltas)
 	}
 }

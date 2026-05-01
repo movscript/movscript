@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import type { Project } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ArrowRight, FolderOpen, FileEdit, FileText, Layers, LayoutGrid, ChevronLeft } from 'lucide-react'
+import { Plus, Trash2, ArrowRight, FolderOpen } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -111,7 +111,7 @@ function ProjectCard({
           </div>
         </div>
 
-        {/* Pipeline steps */}
+        {/* Status steps */}
         <div className="flex gap-0.5">
           {STATUS_STEPS.map((step, i) => (
             <button
@@ -157,54 +157,17 @@ function ProjectCard({
   )
 }
 
-// ── Pipeline template definitions ────────────────────────────────────────────
-
-const TEMPLATES = [
-  {
-    key: 'full_production',
-    labelKey: 'pages.projects.templates.fullProduction.label',
-    descriptionKey: 'pages.projects.templates.fullProduction.description',
-    icon: FileEdit,
-    stepKeys: ['pages.projects.templateSteps.mainScript', 'pages.projects.templateSteps.settingCreation', 'pages.projects.templateSteps.episodeScript', 'pages.projects.templateSteps.sceneScript', 'pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
-  },
-  {
-    key: 'from_script',
-    labelKey: 'pages.projects.templates.fromScript.label',
-    descriptionKey: 'pages.projects.templates.fromScript.description',
-    icon: FileText,
-    stepKeys: ['pages.projects.templateSteps.mainScript', 'pages.projects.templateSteps.settingCreation', 'pages.projects.templateSteps.episodeScript', 'pages.projects.templateSteps.sceneScript', 'pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
-  },
-  {
-    key: 'from_storyboard',
-    labelKey: 'pages.projects.templates.fromStoryboard.label',
-    descriptionKey: 'pages.projects.templates.fromStoryboard.description',
-    icon: Layers,
-    stepKeys: ['pages.projects.templateSteps.storyboardScript', 'pages.projects.templateSteps.shotProduction', 'pages.projects.templateSteps.episodeEditing'],
-  },
-  {
-    key: 'custom',
-    labelKey: 'pages.projects.templates.custom.label',
-    descriptionKey: 'pages.projects.templates.custom.description',
-    icon: LayoutGrid,
-    stepKeys: [],
-  },
-] as const
-
-type TemplateKey = typeof TEMPLATES[number]['key']
-
 function CreateProjectModal({ onClose, onCreate }: {
   onClose: () => void
-  onCreate: (name: string, desc: string, template: string) => void
+  onCreate: (name: string, desc: string) => void
 }) {
   const { t } = useTranslation()
-  const [step, setStep] = useState<'template' | 'info'>('template')
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey>('full_production')
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
 
   function handleSubmit() {
     if (!name.trim()) return
-    onCreate(name.trim(), desc.trim(), selectedTemplate)
+    onCreate(name.trim(), desc.trim())
     onClose()
   }
 
@@ -212,68 +175,10 @@ function CreateProjectModal({ onClose, onCreate }: {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {step === 'template' ? t('pages.projects.selectTemplateTitle') : t('pages.projects.newProject')}
-          </DialogTitle>
+          <DialogTitle>{t('pages.projects.newProject')}</DialogTitle>
         </DialogHeader>
 
-        {step === 'template' ? (
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">{t('pages.projects.templateHint')}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {TEMPLATES.map((template) => {
-                const Icon = template.icon
-                const selected = selectedTemplate === template.key
-                return (
-                  <button
-                    key={template.key}
-                    onClick={() => setSelectedTemplate(template.key)}
-                    className={`
-                      p-3 rounded-lg border text-left transition-all
-                      ${selected
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Icon size={14} className={selected ? 'text-primary' : 'text-muted-foreground'} />
-                      <span className={`text-sm font-medium ${selected ? 'text-primary' : 'text-foreground'}`}>
-                        {t(template.labelKey)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">{t(template.descriptionKey)}</p>
-                    {template.stepKeys.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {template.stepKeys.map((s) => (
-                          <span key={s} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                            {t(s)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {template.stepKeys.length === 0 && (
-                      <span className="text-[10px] text-muted-foreground italic">{t('pages.projects.blankPipeline')}</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-              <Button onClick={() => setStep('info')}>
-                {t('pages.projects.nextStep')} <ArrowRight size={14} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <button
-              onClick={() => setStep('template')}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronLeft size={13} /> {t('pages.projects.backToTemplate')}
-            </button>
+        <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="project-name">{t('pages.projects.nameRequired')}</Label>
               <Input
@@ -301,8 +206,7 @@ function CreateProjectModal({ onClose, onCreate }: {
                 <Plus size={14} /> {t('pages.projects.createProject')}
               </Button>
             </div>
-          </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -366,8 +270,8 @@ export default function ProjectsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
   })
 
-  function handleCreate(name: string, desc: string, template: string) {
-    create.mutate({ name, description: desc, pipeline_template: template })
+  function handleCreate(name: string, desc: string) {
+    create.mutate({ name, description: desc })
   }
 
   function handleOpen(p: Project) {
@@ -407,7 +311,7 @@ export default function ProjectsPage() {
       {showCreate && (
         <CreateProjectModal
           onClose={() => setShowCreate(false)}
-          onCreate={(name, desc, template) => handleCreate(name, desc, template)}
+          onCreate={(name, desc) => handleCreate(name, desc)}
         />
       )}
     </div>

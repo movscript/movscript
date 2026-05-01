@@ -21,7 +21,7 @@ type ResourceBinding struct {
 	Version      int    `gorm:"not null;default:1" json:"version"`
 	IsPrimary    bool   `gorm:"default:false" json:"is_primary"`
 	Status       string `gorm:"not null;default:'draft';index" json:"status"` // draft|selected|rejected|approved|archived
-	SourceType   string `gorm:"not null;default:'manual'" json:"source_type"` // upload|gen_job|canvas|import|manual|legacy
+	SourceType   string `gorm:"not null;default:'manual'" json:"source_type"` // upload|job|canvas|import|manual|legacy
 	SourceID     *uint  `json:"source_id,omitempty"`
 	MetadataJSON string `gorm:"type:text" json:"metadata_json"`
 	CreatedByID  *uint  `json:"created_by_id,omitempty"`

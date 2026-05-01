@@ -6,49 +6,8 @@ export interface Project {
   owner?: User
   status?: string
   total_episodes?: number
-  pipeline_template?: string
   CreatedAt: string
   UpdatedAt: string
-}
-
-export type PipelineNodeStatus = 'draft' | 'under_review' | 'rejected' | 'final'
-export type PipelineContentType = 'script' | 'setting' | 'storyboard' | 'shot' | 'asset' | 'episode' | 'scene' | 'final_video' | 'custom'
-
-export interface PipelineNode {
-  ID: number
-  project_id: number
-  type: string // raw_script|main_script|episode_script|scene_script|storyboard_script|shot_production|episode_edit|custom
-  content_type: PipelineContentType
-  name: string
-  status: PipelineNodeStatus
-  description?: string
-  assignee_id?: number
-  assignee?: User
-  lead_id?: number
-  lead?: User
-  due_date?: string
-  review_note?: string
-  reviewed_by?: number
-  reviewed_at?: string
-  entity_type?: string
-  entity_id?: number
-  pos_x: number
-  pos_y: number
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface PipelineEdge {
-  ID: number
-  project_id: number
-  from_node_id: number
-  to_node_id: number
-  relation_type?: 'hierarchy' | 'dependency'
-}
-
-export interface Pipeline {
-  nodes: PipelineNode[]
-  edges: PipelineEdge[]
 }
 
 export interface ProjectMember {
@@ -74,7 +33,6 @@ export interface Script {
   parent_script_id?: number
   analysis_status?: 'pending' | 'analyzing' | 'analyzed' | 'failed'
   episode_id?: number
-  pipeline_node_id?: number
   assignee_id?: number
   assignee?: User
   author_id: number
@@ -130,7 +88,6 @@ export interface ScriptAnalysis {
 export interface Setting {
   ID: number
   project_id: number
-  pipeline_node_id?: number
   script_id?: number // optional link to a script
   source_script_id?: number
   source_analysis_id?: number
@@ -207,7 +164,6 @@ export interface AssetView {
 export interface Asset {
   ID: number
   project_id: number
-  pipeline_node_id?: number
   name: string
   type: string
   resource_id?: number
@@ -238,7 +194,6 @@ export interface Asset {
 export interface Scene {
   ID: number
   project_id: number
-  pipeline_node_id?: number
   script_id?: number | null
   script?: Script
   number: number
@@ -261,7 +216,6 @@ export interface EpisodeScene {
 export interface Episode {
   ID: number
   project_id: number
-  pipeline_node_id?: number
   title: string
   number: number
   synopsis: string
@@ -284,7 +238,6 @@ export interface Storyboard {
   episode_id?: number | null
   setting_id?: number | null
   setting?: Setting
-  pipeline_node_id?: number
   assignee_id?: number
   assignee?: User
   order: number
@@ -318,7 +271,6 @@ export interface Shot {
   ID: number
   project_id: number
   storyboard_id?: number | null
-  pipeline_node_id?: number
   assignee_id?: number
   assignee?: User
   order: number
@@ -338,7 +290,6 @@ export interface FinalVideo {
   scene_id?: number | null
   storyboard_id?: number | null
   shot_id?: number | null
-  pipeline_node_id?: number
   title: string
   description: string
   CreatedAt: string
@@ -360,7 +311,6 @@ export interface ArtifactRef {
   title: string
   subtitle?: string
   status?: string
-  pipeline_node_id?: number
   entity_context: ArtifactEntityContext
   resource?: RawResource
   created_at: string
@@ -616,11 +566,11 @@ export interface RawCallResult {
   error?: string
 }
 
-export interface GenJobDetail extends GenJob {
+export interface JobDetail extends Job {
   debug_detail?: DebugCallResult
 }
 
-export interface GenJobStateTraceEntry {
+export interface JobStateTraceEntry {
   state: string
   status: 'running' | 'succeeded' | 'failed'
   message?: string
@@ -692,7 +642,7 @@ export type ResourceBindingRole =
   | 'setting_doc'
 
 export type ResourceBindingStatus = 'draft' | 'selected' | 'rejected' | 'approved' | 'archived'
-export type ResourceBindingSourceType = 'upload' | 'gen_job' | 'canvas' | 'import' | 'manual' | 'legacy'
+export type ResourceBindingSourceType = 'upload' | 'job' | 'canvas' | 'import' | 'manual' | 'legacy'
 
 export interface ResourceBinding {
   ID: number
@@ -715,9 +665,9 @@ export interface ResourceBinding {
   UpdatedAt: string
 }
 
-export type GenJobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
-export interface GenJob {
+export interface Job {
   ID: number
   user_id: number
   model_config_id: number
@@ -727,7 +677,7 @@ export interface GenJob {
   model_identifier?: string
   job_type: string  // image | image_edit | video | video_i2v | video_v2v
   feature_key?: string  // tool feature key e.g. ref_image_gen, ref_video_gen, canvas
-  status: GenJobStatus
+  status: JobStatus
   prompt: string
   extra_params?: string // JSON: size, quality, style, etc.
   aspect_ratio?: string // e.g. "16:9", "9:16"
@@ -745,7 +695,7 @@ export interface GenJob {
   error_msg?: string
   debug_info?: string  // JSON-encoded DebugCallResult
   execution_state?: string
-  state_trace?: string // JSON-encoded GenJobStateTraceEntry[]
+  state_trace?: string // JSON-encoded JobStateTraceEntry[]
   started_at?: string
   finished_at?: string
   project_id?: number

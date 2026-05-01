@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 )
 
+const DefaultTextMaxTokens = 200000
+
 type TextRequest struct {
 	Model       string
 	Messages    []Message
@@ -56,9 +58,11 @@ type ToolFunction struct {
 type TextStreamEvent struct {
 	Role           string
 	ContentDelta   string
+	ReasoningDelta string
 	ToolCallDeltas []ToolCallDelta
 	FinishReason   string
 	Usage          TokenUsage
+	Error          string
 	Done           bool
 }
 

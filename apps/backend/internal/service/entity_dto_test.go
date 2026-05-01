@@ -15,10 +15,9 @@ func TestProjectUpdateInputDoesNotOverwriteServerOwnedFields(t *testing.T) {
 	}
 
 	ApplyProjectUpdate(&project, ProjectUpdateInput{
-		Name:             "new name",
-		Description:      "new description",
-		TotalEpisodes:    12,
-		PipelineTemplate: "from_script",
+		Name:          "new name",
+		Description:   "new description",
+		TotalEpisodes: 12,
 	})
 
 	if project.ID != 10 {
@@ -37,7 +36,6 @@ func TestScriptPatchUpdatesWhitelistClientFields(t *testing.T) {
 		"id":                      float64(99),
 		"project_id":              float64(88),
 		"author_id":               float64(77),
-		"pipeline_node_id":        float64(66),
 		"review_status":           "approved",
 		"status":                  "done",
 		"deleted_at":              "2026-04-29T00:00:00Z",
@@ -51,7 +49,7 @@ func TestScriptPatchUpdatesWhitelistClientFields(t *testing.T) {
 		"scenes_desc":             `["old scene"]`,
 	})
 
-	for _, forbidden := range []string{"id", "project_id", "author_id", "pipeline_node_id", "review_status", "status", "deleted_at", "character_profiles", "character_relationships", "background", "scenes_desc"} {
+	for _, forbidden := range []string{"id", "project_id", "author_id", "review_status", "status", "deleted_at", "character_profiles", "character_relationships", "background", "scenes_desc"} {
 		if _, ok := updates[forbidden]; ok {
 			t.Fatalf("forbidden field %q was included in updates: %#v", forbidden, updates)
 		}
@@ -64,15 +62,15 @@ func TestScriptPatchUpdatesWhitelistClientFields(t *testing.T) {
 func TestEntityPatchUpdatesBlockReviewAndStatusFields(t *testing.T) {
 	cases := map[string]map[string]any{
 		"episode":     EpisodePatchUpdates(map[string]any{"project_id": 2, "script_id": 3, "review_status": "approved", "status": "done", "target_storyboards": 10, "target_scenes": 4, "title": "ok"}),
-		"scene":       ScenePatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "location": "old", "time_of_day": "day", "title": "ok"}),
-		"storyboard":  StoryboardPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "setting_id": 9, "title": "ok"}),
-		"shot":        ShotPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "status": "approved", "is_approved": true, "description": "ok"}),
-		"final_video": FinalVideoPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "status": "done", "order": 9, "title": "ok"}),
-		"asset":       AssetPatchUpdates(map[string]any{"project_id": 2, "pipeline_node_id": 3, "review_status": "approved", "name": "ok"}),
+		"scene":       ScenePatchUpdates(map[string]any{"project_id": 2, "review_status": "approved", "location": "old", "time_of_day": "day", "title": "ok"}),
+		"storyboard":  StoryboardPatchUpdates(map[string]any{"project_id": 2, "review_status": "approved", "status": "approved", "setting_id": 9, "title": "ok"}),
+		"shot":        ShotPatchUpdates(map[string]any{"project_id": 2, "review_status": "approved", "status": "approved", "is_approved": true, "description": "ok"}),
+		"final_video": FinalVideoPatchUpdates(map[string]any{"project_id": 2, "status": "done", "order": 9, "title": "ok"}),
+		"asset":       AssetPatchUpdates(map[string]any{"project_id": 2, "review_status": "approved", "name": "ok"}),
 	}
 
 	for name, updates := range cases {
-		for _, forbidden := range []string{"id", "project_id", "pipeline_node_id", "review_status", "status", "is_approved", "target_storyboards", "target_scenes", "location", "time_of_day"} {
+		for _, forbidden := range []string{"id", "project_id", "review_status", "status", "is_approved", "target_storyboards", "target_scenes", "location", "time_of_day"} {
 			if _, ok := updates[forbidden]; ok {
 				t.Fatalf("%s included forbidden field %q in updates: %#v", name, forbidden, updates)
 			}
@@ -107,26 +105,6 @@ func TestApplyAssetInputDefaultsTypeToVariantType(t *testing.T) {
 	}
 }
 
-func TestPipelineNodeInputCreatesDraftNodeWithServerOwnedFields(t *testing.T) {
-	node := NewPipelineNode(PipelineNodeInput{
-		Type:        "script_writing",
-		Name:        "Script",
-		Description: "draft task",
-		EntityType:  "script",
-		EntityID:    uintPtr(7),
-	}, 42)
-
-	if node.ProjectID != 42 {
-		t.Fatalf("ProjectID = %d, want 42", node.ProjectID)
-	}
-	if node.Status != "draft" {
-		t.Fatalf("Status = %q, want draft", node.Status)
-	}
-	if node.ReviewNote != "" || node.ReviewedBy != nil || node.ReviewedAt != nil {
-		t.Fatalf("review fields should not be client controlled: %#v", node)
-	}
-}
-
 func TestAIModelConfigInputDoesNotMoveCredential(t *testing.T) {
 	cfg := model.AIModelConfig{
 		Model:        gorm.Model{ID: 5},
@@ -151,8 +129,4 @@ func TestAIModelConfigInputDoesNotMoveCredential(t *testing.T) {
 	if cfg.ModelDefID != "new-model" || cfg.IsEnabled {
 		t.Fatalf("expected mutable model fields to update, got %#v", cfg)
 	}
-}
-
-func uintPtr(value uint) *uint {
-	return &value
 }

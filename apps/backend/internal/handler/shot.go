@@ -92,7 +92,7 @@ func (h *ShotHandler) Delete(c *gin.Context) {
 
 // Patch applies a partial update to a shot.
 // Note: review_status is retained for legacy compatibility but is not enabled
-// in the current frontend; pipeline node status owns review workflow.
+// in the current frontend.
 func (h *ShotHandler) Patch(c *gin.Context) {
 	var s model.Shot
 	if err := h.db.First(&s, c.Param("id")).Error; err != nil {
@@ -117,9 +117,6 @@ func (h *ShotHandler) ListByProject(c *gin.Context) {
 	q := h.db.Where("project_id = ?", c.Param("id")).Order("\"order\"")
 	if sid := c.Query("storyboard_id"); sid != "" {
 		q = q.Where("storyboard_id = ?", sid)
-	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
 	}
 	if aid := c.Query("assignee_id"); aid != "" {
 		q = q.Where("assignee_id = ?", aid)

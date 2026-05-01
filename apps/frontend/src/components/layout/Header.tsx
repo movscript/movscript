@@ -20,7 +20,6 @@ const titleKeys: Record<string, string> = {
   '/jobs': 'header.titles.jobs',
   '/plugins': 'header.titles.plugins',
   '/agent/debug': 'header.titles.agentDebug',
-  '/pipeline': 'header.titles.pipeline',
   '/collaboration': 'header.titles.collaboration',
   '/user': 'header.titles.user',
   '/admin': 'header.titles.admin'

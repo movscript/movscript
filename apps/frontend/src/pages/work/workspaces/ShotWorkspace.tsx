@@ -15,10 +15,6 @@ interface ShotWorkspaceProps extends WorkspaceFrameProps {
 export function ShotWorkspace({
   shot,
   storyboards = [],
-  node,
-  pipeline,
-  members,
-  onNodeUpdated,
 }: ShotWorkspaceProps) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -37,11 +33,7 @@ export function ShotWorkspace({
       kind="shot"
       title={`镜头 ${shot.order}`}
       subtitle={storyboard ? `来自 ${storyboard.title || `分镜 #${storyboard.order}`}` : '独立镜头'}
-      node={node}
-      pipeline={pipeline}
-      members={members}
       isSaving={update.isPending}
-      onNodeUpdated={onNodeUpdated}
     >
       <div className="flex-1 min-h-0 overflow-hidden">
         <ShotForm

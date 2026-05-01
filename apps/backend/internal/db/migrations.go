@@ -53,7 +53,7 @@ func RegisteredMigrations() []Migration {
 			Version: "000004",
 			Name:    "usage_reservations",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&model.UsageReservation{}, &model.UsageLog{}, &model.GenJob{}, &model.GatewayRateLimitCounter{})
+				return db.AutoMigrate(&model.UsageReservation{}, &model.UsageLog{}, &model.Job{}, &model.GatewayRateLimitCounter{})
 			},
 		},
 		{
@@ -100,11 +100,6 @@ func RegisteredMigrations() []Migration {
 			Version: "000013",
 			Name:    "remove_final_video_status_and_order",
 			Up:      migrateRemoveFinalVideoStatusAndOrder,
-		},
-		{
-			Version: "000014",
-			Name:    "settings_pipeline_node_id",
-			Up:      migrateSettingsPipelineNodeID,
 		},
 		{
 			Version: "000015",
@@ -164,19 +159,6 @@ func migrateStructuredScriptFields(db *gorm.DB) error {
 		WHERE (raw_source IS NULL OR raw_source = '')
 			AND content IS NOT NULL
 			AND content <> ''
-	`).Error
-}
-
-func migrateSettingsPipelineNodeID(db *gorm.DB) error {
-	if err := db.AutoMigrate(&model.Setting{}); err != nil {
-		return err
-	}
-	return db.Exec(`
-		UPDATE settings e SET pipeline_node_id = pn.id
-		FROM pipeline_nodes pn
-		WHERE pn.entity_type = 'setting'
-			AND pn.entity_id = e.id
-			AND e.pipeline_node_id IS NULL
 	`).Error
 }
 
@@ -475,12 +457,10 @@ func allModels() []any {
 		&model.CanvasTask{},
 		&model.CanvasEntityWriteAudit{},
 		&model.FeatureConfig{},
-		&model.GenJob{},
+		&model.Job{},
 		&model.Plugin{},
 		&model.PluginTool{},
 		&model.PluginSecret{},
-		&model.PipelineNode{},
-		&model.PipelineEdge{},
 		&model.GatewayAPIKey{},
 		&model.GatewayRateLimitCounter{},
 		&model.CloudFileConfig{},

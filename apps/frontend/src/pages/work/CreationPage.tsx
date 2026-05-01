@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
-import type { ArtifactRef, Script, Setting, Asset, AssetView, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource, Pipeline, PipelineNode, ProjectMember } from '@/types'
+import type { ArtifactRef, Script, Setting, Asset, AssetView, Episode, Scene, Storyboard, Shot, FinalVideo, RawResource } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { Plus, LayoutTemplate, GripVertical, Network, Search, X, Image as ImageIcon } from 'lucide-react'
+import { Plus, LayoutTemplate, GripVertical, Search, X, Image as ImageIcon } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import {
   ScriptCreateForm, AssetCreateForm, EpisodeCreateForm, SceneCreateForm, StoryboardCreateForm, ShotCreateForm,
@@ -25,7 +25,6 @@ import { EmbeddedCanvas, type EntityDragItem, type PushTarget } from './Embedded
 import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { FinalVideoDetail } from '@/pages/final-videos/FinalVideosPage'
-import PipelineEditorPage from '@/pages/pipeline/PipelineEditorPage'
 import { ArtifactWorkspaceFrame } from './ArtifactWorkspaceFrame'
 import { isWorkbenchEntityKind } from './workbenchNavigation'
 import { BUILT_IN_SETTING_TYPES, DEFAULT_SETTING_STATUS, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
@@ -34,7 +33,7 @@ const CANVAS_PANEL_DEFAULT_H = 420
 const CANVAS_PANEL_MIN_H = 260
 const CANVAS_PANEL_CHROME_H = 44
 
-type WorkSurface = 'canvas' | 'pipeline'
+type WorkSurface = 'canvas'
 
 interface OpenTab {
   key: string   // `${kind}:${id}`
@@ -49,7 +48,6 @@ interface WorkListItem {
   title: string
   subtitle?: string
   status?: string
-  pipeline_node_id?: number
   resource?: RawResource
   previews?: WorkListPreview[]
   previewCount?: number
@@ -126,7 +124,6 @@ function settingPreviews(settingId: number, assets: Asset[], limit = 4): WorkLis
 
 export default function CreationPage() {
   const { t } = useTranslation()
-  const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [searchParams] = useSearchParams()
   const [activeKind, setActiveKind] = useState<WorkArtifactKind>('script')
@@ -151,13 +148,6 @@ export default function CreationPage() {
   const { data: _shots }       = useQuery<Shot[]>({       queryKey: ['shots-project', projectId],      queryFn: () => api.get(`/projects/${projectId}/shots`).then((r) => r.data),       enabled: !!projectId })
   const { data: _finalVideos } = useQuery<FinalVideo[]>({ queryKey: ['final-videos', projectId],       queryFn: () => api.get(`/projects/${projectId}/final-videos`).then((r) => r.data), enabled: !!projectId })
   const { data: _artifactRefs } = useQuery<ArtifactRef[]>({ queryKey: ['artifact-refs', projectId],     queryFn: () => api.get(`/projects/${projectId}/artifact-refs`).then((r) => r.data), enabled: !!projectId })
-  const { data: pipeline }     = useQuery<Pipeline>({     queryKey: ['pipeline', projectId],           queryFn: () => api.get(`/projects/${projectId}/pipeline`).then((r) => r.data),      enabled: !!projectId })
-  const { data: projectDetail } = useQuery<{ members?: ProjectMember[] }>({
-    queryKey: ['project', projectId],
-    queryFn: () => api.get(`/projects/${projectId}`).then((r) => r.data),
-    enabled: !!projectId,
-  })
-
   const scripts     = _scripts     ?? []
   const settings    = _settings    ?? []
   const assets      = _assets      ?? []
@@ -167,7 +157,6 @@ export default function CreationPage() {
   const shots       = _shots       ?? []
   const finalVideos = _finalVideos ?? []
   const artifactRefs = _artifactRefs ?? []
-  const members = projectDetail?.members ?? []
   const autoOpenedRef = useRef<string | null>(null)
 
   const counts: Record<WorkArtifactKind, number> = {
@@ -256,75 +245,19 @@ export default function CreationPage() {
     }
   }
 
-  function pipelineNodeIdForEntity(kind: EntityKind, id: number) {
-    switch (kind) {
-      case 'script':
-        return scripts.find((item) => item.ID === id)?.pipeline_node_id
-          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
-      case 'asset':
-        return assets.find((item) => item.ID === id)?.pipeline_node_id
-          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
-      case 'episode':
-        return episodes.find((item) => item.ID === id)?.pipeline_node_id
-      case 'scene':
-        return scenes.find((item) => item.ID === id)?.pipeline_node_id
-      case 'storyboard':
-        return storyboards.find((item) => item.ID === id)?.pipeline_node_id
-          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
-      case 'shot':
-        return shots.find((item) => item.ID === id)?.pipeline_node_id
-          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
-      case 'final_video':
-        return finalVideos.find((item) => item.ID === id)?.pipeline_node_id
-          ?? artifactRefs.find((item) => item.kind === kind && item.id === id)?.pipeline_node_id
-      case 'setting':
-        return undefined
-    }
-  }
-
-  function entityTargetForPipelineNode(nodeId: number): { kind: EntityKind; id: number } | null {
-    const node = pipeline?.nodes.find((item) => item.ID === nodeId)
-    if (node && isWorkbenchEntityKind(node.entity_type) && node.entity_id) {
-      return { kind: node.entity_type, id: node.entity_id }
-    }
-
-    const script = scripts.find((item) => item.pipeline_node_id === nodeId)
-    if (script) return { kind: 'script', id: script.ID }
-    const asset = assets.find((item) => item.pipeline_node_id === nodeId)
-    if (asset) return { kind: 'asset', id: asset.ID }
-    const episode = episodes.find((item) => item.pipeline_node_id === nodeId)
-    if (episode) return { kind: 'episode', id: episode.ID }
-    const scene = scenes.find((item) => item.pipeline_node_id === nodeId)
-    if (scene) return { kind: 'scene', id: scene.ID }
-    const storyboard = storyboards.find((item) => item.pipeline_node_id === nodeId)
-    if (storyboard) return { kind: 'storyboard', id: storyboard.ID }
-    const shot = shots.find((item) => item.pipeline_node_id === nodeId)
-    if (shot) return { kind: 'shot', id: shot.ID }
-    const finalVideo = finalVideos.find((item) => item.pipeline_node_id === nodeId)
-    if (finalVideo) return { kind: 'final_video', id: finalVideo.ID }
-
-    const ref = artifactRefs.find((item) => item.pipeline_node_id === nodeId)
-    return ref && isWorkbenchEntityKind(ref.kind) ? { kind: ref.kind, id: ref.id } : null
-  }
-
   useEffect(() => {
     const rawKind = searchParams.get('kind')
     const rawId = searchParams.get('id')
-    const rawNodeId = searchParams.get('node')
-    const nodeId = rawNodeId ? Number(rawNodeId) : undefined
     const directKind = isWorkbenchEntityKind(rawKind) ? rawKind : undefined
     const directId = rawId ? Number(rawId) : undefined
 
-    let target: { kind: EntityKind; id: number; nodeId?: number } | null = null
+    let target: { kind: EntityKind; id: number } | null = null
     if (directKind && directId && Number.isFinite(directId)) {
-      target = { kind: directKind, id: directId, nodeId }
-    } else if (nodeId && Number.isFinite(nodeId)) {
-      const entityTarget = entityTargetForPipelineNode(nodeId)
-      if (entityTarget) target = { ...entityTarget, nodeId }
+      target = { kind: directKind, id: directId }
     }
 
     if (!target) return
-    const key = `${target.kind}:${target.id}:${target.nodeId ?? ''}`
+    const key = `${target.kind}:${target.id}`
     if (autoOpenedRef.current === key) return
 
     const label = entityLabel(target.kind, target.id)
@@ -333,7 +266,7 @@ export default function CreationPage() {
     setActiveKind(target.kind)
     openTab(target.kind, target.id, label)
     autoOpenedRef.current = key
-  }, [searchParams, pipeline, scripts, settings, assets, episodes, scenes, storyboards, shots, finalVideos, artifactRefs])
+  }, [searchParams, scripts, settings, assets, episodes, scenes, storyboards, shots, finalVideos, artifactRefs])
 
   /* ── Item strip ── */
   function getItems(): WorkListItem[] {
@@ -344,7 +277,6 @@ export default function CreationPage() {
           id: episode.ID,
           title: episode.title || `EP${episode.number}`,
           subtitle: `EP${String(episode.number).padStart(2, '0')}`,
-          pipeline_node_id: episode.pipeline_node_id,
         }))
       case 'scene':
         return scenes.map((scene) => ({
@@ -352,7 +284,6 @@ export default function CreationPage() {
           id: scene.ID,
           title: scene.title || `${t('details.sceneLabel', { number: scene.number })}`,
           subtitle: t('details.sceneLabel', { number: scene.number }),
-          pipeline_node_id: scene.pipeline_node_id,
         }))
       case 'setting':
         return settings.map((setting) => ({
@@ -373,7 +304,6 @@ export default function CreationPage() {
             ?? (asset.setting_id ? settings.find((setting) => setting.ID === asset.setting_id)?.name : undefined)
             ?? asset.type,
           status: asset.state || asset.effective_status || asset.review_status,
-          pipeline_node_id: asset.pipeline_node_id,
           resource: asset.resource ?? asset.views?.find((view) => view.resource)?.resource,
           previews: assetPreviews(asset, 3),
           previewCount: assetPreviews(asset, 8).length,
@@ -387,7 +317,6 @@ export default function CreationPage() {
             title: item.title,
             subtitle: item.subtitle,
             status: item.status,
-            pipeline_node_id: item.pipeline_node_id,
             resource: item.resource,
           }))
     }
@@ -471,12 +400,7 @@ export default function CreationPage() {
   function renderWorkspace() {
     if (!activeTab) return <EmptyWorkspace kind={activeKind} />
     const { kind, id } = activeTab
-    const node = findNodeFor(kind, id)
     const common = {
-      node,
-      pipeline,
-      members,
-      onNodeUpdated: handleNodeUpdated,
       onOpenTab: openTab,
     }
     switch (kind) {
@@ -494,50 +418,12 @@ export default function CreationPage() {
             kind="final_video"
             title={item.title || t('pages.finalVideos.defaultTitle')}
             subtitle={item.description}
-            node={node}
-            pipeline={pipeline}
-            members={members}
-            onNodeUpdated={handleNodeUpdated}
           >
             <FinalVideoDetail video={item} episodes={episodes} scenes={scenes} storyboards={storyboards} shots={shots} showHeader={false} />
           </ArtifactWorkspaceFrame>
         ) : <EmptyWorkspace kind={kind} />
       }
     }
-  }
-
-  function findNodeFor(kind: EntityKind, id: number): PipelineNode | undefined {
-    const nodes = pipeline?.nodes ?? []
-    const entityPipelineNodeId = pipelineNodeIdForEntity(kind, id)
-    const requestedNodeId = Number(searchParams.get('node'))
-    const requestedNode = Number.isFinite(requestedNodeId)
-      ? nodes.find((node) => node.ID === requestedNodeId)
-      : undefined
-
-    if (
-      requestedNode &&
-      (
-        (requestedNode.entity_type === kind && requestedNode.entity_id === id) ||
-        requestedNode.ID === entityPipelineNodeId
-      )
-    ) {
-      return requestedNode
-    }
-
-    return nodes.find((node) =>
-      (node.entity_type === kind && node.entity_id === id) ||
-      node.ID === entityPipelineNodeId
-    )
-  }
-
-  function handleNodeUpdated(updated: PipelineNode) {
-    qc.setQueryData<Pipeline | undefined>(['pipeline', projectId], (current) => {
-      if (!current) return current
-      return {
-        ...current,
-        nodes: current.nodes.map((node) => node.ID === updated.ID ? updated : node),
-      }
-    })
   }
 
   const items = getItems()
@@ -743,12 +629,6 @@ export default function CreationPage() {
               label={t('work.creationCanvas')}
               onClick={() => toggleWorkSurface('canvas')}
             />
-            <BottomPanelTab
-              active={workSurface === 'pipeline'}
-              icon={<Network size={13} />}
-              label={t('work.pipeline', { defaultValue: '管线' })}
-              onClick={() => toggleWorkSurface('pipeline')}
-            />
           </div>
         </div>
 
@@ -760,13 +640,9 @@ export default function CreationPage() {
             )}
             style={activeTab ? { height: canvasPanelHeight } : undefined}
           >
-            {workSurface === 'canvas' ? (
-              <EmbeddedCanvas
-                pushTargets={getPushTargets()}
-              />
-            ) : (
-              <PipelineEditorPage embedded />
-            )}
+            <EmbeddedCanvas
+              pushTargets={getPushTargets()}
+            />
           </div>
         )}
       </div>
@@ -808,7 +684,6 @@ function FinalVideoCreateInlineForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
       onSuccess()
     },
   })

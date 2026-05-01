@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { API_V1_BASE_URL } from '@/lib/config'
@@ -10,13 +10,15 @@ import { useTranslation } from 'react-i18next'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@movscript/ui'
-import { AlertTriangle, CheckCircle2, Clock, Database, Film, GitBranch, Layers, MapPin, Plus, Sparkles, Trash2, Users, X } from 'lucide-react'
+import { Clock, Database, Film, GitBranch, Layers, MapPin, Plus, Sparkles, Trash2, Users, X } from 'lucide-react'
 
 const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; color: string; tone: 'sky' | 'violet' | 'blue' }> = {
   main:    { labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400', tone: 'sky' },
   episode: { labelKey: 'domain.scriptTypes.episode', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400', tone: 'violet' },
   scene:   { labelKey: 'domain.scriptTypes.scene',   color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400', tone: 'blue' },
 }
+
+const REASONING_TRACE_MAX_CHARS = 8000
 
 interface Props {
   script: Script
@@ -32,6 +34,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisPreview, setAnalysisPreview] = useState<Partial<Script> | null>(null)
   const [analysisRaw, setAnalysisRaw] = useState('')
+  const [analysisReasoning, setAnalysisReasoning] = useState('')
   const [analysisStatus, setAnalysisStatus] = useState('')
   const [analysisError, setAnalysisError] = useState('')
 
@@ -58,6 +61,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   async function handleAnalyze() {
     setAnalysisPreview({ script_type: script.script_type })
     setAnalysisRaw('')
+    setAnalysisReasoning('')
     setAnalysisStatus('连接 AI 分析服务...')
     setAnalysisError('')
     setAnalyzing(true)
@@ -67,6 +71,10 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
         preview: true,
       }, {
         onDelta: (text) => setAnalysisRaw((raw) => raw + text),
+        onReasoning: (text) => {
+          setAnalysisStatus('模型正在推理...')
+          setAnalysisReasoning((raw) => (raw + text).slice(-REASONING_TRACE_MAX_CHARS))
+        },
         onStatus: setAnalysisStatus,
       })
       setAnalysisPreview(pickAnalysisFields(result.script ?? result))
@@ -89,38 +97,102 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
     }
   }
 
-  async function streamScriptAnalysis(path: string, body: unknown, callbacks: { onDelta: (text: string) => void; onStatus: (text: string) => void }) {
+  async function streamScriptAnalysis(path: string, body: unknown, callbacks: { onDelta: (text: string) => void; onReasoning: (text: string) => void; onStatus: (text: string) => void }) {
     const token = useUserStore.getState().token
     const res = await fetch(`${API_V1_BASE_URL}${path}`, {
       method: 'POST',
       headers: {
+        Accept: 'text/event-stream, application/x-ndjson',
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     })
     if (!res.ok || !res.body) {
-      throw new Error(`AI 分析请求失败：HTTP ${res.status}`)
+      const errorText = await res.text().catch(() => '')
+      throw new Error(`AI 分析请求失败：HTTP ${res.status}${errorText ? ` ${errorText}` : ''}`)
     }
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
+    const contentType = res.headers.get('content-type') ?? ''
+    const isEventStream = contentType.includes('text/event-stream')
     let buffer = ''
     let finalResult: any = null
+    let receivedDelta = false
+    const handleMessage = (event: string, data: any) => {
+      if (event === 'delta') {
+        const text = String(data?.text ?? '')
+        if (text) {
+          receivedDelta = true
+          callbacks.onDelta(text)
+        }
+      }
+      if (event === 'reasoning') {
+        const text = String(data?.text ?? data?.message ?? '')
+        if (text) callbacks.onReasoning(text)
+      }
+      if (event === 'status') callbacks.onStatus(String(data?.message ?? ''))
+      if (event === 'error') throw new Error(String(data?.message ?? 'AI 分析失败'))
+      if (event === 'result') {
+        finalResult = data
+        if (!receivedDelta) {
+          const rawResponse = typeof data?.raw_response === 'string' && data.raw_response.trim()
+            ? data.raw_response
+            : JSON.stringify(data?.result ?? data?.script ?? data, null, 2)
+          callbacks.onDelta(rawResponse)
+          receivedDelta = true
+        }
+      }
+    }
+    const parseNDJSONLine = (line: string) => {
+      if (!line.trim()) return
+      const message = JSON.parse(line)
+      handleMessage(String(message.event ?? ''), message.data)
+    }
+    const parseSSEBlock = (block: string) => {
+      let event = 'message'
+      const dataLines: string[] = []
+      for (const rawLine of block.split(/\r?\n/)) {
+        if (!rawLine || rawLine.startsWith(':')) continue
+        const separatorIndex = rawLine.indexOf(':')
+        const field = separatorIndex >= 0 ? rawLine.slice(0, separatorIndex) : rawLine
+        const value = separatorIndex >= 0 ? rawLine.slice(separatorIndex + 1).replace(/^ /, '') : ''
+        if (field === 'event') event = value
+        if (field === 'data') dataLines.push(value)
+      }
+      if (dataLines.length === 0) return
+      const dataText = dataLines.join('\n')
+      if (dataText === '[DONE]') return
+      handleMessage(event, JSON.parse(dataText))
+    }
+    const consumeBuffer = (final = false) => {
+      if (isEventStream) {
+        const blocks = buffer.split(/\r?\n\r?\n/)
+        buffer = blocks.pop() ?? ''
+        for (const block of blocks) parseSSEBlock(block)
+        if (final && buffer.trim()) {
+          parseSSEBlock(buffer)
+          buffer = ''
+        }
+        return
+      }
+
+      const lines = buffer.split(/\r?\n/)
+      buffer = lines.pop() ?? ''
+      for (const line of lines) parseNDJSONLine(line)
+      if (final && buffer.trim()) {
+        parseNDJSONLine(buffer)
+        buffer = ''
+      }
+    }
     while (true) {
       const { value, done } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-      for (const line of lines) {
-        if (!line.trim()) continue
-        const message = JSON.parse(line)
-        if (message.event === 'delta') callbacks.onDelta(String(message.data?.text ?? ''))
-        if (message.event === 'status') callbacks.onStatus(String(message.data?.message ?? ''))
-        if (message.event === 'error') throw new Error(String(message.data?.message ?? 'AI 分析失败'))
-        if (message.event === 'result') finalResult = message.data
-      }
+      consumeBuffer()
     }
+    buffer += decoder.decode()
+    consumeBuffer(true)
     if (!finalResult) throw new Error('AI 分析没有返回结构化结果')
     return finalResult
   }
@@ -180,6 +252,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
           saving={update.isPending}
           analyzing={analyzing}
           rawResponse={analysisRaw}
+          reasoningTrace={analysisReasoning}
           status={analysisStatus}
           error={analysisError}
           onChange={(next) => setAnalysisPreview({ ...next, script_type: script.script_type })}
@@ -233,6 +306,7 @@ function ScriptAnalysisReviewDialog({
   saving,
   analyzing,
   rawResponse,
+  reasoningTrace,
   status,
   error,
   onChange,
@@ -245,6 +319,7 @@ function ScriptAnalysisReviewDialog({
   saving?: boolean
   analyzing?: boolean
   rawResponse: string
+  reasoningTrace: string
   status: string
   error: string
   onChange: (next: Partial<Script>) => void
@@ -253,6 +328,13 @@ function ScriptAnalysisReviewDialog({
 }) {
   const changedFields = ANALYSIS_FIELDS.filter((field) => normalizeFieldValue(current[field.key]) !== normalizeFieldValue(proposed[field.key]))
   const hasStructuredResult = ANALYSIS_FIELDS.some((field) => proposed[field.key] !== undefined)
+  const reasoningRef = useRef<HTMLPreElement | null>(null)
+
+  useEffect(() => {
+    const node = reasoningRef.current
+    if (!node) return
+    node.scrollTop = node.scrollHeight
+  }, [reasoningTrace])
 
   function updateCandidateItems(items: Array<Record<string, unknown>>) {
     onChange({ ...proposed, entity_candidates: JSON.stringify(items.map(normalizeAnalysisCandidate)) })
@@ -260,7 +342,7 @@ function ScriptAnalysisReviewDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[96vh] w-[min(1680px,99vw)] max-w-[99vw] flex-col overflow-hidden p-0">
+      <DialogContent hideClose className="flex max-h-[96vh] w-[min(1680px,99vw)] max-w-[99vw] flex-col overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -285,6 +367,20 @@ function ScriptAnalysisReviewDialog({
               <p className="text-xs font-semibold text-foreground">AI 真实回应</p>
               <span className={cn('text-[11px]', error ? 'text-destructive' : 'text-muted-foreground')}>{error || status || (analyzing ? '分析中...' : '等待开始')}</span>
             </div>
+            {reasoningTrace ? (
+              <div className="mb-2 rounded-md border border-border bg-background">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-1.5">
+                  <span className="text-[11px] font-medium text-foreground">推理过程</span>
+                  <span className="text-[11px] text-muted-foreground">自动跟随最新内容</span>
+                </div>
+                <pre
+                  ref={reasoningRef}
+                  className="max-h-28 min-h-16 overflow-y-auto px-3 py-2 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground"
+                >
+                  {reasoningTrace}
+                </pre>
+              </div>
+            ) : null}
             <pre className="max-h-32 min-h-16 overflow-auto rounded-md border border-border bg-background p-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">
               {rawResponse || (analyzing ? '等待模型输出...' : '暂无输出')}
             </pre>
@@ -793,7 +889,6 @@ function StructuredScriptOverview({
   const characters = parseJsonList(draft.structured_characters)
   const beats = parseJsonList(draft.plot_beats)
   const entityCandidates = parseJsonList(draft.entity_candidates)
-  const relationshipCandidates = parseJsonList(draft.relationship_candidates)
 
   function setCharacters(items: Array<Record<string, unknown>>) {
     onChange({ ...draft, structured_characters: JSON.stringify(items) })
@@ -813,7 +908,17 @@ function StructuredScriptOverview({
 
   return (
     <section className="border-b border-border bg-background">
-      <div className="grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="space-y-3 p-4">
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onSave(draft)}
+            disabled={isSaving}
+            className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 sm:w-auto"
+          >
+            {isSaving ? '保存中...' : '保存结构化字段'}
+          </button>
+        </div>
         <div className="min-w-0 space-y-3">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1fr)]">
             <StructurePanel title="基础信息">
@@ -955,35 +1060,6 @@ function StructuredScriptOverview({
             </div>
           )}
         </div>
-
-        <aside className="space-y-3 rounded-lg border border-border bg-card p-3">
-          <div>
-            <p className="text-xs font-semibold text-foreground">{isMain ? '总剧本边界' : isEpisode ? '分集边界' : '生产契约'}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {isMain
-                ? '总剧本只产生候选拆解；分集、分场、设定需要确认后才成为正式实体。'
-                : isEpisode
-                  ? '分集剧本描述集级结构：设定、场次、钩子、提纲和描述。'
-                  : '分场剧本是分镜和镜头的结构化输入，原文只作为证据来源。'}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <StructureCheck ok label="raw_source 保留原始文档" />
-            <StructureCheck ok={!!draft.structure_json} label="结构化结果可追溯" />
-            <StructureCheck
-              ok={isMain ? entityCandidates.length > 0 : isEpisode ? !!draft.summary || !!draft.hook : beats.length > 0}
-              label={isMain ? '候选待确认' : isEpisode ? '集级设计完整' : '下游可消费'}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => onSave(draft)}
-            disabled={isSaving}
-            className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isSaving ? '保存中...' : '保存结构化字段'}
-          </button>
-        </aside>
       </div>
     </section>
   )
@@ -1347,16 +1423,6 @@ function JsonSummary({ title, items, empty }: { title: string; items: Array<Reco
           <p className="rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground">{empty}</p>
         )}
       </div>
-    </div>
-  )
-}
-
-function StructureCheck({ label, ok }: { label: string; ok?: boolean }) {
-  const Icon = ok ? CheckCircle2 : AlertTriangle
-  return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Icon size={13} className={cn(ok ? 'text-emerald-600' : 'text-amber-600')} />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
     </div>
   )
 }

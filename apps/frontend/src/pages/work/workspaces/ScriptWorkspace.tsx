@@ -16,10 +16,6 @@ interface ScriptWorkspaceProps extends WorkspaceFrameProps {
 export function ScriptWorkspace({
   script,
   episodes = [],
-  node,
-  pipeline,
-  members,
-  onNodeUpdated,
 }: ScriptWorkspaceProps) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -52,11 +48,7 @@ export function ScriptWorkspace({
       kind="script"
       title={script.title}
       subtitle={ctx ? undefined : script.script_type}
-      node={node}
-      pipeline={pipeline}
-      members={members}
       isSaving={update.isPending}
-      onNodeUpdated={onNodeUpdated}
     >
       <div className="flex flex-col h-full overflow-hidden">
         {ctx && (

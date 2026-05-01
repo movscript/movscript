@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
-import type { GenJob, RawResource } from '@/types'
+import type { Job, RawResource } from '@/types'
 import {
   Loader2, AlertCircle, CheckCircle2, Clock,
   Image as ImageIcon, Video, Wand2,
@@ -10,7 +10,7 @@ import {
   ChevronLeft, XCircle,
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
-import { GenJobContextSummary, PromptText } from '@/components/shared/GenResultCard'
+import { JobContextSummary, PromptText } from '@/components/shared/GenResultCard'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -34,8 +34,8 @@ type Category = {
 
 type StatusFilter = 'all' | 'succeeded'
 
-type GenJobsQueryResult = {
-  jobs: GenJob[]
+type JobsQueryResult = {
+  jobs: Job[]
   total: number
 }
 
@@ -49,12 +49,12 @@ const CATEGORIES: Category[] = [
   { key: 'canvas',        labelKey: 'header.titles.canvases',         icon: <LayoutGrid size={13} /> },
 ]
 
-function getJobCategory(job: GenJob): string {
+function getJobCategory(job: Job): string {
   if (job.job_type === 'canvas') return 'canvas'
   return job.job_type
 }
 
-function filterJobs(jobs: GenJob[], category: string): GenJob[] {
+function filterJobs(jobs: Job[], category: string): Job[] {
   if (category === 'all') return jobs
   if (category === 'canvas') return jobs.filter((j) => j.job_type === 'canvas')
   return jobs.filter((j) => getJobCategory(j) === category)
@@ -62,7 +62,7 @@ function filterJobs(jobs: GenJob[], category: string): GenJob[] {
 
 // ── StatusBadge ───────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: GenJob['status'] }) {
+function StatusBadge({ status }: { status: Job['status'] }) {
   const { t } = useTranslation()
 
   switch (status) {
@@ -101,7 +101,7 @@ function StatusBadge({ status }: { status: GenJob['status'] }) {
 
 // ── List view card ────────────────────────────────────────────────────────────
 
-function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id: number) => void; cancelling: boolean }) {
+function JobListCard({ job, onCancel, cancelling }: { job: Job; onCancel: (id: number) => void; cancelling: boolean }) {
   const { t, i18n } = useTranslation()
   const isActive = job.status === 'pending' || job.status === 'running'
   const out = job.output_resource as RawResource | undefined
@@ -138,7 +138,7 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
       </div>
 
       <div className="px-4 py-2 border-b border-border bg-muted/10 empty:hidden">
-        <GenJobContextSummary job={job} />
+        <JobContextSummary job={job} />
       </div>
 
       <div className="bg-card min-h-[64px] flex items-center">
@@ -177,7 +177,7 @@ function JobListCard({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id
 
 // ── Grid view thumbnail ───────────────────────────────────────────────────────
 
-function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (id: number) => void; cancelling: boolean }) {
+function JobGridThumb({ job, onCancel, cancelling }: { job: Job; onCancel: (id: number) => void; cancelling: boolean }) {
   const { t, i18n } = useTranslation()
   const isActive = job.status === 'pending' || job.status === 'running'
   const out = job.output_resource as RawResource | undefined
@@ -226,7 +226,7 @@ function JobGridThumb({ job, onCancel, cancelling }: { job: GenJob; onCancel: (i
         <p className="text-[10px] text-muted-foreground truncate">
           {job.prompt ? <PromptText text={job.prompt} /> : t('pages.jobs.noPrompt')}
         </p>
-        <GenJobContextSummary job={job} className="mt-1" />
+        <JobContextSummary job={job} className="mt-1" />
         <p className="text-[9px] text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt, i18n.language, t)}</p>
       </div>
     </div>
@@ -243,7 +243,7 @@ function CategorySection({
   cancellingId,
 }: {
   label: string
-  jobs: GenJob[]
+  jobs: Job[]
   viewMode: 'grid' | 'list'
   onCancel: (id: number) => void
   cancellingId?: number
@@ -278,7 +278,7 @@ function CategorySection({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function GenJobsPage() {
+export default function JobsPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -286,11 +286,11 @@ export default function GenJobsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [page, setPage] = useState(1)
 
-  const hasActiveJobs = (jobs: GenJob[]) =>
+  const hasActiveJobs = (jobs: Job[]) =>
     jobs.some((j) => j.status === 'pending' || j.status === 'running')
 
-  const { data, isLoading } = useQuery<GenJobsQueryResult>({
-    queryKey: ['gen-jobs', { category: activeCategory, status: statusFilter, page }],
+  const { data, isLoading } = useQuery<JobsQueryResult>({
+    queryKey: ['jobs', { category: activeCategory, status: statusFilter, page }],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: String(PAGE_SIZE),
@@ -302,20 +302,20 @@ export default function GenJobsPage() {
       }
       if (statusFilter === 'succeeded') params.set('status', 'succeeded')
 
-      const res = await api.get<GenJob[]>(`/gen-jobs?${params.toString()}`)
+      const res = await api.get<Job[]>(`/jobs?${params.toString()}`)
       const total = Number(res.headers['x-total-count'] ?? res.data.length)
       return { jobs: res.data, total }
     },
     refetchInterval: (query) => {
-      const data = query.state.data as GenJobsQueryResult | undefined
+      const data = query.state.data as JobsQueryResult | undefined
       return data && hasActiveJobs(data.jobs) ? 3000 : 30000
     },
   })
 
   const cancelMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/gen-jobs/${id}/cancel`).then((r) => r.data as GenJob),
+    mutationFn: (id: number) => api.post(`/jobs/${id}/cancel`).then((r) => r.data as Job),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['gen-jobs'] })
+      qc.invalidateQueries({ queryKey: ['jobs'] })
     },
     onError: (err: any) => {
       alert(translateApiError(err?.response?.data, 'pages.jobs.cancelFailed'))
@@ -335,7 +335,7 @@ export default function GenJobsPage() {
   }, [page, pageCount])
 
   // Group by category for "all" view
-  const grouped: { key: string; label: string; jobs: GenJob[] }[] =
+  const grouped: { key: string; label: string; jobs: Job[] }[] =
     activeCategory === 'all'
       ? CATEGORIES.filter((c) => c.key !== 'all').map((c) => ({
           key: c.key,

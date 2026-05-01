@@ -6,9 +6,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// GenJob represents an asynchronous AI generation task (image or video).
+// Job represents an asynchronous AI generation task (image or video).
 // It decouples submission from execution — created instantly, processed by a background worker pool.
-type GenJob struct {
+type Job struct {
 	gorm.Model
 	UserID              uint       `gorm:"not null" json:"user_id"`
 	ModelConfigID       uint       `gorm:"not null" json:"model_config_id"`               // AIModelConfig.ID
@@ -34,7 +34,7 @@ type GenJob struct {
 	ErrorMsg            string     `json:"error_msg,omitempty"`
 	DebugInfo           string     `json:"debug_info,omitempty"`      // JSON-encoded DebugCallResult (populated in debug mode)
 	ExecutionState      string     `json:"execution_state,omitempty"` // current worker state-machine state
-	StateTrace          string     `json:"state_trace,omitempty"`     // JSON-encoded []genjob.StateTraceEntry
+	StateTrace          string     `json:"state_trace,omitempty"`     // JSON-encoded []job.StateTraceEntry
 	LastHeartbeatAt     *time.Time `json:"last_heartbeat_at,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	FinishedAt          *time.Time `json:"finished_at,omitempty"`

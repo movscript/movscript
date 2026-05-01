@@ -26,7 +26,7 @@ import {
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import type { Asset, Episode, Pipeline, Progress, Scene, Script, Shot, Storyboard } from '@/types'
+import type { Asset, Episode, Progress, Scene, Script, Shot, Storyboard } from '@/types'
 import { Badge } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { Progress as ProgressBar } from '@movscript/ui'
@@ -134,18 +134,10 @@ export default function ProductionFramePage() {
     queryFn: () => api.get(`/projects/${projectId}/assets`).then((r) => r.data),
     enabled: !!projectId,
   })
-  const { data: pipeline } = useQuery<Pipeline>({
-    queryKey: ['pipeline', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/pipeline`).then((r) => r.data),
-    enabled: !!projectId,
-  })
-
   const metrics = useMemo(() => {
     const storyboardTotal = progress?.storyboards.total ?? safeCount(storyboards)
     const shotTotal = progress?.shots.total ?? safeCount(shots)
     const shotApproved = progress?.shots.is_approved ?? (shots?.filter((x) => x.is_approved).length ?? 0)
-    const reviewTasks = pipeline?.nodes.filter((x) => x.status === 'under_review').length ?? 0
-    const openTasks = pipeline?.nodes.filter((x) => x.status !== 'final').length ?? 0
 
     return {
       scripts: progress?.scripts ?? safeCount(scripts),
@@ -155,11 +147,9 @@ export default function ProductionFramePage() {
       storyboardTotal,
       shotTotal,
       shotApproved,
-      reviewTasks,
-      openTasks,
       shotPct: pct(shotApproved, shotTotal),
     }
-  }, [assets, episodes, pipeline, progress, scenes, scripts, shots, storyboards])
+  }, [assets, episodes, progress, scenes, scripts, shots, storyboards])
 
   const firstEpisode = episodes?.[0]
   const firstScene = scenes?.[0]
@@ -300,8 +290,8 @@ export default function ProductionFramePage() {
 
           <aside className="space-y-4">
             <Panel title="管理者视图" icon={LayoutDashboard}>
-              <Kpi label="待批阅" value={metrics.reviewTasks} tone="text-amber-600" />
-              <Kpi label="未完成节点" value={metrics.openTasks} tone="text-sky-600" />
+              <Kpi label="分镜数量" value={metrics.storyboardTotal} tone="text-amber-600" />
+              <Kpi label="镜头总数" value={metrics.shotTotal} tone="text-sky-600" />
               <Kpi label="镜头已锁定" value={metrics.shotApproved} tone="text-emerald-600" />
             </Panel>
 

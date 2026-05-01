@@ -1518,7 +1518,7 @@ func (h *CanvasHandler) executeTask(user *model.User, node *model.CanvasNode, ta
 		}
 		textReq := ai.TextRequest{
 			Messages:  []ai.Message{{Role: "user", Content: nd.Prompt}},
-			MaxTokens: 2048,
+			MaxTokens: ai.DefaultTextMaxTokens,
 		}
 		if _, err := h.svc.PreflightText(nd.ModelDbID, &textReq); err != nil {
 			h.failTask(task, node, nd, err.Error())
@@ -1656,7 +1656,7 @@ func (h *CanvasHandler) executeExecutableSpec(ctx context.Context, user *model.U
 			h.failTask(task, node, nd, "prompt is required")
 			return
 		}
-		maxTokens := intParam(params, "max_tokens", 2048)
+		maxTokens := intParam(params, "max_tokens", ai.DefaultTextMaxTokens)
 		textReq := ai.TextRequest{
 			Messages:    []ai.Message{{Role: "user", Content: prompt}},
 			MaxTokens:   maxTokens,

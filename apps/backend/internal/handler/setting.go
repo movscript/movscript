@@ -25,9 +25,6 @@ func (h *SettingHandler) List(c *gin.Context) {
 	if sid := c.Query("script_id"); sid != "" {
 		q = q.Where("script_id = ?", sid)
 	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
-	}
 	q.Order("type, name").Find(&settings)
 	c.JSON(http.StatusOK, settings)
 }
@@ -215,7 +212,6 @@ func (h *SettingHandler) Create(c *gin.Context) {
 	}
 	var s model.Setting
 	service.ApplySettingInput(&s, req)
-	s.PipelineNodeID = req.PipelineNodeID
 	s.ProjectID = parseID(c.Param("id"))
 	s.Name = strings.TrimSpace(s.Name)
 	if s.Name == "" {

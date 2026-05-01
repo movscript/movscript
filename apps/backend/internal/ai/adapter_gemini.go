@@ -294,7 +294,7 @@ func (a *GeminiAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 		return startResp, nil
 	}
 
-	// Legacy synchronous path for direct callers. The genjob worker uses
+	// Legacy synchronous path for direct callers. The job worker uses
 	// VideoStart/VideoPoll so submitted operation names are persisted first.
 	for i := 0; i < 60; i++ {
 		select {

@@ -392,7 +392,7 @@ function createRuntime(): ClientPluginRuntime {
 
 export async function generateImageViaRuntime(req: GenerateImageRequest): Promise<unknown> {
   const inputIDs = req.input_resource_ids ?? []
-  const created = await api.post('/gen-jobs', {
+  const created = await api.post('/jobs', {
     model_config_id: req.model_config_id,
     job_type: req.job_type ?? (inputIDs.length > 0 ? 'image_edit' : 'image'),
     feature_key: req.feature_key ?? 'client_plugin',
@@ -405,7 +405,7 @@ export async function generateImageViaRuntime(req: GenerateImageRequest): Promis
   const timeout = req.timeout_ms ?? 180_000
   const started = Date.now()
   for (;;) {
-    const job = await api.get(`/gen-jobs/${created.ID}`).then((r) => r.data as { status: string; error_msg?: string })
+    const job = await api.get(`/jobs/${created.ID}`).then((r) => r.data as { status: string; error_msg?: string })
     if (job.status === 'succeeded') return job
     if (job.status === 'failed' || job.status === 'cancelled') {
       throw new Error(job.error_msg || `generation job ${job.status}`)

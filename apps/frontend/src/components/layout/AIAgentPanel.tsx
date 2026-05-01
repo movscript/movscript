@@ -1334,7 +1334,7 @@ function MemoryPanel({
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note', 'pipeline']
+const DRAFT_KINDS: AgentDraftKind[] = ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 
 function DraftPanel({

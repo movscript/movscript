@@ -27,10 +27,9 @@ import ProductionFramePage from './pages/production/ProductionFramePage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
-import GenJobsPage from './pages/jobs/GenJobsPage'
+import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
-import PipelineEditorPage from './pages/pipeline/PipelineEditorPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
@@ -157,8 +156,6 @@ export default function App() {
                     <Route path="/storyboards" element={<ProjectGuard><StoryboardsPage /></ProjectGuard>} />
                     <Route path="/shots"       element={<ProjectGuard><ShotsPage /></ProjectGuard>} />
                     <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
-                    <Route path="/pipeline" element={<ProjectGuard><PipelineEditorPage /></ProjectGuard>} />
-                    <Route path="/pipeline/nodes/:nodeId" element={<ProjectGuard><WorkbenchPage mode="pipeline-node" /></ProjectGuard>} />
 
                     {/* 工具模块 */}
                     <Route path="/canvases"                  element={<Padded><CanvasListPage /></Padded>} />
@@ -180,7 +177,7 @@ export default function App() {
 
                     {/* 文件 */}
                     <Route path="/resources" element={<ResourcesPage />} />
-                    <Route path="/jobs" element={<GenJobsPage />} />
+                    <Route path="/jobs" element={<JobsPage />} />
                     <Route path="/plugins" element={<ClientPluginsPage />} />
 
                     {/* Agent */}

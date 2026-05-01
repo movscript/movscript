@@ -8,7 +8,7 @@ import {
   LayoutTemplate, Video, Move, Palette, Box,
   Users, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
   HardDrive, Wand2, MessageSquare, LayoutDashboard,
-  Puzzle, Bug, PanelLeftClose, PanelLeftOpen, Network,
+  Puzzle, Bug, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -228,7 +228,6 @@ export function Sidebar() {
           {current && (
             <>
               <NavItem to="/creation" icon={LayoutDashboard} label={t('sidebar.items.creation')} collapsed={collapsed} />
-              <NavItem to="/pipeline" icon={Network} label={t('sidebar.items.pipeline')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} collapsed={collapsed} />
               {!collapsed && <div className="border-t border-border mx-3 my-1.5" />}
             </>

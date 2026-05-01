@@ -6,15 +6,12 @@ import "gorm.io/gorm"
 // independent of any Episode. Episodes reference Scenes via EpisodeScene.
 type Scene struct {
 	gorm.Model
-	ProjectID      uint    `gorm:"not null" json:"project_id"`
-	PipelineNodeID *uint   `json:"pipeline_node_id,omitempty"`
-	ScriptID       *uint   `json:"script_id,omitempty"`
-	Script         *Script `gorm:"foreignKey:ScriptID" json:"script,omitempty"`
-	Number         int     `json:"number"`
-	Title          string  `json:"title"`
-	Notes          string  `json:"notes"`
-	// Reserved for legacy entity-level review. Disabled in the frontend for now;
-	// pipeline node status is the active review source of truth.
+	ProjectID    uint         `gorm:"not null" json:"project_id"`
+	ScriptID     *uint        `json:"script_id,omitempty"`
+	Script       *Script      `gorm:"foreignKey:ScriptID" json:"script,omitempty"`
+	Number       int          `json:"number"`
+	Title        string       `json:"title"`
+	Notes        string       `json:"notes"`
 	ReviewStatus string       `gorm:"default:'draft'" json:"review_status"`
 	Settings     []Setting    `gorm:"many2many:scene_setting_refs;" json:"settings,omitempty"`
 	Storyboards  []Storyboard `gorm:"foreignKey:SceneID" json:"storyboards,omitempty"`

@@ -7,7 +7,6 @@ import "gorm.io/gorm"
 type Setting struct {
 	gorm.Model
 	ProjectID        uint            `gorm:"not null;index" json:"project_id"`
-	PipelineNodeID   *uint           `json:"pipeline_node_id,omitempty"`
 	ScriptID         *uint           `json:"script_id,omitempty"`
 	SourceScriptID   *uint           `json:"source_script_id,omitempty"`
 	SourceAnalysisID *uint           `json:"source_analysis_id,omitempty"`

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
-import type { AICredential, DebugCallResult, DebugHTTPExchange, GenJobDetail, GenJobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
+import type { AICredential, DebugCallResult, DebugHTTPExchange, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
 import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
@@ -133,7 +133,7 @@ const STATE_LABEL_KEYS: Record<string, string> = {
   failed: 'admin.debug.states.failed',
 }
 
-function parseStateTrace(trace?: string): GenJobStateTraceEntry[] {
+function parseStateTrace(trace?: string): JobStateTraceEntry[] {
   if (!trace) return []
   try {
     const parsed = JSON.parse(trace)
@@ -143,7 +143,7 @@ function parseStateTrace(trace?: string): GenJobStateTraceEntry[] {
   }
 }
 
-function StateTimeline({ trace }: { trace: GenJobStateTraceEntry[] }) {
+function StateTimeline({ trace }: { trace: JobStateTraceEntry[] }) {
   const { t } = useTranslation()
   if (trace.length === 0) {
     return <p className="text-xs text-muted-foreground">{t('admin.debug.noStateTrace')}</p>
@@ -413,7 +413,7 @@ function JobMonitorSection() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [page, setPage] = useState(1)
 
-  const { data, refetch, isFetching } = useQuery<{ jobs: GenJobDetail[]; total: number }>({
+  const { data, refetch, isFetching } = useQuery<{ jobs: JobDetail[]; total: number }>({
     queryKey: ['admin', 'debug', 'jobs', statusFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -421,7 +421,7 @@ function JobMonitorSection() {
         offset: String((page - 1) * JOB_MONITOR_PAGE_SIZE),
       })
       if (statusFilter) params.set('status', statusFilter)
-      const res = await api.get<GenJobDetail[]>(`/admin/debug/jobs?${params.toString()}`)
+      const res = await api.get<JobDetail[]>(`/admin/debug/jobs?${params.toString()}`)
       const total = Number(res.headers['x-total-count'] ?? res.data.length)
       return { jobs: res.data, total }
     },
@@ -791,7 +791,7 @@ const ADAPTER_ENDPOINT_SUGGESTIONS: Record<string, { labelKey: string; url: stri
 // Default param schemas for each capability, used in direct debug calls.
 const DEFAULT_PARAMS: Record<string, ParamDef[]> = {
   text: [
-    { key: 'max_tokens', label: 'admin.debug.params.maxTokens', type: 'number', default: 256, min: 1, max: 32768 },
+    { key: 'max_tokens', label: 'admin.debug.params.maxTokens', type: 'number', default: 200000, min: 1, max: 200000 },
     { key: 'temperature', label: 'admin.debug.params.temperature', type: 'number', default: 0.7, min: 0, max: 2, step: 0.1 },
   ],
   image: [

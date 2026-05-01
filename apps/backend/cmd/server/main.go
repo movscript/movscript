@@ -9,7 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/config"
 	"github.com/movscript/movscript/internal/db"
-	"github.com/movscript/movscript/internal/genjob"
+	"github.com/movscript/movscript/internal/job"
 	"github.com/movscript/movscript/internal/observability"
 	"github.com/movscript/movscript/internal/router"
 	"github.com/movscript/movscript/internal/storage"
@@ -40,11 +40,11 @@ func main() {
 	}
 	observability.Logger().Info("storage_initialized", slog.String("backend", "minio"), slog.String("endpoint", cfg.MinIOEndpoint), slog.String("bucket", cfg.MinIOBucket))
 
-	// Start GenJob worker pool (4 concurrent workers).
+	// Start Job worker pool (4 concurrent workers).
 	encKey, _ := hex.DecodeString(cfg.EncryptionKey)
 	registry := ai.NewRegistry(database, encKey)
 	aiService := ai.NewAIService(database, registry)
-	worker := genjob.NewWorker(database, aiService, store, encKey)
+	worker := job.NewWorker(database, aiService, store, encKey)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 	worker.Start(workerCtx, 4)

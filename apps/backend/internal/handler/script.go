@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
@@ -36,9 +38,6 @@ func (h *ScriptHandler) List(c *gin.Context) {
 	q := h.db.Where("project_id = ?", c.Param("id"))
 	if t := c.Query("type"); t != "" {
 		q = q.Where("script_type = ?", t)
-	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
 	}
 	if aid := c.Query("assignee_id"); aid != "" {
 		q = q.Where("assignee_id = ?", aid)
@@ -138,7 +137,6 @@ func (h *ScriptHandler) Delete(c *gin.Context) {
 }
 
 // Patch applies a partial update to a script.
-// Pipeline node status owns review workflow; scripts only carry content fields.
 func (h *ScriptHandler) Patch(c *gin.Context) {
 	var s model.Script
 	if err := h.db.First(&s, c.Param("id")).Error; err != nil {
@@ -412,18 +410,46 @@ func (h *ScriptHandler) AnalyzeStream(c *gin.Context) {
 		userID = u.ID
 	}
 
-	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
+	c.Header("Content-Type", "text/event-stream; charset=utf-8")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 	flusher, _ := c.Writer.(http.Flusher)
+	var writeMu sync.Mutex
 	write := func(event string, payload any) {
-		line, _ := json.Marshal(gin.H{"event": event, "data": payload})
-		fmt.Fprintf(c.Writer, "%s\n", line)
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		data, _ := json.Marshal(payload)
+		fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event, data)
 		if flusher != nil {
 			flusher.Flush()
 		}
 	}
+	writeHeartbeat := func() {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		fmt.Fprint(c.Writer, ": ping\n\n")
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	heartbeatDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				writeHeartbeat()
+			case <-heartbeatDone:
+				return
+			case <-c.Request.Context().Done():
+				return
+			}
+		}
+	}()
+	defer close(heartbeatDone)
 
 	write("status", gin.H{"message": "开始 " + scriptAnalysisFeatureLabel(s.ScriptType) + " AI 分析"})
 	analysisResult, err := scriptanalysis.NewAnalyzer(h.svc).AnalyzeStream(c.Request.Context(), scriptanalysis.Request{
@@ -435,6 +461,8 @@ func (h *ScriptHandler) AnalyzeStream(c *gin.Context) {
 		switch event.Kind {
 		case "delta":
 			write("delta", gin.H{"text": event.Delta})
+		case "reasoning":
+			write("reasoning", gin.H{"text": event.Delta})
 		case "status":
 			write("status", gin.H{"message": event.Label})
 		}

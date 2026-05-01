@@ -45,9 +45,6 @@ func (h *AssetHandler) List(c *gin.Context) {
 	if settingID := c.Query("setting_id"); settingID != "" {
 		q = q.Where("setting_id = ?", settingID)
 	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
-	}
 	if keyword := strings.TrimSpace(c.Query("q")); keyword != "" {
 		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(keyword)+"%")
 	}
@@ -249,7 +246,7 @@ func (h *AssetHandler) Update(c *gin.Context) {
 
 // Patch applies a partial update to an asset.
 // Note: review_status is retained for legacy compatibility but is not enabled
-// in the current frontend; pipeline node status owns review workflow.
+// in the current frontend.
 func (h *AssetHandler) Patch(c *gin.Context) {
 	var a model.Asset
 	if err := h.db.First(&a, c.Param("assetId")).Error; err != nil {

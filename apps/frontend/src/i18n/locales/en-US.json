@@ -94,15 +94,6 @@
     "notFound": "Not found",
     "passwordHashFailed": "Failed to hash password",
     "permissionDenied": "Permission denied",
-    "pipelineAlreadyDraft": "The node is already in draft state",
-    "pipelineApproveState": "Only nodes in review can be approved",
-    "pipelineAssigneeMemberRequired": "Executor must be a project member",
-    "pipelineLeadMemberRequired": "Lead must be a project member",
-    "pipelineManageAssignmentRequired": "Owner, director, or node lead permission is required",
-    "pipelineRejectState": "Only nodes in review can be rejected",
-    "pipelineReviewPermissionRequired": "Owner, director, or non-self-review lead permission is required",
-    "pipelineSubmitPermissionRequired": "Executor, lead, director, or owner permission is required",
-    "pipelineSubmitState": "Only draft or rejected nodes can be submitted for review",
     "projectNotFound": "Project not found",
     "providerCancellationFailed": "Provider cancellation failed: {{detail}}",
     "runNotFound": "Run not found",
@@ -567,11 +558,6 @@
         "editing": "Editing",
         "done": "Done"
       },
-      "selectTemplateTitle": "Select Production Pipeline Template",
-      "templateHint": "Choose a production pipeline for your project. You can customize it later on the pipeline page.",
-      "blankPipeline": "Blank pipeline",
-      "nextStep": "Next",
-      "backToTemplate": "Back to templates",
       "nameRequired": "Project name *",
       "namePlaceholder": "Name your project",
       "descriptionOptional": "Project description (optional)",
@@ -580,32 +566,9 @@
       "empty": "No projects yet",
       "emptyHint": "Create your first short drama project to start managing scripts, episodes, and assets.",
       "createFirst": "Create the first project",
-      "templates": {
-        "fullProduction": {
-          "label": "Full Production",
-          "description": "Start from script and settings, then cover the complete process."
-        },
-        "fromScript": {
-          "label": "Script Adaptation",
-          "description": "Start from an existing script, curate settings, then produce episodes."
-        },
-        "fromStoryboard": {
-          "label": "Storyboard Ready",
-          "description": "Use an existing storyboard script and go straight to shot production."
-        },
-        "custom": {
-          "label": "Custom",
-          "description": "Start blank and build the production pipeline manually."
-        }
-      },
       "templateSteps": {
-        "mainScript": "Main Script",
-        "settingCreation": "Setting Creation",
         "episodeScript": "Episode Script",
-        "sceneScript": "Scene Script",
-        "storyboardScript": "Storyboard Script",
-        "shotProduction": "Shot Production",
-        "episodeEditing": "Episode Editing"
+        "sceneScript": "Scene Script"
       }
     },
     "jobs": {
@@ -928,231 +891,9 @@
       }
     }
   },
-  "pipeline": {
-    "status": {
-      "draft": "Draft",
-      "under_review": "In Review",
-      "rejected": "Rejected",
-      "final": "Final"
-    },
-    "categories": {
-      "work": "Work",
-      "custom": "Custom",
-      "tool": "Tool",
-      "workNodes": "Work Nodes",
-      "toolNodes": "Tool Nodes"
-    },
-    "nodeTypes": {
-      "script_writing": {
-        "label": "Script Writing",
-        "desc": "Create the main script"
-      },
-      "setting_creation": {
-        "label": "Setting Creation",
-        "desc": "Create character, scene, and prop settings"
-      },
-      "episode_writing": {
-        "label": "Episode Script Writing",
-        "desc": "Create episode scripts"
-      },
-      "scene_writing": {
-        "label": "Scene Script Writing",
-        "desc": "Create scene scripts"
-      },
-      "storyboard_creation": {
-        "label": "Storyboard Creation",
-        "desc": "Create storyboard scripts"
-      },
-      "asset_creation": {
-        "label": "Asset Creation",
-        "desc": "Create characters, scenes, and props"
-      },
-      "raw_script": {
-        "label": "Draft Writing",
-        "desc": "Original draft or outline"
-      },
-      "shot_production": {
-        "label": "Shot Production",
-        "desc": "Generate shots with AI"
-      },
-      "episode_edit": {
-        "label": "Episode Editing",
-        "desc": "Post-production editing"
-      },
-      "ref_image_gen": {
-        "label": "Reference Image",
-        "desc": "Generate a new image from a reference image"
-      },
-      "ref_video_gen": {
-        "label": "Reference Video",
-        "desc": "Generate video from a reference video"
-      },
-      "style_transfer": {
-        "label": "Style Transfer",
-        "desc": "Transfer the reference image's art style"
-      },
-      "motion_imitation": {
-        "label": "Motion Imitation",
-        "desc": "Transfer motion from a reference video"
-      },
-      "multi_angle": {
-        "label": "Multi-angle",
-        "desc": "Generate multi-angle views"
-      },
-      "custom": {
-        "label": "Custom",
-        "desc": "Define a custom type"
-      }
-    },
-    "editor": {
-      "subtitle": "Content production pipeline",
-      "dagView": "DAG View",
-      "treeView": "Tree",
-      "ganttView": "Gantt",
-      "taskLayer": "Tasks",
-      "dependencyLayer": "Dependencies",
-      "scheduleLayer": "Schedule",
-      "fitView": "Fit View",
-      "empty": "Pipeline is empty. Add a work item to start the production flow."
-    },
-    "tree": {
-      "addRoot": "Add Work Item",
-      "addChild": "Add Child",
-      "addChildTo": "Add child to \"{{name}}\"",
-      "structure": "Node Structure",
-      "statusAndActions": "Status and Actions",
-      "nodeType": "Node Type"
-    },
-    "contextMenu": {
-      "addNode": "Add Node",
-      "hint": "Choose a node type and drag it onto the canvas"
-    },
-    "delete": {
-      "title": "Delete Node",
-      "description": "This action cannot be undone. Related review records will also be removed.",
-      "deleting": "Deleting...",
-      "confirm": "Delete"
-    },
-    "gantt": {
-      "empty": "No nodes",
-      "noDueDate": "No due date"
-    },
-    "dependency": {
-      "empty": "No dependencies"
-    },
-    "node": {
-      "fallbackName": "Node {{id}}",
-      "linkedEntity": "Linked {{type}} #{{id}}",
-      "dragConnect": "Drag to connect",
-      "enterWorkspace": "Open entity in workbench",
-      "lockedHint": "Waiting for upstream",
-      "customStage": "Custom stage",
-      "actions": {
-        "submit": "Submit",
-        "approve": "Approve",
-        "reject": "Reject",
-        "reopen": "Reopen"
-      }
-    },
-    "toolNode": {
-      "noModels": "No models",
-      "selectModel": "Select model",
-      "status": "Status",
-      "error": "Error"
-    },
-    "entities": {
-      "title": "Project Content",
-      "hint": "Click the link icon to attach content to a node",
-      "linkToNode": "Link to node",
-      "emptyEpisodes": "No episodes",
-      "emptyScenes": "No scenes",
-      "emptyStoryboards": "No storyboards",
-      "emptyShots": "No shots",
-      "episodeTitle": "Episode {{number}}{{title}}",
-      "sceneTitle": "Scene {{number}}{{title}}",
-      "episodeLabel": "Episode {{number}}",
-      "sceneLabel": "Scene {{number}}"
-    },
-    "nav": {
-      "title": "Content Navigation",
-      "hint": "Drag onto the canvas to create linked nodes",
-      "emptySection": "No {{section}}",
-      "footerLine1": "Drag onto empty canvas space",
-      "footerLine2": "to create linked work items automatically"
-    },
-    "detail": {
-      "entities": {
-        "script": "Script",
-        "setting": "Setting",
-        "episode": "Episode",
-        "scene": "Scene",
-        "storyboard": "Storyboard",
-        "shot": "Shot",
-        "asset": "Asset",
-        "final_video": "Final Video"
-      },
-      "entityFallback": {
-        "script": "Script #{{id}}",
-        "setting": "Setting #{{id}}",
-        "asset": "Asset #{{id}}",
-        "finalVideo": "Final Video #{{id}}"
-      },
-      "defaultTitles": {
-        "episode": "New Episode",
-        "scene": "New Scene",
-        "storyboard": "New Storyboard"
-      },
-      "nodeName": "Node Name",
-      "addDescription": "Add description...",
-      "assignee": "Executor",
-      "assigneeFallback": "Falls back to {{name}} when no executor is assigned",
-      "lead": "Stage Lead",
-      "unassigned": "Unassigned",
-      "dueDate": "Due Date",
-      "linkEntity": "Link {{entity}}",
-      "linkedEntity": "Linked {{entity}} #{{id}}",
-      "view": "View",
-      "loadingEntities": "Loading...",
-      "selectExistingEntity": "Select existing {{entity}}",
-      "noExistingEntity": "No {{entity}} available",
-      "linkSelected": "Link selected entity",
-      "changeLink": "Change link",
-      "unlinkEntity": "Unlink {{entity}}",
-      "createAndLink": "Create and link {{entity}}",
-      "rejectReason": "Rejection Reason",
-      "resubmit": "Resubmit",
-      "approveFinal": "Approve Final",
-      "reject": "Reject",
-      "rejectPlaceholder": "Enter a rejection reason...",
-      "confirmReject": "Confirm Reject",
-      "reopen": "Reopen (cascade downstream rollback)",
-      "clickToEdit": "Click to edit...",
-      "contentType": "Content Type",
-      "openWorkspace": "Open entity in workbench"
-    },
-    "contentTypes": {
-      "script": "Script",
-      "setting": "Setting",
-      "storyboard": "Storyboard",
-      "shot": "Shot",
-      "asset": "Asset",
-      "episode": "Episode",
-      "scene": "Scene",
-      "final_video": "Final Video",
-      "custom": "Custom"
-    },
-    "workspace": {
-      "empty": "No content yet, click the button to create",
-      "customHint": "Custom stage — manage content in the Content Library",
-      "createFirst": "Create first {{type}}",
-      "inlineEmpty": "Select a node to show its workspace here.",
-      "resizeHandle": "Drag to resize workspace"
-    }
-  },
   "work": {
     "creationCanvas": "Creation Canvas",
     "collapseCanvas": "Collapse Canvas",
-    "pipeline": "Pipeline",
     "searchPlaceholder": "Search {{entity}}...",
     "noSearchResults": "No matching artifacts",
     "emptyKindHint": "No {{entity}} yet. Create one on the right.",
@@ -2260,7 +2001,6 @@
       "myAgents": "My Agents",
       "agentDebug": "Agent Debug",
       "production": "Production Hub",
-      "pipeline": "Pipeline",
       "creation": "Workbench",
       "collaboration": "Collaboration",
       "user": "User Profile",

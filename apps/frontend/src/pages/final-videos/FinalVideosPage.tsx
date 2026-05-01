@@ -9,7 +9,6 @@ import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 import { EntitySemanticForm, type EntitySemanticFieldRenderContext } from '@/components/detail/EntitySemanticForm'
 import { cn } from '@/lib/utils'
-import { defaultContentType } from '@/pages/pipeline/nodeSpec'
 import { Clapperboard, Film, LayoutGrid, List, Plus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -257,25 +256,8 @@ function FinalVideoCreateForm({ projectId, onSuccess, onCancel }: { projectId: n
 
   const create = useMutation({
     mutationFn: () => api.post(`/projects/${projectId}/final-videos`, { title: title || t('pages.finalVideos.defaultTitle') }).then((r) => r.data),
-    onSuccess: (created: FinalVideo) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
-      api.post(`/projects/${projectId}/pipeline/nodes`, {
-        type: 'episode_edit',
-        name: created.title,
-        content_type: defaultContentType('episode_edit'),
-        pos_x: 0,
-        pos_y: 0,
-      }).then((r) => api.post(`/projects/${projectId}/pipeline/nodes`, {
-        type: 'final_video',
-        name: created.title,
-        content_type: defaultContentType('final_video'),
-        entity_type: 'final_video',
-        entity_id: created.ID,
-        parent_id: r.data.ID,
-        pos_x: 0,
-        pos_y: 0,
-      })).catch(() => {/* fire-and-forget */})
       onSuccess()
     },
   })
@@ -359,7 +341,6 @@ export function FinalVideoDetail({
     }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['final-videos', projectId] })
-      qc.invalidateQueries({ queryKey: ['pipeline', projectId] })
     },
   })
 

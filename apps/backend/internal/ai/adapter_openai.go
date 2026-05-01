@@ -147,6 +147,7 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				choice := chunk.Choices[0]
 				event.Role = choice.Delta.Role
 				event.ContentDelta = choice.Delta.Content
+				event.ReasoningDelta = choice.Delta.ReasoningContent
 				event.ToolCallDeltas = choice.Delta.ToolCalls
 				event.FinishReason = choice.FinishReason
 			}
@@ -155,6 +156,9 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				OutputTokens: chunk.Usage.CompletionTokens,
 			}
 			out <- event
+		}
+		if err := scanner.Err(); err != nil {
+			out <- TextStreamEvent{Error: fmt.Sprintf("openai text stream receive: %v", err)}
 		}
 	}()
 	return out, nil
@@ -177,9 +181,10 @@ type openAIChatCompletionResponse struct {
 type openAIChatCompletionChunk struct {
 	Choices []struct {
 		Delta struct {
-			Role      string          `json:"role"`
-			Content   string          `json:"content"`
-			ToolCalls []ToolCallDelta `json:"tool_calls"`
+			Role             string          `json:"role"`
+			Content          string          `json:"content"`
+			ReasoningContent string          `json:"reasoning_content"`
+			ToolCalls        []ToolCallDelta `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`

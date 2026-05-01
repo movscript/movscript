@@ -7,21 +7,18 @@ import "gorm.io/gorm"
 // and associated with scenes/episodes later.
 type Storyboard struct {
 	gorm.Model
-	ProjectID      uint     `gorm:"not null" json:"project_id"`
-	SceneID        *uint    `json:"scene_id,omitempty"`
-	EpisodeID      *uint    `json:"episode_id,omitempty"`
-	SettingID      *uint    `json:"setting_id,omitempty"`
-	Setting        *Setting `gorm:"foreignKey:SettingID" json:"setting,omitempty"`
-	PipelineNodeID *uint    `json:"pipeline_node_id,omitempty"`
-	AssigneeID     *uint    `json:"assignee_id,omitempty"`
-	Assignee       *User    `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
-	// Reserved for legacy entity-level review. Disabled in the frontend for now;
-	// pipeline node status is the active review source of truth.
-	ReviewStatus string `gorm:"default:'draft'" json:"review_status"`
-	Order        int    `json:"order"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
-	Notes        string `json:"notes"`
+	ProjectID    uint     `gorm:"not null" json:"project_id"`
+	SceneID      *uint    `json:"scene_id,omitempty"`
+	EpisodeID    *uint    `json:"episode_id,omitempty"`
+	SettingID    *uint    `json:"setting_id,omitempty"`
+	Setting      *Setting `gorm:"foreignKey:SettingID" json:"setting,omitempty"`
+	AssigneeID   *uint    `json:"assignee_id,omitempty"`
+	Assignee     *User    `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
+	ReviewStatus string   `gorm:"default:'draft'" json:"review_status"`
+	Order        int      `json:"order"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description"`
+	Notes        string   `json:"notes"`
 
 	// Content
 	Characters string `json:"characters"` // JSON array of asset IDs or names

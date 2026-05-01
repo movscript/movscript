@@ -42,9 +42,6 @@ func (h *StoryboardHandler) ListByProject(c *gin.Context) {
 	if sid := c.Query("setting_id"); sid != "" {
 		q = q.Where("setting_id = ?", sid)
 	}
-	if nid := c.Query("pipeline_node_id"); nid != "" {
-		q = q.Where("pipeline_node_id = ?", nid)
-	}
 	if aid := c.Query("assignee_id"); aid != "" {
 		q = q.Where("assignee_id = ?", aid)
 	}
@@ -137,7 +134,7 @@ func (h *StoryboardHandler) Delete(c *gin.Context) {
 
 // Patch applies a partial update to a storyboard.
 // Note: review_status is retained for legacy compatibility but is not enabled
-// in the current frontend; pipeline node status owns review workflow.
+// in the current frontend.
 func (h *StoryboardHandler) Patch(c *gin.Context) {
 	var b model.Storyboard
 	if err := h.db.First(&b, c.Param("id")).Error; err != nil {

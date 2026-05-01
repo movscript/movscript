@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ElementType, ReactNode } from 'react'
-import { AlertTriangle, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Wrench } from 'lucide-react'
+import { AlertTriangle, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
 import {
   AgentCommandBar,
   AgentComposerAction,
@@ -62,6 +62,13 @@ type CandidatePreviewItem = {
   props: CanvasCandidateGroupCardProps
 }
 
+type V2PreviewItem = {
+  id: string
+  type: 'v2'
+  name: string
+  description: string
+}
+
 type AgentPreviewItem = {
   id: string
   type: 'agent'
@@ -69,12 +76,11 @@ type AgentPreviewItem = {
   description: string
 }
 
-type PipelinePreviewItem = {
+type ScriptStructurePreviewItem = {
   id: string
-  type: 'pipeline'
+  type: 'script-structure'
   name: string
   description: string
-  stage: PipelinePreviewStage
 }
 
 type StructuredScriptPreviewItem = {
@@ -85,9 +91,7 @@ type StructuredScriptPreviewItem = {
   scriptKind: 'main' | 'scene'
 }
 
-type PipelinePreviewStage = 'overview' | 'script' | 'setting' | 'asset' | 'storyboard' | 'shot' | 'delivery'
-
-type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | ToolPreviewItem | PipelinePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
+type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | V2PreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
 
 const ENTITY_PREVIEWS: EntityPreviewItem[] = [
   {
@@ -380,58 +384,6 @@ const AGENT_PREVIEWS: AgentPreviewItem[] = [
   },
 ]
 
-const PIPELINE_PREVIEWS: PipelinePreviewItem[] = [
-  {
-    id: 'pipeline-intelligence-workbench',
-    type: 'pipeline',
-    name: '管线总览',
-    description: '管线主界面从节点详情转向阶段工作区：左侧阶段导航，中间阶段工作台，右侧阶段摘要与审核。',
-    stage: 'overview',
-  },
-  {
-    id: 'pipeline-script-stage',
-    type: 'pipeline',
-    name: '剧本整理',
-    description: '处理剧本版本、增量分析、变更收件箱和候选事实提取。',
-    stage: 'script',
-  },
-  {
-    id: 'pipeline-setting-stage',
-    type: 'pipeline',
-    name: '设定准备',
-    description: '确认角色、场景、道具、关系候选，沉淀到长期设定库。',
-    stage: 'setting',
-  },
-  {
-    id: 'pipeline-asset-stage',
-    type: 'pipeline',
-    name: '素材准备',
-    description: '用矩阵管理设定、状态、视角和资源覆盖，单项再打开画布生成。',
-    stage: 'asset',
-  },
-  {
-    id: 'pipeline-storyboard-stage',
-    type: 'pipeline',
-    name: '分镜脚本生产',
-    description: '把分场剧本拆成分镜候选、画面描述、机位和分镜图任务。',
-    stage: 'storyboard',
-  },
-  {
-    id: 'pipeline-shot-stage',
-    type: 'pipeline',
-    name: '镜头生产',
-    description: '基于分镜和素材生成视频镜头，管理版本、返工和选片。',
-    stage: 'shot',
-  },
-  {
-    id: 'pipeline-delivery-stage',
-    type: 'pipeline',
-    name: '成片交付',
-    description: '检查镜头序列、缺失项、版本审核和最终交付状态。',
-    stage: 'delivery',
-  },
-]
-
 const STRUCTURED_SCRIPT_PREVIEWS: StructuredScriptPreviewItem[] = [
   {
     id: 'main-script-detail',
@@ -449,12 +401,36 @@ const STRUCTURED_SCRIPT_PREVIEWS: StructuredScriptPreviewItem[] = [
   },
 ]
 
+const SCRIPT_STRUCTURE_PREVIEWS: ScriptStructurePreviewItem[] = [
+  {
+    id: 'script-section-hierarchy',
+    type: 'script-structure',
+    name: '剧本节层级',
+    description: '展示剧本原文如何进入剧本节、情境、内容单元，以及人物/场景/产品等创作资料如何被引用。',
+  },
+]
+
+const V2_PREVIEWS: V2PreviewItem[] = [
+  {
+    id: 'v2-integrated-model',
+    type: 'v2',
+    name: 'V2 总览',
+    description: '把剧本结构、创作资料、素材、画布输出和制作任务收进一个模型里，用来检查设计是否自洽。',
+  },
+]
+
 const PREVIEW_GROUPS: Array<{
   id: string
   title: string
   description: string
   items: PreviewItem[]
 }> = [
+  {
+    id: 'v2',
+    title: 'V2',
+    description: 'Integrated Product Model',
+    items: V2_PREVIEWS,
+  },
   {
     id: 'entities',
     title: '实体卡片',
@@ -480,10 +456,10 @@ const PREVIEW_GROUPS: Array<{
     items: CANDIDATE_PREVIEWS,
   },
   {
-    id: 'pipeline',
-    title: '管线工作台',
-    description: 'Pipeline Workspace',
-    items: PIPELINE_PREVIEWS,
+    id: 'script-structure',
+    title: '剧本结构',
+    description: 'ScriptSection / Situation / ContentUnit',
+    items: SCRIPT_STRUCTURE_PREVIEWS,
   },
   {
     id: 'script-detail',
@@ -558,14 +534,16 @@ export function UIPreviewPage() {
           <div className="rounded-lg border border-border bg-card">
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
-                {selected.type === 'entity'
+                {selected.type === 'v2'
+                  ? <Sparkles size={15} className="text-muted-foreground" />
+                : selected.type === 'entity'
                   ? <Clapperboard size={15} className="text-muted-foreground" />
                   : selected.type === 'state'
                     ? <Sparkles size={15} className="text-muted-foreground" />
                   : selected.type === 'candidate'
                     ? <Layers size={15} className="text-muted-foreground" />
-                  : selected.type === 'pipeline'
-                    ? <GitBranch size={15} className="text-muted-foreground" />
+                  : selected.type === 'script-structure'
+                    ? <ListChecks size={15} className="text-muted-foreground" />
                   : selected.type === 'structured-script'
                     ? <FileText size={15} className="text-muted-foreground" />
                   : selected.type === 'tool'
@@ -578,14 +556,16 @@ export function UIPreviewPage() {
 
             <div className="overflow-auto">
               <div className="min-h-[420px] min-w-[860px] bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:20px_20px] p-8">
-                {selected.type === 'entity'
+                {selected.type === 'v2'
+                  ? <V2IntegratedModelPreviewCanvas />
+                : selected.type === 'entity'
                   ? <EntityPreviewCanvas preview={selected} />
                   : selected.type === 'state'
                     ? <StatePreviewCanvas preview={selected} />
                   : selected.type === 'candidate'
                     ? <CandidatePreviewCanvas preview={selected} />
-                  : selected.type === 'pipeline'
-                    ? <PipelineIntelligencePreviewCanvas stage={selected.stage} />
+                  : selected.type === 'script-structure'
+                    ? <ScriptStructureHierarchyPreviewCanvas />
                   : selected.type === 'structured-script'
                     ? <StructuredScriptDetailPreviewCanvas scriptKind={selected.scriptKind} />
                   : selected.type === 'tool'
@@ -605,7 +585,13 @@ export function UIPreviewPage() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
-            {selected.type === 'entity' ? (
+            {selected.type === 'v2' ? (
+              <>
+                <SpecCard title="不按页面建模" text="V2 把页面收敛为对象视图：剧本与拆解、创作资料、预演、素材、任务、交付都读取同一组事实源。" />
+                <SpecCard title="画布不是事实源" text="画布有 owner 和输出落点，只记录操作、运行和结果；实体数据仍由结构化域、创作资料域、素材域持有。" />
+                <SpecCard title="漏洞显式暴露" text="右侧专门列出模型风险，要求每条关系都有事实源、落点、状态边界和可追溯证据。" />
+              </>
+            ) : selected.type === 'entity' ? (
               <>
                 <SpecCard title="属性绑定" text="卡片只暴露可绑定资源槽，不再展示所有实体字段。" />
                 <SpecCard title="实体关联" text="关系区展示高频关系，真实创建关系时可通过连线或右键动作触发。" />
@@ -623,11 +609,11 @@ export function UIPreviewPage() {
                 <SpecCard title="选择即提交" text="选中的候选输出为实体创建动作；放弃项保留为本次分析上下文，可用于重生成。" />
                 <SpecCard title="可重复生成" text="候选组是一次运行的版本化结果，未来可以保留、对比或基于拒绝原因重跑。" />
               </>
-            ) : selected.type === 'pipeline' ? (
+            ) : selected.type === 'script-structure' ? (
               <>
-                <SpecCard title="阶段是入口" text="管线主视图优先展示生产阶段和当前阶段工作区，不再把大量面积交给节点字段详情。" />
-                <SpecCard title="候选先进收件箱" text="智能分析结果先进入候选收件箱，确认后才写入设定、素材需求、分镜或镜头任务。" />
-                <SpecCard title="画布按需打开" text="画布从具体工作项进入，负责生成编排；管线负责进度、影响和审核。" />
+                <SpecCard title="结构主干" text="剧本节、情境、内容单元是从文本到 AI 预演的主路径，负责叙事位置和生产颗粒度。" />
+                <SpecCard title="资料引用" text="人物、场景、产品、风格等作为创作资料被情境引用，不强行成为所有项目的固定结构层。" />
+                <SpecCard title="画布落点" text="每个情境或内容单元都可以打开自己的画布，执行关键帧、素材和视频生成动作。" />
               </>
             ) : selected.type === 'structured-script' ? (
               selected.scriptKind === 'main' ? (
@@ -663,27 +649,1098 @@ export function UIPreviewPage() {
   )
 }
 
-type PipelinePreviewMetric = {
-  label: string
-  value: string
-  tone: 'emerald' | 'sky' | 'amber' | 'neutral'
+function V2IntegratedModelPreviewCanvas() {
+  const [activePage, setActivePage] = useState('剧本预演')
+  const navigation = [
+    { label: '项目首页', meta: '项目状态和下一步' },
+    { label: '剧本预演', meta: '导入剧本，一键看全片' },
+    { label: '创作资料', meta: '人物、地点、产品、风格' },
+    { label: '素材准备', meta: '缺什么、用什么、锁什么' },
+    { label: '内容生产', meta: '关键帧、视频片段、版本' },
+    { label: '制作任务', meta: '人做、AI 做、待审核' },
+    { label: '交付', meta: '预演片、成片、导出' },
+    { label: '画布', meta: '从对象进入的创作工作台' },
+  ].map((item) => ({ ...item, active: item.label === activePage }))
+
+  const pageCards = [
+    { title: '项目首页', userGoal: '知道今天该先做什么', primary: '展示最近变更、阻塞、AI 运行和下一步建议', action: '继续项目' },
+    { title: '剧本预演', userGoal: '把剧本变成可播放预览', primary: '上传/粘贴剧本，生成章节、情境和关键帧', action: '一键生成预演' },
+    { title: '创作资料', userGoal: '确认 AI 对角色和世界的理解', primary: '按人物、动物、地点、产品、风格分组检查', action: '确认资料' },
+    { title: '素材准备', userGoal: '知道正式生产缺哪些输入', primary: '按情境和内容单元列出参考图、视频、声音缺口', action: '补齐素材' },
+    { title: '内容生产', userGoal: '把预演画面升级成可用片段', primary: '从关键帧进入视频生成、实拍上传或人工制作', action: '生成片段' },
+    { title: '制作任务', userGoal: '分配给人或 AI 执行', primary: '看我的任务、AI 队列、待审核和返工', action: '派发任务' },
+    { title: '交付', userGoal: '检查整片是否能交付', primary: '播放预演/成片时间线，检查缺失和版本', action: '导出版本' },
+    { title: '画布', userGoal: '在具体对象里做 AI 创作', primary: '从情境、关键帧、素材需求、片段进入上下文画布', action: '打开画布' },
+  ] as const
+
+  const rightRail = [
+    { title: '用户先看到什么', text: '不是表和模型，而是“剧本已解析、预演可播放、这些地方需要确认”。' },
+    { title: '画布什么时候出现', text: '用户点击某个情境、关键帧、素材需求或视频片段时才进入画布。' },
+    { title: '实现怎么分步', text: '先做剧本导入和静态预演，再做资料确认、素材缺口、画布生成和任务分配。' },
+  ]
+  const activeNav = navigation.find((item) => item.active) ?? navigation[1]
+
+  return (
+    <div className="w-[1260px] rounded-lg border border-border bg-background text-xs shadow-sm">
+      <div className="grid h-[780px] grid-cols-[210px_minmax(0,1fr)_300px] overflow-hidden rounded-lg">
+        <aside className="border-r border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-primary" />
+              <p className="font-semibold text-foreground">MovScript</p>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              AI 影视预演与制作工作台
+            </p>
+          </div>
+          <div className="space-y-1 p-2">
+            {navigation.map((item) => (
+              <V2NavItem key={item.label} {...item} onClick={() => setActivePage(item.label)} />
+            ))}
+          </div>
+          <div className="border-t border-border p-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">今天</p>
+            <V2Principle label="剧本预演待确认 3 项" />
+            <V2Principle label="缺素材 6 项" />
+            <V2Principle label="AI 生成中 2 项" />
+            <V2Principle label="待审核 4 项" />
+          </div>
+        </aside>
+
+        <main className="min-w-0 overflow-hidden bg-background">
+          <div className="border-b border-border px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Play size={14} className="text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">{activePage}</h3>
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  {activeNav.meta}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button size="xs" variant="outline" className="h-7">查看说明</Button>
+                <Button size="xs" className="h-7">{pageCards.find((page) => page.title === activePage)?.action ?? '继续'}</Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 overflow-y-auto p-4">
+            <V2PagePrototype page={activePage} />
+
+            <section className="rounded-md border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">主页面原型地图</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">先定义每个页面帮用户完成什么，再回头拆实现。</p>
+                </div>
+                <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">Product first</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 p-2">
+                {pageCards.map((page) => (
+                  <V2ProductPageCard
+                    key={page.title}
+                    {...page}
+                    active={activePage === page.title}
+                    onClick={() => setActivePage(page.title)}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <aside className="border-l border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2">
+              <ListChecks size={14} className="text-muted-foreground" />
+              <p className="font-semibold text-foreground">从原型到实现</p>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              技术拆分放在产品原型之后，而不是反过来。
+            </p>
+          </div>
+          <div className="space-y-3 p-3">
+            {rightRail.map((item) => (
+              <div key={item.title} className="rounded-md border border-border bg-background px-2.5 py-2">
+                <p className="text-xs font-semibold text-foreground">{item.title}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{item.text}</p>
+              </div>
+            ))}
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">实施顺序</p>
+              <V2ImplementationStep label="1. 剧本导入" value="上传、版本、原文定位" />
+              <V2ImplementationStep label="2. 预演生成" value="章节、情境、关键帧候选" />
+              <V2ImplementationStep label="3. 人工确认" value="调整理解、顺序和画面" />
+              <V2ImplementationStep label="4. 对象画布" value="从情境/素材/片段进入生成" />
+              <V2ImplementationStep label="5. 任务和交付" value="分配执行、审核、导出" />
+            </section>
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">先不做</p>
+              <ContinuityItem label="复杂排期系统" value="先用制作任务列表替代" />
+              <ContinuityItem label="全项目自由画布" value="先做对象画布，避免无落点输出" />
+              <ContinuityItem label="过细角色字段" value="先用产品可理解的资料卡" />
+            </section>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
 }
 
-type PipelinePreviewRow = {
-  kind: string
+function V2AppShellPreview({
+  navigation,
+}: {
+  navigation: ReadonlyArray<{ label: string; meta: string; active?: boolean }>
+}) {
+  const active = navigation.find((item) => item.active) ?? navigation[0]
+
+  return (
+    <section className="overflow-hidden rounded-md border border-border bg-card">
+      <div className="grid h-[190px] grid-cols-[170px_minmax(0,1fr)_170px]">
+        <aside className="border-r border-border bg-background">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-xs font-semibold text-foreground">V2 侧栏</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">用户路径优先</p>
+          </div>
+          <div className="space-y-0.5 p-2">
+            {navigation.map((item) => (
+              <div
+                key={item.label}
+                className={cn(
+                  'rounded px-2 py-1.5',
+                  item.active ? 'bg-primary/10 text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                <p className="truncate text-[11px] font-medium">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <main className="min-w-0 bg-background">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-foreground">{active.label}</p>
+              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{active.meta}</p>
+            </div>
+            <Button size="xs" className="h-7">一键预演</Button>
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_190px] gap-2 p-2">
+            <div className="rounded-md border border-border bg-card">
+              <div className="border-b border-border px-2.5 py-1.5">
+                <p className="text-[11px] font-medium text-foreground">原文与结构</p>
+              </div>
+              <div className="space-y-1.5 p-2">
+                <V2TinyRow label="ScriptSection" value="雨夜巷口发现旧伞线索" />
+                <V2TinyRow label="Situation" value="雨夜巷口对峙" />
+                <V2TinyRow label="ContentUnit" value="CU-02 林夏近景" />
+              </div>
+            </div>
+            <div className="rounded-md border border-border bg-card">
+              <div className="border-b border-border px-2.5 py-1.5">
+                <p className="text-[11px] font-medium text-foreground">当前上下文</p>
+              </div>
+              <div className="space-y-1.5 p-2">
+                <V2TinyRow label="资料" value="林夏 / 旧伞" />
+                <V2TinyRow label="素材" value="3 张可用" />
+                <V2TinyRow label="输出" value="关键帧候选" warning />
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside className="border-l border-border bg-background">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-xs font-semibold text-foreground">对象详情</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">选中即显示边界</p>
+          </div>
+          <div className="space-y-1.5 p-2">
+            <V2TinyRow label="事实源" value="Structure" />
+            <V2TinyRow label="画布 owner" value="Situation#12" />
+            <V2TinyRow label="默认落点" value="Keyframe" />
+          </div>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function V2PagePrototype({ page }: { page: string }) {
+  if (page === '项目首页') {
+    return (
+      <V2PageShell
+        eyebrow="项目首页"
+        title="今天先处理会影响预演和交付的事项"
+        description="首页不是数据大盘，而是把项目推进所需的下一步排出来。"
+        primary="继续剧本预演"
+        secondary="查看风险"
+        hero={<V2HomePrototype />}
+      />
+    )
+  }
+  if (page === '创作资料') {
+    return (
+      <V2PageShell
+        eyebrow="创作资料"
+        title="确认 AI 对人物、地点、产品和风格的理解"
+        description="用户按自然分类审查资料，不需要知道底层统一成什么模型。"
+        primary="确认选中资料"
+        secondary="合并重复项"
+        hero={<V2ReferencePrototype />}
+      />
+    )
+  }
+  if (page === '素材准备') {
+    return (
+      <V2PageShell
+        eyebrow="素材准备"
+        title="先看缺口，再决定上传、生成或复用"
+        description="素材页围绕需求矩阵，而不是一堆无上下文图片。"
+        primary="生成缺失素材"
+        secondary="导入素材"
+        hero={<V2AssetPrototype />}
+      />
+    )
+  }
+  if (page === '内容生产') {
+    return (
+      <V2PageShell
+        eyebrow="内容生产"
+        title="把预演画面升级为视频片段或可交付素材"
+        description="镜头只是内容单元的一种；宣传片画面、字幕卡、转场也能在这里生产。"
+        primary="生成视频片段"
+        secondary="上传实拍"
+        hero={<V2ProductionPrototype />}
+      />
+    )
+  }
+  if (page === '制作任务') {
+    return (
+      <V2PageShell
+        eyebrow="制作任务"
+        title="每个具体工作都可以由人或 AI 完成"
+        description="任务页只管执行、审核和返工，不和实体采用状态混在一起。"
+        primary="派发 AI 任务"
+        secondary="新建人工任务"
+        hero={<V2TaskPrototype />}
+      />
+    )
+  }
+  if (page === '交付') {
+    return (
+      <V2PageShell
+        eyebrow="交付"
+        title="检查整片是否完整，再导出版本"
+        description="交付页聚焦时间线、缺失检查、版本和审核。"
+        primary="导出预演片"
+        secondary="检查缺失"
+        hero={<V2DeliveryPrototype />}
+      />
+    )
+  }
+  if (page === '画布') {
+    return (
+      <V2PageShell
+        eyebrow="画布"
+        title="画布从具体对象进入，负责生成和决策"
+        description="这里是管理入口；真正创作时从情境、关键帧、素材需求或片段打开画布。"
+        primary="打开最近画布"
+        secondary="检查无落点输出"
+        hero={<V2CanvasPrototype />}
+      />
+    )
+  }
+
+  return (
+    <V2PageShell
+      eyebrow="一键预演"
+      title="上传剧本，先看到整部片"
+      description="系统自动拆出章节、情境和关键画面，生成一条可播放的预演时间线。用户先确认理解，再决定进入素材和视频生产。"
+      primary="一键生成预演"
+      secondary="导入剧本"
+      hero={<V2ScriptPreviewPrototype />}
+    />
+  )
+}
+
+function V2PageShell({
+  eyebrow,
+  title,
+  description,
+  primary,
+  secondary,
+  hero,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+  primary: string
+  secondary: string
+  hero: ReactNode
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-1.5 rounded border border-primary/25 bg-primary/10 px-2 py-1 text-[11px] text-primary">
+            <Sparkles size={12} />
+            {eyebrow}
+          </div>
+          <h2 className="mt-2 text-xl font-semibold tracking-normal text-foreground">{title}</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button size="xs" variant="outline" className="h-7">{secondary}</Button>
+          <Button size="xs" className="h-7">{primary}</Button>
+        </div>
+      </div>
+      <div className="p-4">{hero}</div>
+    </section>
+  )
+}
+
+function V2ScriptPreviewPrototype() {
+  const previewFrames = [
+    { title: '雨夜巷口', subtitle: '压抑 / 悬疑 / 林夏与顾言' },
+    { title: '旧伞纸条', subtitle: '特写 / 反转 / 母亲线索' },
+    { title: '老伞匠铺', subtitle: '转场 / 追查 / 新地点' },
+  ]
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-4">
+        <div className="min-w-0">
+          <div className="grid grid-cols-4 gap-2">
+            <V2PrototypeStep index="1" title="导入剧本" text="上传剧本、brief 或文案" active />
+            <V2PrototypeStep index="2" title="生成预演" text="AI 生成关键画面和节奏" active />
+            <V2PrototypeStep index="3" title="调整确认" text="修改情境、画面和顺序" />
+            <V2PrototypeStep index="4" title="进入制作" text="补素材、生成视频、交付" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-2">
+          <div className="flex h-36 items-center justify-center rounded-md bg-zinc-950 text-white">
+            <div className="text-center">
+              <Play size={26} className="mx-auto opacity-75" />
+              <p className="mt-2 text-sm font-medium">预演片 v1</p>
+              <p className="mt-1 text-[11px] text-white/55">01:42 · 12 个关键画面</p>
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {previewFrames.map((frame) => <V2PreviewFrame key={frame.title} {...frame} />)}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-[240px_minmax(0,1fr)_220px] gap-3">
+        <div className="rounded-md border border-border bg-background">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-xs font-semibold text-foreground">剧本原文</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">用户能回看 AI 的依据</p>
+          </div>
+          <div className="space-y-2 p-3">
+            <RawSourceLine line="L340" text="雨越下越大，林夏攥着旧伞站在巷口。" active />
+            <RawSourceLine line="L361" text="顾言没有靠近，只问她到底还瞒了什么。" />
+            <RawSourceLine line="L378" text="伞骨夹层里滑出一张被雨泡皱的纸条。" />
+          </div>
+        </div>
+        <div className="rounded-md border border-border bg-background">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold text-foreground">AI 理解结果</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">用用户语言展示，不暴露底层模型名。</p>
+            </div>
+            <Button size="xs" variant="outline" className="h-7">全部确认</Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 p-3">
+            <V2UnderstandingCard title="章节" value="雨夜巷口发现旧伞线索" text="这是一段剧情推进，不是单纯环境描写。" />
+            <V2UnderstandingCard title="情境" value="雨夜巷口对峙" text="林夏、顾言、旧伞、暴雨和纸条共同构成画面上下文。" />
+            <V2UnderstandingCard title="画面" value="3 个关键画面" text="巷口远景、林夏近景、纸条特写。" warning />
+          </div>
+        </div>
+        <div className="rounded-md border border-border bg-background">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-xs font-semibold text-foreground">下一步</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">产品动作优先</p>
+          </div>
+          <div className="space-y-2 p-3">
+            <V2NextAction title="确认创作资料" text="林夏、顾言、旧伞、雨夜巷口" />
+            <V2NextAction title="补齐素材" text="缺林夏伤痕参考和旧伞特写" warning />
+            <V2NextAction title="打开画布" text="为纸条特写生成关键帧" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function V2HomePrototype() {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_240px] gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <V2Panel title="继续工作" rows={['剧本预演 v1 有 3 个待确认画面', '林夏伤痕参考缺失，阻塞 CU-02', '旧伞特写关键帧可进入视频生成']} />
+        <V2Panel title="项目健康" rows={['预演完成 72%', '素材缺口 6 项', '待审核 4 项']} />
+        <V2Panel title="最近更新" rows={['AI 新增 12 个关键画面', '用户确认 5 个创作资料', '顾言侧脸素材被标记不足']} />
+        <V2Panel title="快捷入口" rows={['导入新版剧本', '播放预演片', '打开待处理任务']} />
+      </div>
+      <V2Panel title="今日建议" rows={['先确认雨夜巷口情境', '补齐林夏伤痕参考', '再生成 CU-02 视频片段']} warning />
+    </div>
+  )
+}
+
+function V2ReferencePrototype() {
+  return <V2Board columns={[
+    { title: '主体', rows: ['林夏 · 主角 · 待确认状态', '顾言 · 对手戏 · 缺侧脸参考', '旧伞 · 线索道具 · 高优先级'] },
+    { title: '地点/风格', rows: ['雨夜巷口 · 夜雨状态', '老伞匠铺 · 下一场地点', '冷雨低照度 · 风格约束'] },
+    { title: '待处理', rows: ['林夏雨夜受伤状态需确认', '雨夜巷口是否合并旧地点', '旧伞道具需要主视觉'] },
+  ]} />
+}
+
+function V2AssetPrototype() {
+  return <V2Board columns={[
+    { title: '缺失', rows: ['林夏伤痕参考 · 阻塞 CU-02', '旧伞特写图 · 阻塞纸条画面', '顾言侧脸 · 阻塞反打镜头'] },
+    { title: '候选', rows: ['雨夜巷口环境参考 3 张', '林夏主视觉 v2/v3', '旧伞草图 2 张'] },
+    { title: '已锁定', rows: ['林夏基础头像', '冷雨风格参考', '巷口环境基底'] },
+  ]} />
+}
+
+function V2ProductionPrototype() {
+  return <V2Board columns={[
+    { title: '可生产', rows: ['CU-01 巷口远景建立', 'CU-03 旧伞纸条特写', '字幕卡：雨夜线索'] },
+    { title: '生成中', rows: ['CU-02 林夏近景 v2', '旧伞纸条关键帧 v3'] },
+    { title: '待选片', rows: ['CU-01 视频候选 4 个', '老伞匠铺转场 2 个'] },
+  ]} />
+}
+
+function V2TaskPrototype() {
+  return <V2Board columns={[
+    { title: '我的任务', rows: ['确认雨夜巷口情境', '审核旧伞道具资料', '选择 CU-01 视频版本'] },
+    { title: 'AI 执行', rows: ['生成旧伞特写关键帧', '补齐林夏表情组', '根据预演生成镜头描述'] },
+    { title: '待审核', rows: ['林夏主视觉 v3', 'CU-02 近景视频', '预演片 v1'] },
+  ]} />
+}
+
+function V2DeliveryPrototype() {
+  return <V2Board columns={[
+    { title: '时间线', rows: ['开场 00:00-00:18', '雨夜巷口 00:18-01:42', '老伞匠铺 01:42-02:10'] },
+    { title: '缺失检查', rows: ['CU-02 未锁定', '顾言反打缺视频', '字幕未审核'] },
+    { title: '版本', rows: ['预演片 v1 可播放', '成片 cut v0 未生成', '竖屏 9:16 待导出'] },
+  ]} />
+}
+
+function V2CanvasPrototype() {
+  return (
+    <div className="grid grid-cols-[220px_minmax(0,1fr)_220px] gap-3">
+      <V2Panel title="上下文" rows={['Owner：雨夜巷口情境', '引用：林夏、顾言、旧伞', '可用素材：3 张']} />
+      <div className="rounded-md border border-border bg-background p-3">
+        <div className="grid grid-cols-3 gap-3">
+          <V2CanvasMiniCard title="情境卡" text="雨夜巷口对峙" />
+          <V2CanvasMiniCard title="AI 动作" text="生成旧伞纸条关键帧" active />
+          <V2CanvasMiniCard title="结果卡" text="关键帧候选 v3" />
+        </div>
+        <div className="mt-3 rounded border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
+          输出按钮：设为关键帧 / 保存为素材 / 加入预演
+        </div>
+      </div>
+      <V2Panel title="输出落点" rows={['默认：当前情境关键帧', '备选：旧伞素材', '备选：CU-03 输入']} />
+    </div>
+  )
+}
+
+function V2Panel({ title, rows, warning }: { title: string; rows: string[]; warning?: boolean }) {
+  return (
+    <div className={cn('rounded-md border bg-background', warning ? 'border-amber-500/25' : 'border-border')}>
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-xs font-semibold text-foreground">{title}</p>
+      </div>
+      <div className="space-y-1.5 p-3">
+        {rows.map((row) => <V2TinyRow key={row} label="-" value={row} warning={warning} />)}
+      </div>
+    </div>
+  )
+}
+
+function V2Board({ columns }: { columns: Array<{ title: string; rows: string[] }> }) {
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {columns.map((column) => <V2Panel key={column.title} title={column.title} rows={column.rows} />)}
+    </div>
+  )
+}
+
+function V2CanvasMiniCard({ title, text, active }: { title: string; text: string; active?: boolean }) {
+  return (
+    <div className={cn('rounded-md border px-3 py-3', active ? 'border-primary/30 bg-primary/10' : 'border-border bg-card')}>
+      <p className="text-xs font-semibold text-foreground">{title}</p>
+      <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{text}</p>
+    </div>
+  )
+}
+
+function V2PrototypeStep({ index, title, text, active }: { index: string; title: string; text: string; active?: boolean }) {
+  return (
+    <div className={cn('rounded-md border px-2.5 py-2', active ? 'border-primary/25 bg-primary/10' : 'border-border bg-background')}>
+      <div className="flex items-center gap-1.5">
+        <span className={cn('flex h-5 w-5 items-center justify-center rounded text-[10px] font-semibold', active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>{index}</span>
+        <p className="truncate text-xs font-semibold text-foreground">{title}</p>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  )
+}
+
+function V2PreviewFrame({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="rounded border border-border bg-card px-2 py-1.5">
+      <p className="truncate text-[10px] font-medium text-foreground">{title}</p>
+      <p className="mt-0.5 truncate text-[9px] text-muted-foreground">{subtitle}</p>
+    </div>
+  )
+}
+
+function V2UnderstandingCard({ title, value, text, warning }: { title: string; value: string; text: string; warning?: boolean }) {
+  return (
+    <div className={cn('rounded-md border px-2.5 py-2', warning ? 'border-amber-500/25 bg-amber-500/10' : 'border-border bg-background')}>
+      <p className="text-[10px] text-muted-foreground">{title}</p>
+      <p className="mt-1 truncate text-xs font-semibold text-foreground">{value}</p>
+      <p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  )
+}
+
+function V2NextAction({ title, text, warning }: { title: string; text: string; warning?: boolean }) {
+  return (
+    <div className={cn('rounded-md border px-2.5 py-2', warning ? 'border-amber-500/25 bg-amber-500/10' : 'border-border bg-background')}>
+      <div className="flex items-center gap-1.5">
+        {warning ? <AlertTriangle size={12} className="text-amber-600" /> : <CheckCircle2 size={12} className="text-emerald-600" />}
+        <p className="truncate text-xs font-medium text-foreground">{title}</p>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  )
+}
+
+function V2ProductPageCard({
+  title,
+  userGoal,
+  primary,
+  action,
+  active,
+  onClick,
+}: {
+  title: string
+  userGoal: string
+  primary: string
+  action: string
+  active?: boolean
+  onClick?: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-md border bg-background px-2.5 py-2 text-left transition-colors',
+        active ? 'border-primary/30 bg-primary/10 ring-1 ring-primary/15' : 'border-border hover:bg-muted/40',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-xs font-semibold text-foreground">{title}</p>
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{action}</span>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-foreground">{userGoal}</p>
+      <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{primary}</p>
+    </button>
+  )
+}
+
+function V2ImplementationStep({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mb-1.5 rounded-md border border-border bg-background px-2 py-1.5">
+      <p className="truncate text-[11px] font-medium text-foreground">{label}</p>
+      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{value}</p>
+    </div>
+  )
+}
+
+function V2TinyRow({ label, value, warning }: { label: string; value: string; warning?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 rounded border border-border bg-background px-2 py-1">
+      <span className="shrink-0 text-[10px] text-muted-foreground">{label}</span>
+      <span className={cn(
+        'min-w-0 flex-1 truncate text-[10px] font-medium',
+        warning ? 'text-amber-700 dark:text-amber-300' : 'text-foreground',
+      )}>{value}</span>
+    </div>
+  )
+}
+
+function V2PageCard({
+  title,
+  object,
+  defaultView,
+  canvas,
+  risk,
+}: {
+  title: string
+  object: string
+  defaultView: string
+  canvas: string
+  risk: string
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-xs font-semibold text-foreground">{title}</p>
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">page</span>
+      </div>
+      <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">{object}</p>
+      <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{defaultView}</p>
+      <div className="mt-2 rounded border border-primary/20 bg-primary/5 px-1.5 py-1">
+        <p className="truncate text-[10px] text-muted-foreground">画布：{canvas}</p>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">风险：{risk}</p>
+    </div>
+  )
+}
+
+function V2NavItem({ label, meta, active, onClick }: { label: string; meta: string; active?: boolean; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'w-full rounded-md px-2.5 py-2 text-left transition-colors',
+        active ? 'bg-primary/10 text-foreground ring-1 ring-primary/20' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+      )}
+    >
+      <p className="truncate text-xs font-medium">{label}</p>
+      <p className="mt-0.5 truncate text-[10px] opacity-75">{meta}</p>
+    </button>
+  )
+}
+
+function V2Principle({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground">
+      <CheckCircle2 size={12} className="shrink-0 text-emerald-600" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </div>
+  )
+}
+
+function V2Metric({ label, value, caption, tone }: { label: string; value: string; caption: string; tone: 'sky' | 'teal' | 'amber' }) {
+  return (
+    <div className={cn(
+      'rounded-md border px-3 py-2',
+      tone === 'sky' && 'border-sky-500/25 bg-sky-500/10',
+      tone === 'teal' && 'border-teal-500/25 bg-teal-500/10',
+      tone === 'amber' && 'border-amber-500/25 bg-amber-500/10',
+    )}>
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold leading-none text-foreground">{value}</p>
+      <p className="mt-1 truncate text-[10px] text-muted-foreground">{caption}</p>
+    </div>
+  )
+}
+
+function V2Column({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+  return (
+    <section className="rounded-md border border-border bg-card">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-xs font-semibold text-foreground">{title}</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>
+      </div>
+      <div className="space-y-2 p-2">{children}</div>
+    </section>
+  )
+}
+
+function V2ObjectCard({ label, title, meta, tone }: { label: string; title: string; meta: string; tone: 'sky' | 'violet' | 'amber' | 'teal' | 'rose' | 'emerald' }) {
+  return (
+    <div className={cn(
+      'rounded-md border px-2.5 py-2',
+      tone === 'sky' && 'border-sky-500/25 bg-sky-500/10',
+      tone === 'violet' && 'border-violet-500/25 bg-violet-500/10',
+      tone === 'amber' && 'border-amber-500/25 bg-amber-500/10',
+      tone === 'teal' && 'border-teal-500/25 bg-teal-500/10',
+      tone === 'rose' && 'border-rose-500/25 bg-rose-500/10',
+      tone === 'emerald' && 'border-emerald-500/25 bg-emerald-500/10',
+    )}>
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 rounded border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{label}</span>
+      </div>
+      <p className="mt-1 truncate text-xs font-medium text-foreground">{title}</p>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{meta}</p>
+    </div>
+  )
+}
+
+function V2RelationRow({ relation, meaning, boundary, entry }: { relation: string; meaning: string; boundary: string; entry: string }) {
+  return (
+    <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-3 border-b border-border/70 px-3 py-2.5 last:border-b-0">
+      <p className="truncate text-xs font-medium text-foreground">{relation}</p>
+      <p className="truncate text-[11px] text-muted-foreground">{meaning}</p>
+      <p className="truncate text-[11px] text-muted-foreground">{boundary}</p>
+      <p className="truncate text-[11px] text-muted-foreground">{entry}</p>
+    </div>
+  )
+}
+
+function V2RiskCard({ title, problem, guardrail, severity }: { title: string; problem: string; guardrail: string; severity: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{title}</p>
+        <span className={cn(
+          'shrink-0 rounded border px-1.5 py-0.5 text-[10px]',
+          severity === '高' ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+        )}>
+          {severity}
+        </span>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{problem}</p>
+      <div className="mt-2 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1.5">
+        <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">约束</p>
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{guardrail}</p>
+      </div>
+    </div>
+  )
+}
+
+function ScriptStructureHierarchyPreviewCanvas() {
+  const sections = [
+    {
+      id: 'sec-01',
+      type: '开场节',
+      title: '清晨厨房里的产品登场',
+      source: 'Brief L12-L28',
+      summary: '用安静、干净的清晨画面建立品牌质感。',
+      active: false,
+    },
+    {
+      id: 'sec-02',
+      type: '剧情节',
+      title: '雨夜巷口发现旧伞线索',
+      source: 'Script L340-L392',
+      summary: '林夏在暴雨中与顾言对峙，旧伞里滑出纸条。',
+      active: true,
+    },
+    {
+      id: 'sec-03',
+      type: '转场节',
+      title: '纸条地址引向老伞匠铺',
+      source: 'Script L393-L426',
+      summary: '情绪从对峙转向追查，进入下一地点。',
+      active: false,
+    },
+  ]
+
+  const situations = [
+    {
+      id: 'sit-01',
+      title: '雨夜巷口对峙',
+      summary: '老城区窄巷，路灯闪烁，林夏攥着湿透旧伞，顾言保持距离追问真相。',
+      tone: '压抑 / 悬疑',
+      refs: ['林夏', '顾言', '雨夜巷口', '旧伞'],
+      selected: true,
+    },
+    {
+      id: 'sit-02',
+      title: '旧伞纸条暴露',
+      summary: '伞骨夹层滑出被雨泡皱的纸条，林夏意识到母亲线索被隐藏多年。',
+      tone: '惊愕 / 悲伤',
+      refs: ['林夏', '旧伞', '母亲线索'],
+    },
+  ]
+
+  const units = [
+    { id: 'cu-01', label: 'CU-01', title: '巷口远景建立', kind: '画面', duration: '4s', output: '关键帧', status: '可生成' },
+    { id: 'cu-02', label: 'CU-02', title: '林夏湿透脸部近景', kind: '镜头', duration: '5s', output: '视频片段', status: '缺伤痕参考', warning: true },
+    { id: 'cu-03', label: 'CU-03', title: '旧伞纸条特写', kind: '画面', duration: '3s', output: '关键帧', status: '可生成' },
+  ]
+
+  const references = [
+    { kind: 'person', label: '人物', title: '林夏', meta: '基础资料 + 雨夜受伤状态', tone: 'sky' },
+    { kind: 'person', label: '人物', title: '顾言', meta: '黑色外套 / 克制距离', tone: 'violet' },
+    { kind: 'location', label: '地点', title: '雨夜巷口', meta: '老城区 / 夜雨状态', tone: 'teal' },
+    { kind: 'object', label: '道具', title: '旧伞', meta: '反复出现的线索道具', tone: 'amber' },
+    { kind: 'style', label: '风格', title: '冷雨低照度', meta: '低饱和 / 强反光 / 悬疑', tone: 'rose' },
+  ]
+
+  return (
+    <div className="w-[1120px] rounded-lg border border-border bg-background text-xs shadow-sm">
+      <div className="grid h-[640px] grid-cols-[250px_minmax(0,1fr)_270px] overflow-hidden rounded-lg">
+        <aside className="border-r border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2">
+              <FileText size={14} className="text-sky-600" />
+              <p className="font-semibold text-foreground">剧本节</p>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              原文先切成可确认的语义段落，不直接变成镜头。
+            </p>
+          </div>
+
+          <div className="space-y-2 p-3">
+            {sections.map((section, index) => (
+              <ScriptSectionPreviewCard key={section.id} index={index + 1} {...section} />
+            ))}
+          </div>
+
+          <div className="border-t border-border p-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">结构规则</p>
+            <ScriptStructureCheck label="剧本节保留 source span" ok />
+            <ScriptStructureCheck label="情境从剧本节派生" ok />
+            <ScriptStructureCheck label="内容单元进入预演时间线" />
+          </div>
+        </aside>
+
+        <main className="min-w-0 overflow-hidden bg-background">
+          <div className="border-b border-border px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <ListChecks size={14} className="text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">ScriptSection 到 Situation 到 ContentUnit</h3>
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  中间层负责 AI 理解和一键预演；人物、地点、产品、风格通过引用参与，而不是固定压进层级。
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button size="xs" variant="outline" className="h-7">合并/拆分节</Button>
+                <Button size="xs" className="h-7">生成预演</Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 p-4">
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="font-semibold text-foreground">情境候选</p>
+                <span className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">来自选中剧本节</span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {situations.map((situation) => (
+                  <SituationPreviewCard key={situation.id} {...situation} />
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-md border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Clapperboard size={13} className="text-muted-foreground" />
+                  <p className="font-semibold text-foreground">内容单元</p>
+                </div>
+                <span className="text-[10px] text-muted-foreground">确认后进入预演时间线</span>
+              </div>
+              <div className="divide-y divide-border/70">
+                {units.map((unit) => (
+                  <ContentUnitPreviewRow key={unit.id} {...unit} />
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-md border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Play size={13} className="text-muted-foreground" />
+                  <p className="font-semibold text-foreground">预演时间线</p>
+                </div>
+                <span className="text-[10px] text-muted-foreground">关键帧先行，视频后置</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 p-3">
+                {units.map((unit, index) => (
+                  <div key={unit.id} className="rounded-md border border-border bg-background">
+                    <div className="flex h-20 items-center justify-center border-b border-border bg-muted/30">
+                      {index === 1 ? <Video size={20} className="text-muted-foreground/45" /> : <ImagePlus size={20} className="text-muted-foreground/45" />}
+                    </div>
+                    <div className="px-2 py-1.5">
+                      <p className="truncate text-[11px] font-medium text-foreground">{unit.title}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{unit.duration} · {unit.output}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <aside className="border-l border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2">
+              <Database size={14} className="text-muted-foreground" />
+              <p className="font-semibold text-foreground">创作资料引用</p>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              人物/场景/产品仍存在，只是作为可复用资料被情境引用。
+            </p>
+          </div>
+
+          <div className="space-y-3 p-3">
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">CreativeReference</p>
+              <div className="space-y-2">
+                {references.map((reference) => (
+                  <CreativeReferencePreviewCard key={`${reference.kind}-${reference.title}`} {...reference} />
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">关系说明</p>
+              <ContinuityItem label="剧本节" value="文本来源和叙事位置" />
+              <ContinuityItem label="情境" value="AI 理解画面的上下文" />
+              <ContinuityItem label="内容单元" value="关键帧/视频生产颗粒度" />
+              <ContinuityItem label="创作资料" value="主体、地点、产品、风格等复用事实" />
+            </section>
+
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">画布入口</p>
+              <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-2">
+                <p className="text-[11px] font-medium text-foreground">打开「雨夜巷口对峙」情境画布</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                  画布中放置情境卡、资料引用卡、关键帧动作和生成结果。
+                </p>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function ScriptSectionPreviewCard({
+  index,
+  type,
+  title,
+  source,
+  summary,
+  active,
+}: {
+  index: number
+  type: string
   title: string
   source: string
-  suggestion: string
-  match: string
-  status: string
-  selected?: boolean
-  warning?: boolean
+  summary: string
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
+        active ? 'border-primary/30 bg-primary/10 text-foreground' : 'border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[10px]">{String(index).padStart(2, '0')}</span>
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{type}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[10px] opacity-75">{source}</span>
+      </div>
+      <p className="mt-2 truncate text-xs font-semibold">{title}</p>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed opacity-75">{summary}</p>
+    </button>
+  )
 }
 
-type PipelinePreviewImpact = {
-  icon: ElementType
+function SituationPreviewCard({
+  title,
+  summary,
+  tone,
+  refs,
+  selected,
+}: {
+  title: string
+  summary: string
+  tone: string
+  refs: string[]
+  selected?: boolean
+}) {
+  return (
+    <div className={cn('rounded-md border bg-card px-3 py-3', selected ? 'border-primary/35 ring-1 ring-primary/15' : 'border-border')}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-foreground">{title}</p>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{summary}</p>
+        </div>
+        <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">{tone}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {refs.map((ref) => (
+          <span key={ref} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{ref}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ContentUnitPreviewRow({
+  label,
+  title,
+  kind,
+  duration,
+  output,
+  status,
+  warning,
+}: {
   label: string
-  value: string
+  title: string
+  kind: string
+  duration: string
+  output: string
+  status: string
+  warning?: boolean
+}) {
+  return (
+    <div className="grid grid-cols-[64px_minmax(0,1fr)_86px_90px_96px] items-center gap-3 px-3 py-2.5">
+      <span className="rounded border border-border bg-background px-1.5 py-1 text-center font-mono text-[10px] text-muted-foreground">{label}</span>
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium text-foreground">{title}</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">{kind} · {duration}</p>
+      </div>
+      <span className="truncate text-[11px] text-muted-foreground">{output}</span>
+      <Button size="xs" variant="outline" className="h-7">开画布</Button>
+      <span className={cn(
+        'truncate rounded border px-1.5 py-1 text-center text-[10px]',
+        warning ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-border bg-background text-muted-foreground',
+      )}>
+        {status}
+      </span>
+    </div>
+  )
+}
+
+function CreativeReferencePreviewCard({
+  label,
+  title,
+  meta,
+  tone,
+}: {
+  kind: string
+  label: string
+  title: string
+  meta: string
+  tone: string
+}) {
+  return (
+    <div className={cn(
+      'rounded-md border px-2.5 py-2',
+      tone === 'sky' && 'border-sky-500/25 bg-sky-500/10',
+      tone === 'violet' && 'border-violet-500/25 bg-violet-500/10',
+      tone === 'teal' && 'border-teal-500/25 bg-teal-500/10',
+      tone === 'amber' && 'border-amber-500/25 bg-amber-500/10',
+      tone === 'rose' && 'border-rose-500/25 bg-rose-500/10',
+    )}>
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 rounded border border-border/70 bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">{label}</span>
+        <p className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{title}</p>
+      </div>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{meta}</p>
+    </div>
+  )
 }
 
 function StructuredScriptDetailPreviewCanvas({ scriptKind }: { scriptKind: 'main' | 'scene' }) {
@@ -1147,484 +2204,6 @@ function ContinuityItem({ label, value }: { label: string; value: string }) {
 }
 
 function ScriptStructureCheck({ label, ok }: { label: string; ok?: boolean }) {
-  const Icon = ok ? CheckCircle2 : AlertTriangle
-  return (
-    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-      <Icon size={12} className={cn('shrink-0', ok ? 'text-emerald-600' : 'text-amber-600')} />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-    </div>
-  )
-}
-
-const PIPELINE_STAGE_NAV: Array<{
-  id: PipelinePreviewStage
-  label: string
-  meta: string
-  count: string
-  tone?: 'neutral' | 'amber' | 'sky'
-  muted?: boolean
-}> = [
-  { id: 'script', label: '剧本整理', meta: 'v12 有增量', count: '5', tone: 'amber' },
-  { id: 'setting', label: '设定准备', meta: '候选待确认', count: '18' },
-  { id: 'asset', label: '素材准备', meta: '缺失 7 项', count: '24', tone: 'sky' },
-  { id: 'storyboard', label: '分镜脚本', meta: '12 个工作项', count: '12' },
-  { id: 'shot', label: '镜头生产', meta: '等待分镜', count: '6' },
-  { id: 'delivery', label: '成片交付', meta: '未开始', count: '0', muted: true },
-]
-
-const PIPELINE_STAGE_CONFIG: Record<PipelinePreviewStage, {
-  title: string
-  subtitle: string
-  primaryAction: string
-  secondaryAction: string
-  tabs: string[]
-  metrics: PipelinePreviewMetric[]
-  rows: PipelinePreviewRow[]
-  impacts: PipelinePreviewImpact[]
-  checks: Array<{ label: string; ok?: boolean }>
-  nextStep: string
-}> = {
-  overview: {
-    title: '项目生产总览',
-    subtitle: '从阶段进度进入具体工作区；图谱仅用于查看依赖，不作为主操作面。',
-    primaryAction: '打开当前阶段',
-    secondaryAction: '查看依赖图',
-    tabs: ['阶段', '风险', '待审', '受影响'],
-    metrics: [
-      { label: '当前阶段', value: '设定', tone: 'sky' },
-      { label: '待处理', value: '18', tone: 'amber' },
-      { label: '待审', value: '7', tone: 'neutral' },
-      { label: '已锁定', value: '42', tone: 'emerald' },
-    ],
-    rows: [
-      { kind: '阶段', title: '设定准备', source: '剧本 v12 增量', suggestion: '先处理候选与冲突，再推送素材需求', match: '负责人：内容统筹', status: '进行中', selected: true },
-      { kind: '阶段', title: '素材准备', source: '依赖设定准备', suggestion: '使用矩阵检查角色状态和视角覆盖', match: '7 项缺失', status: '阻塞中', warning: true },
-      { kind: '阶段', title: '分镜脚本生产', source: 'Scene 01-08', suggestion: '等待核心角色素材锁定后批量拆分', match: '12 个候选', status: '待开始' },
-      { kind: '阶段', title: '镜头生产', source: 'Storyboard final', suggestion: '仅展示已确认分镜对应镜头任务', match: '6 条可执行', status: '准备中' },
-    ],
-    impacts: [
-      { icon: Inbox, label: '智能收件箱', value: '18' },
-      { icon: AlertTriangle, label: '阻塞项', value: '7' },
-      { icon: CheckCircle2, label: '已完成', value: '42' },
-    ],
-    checks: [
-      { label: '阶段工作区替代节点详情', ok: true },
-      { label: '画布只从具体工作项进入', ok: true },
-      { label: '依赖图保留为辅助视图' },
-    ],
-    nextStep: '点击某个阶段后，中间区域切换为对应的专用工作台，而不是打开通用节点详情。',
-  },
-  script: {
-    title: '剧本整理 · 增量分析',
-    subtitle: '来源：主剧本 v12 相比 v11 的变更；先进入变更收件箱，不直接覆盖下游。',
-    primaryAction: '生成候选',
-    secondaryAction: '查看差异',
-    tabs: ['新增', '修改', '冲突', '影响', '已忽略'],
-    metrics: [
-      { label: '新增片段', value: '5', tone: 'emerald' },
-      { label: '修改片段', value: '9', tone: 'sky' },
-      { label: '冲突', value: '3', tone: 'amber' },
-      { label: '影响下游', value: '14', tone: 'neutral' },
-    ],
-    rows: [
-      { kind: '新增', title: 'Scene 08 雨夜巷口', source: 'Script v12 L340-L392', suggestion: '创建分场候选，并提取角色状态', match: '未匹配分场', status: '待确认', selected: true },
-      { kind: '修改', title: '林夏受伤描述增强', source: 'Script v12 L361', suggestion: '作为局部状态进入设定准备', match: '匹配 Setting #12', status: '待合并' },
-      { kind: '冲突', title: '顾言动机前后不一致', source: 'v11/v12 差异', suggestion: '进入冲突处理，不自动更新人物档案', match: '匹配 Setting #18', status: '需人工判断', warning: true },
-      { kind: '影响', title: '旧版 S08-04 镜头', source: 'Shot #44', suggestion: '标记 impacted，保留已锁定版本', match: 'Final + impacted', status: '复核' },
-    ],
-    impacts: [
-      { icon: FileText, label: '候选片段', value: '+14' },
-      { icon: Database, label: '设定候选', value: '+8' },
-      { icon: Layers, label: '分镜影响', value: '5' },
-    ],
-    checks: [
-      { label: '不会覆盖已确认设定', ok: true },
-      { label: '产生分析 Run 版本', ok: true },
-      { label: '下游只打影响标记' },
-    ],
-    nextStep: '确认剧本变更后，角色、场景、道具和关系候选进入设定准备阶段。',
-  },
-  setting: {
-    title: '设定准备 · 智能分析收件箱',
-    subtitle: '来源：剧本整理阶段确认的候选事实；目标是写入长期设定库。',
-    primaryAction: '应用选中',
-    secondaryAction: '检查冲突',
-    tabs: ['新增', '更新', '冲突', '已确认', '已忽略'],
-    metrics: [
-      { label: '新增候选', value: '8', tone: 'emerald' },
-      { label: '待合并', value: '6', tone: 'sky' },
-      { label: '冲突', value: '3', tone: 'amber' },
-      { label: '已忽略', value: '4', tone: 'neutral' },
-    ],
-    rows: [
-      { kind: '角色', title: '林夏 · 雨夜受伤状态', source: 'Scene 08 / Shot 04', suggestion: '作为角色状态，不覆盖基础设定', match: '匹配 Setting #12', status: '待创建素材需求', selected: true },
-      { kind: '道具', title: '旧伞', source: '第 2 集反复出现 3 次', suggestion: '创建为道具设定，并生成参考素材', match: '未匹配', status: '待创建设定' },
-      { kind: '关系', title: '林夏 与 顾言关系变化', source: 'Scene 07 -> Scene 08', suggestion: '更新局部关系，不改全局人物关系', match: '匹配 2 条已有关系', status: '需人工确认', warning: true },
-      { kind: '场景', title: '雨夜巷口', source: '新增分场描述', suggestion: '合并到现有场景设定，补充夜雨状态', match: '匹配 Setting #31', status: '待合并' },
-    ],
-    impacts: [
-      { icon: Database, label: 'Setting', value: '+2 / 更新 3' },
-      { icon: CopyPlus, label: '素材需求', value: '+7' },
-      { icon: Layers, label: '分镜影响', value: '5 条需复核' },
-    ],
-    checks: [
-      { label: '不会覆盖已锁定设定', ok: true },
-      { label: '2 个镜头标记 impacted' },
-      { label: '旧素材仍保持可用', ok: true },
-    ],
-    nextStep: '应用候选后进入素材准备矩阵；单个素材需求再打开画布执行生成链路。',
-  },
-  asset: {
-    title: '素材准备 · 覆盖矩阵',
-    subtitle: '按设定、状态、视角和用途检查素材缺口；画布只处理单个素材需求。',
-    primaryAction: '生成缺失项',
-    secondaryAction: '批量创建需求',
-    tabs: ['缺失', '生成中', '待审', '已锁定', '受影响'],
-    metrics: [
-      { label: '缺失', value: '7', tone: 'amber' },
-      { label: '待审', value: '5', tone: 'sky' },
-      { label: '已锁定', value: '16', tone: 'emerald' },
-      { label: '受影响', value: '2', tone: 'neutral' },
-    ],
-    rows: [
-      { kind: '角色', title: '林夏 / 雨夜受伤 / 正面半身', source: 'Setting #12 + Scene 08', suggestion: '打开画布：状态卡 + 图像生成', match: '无可用资源', status: '缺失', selected: true, warning: true },
-      { kind: '角色', title: '林夏 / 雨夜受伤 / 表情组', source: 'Setting #12', suggestion: '复用主视觉，生成情绪组', match: '参考 2 张', status: '待生成' },
-      { kind: '场景', title: '雨夜巷口 / 环境参考', source: 'Setting #31', suggestion: '锁定 9:16 场景基底', match: '候选 3 张', status: '待审' },
-      { kind: '道具', title: '旧伞 / 特写参考', source: 'Setting #45', suggestion: '从道具设定生成主素材', match: '未生成', status: '缺失', warning: true },
-    ],
-    impacts: [
-      { icon: CopyPlus, label: '素材需求', value: '24' },
-      { icon: ImagePlus, label: '需生成', value: '7' },
-      { icon: ShieldCheck, label: '已锁定', value: '16' },
-    ],
-    checks: [
-      { label: '素材需求不是 Asset 成品', ok: true },
-      { label: '单项需求打开画布', ok: true },
-      { label: '锁定素材可服务分镜/镜头' },
-    ],
-    nextStep: '点击缺失项打开画布，生成候选资源后再锁定为正式 Asset。',
-  },
-  storyboard: {
-    title: '分镜脚本生产 · 场景拆分',
-    subtitle: '从分场剧本生成分镜候选，编辑画面描述、景别、机位和参考素材。',
-    primaryAction: '生成分镜候选',
-    secondaryAction: '检查素材覆盖',
-    tabs: ['待拆分', '候选', '待出图', '待审', '已确认'],
-    metrics: [
-      { label: '场景', value: '8', tone: 'neutral' },
-      { label: '分镜候选', value: '32', tone: 'sky' },
-      { label: '缺素材', value: '6', tone: 'amber' },
-      { label: '已确认', value: '10', tone: 'emerald' },
-    ],
-    rows: [
-      { kind: 'Scene 08', title: '巷口远景建立', source: '雨夜巷口', suggestion: '远景 / 低机位 / 建立空间压迫感', match: '角色素材可用', status: '待出图', selected: true },
-      { kind: 'Scene 08', title: '近景情绪压迫', source: '林夏受伤状态', suggestion: '近景 / 雨水和擦伤 / 压抑愤怒', match: '缺伤痕素材', status: '阻塞', warning: true },
-      { kind: 'Scene 08', title: '反打顾言沉默', source: '顾言关系变化', suggestion: '肩后反打 / 保持距离', match: '可复用常服素材', status: '待确认' },
-      { kind: 'Scene 07', title: '旧伞伏笔特写', source: '道具旧伞', suggestion: '插入道具特写，服务后续剧情', match: '道具素材缺失', status: '待素材', warning: true },
-    ],
-    impacts: [
-      { icon: Layers, label: 'Storyboard', value: '+12' },
-      { icon: Camera, label: '预计 Shot', value: '+18' },
-      { icon: AlertTriangle, label: '素材阻塞', value: '6' },
-    ],
-    checks: [
-      { label: '分镜引用素材，不拥有素材', ok: true },
-      { label: '候选确认后才建 Storyboard', ok: true },
-      { label: '缺素材回流到素材准备' },
-    ],
-    nextStep: '确认分镜脚本后，进入分镜图生成或创建下游镜头任务。',
-  },
-  shot: {
-    title: '镜头生产 · 视频版本',
-    subtitle: '基于已确认分镜和素材生成视频镜头，管理版本、返工原因和最终选片。',
-    primaryAction: '生成视频',
-    secondaryAction: '对比版本',
-    tabs: ['可执行', '生成中', '待选片', '返工', '已锁定'],
-    metrics: [
-      { label: '可执行', value: '6', tone: 'sky' },
-      { label: '生成中', value: '2', tone: 'neutral' },
-      { label: '返工', value: '3', tone: 'amber' },
-      { label: '已锁定', value: '9', tone: 'emerald' },
-    ],
-    rows: [
-      { kind: 'Shot', title: 'S08-04 推近特写', source: 'Storyboard #22', suggestion: '5s / 缓慢推近 / 雨水反光', match: '输入素材完整', status: '可生成', selected: true },
-      { kind: 'Shot', title: 'S08-05 反打沉默', source: 'Storyboard #23', suggestion: '4s / 肩后反打 / 轻微手持', match: '顾言侧脸缺失', status: '阻塞', warning: true },
-      { kind: '版本', title: 'S07-02 v3', source: '已生成视频', suggestion: '动作过快，建议降低 pacing', match: '候选 3 个版本', status: '待选片' },
-      { kind: '影响', title: 'S08-01 final', source: '剧本 v12 改动', suggestion: '保留 final，但标记复核', match: 'Final + impacted', status: '复核' },
-    ],
-    impacts: [
-      { icon: Camera, label: 'Shot', value: '20' },
-      { icon: Film, label: '候选视频', value: '34' },
-      { icon: RefreshCw, label: '返工', value: '3' },
-    ],
-    checks: [
-      { label: 'Shot 是视频执行单元', ok: true },
-      { label: '版本候选不直接替换 final', ok: true },
-      { label: '缺素材回流到素材准备' },
-    ],
-    nextStep: '锁定镜头后推送到成片交付；返工项可直接打开画布重跑。',
-  },
-  delivery: {
-    title: '成片交付 · 序列检查',
-    subtitle: '检查镜头顺序、缺失片段、版本锁定和审核记录，输出最终交付版本。',
-    primaryAction: '生成成片',
-    secondaryAction: '检查缺失',
-    tabs: ['镜头序列', '缺失', '待审', '版本', '已交付'],
-    metrics: [
-      { label: '镜头总数', value: '24', tone: 'neutral' },
-      { label: '缺失', value: '2', tone: 'amber' },
-      { label: '待审', value: '1', tone: 'sky' },
-      { label: '已锁定', value: '21', tone: 'emerald' },
-    ],
-    rows: [
-      { kind: '序列', title: 'EP02 Scene 08', source: '24 个镜头', suggestion: '2 个镜头未锁定，暂不可最终交付', match: '缺 S08-05 / S08-09', status: '缺失', selected: true, warning: true },
-      { kind: '版本', title: 'EP02 cut v3', source: '上次合成', suggestion: '更新 3 个镜头后重新合成', match: 'v2 已审核', status: '待重合成' },
-      { kind: '审核', title: '导演反馈', source: 'Review note', suggestion: '第 8 场节奏需收紧 2 秒', match: '影响镜头 4 个', status: '待处理' },
-      { kind: '交付', title: '竖屏 9:16 母版', source: 'FinalVideo', suggestion: '所有镜头锁定后输出', match: '等待镜头生产', status: '未开始' },
-    ],
-    impacts: [
-      { icon: Film, label: 'FinalVideo', value: 'v3' },
-      { icon: AlertTriangle, label: '缺失镜头', value: '2' },
-      { icon: ShieldCheck, label: '已锁定', value: '21' },
-    ],
-    checks: [
-      { label: '成片是交付产物，不是事实源', ok: true },
-      { label: '缺失项回流到镜头生产', ok: true },
-      { label: '审核通过后锁定版本' },
-    ],
-    nextStep: '所有镜头锁定后，生成 FinalVideo 并进入最终审核。',
-  },
-}
-
-function PipelineIntelligencePreviewCanvas({ stage }: { stage: PipelinePreviewStage }) {
-  const config = PIPELINE_STAGE_CONFIG[stage]
-  const activeStage = stage === 'overview' ? 'setting' : stage
-  return (
-    <div className="w-[1040px] rounded-lg border border-border bg-background text-xs shadow-sm">
-      <div className="grid h-[560px] grid-cols-[190px_minmax(0,1fr)_230px] overflow-hidden rounded-lg">
-        <aside className="border-r border-border bg-card">
-          <div className="border-b border-border px-3 py-3">
-            <div className="flex items-center gap-2">
-              <GitBranch size={14} className="text-primary" />
-              <p className="font-semibold text-foreground">生产管线</p>
-            </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">阶段导航，不再手工维护节点图</p>
-          </div>
-          <div className="space-y-1 p-2">
-            {PIPELINE_STAGE_NAV.map((item) => (
-              <PipelineStageButton
-                key={item.id}
-                label={item.label}
-                meta={item.meta}
-                count={item.count}
-                tone={item.tone}
-                muted={item.muted}
-                active={activeStage === item.id}
-              />
-            ))}
-          </div>
-        </aside>
-
-        <main className="min-w-0 overflow-hidden bg-background">
-          <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Inbox size={14} className="text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">{config.title}</h3>
-              </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">{config.subtitle}</p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Button size="xs" variant="outline" className="h-7">{config.secondaryAction}</Button>
-              <Button size="xs" className="h-7">{config.primaryAction}</Button>
-            </div>
-          </div>
-
-          <div className="grid gap-3 p-4">
-            <div className="grid grid-cols-4 gap-2">
-              {config.metrics.map((metric) => (
-                <PipelineMetric key={metric.label} {...metric} />
-              ))}
-            </div>
-
-            <div className="flex items-center gap-1.5 border-b border-border/70 pb-2">
-              {config.tabs.map((tab, index) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={cn(
-                    'rounded-md px-2.5 py-1 text-[11px] transition-colors',
-                    index === 0 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            <div className="overflow-hidden rounded-md border border-border">
-              {config.rows.map((row) => (
-                <PipelineCandidateRow key={`${row.kind}-${row.title}`} {...row} />
-              ))}
-            </div>
-          </div>
-        </main>
-
-        <aside className="border-l border-border bg-card">
-          <div className="border-b border-border px-3 py-3">
-            <div className="flex items-center gap-2">
-              <ListChecks size={14} className="text-muted-foreground" />
-              <p className="font-semibold text-foreground">阶段摘要</p>
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">确认后才进入实体库和工作项</p>
-          </div>
-          <div className="space-y-3 p-3">
-            <PipelineSideBlock title="将要写入">
-              {config.impacts.map((impact) => (
-                <PipelineImpactRow key={impact.label} {...impact} />
-              ))}
-            </PipelineSideBlock>
-
-            <PipelineSideBlock title="下游影响">
-              {config.checks.map((check) => (
-                <PipelineCheck key={check.label} {...check} />
-              ))}
-            </PipelineSideBlock>
-
-            <PipelineSideBlock title="下一步">
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                {config.nextStep}
-              </p>
-            </PipelineSideBlock>
-          </div>
-        </aside>
-      </div>
-    </div>
-  )
-}
-
-function PipelineStageButton({
-  label,
-  meta,
-  count,
-  active,
-  muted,
-  tone = 'neutral',
-}: {
-  label: string
-  meta: string
-  count: string
-  active?: boolean
-  muted?: boolean
-  tone?: 'neutral' | 'amber' | 'sky'
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',
-        active ? 'bg-primary/10 text-foreground ring-1 ring-primary/20' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-        muted && 'opacity-55',
-      )}
-    >
-      <span className={cn(
-        'h-2 w-2 shrink-0 rounded-full',
-        active && 'bg-primary',
-        !active && tone === 'amber' && 'bg-amber-500',
-        !active && tone === 'sky' && 'bg-sky-500',
-        !active && tone === 'neutral' && 'bg-muted-foreground/40',
-      )} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium">{label}</span>
-        <span className="mt-0.5 block truncate text-[10px] opacity-75">{meta}</span>
-      </span>
-      <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] leading-none">{count}</span>
-    </button>
-  )
-}
-
-function PipelineMetric({ label, value, tone }: { label: string; value: string; tone: 'emerald' | 'sky' | 'amber' | 'neutral' }) {
-  return (
-    <div className={cn(
-      'rounded-md border px-3 py-2',
-      tone === 'emerald' && 'border-emerald-500/25 bg-emerald-500/10',
-      tone === 'sky' && 'border-sky-500/25 bg-sky-500/10',
-      tone === 'amber' && 'border-amber-500/25 bg-amber-500/10',
-      tone === 'neutral' && 'border-border bg-muted/20',
-    )}>
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold leading-none text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function PipelineCandidateRow({
-  kind,
-  title,
-  source,
-  suggestion,
-  match,
-  status,
-  selected,
-  warning,
-}: {
-  kind: string
-  title: string
-  source: string
-  suggestion: string
-  match: string
-  status: string
-  selected?: boolean
-  warning?: boolean
-}) {
-  return (
-    <div className={cn('grid grid-cols-[32px_1.1fr_1.25fr_120px] gap-3 border-b border-border/70 bg-card px-3 py-2.5 last:border-b-0', selected && 'bg-primary/5')}>
-      <div className="pt-1">
-        <input type="checkbox" checked={selected} readOnly className="h-3.5 w-3.5" />
-      </div>
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">{kind}</span>
-          <p className="truncate text-xs font-medium text-foreground">{title}</p>
-        </div>
-        <p className="mt-1 truncate text-[10px] text-muted-foreground">{source}</p>
-      </div>
-      <div className="min-w-0 text-[11px] leading-relaxed">
-        <p className="truncate text-foreground">{suggestion}</p>
-        <p className="truncate text-muted-foreground">{match}</p>
-      </div>
-      <div className="flex items-center justify-end">
-        <span className={cn(
-          'rounded border px-1.5 py-1 text-[10px] leading-none',
-          warning ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-border bg-background text-muted-foreground',
-        )}>
-          {status}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function PipelineSideBlock({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <div className="space-y-1.5">{children}</div>
-    </section>
-  )
-}
-
-function PipelineImpactRow({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5">
-      <Icon size={12} className="shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">{label}</span>
-      <span className="shrink-0 text-[11px] font-medium text-foreground">{value}</span>
-    </div>
-  )
-}
-
-function PipelineCheck({ label, ok }: { label: string; ok?: boolean }) {
   const Icon = ok ? CheckCircle2 : AlertTriangle
   return (
     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

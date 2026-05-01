@@ -167,7 +167,6 @@ function listResources(): MCPResource[] {
       resource(`movscript://project/${id}/scenes`, 'Scenes'),
       resource(`movscript://project/${id}/storyboards`, 'Storyboards'),
       resource(`movscript://project/${id}/shots`, 'Shots'),
-      resource(`movscript://project/${id}/pipeline`, 'Pipeline'),
       resource(`movscript://project/${id}/drafts`, 'Drafts')
     )
   }
@@ -228,7 +227,6 @@ function projectEndpoint(projectId: number, kind: string): string {
     case 'scenes':
     case 'storyboards':
     case 'shots':
-    case 'pipeline':
       return `/projects/${projectId}/${kind}`
     default:
       throw new Error(`Unsupported project resource kind: ${kind}`)
@@ -269,7 +267,7 @@ function listTools(): MCPTool[] {
     },
     {
       name: 'movscript.read_project_structure',
-      description: 'Read compact project structure across scripts, settings, episodes, scenes, storyboards, shots, and pipeline nodes.',
+      description: 'Read compact project structure across scripts, settings, episodes, scenes, storyboards, and shots.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
@@ -301,7 +299,7 @@ function listTools(): MCPTool[] {
       description: 'Ask the MovScript UI to open a page for an entity type. This is navigation only.',
       inputSchema: objectSchema(
         {
-          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'pipeline'] },
+          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
           entityId: { type: 'number' },
         },
         ['entityType']
@@ -351,14 +349,13 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
   const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
   const limit = getOptionalNumber(args, 'limit') ?? 50
   if (!projectId) throw new Error('projectId is required when no current project is selected')
-  const [scripts, settings, episodes, scenes, storyboards, shots, pipeline] = await Promise.all([
+  const [scripts, settings, episodes, scenes, storyboards, shots] = await Promise.all([
     backendList(`/projects/${projectId}/scripts`),
     backendList(`/projects/${projectId}/settings`),
     backendList(`/projects/${projectId}/episodes`),
     backendList(`/projects/${projectId}/scenes`),
     backendList(`/projects/${projectId}/storyboards`),
     backendList(`/projects/${projectId}/shots`),
-    backendGet(`/projects/${projectId}/pipeline`).catch(() => undefined),
   ])
   return {
     projectId,
@@ -369,7 +366,6 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
       scenes: scenes.length,
       storyboards: storyboards.length,
       shots: shots.length,
-      pipelineNodes: isRecord(pipeline) && Array.isArray(pipeline.nodes) ? pipeline.nodes.length : 0,
     },
     scripts: scripts.slice(0, limit).map(summarizeEntity),
     settings: settings.slice(0, limit).map(summarizeEntity),
@@ -387,9 +383,6 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
       shots: shots.filter((shot) => Number(shot?.storyboard_id) === Number(storyboard?.ID ?? storyboard?.id)).length,
     })),
     shots: shots.slice(0, limit).map(summarizeEntity),
-    pipelineNodes: isRecord(pipeline) && Array.isArray(pipeline.nodes)
-      ? pipeline.nodes.slice(0, limit).map(summarizeEntity)
-      : [],
   }
 }
 
@@ -533,8 +526,6 @@ function routeForEntity(entityType: string): string {
       return '/storyboards'
     case 'shot':
       return '/shots'
-    case 'pipeline':
-      return '/pipeline'
     default:
       throw new Error(`Unsupported entity type: ${entityType}`)
   }
@@ -553,7 +544,6 @@ async function backendGet(path: string): Promise<any> {
 }
 
 function summarizeResource(kind: string, data: unknown): unknown {
-  if (kind === 'pipeline') return data
   if (!Array.isArray(data)) return data
   return data.map(summarizeEntity)
 }
