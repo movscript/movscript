@@ -5,7 +5,7 @@ import type { CanvasNodeData, CanvasPortDef, EntitySemanticValues, EntityWorkflo
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
-  Image, Video, Music, Brush, Camera, Layers3,
+  Image, Video, Music, Brush, Camera, Layers3, ImagePlus,
 	  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
 	  Database, ArrowRightLeft, HardDrive,
 	} from 'lucide-react'
@@ -15,7 +15,13 @@ import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
 import { CANVAS_NODE_META } from '../nodeCatalog'
 import { api } from '@/lib/api'
-import { buildEntityPreviewFields, EntityPreviewFieldList, ENTITY_KIND_META } from '@/components/entity/EntitySurface'
+import { buildEntityPreviewFields, ENTITY_KIND_META } from '@/components/entity/EntitySurface'
+import { CanvasToolActionCard } from '@/components/canvas/CanvasToolActionCard'
+import type { CanvasToolSlot, CanvasToolSlotState, CanvasToolSlotType } from '@/components/canvas/CanvasToolActionCard'
+import { CanvasEntityActionCard } from '@/components/canvas/CanvasEntityActionCard'
+import type { CanvasEntityBindingSlot, CanvasEntityRelation } from '@/components/canvas/CanvasEntityActionCard'
+import { CanvasIOActionCard } from '@/components/canvas/CanvasIOActionCard'
+import type { CanvasIOState } from '@/components/canvas/CanvasIOActionCard'
 
 const targetHandleStyle: React.CSSProperties = {
   width: 14, height: 14, borderRadius: '50%',
@@ -197,6 +203,241 @@ function SemanticPortRow({ inputPort, outputPort }: { inputPort?: CanvasPortDef;
           <span className="shrink-0 rounded border border-border bg-muted/30 px-1 py-0.5 leading-none text-muted-foreground">{maxCountLabel}</span>
         )}
       </div>
+    </div>
+  )
+}
+
+function CanvasCardPortHandle({
+  id,
+  type,
+  side,
+  label,
+}: {
+  id: string
+  type: 'target' | 'source'
+  side: 'left' | 'right'
+  label: string
+}) {
+  return (
+    <Handle
+      id={type === 'target' ? semanticInputHandleId(id) : semanticOutputHandleId(id)}
+      type={type}
+      position={side === 'left' ? Position.Left : Position.Right}
+      title={label}
+      style={{
+        ...(type === 'target' ? semanticTargetHandleStyle : semanticSourceHandleStyle),
+        left: side === 'left' ? -2 : undefined,
+        right: side === 'right' ? -2 : undefined,
+        width: 12,
+        height: 12,
+        opacity: 0,
+      }}
+    />
+  )
+}
+
+function portLabelText(port: CanvasPortDef, t: (key: string, options?: any) => string) {
+  return port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
+}
+
+function slotTypeFromPortType(type?: string): CanvasToolSlotType {
+  if (type === 'image' || type === 'video' || type === 'audio' || type === 'json' || type === 'entity' || type === 'prompt' || type === 'text') return type
+  return 'text'
+}
+
+function bindingKindFromPortType(type?: string): CanvasEntityBindingSlot['kind'] {
+  if (type === 'video') return 'video'
+  if (type === 'image') return 'image'
+  return 'resource'
+}
+
+function slotStateFromStatus(status: CanvasNodeData['status'], hasValue?: boolean): CanvasToolSlotState {
+  if (status === 'failed') return 'failed'
+  if (status === 'pending' || status === 'running') return 'pending'
+  return hasValue ? 'ready' : 'empty'
+}
+
+function ioStateFromStatus(status: CanvasNodeData['status'], hasValue?: boolean): CanvasIOState {
+  if (status === 'failed') return 'failed'
+  if (status === 'pending' || status === 'running') return 'pending'
+  return hasValue ? 'ready' : 'empty'
+}
+
+function nodeStatusLabel(status?: CanvasNodeData['status']) {
+  if (status === 'pending') return '等待中'
+  if (status === 'running') return '运行中'
+  if (status === 'done') return '已完成'
+  if (status === 'failed') return '失败'
+  return '可运行'
+}
+
+function paramTypeText(type: string | undefined, t: (key: string, options?: any) => string) {
+  const typeLabel = PARAM_TYPE_LABELS[type || '']
+  return typeLabel ? t(typeLabel) : type ?? t('canvas.unset')
+}
+
+function toolInputSlots(nodeType: string, data: CanvasNodeData, t: (key: string, options?: any) => string): CanvasToolSlot[] {
+  const { resolvedInputs } = resolvePorts({ nodeType, inputPorts: data.inputPorts, outputPorts: data.outputPorts, outputs: false })
+  return resolvedInputs.map((port) => ({
+    id: port.id,
+    inputPortId: port.id,
+    label: portLabelText(port, t),
+    type: port.id === 'prompt' ? 'prompt' : slotTypeFromPortType(port.type),
+    state: data.status === 'failed' ? 'failed' : 'empty',
+    summary: port.required ? '必需' : '可选',
+  }))
+}
+
+function toolOutputSlots(nodeType: string, data: CanvasNodeData, t: (key: string, options?: any) => string): CanvasToolSlot[] {
+  const { resolvedOutputs } = resolvePorts({ nodeType, inputPorts: data.inputPorts, outputPorts: data.outputPorts, inputs: false })
+  return resolvedOutputs.map((port) => ({
+    id: port.id,
+    outputPortId: port.id,
+    label: portLabelText(port, t),
+    type: slotTypeFromPortType(port.type),
+    state: slotStateFromStatus(data.status, !!data.resource),
+    summary: data.resource?.name ?? (data.error && data.status === 'failed' ? data.error : undefined),
+  }))
+}
+
+function entityBindingSlots(ports: CanvasPortDef[] | undefined, semanticValues: EntitySemanticValues | undefined, t: (key: string, options?: any) => string): CanvasEntityBindingSlot[] {
+  return (ports ?? []).slice(0, 3).map((port) => {
+    const value = semanticValues?.values?.[port.id]
+    const hasValue = value !== undefined && value !== null && String(value).trim() !== ''
+    return {
+      id: port.id,
+      inputPortId: port.id,
+      outputPortId: port.id,
+      label: portLabelText(port, t),
+      kind: bindingKindFromPortType(port.type),
+      state: hasValue ? 'bound' : 'empty',
+      resourceLabel: hasValue ? '已绑定' : undefined,
+    }
+  })
+}
+
+function entityRelationRows(ports: CanvasPortDef[] | undefined, t: (key: string, options?: any) => string): CanvasEntityRelation[] {
+  return (ports ?? []).slice(0, 2).map((port) => ({
+    id: port.id,
+    label: portLabelText(port, t),
+    targetLabel: port.type,
+    outputPortId: port.id,
+  }))
+}
+
+function createActionsForEntityKind(kind: keyof typeof ENTITY_KIND_META | undefined) {
+  if (kind === 'scene') {
+    return [
+      { id: 'storyboard', label: '分镜', icon: Layers3, outputPortId: 'result' },
+      { id: 'shot', label: '镜头', icon: Camera, outputPortId: 'result' },
+    ]
+  }
+  if (kind === 'storyboard') {
+    return [
+      { id: 'shot', label: '镜头', icon: Camera, outputPortId: 'result' },
+      { id: 'variant', label: '变体', icon: Sparkles, outputPortId: 'result' },
+    ]
+  }
+  if (kind === 'shot') {
+    return [
+      { id: 'final_video', label: '成片', icon: Video, outputPortId: 'result' },
+      { id: 'variant', label: '重做', icon: Sparkles, outputPortId: 'result' },
+    ]
+  }
+  return [
+    { id: 'asset', label: '素材', icon: ImagePlus, outputPortId: 'result' },
+    { id: 'variant', label: '变体', icon: Sparkles, outputPortId: 'result' },
+  ]
+}
+
+function pluginConfigItems(data: NodeDataWithHandlers) {
+  const args = (data.pluginArgs ?? {}) as Record<string, unknown>
+  const schemaEntries = Object.entries(data.pluginInputProperties ?? {})
+  const argEntries = Object.entries(args).map(([name, value]) => [name, { title: name, default: value }] as const)
+  return (schemaEntries.length > 0 ? schemaEntries : argEntries)
+    .map(([name, prop]) => {
+      const value = args[name] ?? prop.default
+      return { id: name, label: prop.title || name, value }
+    })
+    .filter((item) => item.value !== undefined && item.value !== null && String(item.value).trim() !== '')
+    .slice(0, 3)
+    .map((item) => ({ id: item.id, label: item.label, value: String(item.value) }))
+}
+
+function HiddenPortHandles({
+  inputs = [],
+  outputs = [],
+  visibleInputIds = [],
+  visibleOutputIds = [],
+}: {
+  inputs?: CanvasPortDef[]
+  outputs?: CanvasPortDef[]
+  visibleInputIds?: string[]
+  visibleOutputIds?: string[]
+}) {
+  const visibleInputSet = new Set(visibleInputIds)
+  const visibleOutputSet = new Set(visibleOutputIds)
+  const hiddenInputs = inputs.filter((port) => !visibleInputSet.has(port.id))
+  const hiddenOutputs = outputs.filter((port) => !visibleOutputSet.has(port.id))
+  return (
+    <>
+      {hiddenInputs.map((port, index) => (
+        <Handle
+          key={`hidden-in-${port.id}`}
+          id={semanticInputHandleId(port.id)}
+          type="target"
+          position={Position.Left}
+          title={port.label ?? port.id}
+          style={{
+            ...semanticTargetHandleStyle,
+            top: `${Math.min(88, 18 + index * 14)}%`,
+            opacity: 0,
+          }}
+        />
+      ))}
+      {hiddenOutputs.map((port, index) => (
+        <Handle
+          key={`hidden-out-${port.id}`}
+          id={semanticOutputHandleId(port.id)}
+          type="source"
+          position={Position.Right}
+          title={port.label ?? port.id}
+          style={{
+            ...semanticSourceHandleStyle,
+            top: `${Math.min(88, 18 + index * 14)}%`,
+            opacity: 0,
+          }}
+        />
+      ))}
+    </>
+  )
+}
+
+function ToolCardNodeFrame({
+  nodeType,
+  data,
+  children,
+}: {
+  nodeType: string
+  data: CanvasNodeData
+  children: React.ReactNode
+}) {
+  const { resolvedInputs, resolvedOutputs } = resolvePorts({
+    nodeType,
+    inputPorts: data.inputPorts,
+    outputPorts: data.outputPorts,
+  })
+  const visibleInputIds = toolInputSlots(nodeType, data, (key: string) => key).slice(0, 3).map((slot) => slot.inputPortId ?? slot.id)
+  const visibleOutputIds = toolOutputSlots(nodeType, data, (key: string) => key).slice(0, 2).map((slot) => slot.outputPortId ?? slot.id)
+  return (
+    <div className="relative">
+      <HiddenPortHandles
+        inputs={resolvedInputs}
+        outputs={resolvedOutputs}
+        visibleInputIds={visibleInputIds}
+        visibleOutputIds={visibleOutputIds}
+      />
+      {children}
     </div>
   )
 }
@@ -599,67 +840,68 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image' as const, featureKey: 'canvas_image', inputType: 'image' as const }
   const metaLabel = type in TOOL_META ? t(meta.labelKey) : meta.labelKey
+  const Icon = type === 'canvas' ? Layers3
+    : type === 'ref_image_gen' ? Palette
+    : type === 'ref_video_gen' ? Camera
+    : type === 'multi_angle' ? RotateCw
+    : type === 'style_transfer' ? Brush
+    : type === 'motion_imitation' ? PersonStanding
+    : Wrench
+  const isRunning = status === 'pending' || status === 'running'
 
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={meta.icon}
-        label={data.label || metaLabel}
-        status={status}
-        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+    <ToolCardNodeFrame nodeType={type} data={data}>
+      <CanvasToolActionCard
+        source="ai"
+        tone="violet"
+        icon={Icon}
+        title={data.label || metaLabel}
+        subtitle={`${meta.featureKey} · 输出 ${meta.outputType}`}
+        status={nodeStatusLabel(status)}
+        selected={selected}
+        inputs={toolInputSlots(type, data, t)}
+        configs={[
+          { id: 'model', label: '模型', value: data.modelDbId ? `#${data.modelDbId}` : '默认' },
+          { id: 'mode', label: '类型', value: metaLabel },
+          ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
+        ]}
+        outputs={toolOutputSlots(type, data, t)}
+        primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+        secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '推送', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '变体', icon: ImagePlus, disabled: true }}
+        footer={data.error ? <p className="line-clamp-2 text-[10px] text-destructive">{data.error}</p> : undefined}
+        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
-      <SemanticPortRows nodeType={type} inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
-      {type === 'canvas' ? (
-        <CanvasReferenceBody
-          referencedCanvasId={data.referencedCanvasId}
-          status={status}
-          inputPorts={data.inputPorts}
-          outputPorts={data.outputPorts}
-          outputResource={data.resource}
-          error={data.error}
-        />
-      ) : (
-        <CanvasCardBody
-          prompt={data.prompt}
-          status={status}
-          outputResource={data.resource}
-          outputType={meta.outputType}
-          error={data.error}
-        />
-      )}
-    </NodeCard>
+    </ToolCardNodeFrame>
   )
 }
 
 export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const status = data.status ?? 'idle'
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const isRunning = status === 'pending' || status === 'running'
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<Puzzle size={12} />}
-        label={data.label || data.pluginName || t('canvas.nodeLabels.plugin_card')}
-        status={status}
-        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+    <ToolCardNodeFrame nodeType="plugin_card" data={data}>
+      <CanvasToolActionCard
+        source="plugin"
+        tone="cyan"
+        icon={Puzzle}
+        title={data.label || data.pluginName || t('canvas.nodeLabels.plugin_card')}
+        subtitle={[
+          data.pluginId || t('plugins.notFound'),
+          data.pluginVersion ? `v${data.pluginVersion}` : null,
+          data.pluginRuntime,
+        ].filter(Boolean).join(' · ')}
+        status={nodeStatusLabel(status)}
+        selected={selected}
+        inputs={toolInputSlots('plugin_card', data, t)}
+        configs={pluginConfigItems(data)}
+        outputs={toolOutputSlots('plugin_card', data, t)}
+        primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+        secondaryAction={{ id: 'config', label: '配置', icon: Wrench, disabled: true }}
+        footer={data.pluginResultText ? <p className="line-clamp-2 whitespace-pre-wrap text-[10px] text-muted-foreground">{data.pluginResultText}</p> : undefined}
+        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
-      <SemanticPortRows nodeType="plugin_card" inputPorts={data.inputPorts} outputPorts={data.outputPorts} />
-      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-        <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
-          <span className="truncate font-medium text-foreground">{data.pluginName || data.pluginId || t('plugins.notFound')}</span>
-          {data.pluginVersion && (
-            <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 leading-none">
-              v{data.pluginVersion}
-            </span>
-          )}
-        </div>
-        <PluginParamSummary data={data} />
-        {data.pluginResultText ? (
-          <p className="line-clamp-4 whitespace-pre-wrap break-words text-xs text-muted-foreground">{data.pluginResultText}</p>
-        ) : (
-          <span className="italic text-muted-foreground/40">{t('canvas.pluginCard.waiting')}</span>
-        )}
-      </div>
-    </NodeCard>
+    </ToolCardNodeFrame>
   )
 }
 
@@ -667,80 +909,115 @@ export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataW
 
 export function InputNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const status = data.status ?? 'idle'
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const port = workflowInputOutputPorts(data)[0]
+  const hasValue = !!data.inputValue
+  const isRunning = status === 'pending' || status === 'running'
+  const state = ioStateFromStatus(status, hasValue)
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<LogIn size={12} />}
-        label={data.label || t('canvas.nodeLabels.input')}
-        status={status}
-        actions={status !== 'pending' && status !== 'running' && data.onRun
-          ? <RunBtn onClick={data.onRun} />
-          : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.input')}</span>}
-      />
-      <SemanticPortRows nodeType="input" outputPorts={workflowInputOutputPorts(data)} inputs={false} />
-      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-        <ParamMeta name={data.paramName ?? 'input'} type={data.paramType ?? 'text'} />
-        {data.inputValue
-          ? <span className="text-foreground block break-words">{data.inputValue}</span>
-          : <span className="italic text-muted-foreground/40">{t('canvas.fillAtRuntime')}</span>}
-      </div>
-    </NodeCard>
+    <CanvasIOActionCard
+      tone="sky"
+      icon={LogIn}
+      title={data.label || t('canvas.nodeLabels.input')}
+      subtitle={`${t('canvas.nodeLabels.input')} · ${paramTypeText(port.type, t)}`}
+      status={nodeStatusLabel(status)}
+      selected={selected}
+      port={{
+        id: port.id,
+        label: portLabelText(port, t),
+        type: 'source',
+        side: 'right',
+        dataType: paramTypeText(port.type, t),
+        required: port.required,
+      }}
+      metaItems={[
+        { id: 'name', label: t('canvas.nodePanel.paramName'), value: data.paramName ?? 'input' },
+        { id: 'type', label: t('canvas.nodePanel.paramType'), value: paramTypeText(data.paramType ?? 'text', t) },
+      ]}
+      state={state}
+      stateLabel={hasValue ? t('canvas.generated') : t('canvas.fillAtRuntime')}
+      bodyLabel={t('canvas.nodeLabels.input')}
+      bodyValue={data.inputValue}
+      emptyLabel={t('canvas.fillAtRuntime')}
+      primaryAction={data.onRun ? { id: 'run', label: isRunning ? t('canvas.running') : t('shared.generation.runNode'), icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+      renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
+    />
   )
 }
 
 export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const status = data.status ?? 'idle'
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const port = workflowOutputInputPorts(data)[0]
   const hasOutput = !!data.resource || status === 'done'
+  const isRunning = status === 'pending' || status === 'running'
+  const state = ioStateFromStatus(status, hasOutput)
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<LogOut size={12} />}
-        label={data.label || t('canvas.nodeLabels.output')}
-        status={status}
-        actions={status !== 'pending' && status !== 'running' && data.onRun
-          ? <RunBtn onClick={data.onRun} />
-          : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.output')}</span>}
-      />
-      <SemanticPortRows nodeType="output" inputPorts={workflowOutputInputPorts(data)} outputs={false} />
-      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-        <ParamMeta name={data.paramName ?? 'output'} type={data.paramType ?? 'resource'} />
-        <div className="flex items-center justify-between gap-2">
-          {hasOutput
-            ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.generated')}</span>
-            : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
-        </div>
-      </div>
-    </NodeCard>
+    <CanvasIOActionCard
+      tone="emerald"
+      icon={LogOut}
+      title={data.label || t('canvas.nodeLabels.output')}
+      subtitle={`${t('canvas.nodeLabels.output')} · ${paramTypeText(port.type, t)}`}
+      status={nodeStatusLabel(status)}
+      selected={selected}
+      port={{
+        id: port.id,
+        label: portLabelText(port, t),
+        type: 'target',
+        side: 'left',
+        dataType: paramTypeText(port.type, t),
+        required: port.required,
+      }}
+      metaItems={[
+        { id: 'name', label: t('canvas.nodePanel.paramName'), value: data.paramName ?? 'output' },
+        { id: 'type', label: t('canvas.nodePanel.paramType'), value: paramTypeText(data.paramType ?? 'resource', t) },
+      ]}
+      state={state}
+      stateLabel={hasOutput ? t('canvas.generated') : t('canvas.waitingUpstream')}
+      bodyLabel={t('canvas.nodeLabels.output')}
+      bodyValue={data.resource?.name}
+      emptyLabel={t('canvas.waitingUpstream')}
+      primaryAction={data.onRun ? { id: 'run', label: isRunning ? t('canvas.running') : t('shared.generation.runNode'), icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+      renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
+    />
   )
 }
 
 export function ResourceSinkNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const status = data.status ?? 'idle'
-  const ports = resourceSinkPorts(data)
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const port = resourceSinkPorts(data).inputs[0]
   const hasOutput = !!data.resource || status === 'done'
+  const isRunning = status === 'pending' || status === 'running'
+  const state = ioStateFromStatus(status, hasOutput)
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<HardDrive size={12} />}
-        label={data.label || t('canvas.nodeLabels.resource_sink')}
-        status={status}
-        actions={status !== 'pending' && status !== 'running' && data.onRun
-          ? <RunBtn onClick={data.onRun} />
-          : <span className="text-[9px] text-muted-foreground shrink-0 font-medium">{t('canvas.nodeLabels.resource_sink')}</span>}
-      />
-      <SemanticPortRows nodeType="resource_sink" inputPorts={ports.inputs} outputPorts={ports.outputs} />
-      <div className="flex-1 px-3 py-2 rounded-b-lg space-y-2">
-        <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
-          <span className="truncate font-medium text-foreground">{data.paramName || t('canvas.nodePanel.randomFileName')}</span>
-        </div>
-        {hasOutput
-          ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> {t('canvas.resourceSaved')}</span>
-          : <span className="italic text-muted-foreground/40">{t('canvas.waitingUpstream')}</span>}
-      </div>
-    </NodeCard>
+    <CanvasIOActionCard
+      tone="amber"
+      icon={HardDrive}
+      title={data.label || t('canvas.nodeLabels.resource_sink')}
+      subtitle={`${t('canvas.nodeLabels.resource_sink')} · ${paramTypeText(port.type, t)}`}
+      status={nodeStatusLabel(status)}
+      selected={selected}
+      port={{
+        id: port.id,
+        label: portLabelText(port, t),
+        type: 'target',
+        side: 'left',
+        dataType: paramTypeText(port.type, t),
+        required: port.required,
+      }}
+      metaItems={[
+        { id: 'filename', label: t('canvas.nodePanel.paramName'), value: data.paramName || t('canvas.nodePanel.randomFileName') },
+        { id: 'target', label: t('canvas.nodeLabels.resource_sink'), value: t('canvas.resourceSaved') },
+      ]}
+      state={state}
+      stateLabel={hasOutput ? t('canvas.resourceSaved') : t('canvas.waitingUpstream')}
+      bodyLabel={t('canvas.nodeLabels.resource_sink')}
+      bodyValue={data.resource?.name ?? (hasOutput ? data.paramName : undefined)}
+      emptyLabel={t('canvas.waitingUpstream')}
+      primaryAction={data.onRun ? { id: 'run', label: isRunning ? t('canvas.running') : t('canvas.nodePanel.saveResource'), icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+      renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
+    />
   )
 }
 
@@ -778,23 +1055,30 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
 
 export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
-  const status = data.status ?? 'idle'
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const isRunning = status === 'pending' || status === 'running'
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<Sparkles size={12} />}
-        label={data.label || t('canvas.nodeLabels.text_gen')}
-        status={status}
-        accent="bg-violet-50 dark:bg-violet-950/30"
-        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
+    <ToolCardNodeFrame nodeType="text_gen" data={data}>
+      <CanvasToolActionCard
+        source="ai"
+        tone="violet"
+        icon={Sparkles}
+        title={data.label || t('canvas.nodeLabels.text_gen')}
+        subtitle="canvas_text · 输出 text"
+        status={nodeStatusLabel(status)}
+        selected={selected}
+        inputs={toolInputSlots('text_gen', data, t)}
+        configs={[
+          { id: 'model', label: '模型', value: data.modelDbId ? `#${data.modelDbId}` : '默认' },
+          ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
+        ]}
+        outputs={toolOutputSlots('text_gen', { ...data, resource: data.resource, status }, t)}
+        primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+        secondaryAction={undefined}
+        footer={data.textContent ? <p className="line-clamp-2 whitespace-pre-wrap text-[10px] text-muted-foreground">{data.textContent}</p> : undefined}
+        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
-      <SemanticPortRows nodeType="text_gen" />
-      <div className="flex-1 px-3 py-2 rounded-b-xl overflow-auto">
-        {data.textContent || data.prompt
-          ? <span className="text-muted-foreground break-words whitespace-pre-wrap">{data.textContent || data.prompt}</span>
-          : <span className="italic text-muted-foreground/40">{t('canvas.noPrompt')}</span>}
-      </div>
-    </NodeCard>
+    </ToolCardNodeFrame>
   )
 }
 
@@ -811,41 +1095,35 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const outputType = (data.outputType ?? 'image') as 'image' | 'video'
+  const isRunning = status === 'pending' || status === 'running'
+  const outputSlots = toolOutputSlots('ai_gen', data, t).map((slot) => ({
+    ...slot,
+    type: outputType,
+  }))
 
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<Sparkles size={12} />}
-        label={data.label || t('canvas.nodeLabels.ai_gen')}
-        status={status}
-        actions={<>
-          {status !== 'pending' && status !== 'running' && data.onRun && <RunBtn onClick={data.onRun} />}
-          {status === 'done' && data.onPush && <PushBtn onClick={data.onPush} />}
-        </>}
+    <ToolCardNodeFrame nodeType="ai_gen" data={data}>
+      <CanvasToolActionCard
+        source="ai"
+        tone="violet"
+        icon={Sparkles}
+        title={data.label || t('canvas.nodeLabels.ai_gen')}
+        subtitle={`canvas_${outputType} · 输出 ${outputType}`}
+        status={nodeStatusLabel(status)}
+        selected={selected}
+        inputs={toolInputSlots('ai_gen', data, t)}
+        configs={[
+          { id: 'outputType', label: '输出', value: t(OUTPUT_TYPES.find((item) => item.value === outputType)?.label ?? 'canvas.outputTypes.image') },
+          { id: 'model', label: '模型', value: data.modelDbId ? `#${data.modelDbId}` : '默认' },
+          ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
+        ]}
+        outputs={outputSlots}
+        primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
+        secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '推送', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '类型', icon: ImagePlus, disabled: true }}
+        footer={data.error ? <p className="line-clamp-2 text-[10px] text-destructive">{data.error}</p> : undefined}
+        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
-      <SemanticPortRows nodeType="ai_gen" />
-      <div className="flex gap-1 px-3 py-2 border-b border-border/50">
-        {OUTPUT_TYPES.map((option) => (
-          <button key={option.value}
-            onClick={e => { e.stopPropagation(); data.onUpdateOutputType?.(option.value) }}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-0.5 py-1 rounded-md text-[10px] border transition-colors',
-              outputType === option.value
-                ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
-                : 'border-border text-muted-foreground hover:bg-muted/50'
-            )}>
-            {option.icon} {t(option.label)}
-          </button>
-        ))}
-      </div>
-      <CanvasCardBody
-        prompt={data.prompt}
-        status={status}
-        outputResource={data.resource}
-        outputType={outputType}
-        error={data.error}
-      />
-    </NodeCard>
+    </ToolCardNodeFrame>
   )
 }
 
@@ -889,23 +1167,40 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
     enabled: !!kind && !!data.entityId,
   })
   const fields = buildEntityPreviewFields({ schema, values: semanticValues?.values, t, limit: 3 })
-  const Icon = kind ? ENTITY_KIND_META[kind].icon : FileText
+  const resolvedKind = kind ?? 'script'
+  const title = data.entityTitle || label
+  const subtitle = [
+    kindLabel,
+    data.entityId ? `#${data.entityId}` : null,
+    fields[0]?.summary,
+  ].filter(Boolean).join(' · ')
+  const { resolvedInputs, resolvedOutputs } = resolvePorts({
+    nodeType: 'entity_card',
+    inputPorts,
+    outputPorts,
+  })
+  const visibleBindings = entityBindingSlots(inputPorts, semanticValues, t)
+  const visibleRelations = entityRelationRows(outputPorts, t)
 
   return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<Icon size={12} />}
-        label={label}
-        accent="bg-slate-50 dark:bg-slate-950/35"
+    <div className="relative">
+      <HiddenPortHandles
+        inputs={resolvedInputs}
+        outputs={resolvedOutputs}
+        visibleInputIds={visibleBindings.slice(0, 3).map((slot) => slot.inputPortId ?? slot.id)}
+        visibleOutputIds={visibleRelations.slice(0, 2).map((relation) => relation.outputPortId ?? relation.id)}
       />
-      <SemanticPortRows nodeType="entity_card" inputPorts={inputPorts} outputPorts={outputPorts} />
-      <div className="space-y-1.5 px-3 py-2">
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span className="rounded border border-border bg-background px-1.5 py-0.5 leading-none">{kindLabel}</span>
-          {data.entityId && <span className="font-mono">#{data.entityId}</span>}
-        </div>
-        <EntityPreviewFieldList fields={fields} emptyText={data.textContent || t('canvas.entityCard.noPreview')} />
-      </div>
-    </NodeCard>
+      <CanvasEntityActionCard
+        kind={resolvedKind}
+        title={title}
+        subtitle={subtitle || data.textContent || t('canvas.entityCard.noPreview')}
+        status={data.entityId ? '已绑定' : '未绑定'}
+        selected={selected}
+        bindings={visibleBindings}
+        relations={visibleRelations}
+        createActions={createActionsForEntityKind(kind)}
+        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
+      />
+    </div>
   )
 }

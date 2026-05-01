@@ -5,6 +5,7 @@ export type ScriptPreviewStoryboardStatus = '待确认' | '需补素材' | '可�
 
 export type ScriptPreviewDraftPayload = {
   source_text: string
+  script_version_id?: number | null
   script_version: {
     draft_id: string | null
     title: string
@@ -46,6 +47,7 @@ export type SaveScriptPreviewDraftResponse = {
   draft: {
     project_id: number
     source_text: string
+    script_version_id?: number | null
     script_version: ScriptPreviewDraftPayload['script_version']
     storyboard_rows: ScriptPreviewStoryboardRow[]
     preview_timeline: ScriptPreviewTimelineInput[]

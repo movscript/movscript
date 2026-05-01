@@ -135,6 +135,18 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&model.ScriptPreviewDraft{})
 			},
 		},
+		{
+			Version: "000021",
+			Name:    "video_edit_tool_feature",
+			Up:      migrateVideoEditToolFeature,
+		},
+		{
+			Version: "000022",
+			Name:    "v2_reference_relation_review_fields",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.CreativeReferenceUsage{}, &model.CreativeRelationship{})
+			},
+		},
 	}
 }
 
@@ -181,6 +193,29 @@ func migrateScriptAnalysisFeatureChannels(db *gorm.DB) error {
 		if err := db.Create(&feature).Error; err != nil {
 			return fmt.Errorf("seed feature %s: %w", feature.FeatureKey, err)
 		}
+	}
+	return nil
+}
+
+func migrateVideoEditToolFeature(db *gorm.DB) error {
+	feature := model.FeatureConfig{
+		FeatureKey:      "video_edit",
+		DisplayName:     "剪辑工具",
+		Description:     "基于源视频和剪辑指令生成处理后的视频",
+		Capability:      "video_v2v",
+		IsEnabled:       true,
+		AllowedModelIDs: "[]",
+	}
+	var existing model.FeatureConfig
+	err := db.Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("lookup feature %s: %w", feature.FeatureKey, err)
+	}
+	if err := db.Create(&feature).Error; err != nil {
+		return fmt.Errorf("seed feature %s: %w", feature.FeatureKey, err)
 	}
 	return nil
 }

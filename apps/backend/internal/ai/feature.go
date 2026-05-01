@@ -15,12 +15,13 @@ const (
 	FeatureShotRefVideo         = "shot_ref_video"
 	LegacyFeatureAgentChat      = "agent_chat"
 
-	// Tool features — the 6 user-facing tools shown in admin feature config.
+	// Tool features — user-facing tools shown in admin feature config.
 	FeatureRefImageGen     = "ref_image_gen"
 	FeatureRefVideoGen     = "ref_video_gen"
 	FeatureMotionImitation = "motion_imitation"
 	FeatureStyleTransfer   = "style_transfer"
 	FeatureMultiAngle      = "multi_angle"
+	FeatureVideoEdit       = "video_edit"
 	FeatureBrainstorm      = "brainstorm"
 )
 
@@ -161,6 +162,16 @@ var FeatureCatalog = []FeatureDef{
 		InputSlots: []InputSlot{
 			{Key: "target_images", Label: "目标图像", Accept: "image", Required: true, MaxCount: 0},
 			{Key: "motion_video", Label: "动作视频", Accept: "video", Required: true, MaxCount: 1},
+		},
+	},
+	{
+		ID: FeatureVideoEdit, DisplayName: "剪辑工具", IsToolFeature: true,
+		Description:    "基于源视频和剪辑指令生成处理后的视频",
+		RequiredCap:    CapabilityVideoV2V,
+		CompatibleCaps: []string{CapabilityVideoV2V},
+		Temperature:    -1,
+		InputSlots: []InputSlot{
+			{Key: "source_video", Label: "源视频", Accept: "video", Required: true, MaxCount: 1},
 		},
 	},
 	{

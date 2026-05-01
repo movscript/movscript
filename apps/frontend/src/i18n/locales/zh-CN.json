@@ -387,6 +387,91 @@
     "notes": "备注"
   },
   "pages": {
+    "projectHomeV2": {
+      "badge": "项目首页 v2",
+      "noDescription": "暂无项目描述。这里会汇总剧本、素材、生产和交付的当前状态。",
+      "actions": {
+        "continue": "继续推进",
+        "openWorkbench": "打开工作台",
+        "viewTasks": "查看任务"
+      },
+      "stageState": {
+        "ready": "已就绪",
+        "active": "进行中",
+        "blocked": "待前置"
+      },
+      "priority": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      },
+      "metrics": {
+        "scripts": "剧本",
+        "episodes": "分集",
+        "assets": "素材",
+        "storyboards": "分镜",
+        "approvedShots": "通过镜头",
+        "productionReadiness": "生产就绪度",
+        "productionReadinessHint": "按关键阶段综合估算",
+        "scriptAssets": "剧本 / 素材",
+        "scriptAssetsHint": "内容输入与视觉资产",
+        "storyboardShots": "分镜 / 镜头",
+        "storyboardShotsHint": "导演拆解与可执行单元",
+        "approvedShotsHint": "{{count}} 个镜头已准备生成"
+      },
+      "now": {
+        "title": "当前推进",
+        "subtitle": "根据项目数据自动推荐下一步入口。",
+        "currentStage": "建议阶段",
+        "updated": "最近更新",
+        "status": "项目状态",
+        "statusFallback": "未设置"
+      },
+      "sections": {
+        "pipeline": "制作链路",
+        "pipelineHint": "从剧本预演到交付的五段式项目总览。",
+        "focus": "今日关注",
+        "focusHint": "优先处理会阻塞后续生产的内容缺口。",
+        "quickLinks": "快速入口"
+      },
+      "stages": {
+        "script": {
+          "title": "剧本预演",
+          "description": "导入、分析和校准剧本，为后续资产和镜头拆解提供依据。"
+        },
+        "references": {
+          "title": "创作资料",
+          "description": "沉淀人物、世界观、风格参考和创意约束。"
+        },
+        "assets": {
+          "title": "素材准备",
+          "description": "确认生产引用的角色、场景、道具、声音和品牌素材。"
+        },
+        "production": {
+          "title": "内容生产",
+          "description": "管理分镜、镜头生成和内容迭代。"
+        },
+        "delivery": {
+          "title": "交付",
+          "description": "汇总通过镜头，进入成片整理和交付检查。"
+        }
+      },
+      "focus": {
+        "script": "剧本",
+        "storyboard": "分镜",
+        "shot": "镜头",
+        "nextStep": "下一步",
+        "missingBody": "正文为空",
+        "needsDescription": "缺少描述",
+        "awaitingApproval": "等待审核通过"
+      },
+      "emptyFocus": {
+        "scriptPreview": "从剧本预演开始整理内容输入",
+        "scriptPreviewMeta": "生成结构和素材缺口",
+        "assets": "检查素材准备状态",
+        "assetsMeta": "锁定生产引用"
+      }
+    },
     "assets": {
       "searchPlaceholder": "搜索素材…",
       "gridTitle": "缩略图",
@@ -397,7 +482,71 @@
       "settingFilter": "设定素材",
       "settingFallback": "设定 #{{id}}",
       "unlinkedSetting": "未绑定设定",
-      "pagination": "{{total}} 个素材 · {{page}}/{{pageCount}}"
+      "pagination": "{{total}} 个素材 · {{page}}/{{pageCount}}",
+      "v2": {
+        "title": "素材准备",
+        "subtitle": "按缺口处理正式生产需要的参考图、视频、声音和品牌素材。",
+        "searchPlaceholder": "搜索缺口、片段或素材提示…",
+        "noSelection": "请选择一个素材缺口",
+        "emptyRequirements": "没有匹配的素材缺口",
+        "emptyRequirementsHint": "调整筛选条件，或从剧本预演里生成新的素材缺口。",
+        "candidateCount": "{{count}} 个候选",
+        "status": {
+          "missing": "缺失",
+          "candidate": "候选",
+          "locked": "已锁定",
+          "waived": "已忽略"
+        },
+        "kinds": {
+          "image": "参考图",
+          "video": "参考视频",
+          "audio": "声音",
+          "brand": "品牌规范"
+        },
+        "priority": {
+          "high": "高优先级",
+          "medium": "中优先级",
+          "low": "低优先级"
+        },
+        "filters": {
+          "active": "待处理"
+        },
+        "actions": {
+          "waive": "忽略",
+          "upload": "上传",
+          "requestCandidates": "生成候选",
+          "addCandidate": "添加候选",
+          "lock": "锁定",
+          "reopen": "重新选择"
+        },
+        "fields": {
+          "scope": "关联片段",
+          "cue": "素材提示",
+          "candidates": "候选数量",
+          "linkedSetting": "关联设定",
+          "settings": "设定数量",
+          "assetCount": "素材数量"
+        },
+        "sections": {
+          "candidates": "候选素材",
+          "candidatesHint": "候选可以来自上传、工具生成或已有素材库；锁定后才进入生产引用。",
+          "productionReadiness": "生产就绪检查",
+          "productionReadinessHint": "这里强调采用关系，不把任务完成当作素材采用。",
+          "lockedAsset": "已锁定素材",
+          "lockedAssetHint": "生产阶段会优先读取这里的采用结果。",
+          "assetLibrary": "素材库速览",
+          "context": "项目上下文"
+        },
+        "readiness": {
+          "requirementConfirmed": "缺口已确认或处理",
+          "hasCandidate": "已有可评估候选",
+          "lockedOrWaived": "已锁定或明确忽略"
+        },
+        "noCandidates": "还没有候选素材",
+        "noCandidatesHint": "上传参考、调用生成工具，或从素材库挑选一个候选。",
+        "noLockedAsset": "尚未锁定素材",
+        "noLockedAssetHint": "从候选区锁定一个素材后，生产页面才能稳定引用。"
+      }
     },
     "resources": {
       "types": {
@@ -520,7 +669,26 @@
       "remove": "移除",
       "noMembers": "暂无成员",
       "tasks": "任务",
-      "management": "管理"
+      "management": "管理",
+      "preview": {
+        "title": "预演生产状态",
+        "ready": "已确认",
+        "pending": "待确认",
+        "missing": "未找到草稿",
+        "readySummary": "预演已经确认，可以继续进入制作任务。",
+        "pendingSummary": "当前项目已有预演草稿，但还没有进入可生产状态。",
+        "missingSummary": "当前项目还没有可用的预演草稿，先完成剧本预演确认。",
+        "readyTitle": "可进入内容生产",
+        "notReadyTitle": "尚未进入生产前状态",
+        "savedAt": "保存时间：{{value}}",
+        "confirmedAt": "确认时间：{{value}}",
+        "unknown": "暂无",
+        "foundDraft": "最近预演草稿",
+        "noDraft": "进入剧本预演后会显示最近保存的草稿状态。",
+        "enterProduction": "进入内容生产",
+        "goPreview": "前往剧本预演",
+        "viewPreview": "查看剧本预演"
+      }
     },
     "canvases": {
       "subtitle": "灵感激发 · 工作流",
@@ -955,6 +1123,7 @@
       "multi_angle": "图像多角度",
       "style_transfer": "风格迁移",
       "motion_imitation": "动作模仿",
+      "video_edit": "剪辑工具",
 	      "input": "输入",
 	      "output": "输出",
 	      "resource_sink": "保存资源",
@@ -1396,6 +1565,11 @@
         "description": "从单张图片生成角色或物体的多个角度视图",
         "promptPlaceholder": "描述你想要生成的角度或视角… 输入 @ 可引用资源库中的图片"
       },
+      "videoEdit": {
+        "name": "剪辑工具",
+        "description": "基于源视频和剪辑指令生成处理后的视频",
+        "promptPlaceholder": "描述剪辑目标，例如裁切片段、节奏调整、镜头重组、风格处理… 输入 @ 可引用资源库中的视频"
+      },
       "styleTransfer": {
         "name": "画风迁移",
         "description": "将参考图的艺术风格迁移到内容图上，生成新的风格化图像",
@@ -1758,6 +1932,10 @@
           "name": "动作迁移",
           "description": "将参考视频的动作迁移到目标角色。"
         },
+        "video_edit": {
+          "name": "剪辑工具",
+          "description": "基于源视频和剪辑指令生成处理后的视频。"
+        },
         "style_transfer": {
           "name": "画风迁移",
           "description": "将参考图的画风迁移到目标图像。"
@@ -1944,11 +2122,14 @@
   "header": {
     "titles": {
       "projects": "项目",
+      "projectHome": "项目首页",
+      "creation": "工作台",
       "scripts": "剧本管理",
       "settings": "设定管理",
-      "assets": "素材库",
+      "assets": "素材准备",
       "episodes": "分集管理",
       "scriptPreview": "剧本预演",
+      "referenceRelations": "引用关系",
       "collaboration": "协作进度",
       "scenes": "分场管理",
       "storyboards": "分镜管理",
@@ -1996,6 +2177,7 @@
       "motionImitation": "动作迁移",
       "styleTransfer": "画风迁移",
       "multiAngle": "多角度",
+      "videoEdit": "剪辑工具",
       "brainstorm": "头脑风暴",
       "resources": "资源库",
       "jobs": "生成记录",
@@ -2006,8 +2188,11 @@
       "creation": "工作台",
       "collaboration": "协作",
       "projectHome": "项目首页",
+      "projectPlan": "项目规划",
       "scriptPreview": "剧本预演",
+      "v2Entities": "V2 实体",
       "creativeReferences": "创作资料",
+      "referenceRelations": "引用关系",
       "assetPreparation": "素材准备",
       "contentProduction": "内容生产",
       "productionTasks": "制作任务",

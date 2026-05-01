@@ -1,4 +1,5 @@
 import { MCPClient } from './mcpClient.js'
+import { resolveRuntimeChatModelConfig } from './runtime/modelConfig.js'
 import type { JSONValue } from './types.js'
 
 export type ChatRole = 'system' | 'user' | 'assistant'
@@ -53,6 +54,18 @@ export class ChatRuntime {
     const conversationId = request.conversationId || `conv_${Date.now().toString(36)}`
     const includeContext = request.includeContext !== false
     const context = includeContext ? await this.readContextSafely() : undefined
+    const runtimeModelConfig = resolveRuntimeChatModelConfig()
+    if (runtimeModelConfig) {
+      return {
+        conversationId,
+        role: 'assistant',
+        content: await this.callOpenAICompatible(runtimeModelConfig.apiKey, runtimeModelConfig.model, messages, context, runtimeModelConfig.baseURL),
+        provider: 'runtime-openai-compatible',
+        model: runtimeModelConfig.model,
+        contextIncluded: !!context,
+      }
+    }
+
     const gatewayKey = process.env.MOVSCRIPT_AGENT_GATEWAY_API_KEY || process.env.MOVSCRIPT_AGENT_GATEWAY_USER_ID
 
     if (gatewayKey) {

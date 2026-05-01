@@ -1071,6 +1071,46 @@ confirmed_at
 - 没有确认预演时，制作任务页只展示引导，不创建任务。
 - 后续再进入 Phase 2 的剧本导入、版本与剧本节数据动作薄切片。
 
+### Done：Phase 2 的剧本导入与版本首个薄切片
+
+目标：
+
+```text
+先把剧本导入 / 版本选择的最小后端草稿契约落下来，再把剧本节候选接到可恢复的版本入口上。
+```
+
+建议交付标准：
+
+- `/script-preview` 可以创建或切换一个明确的剧本版本草稿。
+- 草稿版本能保存最小导入原文和版本标题。
+- 页面开始从“预演确认状态”转向“剧本导入与版本管理”的主线。
+- 仍不直接把主页面接到底层 `ScriptVersion` CRUD 作为最终产品交互。
+
+完成情况：
+
+- `/script-preview` 的当前版本卡片新增可编辑版本标题和来源类型。
+- 版本标题与来源类型已纳入保存快照和未保存状态判断。
+- 保存草稿会把版本标题和来源类型写入现有 `/script-preview/draft` 产品动作。
+- 新增“导入为新版本”入口，会用当前剧本输入、来源类型和分镜内容创建新的服务端草稿 ID，并追加到页面版本列表。
+- 切换版本会恢复版本标题、来源类型、原文和分镜行。
+- 仍未把主页面绑定到底层 `ScriptVersion` CRUD。
+
+### Next 4：后端列出剧本预演草稿版本
+
+目标：
+
+```text
+让剧本预演页不只恢复最近草稿，而是能从后端读取当前项目的草稿版本列表，并选择历史草稿版本恢复。
+```
+
+建议交付标准：
+
+- 后端提供项目级草稿列表读取产品动作，例如 `GET /api/v1/projects/:id/script-preview/drafts`。
+- 列表返回每个草稿的 `draft_id`、标题、来源类型、保存时间、预演状态和确认时间。
+- 前端进入 `/script-preview` 后可用后端列表替换当前页面内版本列表。
+- 选择版本时仍通过 `/script-preview/draft` 或新增读取单草稿动作恢复完整快照。
+- 仍不直接使用底层 `ScriptVersion` CRUD。
+
 ## 每次会话结束必须更新
 
 推进者结束前应更新以下字段：
@@ -1239,6 +1279,85 @@ Cannot find name 'MapPin'
 
 - 本次修改的 `/production` 页面已完成最小状态读取和下一步引导；全量前端 typecheck 仍被仓库中已有的 admin 预览改动阻塞。
 
+### 2026-05-01 本次推进 15
+
+- 新增 `apps/frontend/src/pages/collaboration/CollaborationPage.tsx` 的预演生产状态卡片，读取当前项目最近草稿的：
+
+```text
+preview_status
+confirmed_at
+saved_at
+```
+
+- 当草稿已确认时，页面明确展示“已确认 / 可进入内容生产”，并提供进入 `/production` 的下一步入口。
+- 当草稿未确认或不存在时，页面明确展示“前往剧本预演”的入口，但不创建任务、不写回状态。
+- 新增中英文文案，避免新卡片出现硬编码字符串。
+- 本次未改后端；仍只读取 `/script-preview/draft` 最近草稿状态。
+
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 结果：通过。
+- 未运行后端测试，因为本次没有修改后端代码。
+
+### 2026-05-01 本次推进 16
+
+- 按 Next 3 推进“Phase 2 的剧本导入与版本首个薄切片”。
+- `ScriptPreviewPage` 新增版本标题和来源类型状态，来源类型包括：
+
+```text
+brief
+script
+storyboard_script
+```
+
+- 版本标题和来源类型已纳入：
+
+```text
+草稿 payload
+未保存状态判断
+保存成功后的版本恢复
+版本切换恢复
+```
+
+- 新增“导入为新版本”入口，会用当前剧本输入、来源类型和分镜内容调用现有 `saveScriptPreviewDraft`，并让后端生成新的 `draft_id`。
+- 新服务端草稿会追加到页面版本列表，不覆盖当前占位版本。
+- 本次仍只使用 `/script-preview/draft` 产品动作保存草稿快照，没有接底层 `ScriptVersion` CRUD。
+
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 结果：通过。
+- 未运行后端测试，因为本次没有修改后端代码。
+
+### 2026-05-02 本次推进 17
+
+- 按用户要求开始补 V2 实体设计与前端展示能力，目标是先提供可调试、可维护的 V2 实体 CRUD 工作台。
+- 后端补齐 V2 semantic skeleton 的缺失 CRUD：
+
+```text
+ScriptVersion / ScriptSection / Situation / ContentUnit
+Keyframe / PreviewTimeline / CreativeReference / CreativeReferenceState
+AssetRequirement / WorkItem / DeliveryVersion
+```
+
+- 已为上述对象补充 `DELETE` 路由；此前缺少 patch 的对象补充了 `PATCH` handler。
+- 新增 `apps/frontend/src/api/v2Entities.ts`，集中定义 V2 实体配置、字段、状态和 CRUD adapter。
+- 新增 `apps/frontend/src/pages/v2-entities/V2EntitiesPage.tsx`，提供：
+
+```text
+实体类型切换
+搜索和状态筛选
+项目内对象列表
+创建 / 编辑 / 删除表单
+统计卡片
+```
+
+- 新增 `/v2-entities` 路由，并在侧边栏项目导航中加入“V2 实体”入口。
+- 该页面定位为 V2 对象工作台/调试台，不替代“剧本预演”“创作资料”“素材准备”等产品主流程页面。
+
+- 运行 `gofmt -w apps/backend/internal/handler/v2_semantics.go apps/backend/internal/router/router.go`。
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 结果：通过。
+- 运行 `go test ./internal/handler ./internal/router ./internal/v2/scriptpreview`。
+- 结果：通过。
+
 ## 遗留问题
 
 - 已临时确认真实产品入口落在应用 shell 的 `Sidebar` 项目分组，`/creation` 保留为“项目首页”。
@@ -1255,6 +1374,9 @@ Cannot find name 'MapPin'
 - 素材缺口确认、补齐和忽略已升级为 V2 数据动作。
 - 本次 `pnpm --filter movscript-frontend typecheck` 已恢复通过；上一轮记录的 `apps/frontend/src/pages/admin/UIPreviewPage.tsx` 类型错误在当前工作区已不再阻塞 typecheck，但该文件仍有未提交改动，后续会话仍需避免误回滚。
 - 本次新增确认预演状态和进入内容生产入口，但全量前端 typecheck 仍会被 `apps/frontend/src/pages/admin/UIPreviewPage.tsx` 的既有改动阻塞。
+- 本次已补 `/collaboration` 的预演生产状态只读卡片，后续可以把同一草稿状态复用到更明确的制作任务入口，但当前仍不创建任务。
+- `/script-preview` 当前已有前端版本列表和“导入为新版本”入口，但后端只支持读取最近草稿；下一步应补后端草稿版本列表和单草稿读取，避免刷新后只能恢复最近版本。
+- `/v2-entities` 已支持底层 V2 CRUD，但部分创建仍需要手动填写关联 ID，例如 `script_id`、`script_version_id`、`creative_reference_id`；后续产品页应通过上下文选择器或产品动作隐藏这些底层字段。
 
 ## 单句推进模板
 

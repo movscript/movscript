@@ -43,6 +43,13 @@ export type CanvasEntityCreateAction = {
   outputPortId?: string
 }
 
+export type CanvasEntityPortHandleRenderer = (handle: {
+  id: string
+  type: 'target' | 'source'
+  side: 'left' | 'right'
+  label: string
+}) => ReactNode
+
 export interface CanvasEntityActionCardProps {
   kind: CanvasEntityKind
   title: string
@@ -54,6 +61,8 @@ export interface CanvasEntityActionCardProps {
   createActions?: CanvasEntityCreateAction[]
   footer?: ReactNode
   className?: string
+  renderPortHandle?: CanvasEntityPortHandleRenderer
+  renderCreateActionPorts?: boolean
 }
 
 export function CanvasEntityActionCard({
@@ -67,6 +76,8 @@ export function CanvasEntityActionCard({
   createActions = [],
   footer,
   className,
+  renderPortHandle,
+  renderCreateActionPorts = false,
 }: CanvasEntityActionCardProps) {
   const cfg = ENTITY_KIND_META[kind]
   const Icon = cfg.icon
@@ -111,7 +122,7 @@ export function CanvasEntityActionCard({
         <SectionTitle icon={Image} label="绑定" />
         <div className="grid grid-cols-3 gap-1.5">
           {visibleBindings.map((slot) => (
-            <BindingSlot key={slot.id} slot={slot} />
+            <BindingSlot key={slot.id} slot={slot} renderPortHandle={renderPortHandle} />
           ))}
         </div>
 
@@ -120,7 +131,7 @@ export function CanvasEntityActionCard({
             <SectionTitle icon={Link2} label="关联" />
             <div className="mt-1 space-y-1">
               {visibleRelations.length > 0 ? visibleRelations.map((relation) => (
-                <RelationRow key={relation.id} relation={relation} />
+                <RelationRow key={relation.id} relation={relation} renderPortHandle={renderPortHandle} />
               )) : (
                 <EmptyRow label="拖拽连接实体" />
               )}
@@ -141,7 +152,15 @@ export function CanvasEntityActionCard({
                   >
                     <ActionIcon size={11} className="shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate text-left">{action.label}</span>
-                    <PortDot side="right" tone="source" label="out" compact />
+                    <PortDot
+                      side="right"
+                      tone="source"
+                      label="out"
+                      compact
+                      handleId={renderCreateActionPorts ? action.outputPortId ?? `create:${action.id}` : undefined}
+                      handleType={renderCreateActionPorts ? 'source' : undefined}
+                      renderPortHandle={renderPortHandle}
+                    />
                   </button>
                 )
               })}
@@ -155,7 +174,13 @@ export function CanvasEntityActionCard({
   )
 }
 
-function BindingSlot({ slot }: { slot: CanvasEntityBindingSlot }) {
+function BindingSlot({
+  slot,
+  renderPortHandle,
+}: {
+  slot: CanvasEntityBindingSlot
+  renderPortHandle?: CanvasEntityPortHandleRenderer
+}) {
   const Icon = slot.kind === 'video' ? Video : Image
   const isBound = slot.state === 'bound'
   const isPending = slot.state === 'pending'
@@ -170,8 +195,24 @@ function BindingSlot({ slot }: { slot: CanvasEntityBindingSlot }) {
         isBound ? 'border-border bg-background' : 'border-dashed border-border bg-muted/20 hover:bg-muted/40',
       )}
     >
-      <PortDot side="left" tone="target" label="in" compact />
-      <PortDot side="right" tone={isBound ? 'source' : 'muted'} label="out" compact />
+      <PortDot
+        side="left"
+        tone="target"
+        label="in"
+        compact
+        handleId={slot.inputPortId ?? `bind:${slot.id}`}
+        handleType="target"
+        renderPortHandle={renderPortHandle}
+      />
+      <PortDot
+        side="right"
+        tone={isBound ? 'source' : 'muted'}
+        label="out"
+        compact
+        handleId={slot.outputPortId ?? `read:${slot.id}`}
+        handleType="source"
+        renderPortHandle={renderPortHandle}
+      />
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-t-md bg-muted/25">
         {slot.thumbnailUrl ? (
           <img src={slot.thumbnailUrl} alt="" className="h-full w-full object-cover" />
@@ -194,18 +235,40 @@ function BindingSlot({ slot }: { slot: CanvasEntityBindingSlot }) {
   )
 }
 
-function RelationRow({ relation }: { relation: CanvasEntityRelation }) {
+function RelationRow({
+  relation,
+  renderPortHandle,
+}: {
+  relation: CanvasEntityRelation
+  renderPortHandle?: CanvasEntityPortHandleRenderer
+}) {
   return (
     <div
       data-input-port-id={relation.inputPortId ?? `relation-in:${relation.id}`}
       data-output-port-id={relation.outputPortId ?? `relation-out:${relation.id}`}
       className="relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-1.5 text-[10px]"
     >
-      <PortDot side="left" tone={relation.direction === 'incoming' ? 'target' : 'neutral'} label="in" compact />
+      <PortDot
+        side="left"
+        tone={relation.direction === 'incoming' ? 'target' : 'neutral'}
+        label="in"
+        compact
+        handleId={relation.inputPortId ?? `relation-in:${relation.id}`}
+        handleType="target"
+        renderPortHandle={renderPortHandle}
+      />
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{relation.label}</span>
       <ArrowRight size={10} className={cn('shrink-0 text-muted-foreground', relation.direction === 'incoming' && 'rotate-180')} />
       <span className="max-w-[82px] truncate font-medium text-foreground">{relation.targetLabel}</span>
-      <PortDot side="right" tone={relation.direction === 'incoming' ? 'neutral' : 'source'} label="out" compact />
+      <PortDot
+        side="right"
+        tone={relation.direction === 'incoming' ? 'neutral' : 'source'}
+        label="out"
+        compact
+        handleId={relation.outputPortId ?? `relation-out:${relation.id}`}
+        handleType="source"
+        renderPortHandle={renderPortHandle}
+      />
     </div>
   )
 }
@@ -233,12 +296,18 @@ function PortDot({
   label,
   compact,
   className,
+  handleId,
+  handleType,
+  renderPortHandle,
 }: {
   side: 'left' | 'right'
   tone: 'target' | 'source' | 'neutral' | 'muted'
   label: string
   compact?: boolean
   className?: string
+  handleId?: string
+  handleType?: 'target' | 'source'
+  renderPortHandle?: CanvasEntityPortHandleRenderer
 }) {
   return (
     <span
@@ -254,6 +323,8 @@ function PortDot({
         className,
       )}
       aria-hidden="true"
-    />
+    >
+      {handleId && handleType && renderPortHandle?.({ id: handleId, type: handleType, side, label })}
+    </span>
   )
 }

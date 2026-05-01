@@ -8,6 +8,7 @@ import "gorm.io/gorm"
 type ScriptPreviewDraft struct {
 	gorm.Model
 	ProjectID            uint    `gorm:"not null;index;uniqueIndex:idx_script_preview_draft_project_draft" json:"project_id"`
+	ScriptVersionID      *uint   `gorm:"index" json:"script_version_id,omitempty"`
 	DraftID              string  `gorm:"not null;uniqueIndex:idx_script_preview_draft_project_draft" json:"draft_id"`
 	Title                string  `json:"title"`
 	SourceType           string  `gorm:"default:'script';index" json:"source_type"`

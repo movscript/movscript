@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   FileText, Image, ImagePlus, Film, Clapperboard, Layers, Camera,
-  LayoutTemplate, Video, Move, Palette, Box,
+  LayoutTemplate, Video, Move, Palette, Box, Boxes, Scissors,
   Users, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
   HardDrive, Wand2, MessageSquare, LayoutDashboard,
-  Puzzle, Bug, PanelLeftClose, PanelLeftOpen, ClipboardList, PackageCheck,
+  Puzzle, Bug, PanelLeftClose, PanelLeftOpen, ClipboardList, PackageCheck, Database, Target, GitBranch,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -227,13 +227,17 @@ export function Sidebar() {
 
           {current && (
             <>
-              <NavItem to="/creation" icon={LayoutDashboard} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to="/creation" icon={Boxes} label={t('sidebar.items.creation')} collapsed={collapsed} />
+              <NavItem to="/project-home" icon={LayoutDashboard} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to="/project-plan" icon={Target} label={t('sidebar.items.projectPlan')} collapsed={collapsed} />
               <NavItem to="/script-preview" icon={Film} label={t('sidebar.items.scriptPreview')} collapsed={collapsed} />
-              <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.creativeReferences')} collapsed={collapsed} />
+              <NavItem to="/v2-entities" icon={Database} label={t('sidebar.items.v2Entities')} collapsed={collapsed} />
+              <NavItem to="/creative-references" icon={FileText} label={t('sidebar.items.creativeReferences')} collapsed={collapsed} />
+              <NavItem to="/reference-relations" icon={GitBranch} label={t('sidebar.items.referenceRelations')} collapsed={collapsed} />
               <NavItem to="/assets" icon={PackageCheck} label={t('sidebar.items.assetPreparation')} collapsed={collapsed} />
               <NavItem to="/production" icon={Wand2} label={t('sidebar.items.contentProduction')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={ClipboardList} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
-              <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.delivery')} collapsed={collapsed} />
+              <NavItem to="/delivery" icon={Video} label={t('sidebar.items.delivery')} collapsed={collapsed} />
               <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} collapsed={collapsed} />
               {!collapsed && <div className="border-t border-border mx-3 my-1.5" />}
             </>
@@ -273,6 +277,7 @@ export function Sidebar() {
           <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to="/tools/multi-angle" icon={Box} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
+          <NavItem to="/tools/video-edit" icon={Scissors} label={t('sidebar.items.videoEdit')} collapsed={collapsed} />
           <NavItem to="/tools/brainstorm" icon={MessageSquare} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
           {installedPlugins.map((plugin) => (
             <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={Puzzle} label={plugin.name} collapsed={collapsed} />

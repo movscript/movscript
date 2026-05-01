@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -38,6 +38,25 @@ function featureDisplayName(feature: FeatureConfig, t: (key: string, options?: R
 
 function featureDescription(feature: FeatureConfig, t: (key: string, options?: Record<string, unknown>) => string) {
   return t(`admin.features.catalog.${feature.feature_key}.description`, { defaultValue: feature.description })
+}
+
+function runtimeModelConfigFromAdmin(cred: AICredential, cfg: AIModelConfig, defaultBaseURL?: string) {
+  return {
+    schema: 'movscript.runtimeModelConfig.v1',
+    provider: 'openai-compatible',
+    baseURL: cred.base_url || defaultBaseURL || '',
+    model: cfg.model_id_override || cfg.model_def_id,
+    useForChat: true,
+    useForPlanner: true,
+    source: {
+      credentialId: cred.ID,
+      credentialName: cred.display_name,
+      adapterType: cred.adapter_type,
+      modelConfigId: cfg.ID,
+      modelName: cfg.custom_display_name || cfg.short_name || cfg.model_def_id,
+    },
+    note: 'API key is not included because admin credentials are masked in the browser. Paste this into /agent/debug and enter the key there if needed.',
+  }
 }
 
 type ModelEditForm = {
@@ -1481,6 +1500,13 @@ function ModelManagementTab() {
                               {modelTestRes.success ? '✓' : '✗'}
                             </span>
                           )}
+                          <button
+                            onClick={() => navigator.clipboard.writeText(JSON.stringify(runtimeModelConfigFromAdmin(cred, cfg, adapter?.default_base_url), null, 2))}
+                            className="text-muted-foreground/50 hover:text-foreground"
+                            title="Copy runtime model config"
+                          >
+                            <Copy size={12} />
+                          </button>
                           <button
                             onClick={() => {
                               const nextCaps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []

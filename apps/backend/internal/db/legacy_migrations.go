@@ -169,6 +169,7 @@ func seedDefaultFeatureConfigs(db *gorm.DB) error {
 		{FeatureKey: "ref_image_gen", DisplayName: "参考生图", Description: "以参考图为基础，生成新的图像；同时支持纯文本生图", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "ref_video_gen", DisplayName: "参考生视频", Description: "以参考图或描述为基础，生成视频", Capability: "video", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "motion_imitation", DisplayName: "动作迁移", Description: "将参考视频的动作迁移到目标角色", Capability: "video", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "video_edit", DisplayName: "剪辑工具", Description: "基于源视频和剪辑指令生成处理后的视频", Capability: "video_v2v", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "style_transfer", DisplayName: "画风迁移", Description: "将参考图的画风迁移到目标图像", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "multi_angle", DisplayName: "多角度", Description: "从单张参考图生成多角度视图", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "brainstorm", DisplayName: "头脑风暴", Description: "AI 多轮对话，辅助创意发散与剧本构思", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},

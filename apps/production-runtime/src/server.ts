@@ -7,6 +7,7 @@ import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '.
 import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/draftStore.js'
 import { BackendApplyClient } from './runtime/backendApplyClient.js'
 import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
+import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtime/modelConfig.js'
 import { ProductionRuntime } from './production/runtime.js'
 import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
 import { ScriptPreviewV2FallbackClient } from './production/v2FallbackClient.js'
@@ -18,7 +19,9 @@ const statePath = resolveAgentStatePath()
 const memoryPath = resolveAgentMemoryPath(statePath)
 const draftPath = resolveAgentDraftPath(statePath)
 const productionStatePath = resolveProductionStatePath()
+const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
 const backendApplyClient = new BackendApplyClient()
+const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
 const productionV2FallbackClient = new ScriptPreviewV2FallbackClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
@@ -76,9 +79,28 @@ const server = createServer(async (req, res) => {
         },
         draftPath,
         productionStatePath,
+        modelConfigPath,
+        modelConfig: modelConfigStore.getPublicConfig(),
         backendApplyEnabled: backendApplyClient.isEnabled(),
         productionV2FallbackEnabled: productionRuntime.isV2FallbackEnabled(),
       })
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/model-config') {
+      writeJSON(res, 200, modelConfigStore.getPublicConfig())
+      return
+    }
+
+    if (req.method === 'POST' && url.pathname === '/model-config') {
+      const body = await readJSON(req)
+      writeJSON(res, 200, modelConfigStore.save(normalizeOptionalObject(body, 'model config body')))
+      return
+    }
+
+    if (req.method === 'POST' && url.pathname === '/model-config/test') {
+      const body = await readJSON(req)
+      writeJSON(res, 200, await modelConfigStore.test(normalizeOptionalObject(body, 'model config test body')))
       return
     }
 
@@ -375,6 +397,7 @@ server.listen(port, '127.0.0.1', () => {
   console.info(`[production-runtime] memory path ${memoryPath}`)
   console.info(`[production-runtime] draft path ${draftPath}`)
   console.info(`[production-runtime] production state path ${productionStatePath}`)
+  console.info(`[production-runtime] model config path ${modelConfigPath}`)
   console.info(`[production-runtime] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[production-runtime] production V2 fallback ${productionRuntime.isV2FallbackEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[production-runtime] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)

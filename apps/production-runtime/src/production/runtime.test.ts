@@ -176,6 +176,181 @@ test('production runtime situation apply preview maps to V2 data operation but r
   assert.equal(acceptedPreview.requiredContext.includes('targetObject'), true)
 })
 
+test('production runtime executes GenerateStoryboardScript from script sections and situations', async () => {
+  const runtime = new ProductionRuntime()
+
+  const run = await runtime.createAction({
+    actionType: 'GenerateStoryboardScript',
+    projectId: 4,
+    sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'v2' },
+    inputContext: {
+      duration_target: 20,
+      script_sections: [
+        {
+          client_id: 'section-1',
+          order: 1,
+          title: '夜晚仓库对峙',
+          summary: '主角在仓库里发现交易线索，并与对手短暂对峙。',
+        },
+        {
+          client_id: 'section-2',
+          order: 2,
+          title: '天台追问',
+          summary: '主角追上对手，逼问真正的交货地点。',
+        },
+      ],
+      situations: [
+        {
+          client_id: 'situation-1',
+          source_section_id: 'section-1',
+          order: 1,
+          title: '仓库交易',
+          summary: '仓库里藏着关键证据。',
+          location: '仓库',
+          time_of_day: '夜晚',
+        },
+        {
+          client_id: 'situation-2',
+          source_section_id: 'section-2',
+          order: 2,
+          title: '天台逼问',
+          summary: '主角在天台逼问对手。',
+          location: '天台',
+          time_of_day: '清晨',
+        },
+      ],
+    },
+  })
+
+  assert.equal(run.actionType, 'GenerateStoryboardScript')
+  assert.equal(run.status, 'waiting_approval')
+  assert.equal(run.candidates.length, 2)
+  assert.equal(run.candidates[0].type, 'storyboard_script')
+  assert.equal(run.candidates[0].status, 'candidate')
+  assert.equal(run.candidates[0].payload.client_id, 'storyboard-script-1')
+  assert.equal(run.candidates[0].payload.source_section_id, 'section-1')
+  assert.equal(run.candidates[0].payload.situation_id, 'situation-1')
+  assert.equal(run.candidates[0].payload.duration_seconds, 10)
+  assert.equal(run.candidates[0].payload.status, '待确认')
+  assert.equal(run.candidates[0].payload.adoption_intent, 'append_storyboard_row')
+  assert.match(String(run.candidates[0].payload.body), /场景：仓库 \/ 夜晚/)
+  assert.equal(run.candidates[0].payload.confirm_question, '是否采用这个分镜脚本候选？')
+})
+
+test('production runtime executes GenerateStoryboardScript from script sections only', async () => {
+  const runtime = new ProductionRuntime()
+
+  const run = await runtime.createAction({
+    actionType: 'GenerateStoryboardScript',
+    projectId: 4,
+    inputContext: {
+      scriptSections: [
+        {
+          id: 'section-a',
+          order: 1,
+          title: '开场',
+          summary: '主角进入车站大厅寻找线索。',
+          duration_seconds: 7,
+        },
+      ],
+    },
+  })
+
+  assert.equal(run.status, 'waiting_approval')
+  assert.equal(run.candidates.length, 1)
+  assert.equal(run.candidates[0].type, 'storyboard_script')
+  assert.equal(run.candidates[0].payload.source_section_id, 'section-a')
+  assert.equal(run.candidates[0].payload.title, '开场')
+  assert.equal(run.candidates[0].payload.body, '主角进入车站大厅寻找线索。')
+  assert.equal(run.candidates[0].payload.duration_seconds, 7)
+  assert.equal(run.candidates[0].payload.adoption_intent, 'append_storyboard_row')
+})
+
+test('production runtime uses existing storyboard rows as source context without overwriting them', async () => {
+  const runtime = new ProductionRuntime()
+
+  const run = await runtime.createAction({
+    actionType: 'GenerateStoryboardScript',
+    projectId: 4,
+    inputContext: {
+      script_sections: [
+        {
+          client_id: 'section-1',
+          order: 1,
+          title: '雨中告别',
+          summary: '两人在车站外告别，雨水打湿海报。',
+        },
+      ],
+      storyboard_rows: [
+        {
+          client_id: 'row-existing-1',
+          order: 1,
+          source_section_id: 'section-1',
+          title: '旧分镜行',
+          body: '旧版本分镜内容。',
+          status: '已确认',
+        },
+      ],
+    },
+  })
+
+  const sourceRef = run.candidates[0].payload.source_ref
+
+  assert.equal(run.status, 'waiting_approval')
+  assert.equal(run.candidates.length, 1)
+  assert.equal(run.candidates[0].type, 'storyboard_script')
+  assert.equal(run.candidates[0].status, 'candidate')
+  assert.equal(run.candidates[0].payload.adoption_intent, 'revise_existing_storyboard_row')
+  assert.equal(typeof sourceRef, 'object')
+  assert.equal(Array.isArray(sourceRef), false)
+  assert.equal((sourceRef as Record<string, unknown>).existing_storyboard_row instanceof Object, true)
+  assert.equal(runtime.listCandidates().some((candidate) => candidate.payload.client_id === 'row-existing-1'), false)
+})
+
+test('production runtime fails GenerateStoryboardScript without usable input', async () => {
+  const runtime = new ProductionRuntime()
+
+  const run = await runtime.createAction({
+    actionType: 'GenerateStoryboardScript',
+    projectId: 4,
+    inputContext: {},
+  })
+
+  assert.equal(run.status, 'failed')
+  assert.match(run.error ?? '', /script_sections/)
+  assert.equal(run.candidates.length, 0)
+})
+
+test('production runtime storyboard script apply preview maps to V2 data operation but remains gated', async () => {
+  const runtime = new ProductionRuntime()
+  const run = await runtime.createAction({
+    actionType: 'GenerateStoryboardScript',
+    projectId: 4,
+    inputContext: {
+      script_sections: [
+        {
+          client_id: 'section-1',
+          title: '夜晚仓库对峙',
+          summary: '主角在仓库里发现交易线索，并与对手短暂对峙。',
+        },
+      ],
+    },
+  })
+
+  const candidatePreview = runtime.previewCandidateApply(run.candidates[0].id)
+  const accepted = runtime.acceptCandidate({ candidateId: run.candidates[0].id })
+  const acceptedPreview = runtime.previewCandidateApply(accepted.id)
+
+  assert.equal(candidatePreview.status, 'not_applicable')
+  assert.equal(candidatePreview.canApply, false)
+  assert.equal(candidatePreview.approval.requiredAction, 'accept_candidate')
+  assert.equal(candidatePreview.v2DataOperation, 'UpsertStoryboardSuggestions')
+  assert.equal(acceptedPreview.status, 'blocked')
+  assert.equal(acceptedPreview.canApply, false)
+  assert.equal(acceptedPreview.approval.requiredAction, 'call_v2_data_action')
+  assert.equal(acceptedPreview.v2DataOperation, 'UpsertStoryboardSuggestions')
+})
+
 test('production runtime fails unsupported deterministic input before candidate write', async () => {
   const runtime = new ProductionRuntime()
 

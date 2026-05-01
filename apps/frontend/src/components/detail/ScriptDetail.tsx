@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Script } from '@/types'
+import { createScriptVersion, listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
 import { useProjectStore } from '@/store/projectStore'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
-import { Clock, Database, Film, GitBranch, Layers, MapPin, Plus, Sparkles, Trash2, Users } from 'lucide-react'
+import { Clock, Database, GitBranch, Layers, MapPin, Plus, Sparkles, Users } from 'lucide-react'
 
 const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; color: string; tone: 'sky' | 'violet' | 'blue' }> = {
   main:    { labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400', tone: 'sky' },
@@ -26,6 +27,14 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Script>>({ ...script })
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
+
+  const { data: versions = [], isLoading: versionsLoading } = useQuery<ScriptVersion[]>({
+    queryKey: ['v2-script-versions', projectId, script.ID],
+    queryFn: () => listScriptVersions(projectId!, { scriptId: script.ID }),
+    enabled: !!projectId,
+  })
+  const selectedVersion = versions.find((version) => version.ID === selectedVersionId) ?? versions[0] ?? null
 
   const update = useMutation({
     mutationFn: (data: Partial<Script>) =>
@@ -33,6 +42,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
     onSuccess: (updated: Script) => {
       setDraft((d) => ({ ...d, ...updated }))
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId, script.ID] })
       qc.invalidateQueries({ queryKey: ['settings', projectId] })
       qc.invalidateQueries({ queryKey: ['setting-refs', projectId, script.ID] })
       qc.invalidateQueries({ queryKey: ['setting-relationships', projectId, script.ID] })
@@ -44,6 +54,24 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
       onDelete?.()
+    },
+  })
+
+  const createVersion = useMutation({
+    mutationFn: () => createScriptVersion(projectId!, {
+      script_id: script.ID,
+      parent_version_id: selectedVersion?.ID ?? null,
+      title: draft.title ?? script.title,
+      source_type: script.source_type ?? 'raw',
+      content: draft.content ?? script.content ?? draft.raw_source ?? script.raw_source ?? '',
+      raw_source: draft.raw_source ?? script.raw_source ?? draft.content ?? script.content ?? '',
+      summary: draft.summary ?? script.summary ?? '',
+      status: 'draft',
+    }),
+    onSuccess: (version) => {
+      setSelectedVersionId(version.ID)
+      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId] })
+      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId, script.ID] })
     },
   })
 
@@ -76,12 +104,14 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <StructuredScriptOverview
-          scriptType={script.script_type}
-          draft={draft}
-          onChange={setDraft}
-          onSave={(data) => update.mutate(data)}
-          isSaving={update.isPending}
+        <ScriptVersionViewer
+          versions={versions}
+          selectedVersion={selectedVersion}
+          selectedVersionId={selectedVersionId}
+          isLoading={versionsLoading}
+          isCreating={createVersion.isPending}
+          onSelect={setSelectedVersionId}
+          onCreate={() => createVersion.mutate()}
         />
 
         <ScriptForm
@@ -93,6 +123,90 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
         />
       </div>
     </div>
+  )
+}
+
+function ScriptVersionViewer({
+  versions,
+  selectedVersion,
+  selectedVersionId,
+  isLoading,
+  isCreating,
+  onSelect,
+  onCreate,
+}: {
+  versions: ScriptVersion[]
+  selectedVersion: ScriptVersion | null
+  selectedVersionId: number | null
+  isLoading: boolean
+  isCreating: boolean
+  onSelect: (id: number) => void
+  onCreate: () => void
+}) {
+  const selectedText = selectedVersion ? scriptVersionText(selectedVersion) : ''
+
+  return (
+    <section className="border-b border-border bg-background">
+      <div className="grid gap-4 p-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <p className="text-xs font-semibold text-foreground">版本</p>
+            <button
+              type="button"
+              onClick={onCreate}
+              disabled={isCreating}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <Plus size={12} />
+              {isCreating ? '新增中' : '新增版本'}
+            </button>
+          </div>
+          <div className="space-y-2 p-3">
+            {isLoading ? (
+              <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">正在读取版本</p>
+            ) : versions.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">暂无 v2 剧本版本</p>
+            ) : versions.map((version) => (
+              <button
+                key={version.ID}
+                type="button"
+                onClick={() => onSelect(version.ID)}
+                className={cn(
+                  'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                  (selectedVersionId ?? versions[0]?.ID) === version.ID
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-background hover:border-primary/50',
+                )}
+              >
+                <span className="block truncate text-sm font-medium text-foreground">{version.title || `剧本版本 ${version.version_number}`}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  v{version.version_number || version.ID} · {formatScriptVersionStatus(version.status)} · {formatDate(version.UpdatedAt)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+            <p className="min-w-0 truncate text-xs font-semibold text-foreground">
+              {selectedVersion ? `${selectedVersion.title || '未命名版本'} · v${selectedVersion.version_number || selectedVersion.ID}` : '版本正文'}
+            </p>
+            {selectedVersion ? (
+              <span className="shrink-0 text-xs text-muted-foreground">{formatScriptVersionStatus(selectedVersion.status)}</span>
+            ) : null}
+          </div>
+          <div className="p-3">
+            <textarea
+              readOnly
+              className="min-h-[260px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-sm leading-relaxed text-foreground outline-none"
+              value={selectedText}
+              placeholder="选择版本后查看正文"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -114,7 +228,6 @@ function StructuredScriptOverview({
   const isScene = scriptType === 'scene'
   const characters = parseJsonList(draft.structured_characters)
   const beats = parseJsonList(draft.plot_beats)
-  const entityCandidates = parseJsonList(draft.entity_candidates)
 
   function setCharacters(items: Array<Record<string, unknown>>) {
     onChange({ ...draft, structured_characters: JSON.stringify(items) })
@@ -122,14 +235,6 @@ function StructuredScriptOverview({
 
   function setBeats(items: Array<Record<string, unknown>>) {
     onChange({ ...draft, plot_beats: JSON.stringify(items) })
-  }
-
-  function setEntityCandidates(items: Array<Record<string, unknown>>) {
-    onChange({ ...draft, entity_candidates: JSON.stringify(items) })
-  }
-
-  function setRelationshipCandidates(items: Array<Record<string, unknown>>) {
-    onChange({ ...draft, relationship_candidates: JSON.stringify(items) })
   }
 
   return (
@@ -199,17 +304,6 @@ function StructuredScriptOverview({
                   <StructureMetric icon={Sparkles} label="氛围" value={draft.atmosphere || '待填写'} tone="rose" />
                 </>
               )}
-            </div>
-          )}
-
-          {isMain && (
-            <div>
-              <StructurePanel title="候选收件箱" contentClassName="p-0">
-                <MainCandidateInbox
-                  items={entityCandidates}
-                  onChange={setEntityCandidates}
-                />
-              </StructurePanel>
             </div>
           )}
 
@@ -382,247 +476,6 @@ function StructureTextArea({ label, value, placeholder, onChange }: { label: str
   )
 }
 
-type MainCandidateKind = 'episode' | 'scene_script' | 'setting'
-
-const MAIN_CANDIDATE_GROUPS = [
-  {
-    type: 'episode',
-    label: '分集剧本',
-    addLabel: '添加分集',
-    placeholder: '例如：EP01 回到老城',
-    icon: Film,
-    tone: 'text-violet-600 bg-violet-500/10 border-violet-500/20',
-    itemTone: 'border-violet-500/20 bg-violet-500/[0.04]',
-    lineTone: 'bg-violet-500/30',
-  },
-  {
-    type: 'scene_script',
-    label: '分场剧本',
-    addLabel: '添加分场',
-    placeholder: '例如：S08 雨夜巷口',
-    icon: Layers,
-    tone: 'text-blue-600 bg-blue-500/10 border-blue-500/20',
-    itemTone: 'border-blue-500/20 bg-blue-500/[0.04]',
-    lineTone: 'bg-blue-500/30',
-  },
-  {
-    type: 'setting',
-    label: '设定',
-    addLabel: '添加设定',
-    placeholder: '例如：林夏 / 旧伞 / 老城区',
-    icon: Database,
-    tone: 'text-teal-600 bg-teal-500/10 border-teal-500/20',
-    itemTone: 'border-teal-500/20 bg-teal-500/[0.04]',
-    lineTone: 'bg-teal-500/30',
-  },
-] satisfies Array<{ type: MainCandidateKind; label: string; addLabel: string; placeholder: string; icon: typeof Film; tone: string; itemTone: string; lineTone: string }>
-
-function normalizeMainCandidateType(item: Record<string, unknown>): MainCandidateKind {
-  const type = String(item.type ?? '')
-  if (type === 'episode') return 'episode'
-  if (type === 'scene_script') return 'scene_script'
-  return 'setting'
-}
-
-function candidateTitle(item: Record<string, unknown>) {
-  return String(item.name ?? item.title ?? item.location_text ?? '')
-}
-
-function candidateDescription(item: Record<string, unknown>) {
-  return String(item.description ?? item.summary ?? item.outline ?? item.plot ?? item.evidence ?? '')
-}
-
-function candidateOutline(item: Record<string, unknown>) {
-  return String(item.outline ?? item.summary ?? item.description ?? item.plot ?? '')
-}
-
-function CandidateFieldLabel({ label }: { label: string }) {
-  return <span className="mb-1 block text-[10px] font-medium text-muted-foreground">{label}</span>
-}
-
-function CandidateInput({
-  value,
-  placeholder,
-  readOnly,
-  onChange,
-}: {
-  value: string
-  placeholder: string
-  readOnly?: boolean
-  onChange: (value: string) => void
-}) {
-  return (
-    <input
-      readOnly={readOnly}
-      className={cn(
-        'h-7 min-w-0 flex-1 rounded-md border border-transparent bg-card px-2 text-xs font-medium text-foreground outline-none',
-        readOnly ? 'cursor-default' : 'hover:border-border focus:border-ring',
-      )}
-      value={value}
-      placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  )
-}
-
-function CandidateTextArea({
-  value,
-  placeholder,
-  readOnly,
-  minHeight,
-  onChange,
-}: {
-  value: string
-  placeholder: string
-  readOnly?: boolean
-  minHeight: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <textarea
-      readOnly={readOnly}
-      className={cn(
-        'resize-none rounded-md border border-transparent bg-card px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground outline-none',
-        minHeight,
-        readOnly ? 'cursor-default' : 'hover:border-border focus:border-ring',
-      )}
-      value={value}
-      placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  )
-}
-
-function MainCandidateInbox({
-  items,
-  onChange,
-  readOnly,
-  emptyText,
-  groups,
-}: {
-  items: Array<Record<string, unknown>>
-  onChange?: (items: Array<Record<string, unknown>>) => void
-  readOnly?: boolean
-  emptyText?: string
-  groups?: MainCandidateKind[]
-}) {
-  const visibleGroups = groups ? MAIN_CANDIDATE_GROUPS.filter((group) => groups.includes(group.type)) : MAIN_CANDIDATE_GROUPS
-
-  function addItem(type: MainCandidateKind) {
-    if (readOnly || !onChange) return
-    onChange([...items, { id: `e${items.length + 1}`, type, name: '', description: '', outline: '' }])
-  }
-
-  function updateItem(target: Record<string, unknown>, patch: Record<string, unknown>) {
-    if (readOnly || !onChange) return
-    onChange(items.map((item) => item === target ? { ...item, ...patch } : item))
-  }
-
-  function removeItem(target: Record<string, unknown>) {
-    if (readOnly || !onChange) return
-    onChange(items.filter((item) => item !== target))
-  }
-
-  return (
-    <div className={cn('grid divide-y divide-border', visibleGroups.length > 1 && 'xl:grid-cols-3 xl:divide-x xl:divide-y-0')}>
-      {visibleGroups.map((group) => {
-        const Icon = group.icon
-        const groupItems = items.filter((item) => normalizeMainCandidateType(item) === group.type)
-        return (
-          <section key={group.type} className="min-w-0 p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <p className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold', group.tone)}>
-                <Icon size={13} />
-                {group.label}
-              </p>
-              <div className={cn('h-px min-w-0 flex-1', group.lineTone)} />
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => addItem(group.type)}
-                  className={cn('inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] hover:bg-muted', group.tone)}
-                >
-                  <Plus size={11} />
-                  {group.addLabel}
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {groupItems.length > 0 ? groupItems.map((item, index) => (
-                <div key={String(item.id ?? `${group.type}-${index}`)} className={cn('grid gap-1.5 rounded-md border p-2', group.itemTone)}>
-                  <div className="flex items-center gap-1.5">
-                    <CandidateInput
-                      value={candidateTitle(item)}
-                      placeholder={group.placeholder}
-                      readOnly={readOnly}
-                      onChange={(value) => updateItem(item, { name: value, title: value })}
-                    />
-                    {!readOnly && (
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item)}
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        aria-label={`删除${group.label}候选`}
-                        title={`删除${group.label}候选`}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-                  <label className="grid gap-0.5">
-                    <CandidateFieldLabel label="描述" />
-                    <CandidateTextArea
-                      minHeight="min-h-[44px]"
-                      value={candidateDescription(item)}
-                      placeholder="一句话说明内容、看点或设定用途"
-                      readOnly={readOnly}
-                      onChange={(value) => updateItem(item, { description: value })}
-                    />
-                  </label>
-                  {group.type !== 'setting' && (
-                    <label className="grid gap-0.5">
-                      <CandidateFieldLabel label="提纲" />
-                      <CandidateTextArea
-                        minHeight="min-h-[58px]"
-                        value={candidateOutline(item)}
-                        placeholder="写清关键剧情节点、冲突和结果"
-                        readOnly={readOnly}
-                        onChange={(value) => updateItem(item, { outline: value, summary: value })}
-                      />
-                    </label>
-                  )}
-                  <label className="grid gap-0.5">
-                    <CandidateFieldLabel label="来源" />
-                    <CandidateTextArea
-                      minHeight="min-h-[52px]"
-                      value={String(item.evidence ?? item.source_range ?? item.content ?? '')}
-                      placeholder="来源证据或拆分原文"
-                      readOnly={readOnly}
-                      onChange={(value) => updateItem(item, { evidence: value })}
-                    />
-                  </label>
-                </div>
-              )) : (
-                readOnly ? (
-                  <p className="rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground">{emptyText ?? `暂无${group.label}候选`}</p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => addItem(group.type)}
-                    className="w-full rounded-md px-2 py-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                  >
-                    暂无{group.label}候选
-                  </button>
-                )
-              )}
-            </div>
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
 function StructureList({
   title,
   items,
@@ -738,4 +591,24 @@ function parseJsonList(raw?: string): Array<Record<string, unknown>> {
     return []
   }
   return []
+}
+
+function scriptVersionText(version: ScriptVersion) {
+  return (version.content || version.raw_source || version.summary || '').trim()
+}
+
+function formatScriptVersionStatus(status: string) {
+  if (status === 'active') return '当前正式版'
+  if (status === 'archived') return '已归档'
+  return '草稿'
+}
+
+function formatDate(value: string) {
+  if (!value) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
 }

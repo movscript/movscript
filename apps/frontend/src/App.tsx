@@ -22,15 +22,22 @@ import RefVideoGenPage from './pages/tools/RefVideoGenPage'
 import MotionImitationPage from './pages/tools/MotionImitationPage'
 import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
+import VideoEditPage from './pages/tools/VideoEditPage'
 import BrainstormPage from './pages/tools/BrainstormPage'
+import CreativeReferencesPage from './pages/creative-references/CreativeReferencesPage'
+import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
+import DeliveryPage from './pages/delivery/DeliveryPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
 import ScriptPreviewPage from './pages/script-preview/ScriptPreviewPage'
+import V2EntitiesPage from './pages/v2-entities/V2EntitiesPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
+import ProjectHomeV2Page from './pages/project-home/ProjectHomeV2Page'
+import ProjectPlanPage from './pages/project-plan/ProjectPlanPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import i18n from './i18n'
@@ -149,6 +156,8 @@ export default function App() {
 
                     {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
                     <Route path="/scripts"     element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
+                    <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
+                    <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
                     <Route path="/settings"    element={<ProjectGuard><ScriptsPage initialTab="settings" /></ProjectGuard>} />
                     <Route path="/assets"      element={<ProjectGuard><AssetsPage /></ProjectGuard>} />
                     <Route path="/episodes"    element={<ProjectGuard><EpisodesPage /></ProjectGuard>} />
@@ -164,13 +173,18 @@ export default function App() {
                     <Route path="/tools/motion-imitation"    element={<MotionImitationPage />} />
                     <Route path="/tools/style-transfer"      element={<StyleTransferPage />} />
                     <Route path="/tools/multi-angle"         element={<MultiAnglePage />} />
+                    <Route path="/tools/video-edit"          element={<VideoEditPage />} />
                     <Route path="/tools/brainstorm"          element={<BrainstormPage />} />
                     <Route path="/tools/plugin/:pluginId"    element={<PluginToolPage />} />
 
                     {/* 工作模块 */}
                     <Route path="/script-preview" element={<ProjectGuard><ScriptPreviewPage /></ProjectGuard>} />
+                    <Route path="/v2-entities" element={<ProjectGuard><V2EntitiesPage /></ProjectGuard>} />
                     <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                     <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
+                    <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
+                    <Route path="/project-home" element={<ProjectGuard><ProjectHomeV2Page /></ProjectGuard>} />
+                    <Route path="/project-plan" element={<ProjectGuard><ProjectPlanPage /></ProjectGuard>} />
                     <Route path="/creation"      element={<ProjectGuard><WorkbenchPage mode="free" /></ProjectGuard>} />
 
                     {/* 用户 */}

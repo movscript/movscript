@@ -57,6 +57,8 @@ type CreativeReferenceUsage struct {
 	Role                     string                  `json:"role"` // protagonist|supporting|location|prop|style|brand|rule
 	Order                    int                     `json:"order"`
 	Evidence                 string                  `gorm:"type:text" json:"evidence"`
+	Source                   string                  `gorm:"not null;default:'manual';index" json:"source"` // ai|manual|import
+	Status                   string                  `gorm:"not null;default:'draft';index" json:"status"`  // draft|confirmed|corrected|ignored
 	MetadataJSON             string                  `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -73,5 +75,8 @@ type CreativeRelationship struct {
 	Type                      string             `json:"type"`
 	Label                     string             `json:"label"`
 	Description               string             `gorm:"type:text" json:"description"`
-	Source                    string             `gorm:"default:'manual'" json:"source"` // ai|manual|import
+	Source                    string             `gorm:"default:'manual'" json:"source"`               // ai|manual|import
+	Status                    string             `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|corrected|ignored
+	Evidence                  string             `gorm:"type:text" json:"evidence"`
+	MetadataJSON              string             `gorm:"type:text" json:"metadata_json"`
 }

@@ -28,7 +28,8 @@ interface ProductionRuntimeLaunch {
 
 export async function ensureProductionRuntimeRunning(input: { baseURL?: string } = {}): Promise<ProductionRuntimeStatus> {
   const baseURL = normalizeBaseURL(input.baseURL)
-  if (await isProductionRuntimeHealthy(baseURL)) {
+  const health = await getProductionRuntimeHealth(baseURL)
+  if (health.ok && health.supportsModelConfig) {
     return {
       ok: true,
       running: true,
@@ -36,6 +37,20 @@ export async function ensureProductionRuntimeRunning(input: { baseURL?: string }
       started: false,
       baseURL,
       pid: proc?.pid,
+    }
+  }
+  if (health.ok && !health.supportsModelConfig && proc && !proc.killed) {
+    proc.kill()
+    proc = null
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  } else if (health.ok && !health.supportsModelConfig) {
+    return {
+      ok: false,
+      running: true,
+      managed: false,
+      started: false,
+      baseURL,
+      error: 'Production Runtime is running but does not support /model-config. Stop the old runtime process and restart the desktop app.',
     }
   }
 
@@ -140,20 +155,27 @@ function resolveProductionRuntimeLaunch(): ProductionRuntimeLaunch {
 async function waitForProductionRuntime(baseURL: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (await isProductionRuntimeHealthy(baseURL)) return
+    const health = await getProductionRuntimeHealth(baseURL)
+    if (health.ok && health.supportsModelConfig) return
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`movscript-production-runtime did not become healthy at ${baseURL}/health within ${timeoutMs}ms`)
+  throw new Error(`movscript-production-runtime did not become healthy with model config support at ${baseURL} within ${timeoutMs}ms`)
 }
 
 async function isProductionRuntimeHealthy(baseURL: string): Promise<boolean> {
+  return (await getProductionRuntimeHealth(baseURL)).ok
+}
+
+async function getProductionRuntimeHealth(baseURL: string): Promise<{ ok: boolean; supportsModelConfig: boolean }> {
   try {
     const res = await fetch(`${baseURL}/health`)
-    if (!res.ok) return false
+    if (!res.ok) return { ok: false, supportsModelConfig: false }
     const body = await res.json() as { ok?: unknown }
-    return body.ok === true
+    if (body.ok !== true) return { ok: false, supportsModelConfig: false }
+    const modelConfigRes = await fetch(`${baseURL}/model-config`)
+    return { ok: true, supportsModelConfig: modelConfigRes.status !== 404 }
   } catch {
-    return false
+    return { ok: false, supportsModelConfig: false }
   }
 }
 

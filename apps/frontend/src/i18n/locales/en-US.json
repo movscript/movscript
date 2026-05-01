@@ -387,6 +387,91 @@
     "notes": "Notes"
   },
   "pages": {
+    "projectHomeV2": {
+      "badge": "Project Home v2",
+      "noDescription": "No project description yet. This dashboard summarizes script, asset, production, and delivery status.",
+      "actions": {
+        "continue": "Continue",
+        "openWorkbench": "Open Workbench",
+        "viewTasks": "View Tasks"
+      },
+      "stageState": {
+        "ready": "Ready",
+        "active": "Active",
+        "blocked": "Blocked"
+      },
+      "priority": {
+        "high": "High",
+        "medium": "Med",
+        "low": "Low"
+      },
+      "metrics": {
+        "scripts": "Scripts",
+        "episodes": "Episodes",
+        "assets": "Assets",
+        "storyboards": "Storyboards",
+        "approvedShots": "Approved Shots",
+        "productionReadiness": "Production Readiness",
+        "productionReadinessHint": "Estimated from key stages",
+        "scriptAssets": "Scripts / Assets",
+        "scriptAssetsHint": "Content input and visual assets",
+        "storyboardShots": "Storyboards / Shots",
+        "storyboardShotsHint": "Director breakdown and executable units",
+        "approvedShotsHint": "{{count}} shots ready to generate"
+      },
+      "now": {
+        "title": "Current Push",
+        "subtitle": "The next entry is recommended from project data.",
+        "currentStage": "Suggested Stage",
+        "updated": "Last Updated",
+        "status": "Project Status",
+        "statusFallback": "Not set"
+      },
+      "sections": {
+        "pipeline": "Production Pipeline",
+        "pipelineHint": "A five-stage overview from script preview to delivery.",
+        "focus": "Today's Focus",
+        "focusHint": "Prioritize gaps that block downstream production.",
+        "quickLinks": "Quick Links"
+      },
+      "stages": {
+        "script": {
+          "title": "Script Preview",
+          "description": "Import, analyze, and calibrate scripts for later asset and shot breakdown."
+        },
+        "references": {
+          "title": "Creative References",
+          "description": "Collect characters, world rules, style references, and creative constraints."
+        },
+        "assets": {
+          "title": "Asset Prep",
+          "description": "Confirm production references for characters, locations, props, audio, and brand assets."
+        },
+        "production": {
+          "title": "Content Production",
+          "description": "Manage storyboards, shot generation, and content iteration."
+        },
+        "delivery": {
+          "title": "Delivery",
+          "description": "Collect approved shots for final assembly and delivery checks."
+        }
+      },
+      "focus": {
+        "script": "Script",
+        "storyboard": "Storyboard",
+        "shot": "Shot",
+        "nextStep": "Next",
+        "missingBody": "Body is empty",
+        "needsDescription": "Description missing",
+        "awaitingApproval": "Awaiting approval"
+      },
+      "emptyFocus": {
+        "scriptPreview": "Start with script preview",
+        "scriptPreviewMeta": "Generate structure and asset gaps",
+        "assets": "Check asset prep",
+        "assetsMeta": "Lock production references"
+      }
+    },
     "assets": {
       "searchPlaceholder": "Search assets...",
       "gridTitle": "Grid",
@@ -397,7 +482,71 @@
       "settingFilter": "Setting assets",
       "settingFallback": "Setting #{{id}}",
       "unlinkedSetting": "Unlinked setting",
-      "pagination": "{{total}} assets · {{page}}/{{pageCount}}"
+      "pagination": "{{total}} assets · {{page}}/{{pageCount}}",
+      "v2": {
+        "title": "Asset Prep",
+        "subtitle": "Track the reference images, videos, audio, and brand assets still needed for production.",
+        "searchPlaceholder": "Search gaps, segments, or asset cues...",
+        "noSelection": "Select an asset gap",
+        "emptyRequirements": "No matching asset gaps",
+        "emptyRequirementsHint": "Adjust filters or generate new asset gaps from script preview.",
+        "candidateCount": "{{count}} candidates",
+        "status": {
+          "missing": "Missing",
+          "candidate": "Candidate",
+          "locked": "Locked",
+          "waived": "Waived"
+        },
+        "kinds": {
+          "image": "Reference image",
+          "video": "Reference video",
+          "audio": "Audio",
+          "brand": "Brand guide"
+        },
+        "priority": {
+          "high": "High priority",
+          "medium": "Medium priority",
+          "low": "Low priority"
+        },
+        "filters": {
+          "active": "Active"
+        },
+        "actions": {
+          "waive": "Waive",
+          "upload": "Upload",
+          "requestCandidates": "Generate candidates",
+          "addCandidate": "Add candidate",
+          "lock": "Lock",
+          "reopen": "Choose again"
+        },
+        "fields": {
+          "scope": "Linked segment",
+          "cue": "Asset cue",
+          "candidates": "Candidates",
+          "linkedSetting": "Linked setting",
+          "settings": "Settings",
+          "assetCount": "Assets"
+        },
+        "sections": {
+          "candidates": "Candidate Assets",
+          "candidatesHint": "Candidates can come from uploads, generation tools, or the existing asset library. Production uses only locked assets.",
+          "productionReadiness": "Production Readiness",
+          "productionReadinessHint": "This checks adoption state; a completed task is not treated as an adopted asset.",
+          "lockedAsset": "Locked Asset",
+          "lockedAssetHint": "Production views will prefer this adopted asset.",
+          "assetLibrary": "Asset Library",
+          "context": "Project Context"
+        },
+        "readiness": {
+          "requirementConfirmed": "Gap confirmed or handled",
+          "hasCandidate": "Candidate available for review",
+          "lockedOrWaived": "Locked or explicitly waived"
+        },
+        "noCandidates": "No candidates yet",
+        "noCandidatesHint": "Upload a reference, run a generation tool, or pick a candidate from the asset library.",
+        "noLockedAsset": "No locked asset",
+        "noLockedAssetHint": "Lock a candidate so the production page has a stable reference."
+      }
     },
     "resources": {
       "types": {
@@ -520,7 +669,26 @@
       "remove": "Remove",
       "noMembers": "No members",
       "tasks": "Tasks",
-      "management": "Management"
+      "management": "Management",
+      "preview": {
+        "title": "Preview Production Status",
+        "ready": "Confirmed",
+        "pending": "Pending",
+        "missing": "No draft found",
+        "readySummary": "The preview is confirmed and can move on to production tasks.",
+        "pendingSummary": "This project has a preview draft, but it is not ready for production yet.",
+        "missingSummary": "There is no usable preview draft yet. Confirm one in Script Preview first.",
+        "readyTitle": "Ready for content production",
+        "notReadyTitle": "Not in a production-ready state yet",
+        "savedAt": "Saved at: {{value}}",
+        "confirmedAt": "Confirmed at: {{value}}",
+        "unknown": "N/A",
+        "foundDraft": "Latest preview draft",
+        "noDraft": "The latest saved draft will appear here after Script Preview is used.",
+        "enterProduction": "Enter Content Production",
+        "goPreview": "Go to Script Preview",
+        "viewPreview": "View Script Preview"
+      }
     },
     "canvases": {
       "subtitle": "Inspiration · Workflow",
@@ -955,6 +1123,7 @@
       "multi_angle": "Multi-angle Image",
       "style_transfer": "Style Transfer",
       "motion_imitation": "Motion Imitation",
+      "video_edit": "Video Edit",
 	      "input": "Input",
 	      "output": "Output",
 	      "resource_sink": "Save Resource",
@@ -1396,6 +1565,11 @@
         "description": "Generate multiple angle views of a character or object from a single image.",
         "promptPlaceholder": "Describe the angles or viewpoints you want to generate... Type @ to reference images from the resource library"
       },
+      "videoEdit": {
+        "name": "Video Edit",
+        "description": "Generate an edited video from a source video and edit instructions.",
+        "promptPlaceholder": "Describe the edit target, such as trimming, pacing, shot reordering, or style processing... Type @ to reference videos from the resource library"
+      },
       "styleTransfer": {
         "name": "Style Transfer",
         "description": "Transfer the reference image's art style onto the content image and generate a new stylized image.",
@@ -1758,6 +1932,10 @@
           "name": "Motion Imitation",
           "description": "Transfer motion from a reference video to target characters."
         },
+        "video_edit": {
+          "name": "Video Edit",
+          "description": "Generate an edited video from a source video and edit instructions."
+        },
         "style_transfer": {
           "name": "Style Transfer",
           "description": "Transfer the reference image's art style to the target image."
@@ -1944,11 +2122,14 @@
   "header": {
     "titles": {
       "projects": "Projects",
+      "projectHome": "Project Home",
+      "creation": "Workbench",
       "scripts": "Script Management",
       "settings": "Setting Management",
-      "assets": "Asset Library",
+      "assets": "Asset Prep",
       "episodes": "Episode Management",
       "scriptPreview": "Script Preview",
+      "referenceRelations": "Reference Relations",
       "collaboration": "Collaboration Progress",
       "scenes": "Scene Management",
       "storyboards": "Storyboard Management",
@@ -1996,6 +2177,7 @@
       "motionImitation": "Motion Imitation",
       "styleTransfer": "Style Transfer",
       "multiAngle": "Multi-angle",
+      "videoEdit": "Video Edit",
       "brainstorm": "Brainstorm",
       "resources": "Resources",
       "jobs": "Generation Jobs",
@@ -2006,8 +2188,11 @@
       "creation": "Workbench",
       "collaboration": "Collaboration",
       "projectHome": "Project Home",
+      "projectPlan": "Project Plan",
       "scriptPreview": "Script Preview",
+      "v2Entities": "V2 Entities",
       "creativeReferences": "Creative References",
+      "referenceRelations": "Reference Relations",
       "assetPreparation": "Asset Prep",
       "contentProduction": "Content Production",
       "productionTasks": "Production Tasks",

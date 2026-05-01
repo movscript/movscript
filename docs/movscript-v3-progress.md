@@ -44,6 +44,280 @@ V3 不直接推进 V2 页面或后端数据模型，只通过文档化契约与 
 
 ## 已完成
 
+### 2026-05-01 Runtime model-config 404 兼容修复
+
+- 发现问题：`/agent/debug` 前端已更新，但 28765 上可能仍运行旧版 production-runtime；旧进程 `/health` 返回 ok，但不支持：
+
+```text
+GET/POST /model-config
+POST /model-config/test
+```
+
+- `localAgentClient` 现在会把 `/model-config` 的 404 改写成可操作错误提示：
+
+```text
+当前 Production Runtime 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter movscript-production-runtime dev
+```
+
+- Electron `ensureProductionRuntimeRunning` 现在除 `/health` 外还检查 `/model-config` capability：
+  - 如果是 Electron 托管的旧 runtime，会 kill 后重新启动。
+  - 如果是外部手动启动的旧 runtime，会返回明确错误，要求用户停止旧进程。
+
+### 2026-05-01 后台模型配置复制到 Runtime Debug
+
+- 后台管理模型列表新增复制 runtime config 能力，复制内容形如：
+
+```json
+{
+  "schema": "movscript.runtimeModelConfig.v1",
+  "provider": "openai-compatible",
+  "baseURL": "https://api.openai.com/v1",
+  "model": "gpt-4o-mini",
+  "useForChat": true,
+  "useForPlanner": true
+}
+```
+
+- model 字段优先使用：
+
+```text
+model_id_override
+model_def_id fallback
+```
+
+- baseURL 字段优先使用：
+
+```text
+credential.base_url
+adapter.default_base_url fallback
+```
+
+- `/agent/debug` 的 Model Connection 面板新增粘贴区，可解析后台复制的 JSON，并自动填入：
+
+```text
+baseURL
+model
+useForChat
+useForPlanner
+```
+
+- 调试页也支持粘贴纯 URL 或纯模型 ID 作为快速输入。
+- 后台返回给前端的 API key 只有 masked key，因此复制内容不会包含明文 key；调试页粘贴后会保留已保存的 runtime key，或要求用户手动填入 API key。
+
+### 2026-05-01 AI 功能目录与参数形状可视化
+
+- `/agent/debug` 新增 `AI Functions` tab，用于枚举当前前端真实 AI 功能入口。
+- 当前登记的 AI 功能包括：
+
+```text
+Agent Debug Model Planner / Run
+Brainstorm Text Chat
+Tool Generation Job
+Quick Tool Canvas Node Run
+Canvas Workflow / Node AI Run
+Script Preview Analyze
+Script Preview Generate Keyframes
+Client Plugin Generation
+```
+
+- 每个功能已在调试页展示：
+
+```text
+surface
+frontend entry file
+trigger
+backend/local runtime endpoint
+request shape
+execution trace
+current visibility
+missing visibility
+```
+
+- 这一步先把“有哪些 AI 功能、真实调用传什么参数、现在能看见哪些过程、还缺哪些观测点”代码化，便于后续逐个补全请求/响应 trace。
+- 本切片未改真实 AI 调用路径，不改变 V2/V3 数据边界。
+
+### 2026-05-01 Agent Debug 真实执行过程可视化
+
+- `/agent/debug` 在 dry-run Preview 之外新增真实执行调试入口：
+
+```text
+Execute Debug Run
+```
+
+- 执行时会通过既有 local runtime API 创建 thread / run，并轮询 run 状态：
+
+```text
+POST /threads
+POST /threads/:id/messages
+POST /runs
+GET  /runs/:id
+GET  /threads/:id
+```
+
+- Runs tab 现在可展示真实执行过程：
+
+```text
+run id
+run status
+planner kind
+warnings
+plan / tasks
+step timeline
+step args
+step result
+step error
+pending approvals
+final assistant message
+run raw JSON
+```
+
+- 如果 run 进入 `requires_action`，调试页可对单个或全部 approval 执行：
+
+```text
+approve
+reject
+```
+
+- approve 后会继续轮询 run，直到进入终态：
+
+```text
+completed
+completed_with_warnings
+requires_action
+failed
+```
+
+- 该功能只用于 `/agent/debug` 调试，不恢复全局聊天入口，不改变 V2 或 V3 正式事实边界。
+
+### 2026-05-01 Agent Debug 交互过程面板
+
+- 修复问题：`/agent/debug` 点击 `Execute Debug Run` 后虽然已经发起真实 runtime 调用，但 UI 不会立刻切换到执行视图，也缺少启动中、线程创建中、规划中、审批等待、工具执行、最终回复等可见状态。
+- `/agent/debug` 现在把 tabs 改为受控状态：
+  - 点击 `Execute Debug Run` 会立即切到 Runs tab。
+  - sidebar 会显示 latest run 状态和 `Open Run Timeline` 入口。
+  - run 尚未返回前也会显示 starting / runtime check / thread pending，而不是空白。
+- 新增 `Agent Interaction Trace` 面板，整理一次真实 agent 交互的阶段：
+
+```text
+Runtime Check
+Thread Setup
+Message Submit
+Context Pack
+Planner
+Tool Policy
+Tool Execution
+Assistant Response
+```
+
+- 面板会基于当前 `run`、`threadMessages`、pending approvals、error 和 loading 状态推导：
+  - pending / active / complete / blocked / failed
+  - 用户输入快照
+  - runtime/thread/planner 摘要
+  - approval pending 数量
+  - 最新 assistant message
+- Runs tab 现在在无 run 对象但已经点击执行时，也会展示提交输入、启动状态或错误，不再只展示空态。
+- 本切片只增强 debug UI，不改变 runtime API、不改变 V2 数据边界。
+
+### 2026-05-01 Runtime 模型接入调试闭环
+
+- 明确当前状态：V3 `ProductionAction` / candidate / approval 主线之前主要是 deterministic executor 和架构边界；真正大模型调用能力已存在于 legacy chat / model planner 链路，但此前只能通过环境变量配置。
+- 新增 runtime-local OpenAI-compatible 模型配置存储：
+
+```text
+.movscript-production-runtime/model-config.json
+```
+
+- 新增 `MOVSCRIPT_AGENT_MODEL_CONFIG_PATH` 支持覆盖模型配置文件位置。
+- 新增 runtime 模型配置 API：
+
+```text
+GET  /model-config
+POST /model-config
+POST /model-config/test
+```
+
+- `/health` 现在暴露：
+
+```text
+modelConfigPath
+modelConfig.configured
+modelConfig.model
+modelConfig.source
+```
+
+- `ChatRuntime` 优先读取 runtime-local 模型配置；如果未配置，再回退到既有环境变量：
+
+```text
+MOVSCRIPT_AGENT_GATEWAY_*
+MOVSCRIPT_AGENT_OPENAI_*
+OPENAI_API_KEY
+```
+
+- `OpenAICompatibleModelPlanner` 也优先读取 runtime-local 模型配置，使 `/agent/debug` 的 Preview 可以真正走 model planner。
+- `/agent/debug` 新增本地模型配置面板，可配置：
+
+```text
+baseURL
+model
+apiKey
+useForChat
+useForPlanner
+```
+
+- `/agent/debug` 可直接触发模型连接测试；测试会发起一次 OpenAI-compatible `chat/completions` 请求，并展示模型、耗时和返回内容。
+- 本切片只保存本地 runtime 调试配置，不写后端模型管理表，不接入 V2 数据模型，不改变正式事实。
+
+### 2026-05-01 GenerateStoryboardScript deterministic executor 测试补齐
+
+- 当前 `ProductionRuntime` 的 deterministic executor 已支持：
+
+```text
+GenerateStoryboardScript
+```
+
+- `GenerateStoryboardScript` 只生成 runtime-local `storyboard_script` candidate，不调用 V2 fallback，不写 V2 后端数据模型或数据库核心表。
+- 输入上下文支持：
+
+```text
+inputContext.script_sections / scriptSections
+inputContext.situations / situations
+inputContext.storyboard_rows / storyboardRows optional
+inputContext.duration_target / durationTarget optional
+```
+
+- `storyboard_script` payload 覆盖：
+
+```text
+client_id
+order
+title
+body
+duration_seconds
+status
+adoption_intent
+source_section_id optional
+situation_id optional
+source_ref
+confirm_question
+```
+
+- existing storyboard rows 只作为 `source_ref.existing_storyboard_row` / 去重上下文，不被直接覆盖，不会创建 accepted candidate。
+- 有候选产出时 run 状态为 `waiting_approval`，candidate 状态保持 `candidate`。
+- 无有效输入时 run 状态为 `failed`，不写 candidate。
+- `storyboard_script` 的 apply preview 已通过既有映射返回：
+
+```text
+UpsertStoryboardSuggestions
+```
+
+- apply preview 仍只返回 `blocked` / `not_applicable`，不调用 V2 apply，不写正式事实。
+- 新增测试覆盖：
+  - script sections + situations 生成 storyboard_script candidates。
+  - 仅 script sections 时可生成 storyboard_script candidates。
+  - existing storyboard rows 可作为 source_ref / 去重上下文，但不被直接覆盖。
+  - 无有效输入失败且 candidates 为空。
+  - storyboard_script apply preview 返回 `UpsertStoryboardSuggestions`，但仍需要 accept / V2 data action gate。
+
 ### 2026-05-01 ExtractSituations deterministic executor
 
 - `ProductionRuntime` 的 deterministic executor 已支持：
@@ -431,11 +705,19 @@ V3 BuildPreviewTimelineProposal -> V2 BuildPreviewTimeline / SavePreviewProposal
 - 当前 V2 fallback client 支持 `AnalyzeScriptToSections -> POST /projects/:id/script-preview/analyze` 和 `GenerateKeyframeCandidates -> POST /projects/:id/script-preview/generate-preview`，默认关闭。
 - 当前 runtime-local candidate lifecycle API 已存在，可标记 `accepted` / `rejected` / `revised` / `superseded`，但不会应用到 V2 正式事实。
 - 当前 runtime-local apply preview API 已存在，可说明候选未来对应的 V2 data action、当前是否 blocked、以及缺少哪些上下文；它仍不会调用 V2 或写正式事实。
-- 当前 deterministic executor 支持 `AnalyzeScriptToSections`、`ExtractSituations` 和 `GenerateKeyframeCandidates`；其余第一批 action 仍只登记契约，尚未生成候选。
+- 当前 deterministic executor 支持 `AnalyzeScriptToSections`、`ExtractSituations`、`GenerateStoryboardScript` 和 `GenerateKeyframeCandidates`；其余第一批 action 仍只登记契约，尚未生成候选。
+- 当前 runtime-local 模型配置 API 已存在，`/agent/debug` 可配置并测试 OpenAI-compatible 模型；legacy chat 和 model planner 会优先读取该配置。
+- 当前 `/agent/debug` 已支持真实执行 run 调试，可查看 planner、step timeline、tool args/result/error、approval 和最终 assistant message。
+- 当前 `/agent/debug` 已新增 AI Functions 目录，枚举前端真实 AI 功能入口、请求参数形状、执行链路和缺失观测点。
 
 本次新增/修改：
 
-- `apps/production-runtime/src/production/deterministicExecutor.ts`
+- `apps/production-runtime/src/runtime/modelConfig.ts`
+- `apps/production-runtime/src/chatRuntime.ts`
+- `apps/production-runtime/src/runtime/modelPlanner.ts`
+- `apps/production-runtime/src/server.ts`
+- `apps/frontend/src/lib/localAgentClient.ts`
+- `apps/frontend/src/pages/agent/AgentDebugPage.tsx`
 - `apps/production-runtime/src/production/runtime.test.ts`
 - `docs/movscript-v3-progress.md`
 
@@ -505,54 +787,57 @@ V2 窗口维护对象、状态和数据动作 API；V3 窗口维护 ProductionAc
 
 当前 V2 还没有专用 `UpsertSituationCandidates` 薄切片接口，因此 `ExtractSituations` 只在 runtime-local run/candidate store 中产出 `situation` candidates。后续应等 V2 数据动作 API 稳定后再接入写回，不复用现有 `script-preview/analyze` 作为隐式情境写入。
 
+### 决策 15：模型接入先落到本地 runtime 调试配置
+
+V3 runtime 的大模型接入先通过 `/agent/debug` 和 runtime-local OpenAI-compatible 配置跑通，不直接复用后端模型管理表，也不把 API key 写入项目正式数据。短期目标是让 legacy chat / model planner / 后续 ProductionAction executor 共用同一份本地模型配置；长期再与后端模型网关和权限体系对齐。
+
+### 决策 16：AI 执行过程调试先保留在 `/agent/debug`
+
+AI 执行过程可视化先服务开发和诊断：展示 planner、prompt/context、run steps、tool 调用、approval 和最终消息。它不重新引入全局聊天产品入口，也不替代后续面向用户的 `RunTimeline` / `CandidateReview` / `ProductionHistory`。
+
 ## 下一步任务
 
-### Next 8：补齐 GenerateStoryboardScript deterministic executor
+### Next 9：把 ProductionAction executor 接入 runtime model client
 
 目标：
 
 ```text
-在 production-runtime 内为 GenerateStoryboardScript 建立最小 deterministic executor，让剧本节 / 情境上下文可以生成 runtime-local storyboard_script candidates，但不调用 V2、不写正式事实。
+在现有 AI Functions 目录基础上，先建立统一 AI 调用 trace 记录机制，让真实前端 AI 调用能自动记录 request / response / status / duration，再继续把 ProductionAction executor 接入 runtime model client。
 ```
 
 建议交付标准：
 
 - 不改 V2 后端数据模型，不直接写数据库核心表。
-- 不新增 V2 fallback；只生成 runtime-local candidate。
-- `GenerateStoryboardScript` 可从以下输入读取上下文：
+- 先在前端建立 debug-only trace store，不影响正式业务 payload。
+- trace 至少记录：
 
 ```text
-inputContext.script_sections / scriptSections
-inputContext.situations / situations
-inputContext.storyboard_rows / storyboardRows optional
-inputContext.duration_target / durationTarget optional
-```
-
-- 生成 `storyboard_script` candidates，payload 至少包含：
-
-```text
-client_id
-order
-title
-body
-duration_seconds
+functionId
+surface
+endpoint
+requestBody
+responseBody optional
 status
-adoption_intent
-source_section_id optional
-situation_id optional
-source_ref
-confirm_question
+error optional
+startedAt
+finishedAt
+durationMs
 ```
 
-- 输出状态仍为 `candidate`，run 状态为 `waiting_approval`。
-- 无有效输入时应 failed，且不写 candidate。
-- apply preview 应能映射 `storyboard_script -> UpsertStoryboardSuggestions`。
-- 补充测试覆盖：
-  - script sections + situations 生成 storyboard_script candidates。
-  - 仅 script sections 时可生成 storyboard_script candidates。
-  - existing storyboard rows 可作为 source_ref / 去重上下文，但不被直接覆盖。
-  - 无有效输入失败且 candidates 为空。
-  - storyboard_script apply preview 返回 `UpsertStoryboardSuggestions`，但仍 blocked / not_applicable。
+- 先接入 2-3 个真实前端入口：
+
+```text
+Brainstorm Text Chat
+Tool Generation Job
+Script Preview Analyze / Generate
+```
+
+- `/agent/debug` 的 AI Functions tab 应能展示最近 trace 列表，并按 functionId 过滤。
+- trace 必须脱敏 API key / Authorization / token / secret。
+- 完成 trace 机制后，再推进 ProductionAction model client 接入：
+  - 复用 `/model-config`。
+  - 先选择 `GenerateStoryboardScript`。
+  - 模型失败时记录 warning 并 fallback deterministic executor。
 
 ## 每次会话结束必须更新
 
@@ -576,6 +861,164 @@ confirm_question
 - 没有运行测试的原因。
 
 ## 验证记录
+
+### 2026-05-01 Runtime model-config 404 兼容修复
+
+- 本次新增/修改代码：
+  - `apps/frontend/src/lib/localAgentClient.ts`
+  - `apps/frontend/electron/productionRuntime.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/frontend typecheck
+```
+
+- 结果：
+
+```text
+frontend typecheck passed
+```
+
+- 未运行后端或 runtime 测试；本切片只改前端/Electron runtime capability 检查和错误提示。
+
+### 2026-05-01 Agent Debug 交互过程面板
+
+- 本次新增/修改代码：
+  - `apps/frontend/src/pages/agent/AgentDebugPage.tsx`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/frontend typecheck
+```
+
+- 结果：
+
+```text
+frontend typecheck passed
+```
+
+- 未运行后端或 runtime 测试；本切片只改前端 debug UI，不改 runtime API、后端或 V2 数据模型。
+
+### 2026-05-01 后台模型配置复制到 Runtime Debug
+
+- 本次新增/修改代码：
+  - `apps/frontend/src/pages/admin/AdminPage.tsx`
+  - `apps/frontend/src/pages/agent/AgentDebugPage.tsx`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/frontend typecheck
+```
+
+- 结果：
+
+```text
+frontend typecheck passed
+```
+
+- 未运行后端或 runtime 测试；本切片只改前端复制/粘贴调试能力。
+
+### 2026-05-01 AI 功能目录与参数形状可视化
+
+- 本次新增/修改代码：
+  - `apps/frontend/src/pages/agent/AgentDebugPage.tsx`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/frontend typecheck
+```
+
+- 结果：
+
+```text
+frontend typecheck passed
+```
+
+- 未运行后端或 runtime 测试；本切片只新增前端调试目录展示和文档，不改真实 AI 调用链路。
+
+### 2026-05-01 Agent Debug 真实执行过程可视化
+
+- 本次新增/修改代码：
+  - `apps/frontend/src/pages/agent/AgentDebugPage.tsx`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/frontend typecheck
+pnpm --dir apps/production-runtime typecheck
+```
+
+- 结果：
+
+```text
+frontend typecheck passed
+production-runtime typecheck passed
+```
+
+- 未运行后端测试；本切片未改后端代码，也未改 V2 数据模型。
+- 未实际执行外部模型 run；真实模型执行需要用户在 `/agent/debug` 配置 API key 后手动触发，避免自动测试产生外部网络依赖和费用。
+
+### 2026-05-01 Runtime 模型接入调试闭环
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/runtime/modelConfig.ts`
+  - `apps/production-runtime/src/chatRuntime.ts`
+  - `apps/production-runtime/src/runtime/modelPlanner.ts`
+  - `apps/production-runtime/src/server.ts`
+  - `apps/frontend/src/lib/localAgentClient.ts`
+  - `apps/frontend/src/pages/agent/AgentDebugPage.tsx`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/frontend typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+production-runtime typecheck passed
+frontend typecheck passed
+production-runtime test passed: 69 tests
+```
+
+- 未运行后端测试；本切片未改后端代码，也未改 V2 数据模型。
+- 未实际调用外部模型 API；测试连接需要用户在 `/agent/debug` 填入 API key 后手动触发，避免在自动测试中产生外部网络依赖和费用。
+
+### 2026-05-01 GenerateStoryboardScript deterministic executor 测试补齐
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/runtime.test.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 69 tests
+```
+
+- 未运行后端测试；本切片未改后端代码，也未改 V2 数据模型。
 
 ### 2026-05-01 ExtractSituations deterministic executor
 
@@ -756,10 +1199,15 @@ test passed: 48 tests
 - V2 的候选写入 API 仍在演进，V3 第一批 action 应先通过文档契约对接，不直接依赖未稳定实现。
 - `/production/*` 当前已有 create/list/get、candidate accept/reject/revise/supersede 和 apply-preview；仍没有 run cancellation 或真正的 approval/apply API。
 - `FileProductionStore` 当前是 runtime-local JSON 文件持久化，不是后端可信状态，也没有并发写入锁。
+- runtime-local `model-config.json` 当前是开发/桌面调试配置，API key 存在本地文件；后续需要和后端模型网关、权限、加密存储或系统 keychain 对齐。
+- `/agent/debug` 已能配置和测试模型连接，但 ProductionAction executor 尚未调用该模型配置。
+- `/agent/debug` 已能展示 legacy agent run 的真实执行过程，但 V3 `/production/actions` 还没有同等级的 run timeline UI。
+- `/agent/debug` 的 AI Functions 目前是静态代码化目录，尚未自动捕获每次真实调用的 request/response trace。
 - `accepted` candidate 目前只表示 runtime-local 审查状态，不代表已经应用到 V2 canonical objects；apply preview 也只会返回 blocked / not_applicable。
-- deterministic executor 目前只覆盖 `AnalyzeScriptToSections`、`ExtractSituations` 和 `GenerateKeyframeCandidates`，尚未覆盖 `GenerateStoryboardScript`、`PrepareAssetRequirements`、`BuildPreviewTimelineProposal`。
+- deterministic executor 目前只覆盖 `AnalyzeScriptToSections`、`ExtractSituations`、`GenerateStoryboardScript` 和 `GenerateKeyframeCandidates`，尚未覆盖 `PrepareAssetRequirements`、`BuildPreviewTimelineProposal`。
 - `AnalyzeScriptToSections` 当前只基于段落/句子做简单拆分，没有调用模型；V2 `script-preview/analyze` fallback 已有边界但默认关闭。
 - `ExtractSituations` 当前只从已有 section / storyboard row / source text 做 deterministic 归一化，不调用模型，也不写回 V2 situation candidate API。
+- `GenerateStoryboardScript` 当前仍是 deterministic 归一化，不调用模型；下一步应优先用 runtime-local 模型配置增强该 action。
 - `GenerateKeyframeCandidates` 当前只基于 storyboard rows / content units 做简单 keyframe candidate，不调用图像或视频生成服务；V2 `script-preview/generate-preview` fallback 已有边界但默认关闭。
 
 ## 单句推进模板

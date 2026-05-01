@@ -23,6 +23,7 @@ func NewServiceWithStore(store DraftStore) *Service {
 
 type DraftPayload struct {
 	SourceText         string                `json:"source_text"`
+	ScriptVersionID    *uint                 `json:"script_version_id,omitempty"`
 	ScriptVersion      ScriptVersionDraft    `json:"script_version"`
 	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
 	PreviewTimeline    []PreviewTimelineIn   `json:"preview_timeline"`
@@ -78,6 +79,7 @@ type SaveDraftResponse struct {
 type DraftPayloadResponse struct {
 	ProjectID          uint                  `json:"project_id"`
 	SourceText         string                `json:"source_text"`
+	ScriptVersionID    *uint                 `json:"script_version_id,omitempty"`
 	ScriptVersion      ScriptVersionDraft    `json:"script_version"`
 	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
 	PreviewTimeline    []PreviewTimelineIn   `json:"preview_timeline"`
@@ -226,6 +228,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 
 	resp := SaveDraftResponse{
 		DraftID:              req.ScriptVersion.DraftID,
+		ScriptVersionID:      req.ScriptVersionID,
 		StoryboardRevisionID: fmt.Sprintf("%s-storyboard", req.ScriptVersion.DraftID),
 		PreviewTimelineID:    fmt.Sprintf("%s-preview", req.ScriptVersion.DraftID),
 		SavedAt:              savedAt,
@@ -234,6 +237,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 		Draft: DraftPayloadResponse{
 			ProjectID:          projectID,
 			SourceText:         req.SourceText,
+			ScriptVersionID:    req.ScriptVersionID,
 			ScriptVersion:      req.ScriptVersion,
 			StoryboardRows:     req.StoryboardRows,
 			PreviewTimeline:    req.PreviewTimeline,
@@ -250,6 +254,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 		}
 		if err := s.store.SaveDraftSnapshot(ctx, DraftSnapshot{
 			ProjectID:            projectID,
+			ScriptVersionID:      resp.ScriptVersionID,
 			DraftID:              resp.DraftID,
 			Title:                resp.Draft.ScriptVersion.Title,
 			SourceType:           resp.Draft.ScriptVersion.SourceType,
@@ -292,6 +297,9 @@ func (s *Service) GetLatestDraftWithContext(ctx context.Context, projectID uint)
 		return GetLatestDraftResponse{}, fmt.Errorf("decode draft snapshot: %w", err)
 	}
 	draft.ProjectID = projectID
+	if draft.ScriptVersionID == nil {
+		draft.ScriptVersionID = snapshot.ScriptVersionID
+	}
 	if draft.ScriptVersion.DraftID == "" {
 		draft.ScriptVersion.DraftID = snapshot.DraftID
 	}
@@ -303,6 +311,7 @@ func (s *Service) GetLatestDraftWithContext(ctx context.Context, projectID uint)
 	}
 	resp := SaveDraftResponse{
 		DraftID:              snapshot.DraftID,
+		ScriptVersionID:      draft.ScriptVersionID,
 		StoryboardRevisionID: snapshot.StoryboardRevisionID,
 		PreviewTimelineID:    snapshot.PreviewTimelineID,
 		SavedAt:              snapshot.SavedAt,
@@ -805,6 +814,9 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 		return SaveDraftResponse{}, fmt.Errorf("decode draft snapshot: %w", err)
 	}
 	draft.ProjectID = projectID
+	if draft.ScriptVersionID == nil {
+		draft.ScriptVersionID = snapshot.ScriptVersionID
+	}
 	if draft.ScriptVersion.DraftID == "" {
 		draft.ScriptVersion.DraftID = snapshot.DraftID
 	}
@@ -816,6 +828,7 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 		return SaveDraftResponse{}, fmt.Errorf("encode draft snapshot: %w", err)
 	}
 	snapshot.Title = fallback(draft.ScriptVersion.Title, snapshot.Title)
+	snapshot.ScriptVersionID = draft.ScriptVersionID
 	snapshot.SourceType = fallback(draft.ScriptVersion.SourceType, snapshot.SourceType)
 	snapshot.SourceText = draft.SourceText
 	snapshot.PreviewStatus = fallback(draft.PreviewStatus, snapshot.PreviewStatus)
@@ -831,6 +844,9 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 
 func saveDraftResponseFromSnapshot(projectID uint, snapshot DraftSnapshot, draft DraftPayloadResponse) SaveDraftResponse {
 	draft.ProjectID = projectID
+	if draft.ScriptVersionID == nil {
+		draft.ScriptVersionID = snapshot.ScriptVersionID
+	}
 	if draft.ScriptVersion.DraftID == "" {
 		draft.ScriptVersion.DraftID = snapshot.DraftID
 	}
@@ -842,6 +858,7 @@ func saveDraftResponseFromSnapshot(projectID uint, snapshot DraftSnapshot, draft
 	}
 	return SaveDraftResponse{
 		DraftID:              snapshot.DraftID,
+		ScriptVersionID:      draft.ScriptVersionID,
 		StoryboardRevisionID: snapshot.StoryboardRevisionID,
 		PreviewTimelineID:    snapshot.PreviewTimelineID,
 		SavedAt:              snapshot.SavedAt,

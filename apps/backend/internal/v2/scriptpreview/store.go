@@ -13,6 +13,7 @@ var ErrDraftNotFound = errors.New("script preview draft not found")
 
 type DraftSnapshot struct {
 	ProjectID            uint
+	ScriptVersionID      *uint
 	DraftID              string
 	Title                string
 	SourceType           string
@@ -44,6 +45,7 @@ func NewGormDraftStore(db *gorm.DB) DraftStore {
 func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSnapshot) error {
 	record := model.ScriptPreviewDraft{
 		ProjectID:            snapshot.ProjectID,
+		ScriptVersionID:      snapshot.ScriptVersionID,
 		DraftID:              snapshot.DraftID,
 		Title:                snapshot.Title,
 		SourceType:           snapshot.SourceType,
@@ -60,6 +62,7 @@ func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSn
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "project_id"}, {Name: "draft_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
+			"script_version_id",
 			"title",
 			"source_type",
 			"source_text",
@@ -108,6 +111,7 @@ func (s *gormDraftStore) GetLatestDraftSnapshot(ctx context.Context, projectID u
 func draftSnapshotFromRecord(record model.ScriptPreviewDraft) DraftSnapshot {
 	return DraftSnapshot{
 		ProjectID:            record.ProjectID,
+		ScriptVersionID:      record.ScriptVersionID,
 		DraftID:              record.DraftID,
 		Title:                record.Title,
 		SourceType:           record.SourceType,

@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import { resolveRuntimePlannerModelConfig } from './modelConfig.js'
 import type { AgentInputEnvelope, AgentPlanTask, AgentTaskPlan, ToolCall } from './types.js'
 
 export interface AgentModelPlanner {
@@ -66,6 +67,16 @@ export function createDefaultModelPlanner(): AgentModelPlanner | undefined {
 }
 
 function resolvePlannerConfig(): { apiKey: string; model: string; baseURL: string; provider: string } | undefined {
+  const runtimeConfig = resolveRuntimePlannerModelConfig()
+  if (runtimeConfig) {
+    return {
+      apiKey: runtimeConfig.apiKey,
+      model: runtimeConfig.model,
+      baseURL: runtimeConfig.baseURL,
+      provider: 'runtime-openai-compatible',
+    }
+  }
+
   const gatewayKey = process.env.MOVSCRIPT_AGENT_GATEWAY_API_KEY || process.env.MOVSCRIPT_AGENT_GATEWAY_USER_ID
   if (gatewayKey) {
     return {

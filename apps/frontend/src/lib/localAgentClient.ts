@@ -366,6 +366,8 @@ export interface AgentHealth {
   service: string
   mode: string
   mcpEndpoint: string
+  modelConfigPath?: string
+  modelConfig?: RuntimeModelConfigPublic
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
@@ -375,6 +377,83 @@ export interface AgentHealth {
     toolCount: number
     warnings?: string[]
   }
+}
+
+export interface RuntimeModelConfigPublic {
+  configured: boolean
+  provider: 'openai-compatible'
+  baseURL: string
+  model: string
+  apiKeyConfigured: boolean
+  useForChat: boolean
+  useForPlanner: boolean
+  updatedAt?: string
+  source: 'file' | 'env' | 'none'
+}
+
+export interface RuntimeModelTestResult {
+  ok: boolean
+  provider: string
+  model: string
+  baseURL: string
+  latencyMs: number
+  content: string
+}
+
+export type ProductionActionType =
+  | 'AnalyzeScriptToSections'
+  | 'ExtractSituations'
+  | 'GenerateStoryboardScript'
+  | 'GenerateKeyframeCandidates'
+  | 'PrepareAssetRequirements'
+  | 'BuildPreviewTimelineProposal'
+
+export type ProductionRunStatus = 'queued' | 'running' | 'waiting_approval' | 'succeeded' | 'failed' | 'cancelled'
+export type ProductionStepStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'skipped'
+export type ProductionCandidateStatus = 'candidate' | 'accepted' | 'rejected' | 'revised' | 'superseded'
+
+export interface ProductionRunStep {
+  id: string
+  runId: string
+  type: 'read_context' | 'analyze' | 'generate' | 'validate' | 'write_candidate' | 'request_approval'
+  status: ProductionStepStatus
+  inputSummary?: string
+  outputSummary?: string
+  error?: string
+  startedAt?: string
+  finishedAt?: string
+}
+
+export interface ProductionCandidate {
+  id: string
+  type: string
+  projectId: number
+  sourceActionId: string
+  sourceRunId: string
+  targetObject?: Record<string, unknown>
+  status: ProductionCandidateStatus
+  payload: Record<string, unknown>
+  confidence?: number
+  evidence?: string[]
+  createdAt: string
+  updatedAt?: string
+  statusChangedAt?: string
+  statusReason?: string
+}
+
+export interface ProductionRun {
+  id: string
+  actionId: string
+  actionType: ProductionActionType
+  status: ProductionRunStatus
+  projectId: number
+  steps: ProductionRunStep[]
+  candidates: ProductionCandidate[]
+  warnings: string[]
+  error?: string
+  createdAt: string
+  startedAt?: string
+  finishedAt?: string
 }
 
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
@@ -531,6 +610,35 @@ export class LocalAgentClient {
     return this.getJSON(`/capabilities${params.size ? `?${params.toString()}` : ''}`)
   }
 
+  getModelConfig(): Promise<RuntimeModelConfigPublic> {
+    return withRuntimeModelConfigError(this.getJSON('/model-config'))
+  }
+
+  saveModelConfig(input: {
+    baseURL: string
+    model: string
+    apiKey?: string
+    useForChat?: boolean
+    useForPlanner?: boolean
+  }): Promise<RuntimeModelConfigPublic> {
+    return withRuntimeModelConfigError(this.postJSON('/model-config', input))
+  }
+
+  testModelConfig(input: { message?: string } = {}): Promise<RuntimeModelTestResult> {
+    return withRuntimeModelConfigError(this.postJSON('/model-config/test', input))
+  }
+
+  createProductionAction(input: {
+    actionType: ProductionActionType
+    actionId?: string
+    projectId: number
+    sourceObject?: Record<string, unknown>
+    inputContext: Record<string, unknown>
+    requestedBy?: string
+  }): Promise<ProductionRun> {
+    return this.postJSON('/production/actions', input)
+  }
+
   approveRun(runId: string, input: { approvedToolNames?: string[]; approvalIds?: string[] } = {}): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/approve`, input)
   }
@@ -662,3 +770,15 @@ export class LocalAgentClient {
 }
 
 export const localAgentClient = new LocalAgentClient()
+
+async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('local agent returned 404')) {
+      throw new Error('当前 Production Runtime 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter movscript-production-runtime dev')
+    }
+    throw error
+  }
+}

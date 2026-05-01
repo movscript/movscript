@@ -342,6 +342,33 @@ func (h *V2SemanticHandler) CreateKeyframe(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
+func (h *V2SemanticHandler) PatchKeyframe(c *gin.Context) {
+	var item model.Keyframe
+	if !h.loadProjectItem(c, &item, c.Param("keyframeId")) {
+		return
+	}
+	var req keyframeInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.optionalOwnerInProject(c, "situation", req.SituationID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"situation_id":    req.SituationID,
+		"content_unit_id": req.ContentUnitID,
+		"resource_id":     req.ResourceID,
+		"canvas_id":       req.CanvasID,
+		"title":           req.Title,
+		"description":     req.Description,
+		"prompt":          req.Prompt,
+		"order":           req.Order,
+		"status":          req.Status,
+		"metadata_json":   req.MetadataJSON,
+	}))
+}
+
 func (h *V2SemanticHandler) ListPreviewTimelines(c *gin.Context) {
 	var items []model.PreviewTimeline
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
@@ -372,6 +399,26 @@ func (h *V2SemanticHandler) CreatePreviewTimeline(c *gin.Context) {
 		item.Name = "Preview"
 	}
 	h.createItem(c, &item)
+}
+
+func (h *V2SemanticHandler) PatchPreviewTimeline(c *gin.Context) {
+	var item model.PreviewTimeline
+	if !h.loadProjectItem(c, &item, c.Param("timelineId")) {
+		return
+	}
+	var req previewTimelineInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"script_version_id": req.ScriptVersionID,
+		"name":              req.Name,
+		"status":            req.Status,
+		"duration_sec":      req.DurationSec,
+		"is_primary":        &req.IsPrimary,
+		"metadata_json":     req.MetadataJSON,
+	}))
 }
 
 func (h *V2SemanticHandler) ListPreviewTimelineItems(c *gin.Context) {
@@ -417,6 +464,36 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItem(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
+func (h *V2SemanticHandler) PatchPreviewTimelineItem(c *gin.Context) {
+	var item model.PreviewTimelineItem
+	if !h.loadProjectItem(c, &item, c.Param("itemId")) {
+		return
+	}
+	timelineID := parseID(c.Param("timelineId"))
+	if item.PreviewTimelineID != timelineID {
+		c.JSON(http.StatusNotFound, apierr.NotFound("对象不存在"))
+		return
+	}
+	var req previewTimelineItemInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"script_section_id": req.ScriptSectionID,
+		"situation_id":      req.SituationID,
+		"content_unit_id":   req.ContentUnitID,
+		"keyframe_id":       req.KeyframeID,
+		"kind":              req.Kind,
+		"order":             req.Order,
+		"start_sec":         req.StartSec,
+		"duration_sec":      req.DurationSec,
+		"label":             req.Label,
+		"status":            req.Status,
+		"metadata_json":     req.MetadataJSON,
+	}))
+}
+
 func (h *V2SemanticHandler) ListCreativeReferences(c *gin.Context) {
 	var items []model.CreativeReference
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
@@ -452,6 +529,32 @@ func (h *V2SemanticHandler) CreateCreativeReference(c *gin.Context) {
 		TagsJSON:         req.TagsJSON,
 	}
 	h.createItem(c, &item)
+}
+
+func (h *V2SemanticHandler) PatchCreativeReference(c *gin.Context) {
+	var item model.CreativeReference
+	if !h.loadProjectItem(c, &item, c.Param("referenceId")) {
+		return
+	}
+	var req creativeReferenceInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"source_script_id":   req.SourceScriptID,
+		"source_analysis_id": req.SourceAnalysisID,
+		"legacy_setting_id":  req.LegacySettingID,
+		"kind":               req.Kind,
+		"name":               req.Name,
+		"alias":              req.Alias,
+		"description":        req.Description,
+		"content":            req.Content,
+		"importance":         req.Importance,
+		"status":             req.Status,
+		"profile_json":       req.ProfileJSON,
+		"tags_json":          req.TagsJSON,
+	}))
 }
 
 func (h *V2SemanticHandler) ListCreativeReferenceStates(c *gin.Context) {
@@ -495,6 +598,194 @@ func (h *V2SemanticHandler) CreateCreativeReferenceState(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
+func (h *V2SemanticHandler) PatchCreativeReferenceState(c *gin.Context) {
+	var item model.CreativeReferenceState
+	if !h.loadProjectItem(c, &item, c.Param("stateId")) {
+		return
+	}
+	var req creativeReferenceStateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.ownerInProject(c, "creative_reference", req.CreativeReferenceID) {
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"creative_reference_id": req.CreativeReferenceID,
+		"scope_type":            req.ScopeType,
+		"scope_id":              req.ScopeID,
+		"name":                  req.Name,
+		"description":           req.Description,
+		"visual_notes":          req.VisualNotes,
+		"emotion":               req.Emotion,
+		"costume":               req.Costume,
+		"props":                 req.Props,
+		"status":                req.Status,
+		"tags_json":             req.TagsJSON,
+		"metadata_json":         req.MetadataJSON,
+	}))
+}
+
+func (h *V2SemanticHandler) ListCreativeReferenceUsages(c *gin.Context) {
+	var items []model.CreativeReferenceUsage
+	q := h.db.Preload("CreativeReference").Preload("CreativeReferenceState").Where("project_id = ?", parseID(c.Param("id")))
+	if ownerType := strings.TrimSpace(c.Query("owner_type")); ownerType != "" {
+		q = q.Where("owner_type = ?", ownerType)
+	}
+	if ownerID := parseID(c.Query("owner_id")); ownerID > 0 {
+		q = q.Where("owner_id = ?", ownerID)
+	}
+	if refID := parseID(c.Query("creative_reference_id")); refID > 0 {
+		q = q.Where("creative_reference_id = ?", refID)
+	}
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Order("owner_type, owner_id, \"order\", id").Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *V2SemanticHandler) CreateCreativeReferenceUsage(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req creativeReferenceUsageInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.ownerInProject(c, req.OwnerType, req.OwnerID) ||
+		!h.ownerInProject(c, "creative_reference", req.CreativeReferenceID) ||
+		!h.optionalOwnerInProject(c, "creative_reference_state", req.CreativeReferenceStateID) {
+		return
+	}
+	item := model.CreativeReferenceUsage{
+		ProjectID:                projectID,
+		OwnerType:                req.OwnerType,
+		OwnerID:                  req.OwnerID,
+		CreativeReferenceID:      req.CreativeReferenceID,
+		CreativeReferenceStateID: req.CreativeReferenceStateID,
+		Role:                     req.Role,
+		Order:                    req.Order,
+		Evidence:                 req.Evidence,
+		Source:                   fallbackString(req.Source, "manual"),
+		Status:                   fallbackString(req.Status, "draft"),
+		MetadataJSON:             req.MetadataJSON,
+	}
+	h.createItem(c, &item)
+}
+
+func (h *V2SemanticHandler) PatchCreativeReferenceUsage(c *gin.Context) {
+	var item model.CreativeReferenceUsage
+	if !h.loadProjectItem(c, &item, c.Param("usageId")) {
+		return
+	}
+	var req creativeReferenceUsageInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.ownerInProject(c, req.OwnerType, req.OwnerID) ||
+		!h.ownerInProject(c, "creative_reference", req.CreativeReferenceID) ||
+		!h.optionalOwnerInProject(c, "creative_reference_state", req.CreativeReferenceStateID) {
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"owner_type":                  req.OwnerType,
+		"owner_id":                    req.OwnerID,
+		"creative_reference_id":       req.CreativeReferenceID,
+		"creative_reference_state_id": req.CreativeReferenceStateID,
+		"role":                        req.Role,
+		"order":                       req.Order,
+		"evidence":                    req.Evidence,
+		"source":                      req.Source,
+		"status":                      req.Status,
+		"metadata_json":               req.MetadataJSON,
+	}))
+}
+
+func (h *V2SemanticHandler) ListCreativeRelationships(c *gin.Context) {
+	var items []model.CreativeRelationship
+	q := h.db.Preload("SourceCreativeReference").Preload("TargetCreativeReference").Where("project_id = ?", parseID(c.Param("id")))
+	if refID := parseID(c.Query("creative_reference_id")); refID > 0 {
+		q = q.Where("source_creative_reference_id = ? OR target_creative_reference_id = ?", refID, refID)
+	}
+	if scopeType := strings.TrimSpace(c.Query("scope_type")); scopeType != "" {
+		q = q.Where("scope_type = ?", scopeType)
+	}
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Order("scope_type, scope_id, id").Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *V2SemanticHandler) CreateCreativeRelationship(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req creativeRelationshipInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.ownerInProject(c, "creative_reference", req.SourceCreativeReferenceID) ||
+		!h.ownerInProject(c, "creative_reference", req.TargetCreativeReferenceID) ||
+		!h.optionalScopedOwnerInProject(c, req.ScopeType, req.ScopeID) {
+		return
+	}
+	item := model.CreativeRelationship{
+		ProjectID:                 projectID,
+		SourceCreativeReferenceID: req.SourceCreativeReferenceID,
+		TargetCreativeReferenceID: req.TargetCreativeReferenceID,
+		ScopeType:                 req.ScopeType,
+		ScopeID:                   req.ScopeID,
+		Category:                  fallbackString(req.Category, "relationship"),
+		Type:                      req.Type,
+		Label:                     req.Label,
+		Description:               req.Description,
+		Source:                    fallbackString(req.Source, "manual"),
+		Status:                    fallbackString(req.Status, "draft"),
+		Evidence:                  req.Evidence,
+		MetadataJSON:              req.MetadataJSON,
+	}
+	h.createItem(c, &item)
+}
+
+func (h *V2SemanticHandler) PatchCreativeRelationship(c *gin.Context) {
+	var item model.CreativeRelationship
+	if !h.loadProjectItem(c, &item, c.Param("relationshipId")) {
+		return
+	}
+	var req creativeRelationshipInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.ownerInProject(c, "creative_reference", req.SourceCreativeReferenceID) ||
+		!h.ownerInProject(c, "creative_reference", req.TargetCreativeReferenceID) ||
+		!h.optionalScopedOwnerInProject(c, req.ScopeType, req.ScopeID) {
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"source_creative_reference_id": req.SourceCreativeReferenceID,
+		"target_creative_reference_id": req.TargetCreativeReferenceID,
+		"scope_type":                   req.ScopeType,
+		"scope_id":                     req.ScopeID,
+		"category":                     req.Category,
+		"type":                         req.Type,
+		"label":                        req.Label,
+		"description":                  req.Description,
+		"source":                       req.Source,
+		"status":                       req.Status,
+		"evidence":                     req.Evidence,
+		"metadata_json":                req.MetadataJSON,
+	}))
+}
+
 func (h *V2SemanticHandler) ListAssetRequirements(c *gin.Context) {
 	var items []model.AssetRequirement
 	q := h.db.Preload("LockedAsset").Where("project_id = ?", parseID(c.Param("id")))
@@ -536,6 +827,33 @@ func (h *V2SemanticHandler) CreateAssetRequirement(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
+func (h *V2SemanticHandler) PatchAssetRequirement(c *gin.Context) {
+	var item model.AssetRequirement
+	if !h.loadProjectItem(c, &item, c.Param("requirementId")) {
+		return
+	}
+	var req assetRequirementInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"creative_reference_id":       req.CreativeReferenceID,
+		"creative_reference_state_id": req.CreativeReferenceStateID,
+		"owner_type":                  req.OwnerType,
+		"owner_id":                    req.OwnerID,
+		"kind":                        req.Kind,
+		"name":                        req.Name,
+		"description":                 req.Description,
+		"required_slot":               req.RequiredSlot,
+		"prompt_hint":                 req.PromptHint,
+		"status":                      req.Status,
+		"priority":                    req.Priority,
+		"locked_asset_id":             req.LockedAssetID,
+		"metadata_json":               req.MetadataJSON,
+	}))
+}
+
 func (h *V2SemanticHandler) ListWorkItems(c *gin.Context) {
 	var items []model.WorkItem
 	q := h.db.Preload("Assignee").Where("project_id = ?", parseID(c.Param("id")))
@@ -575,6 +893,31 @@ func (h *V2SemanticHandler) CreateWorkItem(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
+func (h *V2SemanticHandler) PatchWorkItem(c *gin.Context) {
+	var item model.WorkItem
+	if !h.loadProjectItem(c, &item, c.Param("workItemId")) {
+		return
+	}
+	var req workItemInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"target_type":      req.TargetType,
+		"target_id":        req.TargetID,
+		"kind":             req.Kind,
+		"title":            req.Title,
+		"description":      req.Description,
+		"status":           req.Status,
+		"priority":         req.Priority,
+		"assignee_id":      req.AssigneeID,
+		"source_job_id":    req.SourceJobID,
+		"source_canvas_id": req.SourceCanvasID,
+		"metadata_json":    req.MetadataJSON,
+	}))
+}
+
 func (h *V2SemanticHandler) ListDeliveryVersions(c *gin.Context) {
 	var items []model.DeliveryVersion
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
@@ -605,6 +948,27 @@ func (h *V2SemanticHandler) CreateDeliveryVersion(c *gin.Context) {
 		item.Name = "Delivery"
 	}
 	h.createItem(c, &item)
+}
+
+func (h *V2SemanticHandler) PatchDeliveryVersion(c *gin.Context) {
+	var item model.DeliveryVersion
+	if !h.loadProjectItem(c, &item, c.Param("deliveryVersionId")) {
+		return
+	}
+	var req deliveryVersionInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	h.patchItem(c, &item, compactUpdates(map[string]any{
+		"preview_timeline_id": req.PreviewTimelineID,
+		"name":                req.Name,
+		"description":         req.Description,
+		"status":              req.Status,
+		"is_primary":          &req.IsPrimary,
+		"duration_sec":        req.DurationSec,
+		"metadata_json":       req.MetadataJSON,
+	}))
 }
 
 func (h *V2SemanticHandler) DeleteV2Item(c *gin.Context, item any, id string) {
@@ -673,6 +1037,13 @@ func (h *V2SemanticHandler) optionalOwnerInProject(c *gin.Context, ownerType str
 	return h.ownerInProject(c, ownerType, *ownerID)
 }
 
+func (h *V2SemanticHandler) optionalScopedOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
+	if strings.TrimSpace(ownerType) == "" || ownerID == nil {
+		return true
+	}
+	return h.ownerInProject(c, ownerType, *ownerID)
+}
+
 func (h *V2SemanticHandler) ensureV2OwnerInProject(projectID uint, ownerType string, ownerID uint) error {
 	var ownerProjectID uint
 	switch ownerType {
@@ -714,6 +1085,12 @@ func (h *V2SemanticHandler) ensureV2OwnerInProject(projectID uint, ownerType str
 		ownerProjectID = item.ProjectID
 	case "creative_reference":
 		var item model.CreativeReference
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return err
+		}
+		ownerProjectID = item.ProjectID
+	case "creative_reference_state":
+		var item model.CreativeReferenceState
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return err
 		}
@@ -931,6 +1308,34 @@ type creativeReferenceStateInput struct {
 	Status              string `json:"status"`
 	TagsJSON            string `json:"tags_json"`
 	MetadataJSON        string `json:"metadata_json"`
+}
+
+type creativeReferenceUsageInput struct {
+	OwnerType                string `json:"owner_type" binding:"required"`
+	OwnerID                  uint   `json:"owner_id" binding:"required"`
+	CreativeReferenceID      uint   `json:"creative_reference_id" binding:"required"`
+	CreativeReferenceStateID *uint  `json:"creative_reference_state_id"`
+	Role                     string `json:"role"`
+	Order                    int    `json:"order"`
+	Evidence                 string `json:"evidence"`
+	Source                   string `json:"source"`
+	Status                   string `json:"status"`
+	MetadataJSON             string `json:"metadata_json"`
+}
+
+type creativeRelationshipInput struct {
+	SourceCreativeReferenceID uint   `json:"source_creative_reference_id" binding:"required"`
+	TargetCreativeReferenceID uint   `json:"target_creative_reference_id" binding:"required"`
+	ScopeType                 string `json:"scope_type"`
+	ScopeID                   *uint  `json:"scope_id"`
+	Category                  string `json:"category"`
+	Type                      string `json:"type"`
+	Label                     string `json:"label"`
+	Description               string `json:"description"`
+	Source                    string `json:"source"`
+	Status                    string `json:"status"`
+	Evidence                  string `json:"evidence"`
+	MetadataJSON              string `json:"metadata_json"`
 }
 
 type assetRequirementInput struct {

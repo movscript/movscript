@@ -41,8 +41,8 @@ export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProp
         <div className="flex min-w-0 items-center gap-2">
           <Upload size={14} className="shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-foreground">上传/粘贴原始文档</p>
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">这里仅维护 raw_source；结构化剧本字段在上方详情卡片中编辑。</p>
+            <p className="text-xs font-semibold text-foreground">文件与正文</p>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">上传文档或直接编辑剧本正文。</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -84,9 +84,9 @@ export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProp
 
         <aside className="space-y-4">
           <div className="rounded-lg border border-border bg-card p-3">
-            <p className="text-xs font-semibold text-foreground">文档入口说明</p>
+            <p className="text-xs font-semibold text-foreground">文件说明</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              支持粘贴正文，或上传 txt、md、json、csv、docx 文档。原始剧本文档只作为来源材料保存，点击 AI 分析后再写入上方结构化卡片。
+              支持粘贴正文，或上传 txt、md、json、csv、docx 文档。保存后会更新当前剧本正文。
             </p>
           </div>
         </aside>

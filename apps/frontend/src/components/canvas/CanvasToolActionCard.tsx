@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 
 export type CanvasToolSource = 'ai' | 'plugin'
 export type CanvasToolTone = 'violet' | 'cyan' | 'amber' | 'emerald'
-export type CanvasToolSlotType = 'text' | 'prompt' | 'image' | 'video' | 'entity' | 'json'
+export type CanvasToolSlotType = 'text' | 'prompt' | 'image' | 'video' | 'audio' | 'entity' | 'json'
 export type CanvasToolSlotState = 'empty' | 'ready' | 'pending' | 'failed'
 
 export type CanvasToolSlot = {
@@ -42,7 +42,16 @@ export type CanvasToolAction = {
   id: string
   label: string
   icon?: LucideIcon
+  onClick?: () => void
+  disabled?: boolean
 }
+
+export type CanvasToolPortHandleRenderer = (handle: {
+  id: string
+  type: 'target' | 'source'
+  side: 'left' | 'right'
+  label: string
+}) => ReactNode
 
 export interface CanvasToolActionCardProps {
   source: CanvasToolSource
@@ -59,6 +68,7 @@ export interface CanvasToolActionCardProps {
   secondaryAction?: CanvasToolAction
   footer?: ReactNode
   className?: string
+  renderPortHandle?: CanvasToolPortHandleRenderer
 }
 
 const TOOL_TONE_META: Record<CanvasToolTone, {
@@ -86,6 +96,7 @@ export function CanvasToolActionCard({
   secondaryAction,
   footer,
   className,
+  renderPortHandle,
 }: CanvasToolActionCardProps) {
   const resolvedTone = tone ?? (source === 'ai' ? 'violet' : 'cyan')
   const toneMeta = TOOL_TONE_META[resolvedTone]
@@ -135,7 +146,7 @@ export function CanvasToolActionCard({
           <SectionTitle icon={Text} label="输入" />
           <div className="mt-1 space-y-1">
             {visibleInputs.length > 0 ? visibleInputs.map((slot) => (
-              <ToolSlotRow key={slot.id} slot={slot} direction="input" />
+                <ToolSlotRow key={slot.id} slot={slot} direction="input" renderPortHandle={renderPortHandle} />
             )) : (
               <EmptyRow label="等待上游输入" />
             )}
@@ -158,7 +169,7 @@ export function CanvasToolActionCard({
             <SectionTitle icon={Image} label="输出" />
             <div className="mt-1 grid grid-cols-2 gap-1">
               {visibleOutputs.length > 0 ? visibleOutputs.map((slot) => (
-                <OutputTile key={slot.id} slot={slot} />
+                <OutputTile key={slot.id} slot={slot} renderPortHandle={renderPortHandle} />
               )) : (
                 <div className="col-span-2">
                   <EmptyRow label="未生成" />
@@ -172,13 +183,32 @@ export function CanvasToolActionCard({
       <footer className="border-t border-border/70 px-3 py-2">
         <div className="flex items-center gap-2">
           {primaryAction && (
-            <Button size="xs" className="h-7 flex-1 justify-center">
+            <Button
+              size="xs"
+              className="h-7 flex-1 justify-center"
+              disabled={primaryAction.disabled}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                primaryAction.onClick?.()
+              }}
+            >
               <PrimaryIcon size={12} />
               {primaryAction.label}
             </Button>
           )}
           {secondaryAction && (
-            <Button size="xs" variant="outline" className="h-7 shrink-0">
+            <Button
+              size="xs"
+              variant="outline"
+              className="h-7 shrink-0"
+              disabled={secondaryAction.disabled}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                secondaryAction.onClick?.()
+              }}
+            >
               {SecondaryIcon && <SecondaryIcon size={12} />}
               {secondaryAction.label}
             </Button>
@@ -203,7 +233,15 @@ function SourceBadge({ source }: { source: CanvasToolSource }) {
   )
 }
 
-function ToolSlotRow({ slot, direction }: { slot: CanvasToolSlot; direction: 'input' | 'output' }) {
+function ToolSlotRow({
+  slot,
+  direction,
+  renderPortHandle,
+}: {
+  slot: CanvasToolSlot
+  direction: 'input' | 'output'
+  renderPortHandle?: CanvasToolPortHandleRenderer
+}) {
   const Icon = slotIcon(slot.type)
   const isReady = slot.state === 'ready'
   const isPending = slot.state === 'pending'
@@ -215,7 +253,17 @@ function ToolSlotRow({ slot, direction }: { slot: CanvasToolSlot; direction: 'in
       data-output-port-id={direction === 'output' ? slot.outputPortId ?? `tool-out:${slot.id}` : undefined}
       className="relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-1.5 text-[10px]"
     >
-      {direction === 'input' && <PortDot side="left" tone={isReady ? 'target' : 'neutral'} label="in" compact />}
+      {direction === 'input' && (
+        <PortDot
+          side="left"
+          tone={isReady ? 'target' : 'neutral'}
+          label="in"
+          compact
+          handleId={slot.inputPortId ?? `tool-in:${slot.id}`}
+          handleType="target"
+          renderPortHandle={renderPortHandle}
+        />
+      )}
       <Icon size={11} className={cn('shrink-0', isFailed ? 'text-destructive' : 'text-muted-foreground')} />
       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{slot.label}</span>
       <span className={cn('max-w-[92px] truncate text-muted-foreground', isFailed && 'text-destructive')}>
@@ -223,7 +271,17 @@ function ToolSlotRow({ slot, direction }: { slot: CanvasToolSlot; direction: 'in
       </span>
       {isPending && <Loader2 size={10} className="shrink-0 animate-spin text-muted-foreground" />}
       {isReady && <CheckCircle2 size={10} className="shrink-0 text-emerald-600" />}
-      {direction === 'output' && <PortDot side="right" tone={isReady ? 'source' : 'muted'} label="out" compact />}
+      {direction === 'output' && (
+        <PortDot
+          side="right"
+          tone={isReady ? 'source' : 'muted'}
+          label="out"
+          compact
+          handleId={slot.outputPortId ?? `tool-out:${slot.id}`}
+          handleType="source"
+          renderPortHandle={renderPortHandle}
+        />
+      )}
     </div>
   )
 }
@@ -237,7 +295,7 @@ function ConfigPill({ item }: { item: CanvasToolConfigItem }) {
   )
 }
 
-function OutputTile({ slot }: { slot: CanvasToolSlot }) {
+function OutputTile({ slot, renderPortHandle }: { slot: CanvasToolSlot; renderPortHandle?: CanvasToolPortHandleRenderer }) {
   const Icon = slotIcon(slot.type)
   const isReady = slot.state === 'ready'
   const isPending = slot.state === 'pending'
@@ -253,7 +311,15 @@ function OutputTile({ slot }: { slot: CanvasToolSlot }) {
         isFailed && 'border-destructive/40 bg-destructive/5',
       )}
     >
-      <PortDot side="right" tone={isReady ? 'source' : isFailed ? 'muted' : 'neutral'} label="out" compact />
+      <PortDot
+        side="right"
+        tone={isReady ? 'source' : isFailed ? 'muted' : 'neutral'}
+        label="out"
+        compact
+        handleId={slot.outputPortId ?? `tool-out:${slot.id}`}
+        handleType="source"
+        renderPortHandle={renderPortHandle}
+      />
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-t-md bg-muted/25">
         {isPending ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : <Icon size={15} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />}
       </div>
@@ -290,6 +356,7 @@ function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }
 function slotIcon(type: CanvasToolSlotType) {
   if (type === 'image') return Image
   if (type === 'video') return Video
+  if (type === 'audio') return Video
   if (type === 'json') return FileJson
   if (type === 'entity') return Puzzle
   return Text
@@ -308,12 +375,18 @@ function PortDot({
   label,
   compact,
   className,
+  handleId,
+  handleType,
+  renderPortHandle,
 }: {
   side: 'left' | 'right'
   tone: 'target' | 'source' | 'neutral' | 'muted'
   label: string
   compact?: boolean
   className?: string
+  handleId?: string
+  handleType?: 'target' | 'source'
+  renderPortHandle?: CanvasToolPortHandleRenderer
 }) {
   return (
     <span
@@ -329,6 +402,8 @@ function PortDot({
         className,
       )}
       aria-hidden="true"
-    />
+    >
+      {handleId && handleType && renderPortHandle?.({ id: handleId, type: handleType, side, label })}
+    </span>
   )
 }

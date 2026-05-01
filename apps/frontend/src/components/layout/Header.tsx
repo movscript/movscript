@@ -8,11 +8,14 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 
 const titleKeys: Record<string, string> = {
   '/projects': 'header.titles.projects',
+  '/project-home': 'header.titles.projectHome',
+  '/creation': 'header.titles.creation',
   '/scripts': 'header.titles.scripts',
   '/settings': 'header.titles.settings',
   '/assets': 'header.titles.assets',
   '/episodes': 'header.titles.episodes',
   '/script-preview': 'header.titles.scriptPreview',
+  '/reference-relations': 'header.titles.referenceRelations',
   '/scenes': 'header.titles.scenes',
   '/storyboards': 'header.titles.storyboards',
   '/shots': 'header.titles.shots',
