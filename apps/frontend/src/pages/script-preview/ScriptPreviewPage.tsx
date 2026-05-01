@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUp, BadgeCheck, CheckCircle2, Clock3, FileText, Film, Image, ListChecks, Play, Plus, Sparkles, Trash2, WandSparkles, XCircle } from 'lucide-react'
 
-import { analyzeScriptPreview, generateScriptPreview, getLatestScriptPreviewDraft, saveScriptPreviewDraft, type AnalyzeScriptPreviewResponse, type GenerateScriptPreviewResponse, type SaveScriptPreviewDraftResponse, type ScriptPreviewAnalysisCandidates, type ScriptPreviewCandidateData, type ScriptPreviewDraftPayload, type ScriptPreviewStoryboardStatus, type ScriptPreviewTimelineInput } from '@/api/scriptPreview'
+import { acceptAssetGap, acceptKeyframeCandidate, acceptStoryboardSuggestion, analyzeScriptPreview, generateScriptPreview, getLatestScriptPreviewDraft, rejectAssetGap, rejectKeyframeCandidate, rejectStoryboardSuggestion, resolveAssetGap, saveScriptPreviewDraft, type AnalyzeScriptPreviewResponse, type GenerateScriptPreviewResponse, type SaveScriptPreviewDraftResponse, type ScriptPreviewAnalysisCandidates, type ScriptPreviewCandidateData, type ScriptPreviewDraftPayload, type ScriptPreviewStoryboardStatus, type ScriptPreviewTimelineInput } from '@/api/scriptPreview'
 import { translateApiError } from '@/lib/apiError'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge } from '@movscript/ui'
@@ -11,6 +11,9 @@ type StoryboardStatus = ScriptPreviewStoryboardStatus
 type SaveStatus = 'dirty' | 'saving' | 'saved' | 'failed'
 type UseCaseStatus = 'idle' | 'running' | 'succeeded' | 'failed'
 type LoadStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
+type SuggestionAdoptionStatus = 'pending' | 'accepted' | 'rejected'
+type CandidateDecisionStatus = 'pending' | 'accepted' | 'rejected'
+type AssetGapStatus = 'missing' | 'accepted' | 'resolved' | 'rejected'
 
 type StoryboardRow = {
   id: string
@@ -43,6 +46,7 @@ type StoryboardSuggestion = {
   durationSeconds: number
   status: StoryboardStatus
   sourceSectionId: string
+  adoptionStatus: SuggestionAdoptionStatus
 }
 
 type ScriptAnalysisResult = {
@@ -52,17 +56,28 @@ type ScriptAnalysisResult = {
 }
 
 type KeyframeCandidate = {
+  id: string
   rowId: string
   prompt: string
   visualAnchor: string
   status: '候选' | '待补素材'
+  decisionStatus: CandidateDecisionStatus
 }
 
 type PreviewGenerationResult = {
   generatedAt: string
   candidates: KeyframeCandidate[]
-  assetGaps: string[]
-  timeline: Array<ScriptPreviewTimelineInput & { rowId: string }>
+  assetGaps: AssetGapItem[]
+  timeline: Array<ScriptPreviewTimelineInput & { rowId: string; keyframeCandidateId?: string; confirmationStatus: CandidateDecisionStatus }>
+}
+
+type AssetGapItem = {
+  id: string
+  rowId: string
+  name: string
+  description: string
+  priority: string
+  status: AssetGapStatus
 }
 
 const initialScriptInput = '电梯内，女主看见男主手机的转账提醒。\n男主想解释，第三人突然出现。\n第三人递出同款戒指盒，女主误会加深。'
@@ -118,6 +133,9 @@ export default function ScriptPreviewPage() {
   const [previewStatus, setPreviewStatus] = useState<UseCaseStatus>('idle')
   const [previewMessage, setPreviewMessage] = useState('保存并确认分镜后可生成关键帧候选')
   const [previewResult, setPreviewResult] = useState<PreviewGenerationResult | null>(null)
+  const [suggestionActionId, setSuggestionActionId] = useState<string | null>(null)
+  const [keyframeActionId, setKeyframeActionId] = useState<string | null>(null)
+  const [assetGapActionId, setAssetGapActionId] = useState<string | null>(null)
   const hasLocalEditsRef = useRef(false)
 
   const previewItems = useMemo(() => {
@@ -148,18 +166,32 @@ export default function ScriptPreviewPage() {
   const keyframeCandidatesByRowId = useMemo(() => {
     return new Map(previewResult?.candidates.map((candidate) => [candidate.rowId, candidate]) ?? [])
   }, [previewResult])
+  const timelineItemsByRowId = useMemo(() => {
+    return new Map(previewResult?.timeline.map((item) => [item.rowId, item]) ?? [])
+  }, [previewResult])
 
-  const assetGaps = useMemo(() => {
+  const assetGaps: AssetGapItem[] = useMemo(() => {
     if (previewResult?.assetGaps.length) {
       return previewResult.assetGaps
     }
 
     const rowsNeedingAssets = previewItems.filter((row) => row.status === '需补素材')
     if (rowsNeedingAssets.length === 0) {
-      return ['角色关键参考图', '主要场景空间参考', '重要道具细节图']
+      return [
+        { id: 'placeholder-character', rowId: '', name: '角色关键参考图', description: '用于统一人物视觉方向', priority: 'normal', status: 'missing' },
+        { id: 'placeholder-location', rowId: '', name: '主要场景空间参考', description: '用于确认拍摄或生成空间', priority: 'normal', status: 'missing' },
+        { id: 'placeholder-prop', rowId: '', name: '重要道具细节图', description: '用于锁定叙事关键物件', priority: 'normal', status: 'missing' },
+      ]
     }
 
-    return rowsNeedingAssets.map((row) => `第 ${row.index} 段「${row.title || '未命名片段'}」参考素材`)
+    return rowsNeedingAssets.map((row) => ({
+      id: `placeholder-${row.id}`,
+      rowId: row.id,
+      name: `第 ${row.index} 段参考素材`,
+      description: row.title || '未命名片段',
+      priority: 'normal',
+      status: 'missing',
+    }))
   }, [previewItems, previewResult?.assetGaps])
 
   const draftPayload: ScriptPreviewDraftPayload = useMemo(() => ({
@@ -434,40 +466,180 @@ export default function ScriptPreviewPage() {
     }
   }
 
-  const appendSuggestion = (suggestion: StoryboardSuggestion) => {
-    hasLocalEditsRef.current = true
-    setStoryboardRows((rows) => normalizeRowIds([
-      ...rows,
-      {
-        id: String(rows.length + 1).padStart(2, '0'),
-        title: suggestion.title,
-        content: suggestion.content,
-        durationSeconds: suggestion.durationSeconds,
-        status: suggestion.status,
-      },
-    ]))
-    setSaveStatus('dirty')
-    setSaveMessage('已采纳 AI 分镜建议，尚未保存')
-    markPreviewStale()
+  const acceptSuggestion = async (suggestion: StoryboardSuggestion) => {
+    if (!project?.ID) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage('采纳失败：请先选择项目')
+      return
+    }
+    if (!canRunUseCases) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage('请先保存当前版本，再采纳分镜建议')
+      return
+    }
+    setSuggestionActionId(suggestion.id)
+    setAnalysisStatus('running')
+    setAnalysisMessage(`正在采纳「${suggestion.title || '未命名建议'}」`)
+    try {
+      const response = await acceptStoryboardSuggestion(project.ID, {
+        draft_id: currentVersionId,
+        suggestion_client_id: suggestion.id,
+      })
+      applySavedDraftResponse(response, '已采纳分镜建议并保存到草稿')
+      setAnalysisStatus('succeeded')
+      setAnalysisMessage('已采纳分镜建议，正式分镜脚本和草稿快照已更新')
+    } catch (error) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage(`采纳失败：${translateApiError((error as any)?.response?.data)}`)
+    } finally {
+      setSuggestionActionId(null)
+    }
   }
 
-  const appendAllSuggestions = () => {
-    if (!analysisResult || analysisResult.suggestions.length === 0) return
+  const rejectSuggestion = async (suggestion: StoryboardSuggestion) => {
+    if (!project?.ID) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage('拒绝失败：请先选择项目')
+      return
+    }
+    if (!canRunUseCases) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage('请先保存当前版本，再拒绝分镜建议')
+      return
+    }
+    setSuggestionActionId(suggestion.id)
+    setAnalysisStatus('running')
+    setAnalysisMessage(`正在拒绝「${suggestion.title || '未命名建议'}」`)
+    try {
+      const response = await rejectStoryboardSuggestion(project.ID, {
+        draft_id: currentVersionId,
+        suggestion_client_id: suggestion.id,
+      })
+      applySavedDraftResponse(response, '已拒绝分镜建议并保存到草稿')
+      setAnalysisStatus('succeeded')
+      setAnalysisMessage('已拒绝分镜建议，刷新后会保留该决策状态')
+    } catch (error) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage(`拒绝失败：${translateApiError((error as any)?.response?.data)}`)
+    } finally {
+      setSuggestionActionId(null)
+    }
+  }
 
-    hasLocalEditsRef.current = true
-    setStoryboardRows((rows) => normalizeRowIds([
-      ...rows,
-      ...analysisResult.suggestions.map((suggestion, index) => ({
-        id: String(rows.length + index + 1).padStart(2, '0'),
-        title: suggestion.title,
-        content: suggestion.content,
-        durationSeconds: suggestion.durationSeconds,
-        status: suggestion.status,
-      })),
-    ]))
-    setSaveStatus('dirty')
-    setSaveMessage('已采纳全部 AI 分镜建议，尚未保存')
-    markPreviewStale()
+  const acceptAllSuggestions = async () => {
+    if (!analysisResult) return
+    const pendingSuggestions = analysisResult.suggestions.filter((suggestion) => suggestion.adoptionStatus === 'pending')
+    if (pendingSuggestions.length === 0) return
+    if (!project?.ID) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage('采纳失败：请先选择项目')
+      return
+    }
+    if (!canRunUseCases) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage('请先保存当前版本，再采纳全部分镜建议')
+      return
+    }
+
+    setAnalysisStatus('running')
+    setAnalysisMessage(`正在采纳 ${pendingSuggestions.length} 条分镜建议`)
+    try {
+      let latestResponse: SaveScriptPreviewDraftResponse | null = null
+      for (const suggestion of pendingSuggestions) {
+        setSuggestionActionId(suggestion.id)
+        latestResponse = await acceptStoryboardSuggestion(project.ID, {
+          draft_id: latestResponse?.draft_id ?? currentVersionId,
+          suggestion_client_id: suggestion.id,
+        })
+      }
+      if (latestResponse) {
+        applySavedDraftResponse(latestResponse, '已采纳全部待采纳分镜建议')
+      }
+      setAnalysisStatus('succeeded')
+      setAnalysisMessage(`已采纳 ${pendingSuggestions.length} 条分镜建议，正式分镜脚本和草稿快照已更新`)
+    } catch (error) {
+      setAnalysisStatus('failed')
+      setAnalysisMessage(`采纳失败：${translateApiError((error as any)?.response?.data)}`)
+    } finally {
+      setSuggestionActionId(null)
+    }
+  }
+
+  const decideKeyframeCandidate = async (candidate: KeyframeCandidate, decision: CandidateDecisionStatus) => {
+    if (decision === 'pending') return
+    if (!project?.ID) {
+      setPreviewStatus('failed')
+      setPreviewMessage('操作失败：请先选择项目')
+      return
+    }
+    if (!canRunUseCases) {
+      setPreviewStatus('failed')
+      setPreviewMessage('请先保存当前版本，再确认关键帧候选')
+      return
+    }
+
+    setKeyframeActionId(candidate.id)
+    setPreviewStatus('running')
+    setPreviewMessage(decision === 'accepted' ? '正在确认关键帧候选' : '正在拒绝关键帧候选')
+    try {
+      const payload = {
+        draft_id: currentVersionId,
+        keyframe_candidate_client_id: candidate.id,
+      }
+      const response = decision === 'accepted'
+        ? await acceptKeyframeCandidate(project.ID, payload)
+        : await rejectKeyframeCandidate(project.ID, payload)
+      applySavedDraftResponse(response, decision === 'accepted' ? '已确认关键帧候选并保存到草稿' : '已拒绝关键帧候选并保存到草稿')
+      setPreviewStatus('succeeded')
+      setPreviewMessage(decision === 'accepted' ? '关键帧候选已确认，刷新后会保留确认状态' : '关键帧候选已拒绝，刷新后会保留拒绝状态')
+    } catch (error) {
+      setPreviewStatus('failed')
+      setPreviewMessage(`操作失败：${translateApiError((error as any)?.response?.data)}`)
+    } finally {
+      setKeyframeActionId(null)
+    }
+  }
+
+  const decideAssetGap = async (gap: AssetGapItem, nextStatus: AssetGapStatus) => {
+    if (!project?.ID) {
+      setPreviewStatus('failed')
+      setPreviewMessage('操作失败：请先选择项目')
+      return
+    }
+    if (!canRunUseCases) {
+      setPreviewStatus('failed')
+      setPreviewMessage('请先保存当前版本，再处理素材缺口')
+      return
+    }
+    if (!previewResult || gap.id.startsWith('placeholder-')) {
+      setPreviewStatus('failed')
+      setPreviewMessage('请先生成预演时间线，再处理素材缺口')
+      return
+    }
+
+    setAssetGapActionId(gap.id)
+    setPreviewStatus('running')
+    const actionLabel = nextStatus === 'accepted' ? '确认素材缺口' : nextStatus === 'resolved' ? '标记素材已补齐' : '忽略素材缺口'
+    setPreviewMessage(`正在${actionLabel}`)
+    try {
+      const payload = {
+        draft_id: currentVersionId,
+        asset_gap_client_id: gap.id,
+      }
+      const response = nextStatus === 'accepted'
+        ? await acceptAssetGap(project.ID, payload)
+        : nextStatus === 'resolved'
+          ? await resolveAssetGap(project.ID, payload)
+          : await rejectAssetGap(project.ID, payload)
+      applySavedDraftResponse(response, `${actionLabel}并保存到草稿`)
+      setPreviewStatus('succeeded')
+      setPreviewMessage(`${actionLabel}完成，刷新后会保留素材缺口状态`)
+    } catch (error) {
+      setPreviewStatus('failed')
+      setPreviewMessage(`操作失败：${translateApiError((error as any)?.response?.data)}`)
+    } finally {
+      setAssetGapActionId(null)
+    }
   }
 
   const createNewDraft = () => {
@@ -616,16 +788,22 @@ export default function ScriptPreviewPage() {
                     <div className="rounded-md border border-border bg-background p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <p className="text-xs font-medium text-muted-foreground">可采纳分镜建议</p>
-                        <Button size="xs" variant="outline" onClick={appendAllSuggestions}>全部追加</Button>
+                        <Button size="xs" variant="outline" loading={analysisStatus === 'running' && suggestionActionId !== null} disabled={!analysisResult.suggestions.some((suggestion) => suggestion.adoptionStatus === 'pending') || !canRunUseCases} onClick={acceptAllSuggestions}>全部采纳</Button>
                       </div>
                       <div className="space-y-2">
                         {analysisResult.suggestions.map((suggestion) => (
-                          <div key={suggestion.id} className="grid grid-cols-[minmax(0,1fr)_88px] gap-3 rounded-md border border-border bg-card p-3">
+                          <div key={suggestion.id} className="grid grid-cols-[minmax(0,1fr)_148px] gap-3 rounded-md border border-border bg-card p-3">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-foreground">{suggestion.title}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="truncate text-sm font-medium text-foreground">{suggestion.title}</p>
+                                <SuggestionStatusBadge status={suggestion.adoptionStatus} />
+                              </div>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">{suggestion.content}</p>
                             </div>
-                            <Button size="xs" variant="outline" onClick={() => appendSuggestion(suggestion)}>采纳</Button>
+                            <div className="flex items-start justify-end gap-2">
+                              <Button size="xs" variant="outline" loading={suggestionActionId === suggestion.id && analysisStatus === 'running'} disabled={suggestion.adoptionStatus !== 'pending' || !canRunUseCases} onClick={() => acceptSuggestion(suggestion)}>采纳</Button>
+                              <Button size="xs" variant="ghost" disabled={suggestion.adoptionStatus !== 'pending' || !canRunUseCases || suggestionActionId === suggestion.id} onClick={() => rejectSuggestion(suggestion)}>拒绝</Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -739,10 +917,23 @@ export default function ScriptPreviewPage() {
 
             <Panel title="素材缺口" icon={Image}>
               <div className="space-y-2">
-                {assetGaps.map((item) => (
-                  <div key={item} className="flex items-center justify-between gap-2 rounded-md border border-border bg-background p-2">
-                    <span className="text-sm text-muted-foreground">{item}</span>
-                    <Badge variant="secondary">缺失</Badge>
+                {assetGaps.map((gap) => (
+                  <div key={gap.id} className="rounded-md border border-border bg-background p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{gap.name}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{gap.description}</p>
+                      </div>
+                      <AssetGapStatusBadge status={gap.status} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">优先级：{formatPriority(gap.priority)}</span>
+                      <div className="flex items-center gap-1">
+                        <Button size="xs" variant="outline" loading={assetGapActionId === gap.id && previewStatus === 'running'} disabled={gap.status !== 'missing' || !canRunUseCases || gap.id.startsWith('placeholder-')} onClick={() => decideAssetGap(gap, 'accepted')}>确认</Button>
+                        <Button size="xs" variant="outline" disabled={(gap.status !== 'missing' && gap.status !== 'accepted') || !canRunUseCases || gap.id.startsWith('placeholder-') || assetGapActionId === gap.id} onClick={() => decideAssetGap(gap, 'resolved')}>已补齐</Button>
+                        <Button size="xs" variant="ghost" disabled={gap.status === 'resolved' || gap.status === 'rejected' || !canRunUseCases || gap.id.startsWith('placeholder-') || assetGapActionId === gap.id} onClick={() => decideAssetGap(gap, 'rejected')}>忽略</Button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -766,28 +957,43 @@ export default function ScriptPreviewPage() {
 
         <Panel title="预演时间线" icon={Film}>
           <div className="grid grid-cols-3 gap-3">
-            {previewItems.map((row) => (
-              <div key={row.id} className="rounded-md border border-border bg-background p-3">
-                <div className="aspect-video rounded-md border border-dashed border-border bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
-                  {keyframeCandidatesByRowId.get(row.id)?.status === '候选' ? '关键帧候选' : '关键帧占位'}
+            {previewItems.map((row) => {
+              const candidate = keyframeCandidatesByRowId.get(row.id)
+              const timelineItem = timelineItemsByRowId.get(row.id)
+              const decisionStatus = candidate?.decisionStatus ?? timelineItem?.confirmationStatus ?? 'pending'
+
+              return (
+                <div key={row.id} className="rounded-md border border-border bg-background p-3">
+                  <div className="aspect-video rounded-md border border-dashed border-border bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
+                    {candidate?.status === '候选' ? '关键帧候选' : '关键帧占位'}
+                  </div>
+                  {candidate ? (
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                      {candidate.prompt}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-medium text-foreground">{row.id}. {row.title || '未命名片段'}</p>
+                    <span className="text-xs font-mono text-muted-foreground">{row.durationSeconds}s</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono text-muted-foreground">{formatTime(row.start)} - {formatTime(row.end)}</span>
+                    <Badge variant={candidate?.status === '候选' ? 'default' : 'secondary'}>
+                      {candidate?.status ?? row.status}
+                    </Badge>
+                  </div>
+                  {candidate ? (
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                      <CandidateDecisionBadge status={decisionStatus} />
+                      <div className="flex items-center gap-2">
+                        <Button size="xs" variant="outline" loading={keyframeActionId === candidate.id && previewStatus === 'running'} disabled={decisionStatus !== 'pending' || !canRunUseCases} onClick={() => decideKeyframeCandidate(candidate, 'accepted')}>确认</Button>
+                        <Button size="xs" variant="ghost" disabled={decisionStatus !== 'pending' || !canRunUseCases || keyframeActionId === candidate.id} onClick={() => decideKeyframeCandidate(candidate, 'rejected')}>拒绝</Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                {keyframeCandidatesByRowId.get(row.id) ? (
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {keyframeCandidatesByRowId.get(row.id)?.prompt}
-                  </p>
-                ) : null}
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-foreground">{row.id}. {row.title || '未命名片段'}</p>
-                  <span className="text-xs font-mono text-muted-foreground">{row.durationSeconds}s</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-xs font-mono text-muted-foreground">{formatTime(row.start)} - {formatTime(row.end)}</span>
-                  <Badge variant={keyframeCandidatesByRowId.get(row.id)?.status === '候选' ? 'default' : 'secondary'}>
-                    {keyframeCandidatesByRowId.get(row.id)?.status ?? row.status}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </Panel>
       </div>
@@ -867,6 +1073,7 @@ function restorePreviewTimeline(timeline: ScriptPreviewTimelineInput[]): Preview
     .map((item) => ({
       ...item,
       rowId: item.client_id,
+      confirmationStatus: 'pending',
     }))
 }
 
@@ -901,27 +1108,54 @@ function toAnalysisResult(response: AnalyzeScriptPreviewResponse | ScriptPreview
       durationSeconds: suggestion.duration_seconds,
       status: toStoryboardStatus(suggestion.status),
       sourceSectionId: suggestion.source_section_id,
+      adoptionStatus: toAdoptionStatus(suggestion.adoption_status),
     })),
   }
+}
+
+function toAdoptionStatus(status: string | undefined): SuggestionAdoptionStatus {
+  if (status === 'accepted' || status === 'rejected') return status
+  return 'pending'
+}
+
+function toCandidateDecisionStatus(status: string | undefined): CandidateDecisionStatus {
+  if (status === 'accepted' || status === 'rejected') return status
+  return 'pending'
+}
+
+function toAssetGapStatus(status: string | undefined): AssetGapStatus {
+  if (status === 'accepted' || status === 'resolved' || status === 'rejected') return status
+  return 'missing'
 }
 
 function toPreviewResult(response: GenerateScriptPreviewResponse | ScriptPreviewCandidateData): PreviewGenerationResult {
   return {
     generatedAt: response.generated_at,
     candidates: response.keyframe_candidates.map((candidate) => ({
+      id: candidate.client_id,
       rowId: candidate.storyboard_row_client_id,
       prompt: candidate.prompt,
       visualAnchor: candidate.visual_anchor,
       status: candidate.status === '待补素材' ? '待补素材' : '候选',
+      decisionStatus: toCandidateDecisionStatus(candidate.decision_status),
     })),
-    assetGaps: response.asset_gaps.map((gap) => gap.name),
+    assetGaps: response.asset_gaps.map((gap) => ({
+      id: gap.client_id,
+      rowId: gap.storyboard_row_client_id,
+      name: gap.name,
+      description: gap.description,
+      priority: gap.priority,
+      status: toAssetGapStatus(gap.status),
+    })),
     timeline: response.preview_timeline.map((item) => ({
       client_id: item.client_id,
       rowId: item.storyboard_row_client_id,
+      keyframeCandidateId: item.keyframe_candidate_client_id,
       order: item.order,
       start_seconds: item.start_seconds,
       end_seconds: item.end_seconds,
       duration_seconds: item.duration_seconds,
+      confirmationStatus: toCandidateDecisionStatus(item.confirmation_status),
     })),
   }
 }
@@ -951,6 +1185,43 @@ function SaveStatusBadge({ status }: { status: SaveStatus }) {
       {config.label}
     </Badge>
   )
+}
+
+function SuggestionStatusBadge({ status }: { status: SuggestionAdoptionStatus }) {
+  const config = {
+    pending: { label: '待采纳', variant: 'secondary' as const },
+    accepted: { label: '已采纳', variant: 'success' as const },
+    rejected: { label: '已拒绝', variant: 'danger' as const },
+  }[status]
+
+  return <Badge variant={config.variant}>{config.label}</Badge>
+}
+
+function CandidateDecisionBadge({ status }: { status: CandidateDecisionStatus }) {
+  const config = {
+    pending: { label: '待确认', variant: 'secondary' as const },
+    accepted: { label: '已确认', variant: 'success' as const },
+    rejected: { label: '已拒绝', variant: 'danger' as const },
+  }[status]
+
+  return <Badge variant={config.variant}>{config.label}</Badge>
+}
+
+function AssetGapStatusBadge({ status }: { status: AssetGapStatus }) {
+  const config = {
+    missing: { label: '缺失', variant: 'secondary' as const },
+    accepted: { label: '已确认', variant: 'warning' as const },
+    resolved: { label: '已补齐', variant: 'success' as const },
+    rejected: { label: '已忽略', variant: 'danger' as const },
+  }[status]
+
+  return <Badge variant={config.variant}>{config.label}</Badge>
+}
+
+function formatPriority(priority: string) {
+  if (priority === 'high') return '高'
+  if (priority === 'low') return '低'
+  return '普通'
 }
 
 function UseCaseMessage({ status, message }: { status: UseCaseStatus; message: string }) {

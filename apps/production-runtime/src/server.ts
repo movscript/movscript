@@ -7,6 +7,9 @@ import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '.
 import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/draftStore.js'
 import { BackendApplyClient } from './runtime/backendApplyClient.js'
 import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
+import { ProductionRuntime } from './production/runtime.js'
+import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
+import { ScriptPreviewV2FallbackClient } from './production/v2FallbackClient.js'
 import type { JSONValue } from './types.js'
 
 const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
@@ -14,10 +17,16 @@ const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || 'http://127.0.0.1:1876
 const statePath = resolveAgentStatePath()
 const memoryPath = resolveAgentMemoryPath(statePath)
 const draftPath = resolveAgentDraftPath(statePath)
+const productionStatePath = resolveProductionStatePath()
 const backendApplyClient = new BackendApplyClient()
+const productionV2FallbackClient = new ScriptPreviewV2FallbackClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
 const chatRuntime = new ChatRuntime({ mcpClient: client })
+const productionRuntime = new ProductionRuntime({
+  store: new FileProductionStore(productionStatePath),
+  v2FallbackClient: productionV2FallbackClient,
+})
 const agentRuntime = new AgentRuntime({
   mcpClient: client,
   store: new FileAgentStore(statePath),
@@ -66,7 +75,9 @@ const server = createServer(async (req, res) => {
           warnings: pluginCatalog.warnings,
         },
         draftPath,
+        productionStatePath,
         backendApplyEnabled: backendApplyClient.isEnabled(),
+        productionV2FallbackEnabled: productionRuntime.isV2FallbackEnabled(),
       })
       return
     }
@@ -137,6 +148,80 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/drafts') {
       writeJSON(res, 200, { drafts: agentRuntime.listDrafts(normalizeDraftQuery(url)) })
+      return
+    }
+
+    if (req.method === 'POST' && url.pathname === '/production/actions') {
+      const body = await readJSON(req)
+      writeJSON(res, 201, await productionRuntime.createAction(normalizeOptionalObject(body, 'production action body')))
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/production/runs') {
+      writeJSON(res, 200, { runs: productionRuntime.listRuns() })
+      return
+    }
+
+    const productionRunMatch = url.pathname.match(/^\/production\/runs\/([^/]+)$/)
+    if (productionRunMatch && req.method === 'GET') {
+      const run = productionRuntime.getRun(productionRunMatch[1])
+      if (!run) {
+        writeJSON(res, 404, { error: 'production run not found' })
+        return
+      }
+      writeJSON(res, 200, run)
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/production/candidates') {
+      writeJSON(res, 200, { candidates: productionRuntime.listCandidates() })
+      return
+    }
+
+    const productionCandidateMatch = url.pathname.match(/^\/production\/candidates\/([^/]+)$/)
+    if (productionCandidateMatch && req.method === 'GET') {
+      const candidate = productionRuntime.getCandidate(productionCandidateMatch[1])
+      if (!candidate) {
+        writeJSON(res, 404, { error: 'production candidate not found' })
+        return
+      }
+      writeJSON(res, 200, candidate)
+      return
+    }
+
+    const productionCandidateApplyPreviewMatch = url.pathname.match(/^\/production\/candidates\/([^/]+)\/apply-preview$/)
+    if (productionCandidateApplyPreviewMatch && req.method === 'POST') {
+      const candidateId = productionCandidateApplyPreviewMatch[1]
+      if (!productionRuntime.getCandidate(candidateId)) {
+        writeJSON(res, 404, { error: 'production candidate not found' })
+        return
+      }
+      writeJSON(res, 200, productionRuntime.previewCandidateApply(candidateId))
+      return
+    }
+
+    const productionCandidateActionMatch = url.pathname.match(/^\/production\/candidates\/([^/]+)\/(accept|reject|revise|supersede)$/)
+    if (productionCandidateActionMatch && req.method === 'POST') {
+      const body = normalizeOptionalObject(await readJSON(req), 'candidate lifecycle body')
+      const candidateId = productionCandidateActionMatch[1]
+      if (!productionRuntime.getCandidate(candidateId)) {
+        writeJSON(res, 404, { error: 'production candidate not found' })
+        return
+      }
+      const action = productionCandidateActionMatch[2]
+      if (action === 'accept') {
+        writeJSON(res, 200, productionRuntime.acceptCandidate({ candidateId, ...body }))
+        return
+      }
+      if (action === 'reject') {
+        writeJSON(res, 200, productionRuntime.rejectCandidate({ candidateId, ...body }))
+        return
+      }
+      if (action === 'revise') {
+        writeJSON(res, 201, productionRuntime.reviseCandidate({ candidateId, ...body }))
+        return
+      }
+      writeJSON(res, 200, productionRuntime.supersedeCandidate({ candidateId, ...body }))
       return
     }
 
@@ -289,7 +374,9 @@ server.listen(port, '127.0.0.1', () => {
   console.info(`[production-runtime] state path ${statePath}`)
   console.info(`[production-runtime] memory path ${memoryPath}`)
   console.info(`[production-runtime] draft path ${draftPath}`)
+  console.info(`[production-runtime] production state path ${productionStatePath}`)
   console.info(`[production-runtime] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
+  console.info(`[production-runtime] production V2 fallback ${productionRuntime.isV2FallbackEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[production-runtime] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
   console.info(`[production-runtime] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
   for (const warning of pluginCatalog.warnings) console.warn(`[production-runtime] plugin warning: ${warning}`)

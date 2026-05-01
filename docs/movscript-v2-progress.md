@@ -298,9 +298,179 @@ saved_at
 - 恢复草稿时会把保存快照里的 `preview_timeline` 映射到底部时间线；关键帧候选和素材缺口仍需重新生成。
 - 根据用户决策，V2 与 V3 将并行推进：V2 聚焦数据、状态和候选保存；V3 聚焦 AI 分析、模型调用、工具编排和 Production Runtime。两个窗口通过文档中的契约对接，互不直接改对方职责。
 
+### 2026-05-01 本次推进 9
+
+- 按 Next 1 推进“预演候选结果写回草稿快照”。
+- 扩展 `scriptpreview.DraftStore`，新增按 `project_id + draft_id` 读取草稿快照的接口，handler 仍不直接操作 GORM。
+- 扩展草稿快照 DTO，支持恢复：
+
+```text
+analysis_candidates
+preview_candidates
+```
+
+- `AnalyzeWithContext` 在生成剧本节、确认问题和分镜建议后，会把候选理解结果写回当前草稿快照。
+- `GeneratePreviewWithContext` 在生成关键帧候选、素材缺口和时间线 proposal 后，会把预演候选结果写回当前草稿快照，并同步更新草稿里的 `preview_timeline`。
+- 新增最小候选恢复测试，覆盖：
+
+```text
+保存草稿 -> 解析结构 -> 读取最近草稿 -> 恢复分镜建议候选
+保存草稿 -> 生成预演 -> 读取最近草稿 -> 恢复关键帧候选和时间线
+```
+
+- 前端 `scriptPreview` adapter 增补 `analysis_candidates` 和 `preview_candidates` 类型。
+- `ScriptPreviewPage` 恢复最近草稿时，除了基础草稿内容，还会恢复：
+
+```text
+AI 理解结果
+可采纳分镜建议
+关键帧候选
+素材缺口
+生成后的预演时间线
+```
+
+- 仍保持候选结果只进入候选区；用户采纳前不自动覆盖结构化分镜脚本。
+
+### 2026-05-01 本次推进 10
+
+- 按 Next 1 推进“候选采纳和拒绝动作 API”。
+- 扩展分镜建议 DTO，新增 `adoption_status`：
+
+```text
+pending
+accepted
+rejected
+```
+
+- 新增后端产品动作路由：
+
+```text
+POST /api/v1/projects/:id/script-preview/storyboard-suggestions/accept
+POST /api/v1/projects/:id/script-preview/storyboard-suggestions/reject
+```
+
+- `AcceptStoryboardSuggestionWithContext` 会读取草稿快照中的 `analysis_candidates`，把目标建议追加进正式 `storyboard_rows`，标记为 `accepted`，重建 `preview_timeline`，并清理已过期的 `preview_candidates`。
+- `RejectStoryboardSuggestionWithContext` 会把目标建议标记为 `rejected`，不写入正式分镜脚本，刷新后仍可恢复拒绝状态。
+- 两个动作都复用 `scriptpreview.Service` 和 `DraftStore`，handler 仍只负责项目存在性校验、HTTP 绑定和错误映射。
+- 新增 service 测试，覆盖：
+
+```text
+保存草稿 -> 解析结构 -> 采纳分镜建议 -> 读取草稿恢复 accepted 和新增分镜行
+保存草稿 -> 解析结构 -> 拒绝分镜建议 -> 不新增分镜行并阻止再采纳
+```
+
+- 前端 `scriptPreview` adapter 新增：
+
+```text
+acceptStoryboardSuggestion
+rejectStoryboardSuggestion
+```
+
+- `ScriptPreviewPage` 的“采纳 / 全部采纳 / 拒绝”已改为调用 V2 产品动作 API，不再只做前端内存追加。
+- 可采纳分镜建议 UI 增加“待采纳 / 已采纳 / 已拒绝”状态标记；已采纳或已拒绝的建议不再允许重复操作。
+- 采纳或拒绝成功后，页面复用保存响应恢复正式分镜脚本、候选状态、保存快照和保存状态，避免前后端状态漂移。
+
+### 2026-05-01 本次推进 11
+
+- 按 Next 1 推进“关键帧候选采纳和预演时间线确认动作 API”。
+- 扩展关键帧候选 DTO，新增 `decision_status`：
+
+```text
+pending
+accepted
+rejected
+```
+
+- 扩展预演时间线项 DTO，新增 `confirmation_status`：
+
+```text
+pending
+accepted
+rejected
+```
+
+- 新增后端产品动作路由：
+
+```text
+POST /api/v1/projects/:id/script-preview/keyframe-candidates/accept
+POST /api/v1/projects/:id/script-preview/keyframe-candidates/reject
+```
+
+- `AcceptKeyframeCandidateWithContext` 会读取草稿快照中的 `preview_candidates`，把目标关键帧候选标记为 `accepted`，并把对应时间线项标记为 `accepted`。
+- `RejectKeyframeCandidateWithContext` 会把目标关键帧候选标记为 `rejected`，不删除候选记录，并把对应时间线项标记为 `rejected`。
+- 已补 service 测试，覆盖：
+
+```text
+保存草稿 -> 生成预演 -> 确认关键帧候选 -> 读取草稿恢复 accepted 和时间线确认状态
+保存草稿 -> 生成预演 -> 拒绝关键帧候选 -> 阻止再确认 rejected 候选
+```
+
+- 前端 `scriptPreview` adapter 新增：
+
+```text
+acceptKeyframeCandidate
+rejectKeyframeCandidate
+```
+
+- `ScriptPreviewPage` 底部预演时间线现在会为已有关键帧候选展示“待确认 / 已确认 / 已拒绝”状态。
+- 用户可以在底部时间线对单个关键帧候选执行“确认 / 拒绝”；动作通过 V2 产品 API 写回草稿快照，刷新后可恢复状态。
+- 本次仍未把主页面接到底层 `Keyframe` / `PreviewTimeline` CRUD，候选确认仍通过 `/script-preview` 产品动作 API 完成。
+
+### 2026-05-01 本次推进 12
+
+- 按 Next 1 推进“素材缺口候选确认和补素材入口薄切片”。
+- 新增素材缺口状态流转：
+
+```text
+missing
+accepted
+resolved
+rejected
+```
+
+- 新增后端产品动作路由：
+
+```text
+POST /api/v1/projects/:id/script-preview/asset-gaps/accept
+POST /api/v1/projects/:id/script-preview/asset-gaps/resolve
+POST /api/v1/projects/:id/script-preview/asset-gaps/reject
+```
+
+- `AcceptAssetGapWithContext` 会读取草稿快照中的 `preview_candidates.asset_gaps`，把目标素材缺口标记为 `accepted`。
+- `ResolveAssetGapWithContext` 会把目标素材缺口标记为 `resolved`，表示参考素材已补齐。
+- `RejectAssetGapWithContext` 会把目标素材缺口标记为 `rejected`，不删除记录，刷新后可恢复忽略状态。
+- 已补 service 测试，覆盖：
+
+```text
+保存草稿 -> 生成预演 -> 确认素材缺口 -> 标记已补齐 -> 读取草稿恢复 resolved
+保存草稿 -> 生成预演 -> 忽略素材缺口 -> 阻止再标记已补齐 rejected 缺口
+```
+
+- 前端 `scriptPreview` adapter 新增：
+
+```text
+acceptAssetGap
+resolveAssetGap
+rejectAssetGap
+```
+
+- `ScriptPreviewPage` 右侧“素材缺口”不再只显示字符串；现在显示：
+
+```text
+名称
+描述
+优先级
+状态
+确认 / 已补齐 / 忽略动作
+```
+
+- 素材缺口动作通过 V2 产品 API 写回草稿快照，刷新后可恢复状态。
+- 未生成预演前的素材缺口仍是只读占位，不允许写回；生成预演后才出现可写回的 `asset_gap_client_id`。
+- 本次仍未把主页面接到底层 `AssetRequirement` CRUD，素材缺口确认仍通过 `/script-preview` 产品动作 API 完成。
+
 ## 当前代码状态摘要
 
-截至 2026-05-01 本次推进 8 结束时，工作区已有未提交改动。后续会话必须先查看最新 `git status --short`。
+截至 2026-05-01 本次推进 12 结束时，工作区已有未提交改动。后续会话必须先查看最新 `git status --short`。
 
 已观察到的 V2 相关草稿：
 
@@ -372,6 +542,42 @@ script / setting / asset / episode / scene / storyboard / shot / final_video
 
 本次推进 8 仅继续修改：
 
+- `apps/frontend/src/api/scriptPreview.ts`
+- `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
+
+本次推进 9 继续修改：
+
+- `apps/backend/internal/v2/scriptpreview/service.go`
+- `apps/backend/internal/v2/scriptpreview/store.go`
+- `apps/backend/internal/v2/scriptpreview/service_test.go`
+- `apps/backend/internal/handler/script_preview.go`
+- `apps/frontend/src/api/scriptPreview.ts`
+- `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
+
+本次推进 10 继续修改：
+
+- `apps/backend/internal/v2/scriptpreview/service.go`
+- `apps/backend/internal/v2/scriptpreview/service_test.go`
+- `apps/backend/internal/handler/script_preview.go`
+- `apps/backend/internal/router/router.go`
+- `apps/frontend/src/api/scriptPreview.ts`
+- `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
+
+本次推进 11 继续修改：
+
+- `apps/backend/internal/v2/scriptpreview/service.go`
+- `apps/backend/internal/v2/scriptpreview/service_test.go`
+- `apps/backend/internal/handler/script_preview.go`
+- `apps/backend/internal/router/router.go`
+- `apps/frontend/src/api/scriptPreview.ts`
+- `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
+
+本次推进 12 继续修改：
+
+- `apps/backend/internal/v2/scriptpreview/service.go`
+- `apps/backend/internal/v2/scriptpreview/service_test.go`
+- `apps/backend/internal/handler/script_preview.go`
+- `apps/backend/internal/router/router.go`
 - `apps/frontend/src/api/scriptPreview.ts`
 - `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
 
@@ -489,6 +695,48 @@ V3：Production Runtime、AI 分析、模型调用、工具编排、计划步骤
 V2 后端不再以“接真实 AI workflow”为目标，也不负责模型如何分析剧本、提取情境、生成分镜或生成关键帧。V3 runtime 生成候选结果后，通过 V2 的数据动作 API 写回候选；V2 只负责保存、展示、确认、拒绝、恢复和审计。
 
 两个并行窗口通过文档对接：V2 文档维护对象和写入 API 契约，V3 文档维护 action/runtime/candidate 契约。任一侧调整契约时，必须同步更新对应文档。
+
+### 决策 15：候选结果先随草稿快照恢复，不新建大表体系
+
+当前阶段为了跑通“生成候选 -> 刷新恢复 -> 用户确认”的主闭环，剧本节候选、分镜建议、关键帧候选、素材缺口和预演时间线 proposal 先写入 `ScriptPreviewDraft.snapshot_json`。
+
+这不是最终事实模型。后续可以在 `scriptpreview.Service` 内部把候选拆写到 `ScriptSection`、`ContentUnit`、`Keyframe`、`AssetRequirement`、`PreviewTimeline` 等稳定对象；前端仍通过 `/script-preview` 产品动作 API 读写，不直接串联底层 CRUD。
+
+### 决策 16：采纳/拒绝是 V2 数据动作，不是前端临时编辑
+
+分镜建议的采纳和拒绝必须由 V2 产品动作 API 写回草稿快照，并返回更新后的草稿。前端可以展示候选、触发动作和映射响应，但不再把“采纳分镜建议”实现为纯本地追加。
+
+采纳会把候选转入正式 `storyboard_rows` 并标记候选为 `accepted`；拒绝只标记候选为 `rejected`，不进入正式分镜脚本。分镜脚本变化会让既有关键帧候选和预演候选失效，因此采纳动作会清理 `preview_candidates`，后续需要重新生成预演。
+
+### 决策 17：关键帧候选确认先写回草稿快照，不拆底层事实表
+
+关键帧候选和预演时间线 proposal 的确认/拒绝先作为 V2 产品动作写入 `ScriptPreviewDraft.snapshot_json`：
+
+```text
+keyframe_candidates[].decision_status
+preview_timeline[].confirmation_status
+```
+
+确认关键帧不直接创建或修改底层 `Keyframe` / `PreviewTimeline` CRUD 记录。后续如果要把 accepted 候选提升为正式事实，应继续封装在 `scriptpreview.Service` 内部，前端仍只面对 `/script-preview` 产品动作。
+
+### 决策 18：素材缺口先作为预演候选状态处理
+
+素材缺口当前仍属于预演候选结果的一部分，不直接写入底层 `AssetRequirement` CRUD。用户对素材缺口的确认、补齐和忽略先写回：
+
+```text
+preview_candidates.asset_gaps[].status
+```
+
+状态语义：
+
+```text
+missing：系统发现缺口，尚未确认
+accepted：用户确认这是需要处理的素材缺口
+resolved：用户标记素材已经补齐
+rejected：用户忽略该缺口
+```
+
+后续如果要把 `accepted` / `resolved` 的缺口提升为正式素材需求或素材任务，应继续封装在 `scriptpreview.Service` 或素材准备用例内部，前端仍不直接串联底层 `AssetRequirement` CRUD。
 
 ## 下一步任务
 
@@ -665,27 +913,86 @@ saved_at
 - 已避免初始化读取覆盖用户已经开始输入的未保存内容。
 - 暂时只恢复最近草稿，不做多版本草稿列表。
 
-### Next 1：预演候选结果写回草稿快照
+### Done：预演候选结果写回草稿快照
+
+完成情况：
+
+- `analysis_candidates` 已随草稿快照保存和恢复。
+- `preview_candidates` 已随草稿快照保存和恢复。
+- 解析结构后，刷新页面可以恢复剧本节理解、确认问题和可采纳分镜建议。
+- 生成预演后，刷新页面可以恢复关键帧候选、素材缺口和生成后的预演时间线。
+- 候选恢复仍不自动覆盖用户已编辑的结构化分镜脚本。
+- V2 后端仍只做确定性 projection/mock 和候选保存；真实 AI 编排归 V3 runtime。
+
+### Done：候选采纳和拒绝动作 API
+
+完成情况：
+
+- 已新增采纳/拒绝分镜建议的产品动作 API。
+- 输入为 `draft_id` 和 `suggestion_client_id`。
+- 采纳后，服务端把候选追加进 `storyboard_rows`，候选标记为 `accepted`，返回更新后的草稿快照。
+- 拒绝后，候选标记为 `rejected`，不写入正式分镜脚本，刷新后可恢复拒绝状态。
+- 前端“采纳 / 全部采纳 / 拒绝”已经走 API，并用服务端响应刷新页面状态。
+- 主页面仍没有直接绑定底层 `ContentUnit` / `Storyboard` CRUD。
+
+### Done：关键帧候选采纳和预演时间线确认动作 API
+
+完成情况：
+
+- 后端已提供确认/拒绝关键帧候选的产品动作，输入 `draft_id` 和 `keyframe_candidate_client_id`。
+- 确认后，候选标记为 `accepted`，对应时间线项标记为 `accepted`。
+- 拒绝后，候选标记为 `rejected`，对应时间线项标记为 `rejected`，候选记录不删除。
+- 前端底部预演时间线已为每个关键帧候选提供“确认 / 拒绝”入口，并展示候选状态。
+- 确认/拒绝成功后，页面复用保存响应恢复候选状态、时间线确认状态和保存状态。
+- 主页面仍没有直接绑定底层 `Keyframe` / `PreviewTimeline` CRUD。
+
+### Done：素材缺口候选确认和补素材入口薄切片
+
+完成情况：
+
+- 后端已提供确认素材缺口、标记素材已补齐、忽略素材缺口的产品动作，输入 `draft_id` 和 `asset_gap_client_id`。
+- 素材缺口状态支持：
+
+```text
+missing
+accepted
+resolved
+rejected
+```
+
+- 前端右侧“素材缺口”已从字符串列表升级为结构化列表，显示名称、描述、优先级、状态和动作入口。
+- 确认、补齐或忽略素材缺口后，页面复用保存响应恢复素材缺口状态。
+- 主页面仍没有直接绑定底层 `AssetRequirement` CRUD。
+
+### Next 1：确认预演并进入内容生产的最小状态动作
 
 目标：
 
 ```text
-让关键帧候选、预演时间线和素材缺口具备最小持久化边界。候选来源可以是 V3 runtime、前端 mock 或人工录入；V2 只负责写入、读取和恢复。
+把已确认的分镜、关键帧和素材缺口状态收束成“预演可进入生产”的显式动作。V2 负责保存预演确认状态和下一步建议；真实生产任务编排仍留给后续内容生产 / V3 runtime。
 ```
 
 建议交付标准：
 
-- 后端提供“写入预演候选结果”的数据动作，能把关键帧候选、素材缺口和时间线 proposal 写回当前草稿快照，或新增一个极薄的 preview result snapshot 字段/DTO。
-- 前端恢复最近草稿时能恢复关键帧候选、素材缺口和生成后的时间线状态。
-- 仍保持“候选结果需要确认，用户确认前不污染分镜脚本”的产品边界。
-- 不急着接真实 AI，不引入完整 `Keyframe` / `AssetRequirement` CRUD 串联。
+- 后端提供确认预演的产品动作，输入 `draft_id`。
+- 确认前做最小校验：
 
-建议实现点：
+```text
+至少有一个分镜行
+至少有一个 accepted 关键帧候选或可预演时间线项
+没有 missing / accepted 且未 resolved 的素材缺口阻塞项
+```
 
-1. 优先复用 `scriptpreview.Service` 和 `DraftStore`，不要让 handler 直接操作 GORM。
-2. 如果扩展响应 DTO，前端 adapter 类型要与后端字段同名，避免页面内二次猜测。
-3. 避免把接口命名成后端负责 AI 生成；命名应偏向 `upsertPreviewCandidates` / `savePreviewProposal` 这类数据动作。
-4. 先覆盖最近草稿恢复，不做历史版本列表。
+- 确认后，草稿快照记录预演状态，例如：
+
+```text
+preview_status: ready_for_production
+confirmed_at
+```
+
+- 前端“下一步动作”区域展示“确认预演”入口，并根据关键帧和素材缺口状态给出是否可确认。
+- 确认成功后显示“进入内容生产”的下一步入口或占位，但不直接创建完整 `WorkItem` / Production Runtime 任务。
+- 不直接把主页面接到底层 `WorkItem` CRUD；仍通过 `/script-preview` 产品动作 API。
 
 ## 每次会话结束必须更新
 
@@ -774,6 +1081,62 @@ saved_at
 - 结果：通过。
 - 未运行后端测试，因为本次没有修改后端代码。
 
+### 2026-05-01 本次推进 9
+
+- 首次在仓库根运行 `go test ./apps/backend/internal/v2/scriptpreview`。
+- 结果：失败，原因是仓库根不是 Go module 根。
+- 在 `apps/backend` 下运行 `go test ./internal/v2/scriptpreview`。
+- 结果：失败，原因是沙箱不允许写入 `/Users/zhaoqian/Library/Caches/go-build`，不是代码编译错误。
+- 申请权限后运行 `go test ./internal/v2/scriptpreview`。
+- 结果：通过。
+- 运行 `go test ./internal/handler`。
+- 结果：通过。
+- 首次运行 `pnpm --filter @movscript/frontend exec tsc --noEmit`。
+- 结果：未匹配到 package filter。
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 结果：通过。
+
+### 2026-05-01 本次推进 10
+
+- 首次在 `apps/backend` 下运行 `go test ./internal/v2/scriptpreview`。
+- 结果：失败，原因是沙箱不允许写入 `/Users/zhaoqian/Library/Caches/go-build`，不是代码编译错误。
+- 申请权限后运行 `go test ./internal/v2/scriptpreview`。
+- 结果：通过。
+- 运行 `go test ./internal/...`。
+- 结果：通过。
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 结果：通过。
+
+### 2026-05-01 本次推进 11
+
+- 运行 `gofmt -w apps/backend/internal/v2/scriptpreview/service.go apps/backend/internal/v2/scriptpreview/service_test.go apps/backend/internal/handler/script_preview.go apps/backend/internal/router/router.go`。
+- 首次运行 `go test ./internal/v2/scriptpreview ./internal/handler ./internal/router`。
+- 结果：失败，原因是沙箱不允许写入 `/Users/zhaoqian/Library/Caches/go-build`，不是代码编译错误。
+- 申请权限后运行 `go test ./internal/v2/scriptpreview ./internal/handler ./internal/router`。
+- 结果：通过。
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 首次结果：通过。
+- 后续复验 `pnpm --filter movscript-frontend typecheck`。
+- 结果：失败，失败点集中在既有未提交改动 `apps/frontend/src/pages/admin/UIPreviewPage.tsx`：
+
+```text
+Cannot find name 'V2UseCaseCard'
+Cannot find name 'V2UseCaseToolCard'
+若干隐式 any / any 索引类型错误
+```
+
+- 本次修改的 `apps/frontend/src/api/scriptPreview.ts` 和 `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx` 在首次 typecheck 中通过；最终全前端 typecheck 被上述 admin UI preview 既有改动阻塞。
+
+### 2026-05-01 本次推进 12
+
+- 运行 `gofmt -w apps/backend/internal/v2/scriptpreview/service.go apps/backend/internal/v2/scriptpreview/service_test.go apps/backend/internal/handler/script_preview.go apps/backend/internal/router/router.go`。
+- 首次运行 `go test ./internal/v2/scriptpreview ./internal/handler ./internal/router`。
+- 结果：失败，原因是沙箱不允许写入 `/Users/zhaoqian/Library/Caches/go-build`，不是代码编译错误。
+- 申请权限后运行 `go test ./internal/v2/scriptpreview ./internal/handler ./internal/router`。
+- 结果：通过。
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 结果：通过。
+
 ## 遗留问题
 
 - 已临时确认真实产品入口落在应用 shell 的 `Sidebar` 项目分组，`/creation` 保留为“项目首页”。
@@ -783,9 +1146,12 @@ saved_at
 - 已补最小 `/script-preview` 后端产品用例 API 契约；`draft` 保存与最近草稿读取已有真实快照持久化。
 - 剧本预演页面已通过 API adapter 调用新的 `/script-preview` 路由，刷新后会从后端恢复最近草稿。
 - 当前只恢复最近草稿，不恢复多版本草稿列表。
-- 生成预演后的关键帧候选和素材缺口仍是前端瞬时结果；刷新后目前只能恢复保存快照中的基础时间线。
+- 生成预演后的关键帧候选、素材缺口和时间线 proposal 已能随最近草稿恢复。
 - “解析结构”“生成预演”后端 API 仍是确定性 projection/mock 响应；后续应改造为候选写入/读取数据动作，由 V3 runtime 负责真实 AI 分析和生成。
-- 下一步应让 `generate-preview` 结果具备最小持久化和恢复边界。
+- 分镜建议的采纳/拒绝已升级为 V2 数据动作。
+- 关键帧候选确认/拒绝和预演时间线确认状态已升级为 V2 数据动作。
+- 素材缺口确认、补齐和忽略已升级为 V2 数据动作。
+- 本次 `pnpm --filter movscript-frontend typecheck` 已恢复通过；上一轮记录的 `apps/frontend/src/pages/admin/UIPreviewPage.tsx` 类型错误在当前工作区已不再阻塞 typecheck，但该文件仍有未提交改动，后续会话仍需避免误回滚。
 
 ## 单句推进模板
 

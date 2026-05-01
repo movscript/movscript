@@ -79,6 +79,7 @@ export type AnalyzeScriptPreviewResponse = {
     duration_seconds: number
     status: ScriptPreviewStoryboardStatus
     adoption_intent: string
+    adoption_status?: 'pending' | 'accepted' | 'rejected' | string
   }>
   status: string
 }
@@ -100,6 +101,7 @@ export type GenerateScriptPreviewResponse = {
     prompt: string
     visual_anchor: string
     status: '候选' | '待补素材' | string
+    decision_status?: 'pending' | 'accepted' | 'rejected' | string
   }>
   preview_timeline: Array<{
     client_id: string
@@ -111,6 +113,7 @@ export type GenerateScriptPreviewResponse = {
     end_seconds: number
     label: string
     status: string
+    confirmation_status?: 'pending' | 'accepted' | 'rejected' | string
   }>
   asset_gaps: Array<{
     client_id: string
@@ -118,7 +121,7 @@ export type GenerateScriptPreviewResponse = {
     name: string
     description: string
     priority: string
-    status: string
+    status: 'missing' | 'accepted' | 'resolved' | 'rejected' | string
   }>
   status: string
 }
@@ -154,5 +157,61 @@ export async function generateScriptPreview(
   payload: { draft_id: string; storyboard_rows: ScriptPreviewStoryboardRow[] },
 ) {
   const res = await api.post<GenerateScriptPreviewResponse>(`/projects/${projectId}/script-preview/generate-preview`, payload)
+  return res.data
+}
+
+export async function acceptStoryboardSuggestion(
+  projectId: number,
+  payload: { draft_id: string; suggestion_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/storyboard-suggestions/accept`, payload)
+  return res.data
+}
+
+export async function rejectStoryboardSuggestion(
+  projectId: number,
+  payload: { draft_id: string; suggestion_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/storyboard-suggestions/reject`, payload)
+  return res.data
+}
+
+export async function acceptKeyframeCandidate(
+  projectId: number,
+  payload: { draft_id: string; keyframe_candidate_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/keyframe-candidates/accept`, payload)
+  return res.data
+}
+
+export async function rejectKeyframeCandidate(
+  projectId: number,
+  payload: { draft_id: string; keyframe_candidate_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/keyframe-candidates/reject`, payload)
+  return res.data
+}
+
+export async function acceptAssetGap(
+  projectId: number,
+  payload: { draft_id: string; asset_gap_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/asset-gaps/accept`, payload)
+  return res.data
+}
+
+export async function resolveAssetGap(
+  projectId: number,
+  payload: { draft_id: string; asset_gap_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/asset-gaps/resolve`, payload)
+  return res.data
+}
+
+export async function rejectAssetGap(
+  projectId: number,
+  payload: { draft_id: string; asset_gap_client_id: string },
+) {
+  const res = await api.post<SaveScriptPreviewDraftResponse>(`/projects/${projectId}/script-preview/asset-gaps/reject`, payload)
   return res.data
 }

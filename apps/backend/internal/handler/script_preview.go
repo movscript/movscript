@@ -90,6 +90,132 @@ func (h *ScriptPreviewHandler) GenerateKeyframesForContentUnits(c *gin.Context) 
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *ScriptPreviewHandler) AcceptStoryboardSuggestion(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.StoryboardSuggestionDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.AcceptStoryboardSuggestionWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ScriptPreviewHandler) RejectStoryboardSuggestion(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.StoryboardSuggestionDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.RejectStoryboardSuggestionWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ScriptPreviewHandler) AcceptKeyframeCandidate(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.KeyframeCandidateDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.AcceptKeyframeCandidateWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ScriptPreviewHandler) RejectKeyframeCandidate(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.KeyframeCandidateDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.RejectKeyframeCandidateWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ScriptPreviewHandler) AcceptAssetGap(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.AssetGapDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.AcceptAssetGapWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ScriptPreviewHandler) ResolveAssetGap(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.AssetGapDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.ResolveAssetGapWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ScriptPreviewHandler) RejectAssetGap(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.AssetGapDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.RejectAssetGapWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *ScriptPreviewHandler) ensureProject(c *gin.Context) (uint, bool) {
 	projectID := parseID(c.Param("id"))
 	if projectID == 0 {

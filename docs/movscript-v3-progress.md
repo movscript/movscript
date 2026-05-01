@@ -44,6 +44,197 @@ V3 不直接推进 V2 页面或后端数据模型，只通过文档化契约与 
 
 ## 已完成
 
+### 2026-05-01 Production Approval / Apply Preview 最小契约
+
+- 新增 runtime-local approval / apply preview 类型：
+
+```text
+ProductionApproval
+ProductionApplyPreview
+ProductionApprovalStatus
+ProductionApplyPreviewStatus
+ProductionApprovalRequiredAction
+```
+
+- `ProductionApproval` 最小表达：
+
+```text
+candidateId
+approvalPolicy
+requiredAction
+status
+reason
+```
+
+- `ProductionRuntime` 新增 `previewCandidateApply(candidateId)`，只读取 runtime-local candidate 并返回 apply preview，不调用 V2 fallback，不写 V2 canonical objects。
+- 新增 `/production/candidates/:id/apply-preview`：
+
+```text
+POST /production/candidates/:id/apply-preview
+```
+
+- apply preview 会返回：
+
+```text
+status
+canApply
+approval
+v2DataOperation
+targetObject
+requiredContext
+warnings
+```
+
+- `accepted` candidate 的 apply preview 仍返回 `blocked` / `canApply: false`，并提示真正应用必须等待专用 V2 data action。
+- `candidate` 状态返回 `not_applicable`，要求先 `accept_candidate`。
+- `rejected` / `revised` / `superseded` 返回 `not_applicable`，不能进入可应用状态。
+- 当前只登记未来 V2 data operation 名称，不调用接口：
+
+```text
+script_section -> UpsertScriptSectionCandidates
+situation -> UpsertSituationCandidates
+storyboard_script -> UpsertStoryboardSuggestions
+keyframe -> UpsertKeyframeCandidates
+asset_requirement -> UpsertAssetRequirementCandidates
+preview_timeline -> BuildPreviewTimeline / SavePreviewProposal
+```
+
+- 新增测试覆盖：
+  - accepted candidate 的 apply preview 返回 blocked，且不调用 V2 fallback。
+  - rejected / revised / superseded candidate 的 apply preview 返回不可应用。
+  - candidate 状态必须先 accept 后才能进入 apply gate。
+
+### 2026-05-01 Production Candidate lifecycle 最小 API
+
+- 在 `ProductionCandidate` 上补齐 runtime-local lifecycle 审计字段：
+
+```text
+updatedAt
+statusChangedAt
+statusReason
+revisedFromCandidateId
+revisedByCandidateId
+supersedesCandidateId
+supersededByCandidateId
+lifecycle[]
+```
+
+- `ProductionStore` 新增 `updateCandidate`，更新候选时同步关联 `ProductionRun.candidates` 快照，避免 run 和 candidate 列表状态分裂。
+- `ProductionRuntime` 新增候选状态流转方法：
+
+```text
+rejectCandidate
+acceptCandidate
+reviseCandidate
+supersedeCandidate
+```
+
+- 新增 `/production/candidates/:id/*` 最小 lifecycle HTTP API：
+
+```text
+POST /production/candidates/:id/accept
+POST /production/candidates/:id/reject
+POST /production/candidates/:id/revise
+POST /production/candidates/:id/supersede
+```
+
+- `accept` 只把 runtime-local candidate 标为 `accepted`，并记录 `explicit_accept_required; runtime status only, no V2 apply performed`，不调用 V2 apply，不写正式事实。
+- `revise` 会创建新的 runtime candidate，旧 candidate 标为 `revised`，并通过 `revisedByCandidateId` / `revisedFromCandidateId` 建立关系。
+- `supersede` 支持记录 `supersededByCandidateId`，但仍只改 runtime-local candidate 状态。
+- lifecycle 操作不会调用 `ScriptPreviewV2FallbackClient`，也不会写 V2 canonical objects。
+- 新增测试覆盖：
+  - reject candidate 后通过 `FileProductionStore` 持久化恢复状态。
+  - revise candidate 生成新 candidate，旧 candidate 标为 `revised`，并同步 `ProductionRun.candidates`。
+  - lifecycle 更新不调用 V2 fallback。
+
+### 2026-05-01 ProductionRun/Candidate 持久化与 V2 fallback 边界
+
+- 新增 `FileProductionStore`，让 `/production/*` 产生的 run/candidate 可以跨 runtime 重启保留。
+- 默认持久化路径：
+
+```text
+.movscript-production-runtime/production-state.json
+```
+
+- 新增 `MOVSCRIPT_PRODUCTION_STATE_PATH` 支持覆盖 production state 文件位置。
+- `apps/production-runtime/src/server.ts` 已改为使用 `FileProductionStore`，并在 `/health` 中暴露：
+
+```text
+productionStatePath
+productionV2FallbackEnabled
+```
+
+- 新增 `ScriptPreviewV2FallbackClient`，为 `AnalyzeScriptToSections` 保留 runtime-side V2 fallback 写入边界。
+- V2 fallback 只允许调用当前薄切片接口：
+
+```text
+POST /projects/:id/script-preview/analyze
+```
+
+- fallback 默认关闭，只有显式配置时才启用：
+
+```text
+MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true
+MOVSCRIPT_PRODUCTION_V2_FALLBACK_BASE_URL=http://localhost:8765
+```
+
+- 如果未配置专用 base URL，会复用：
+
+```text
+MOVSCRIPT_BACKEND_API_BASE_URL
+MOVSCRIPT_API_BASE_URL
+```
+
+- fallback 失败时不会丢弃 runtime candidate，也不会把候选标为 accepted；只在 `ProductionRun.warnings` 记录失败边界。
+- `ProductionRuntime.createAction` 已改为 async，以便未来真实 executor / fallback / tool 调用统一异步边界。
+- 新增测试覆盖：
+  - `FileProductionStore` 持久化 run/candidate。
+  - fallback 默认关闭时不做外部写入。
+  - fallback 失败时保留 runtime candidate 并记录 warning。
+  - fallback 成功记录 warning 且 candidate 仍保持 `candidate` 状态。
+
+### 2026-05-01 production-runtime action 概念层
+
+- 在 `apps/production-runtime/src/production/` 新增 V3 production 概念层，第一版保持在 runtime app 内部，尚未抽到共享 package。
+- 新增类型和 DTO：
+
+```text
+ProductionAction
+ProductionRun
+ProductionRunStep
+ProductionCandidate
+ProductionApprovalPolicy
+```
+
+- 新增 `ProductionRuntime` 和 `InMemoryProductionStore`，跑通：
+
+```text
+ProductionAction -> deterministic executor -> ProductionRun -> ProductionCandidate
+```
+
+- 已实现 deterministic executor：
+
+```text
+AnalyzeScriptToSections
+GenerateKeyframeCandidates
+```
+
+- `AnalyzeScriptToSections` 从 `inputContext.source_text` / `sourceText` 拆出 `script_section` candidates。
+- `GenerateKeyframeCandidates` 从 `inputContext.storyboard_rows` / `content_units` 生成 `keyframe` candidates。
+- 其他已登记 action 暂时只返回无 deterministic executor 的 warning，不写候选。
+- 在 `apps/production-runtime/src/server.ts` 新增 V3 路由：
+
+```text
+POST /production/actions
+GET  /production/runs
+GET  /production/runs/:id
+GET  /production/candidates
+GET  /production/candidates/:id
+```
+
+- 这些 `/production/*` 路由只操作 runtime 内存态，不写 V2 后端数据模型，不调用数据库 CRUD。
+- 新增 `apps/production-runtime/src/production/runtime.test.ts` 覆盖 action 到 candidate 的最小链路。
+
 ### 2026-05-01 ProductionAction 最小契约
 
 - 新增 `docs/movscript-v3-action-contract.md`，把第一批 V3 `ProductionAction` 从 plan 中拆成独立契约文档。
@@ -136,12 +327,20 @@ V3 BuildPreviewTimelineProposal -> V2 BuildPreviewTimeline / SavePreviewProposal
 - 前端应逐步从全局聊天入口转向 `ActionRail`、`RunTimeline`、`CandidateReview`、`ApplyPreview`、`ProductionHistory`。
 - 当前 `apps/production-runtime` 已存在，但内部仍保留较多 `agent/chat/thread` 命名；下一步应在其内部新增 `src/production/` 概念层，而不是继续扩展旧聊天模型。
 - 当前 V2 剧本预演薄切片已有 `script-preview` draft/analyze/generate-preview 接口，可作为 V3 mock executor 临时对接点。
+- `apps/production-runtime/src/production/` 已建立第一版内部概念层，当前类型和 store 仍位于 runtime app 内，后续稳定后再抽 `packages/production-contracts`。
+- 当前 `/production/*` HTTP API 已存在，server 默认使用 `FileProductionStore` 持久化 run/candidate；单元测试仍可使用 `InMemoryProductionStore`。
+- 当前 V2 fallback client 仅支持 `AnalyzeScriptToSections -> POST /projects/:id/script-preview/analyze`，默认关闭。
+- 当前 runtime-local candidate lifecycle API 已存在，可标记 `accepted` / `rejected` / `revised` / `superseded`，但不会应用到 V2 正式事实。
+- 当前 runtime-local apply preview API 已存在，可说明候选未来对应的 V2 data action、当前是否 blocked、以及缺少哪些上下文；它仍不会调用 V2 或写正式事实。
 
 本次新增/修改：
 
+- `apps/production-runtime/src/production/types.ts`
+- `apps/production-runtime/src/production/runtime.ts`
+- `apps/production-runtime/src/production/index.ts`
+- `apps/production-runtime/src/production/runtime.test.ts`
+- `apps/production-runtime/src/server.ts`
 - `docs/movscript-v3-progress.md`
-- `docs/movscript-v3-plan.md`
-- `docs/movscript-v3-action-contract.md`
 
 ## 当前产品决策
 
@@ -181,36 +380,54 @@ V2 窗口维护对象、状态和数据动作 API；V3 窗口维护 ProductionAc
 
 当前 `/script-preview/analyze` 和 `/script-preview/generate-preview` 可以服务 V3 mock/deterministic executor，但不能替代长期的候选 upsert/apply 数据动作。
 
+### 决策 8：V3 runtime API 从 `/production/*` 开始
+
+第一版 V3 Production Runtime HTTP API 使用 `/production/actions`、`/production/runs` 和 `/production/candidates`，避免继续扩大旧 `/chat`、`/threads`、`/runs` 产品模型。
+
+### 决策 9：production store 默认文件持久化，测试保留内存态
+
+`apps/production-runtime/src/server.ts` 默认使用 `FileProductionStore`，避免 `/production/*` 产生的 run/candidate 在 runtime 重启后丢失。`InMemoryProductionStore` 保留给单元测试和短生命周期内嵌调用。
+
+### 决策 10：V2 fallback 是显式 opt-in
+
+`ScriptPreviewV2FallbackClient` 默认关闭。只有显式配置 `MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true` 时才允许 runtime 调用 V2 薄切片接口；fallback 失败只能记录 warning，不能改变候选状态或写正式事实。
+
+### 决策 11：candidate lifecycle 先保持 runtime-local
+
+`/production/candidates/:id/accept|reject|revise|supersede` 只维护 runtime candidate 的审查状态和最小审计字段。`accepted` 不是 V2 canonical object 的采用结果，真正 apply 仍必须等待 V2 数据动作 API 和显式审批契约。
+
+### 决策 12：apply preview 只做门禁预览
+
+`/production/candidates/:id/apply-preview` 只表达当前候选能否进入 apply gate、未来应调用哪个 V2 data action、以及缺少哪些上下文。它不调用 V2 fallback，不调用 V2 apply，不写正式事实；因此当前返回只能是 `blocked` 或 `not_applicable`，不能返回已应用成功。
+
 ## 下一步任务
 
-### Next 2：在 production-runtime 建立 action 概念层
+### Next 6：补齐 GenerateKeyframeCandidates 的 V2 fallback 边界
 
 目标：
 
 ```text
-在 apps/production-runtime 中新增 V3 action 概念层，用 deterministic/mock executor 跑通 ProductionAction -> ProductionRun -> ProductionCandidate 的最小链路。
+为 GenerateKeyframeCandidates 建立和 AnalyzeScriptToSections 同级的显式 V2 fallback 边界，但仍保持 opt-in、失败不污染候选、不会自动 accept/apply。
 ```
 
 建议交付标准：
 
 - 不改 V2 后端数据模型，不直接写数据库核心表。
-- 优先新增或整理：
+- 不实现真正 apply 到 V2 canonical objects；只允许临时 fallback 写入当前薄切片接口。
+- 扩展 `ProductionV2FallbackClient`，支持：
 
 ```text
-apps/production-runtime/src/production/
+GenerateKeyframeCandidates -> POST /projects/:id/script-preview/generate-preview
 ```
 
-- 第一版可以只实现：
-
-```text
-action type definitions
-run / step / candidate DTO
-deterministic executor for AnalyzeScriptToSections
-optional deterministic executor for GenerateKeyframeCandidates
-```
-
-- 如果暴露 HTTP API，应使用 `/production/*` 新路径，避免继续扩大 `/chat` 或 `/threads` 产品模型。
-- 可以暂时复用现有 runtime store / planner / policy 代码，但面向 V3 的导出命名应使用 `ProductionAction`、`ProductionRun`、`ProductionCandidate`。
+- fallback 默认关闭，继续由 `MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true` 和 base URL 显式启用。
+- fallback 成功或失败都不能改变 candidate status；成功只记录 warning，失败只记录 warning。
+- fallback 请求体应只使用 action inputContext 和 runtime candidate 快照，不绕过 V2 数据动作边界。
+- 补充测试覆盖：
+  - GenerateKeyframeCandidates fallback 默认关闭。
+  - fallback 成功时 candidate 仍为 `candidate`，run 记录 warning。
+  - fallback 失败时保留 runtime candidate，run 记录 warning。
+  - lifecycle / apply-preview 仍不调用 fallback。
 
 ## 每次会话结束必须更新
 
@@ -235,6 +452,114 @@ optional deterministic executor for GenerateKeyframeCandidates
 
 ## 验证记录
 
+### 2026-05-01 Production Approval / Apply Preview 最小契约
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/types.ts`
+  - `apps/production-runtime/src/production/runtime.ts`
+  - `apps/production-runtime/src/production/index.ts`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+  - `apps/production-runtime/src/server.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 57 tests
+```
+
+- 未运行前端或后端测试；本切片未改前端和后端代码，也未改 V2 数据模型。
+
+### 2026-05-01 Production Candidate lifecycle 最小 API
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/types.ts`
+  - `apps/production-runtime/src/production/store.ts`
+  - `apps/production-runtime/src/production/runtime.ts`
+  - `apps/production-runtime/src/production/index.ts`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+  - `apps/production-runtime/src/server.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 54 tests
+```
+
+- 未运行前端或后端测试；本切片未改前端和后端代码，也未改 V2 数据模型。
+
+### 2026-05-01 ProductionRun/Candidate 持久化与 V2 fallback 边界
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/store.ts`
+  - `apps/production-runtime/src/production/runtime.ts`
+  - `apps/production-runtime/src/production/index.ts`
+  - `apps/production-runtime/src/production/v2FallbackClient.ts`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+  - `apps/production-runtime/src/server.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 51 tests
+```
+
+- 未运行前端或后端测试；本切片未改前端和后端代码。
+
+### 2026-05-01 production-runtime action 概念层
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/types.ts`
+  - `apps/production-runtime/src/production/store.ts`
+  - `apps/production-runtime/src/production/deterministicExecutor.ts`
+  - `apps/production-runtime/src/production/runtime.ts`
+  - `apps/production-runtime/src/production/index.ts`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+  - `apps/production-runtime/src/server.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 48 tests
+```
+
+- 未运行前端或后端测试；本切片未改前端和后端代码。
+
 ### 2026-05-01 ProductionAction 最小契约
 
 - 本次只新增/修改文档：
@@ -255,9 +580,14 @@ optional deterministic executor for GenerateKeyframeCandidates
 ## 遗留问题
 
 - `packages/production-contracts` 尚未存在；应等 `apps/production-runtime/src/production/` 的类型稳定一轮后再抽包。
-- `apps/production-runtime` 当前代码形态已确认存在，但仍保留较多 legacy `agent/chat/thread` 命名，需要逐步新增 V3 production 概念层并迁移。
+- `apps/production-runtime` 当前已新增 `src/production/`，但旧 `agent/chat/thread` 命名仍大量存在，需要逐步迁移入口、环境变量和前端调用命名。
 - V2 的候选写入 API 仍在演进，V3 第一批 action 应先通过文档契约对接，不直接依赖未稳定实现。
-- 需要决定第一版 `/production/*` runtime API 的最小路由形态，例如 `POST /production/actions`、`GET /production/runs/:id`、`GET /production/candidates/:id`。
+- `/production/*` 当前已有 create/list/get、candidate accept/reject/revise/supersede 和 apply-preview；仍没有 run cancellation 或真正的 approval/apply API。
+- `FileProductionStore` 当前是 runtime-local JSON 文件持久化，不是后端可信状态，也没有并发写入锁。
+- `accepted` candidate 目前只表示 runtime-local 审查状态，不代表已经应用到 V2 canonical objects；apply preview 也只会返回 blocked / not_applicable。
+- deterministic executor 目前只覆盖 `AnalyzeScriptToSections` 和 `GenerateKeyframeCandidates`，尚未覆盖 `ExtractSituations`、`GenerateStoryboardScript`、`PrepareAssetRequirements`、`BuildPreviewTimelineProposal`。
+- `AnalyzeScriptToSections` 当前只基于段落/句子做简单拆分，没有调用模型；V2 `script-preview/analyze` fallback 已有边界但默认关闭。
+- V2 fallback 当前只支持 `AnalyzeScriptToSections`，还没有 `GenerateKeyframeCandidates -> generate-preview` fallback。
 
 ## 单句推进模板
 

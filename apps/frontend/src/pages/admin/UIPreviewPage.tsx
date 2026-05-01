@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ElementType, ReactNode } from 'react'
-import { AlertTriangle, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
 import {
   AgentCommandBar,
   AgentComposerAction,
@@ -76,6 +76,13 @@ type V2CanvasCardPreviewItem = {
   description: string
 }
 
+type V2CanvasInsertPreviewItem = {
+  id: string
+  type: 'v2-canvas-insert'
+  name: string
+  description: string
+}
+
 type AgentPreviewItem = {
   id: string
   type: 'agent'
@@ -98,7 +105,7 @@ type StructuredScriptPreviewItem = {
   scriptKind: 'main' | 'scene'
 }
 
-type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | V2PreviewItem | V2CanvasCardPreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
+type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | V2PreviewItem | V2CanvasCardPreviewItem | V2CanvasInsertPreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
 
 const ENTITY_PREVIEWS: EntityPreviewItem[] = [
   {
@@ -430,9 +437,18 @@ const V2_CANVAS_CARD_PREVIEWS: V2CanvasCardPreviewItem[] = [
   {
     id: 'v2-canvas-cards',
     type: 'v2-canvas-card',
-    name: 'V2 画布卡片',
-    description: '在新产品形态下，画布围绕具体对象展开：理解、计划、素材缺口、结果和执行各自有清晰边界。',
+    name: '预演修改原型',
+    description: '用户从一个不满意的预演画面进入，只看到理解、画面、素材、关键图和视频候选，以及每次点击后的结果。',
   },
+]
+
+const V2_CANVAS_INSERT_PREVIEWS: V2CanvasInsertPreviewItem[] = [
+    {
+      id: 'v2-canvas-insert',
+      type: 'v2-canvas-insert',
+      name: '卡片加入画布',
+      description: '示例用户如何从卡片库选择一个卡片，点击加入后把它放进当前画布空位，并继续生成关键图或视频候选。',
+    },
 ]
 
 const PREVIEW_GROUPS: Array<{
@@ -449,9 +465,15 @@ const PREVIEW_GROUPS: Array<{
   },
   {
     id: 'v2-canvas-cards',
-    title: 'V2 画布卡片',
-    description: 'Object Canvas Cards',
+    title: '预演修改原型',
+    description: 'Low-friction Prototype',
     items: V2_CANVAS_CARD_PREVIEWS,
+  },
+  {
+    id: 'v2-canvas-insert',
+    title: '卡片加入画布',
+    description: 'Insert Card Flow',
+    items: V2_CANVAS_INSERT_PREVIEWS,
   },
   {
     id: 'entities',
@@ -584,6 +606,8 @@ export function UIPreviewPage() {
                   ? <V2IntegratedModelPreviewCanvas />
                 : selected.type === 'v2-canvas-card'
                   ? <V2CanvasCardsPreviewCanvas />
+                : selected.type === 'v2-canvas-insert'
+                  ? <V2CanvasInsertPreviewCanvas />
                 : selected.type === 'entity'
                   ? <EntityPreviewCanvas preview={selected} />
                   : selected.type === 'state'
@@ -619,9 +643,15 @@ export function UIPreviewPage() {
               </>
             ) : selected.type === 'v2-canvas-card' ? (
               <>
-                <SpecCard title="对象卡优先" text="画布入口来自情境、内容单元、关键帧、素材需求和视频片段；空白画布只作为管理入口保留。" />
-                <SpecCard title="卡片分层" text="理解层、时间线层、视觉结果层、素材缺口层和执行层分别成卡，避免一张万能节点混合所有状态。" />
-                <SpecCard title="输出必须落点" text="关键帧保存到 ContentUnit，素材保存到 AssetRequirement，视频保存为 ContentVersion，任务只记录执行过程。" />
+                <SpecCard title="从画面进入" text="用户点一个不满意的预演画面后进入这里，不需要先理解画布、节点或内部对象。" />
+                <SpecCard title="只看下一步" text="每张卡只回答：哪里不对、点什么按钮、点完之后预演画面会发生什么变化。" />
+                <SpecCard title="结果自动回去" text="关键图、参考素材和视频候选都默认回到当前预演画面，内部保存位置由系统处理。" />
+              </>
+            ) : selected.type === 'v2-canvas-insert' ? (
+              <>
+                <SpecCard title="先选再放" text="用户先从左侧卡片库选一个卡片，再点“加入到画布”，不要求理解拖拽编排。" />
+                <SpecCard title="空位明确" text="中间画布只显示可放入的空位和已放入的卡片，避免卡片互相遮挡。" />
+                <SpecCard title="加入后可继续改" text="卡片放进画布后，可以继续选中、替换、移除或用工具生成候选结果。" />
               </>
             ) : selected.type === 'entity' ? (
               <>
@@ -2246,178 +2276,305 @@ function ScriptStructureCheck({ label, ok }: { label: string; ok?: boolean }) {
 }
 
 function V2CanvasCardsPreviewCanvas() {
-  const cards = [
+  const [selectedCardId, setSelectedCardId] = useState('key-image-tool')
+  const [selectedActionId, setSelectedActionId] = useState('run-key-image-tool')
+  const cards: V2UseCaseCard[] = [
     {
-      id: 'situation',
-      title: '情境卡',
-      label: 'Situation',
+      id: 'scene-understanding',
+      title: '这一段发生什么',
+      label: '待确认',
       icon: MapPin,
       tone: 'sky' as const,
-      summary: '雨夜，老城区窄巷，林夏与顾言隔着旧伞对峙。',
-      meta: 'owner_type = situation',
+      summary: '雨夜老城区窄巷，林夏攥着旧伞，与顾言保持距离对峙。',
+      meta: '系统对剧本这一段的理解',
       slots: [
-        { label: '事实源', value: 'ScriptSection 03' },
-        { label: '引用资料', value: '林夏 / 顾言 / 旧伞' },
-        { label: '可开画布', value: '情境视觉探索' },
+        { label: '来自', value: '第 3 段剧本' },
+        { label: '包含', value: '林夏 / 顾言 / 旧伞' },
+        { label: '下一步', value: '确认后生成画面' },
       ],
-      actions: ['改写情境', '生成分镜'],
+      actions: [
+        { id: 'edit-understanding', label: '改一下理解', effect: '打开右侧编辑面板，用户用自然语言改“这里发生了什么”。保存后，相关画面会提示需要重新生成。' },
+        { id: 'confirm', label: '确认理解', effect: '卡片状态变为“已确认”，系统把这段理解用于生成下面的预演画面。用户不会看到内部对象名。' },
+      ],
     },
     {
-      id: 'content-unit',
-      title: '内容单元卡',
-      label: 'ContentUnit',
+      id: 'preview-shot',
+      title: '预演里的一个画面',
+      label: '可生成',
       icon: Clapperboard,
       tone: 'emerald' as const,
-      summary: 'CU-03 旧伞伞骨特写，纸条滑出，2 秒，切入反转。',
-      meta: '预演时间线最小单位',
+      summary: '旧伞伞骨特写，纸条从缝隙滑出，雨水打湿纸面。',
+      meta: '会出现在预演时间线里',
       slots: [
-        { label: '顺序/时长', value: '#03 / 2s' },
-        { label: '当前锚点', value: '关键帧 v2' },
-        { label: '生产状态', value: '可生成视频' },
+        { label: '位置', value: '第 3 个画面' },
+        { label: '时长', value: '2 秒' },
+        { label: '当前状态', value: '可做成视频' },
       ],
-      actions: ['拆分', '进入生产'],
+      actions: [
+        { id: 'edit-shot', label: '改画面', effect: '打开画面描述编辑器，用户调整画面、景别、运动和时长。保存后只影响这个画面，不改剧本原文。' },
+        { id: 'make-key-image', label: '生成关键图', effect: '启动生成，右侧出现“生成中”。完成后新增一张关键图候选，用户需要点击“采用”。' },
+      ],
     },
     {
-      id: 'keyframe',
-      title: '关键帧卡',
-      label: 'Keyframe',
+      id: 'key-image',
+      title: '关键图候选',
+      label: '待采用',
       icon: ImagePlus,
       tone: 'amber' as const,
       summary: '纸条从伞骨缝隙滑出，雨水打湿纸面，画面偏冷。',
-      meta: '视觉锚点，不是事实源',
+      meta: '这张图可以替换当前预演画面',
       slots: [
-        { label: '所属对象', value: 'CU-03' },
-        { label: '状态', value: '候选 2/4' },
-        { label: '落点', value: '设为当前锚点' },
+        { label: '属于', value: '第 3 个画面' },
+        { label: '候选', value: '2 / 4' },
+        { label: '清晰度', value: '纸条可读' },
       ],
-      actions: ['采用', '重生成'],
+      actions: [
+        { id: 'use-key-image', label: '采用这张', effect: '预演时间线第 3 个画面的缩略图立即换成这张图，并标记为“已采用”。其他候选保留在历史里。' },
+        { id: 'regen-key-image', label: '再生成', effect: '保留当前候选，同时基于同一画面描述再生成一组新图。用户不会丢失已生成结果。' },
+      ],
     },
     {
-      id: 'asset-requirement',
-      title: '素材需求卡',
-      label: 'AssetRequirement',
+      id: 'missing-asset',
+      title: '还缺一个素材',
+      label: '缺失',
       icon: Inbox,
       tone: 'rose' as const,
       summary: '林夏雨夜受伤状态，正面半身伤痕参考缺失。',
-      meta: '素材页的缺口管理单位',
+      meta: '缺它会影响后续生成稳定性',
       slots: [
-        { label: '需求状态', value: '缺失' },
-        { label: '候选素材', value: '0 张' },
-        { label: '作用范围', value: 'Situation 08' },
+        { label: '用于', value: '近景和半身画面' },
+        { label: '现在', value: '没有可用素材' },
+        { label: '建议', value: '上传或生成参考' },
       ],
-      actions: ['上传', '生成参考'],
+      actions: [
+        { id: 'upload-asset', label: '上传素材', effect: '打开上传弹窗。上传后素材进入“候选”，用户还需要点“锁定使用”，避免误把随手上传的图用于生成。' },
+        { id: 'make-reference', label: '生成参考', effect: '用当前人物和这一段剧情生成参考图。完成后出现在这张卡下面，等待用户选择。' },
+      ],
     },
     {
-      id: 'reference-state',
-      title: '创作资料状态卡',
-      label: 'ReferenceState',
+      id: 'character-look',
+      title: '人物当前样子',
+      label: '需保持',
       icon: Users,
       tone: 'violet' as const,
       summary: '林夏：湿透风衣、左颧擦伤、压抑愤怒、攥着旧伞。',
-      meta: '基础资料在上下文中的临时表现',
+      meta: '告诉系统这几段里人物要保持一致',
       slots: [
-        { label: '基础资料', value: '林夏' },
-        { label: '作用范围', value: 'Scene 08' },
-        { label: '连续性', value: '需锁定' },
+        { label: '人物', value: '林夏' },
+        { label: '范围', value: '接下来 3 个画面' },
+        { label: '重点', value: '伤痕和湿发' },
       ],
-      actions: ['锁定状态', '派生素材'],
+      actions: [
+        { id: 'edit-look', label: '改样子', effect: '打开人物状态编辑，用户改服装、伤痕、情绪等自然语言描述。保存后提示哪些画面会受到影响。' },
+        { id: 'lock-look', label: '保持一致', effect: '接下来相关画面生成时都会使用这个人物状态。界面显示“已保持”，但不要求用户理解底层状态对象。' },
+      ],
     },
     {
-      id: 'content-version',
-      title: '视频片段卡',
-      label: 'ContentVersion',
+      id: 'video-candidate',
+      title: '生成的视频候选',
+      label: '待选择',
       icon: Video,
       tone: 'zinc' as const,
-      summary: 'CU-03 图生视频 v1，运动自然但纸条信息不清晰。',
-      meta: '正式生产候选，不等于已采用',
+      summary: '运动自然，但纸条信息不够清晰，还不适合作为最终片段。',
+      meta: '生成完成后，需要用户决定用不用',
       slots: [
-        { label: '来源任务', value: 'WI-88' },
-        { label: '采用状态', value: '候选' },
-        { label: '替换目标', value: '预演 CU-03' },
+        { label: '属于', value: '第 3 个画面' },
+        { label: '现在', value: '只是候选' },
+        { label: '问题', value: '纸条不清楚' },
       ],
-      actions: ['设为采用', '返工'],
+      actions: [
+        { id: 'use-video', label: '用这个视频', effect: '第 3 个画面从关键图预演切换成这段视频，时间线显示“已用视频”。生成任务本身不会被当成采用决定。' },
+        { id: 'redo-video', label: '返工', effect: '打开返工说明输入框，默认带入“纸条不清楚”。提交后生成一个新候选，旧视频仍保留。' },
+      ],
     },
   ]
+  const toolCards: V2UseCaseCard[] = [
+    {
+      id: 'key-image-tool',
+      title: '关键图生成',
+      label: '工具',
+      icon: Sparkles,
+      tone: 'amber' as const,
+      summary: '读取画面描述、人物样子和素材参考，生成一组关键图候选。',
+      meta: '工具只负责生成，不负责采用',
+      slots: [
+        { label: '读取', value: '画面 / 人物 / 素材' },
+        { label: '生成', value: '关键图候选 4 张' },
+        { label: '之后', value: '用户选择采用' },
+      ],
+      actions: [
+        { id: 'run-key-image-tool', label: '生成关键图', effect: '工具读取左侧几张卡的内容，生成 4 张关键图候选。生成完成后，结果出现在“关键图候选”卡里，用户仍需点“采用这张”。' },
+      ],
+    },
+    {
+      id: 'video-tool',
+      title: '图生视频',
+      label: '工具',
+      icon: Video,
+      tone: 'zinc' as const,
+      summary: '读取已采用关键图、动作说明和时长，生成一个视频候选。',
+      meta: '采用关键图后才建议运行',
+      slots: [
+        { label: '读取', value: '已采用关键图' },
+        { label: '动作', value: '纸条滑出' },
+        { label: '生成', value: '视频候选 v1' },
+      ],
+      actions: [
+        { id: 'run-video-tool', label: '生成视频', effect: '采用关键图后，这个工具变为可运行。运行完成后，生成的视频进入“生成的视频候选”卡，用户再决定是否使用。' },
+      ],
+    },
+  ]
+  const allInteractiveItems = [...cards, ...toolCards]
+  const selectedCard = allInteractiveItems.find((card) => card.id === selectedCardId) ?? cards[0]
+  const selectedAction = selectedCard.actions.find((action) => action.id === selectedActionId) ?? selectedCard.actions[0]
+  const SelectedCardIcon = selectedCard.icon
+  const useCaseSteps = [
+    '用户发现纸条特写不清楚',
+    '检查这一段理解和人物状态',
+    '补齐伤痕参考素材',
+    '用关键图工具生成新候选',
+    '采用关键图后生成视频候选',
+  ]
+
+  function selectCard(cardId: string) {
+    const nextCard = allInteractiveItems.find((card) => card.id === cardId) ?? cards[0]
+    setSelectedCardId(cardId)
+    setSelectedActionId(nextCard.actions[0]?.id ?? '')
+  }
 
   return (
-    <div className="w-[1180px] rounded-lg border border-border bg-background text-xs shadow-sm">
-      <div className="grid h-[650px] grid-cols-[210px_minmax(0,1fr)_260px] overflow-hidden rounded-lg">
+    <div className="w-[1340px] rounded-lg border border-border bg-background text-xs shadow-sm">
+      <div className="grid h-[760px] grid-cols-[220px_minmax(0,1fr)_300px] overflow-hidden rounded-lg">
         <aside className="border-r border-border bg-card">
           <div className="border-b border-border px-3 py-3">
             <div className="flex items-center gap-2">
-              <GitBranch size={14} className="text-primary" />
-              <p className="font-semibold text-foreground">对象画布</p>
+              <Play size={14} className="text-primary" />
+              <p className="font-semibold text-foreground">具体用例</p>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              画布从具体对象进入，每张卡都要说明事实源、状态和输出落点。
+              第 3 个画面里纸条看不清，用户要重新生成关键图，再生成视频候选。
             </p>
           </div>
           <div className="space-y-2 p-3">
-            <V2CanvasMiniLane title="推荐入口" items={['情境', '内容单元', '关键帧', '素材需求', '视频片段']} />
-            <V2CanvasMiniLane title="管理入口" items={['最近画布', '模板画布', '无落点输出', '历史运行']} muted />
+            <V2CanvasMiniLane title="用户目标" items={['让纸条信息更清楚', '保持林夏受伤状态一致', '拿到可用的视频候选']} />
+            <V2CanvasMiniLane title="操作步骤" items={useCaseSteps} muted />
           </div>
           <div className="border-t border-border p-3">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">卡片原则</p>
-            <V2CanvasRule label="卡片不是数据库表" value="只露出当下决策所需字段" />
-            <V2CanvasRule label="输出必须可提交" value="保存到关键帧、素材或版本" />
-            <V2CanvasRule label="任务不拥有结果" value="任务完成后仍需采用决策" />
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">用户只需要知道</p>
+            <V2CanvasRule label="输入从哪来" value="理解、人物、素材、画面描述" />
+            <V2CanvasRule label="工具做什么" value="生成关键图 / 生成视频" />
+            <V2CanvasRule label="结果怎么用" value="采用后回到当前画面" />
           </div>
         </aside>
 
         <main className="min-w-0 overflow-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:20px_20px] p-5">
-          <div className="relative h-[600px] min-w-[690px]">
-            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 690 600" aria-hidden="true">
-              <defs>
-                <marker id="v2-card-flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-                  <path d="M0,0 L8,4 L0,8 Z" className="fill-primary" />
-                </marker>
-                <marker id="v2-card-decision-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-                  <path d="M0,0 L8,4 L0,8 Z" className="fill-emerald-500" />
-                </marker>
-              </defs>
-              <V2CanvasFlowPath d="M214 96 C260 96 274 96 320 96" label="理解编译" labelX={238} labelY={78} />
-              <V2CanvasFlowPath d="M535 96 C588 96 598 186 598 238" label="生成锚点" labelX={572} labelY={150} />
-              <V2CanvasFlowPath d="M320 198 C270 224 250 288 214 334" label="缺口牵引" labelX={236} labelY={274} />
-              <V2CanvasFlowPath d="M320 146 C268 172 250 384 214 430" label="状态约束" labelX={248} labelY={364} />
-              <V2CanvasDecisionPath d="M442 346 C488 346 504 428 530 475" label="采用为视频候选" labelX={452} labelY={404} />
-            </svg>
+          <div className="mb-4 rounded-lg border border-border bg-card px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">正在修改：第 3 个画面 · 旧伞纸条特写</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  卡片提供上下文和决策，工具负责生成；工具结果不会自动采用，必须由用户点“采用”。
+                </p>
+              </div>
+              <Button size="xs" className="h-7">播放当前预演</Button>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-card px-3 py-2">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px]">流程</span>
+                <span>这一段发生什么</span>
+                <ArrowRight size={11} />
+                <span>关键图生成</span>
+                <ArrowRight size={11} />
+                <span>关键图候选</span>
+                <ArrowRight size={11} />
+                <span>图生视频</span>
+                <ArrowRight size={11} />
+                <span>视频候选</span>
+              </div>
+            </div>
 
-            <div className="absolute left-0 top-5">
-              <V2CanvasObjectCard card={cards[0]} selected />
-            </div>
-            <div className="absolute left-[320px] top-5">
-              <V2CanvasObjectCard card={cards[1]} />
-            </div>
-            <div className="absolute left-[470px] top-[230px]">
-              <V2CanvasObjectCard card={cards[2]} compact />
-            </div>
-            <div className="absolute left-0 top-[300px]">
-              <V2CanvasObjectCard card={cards[3]} compact />
-            </div>
-            <div className="absolute left-0 top-[425px]">
-              <V2CanvasObjectCard card={cards[4]} compact />
-            </div>
-            <div className="absolute left-[390px] top-[450px]">
-              <V2CanvasObjectCard card={cards[5]} compact />
+            <div className="grid min-w-[1160px] grid-cols-[270px_270px_240px_270px] gap-4">
+              <section className="space-y-4">
+                <V2LaneTitle title="理解和约束" note="先让系统知道这一段是什么、人物要保持成什么样。" />
+                <V2CanvasObjectCard card={cards[0]} selected={selectedCardId === cards[0].id} onSelect={selectCard} onAction={setSelectedActionId} selectedActionId={selectedActionId} />
+                <V2CanvasObjectCard card={cards[4]} selected={selectedCardId === cards[4].id} compact onSelect={selectCard} onAction={setSelectedActionId} selectedActionId={selectedActionId} />
+                <V2CanvasObjectCard card={cards[3]} selected={selectedCardId === cards[3].id} compact onSelect={selectCard} onAction={setSelectedActionId} selectedActionId={selectedActionId} />
+              </section>
+
+              <section className="space-y-4">
+                <V2LaneTitle title="当前画面" note="用户真正想改的对象，点进去改画面内容，不改剧本原文。" />
+                <V2CanvasObjectCard card={cards[1]} selected={selectedCardId === cards[1].id} onSelect={selectCard} onAction={setSelectedActionId} selectedActionId={selectedActionId} />
+              </section>
+
+              <section className="space-y-4">
+                <V2LaneTitle title="生成工具" note="工具读取卡片内容，但不会直接改结果。" />
+                <V2UseCaseToolCard
+                  card={toolCards[0]}
+                  subtitle="读取画面描述、人物样子、素材参考"
+                  status="可运行"
+                  inputs={['画面描述', '人物当前样子', '旧伞 / 伤痕参考']}
+                  outputs={['关键图候选 4 张']}
+                  selected={selectedCardId === 'key-image-tool'}
+                  onSelect={selectCard}
+                  selectedActionId={selectedActionId}
+                  onAction={setSelectedActionId}
+                />
+                <V2UseCaseToolCard
+                  card={toolCards[1]}
+                  subtitle="读取已采用关键图和动作说明"
+                  status="待关键图"
+                  inputs={['已采用关键图', '2 秒时长', '纸条滑出动作']}
+                  outputs={['视频候选 v1']}
+                  selected={selectedCardId === 'video-tool'}
+                  onSelect={selectCard}
+                  selectedActionId={selectedActionId}
+                  onAction={setSelectedActionId}
+                />
+              </section>
+
+              <section className="space-y-4">
+                <V2LaneTitle title="结果候选" note="工具跑完后，结果先落到这里，用户再决定要不要采用。" />
+                <V2CanvasObjectCard card={cards[2]} selected={selectedCardId === cards[2].id} compact onSelect={selectCard} onAction={setSelectedActionId} selectedActionId={selectedActionId} />
+                <V2CanvasObjectCard card={cards[5]} selected={selectedCardId === cards[5].id} compact onSelect={selectCard} onAction={setSelectedActionId} selectedActionId={selectedActionId} />
+              </section>
             </div>
           </div>
         </main>
 
         <aside className="border-l border-border bg-card">
           <div className="border-b border-border px-3 py-3">
-            <p className="font-semibold text-foreground">卡片清单</p>
+            <p className="font-semibold text-foreground">点击后发生什么</p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              第一版建议先做 8 类，覆盖从预演到生产的闭环。
+              原型里点卡片或按钮，右侧说明用户会看到的反馈。
             </p>
           </div>
           <div className="space-y-3 p-3">
-            <V2CanvasCardChecklist title="创作事实卡" items={['ScriptSection 原文节', 'Situation 情境', 'StoryboardLine 分镜稿', 'ContentUnit 内容单元']} />
-            <V2CanvasCardChecklist title="生产承接卡" items={['Keyframe 关键帧', 'AssetRequirement 素材需求', 'ContentVersion 视频片段', 'WorkItem 执行任务']} />
+            <section className="rounded-lg border border-border bg-background px-3 py-3">
+              <div className="flex items-center gap-2">
+                <SelectedCardIcon size={14} className={V2_CANVAS_CARD_TONES[selectedCard.tone].text} />
+                <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{selectedCard.title}</p>
+                <span className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">{selectedCard.label}</span>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{selectedCard.summary}</p>
+              <div className="mt-2 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] text-muted-foreground">
+                点这张卡：右侧打开它的详情，主画布高亮它和相关连线。卡片负责上下文、判断和采用，工具负责生成。
+              </div>
+            </section>
             <section>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">右侧面板承担</p>
-              <V2CanvasRule label="完整字段" value="卡片只显示摘要" />
-              <V2CanvasRule label="版本历史" value="对比和回滚放详情" />
-              <V2CanvasRule label="权限/审计" value="不挤在卡面上" />
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">这个按钮的效果</p>
+              <div className="rounded-lg border border-primary/25 bg-primary/10 px-3 py-3">
+                <p className="text-xs font-semibold text-foreground">{selectedAction.label}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{selectedAction.effect}</p>
+              </div>
+            </section>
+            <V2CanvasCardChecklist title="原型里的可点击点" items={cards.flatMap((card) => [card.title, ...card.actions.map((action) => action.label)])} />
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">后台才关心</p>
+              <V2CanvasRule label="保存位置" value="系统自动记，不展示术语" />
+              <V2CanvasRule label="生成记录" value="放历史和审计里" />
+              <V2CanvasRule label="内部对象" value="调试模式再显示" />
             </section>
           </div>
         </aside>
@@ -2428,32 +2585,248 @@ function V2CanvasCardsPreviewCanvas() {
 
 type V2CanvasCardTone = 'sky' | 'emerald' | 'amber' | 'rose' | 'violet' | 'zinc'
 
+type V2UseCaseCard = {
+  id: string
+  title: string
+  label: string
+  icon: ElementType
+  tone: V2CanvasCardTone
+  summary: string
+  meta: string
+  slots: Array<{ label: string; value: string }>
+  actions: Array<{ id: string; label: string; effect: string }>
+}
+
+function V2CanvasInsertPreviewCanvas() {
+  const [selectedLibraryCardId, setSelectedLibraryCardId] = useState('scene-card')
+  const [selectedCanvasSlotId, setSelectedCanvasSlotId] = useState('slot-shot')
+  const [lastInsertedCardId, setLastInsertedCardId] = useState<string | null>('shot-card')
+
+  const libraryCards = [
+    {
+      id: 'scene-card',
+      title: '这一段发生什么',
+      label: '理解卡',
+      tone: 'sky' as const,
+      summary: '雨夜老城区窄巷，林夏与顾言对峙，纸条即将出现。',
+      badge: '适合先放入画布',
+      action: '加入到画布',
+    },
+    {
+      id: 'shot-card',
+      title: '预演里的一个画面',
+      label: '画面卡',
+      tone: 'emerald' as const,
+      summary: '旧伞纸条特写，2 秒，等待关键图和视频候选。',
+      badge: '最常放入画布',
+      action: '加入到画布',
+    },
+    {
+      id: 'asset-card',
+      title: '还缺一个素材',
+      label: '素材卡',
+      tone: 'rose' as const,
+      summary: '伤痕参考缺失，需要先补齐再做近景。',
+      badge: '适合先补素材',
+      action: '加入到画布',
+    },
+    {
+      id: 'tool-card',
+      title: '关键图生成',
+      label: '工具卡',
+      tone: 'amber' as const,
+      summary: '读取画面描述、人物样子和素材参考，生成关键图候选。',
+      badge: '加入后可直接生成',
+      action: '加入到画布',
+    },
+  ] as const
+
+  const canvasSlots = [
+    { id: 'slot-understanding', title: '上方空位', note: '放理解和约束' },
+    { id: 'slot-shot', title: '中间空位', note: '放当前画面' },
+    { id: 'slot-tool', title: '右侧空位', note: '放工具' },
+    { id: 'slot-result', title: '结果区', note: '放关键图 / 视频候选' },
+  ]
+
+  const selectedLibraryCard = libraryCards.find((card) => card.id === selectedLibraryCardId) ?? libraryCards[0]
+  const selectedCanvasSlot = canvasSlots.find((slot) => slot.id === selectedCanvasSlotId) ?? canvasSlots[0]
+
+  return (
+    <div className="w-[1360px] rounded-lg border border-border bg-background text-xs shadow-sm">
+      <div className="grid h-[760px] grid-cols-[250px_minmax(0,1fr)_310px] overflow-hidden rounded-lg">
+        <aside className="border-r border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2">
+              <Plus size={14} className="text-primary" />
+              <p className="font-semibold text-foreground">从卡片库加入</p>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              用户先选一个卡片，再点“加入到画布”。
+            </p>
+          </div>
+          <div className="space-y-2 p-3">
+            {libraryCards.map((card) => (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => {
+                  setSelectedLibraryCardId(card.id)
+                  setLastInsertedCardId(card.id)
+                }}
+                className={cn(
+                  'w-full rounded-lg border px-3 py-3 text-left transition-colors',
+                  selectedLibraryCardId === card.id ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-muted/50',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">{card.title}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">{card.label}</p>
+                  </div>
+                  <span className={cn('rounded px-1.5 py-0.5 text-[9px]', selectedLibraryCardId === card.id ? 'bg-background text-foreground' : 'bg-muted text-muted-foreground')}>
+                    {card.badge}
+                  </span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{card.summary}</p>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main className="min-w-0 overflow-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:20px_20px] p-5">
+          <div className="mb-4 rounded-lg border border-border bg-card px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">把卡片加入画布</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  先选左侧卡片，再点中间的一个空位，卡片就会出现在画布里。
+                </p>
+              </div>
+              <Button size="xs" className="h-7">清空画布</Button>
+            </div>
+          </div>
+
+          <div className="grid min-w-[960px] grid-cols-[220px_minmax(0,1fr)] gap-4">
+            <div className="space-y-4">
+              <V2LaneTitle title="步骤 1" note="先选卡片" />
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-xs font-semibold text-foreground">{selectedLibraryCard.title}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{selectedLibraryCard.summary}</p>
+                <div className="mt-3 rounded-md border border-border bg-background px-2 py-2 text-[11px] text-muted-foreground">
+                  点击后会选中这张卡，再把它加入中间画布。
+                </div>
+              </div>
+
+              <V2LaneTitle title="步骤 2" note="再点“加入到画布”" />
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-xs font-semibold text-foreground">加入按钮</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">按钮会把当前卡片放进你在中间选中的空位。</p>
+                <Button
+                  size="sm"
+                  className="mt-3 h-8 w-full justify-center"
+                  onClick={() => setLastInsertedCardId(selectedLibraryCard.id)}
+                >
+                  <Plus size={13} />
+                  {selectedLibraryCard.action}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <V2LaneTitle title="步骤 3" note="在中间点一个空位" />
+              <div className="grid grid-cols-2 gap-3">
+                {canvasSlots.map((slot) => (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    onClick={() => setSelectedCanvasSlotId(slot.id)}
+                    className={cn(
+                      'min-h-[128px] rounded-lg border p-3 text-left transition-colors',
+                      selectedCanvasSlotId === slot.id ? 'border-primary bg-primary/10' : 'border-dashed border-border bg-background hover:bg-muted/40',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-foreground">{slot.title}</p>
+                      <span className="rounded border border-border bg-card px-1.5 py-0.5 text-[9px] text-muted-foreground">{slot.note}</span>
+                    </div>
+                    <div className="mt-3 flex h-16 items-center justify-center rounded-md border border-border bg-card px-3 text-[11px] text-muted-foreground">
+                      {lastInsertedCardId && selectedCanvasSlotId === slot.id ? (
+                        <div className="text-center">
+                          <p className="font-semibold text-foreground">{libraryCards.find((card) => card.id === lastInsertedCardId)?.title}</p>
+                          <p className="mt-1 text-[10px] text-muted-foreground">已加入这个空位</p>
+                        </div>
+                      ) : (
+                        <span>点击后可放入卡片</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside className="border-l border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <p className="font-semibold text-foreground">加入后发生什么</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              右侧只解释用户能看懂的变化，不讲内部对象名。
+            </p>
+          </div>
+          <div className="space-y-3 p-3">
+            <section className="rounded-lg border border-border bg-background px-3 py-3">
+              <p className="text-xs font-semibold text-foreground">{selectedLibraryCard.title}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{selectedLibraryCard.summary}</p>
+              <div className="mt-2 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] text-muted-foreground">
+                加入后会出现在你选中的“{selectedCanvasSlot.title}”。
+              </div>
+            </section>
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">加入后效果</p>
+              <V2CanvasRule label="卡片状态" value="出现在画布里，可继续点选" />
+              <V2CanvasRule label="右侧反馈" value="显示当前卡片可以做什么" />
+              <V2CanvasRule label="后续动作" value="生成关键图、补素材、生成视频" />
+            </section>
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">如果再点一次</p>
+              <V2CanvasRule label="同类卡片" value="会替换或新增到当前画布区" />
+              <V2CanvasRule label="不同卡片" value="可以放到别的空位" />
+            </section>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
 function V2CanvasObjectCard({
   card,
   selected,
   compact,
+  selectedActionId,
+  onSelect,
+  onAction,
 }: {
-  card: {
-    id: string
-    title: string
-    label: string
-    icon: ElementType
-    tone: V2CanvasCardTone
-    summary: string
-    meta: string
-    slots: Array<{ label: string; value: string }>
-    actions: string[]
-  }
+  card: V2UseCaseCard
   selected?: boolean
   compact?: boolean
+  selectedActionId?: string
+  onSelect?: (cardId: string) => void
+  onAction?: (actionId: string) => void
 }) {
   const Icon = card.icon
   const tone = V2_CANVAS_CARD_TONES[card.tone]
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect?.(card.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onSelect?.(card.id)
+      }}
       className={cn(
-        'relative overflow-visible rounded-lg border bg-card shadow-sm transition-all',
+        'relative overflow-visible rounded-lg border bg-card text-left shadow-sm transition-all',
         compact ? 'w-[250px]' : 'w-[270px]',
         selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
       )}
@@ -2489,16 +2862,131 @@ function V2CanvasObjectCard({
         <div className="grid grid-cols-2 gap-1.5">
           {card.actions.map((action) => (
             <button
-              key={action}
+              key={action.id}
               type="button"
-              className="relative flex h-7 items-center justify-center rounded-md border border-border bg-muted/30 px-2 text-[10px] font-medium text-foreground hover:bg-muted"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect?.(card.id)
+                onAction?.(action.id)
+              }}
+              className={cn(
+                'relative flex h-7 items-center justify-center rounded-md border px-2 text-[10px] font-medium hover:bg-muted',
+                selectedActionId === action.id && selected
+                  ? 'border-primary bg-primary/10 text-foreground'
+                  : 'border-border bg-muted/30 text-foreground',
+              )}
             >
-              {action}
+              {action.label}
               <V2CanvasPort side="right" tone="source" compact />
             </button>
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function V2UseCaseToolCard({
+  card,
+  subtitle,
+  status,
+  inputs,
+  outputs,
+  selected,
+  selectedActionId,
+  onSelect,
+  onAction,
+}: {
+  card: V2UseCaseCard
+  subtitle: string
+  status: string
+  inputs: string[]
+  outputs: string[]
+  selected?: boolean
+  selectedActionId?: string
+  onSelect?: (cardId: string) => void
+  onAction?: (actionId: string) => void
+}) {
+  const Icon = card.icon
+  const tone = V2_CANVAS_CARD_TONES[card.tone]
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect?.(card.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onSelect?.(card.id)
+      }}
+      className={cn(
+        'relative w-[220px] overflow-visible rounded-lg border bg-card text-left shadow-sm transition-all',
+        selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
+      )}
+    >
+      <V2CanvasPort side="left" tone="target" className="top-[38px]" />
+      <V2CanvasPort side="right" tone="source" className="top-[38px]" />
+      <header className={cn('border-b px-3 py-2.5', tone.bg)}>
+        <div className="flex items-start gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/85">
+            <Icon size={15} className={tone.text} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{card.title}</p>
+              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[9px] text-muted-foreground">{status}</span>
+            </div>
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
+      </header>
+      <div className="space-y-2 px-3 py-2.5">
+        <V2UseCaseToolSection title="读取" items={inputs} />
+        <V2UseCaseToolSection title="生成" items={outputs} />
+        {card.actions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelect?.(card.id)
+              onAction?.(action.id)
+            }}
+            className={cn(
+              'relative flex h-7 w-full items-center justify-center rounded-md border px-2 text-[10px] font-medium hover:bg-muted',
+              selectedActionId === action.id && selected
+                ? 'border-primary bg-primary/10 text-foreground'
+                : 'border-border bg-muted/30 text-foreground',
+            )}
+          >
+            {action.label}
+            <V2CanvasPort side="right" tone="source" compact />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function V2UseCaseToolSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-medium text-muted-foreground">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <div key={item} className="rounded-md border border-border bg-background px-2 py-1 text-[10px] text-foreground">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function V2LaneTitle({ title, note }: { title: string; note: string }) {
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2">
+      <p className="text-xs font-semibold text-foreground">{title}</p>
+      <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{note}</p>
     </div>
   )
 }

@@ -125,6 +125,12 @@ type StoryboardSuggestion struct {
 	DurationSeconds float64 `json:"duration_seconds"`
 	Status          string  `json:"status"`
 	AdoptionIntent  string  `json:"adoption_intent"`
+	AdoptionStatus  string  `json:"adoption_status,omitempty"`
+}
+
+type StoryboardSuggestionDecisionRequest struct {
+	DraftID            string `json:"draft_id"`
+	SuggestionClientID string `json:"suggestion_client_id"`
 }
 
 type GeneratePreviewRequest struct {
@@ -150,11 +156,12 @@ type PreviewCandidateData struct {
 }
 
 type KeyframeCandidate struct {
-	ClientID      string `json:"client_id"`
-	StoryboardRow string `json:"storyboard_row_client_id"`
-	Prompt        string `json:"prompt"`
-	VisualAnchor  string `json:"visual_anchor"`
-	Status        string `json:"status"`
+	ClientID       string `json:"client_id"`
+	StoryboardRow  string `json:"storyboard_row_client_id"`
+	Prompt         string `json:"prompt"`
+	VisualAnchor   string `json:"visual_anchor"`
+	Status         string `json:"status"`
+	DecisionStatus string `json:"decision_status,omitempty"`
 }
 
 type PreviewTimelineItem struct {
@@ -167,6 +174,7 @@ type PreviewTimelineItem struct {
 	EndSeconds                float64 `json:"end_seconds"`
 	Label                     string  `json:"label"`
 	Status                    string  `json:"status"`
+	ConfirmationStatus        string  `json:"confirmation_status,omitempty"`
 }
 
 type AssetGap struct {
@@ -176,6 +184,16 @@ type AssetGap struct {
 	Description           string `json:"description"`
 	Priority              string `json:"priority"`
 	Status                string `json:"status"`
+}
+
+type KeyframeCandidateDecisionRequest struct {
+	DraftID                   string `json:"draft_id"`
+	KeyframeCandidateClientID string `json:"keyframe_candidate_client_id"`
+}
+
+type AssetGapDecisionRequest struct {
+	DraftID          string `json:"draft_id"`
+	AssetGapClientID string `json:"asset_gap_client_id"`
 }
 
 func (s *Service) SaveDraft(projectID uint, req SaveDraftRequest) (SaveDraftResponse, error) {
@@ -206,11 +224,13 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 		Status:               "draft",
 		NextActions:          []string{"analyze_script_to_sections", "generate_keyframes_for_preview"},
 		Draft: DraftPayloadResponse{
-			ProjectID:       projectID,
-			SourceText:      req.SourceText,
-			ScriptVersion:   req.ScriptVersion,
-			StoryboardRows:  req.StoryboardRows,
-			PreviewTimeline: req.PreviewTimeline,
+			ProjectID:          projectID,
+			SourceText:         req.SourceText,
+			ScriptVersion:      req.ScriptVersion,
+			StoryboardRows:     req.StoryboardRows,
+			PreviewTimeline:    req.PreviewTimeline,
+			AnalysisCandidates: req.AnalysisCandidates,
+			PreviewCandidates:  req.PreviewCandidates,
 		},
 	}
 	if s.store != nil {
@@ -328,6 +348,7 @@ func (s *Service) AnalyzeWithContext(ctx context.Context, projectID uint, req An
 			DurationSeconds: 6 + float64(order%3)*2,
 			Status:          "待确认",
 			AdoptionIntent:  "append_storyboard_row",
+			AdoptionStatus:  "pending",
 		})
 	}
 
@@ -343,6 +364,97 @@ func (s *Service) AnalyzeWithContext(ctx context.Context, projectID uint, req An
 		return AnalyzeResponse{}, err
 	}
 	return resp, nil
+}
+
+func (s *Service) AcceptStoryboardSuggestion(projectID uint, req StoryboardSuggestionDecisionRequest) (SaveDraftResponse, error) {
+	return s.AcceptStoryboardSuggestionWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) AcceptStoryboardSuggestionWithContext(ctx context.Context, projectID uint, req StoryboardSuggestionDecisionRequest) (SaveDraftResponse, error) {
+	if projectID == 0 {
+		return SaveDraftResponse{}, fmt.Errorf("project id is required")
+	}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	req.SuggestionClientID = strings.TrimSpace(req.SuggestionClientID)
+	if req.DraftID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("draft id is required")
+	}
+	if req.SuggestionClientID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("suggestion client id is required")
+	}
+	if s.store == nil {
+		return SaveDraftResponse{}, fmt.Errorf("draft store is required")
+	}
+
+	return s.updateDraftSnapshotAndReturn(ctx, projectID, req.DraftID, func(draft *DraftPayloadResponse) error {
+		if draft.AnalysisCandidates == nil {
+			return fmt.Errorf("analysis candidates are required before accepting suggestion")
+		}
+		for i := range draft.AnalysisCandidates.Suggestions {
+			suggestion := &draft.AnalysisCandidates.Suggestions[i]
+			if suggestion.ClientID != req.SuggestionClientID {
+				continue
+			}
+			if suggestion.AdoptionStatus == "rejected" {
+				return fmt.Errorf("suggestion has already been rejected")
+			}
+			if suggestion.AdoptionStatus != "accepted" {
+				draft.StoryboardRows = append(draft.StoryboardRows, StoryboardRow{
+					ClientID:        nextStoryboardRowID(draft.StoryboardRows),
+					Order:           len(draft.StoryboardRows) + 1,
+					Title:           suggestion.Title,
+					Body:            suggestion.Body,
+					DurationSeconds: suggestion.DurationSeconds,
+					Status:          suggestion.Status,
+				})
+				suggestion.AdoptionStatus = "accepted"
+			}
+			draft.StoryboardRows = normalizeRows(draft.StoryboardRows)
+			draft.PreviewTimeline = buildTimelineInput(draft.StoryboardRows)
+			draft.PreviewCandidates = nil
+			return nil
+		}
+		return fmt.Errorf("storyboard suggestion not found")
+	})
+}
+
+func (s *Service) RejectStoryboardSuggestion(projectID uint, req StoryboardSuggestionDecisionRequest) (SaveDraftResponse, error) {
+	return s.RejectStoryboardSuggestionWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) RejectStoryboardSuggestionWithContext(ctx context.Context, projectID uint, req StoryboardSuggestionDecisionRequest) (SaveDraftResponse, error) {
+	if projectID == 0 {
+		return SaveDraftResponse{}, fmt.Errorf("project id is required")
+	}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	req.SuggestionClientID = strings.TrimSpace(req.SuggestionClientID)
+	if req.DraftID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("draft id is required")
+	}
+	if req.SuggestionClientID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("suggestion client id is required")
+	}
+	if s.store == nil {
+		return SaveDraftResponse{}, fmt.Errorf("draft store is required")
+	}
+
+	return s.updateDraftSnapshotAndReturn(ctx, projectID, req.DraftID, func(draft *DraftPayloadResponse) error {
+		if draft.AnalysisCandidates == nil {
+			return fmt.Errorf("analysis candidates are required before rejecting suggestion")
+		}
+		for i := range draft.AnalysisCandidates.Suggestions {
+			suggestion := &draft.AnalysisCandidates.Suggestions[i]
+			if suggestion.ClientID != req.SuggestionClientID {
+				continue
+			}
+			if suggestion.AdoptionStatus == "accepted" {
+				return fmt.Errorf("suggestion has already been accepted")
+			}
+			suggestion.AdoptionStatus = "rejected"
+			return nil
+		}
+		return fmt.Errorf("storyboard suggestion not found")
+	})
 }
 
 func (s *Service) GeneratePreview(projectID uint, req GeneratePreviewRequest) (GeneratePreviewResponse, error) {
@@ -378,11 +490,12 @@ func (s *Service) GeneratePreviewWithContext(ctx context.Context, projectID uint
 			})
 		}
 		candidates = append(candidates, KeyframeCandidate{
-			ClientID:      candidateID,
-			StoryboardRow: row.ClientID,
-			Prompt:        buildPrompt(row),
-			VisualAnchor:  fmt.Sprintf("%s的关键画面", fallback(row.Title, "片段")),
-			Status:        status,
+			ClientID:       candidateID,
+			StoryboardRow:  row.ClientID,
+			Prompt:         buildPrompt(row),
+			VisualAnchor:   fmt.Sprintf("%s的关键画面", fallback(row.Title, "片段")),
+			Status:         status,
+			DecisionStatus: "pending",
 		})
 		duration := row.DurationSeconds
 		timeline = append(timeline, PreviewTimelineItem{
@@ -395,6 +508,7 @@ func (s *Service) GeneratePreviewWithContext(ctx context.Context, projectID uint
 			EndSeconds:                cursor + duration,
 			Label:                     fallback(row.Title, fmt.Sprintf("片段 %d", order)),
 			Status:                    previewStatus(row.Status),
+			ConfirmationStatus:        "pending",
 		})
 		cursor += duration
 	}
@@ -411,6 +525,162 @@ func (s *Service) GeneratePreviewWithContext(ctx context.Context, projectID uint
 		return GeneratePreviewResponse{}, err
 	}
 	return resp, nil
+}
+
+func (s *Service) AcceptKeyframeCandidate(projectID uint, req KeyframeCandidateDecisionRequest) (SaveDraftResponse, error) {
+	return s.AcceptKeyframeCandidateWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) AcceptKeyframeCandidateWithContext(ctx context.Context, projectID uint, req KeyframeCandidateDecisionRequest) (SaveDraftResponse, error) {
+	if projectID == 0 {
+		return SaveDraftResponse{}, fmt.Errorf("project id is required")
+	}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	req.KeyframeCandidateClientID = strings.TrimSpace(req.KeyframeCandidateClientID)
+	if req.DraftID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("draft id is required")
+	}
+	if req.KeyframeCandidateClientID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("keyframe candidate client id is required")
+	}
+	if s.store == nil {
+		return SaveDraftResponse{}, fmt.Errorf("draft store is required")
+	}
+
+	return s.updateDraftSnapshotAndReturn(ctx, projectID, req.DraftID, func(draft *DraftPayloadResponse) error {
+		if draft.PreviewCandidates == nil {
+			return fmt.Errorf("preview candidates are required before accepting keyframe candidate")
+		}
+		for i := range draft.PreviewCandidates.KeyframeCandidates {
+			candidate := &draft.PreviewCandidates.KeyframeCandidates[i]
+			if candidate.ClientID != req.KeyframeCandidateClientID {
+				continue
+			}
+			if candidate.DecisionStatus == "rejected" {
+				return fmt.Errorf("keyframe candidate has already been rejected")
+			}
+			candidate.DecisionStatus = "accepted"
+			markTimelineKeyframeDecision(draft.PreviewCandidates.PreviewTimeline, req.KeyframeCandidateClientID, "accepted")
+			return nil
+		}
+		return fmt.Errorf("keyframe candidate not found")
+	})
+}
+
+func (s *Service) RejectKeyframeCandidate(projectID uint, req KeyframeCandidateDecisionRequest) (SaveDraftResponse, error) {
+	return s.RejectKeyframeCandidateWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) RejectKeyframeCandidateWithContext(ctx context.Context, projectID uint, req KeyframeCandidateDecisionRequest) (SaveDraftResponse, error) {
+	if projectID == 0 {
+		return SaveDraftResponse{}, fmt.Errorf("project id is required")
+	}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	req.KeyframeCandidateClientID = strings.TrimSpace(req.KeyframeCandidateClientID)
+	if req.DraftID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("draft id is required")
+	}
+	if req.KeyframeCandidateClientID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("keyframe candidate client id is required")
+	}
+	if s.store == nil {
+		return SaveDraftResponse{}, fmt.Errorf("draft store is required")
+	}
+
+	return s.updateDraftSnapshotAndReturn(ctx, projectID, req.DraftID, func(draft *DraftPayloadResponse) error {
+		if draft.PreviewCandidates == nil {
+			return fmt.Errorf("preview candidates are required before rejecting keyframe candidate")
+		}
+		for i := range draft.PreviewCandidates.KeyframeCandidates {
+			candidate := &draft.PreviewCandidates.KeyframeCandidates[i]
+			if candidate.ClientID != req.KeyframeCandidateClientID {
+				continue
+			}
+			if candidate.DecisionStatus == "accepted" {
+				return fmt.Errorf("keyframe candidate has already been accepted")
+			}
+			candidate.DecisionStatus = "rejected"
+			markTimelineKeyframeDecision(draft.PreviewCandidates.PreviewTimeline, req.KeyframeCandidateClientID, "rejected")
+			return nil
+		}
+		return fmt.Errorf("keyframe candidate not found")
+	})
+}
+
+func (s *Service) AcceptAssetGap(projectID uint, req AssetGapDecisionRequest) (SaveDraftResponse, error) {
+	return s.AcceptAssetGapWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) AcceptAssetGapWithContext(ctx context.Context, projectID uint, req AssetGapDecisionRequest) (SaveDraftResponse, error) {
+	return s.updateAssetGapDecision(ctx, projectID, req, "accepted")
+}
+
+func (s *Service) ResolveAssetGap(projectID uint, req AssetGapDecisionRequest) (SaveDraftResponse, error) {
+	return s.ResolveAssetGapWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) ResolveAssetGapWithContext(ctx context.Context, projectID uint, req AssetGapDecisionRequest) (SaveDraftResponse, error) {
+	return s.updateAssetGapDecision(ctx, projectID, req, "resolved")
+}
+
+func (s *Service) RejectAssetGap(projectID uint, req AssetGapDecisionRequest) (SaveDraftResponse, error) {
+	return s.RejectAssetGapWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) RejectAssetGapWithContext(ctx context.Context, projectID uint, req AssetGapDecisionRequest) (SaveDraftResponse, error) {
+	return s.updateAssetGapDecision(ctx, projectID, req, "rejected")
+}
+
+func (s *Service) updateAssetGapDecision(ctx context.Context, projectID uint, req AssetGapDecisionRequest, nextStatus string) (SaveDraftResponse, error) {
+	if projectID == 0 {
+		return SaveDraftResponse{}, fmt.Errorf("project id is required")
+	}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	req.AssetGapClientID = strings.TrimSpace(req.AssetGapClientID)
+	if req.DraftID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("draft id is required")
+	}
+	if req.AssetGapClientID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("asset gap client id is required")
+	}
+	if s.store == nil {
+		return SaveDraftResponse{}, fmt.Errorf("draft store is required")
+	}
+
+	return s.updateDraftSnapshotAndReturn(ctx, projectID, req.DraftID, func(draft *DraftPayloadResponse) error {
+		if draft.PreviewCandidates == nil {
+			return fmt.Errorf("preview candidates are required before updating asset gap")
+		}
+		for i := range draft.PreviewCandidates.AssetGaps {
+			gap := &draft.PreviewCandidates.AssetGaps[i]
+			if gap.ClientID != req.AssetGapClientID {
+				continue
+			}
+			switch nextStatus {
+			case "accepted":
+				if gap.Status == "rejected" {
+					return fmt.Errorf("asset gap has already been rejected")
+				}
+				if gap.Status != "resolved" {
+					gap.Status = "accepted"
+				}
+			case "resolved":
+				if gap.Status == "rejected" {
+					return fmt.Errorf("asset gap has already been rejected")
+				}
+				gap.Status = "resolved"
+			case "rejected":
+				if gap.Status == "resolved" {
+					return fmt.Errorf("asset gap has already been resolved")
+				}
+				gap.Status = "rejected"
+			default:
+				return fmt.Errorf("unsupported asset gap status")
+			}
+			return nil
+		}
+		return fmt.Errorf("asset gap not found")
+	})
 }
 
 func (s *Service) saveAnalysisCandidates(ctx context.Context, projectID uint, resp AnalyzeResponse) error {
@@ -473,6 +743,63 @@ func (s *Service) updateDraftSnapshot(ctx context.Context, projectID uint, draft
 	return s.store.SaveDraftSnapshot(ctx, snapshot)
 }
 
+func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID uint, draftID string, mutate func(*DraftPayloadResponse) error) (SaveDraftResponse, error) {
+	snapshot, err := s.store.GetDraftSnapshot(ctx, projectID, draftID)
+	if err != nil {
+		if err == ErrDraftNotFound {
+			return SaveDraftResponse{}, fmt.Errorf("saved draft is required before updating draft candidates")
+		}
+		return SaveDraftResponse{}, fmt.Errorf("load draft snapshot: %w", err)
+	}
+	var draft DraftPayloadResponse
+	if err := json.Unmarshal([]byte(snapshot.SnapshotJSON), &draft); err != nil {
+		return SaveDraftResponse{}, fmt.Errorf("decode draft snapshot: %w", err)
+	}
+	draft.ProjectID = projectID
+	if draft.ScriptVersion.DraftID == "" {
+		draft.ScriptVersion.DraftID = snapshot.DraftID
+	}
+	if err := mutate(&draft); err != nil {
+		return SaveDraftResponse{}, err
+	}
+	snapshotJSON, err := json.Marshal(draft)
+	if err != nil {
+		return SaveDraftResponse{}, fmt.Errorf("encode draft snapshot: %w", err)
+	}
+	snapshot.Title = fallback(draft.ScriptVersion.Title, snapshot.Title)
+	snapshot.SourceType = fallback(draft.ScriptVersion.SourceType, snapshot.SourceType)
+	snapshot.SourceText = draft.SourceText
+	snapshot.SnapshotJSON = string(snapshotJSON)
+	snapshot.DurationSec = timelineDuration(draft.PreviewTimeline)
+	snapshot.SavedAt = s.now().Format(time.RFC3339)
+	if err := s.store.SaveDraftSnapshot(ctx, snapshot); err != nil {
+		return SaveDraftResponse{}, fmt.Errorf("save draft snapshot: %w", err)
+	}
+	return saveDraftResponseFromSnapshot(projectID, snapshot, draft), nil
+}
+
+func saveDraftResponseFromSnapshot(projectID uint, snapshot DraftSnapshot, draft DraftPayloadResponse) SaveDraftResponse {
+	draft.ProjectID = projectID
+	if draft.ScriptVersion.DraftID == "" {
+		draft.ScriptVersion.DraftID = snapshot.DraftID
+	}
+	if draft.ScriptVersion.Title == "" {
+		draft.ScriptVersion.Title = snapshot.Title
+	}
+	if draft.ScriptVersion.SourceType == "" {
+		draft.ScriptVersion.SourceType = snapshot.SourceType
+	}
+	return SaveDraftResponse{
+		DraftID:              snapshot.DraftID,
+		StoryboardRevisionID: snapshot.StoryboardRevisionID,
+		PreviewTimelineID:    snapshot.PreviewTimelineID,
+		SavedAt:              snapshot.SavedAt,
+		Status:               fallback(snapshot.Status, "draft"),
+		NextActions:          []string{"analyze_script_to_sections", "generate_keyframes_for_preview"},
+		Draft:                draft,
+	}
+}
+
 func normalizeRows(rows []StoryboardRow) []StoryboardRow {
 	out := make([]StoryboardRow, 0, len(rows))
 	for i, row := range rows {
@@ -507,6 +834,18 @@ func buildTimelineInput(rows []StoryboardRow) []PreviewTimelineIn {
 		cursor += row.DurationSeconds
 	}
 	return items
+}
+
+func nextStoryboardRowID(rows []StoryboardRow) string {
+	return fmt.Sprintf("%02d", len(rows)+1)
+}
+
+func markTimelineKeyframeDecision(items []PreviewTimelineItem, keyframeCandidateClientID string, decisionStatus string) {
+	for i := range items {
+		if items[i].KeyframeCandidateClientID == keyframeCandidateClientID {
+			items[i].ConfirmationStatus = decisionStatus
+		}
+	}
 }
 
 func previewTimelineItemsToInput(items []PreviewTimelineItem) []PreviewTimelineIn {

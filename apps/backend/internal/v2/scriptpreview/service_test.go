@@ -235,6 +235,319 @@ func TestServiceGeneratePreviewPersistsCandidatesIntoDraftSnapshot(t *testing.T)
 	}
 }
 
+func TestServiceAcceptStoryboardSuggestionPersistsDecisionAndRows(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	svc.now = func() time.Time {
+		return time.Date(2026, 5, 1, 12, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "采纳草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "已有片段", Body: "A", DurationSeconds: 8, Status: "待确认"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.Analyze(1, AnalyzeRequest{
+		DraftID:    "draft-1",
+		SourceText: "新增建议",
+	})
+	if err != nil {
+		t.Fatalf("Analyze returned error: %v", err)
+	}
+
+	resp, err := svc.AcceptStoryboardSuggestion(1, StoryboardSuggestionDecisionRequest{
+		DraftID:            "draft-1",
+		SuggestionClientID: "suggestion-001",
+	})
+	if err != nil {
+		t.Fatalf("AcceptStoryboardSuggestion returned error: %v", err)
+	}
+	if len(resp.Draft.StoryboardRows) != 2 {
+		t.Fatalf("storyboard row len = %d, want 2", len(resp.Draft.StoryboardRows))
+	}
+	if resp.Draft.StoryboardRows[1].Title != "新增建议" {
+		t.Fatalf("accepted row title = %q", resp.Draft.StoryboardRows[1].Title)
+	}
+	if got := resp.Draft.AnalysisCandidates.Suggestions[0].AdoptionStatus; got != "accepted" {
+		t.Fatalf("adoption status = %q, want accepted", got)
+	}
+
+	loaded, err := svc.GetLatestDraft(1)
+	if err != nil {
+		t.Fatalf("GetLatestDraft returned error: %v", err)
+	}
+	if len(loaded.Draft.Draft.StoryboardRows) != 2 {
+		t.Fatalf("loaded storyboard row len = %d, want 2", len(loaded.Draft.Draft.StoryboardRows))
+	}
+	if got := loaded.Draft.Draft.AnalysisCandidates.Suggestions[0].AdoptionStatus; got != "accepted" {
+		t.Fatalf("loaded adoption status = %q, want accepted", got)
+	}
+}
+
+func TestServiceRejectStoryboardSuggestionPersistsDecisionWithoutAppending(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "拒绝草稿",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.Analyze(1, AnalyzeRequest{
+		DraftID:    "draft-1",
+		SourceText: "不采用建议",
+	})
+	if err != nil {
+		t.Fatalf("Analyze returned error: %v", err)
+	}
+
+	resp, err := svc.RejectStoryboardSuggestion(1, StoryboardSuggestionDecisionRequest{
+		DraftID:            "draft-1",
+		SuggestionClientID: "suggestion-001",
+	})
+	if err != nil {
+		t.Fatalf("RejectStoryboardSuggestion returned error: %v", err)
+	}
+	if len(resp.Draft.StoryboardRows) != 0 {
+		t.Fatalf("storyboard row len = %d, want 0", len(resp.Draft.StoryboardRows))
+	}
+	if got := resp.Draft.AnalysisCandidates.Suggestions[0].AdoptionStatus; got != "rejected" {
+		t.Fatalf("adoption status = %q, want rejected", got)
+	}
+
+	_, err = svc.AcceptStoryboardSuggestion(1, StoryboardSuggestionDecisionRequest{
+		DraftID:            "draft-1",
+		SuggestionClientID: "suggestion-001",
+	})
+	if err == nil {
+		t.Fatal("expected accepting a rejected suggestion to fail")
+	}
+}
+
+func TestServiceAcceptKeyframeCandidatePersistsDecisionAndTimeline(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "关键帧草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview returned error: %v", err)
+	}
+
+	resp, err := svc.AcceptKeyframeCandidate(1, KeyframeCandidateDecisionRequest{
+		DraftID:                   "draft-1",
+		KeyframeCandidateClientID: "keyframe-001",
+	})
+	if err != nil {
+		t.Fatalf("AcceptKeyframeCandidate returned error: %v", err)
+	}
+	if got := resp.Draft.PreviewCandidates.KeyframeCandidates[0].DecisionStatus; got != "accepted" {
+		t.Fatalf("decision status = %q, want accepted", got)
+	}
+	if got := resp.Draft.PreviewCandidates.PreviewTimeline[0].ConfirmationStatus; got != "accepted" {
+		t.Fatalf("timeline confirmation status = %q, want accepted", got)
+	}
+
+	loaded, err := svc.GetLatestDraft(1)
+	if err != nil {
+		t.Fatalf("GetLatestDraft returned error: %v", err)
+	}
+	if got := loaded.Draft.Draft.PreviewCandidates.KeyframeCandidates[0].DecisionStatus; got != "accepted" {
+		t.Fatalf("loaded decision status = %q, want accepted", got)
+	}
+}
+
+func TestServiceRejectKeyframeCandidatePersistsDecision(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "关键帧拒绝草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview returned error: %v", err)
+	}
+
+	resp, err := svc.RejectKeyframeCandidate(1, KeyframeCandidateDecisionRequest{
+		DraftID:                   "draft-1",
+		KeyframeCandidateClientID: "keyframe-001",
+	})
+	if err != nil {
+		t.Fatalf("RejectKeyframeCandidate returned error: %v", err)
+	}
+	if got := resp.Draft.PreviewCandidates.KeyframeCandidates[0].DecisionStatus; got != "rejected" {
+		t.Fatalf("decision status = %q, want rejected", got)
+	}
+	if got := resp.Draft.PreviewCandidates.PreviewTimeline[0].ConfirmationStatus; got != "rejected" {
+		t.Fatalf("timeline confirmation status = %q, want rejected", got)
+	}
+
+	_, err = svc.AcceptKeyframeCandidate(1, KeyframeCandidateDecisionRequest{
+		DraftID:                   "draft-1",
+		KeyframeCandidateClientID: "keyframe-001",
+	})
+	if err == nil {
+		t.Fatal("expected accepting a rejected keyframe candidate to fail")
+	}
+}
+
+func TestServiceAcceptAndResolveAssetGapPersistsStatus(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "素材草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview returned error: %v", err)
+	}
+
+	accepted, err := svc.AcceptAssetGap(1, AssetGapDecisionRequest{
+		DraftID:          "draft-1",
+		AssetGapClientID: "asset-gap-001",
+	})
+	if err != nil {
+		t.Fatalf("AcceptAssetGap returned error: %v", err)
+	}
+	if got := accepted.Draft.PreviewCandidates.AssetGaps[0].Status; got != "accepted" {
+		t.Fatalf("asset gap status = %q, want accepted", got)
+	}
+
+	resolved, err := svc.ResolveAssetGap(1, AssetGapDecisionRequest{
+		DraftID:          "draft-1",
+		AssetGapClientID: "asset-gap-001",
+	})
+	if err != nil {
+		t.Fatalf("ResolveAssetGap returned error: %v", err)
+	}
+	if got := resolved.Draft.PreviewCandidates.AssetGaps[0].Status; got != "resolved" {
+		t.Fatalf("asset gap status = %q, want resolved", got)
+	}
+
+	loaded, err := svc.GetLatestDraft(1)
+	if err != nil {
+		t.Fatalf("GetLatestDraft returned error: %v", err)
+	}
+	if got := loaded.Draft.Draft.PreviewCandidates.AssetGaps[0].Status; got != "resolved" {
+		t.Fatalf("loaded asset gap status = %q, want resolved", got)
+	}
+}
+
+func TestServiceRejectAssetGapPersistsStatusAndBlocksResolve(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "素材拒绝草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview returned error: %v", err)
+	}
+
+	resp, err := svc.RejectAssetGap(1, AssetGapDecisionRequest{
+		DraftID:          "draft-1",
+		AssetGapClientID: "asset-gap-001",
+	})
+	if err != nil {
+		t.Fatalf("RejectAssetGap returned error: %v", err)
+	}
+	if got := resp.Draft.PreviewCandidates.AssetGaps[0].Status; got != "rejected" {
+		t.Fatalf("asset gap status = %q, want rejected", got)
+	}
+
+	_, err = svc.ResolveAssetGap(1, AssetGapDecisionRequest{
+		DraftID:          "draft-1",
+		AssetGapClientID: "asset-gap-001",
+	})
+	if err == nil {
+		t.Fatal("expected resolving a rejected asset gap to fail")
+	}
+}
+
 type memoryDraftStore struct {
 	snapshots map[uint]map[string]DraftSnapshot
 }
