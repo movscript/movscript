@@ -427,7 +427,7 @@ function buildDebugHttpRequests(options: {
     },
     {
       id: 'local-create-run',
-      label: 'Create local agent run',
+      label: 'Create local runtime run',
       method: 'POST',
       url: `${baseURL}/runs`,
       headers: { 'Content-Type': 'application/json' },
@@ -2021,7 +2021,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         const message = e instanceof Error ? e.message : String(e)
         addMessage(userId, conv.id, {
           role: 'assistant',
-          content: `本地 Agent Runtime 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
+          content: `本地 Production Runtime 暂不可用。\n\n启动命令：\`pnpm --filter movscript-production-runtime dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
         })
         return
       }
@@ -2202,7 +2202,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             </div>
             {!localAgentOnline && (
               <p className="text-[10px] leading-relaxed text-muted-foreground">
-                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
+                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-production-runtime dev</code>.
               </p>
             )}
             {localAgentErrorMessage && (

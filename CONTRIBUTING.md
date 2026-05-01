@@ -22,10 +22,10 @@ make dev-backend
 make dev-frontend
 ```
 
-Optional local agent server:
+Optional local production runtime:
 
 ```bash
-make dev-agent
+make dev-runtime
 ```
 
 ## Before Opening a Pull Request

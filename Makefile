@@ -1,4 +1,4 @@
-.PHONY: build build-agent build-apps build-backend build-frontend build-movcli build-packages build-plugins dev-agent dev-backend dev-frontend dev-movcli migrate-backend migrate-backend-status test test-backend typecheck-frontend typecheck-packages tidy
+.PHONY: build build-runtime build-apps build-backend build-frontend build-movcli build-packages build-plugins dev-runtime dev-backend dev-frontend dev-movcli migrate-backend migrate-backend-status test test-backend typecheck-frontend typecheck-packages tidy
 
 build: build-backend build-packages build-apps build-plugins
 
@@ -14,8 +14,8 @@ build-apps:
 build-plugins:
 	pnpm run build:plugins
 
-build-agent:
-	pnpm --filter movscript-agent build
+build-runtime:
+	pnpm --filter movscript-production-runtime build
 
 build-movcli:
 	pnpm --filter movcli build
@@ -35,8 +35,8 @@ migrate-backend-status:
 dev-frontend:
 	pnpm --filter movscript-frontend dev
 
-dev-agent:
-	pnpm --filter movscript-agent dev
+dev-runtime:
+	pnpm --filter movscript-production-runtime dev
 
 dev-movcli:
 	pnpm --filter movcli dev

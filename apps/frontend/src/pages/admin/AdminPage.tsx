@@ -2523,21 +2523,6 @@ function FeatureConfigTab() {
       )}
 
       <div className="space-y-3">
-        {features.filter(isScriptAnalysisFeature).length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">{t('admin.features.systemFeatures')}</p>
-            {features.filter(isScriptAnalysisFeature).map((f) => (
-              <FeatureRow
-                key={f.feature_key}
-                feature={f}
-                isPending={update.isPending || updatePrompt.isPending}
-                onUpdate={(data) => update.mutate({ key: f.feature_key, data })}
-                onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
-                onGoToModels={() => setSearchParams({ tab: 'models' })}
-              />
-            ))}
-          </div>
-        )}
         {features.filter((f) => !f.is_internal).length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">{t('admin.features.toolFeatures')}</p>
@@ -2553,16 +2538,12 @@ function FeatureConfigTab() {
             ))}
           </div>
         )}
-        {features.filter((f) => isScriptAnalysisFeature(f) || !f.is_internal).length === 0 && (
+        {features.filter((f) => !f.is_internal).length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">{t('admin.features.empty')}</p>
         )}
       </div>
     </div>
   )
-}
-
-function isScriptAnalysisFeature(feature: FeatureConfig) {
-  return ['script_analyze', 'main_script_analyze', 'episode_script_analyze', 'scene_script_analyze'].includes(feature.feature_key)
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────

@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/movscript/movscript/internal/ai"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
@@ -60,19 +59,5 @@ func TestValidateSingleMainScriptPropagatesQueryError(t *testing.T) {
 
 	if err != queryErr {
 		t.Fatalf("expected query error %v, got %v", queryErr, err)
-	}
-}
-
-func TestScriptAnalysisFeatureKeyRoutesByScriptType(t *testing.T) {
-	cases := map[string]string{
-		"main":    ai.FeatureMainScriptAnalyze,
-		"episode": ai.FeatureEpisodeScriptAnalyze,
-		"scene":   ai.FeatureSceneScriptAnalyze,
-		"":        ai.FeatureScriptAnalyze,
-	}
-	for scriptType, want := range cases {
-		if got := scriptAnalysisFeatureKey(scriptType); got != want {
-			t.Fatalf("script type %q feature = %q, want %q", scriptType, got, want)
-		}
 	}
 }

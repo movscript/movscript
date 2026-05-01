@@ -1948,6 +1948,7 @@
       "settings": "Setting Management",
       "assets": "Asset Library",
       "episodes": "Episode Management",
+      "scriptPreview": "Script Preview",
       "collaboration": "Collaboration Progress",
       "scenes": "Scene Management",
       "storyboards": "Storyboard Management",
@@ -1977,7 +1978,8 @@
       "files": "Files",
       "manage": "Manage",
       "workspace": "Workspace",
-      "contentLibrary": "Content Library"
+      "contentLibrary": "Content Library",
+      "legacyManage": "Legacy Manage"
     },
     "items": {
       "scripts": "Scripts",
@@ -2003,6 +2005,13 @@
       "production": "Production Hub",
       "creation": "Workbench",
       "collaboration": "Collaboration",
+      "projectHome": "Project Home",
+      "scriptPreview": "Script Preview",
+      "creativeReferences": "Creative References",
+      "assetPreparation": "Asset Prep",
+      "contentProduction": "Content Production",
+      "productionTasks": "Production Tasks",
+      "delivery": "Delivery",
       "user": "User Profile",
       "admin": "Admin",
       "projectRequired": "Select a project first"

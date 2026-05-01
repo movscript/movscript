@@ -20,6 +20,6 @@ The project stores provider credentials encrypted with `ENCRYPTION_KEY`. Treat l
 ## Deployment guidance
 
 - Set a unique `ENCRYPTION_KEY` with `openssl rand -hex 32`.
-- The backend `/mcp` endpoint is currently removed. If you expose a desktop/local agent MCP-shaped endpoint, keep it bound to trusted local interfaces or protect it with an explicit authentication layer.
+- The backend `/mcp` endpoint is currently removed. If you expose a desktop/local production runtime MCP-shaped endpoint, keep it bound to trusted local interfaces or protect it with an explicit authentication layer.
 - Do not expose PostgreSQL or MinIO directly to the public internet.
 - Rotate AI provider credentials if debug logs or environment files are exposed.

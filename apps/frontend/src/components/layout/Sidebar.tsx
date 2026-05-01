@@ -8,7 +8,7 @@ import {
   LayoutTemplate, Video, Move, Palette, Box,
   Users, ChevronDown, ChevronRight, LogOut, FolderOpen, ShieldAlert,
   HardDrive, Wand2, MessageSquare, LayoutDashboard,
-  Puzzle, Bug, PanelLeftClose, PanelLeftOpen,
+  Puzzle, Bug, PanelLeftClose, PanelLeftOpen, ClipboardList, PackageCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -227,16 +227,22 @@ export function Sidebar() {
 
           {current && (
             <>
-              <NavItem to="/creation" icon={LayoutDashboard} label={t('sidebar.items.creation')} collapsed={collapsed} />
-              <NavItem to="/collaboration" icon={Users} label={t('sidebar.items.collaboration')} collapsed={collapsed} />
+              <NavItem to="/creation" icon={LayoutDashboard} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to="/script-preview" icon={Film} label={t('sidebar.items.scriptPreview')} collapsed={collapsed} />
+              <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.creativeReferences')} collapsed={collapsed} />
+              <NavItem to="/assets" icon={PackageCheck} label={t('sidebar.items.assetPreparation')} collapsed={collapsed} />
+              <NavItem to="/production" icon={Wand2} label={t('sidebar.items.contentProduction')} collapsed={collapsed} />
+              <NavItem to="/collaboration" icon={ClipboardList} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
+              <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.delivery')} collapsed={collapsed} />
+              <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} collapsed={collapsed} />
               {!collapsed && <div className="border-t border-border mx-3 my-1.5" />}
             </>
           )}
         </Section>
 
-        {/* Content library — kept for cross-stage browsing */}
+        {/* Legacy management — kept for cross-stage browsing and debugging */}
         {current && (
-          <Section title={t('sidebar.sections.contentLibrary')} defaultOpen={true} collapsed={collapsed}>
+          <Section title={t('sidebar.sections.legacyManage')} defaultOpen={false} collapsed={collapsed}>
             <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.scripts')} collapsed={collapsed} />
             <NavItem to="/settings" icon={Users} label={t('sidebar.items.settings')} collapsed={collapsed} />
             <NavItem to="/assets" icon={Image} label={t('sidebar.items.assets')} collapsed={collapsed} />
@@ -262,7 +268,6 @@ export function Sidebar() {
 
         {/* Tools */}
         <Section title={t('sidebar.sections.tools')} collapsed={collapsed}>
-          <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} collapsed={collapsed} />
           <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
           <NavItem to="/tools/ref-video-gen" icon={Video} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
           <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />

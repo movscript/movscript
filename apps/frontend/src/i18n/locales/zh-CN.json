@@ -1948,6 +1948,7 @@
       "settings": "设定管理",
       "assets": "素材库",
       "episodes": "分集管理",
+      "scriptPreview": "剧本预演",
       "collaboration": "协作进度",
       "scenes": "分场管理",
       "storyboards": "分镜管理",
@@ -1977,7 +1978,8 @@
       "files": "文件",
       "manage": "管理",
       "workspace": "工作区",
-      "contentLibrary": "内容库"
+      "contentLibrary": "内容库",
+      "legacyManage": "旧版管理"
     },
     "items": {
       "scripts": "剧本",
@@ -2003,6 +2005,13 @@
       "production": "生产中台",
       "creation": "工作台",
       "collaboration": "协作",
+      "projectHome": "项目首页",
+      "scriptPreview": "剧本预演",
+      "creativeReferences": "创作资料",
+      "assetPreparation": "素材准备",
+      "contentProduction": "内容生产",
+      "productionTasks": "制作任务",
+      "delivery": "交付",
       "user": "用户资料",
       "admin": "管理后台",
       "projectRequired": "需要先选择项目"

@@ -12,6 +12,7 @@ const titleKeys: Record<string, string> = {
   '/settings': 'header.titles.settings',
   '/assets': 'header.titles.assets',
   '/episodes': 'header.titles.episodes',
+  '/script-preview': 'header.titles.scriptPreview',
   '/scenes': 'header.titles.scenes',
   '/storyboards': 'header.titles.storyboards',
   '/shots': 'header.titles.shots',

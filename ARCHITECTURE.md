@@ -11,7 +11,7 @@ This is the short orientation document for contributors. The broader architectur
 | Backend | Go 1.25, Gin, GORM, PostgreSQL |
 | Storage | MinIO/S3-compatible object storage |
 | AI | Adapter layer for OpenAI-compatible APIs, Anthropic, Gemini, Kling, Volcengine, and dry-run |
-| Agent | Standalone TypeScript HTTP service using MCP-shaped client tools |
+| Production Runtime | Standalone TypeScript HTTP service using MCP-shaped client tools |
 | Plugins | Backend-stored plugin manifests plus frontend/runtime plugin surfaces |
 
 Default backend origin: `http://localhost:8765`. The frontend builds API v1 URLs from `VITE_API_BASE_URL`.
@@ -26,7 +26,7 @@ Electron frontend
   -> MinIO-compatible object storage for media
   -> AI provider adapters and async generation worker
 
-Local agent server
+Local production runtime
   -> MCP-shaped endpoint exposed by the desktop side
   -> local thread/run/memory files
   -> optional Movscript model gateway or OpenAI-compatible model endpoint
@@ -57,12 +57,12 @@ apps/frontend/
   src/store/               Zustand stores
   src/types/               Frontend API and domain types
 
-apps/agent/
-  src/server.ts            Local agent HTTP server
+apps/production-runtime/
+  src/server.ts            Local production runtime HTTP server
   src/runtime/             Thread/run lifecycle, planner, policy, memory, manifest logic
 
 apps/movcli/
-  src/commands/            CLI commands for plugins and local agent smoke tests
+  src/commands/            CLI commands for plugins and local runtime smoke tests
 ```
 
 ## Core Domain Model
@@ -109,9 +109,9 @@ Entity management and creation pages are in `apps/frontend/src/pages/`. Shared c
 
 Plugin manifests are parsed by `apps/backend/internal/pluginkit` and stored by `/api/v1/plugins`. Frontend plugin pages and runtime helpers live in `apps/frontend/src/pages/plugins/` and `apps/frontend/src/lib/`.
 
-### Agent Runtime
+### Production Runtime
 
-The local agent server owns thread/run lifecycle, policy checks, tool metadata, skill catalog loading, and local memory. It should be treated as an HTTP service by Electron and CLI callers.
+The local production runtime owns thread/run lifecycle, policy checks, tool metadata, skill catalog loading, and local memory. It should be treated as an HTTP service by Electron and CLI callers.
 
 ## Where To Change Things
 
@@ -127,4 +127,4 @@ The local agent server owns thread/run lifecycle, policy checks, tool metadata, 
 | Change i18n copy | `apps/frontend/src/i18n/locales/*.json` |
 | Change canvas behavior | `apps/frontend/src/pages/canvas/*`, `apps/backend/internal/handler/canvas*.go` |
 | Change plugin manifest/runtime behavior | `apps/backend/internal/pluginkit/*`, `apps/frontend/src/lib/*Plugin*`, `docs/plugins.md` |
-| Change local agent behavior | `apps/agent/src/runtime/*`, `apps/agent/src/server.ts` |
+| Change local production runtime behavior | `apps/production-runtime/src/runtime/*`, `apps/production-runtime/src/server.ts` |

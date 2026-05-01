@@ -5,7 +5,7 @@ interface Window {
     openFile?: () => Promise<string | null>
     saveFile?: (defaultPath?: string) => Promise<string | null>
     updateMCPContext?: (snapshot: unknown) => Promise<void>
-    ensureLocalAgent?: (input?: { baseURL?: string }) => Promise<{
+    ensureProductionRuntime?: (input?: { baseURL?: string }) => Promise<{
       ok: boolean
       running: boolean
       managed: boolean

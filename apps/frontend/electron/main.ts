@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { startBackend, stopBackend } from './backend'
-import { ensureAgentRunning, stopAgent } from './agent'
+import { ensureProductionRuntimeRunning, stopProductionRuntime } from './productionRuntime'
 import { startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
 
@@ -46,7 +46,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
-  await stopAgent()
+  await stopProductionRuntime()
   await stopMCPServer()
   await stopBackend()
   if (process.platform !== 'darwin') app.quit()
@@ -66,6 +66,6 @@ ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
   updateMCPContextSnapshot(snapshot)
 })
 
-ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {
-  return ensureAgentRunning(input)
+ipcMain.handle('production-runtime:ensure-running', (_e, input?: { baseURL?: string }) => {
+  return ensureProductionRuntimeRunning(input)
 })

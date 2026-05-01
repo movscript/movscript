@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Script } from '@/types'
-import { Save, Sparkles, Loader2, Upload } from 'lucide-react'
+import { Save, Upload } from 'lucide-react'
 import { Button, Label, Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
@@ -11,11 +11,9 @@ interface ScriptFormProps {
   onChange: (d: Partial<Script>) => void
   onSave: (data: Partial<Script>) => void
   isSaving?: boolean
-  analyzing?: boolean
-  onAnalyze?: () => void
 }
 
-export function ScriptForm({ script, draft, onChange, onSave, isSaving, analyzing, onAnalyze }: ScriptFormProps) {
+export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
@@ -48,12 +46,6 @@ export function ScriptForm({ script, draft, onChange, onSave, isSaving, analyzin
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {onAnalyze && (
-            <Button size="sm" onClick={onAnalyze} disabled={analyzing} className="gap-1.5">
-              {analyzing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-              {t('details.aiAnalyze')}
-            </Button>
-          )}
           <Button size="sm" variant="outline" onClick={() => onSave(draft)} disabled={isSaving} className="gap-1.5">
             <Save size={13} />
             {isSaving ? t('common.saving') : t('common.save')}

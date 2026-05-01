@@ -454,7 +454,7 @@ const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
 ])
 
 export function canStartLocalAgentFromClient(): boolean {
-  return typeof window !== 'undefined' && typeof window.api?.ensureLocalAgent === 'function'
+  return typeof window !== 'undefined' && typeof window.api?.ensureProductionRuntime === 'function'
 }
 
 export class LocalAgentClient {
@@ -476,14 +476,14 @@ export class LocalAgentClient {
     try {
       return await this.health()
     } catch (healthError) {
-      const ensureLocalAgent = canStartLocalAgentFromClient() ? window.api?.ensureLocalAgent : undefined
-      if (!ensureLocalAgent) {
-        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter movscript-agent dev`)
+      const ensureProductionRuntime = canStartLocalAgentFromClient() ? window.api?.ensureProductionRuntime : undefined
+      if (!ensureProductionRuntime) {
+        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter movscript-production-runtime dev`)
       }
 
-      const status = await ensureLocalAgent({ baseURL: this.baseURL })
+      const status = await ensureProductionRuntime({ baseURL: this.baseURL })
       if (!status.ok) {
-        throw new Error(status.error || `failed to start local agent at ${this.baseURL}`)
+        throw new Error(status.error || `failed to start production runtime at ${this.baseURL}`)
       }
       return this.health()
     }
@@ -548,7 +548,7 @@ export class LocalAgentClient {
       const run = await this.getJSON<AgentRun>(`/runs/${encodeURIComponent(runId)}`)
       options.onRunUpdate?.(run)
       if (TERMINAL_RUN_STATUSES.has(run.status)) return run
-      if (Date.now() > deadline) throw new Error(`local agent run ${runId} did not finish within ${timeoutMs}ms`)
+      if (Date.now() > deadline) throw new Error(`local runtime run ${runId} did not finish within ${timeoutMs}ms`)
       await new Promise((resolve) => setTimeout(resolve, pollMs))
     }
   }

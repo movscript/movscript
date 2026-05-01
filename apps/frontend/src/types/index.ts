@@ -31,7 +31,6 @@ export interface Script {
   source_type?: 'raw' | 'adapted' | 'revised'
   version?: number
   parent_script_id?: number
-  analysis_status?: 'pending' | 'analyzing' | 'analyzed' | 'failed'
   episode_id?: number
   assignee_id?: number
   assignee?: User
@@ -58,27 +57,6 @@ export interface Script {
   structure_json?: string
   entity_candidates?: string
   relationship_candidates?: string
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface ScriptAnalysis {
-  ID: number
-  project_id: number
-  script_id: number
-  status: 'draft' | 'confirmed'
-  summary: string
-  world_setting: string
-  character_extract_json: string
-  scene_extract_json: string
-  prop_extract_json: string
-  relationship_json: string
-  core_setting_json: string
-  script_point_json: string
-  source_model_config_id?: number
-  prompt: string
-  raw_response: string
-  normalized_response_json: string
   CreatedAt: string
   UpdatedAt: string
 }

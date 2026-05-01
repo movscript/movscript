@@ -69,6 +69,13 @@ type V2PreviewItem = {
   description: string
 }
 
+type V2CanvasCardPreviewItem = {
+  id: string
+  type: 'v2-canvas-card'
+  name: string
+  description: string
+}
+
 type AgentPreviewItem = {
   id: string
   type: 'agent'
@@ -91,7 +98,7 @@ type StructuredScriptPreviewItem = {
   scriptKind: 'main' | 'scene'
 }
 
-type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | V2PreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
+type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | V2PreviewItem | V2CanvasCardPreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
 
 const ENTITY_PREVIEWS: EntityPreviewItem[] = [
   {
@@ -419,6 +426,15 @@ const V2_PREVIEWS: V2PreviewItem[] = [
   },
 ]
 
+const V2_CANVAS_CARD_PREVIEWS: V2CanvasCardPreviewItem[] = [
+  {
+    id: 'v2-canvas-cards',
+    type: 'v2-canvas-card',
+    name: 'V2 画布卡片',
+    description: '在新产品形态下，画布围绕具体对象展开：理解、计划、素材缺口、结果和执行各自有清晰边界。',
+  },
+]
+
 const PREVIEW_GROUPS: Array<{
   id: string
   title: string
@@ -430,6 +446,12 @@ const PREVIEW_GROUPS: Array<{
     title: 'V2',
     description: 'Integrated Product Model',
     items: V2_PREVIEWS,
+  },
+  {
+    id: 'v2-canvas-cards',
+    title: 'V2 画布卡片',
+    description: 'Object Canvas Cards',
+    items: V2_CANVAS_CARD_PREVIEWS,
   },
   {
     id: 'entities',
@@ -536,6 +558,8 @@ export function UIPreviewPage() {
               <div className="flex items-center gap-2">
                 {selected.type === 'v2'
                   ? <Sparkles size={15} className="text-muted-foreground" />
+                : selected.type === 'v2-canvas-card'
+                  ? <GitBranch size={15} className="text-muted-foreground" />
                 : selected.type === 'entity'
                   ? <Clapperboard size={15} className="text-muted-foreground" />
                   : selected.type === 'state'
@@ -558,6 +582,8 @@ export function UIPreviewPage() {
               <div className="min-h-[420px] min-w-[860px] bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:20px_20px] p-8">
                 {selected.type === 'v2'
                   ? <V2IntegratedModelPreviewCanvas />
+                : selected.type === 'v2-canvas-card'
+                  ? <V2CanvasCardsPreviewCanvas />
                 : selected.type === 'entity'
                   ? <EntityPreviewCanvas preview={selected} />
                   : selected.type === 'state'
@@ -590,6 +616,12 @@ export function UIPreviewPage() {
                 <SpecCard title="不按页面建模" text="V2 把页面收敛为对象视图：剧本与拆解、创作资料、预演、素材、任务、交付都读取同一组事实源。" />
                 <SpecCard title="画布不是事实源" text="画布有 owner 和输出落点，只记录操作、运行和结果；实体数据仍由结构化域、创作资料域、素材域持有。" />
                 <SpecCard title="漏洞显式暴露" text="右侧专门列出模型风险，要求每条关系都有事实源、落点、状态边界和可追溯证据。" />
+              </>
+            ) : selected.type === 'v2-canvas-card' ? (
+              <>
+                <SpecCard title="对象卡优先" text="画布入口来自情境、内容单元、关键帧、素材需求和视频片段；空白画布只作为管理入口保留。" />
+                <SpecCard title="卡片分层" text="理解层、时间线层、视觉结果层、素材缺口层和执行层分别成卡，避免一张万能节点混合所有状态。" />
+                <SpecCard title="输出必须落点" text="关键帧保存到 ContentUnit，素材保存到 AssetRequirement，视频保存为 ContentVersion，任务只记录执行过程。" />
               </>
             ) : selected.type === 'entity' ? (
               <>
@@ -2209,6 +2241,347 @@ function ScriptStructureCheck({ label, ok }: { label: string; ok?: boolean }) {
     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
       <Icon size={12} className={cn('shrink-0', ok ? 'text-emerald-600' : 'text-amber-600')} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
+    </div>
+  )
+}
+
+function V2CanvasCardsPreviewCanvas() {
+  const cards = [
+    {
+      id: 'situation',
+      title: '情境卡',
+      label: 'Situation',
+      icon: MapPin,
+      tone: 'sky' as const,
+      summary: '雨夜，老城区窄巷，林夏与顾言隔着旧伞对峙。',
+      meta: 'owner_type = situation',
+      slots: [
+        { label: '事实源', value: 'ScriptSection 03' },
+        { label: '引用资料', value: '林夏 / 顾言 / 旧伞' },
+        { label: '可开画布', value: '情境视觉探索' },
+      ],
+      actions: ['改写情境', '生成分镜'],
+    },
+    {
+      id: 'content-unit',
+      title: '内容单元卡',
+      label: 'ContentUnit',
+      icon: Clapperboard,
+      tone: 'emerald' as const,
+      summary: 'CU-03 旧伞伞骨特写，纸条滑出，2 秒，切入反转。',
+      meta: '预演时间线最小单位',
+      slots: [
+        { label: '顺序/时长', value: '#03 / 2s' },
+        { label: '当前锚点', value: '关键帧 v2' },
+        { label: '生产状态', value: '可生成视频' },
+      ],
+      actions: ['拆分', '进入生产'],
+    },
+    {
+      id: 'keyframe',
+      title: '关键帧卡',
+      label: 'Keyframe',
+      icon: ImagePlus,
+      tone: 'amber' as const,
+      summary: '纸条从伞骨缝隙滑出，雨水打湿纸面，画面偏冷。',
+      meta: '视觉锚点，不是事实源',
+      slots: [
+        { label: '所属对象', value: 'CU-03' },
+        { label: '状态', value: '候选 2/4' },
+        { label: '落点', value: '设为当前锚点' },
+      ],
+      actions: ['采用', '重生成'],
+    },
+    {
+      id: 'asset-requirement',
+      title: '素材需求卡',
+      label: 'AssetRequirement',
+      icon: Inbox,
+      tone: 'rose' as const,
+      summary: '林夏雨夜受伤状态，正面半身伤痕参考缺失。',
+      meta: '素材页的缺口管理单位',
+      slots: [
+        { label: '需求状态', value: '缺失' },
+        { label: '候选素材', value: '0 张' },
+        { label: '作用范围', value: 'Situation 08' },
+      ],
+      actions: ['上传', '生成参考'],
+    },
+    {
+      id: 'reference-state',
+      title: '创作资料状态卡',
+      label: 'ReferenceState',
+      icon: Users,
+      tone: 'violet' as const,
+      summary: '林夏：湿透风衣、左颧擦伤、压抑愤怒、攥着旧伞。',
+      meta: '基础资料在上下文中的临时表现',
+      slots: [
+        { label: '基础资料', value: '林夏' },
+        { label: '作用范围', value: 'Scene 08' },
+        { label: '连续性', value: '需锁定' },
+      ],
+      actions: ['锁定状态', '派生素材'],
+    },
+    {
+      id: 'content-version',
+      title: '视频片段卡',
+      label: 'ContentVersion',
+      icon: Video,
+      tone: 'zinc' as const,
+      summary: 'CU-03 图生视频 v1，运动自然但纸条信息不清晰。',
+      meta: '正式生产候选，不等于已采用',
+      slots: [
+        { label: '来源任务', value: 'WI-88' },
+        { label: '采用状态', value: '候选' },
+        { label: '替换目标', value: '预演 CU-03' },
+      ],
+      actions: ['设为采用', '返工'],
+    },
+  ]
+
+  return (
+    <div className="w-[1180px] rounded-lg border border-border bg-background text-xs shadow-sm">
+      <div className="grid h-[650px] grid-cols-[210px_minmax(0,1fr)_260px] overflow-hidden rounded-lg">
+        <aside className="border-r border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2">
+              <GitBranch size={14} className="text-primary" />
+              <p className="font-semibold text-foreground">对象画布</p>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              画布从具体对象进入，每张卡都要说明事实源、状态和输出落点。
+            </p>
+          </div>
+          <div className="space-y-2 p-3">
+            <V2CanvasMiniLane title="推荐入口" items={['情境', '内容单元', '关键帧', '素材需求', '视频片段']} />
+            <V2CanvasMiniLane title="管理入口" items={['最近画布', '模板画布', '无落点输出', '历史运行']} muted />
+          </div>
+          <div className="border-t border-border p-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">卡片原则</p>
+            <V2CanvasRule label="卡片不是数据库表" value="只露出当下决策所需字段" />
+            <V2CanvasRule label="输出必须可提交" value="保存到关键帧、素材或版本" />
+            <V2CanvasRule label="任务不拥有结果" value="任务完成后仍需采用决策" />
+          </div>
+        </aside>
+
+        <main className="min-w-0 overflow-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] [background-size:20px_20px] p-5">
+          <div className="relative h-[600px] min-w-[690px]">
+            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 690 600" aria-hidden="true">
+              <defs>
+                <marker id="v2-card-flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" className="fill-primary" />
+                </marker>
+                <marker id="v2-card-decision-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" className="fill-emerald-500" />
+                </marker>
+              </defs>
+              <V2CanvasFlowPath d="M214 96 C260 96 274 96 320 96" label="理解编译" labelX={238} labelY={78} />
+              <V2CanvasFlowPath d="M535 96 C588 96 598 186 598 238" label="生成锚点" labelX={572} labelY={150} />
+              <V2CanvasFlowPath d="M320 198 C270 224 250 288 214 334" label="缺口牵引" labelX={236} labelY={274} />
+              <V2CanvasFlowPath d="M320 146 C268 172 250 384 214 430" label="状态约束" labelX={248} labelY={364} />
+              <V2CanvasDecisionPath d="M442 346 C488 346 504 428 530 475" label="采用为视频候选" labelX={452} labelY={404} />
+            </svg>
+
+            <div className="absolute left-0 top-5">
+              <V2CanvasObjectCard card={cards[0]} selected />
+            </div>
+            <div className="absolute left-[320px] top-5">
+              <V2CanvasObjectCard card={cards[1]} />
+            </div>
+            <div className="absolute left-[470px] top-[230px]">
+              <V2CanvasObjectCard card={cards[2]} compact />
+            </div>
+            <div className="absolute left-0 top-[300px]">
+              <V2CanvasObjectCard card={cards[3]} compact />
+            </div>
+            <div className="absolute left-0 top-[425px]">
+              <V2CanvasObjectCard card={cards[4]} compact />
+            </div>
+            <div className="absolute left-[390px] top-[450px]">
+              <V2CanvasObjectCard card={cards[5]} compact />
+            </div>
+          </div>
+        </main>
+
+        <aside className="border-l border-border bg-card">
+          <div className="border-b border-border px-3 py-3">
+            <p className="font-semibold text-foreground">卡片清单</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              第一版建议先做 8 类，覆盖从预演到生产的闭环。
+            </p>
+          </div>
+          <div className="space-y-3 p-3">
+            <V2CanvasCardChecklist title="创作事实卡" items={['ScriptSection 原文节', 'Situation 情境', 'StoryboardLine 分镜稿', 'ContentUnit 内容单元']} />
+            <V2CanvasCardChecklist title="生产承接卡" items={['Keyframe 关键帧', 'AssetRequirement 素材需求', 'ContentVersion 视频片段', 'WorkItem 执行任务']} />
+            <section>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">右侧面板承担</p>
+              <V2CanvasRule label="完整字段" value="卡片只显示摘要" />
+              <V2CanvasRule label="版本历史" value="对比和回滚放详情" />
+              <V2CanvasRule label="权限/审计" value="不挤在卡面上" />
+            </section>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+type V2CanvasCardTone = 'sky' | 'emerald' | 'amber' | 'rose' | 'violet' | 'zinc'
+
+function V2CanvasObjectCard({
+  card,
+  selected,
+  compact,
+}: {
+  card: {
+    id: string
+    title: string
+    label: string
+    icon: ElementType
+    tone: V2CanvasCardTone
+    summary: string
+    meta: string
+    slots: Array<{ label: string; value: string }>
+    actions: string[]
+  }
+  selected?: boolean
+  compact?: boolean
+}) {
+  const Icon = card.icon
+  const tone = V2_CANVAS_CARD_TONES[card.tone]
+
+  return (
+    <div
+      className={cn(
+        'relative overflow-visible rounded-lg border bg-card shadow-sm transition-all',
+        compact ? 'w-[250px]' : 'w-[270px]',
+        selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
+      )}
+    >
+      <V2CanvasPort side="left" tone="target" className="top-[38px]" />
+      <V2CanvasPort side="right" tone="source" className="top-[38px]" />
+      <header className={cn('border-b px-3 py-2.5', tone.bg)}>
+        <div className="flex items-start gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/85">
+            <Icon size={15} className={tone.text} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{card.title}</p>
+              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[9px] text-muted-foreground">{card.label}</span>
+            </div>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{card.meta}</p>
+          </div>
+        </div>
+      </header>
+      <div className="space-y-2 px-3 py-2.5">
+        <p className="line-clamp-2 min-h-[34px] text-[11px] leading-relaxed text-foreground">{card.summary}</p>
+        <div className="space-y-1">
+          {card.slots.slice(0, compact ? 2 : 3).map((slot) => (
+            <div key={slot.label} className="relative flex h-7 items-center gap-2 rounded-md border border-border bg-background px-2 text-[10px]">
+              <V2CanvasPort side="left" tone="neutral" compact />
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">{slot.label}</span>
+              <span className="max-w-[118px] truncate font-medium text-foreground">{slot.value}</span>
+              <V2CanvasPort side="right" tone="source" compact />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {card.actions.map((action) => (
+            <button
+              key={action}
+              type="button"
+              className="relative flex h-7 items-center justify-center rounded-md border border-border bg-muted/30 px-2 text-[10px] font-medium text-foreground hover:bg-muted"
+            >
+              {action}
+              <V2CanvasPort side="right" tone="source" compact />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const V2_CANVAS_CARD_TONES: Record<V2CanvasCardTone, { bg: string; text: string }> = {
+  sky: { bg: 'bg-sky-500/10', text: 'text-sky-600' },
+  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600' },
+  amber: { bg: 'bg-amber-500/10', text: 'text-amber-600' },
+  rose: { bg: 'bg-rose-500/10', text: 'text-rose-600' },
+  violet: { bg: 'bg-violet-500/10', text: 'text-violet-600' },
+  zinc: { bg: 'bg-zinc-500/10', text: 'text-zinc-600 dark:text-zinc-300' },
+}
+
+function V2CanvasPort({ side, tone, compact, className }: { side: 'left' | 'right'; tone: 'target' | 'source' | 'neutral'; compact?: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        'absolute z-10 rounded-full border-2',
+        compact ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5',
+        side === 'left' ? (compact ? '-left-1.5 top-1/2 -translate-y-1/2' : '-left-2') : (compact ? '-right-1.5 top-1/2 -translate-y-1/2' : '-right-2'),
+        tone === 'target' && 'border-sky-500 bg-sky-500',
+        tone === 'source' && 'border-primary bg-primary',
+        tone === 'neutral' && 'border-border bg-card',
+        className,
+      )}
+    />
+  )
+}
+
+function V2CanvasFlowPath({ d, label, labelX, labelY }: { d: string; label: string; labelX: number; labelY: number }) {
+  return (
+    <>
+      <path d={d} fill="none" stroke="hsl(var(--primary))" strokeWidth="2.5" strokeDasharray="6 5" markerEnd="url(#v2-card-flow-arrow)" />
+      <text x={labelX} y={labelY} className="fill-muted-foreground text-[10px]">{label}</text>
+    </>
+  )
+}
+
+function V2CanvasDecisionPath({ d, label, labelX, labelY }: { d: string; label: string; labelX: number; labelY: number }) {
+  return (
+    <>
+      <path d={d} fill="none" stroke="rgb(16 185 129)" strokeWidth="2.5" markerEnd="url(#v2-card-decision-arrow)" />
+      <text x={labelX} y={labelY} className="fill-muted-foreground text-[10px]">{label}</text>
+    </>
+  )
+}
+
+function V2CanvasMiniLane({ title, items, muted }: { title: string; items: string[]; muted?: boolean }) {
+  return (
+    <section>
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <div key={item} className={cn('rounded-md border px-2 py-1.5 text-[11px]', muted ? 'border-border bg-background text-muted-foreground' : 'border-primary/20 bg-primary/10 text-foreground')}>
+            {item}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function V2CanvasCardChecklist({ title, items }: { title: string; items: string[] }) {
+  return (
+    <section>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <div key={item} className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5">
+            <CheckCircle2 size={12} className="shrink-0 text-emerald-600" />
+            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">{item}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function V2CanvasRule({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mb-1.5 rounded-md border border-border bg-background px-2 py-1.5 last:mb-0">
+      <p className="truncate text-[11px] font-medium text-foreground">{label}</p>
+      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{value}</p>
     </div>
   )
 }

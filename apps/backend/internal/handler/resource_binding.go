@@ -401,7 +401,9 @@ func normalizeSourceType(value string) string {
 
 func validOwnerType(value string) bool {
 	switch value {
-	case "script", "setting", "episode", "scene", "storyboard", "shot", "final_video", "asset", "asset_view", "canvas":
+	case "script", "script_version", "script_section", "situation", "content_unit", "keyframe", "preview_timeline",
+		"creative_reference", "creative_reference_state", "asset_requirement",
+		"setting", "episode", "scene", "storyboard", "shot", "final_video", "delivery_version", "asset", "asset_view", "canvas":
 		return true
 	default:
 		return false
@@ -479,6 +481,60 @@ func (h *ResourceBindingHandler) projectIDForOwner(ownerType string, ownerID uin
 			return 0, err
 		}
 		return item.ProjectID, nil
+	case "script_version":
+		var item model.ScriptVersion
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "script_section":
+		var item model.ScriptSection
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "situation":
+		var item model.Situation
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "content_unit":
+		var item model.ContentUnit
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "keyframe":
+		var item model.Keyframe
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "preview_timeline":
+		var item model.PreviewTimeline
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "creative_reference":
+		var item model.CreativeReference
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "creative_reference_state":
+		var item model.CreativeReferenceState
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "asset_requirement":
+		var item model.AssetRequirement
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
 	case "setting":
 		var item model.Setting
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
@@ -511,6 +567,12 @@ func (h *ResourceBindingHandler) projectIDForOwner(ownerType string, ownerID uin
 		return item.ProjectID, nil
 	case "final_video":
 		var item model.FinalVideo
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return 0, err
+		}
+		return item.ProjectID, nil
+	case "delivery_version":
+		var item model.DeliveryVersion
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return 0, err
 		}

@@ -24,6 +24,7 @@ import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import BrainstormPage from './pages/tools/BrainstormPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
+import ScriptPreviewPage from './pages/script-preview/ScriptPreviewPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
@@ -32,7 +33,6 @@ import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
-import { AIAgentPanel } from './components/layout/AIAgentPanel'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 
@@ -168,6 +168,7 @@ export default function App() {
                     <Route path="/tools/plugin/:pluginId"    element={<PluginToolPage />} />
 
                     {/* 工作模块 */}
+                    <Route path="/script-preview" element={<ProjectGuard><ScriptPreviewPage /></ProjectGuard>} />
                     <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                     <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
                     <Route path="/creation"      element={<ProjectGuard><WorkbenchPage mode="free" /></ProjectGuard>} />
@@ -191,7 +192,6 @@ export default function App() {
                   </Routes>
                 </RouteErrorBoundary>
               </div>
-              <AIAgentPanel />
               </main>
             </div>
           </div>

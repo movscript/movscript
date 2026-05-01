@@ -1,24 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { API_V1_BASE_URL } from '@/lib/config'
 import type { Script } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
-import { useUserStore } from '@/store/userStore'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@movscript/ui'
-import { Clock, Database, Film, GitBranch, Layers, MapPin, Plus, Sparkles, Trash2, Users, X } from 'lucide-react'
+import { Clock, Database, Film, GitBranch, Layers, MapPin, Plus, Sparkles, Trash2, Users } from 'lucide-react'
 
 const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; color: string; tone: 'sky' | 'violet' | 'blue' }> = {
   main:    { labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400', tone: 'sky' },
   episode: { labelKey: 'domain.scriptTypes.episode', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400', tone: 'violet' },
   scene:   { labelKey: 'domain.scriptTypes.scene',   color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400', tone: 'blue' },
 }
-
-const REASONING_TRACE_MAX_CHARS = 8000
 
 interface Props {
   script: Script
@@ -31,12 +26,6 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   const qc = useQueryClient()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [draft, setDraft] = useState<Partial<Script>>({ ...script })
-  const [analyzing, setAnalyzing] = useState(false)
-  const [analysisPreview, setAnalysisPreview] = useState<Partial<Script> | null>(null)
-  const [analysisRaw, setAnalysisRaw] = useState('')
-  const [analysisReasoning, setAnalysisReasoning] = useState('')
-  const [analysisStatus, setAnalysisStatus] = useState('')
-  const [analysisError, setAnalysisError] = useState('')
 
   const update = useMutation({
     mutationFn: (data: Partial<Script>) =>
@@ -57,145 +46,6 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
       onDelete?.()
     },
   })
-
-  async function handleAnalyze() {
-    setAnalysisPreview({ script_type: script.script_type })
-    setAnalysisRaw('')
-    setAnalysisReasoning('')
-    setAnalysisStatus('连接 AI 分析服务...')
-    setAnalysisError('')
-    setAnalyzing(true)
-    try {
-      const result = await streamScriptAnalysis(`/projects/${projectId}/scripts/${script.ID}/analyze/stream`, {
-        content: draft.raw_source ?? script.raw_source ?? draft.content ?? script.content,
-        preview: true,
-      }, {
-        onDelta: (text) => setAnalysisRaw((raw) => raw + text),
-        onReasoning: (text) => {
-          setAnalysisStatus('模型正在推理...')
-          setAnalysisReasoning((raw) => (raw + text).slice(-REASONING_TRACE_MAX_CHARS))
-        },
-        onStatus: setAnalysisStatus,
-      })
-      setAnalysisPreview(pickAnalysisFields(result.script ?? result))
-      setAnalysisStatus('AI 分析完成，请审核将写入当前页的数据')
-    } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'AI 分析失败')
-      try {
-        const res = await api.post(`/projects/${projectId}/scripts/${script.ID}/analyze`, {
-          content: draft.raw_source ?? script.raw_source ?? draft.content ?? script.content,
-          preview: true,
-        })
-        setAnalysisPreview(pickAnalysisFields(res.data.script ?? res.data))
-        setAnalysisRaw(JSON.stringify(res.data.result ?? res.data.script ?? res.data, null, 2))
-        setAnalysisStatus('已使用非流式结果完成分析')
-      } catch {
-        // keep the streaming error visible in the dialog
-      }
-    } finally {
-      setAnalyzing(false)
-    }
-  }
-
-  async function streamScriptAnalysis(path: string, body: unknown, callbacks: { onDelta: (text: string) => void; onReasoning: (text: string) => void; onStatus: (text: string) => void }) {
-    const token = useUserStore.getState().token
-    const res = await fetch(`${API_V1_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: {
-        Accept: 'text/event-stream, application/x-ndjson',
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok || !res.body) {
-      const errorText = await res.text().catch(() => '')
-      throw new Error(`AI 分析请求失败：HTTP ${res.status}${errorText ? ` ${errorText}` : ''}`)
-    }
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    const contentType = res.headers.get('content-type') ?? ''
-    const isEventStream = contentType.includes('text/event-stream')
-    let buffer = ''
-    let finalResult: any = null
-    let receivedDelta = false
-    const handleMessage = (event: string, data: any) => {
-      if (event === 'delta') {
-        const text = String(data?.text ?? '')
-        if (text) {
-          receivedDelta = true
-          callbacks.onDelta(text)
-        }
-      }
-      if (event === 'reasoning') {
-        const text = String(data?.text ?? data?.message ?? '')
-        if (text) callbacks.onReasoning(text)
-      }
-      if (event === 'status') callbacks.onStatus(String(data?.message ?? ''))
-      if (event === 'error') throw new Error(String(data?.message ?? 'AI 分析失败'))
-      if (event === 'result') {
-        finalResult = data
-        if (!receivedDelta) {
-          const rawResponse = typeof data?.raw_response === 'string' && data.raw_response.trim()
-            ? data.raw_response
-            : JSON.stringify(data?.result ?? data?.script ?? data, null, 2)
-          callbacks.onDelta(rawResponse)
-          receivedDelta = true
-        }
-      }
-    }
-    const parseNDJSONLine = (line: string) => {
-      if (!line.trim()) return
-      const message = JSON.parse(line)
-      handleMessage(String(message.event ?? ''), message.data)
-    }
-    const parseSSEBlock = (block: string) => {
-      let event = 'message'
-      const dataLines: string[] = []
-      for (const rawLine of block.split(/\r?\n/)) {
-        if (!rawLine || rawLine.startsWith(':')) continue
-        const separatorIndex = rawLine.indexOf(':')
-        const field = separatorIndex >= 0 ? rawLine.slice(0, separatorIndex) : rawLine
-        const value = separatorIndex >= 0 ? rawLine.slice(separatorIndex + 1).replace(/^ /, '') : ''
-        if (field === 'event') event = value
-        if (field === 'data') dataLines.push(value)
-      }
-      if (dataLines.length === 0) return
-      const dataText = dataLines.join('\n')
-      if (dataText === '[DONE]') return
-      handleMessage(event, JSON.parse(dataText))
-    }
-    const consumeBuffer = (final = false) => {
-      if (isEventStream) {
-        const blocks = buffer.split(/\r?\n\r?\n/)
-        buffer = blocks.pop() ?? ''
-        for (const block of blocks) parseSSEBlock(block)
-        if (final && buffer.trim()) {
-          parseSSEBlock(buffer)
-          buffer = ''
-        }
-        return
-      }
-
-      const lines = buffer.split(/\r?\n/)
-      buffer = lines.pop() ?? ''
-      for (const line of lines) parseNDJSONLine(line)
-      if (final && buffer.trim()) {
-        parseNDJSONLine(buffer)
-        buffer = ''
-      }
-    }
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      consumeBuffer()
-    }
-    buffer += decoder.decode()
-    consumeBuffer(true)
-    if (!finalResult) throw new Error('AI 分析没有返回结构化结果')
-    return finalResult
-  }
 
   const typeCfg = SCRIPT_TYPE_MAP[script.script_type]
   const bodyLength = (draft.raw_source ?? script.raw_source ?? draft.content ?? script.content ?? '').trim().length
@@ -240,634 +90,10 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
           onChange={setDraft}
           onSave={(data) => update.mutate(data)}
           isSaving={update.isPending}
-          analyzing={analyzing}
-          onAnalyze={handleAnalyze}
-        />
-      </div>
-      {analysisPreview && (
-        <ScriptAnalysisReviewDialog
-          scriptType={script.script_type}
-          current={{ ...script, ...draft, script_type: script.script_type }}
-          proposed={{ ...analysisPreview, script_type: script.script_type }}
-          saving={update.isPending}
-          analyzing={analyzing}
-          rawResponse={analysisRaw}
-          reasoningTrace={analysisReasoning}
-          status={analysisStatus}
-          error={analysisError}
-          onChange={(next) => setAnalysisPreview({ ...next, script_type: script.script_type })}
-          onClose={() => setAnalysisPreview(null)}
-          onConfirm={() => {
-            const next = { ...draft, ...analysisPreview, script_type: script.script_type }
-            setDraft(next)
-            setAnalysisPreview(null)
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-const ANALYSIS_FIELDS: Array<{ key: keyof Script; label: string; kind?: 'json' | 'number' }> = [
-  { key: 'title', label: '标题' },
-  { key: 'description', label: '描述' },
-  { key: 'summary', label: '剧本提纲' },
-  { key: 'characters', label: '人物补充' },
-  { key: 'core_settings', label: '设定' },
-  { key: 'hook', label: '钩子' },
-  { key: 'plot_summary', label: '剧情推演' },
-  { key: 'planned_scene_count', label: '计划场次', kind: 'number' },
-  { key: 'time_text', label: '时间' },
-  { key: 'location_text', label: '地点' },
-  { key: 'atmosphere', label: '氛围' },
-  { key: 'structured_characters', label: '结构化人物', kind: 'json' },
-  { key: 'plot_beats', label: '情节点', kind: 'json' },
-  { key: 'script_points', label: '剧本关键点', kind: 'json' },
-  { key: 'entity_candidates', label: '实体候选', kind: 'json' },
-  { key: 'relationship_candidates', label: '关系候选', kind: 'json' },
-  { key: 'structure_json', label: '完整结构', kind: 'json' },
-]
-
-function pickAnalysisFields(script: Partial<Script>): Partial<Script> {
-  const picked: Partial<Script> = {}
-  for (const field of ANALYSIS_FIELDS) {
-    const value = script[field.key]
-    if (value !== undefined && value !== null) {
-      ;(picked as Record<string, unknown>)[field.key] = value
-    }
-  }
-  return picked
-}
-
-function ScriptAnalysisReviewDialog({
-  scriptType,
-  current,
-  proposed,
-  saving,
-  analyzing,
-  rawResponse,
-  reasoningTrace,
-  status,
-  error,
-  onChange,
-  onClose,
-  onConfirm,
-}: {
-  scriptType: Script['script_type']
-  current: Partial<Script>
-  proposed: Partial<Script>
-  saving?: boolean
-  analyzing?: boolean
-  rawResponse: string
-  reasoningTrace: string
-  status: string
-  error: string
-  onChange: (next: Partial<Script>) => void
-  onClose: () => void
-  onConfirm: () => void
-}) {
-  const changedFields = ANALYSIS_FIELDS.filter((field) => normalizeFieldValue(current[field.key]) !== normalizeFieldValue(proposed[field.key]))
-  const hasStructuredResult = ANALYSIS_FIELDS.some((field) => proposed[field.key] !== undefined)
-  const reasoningRef = useRef<HTMLPreElement | null>(null)
-
-  useEffect(() => {
-    const node = reasoningRef.current
-    if (!node) return
-    node.scrollTop = node.scrollHeight
-  }, [reasoningTrace])
-
-  function updateCandidateItems(items: Array<Record<string, unknown>>) {
-    onChange({ ...proposed, entity_candidates: JSON.stringify(items.map(normalizeAnalysisCandidate)) })
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent hideClose className="flex max-h-[96vh] w-[min(1680px,99vw)] max-w-[99vw] flex-col overflow-hidden p-0">
-        <DialogHeader className="border-b border-border px-5 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <DialogTitle>AI 分析结果审核</DialogTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                先流式展示模型真实回应，完成后展示将写入详情页的数据和当前内容对比。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="border-b border-border bg-card px-5 py-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-foreground">AI 真实回应</p>
-              <span className={cn('text-[11px]', error ? 'text-destructive' : 'text-muted-foreground')}>{error || status || (analyzing ? '分析中...' : '等待开始')}</span>
-            </div>
-            {reasoningTrace ? (
-              <div className="mb-2 rounded-md border border-border bg-background">
-                <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-1.5">
-                  <span className="text-[11px] font-medium text-foreground">推理过程</span>
-                  <span className="text-[11px] text-muted-foreground">自动跟随最新内容</span>
-                </div>
-                <pre
-                  ref={reasoningRef}
-                  className="max-h-28 min-h-16 overflow-y-auto px-3 py-2 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground"
-                >
-                  {reasoningTrace}
-                </pre>
-              </div>
-            ) : null}
-            <pre className="max-h-32 min-h-16 overflow-auto rounded-md border border-border bg-background p-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">
-              {rawResponse || (analyzing ? '等待模型输出...' : '暂无输出')}
-            </pre>
-          </div>
-
-          {hasStructuredResult ? (
-            <AnalysisStructuredComparison
-              scriptType={scriptType}
-              current={current}
-              proposed={proposed}
-              changedFields={changedFields}
-              onProposedChange={onChange}
-              onProposedCandidatesChange={updateCandidateItems}
-            />
-          ) : (
-            <div className="flex min-h-52 items-center justify-center px-5 py-8 text-sm text-muted-foreground">
-              <div className="text-center">
-                <p>{analyzing ? '正在等待结构化分析结果...' : '暂无可写入详情页的数据'}</p>
-                {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="border-t border-border px-5 py-3">
-          <div className="mr-auto text-xs text-muted-foreground">
-            {hasStructuredResult ? (changedFields.length > 0 ? `检测到 ${changedFields.length} 个字段变化` : 'AI 建议与当前内容没有明显差异') : '分析完成后可审核并复制'}
-          </div>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={onConfirm} disabled={saving || analyzing || !hasStructuredResult}>确认并复制到当前页</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function AnalysisStructuredComparison({
-  scriptType,
-  current,
-  proposed,
-  changedFields,
-  onProposedChange,
-  onProposedCandidatesChange,
-}: {
-  scriptType: Script['script_type']
-  current: Partial<Script>
-  proposed: Partial<Script>
-  changedFields: Array<(typeof ANALYSIS_FIELDS)[number]>
-  onProposedChange: (next: Partial<Script>) => void
-  onProposedCandidatesChange: (items: Array<Record<string, unknown>>) => void
-}) {
-  return (
-    <div className="border-b border-border bg-card px-5 py-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold text-foreground">结构化卡片对比</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">左侧是当前详情页卡片，右侧是 AI 建议卡片；两边使用同一套结构。</p>
-        </div>
-        <span className="rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">{changedFields.length} 个字段变化</span>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <AnalysisDetailCard
-          title="当前详情"
-          scriptType={scriptType}
-          value={current}
-          changedFields={changedFields}
-          readOnly
-          tone="muted"
-        />
-        <AnalysisDetailCard
-          title="AI 建议"
-          scriptType={scriptType}
-          value={proposed}
-          changedFields={changedFields}
-          tone="accent"
-          onChange={onProposedChange}
-          onCandidatesChange={onProposedCandidatesChange}
         />
       </div>
     </div>
   )
-}
-
-function AnalysisDetailCard({
-  title,
-  scriptType,
-  value,
-  changedFields,
-  readOnly,
-  tone,
-  onChange,
-  onCandidatesChange,
-}: {
-  title: string
-  scriptType: Script['script_type']
-  value: Partial<Script>
-  changedFields: Array<(typeof ANALYSIS_FIELDS)[number]>
-  readOnly?: boolean
-  tone: 'muted' | 'accent'
-  onChange?: (next: Partial<Script>) => void
-  onCandidatesChange?: (items: Array<Record<string, unknown>>) => void
-}) {
-  const isMain = scriptType === 'main'
-  const isEpisode = scriptType === 'episode'
-  const isScene = scriptType === 'scene'
-  const candidates = buildAnalysisCandidateItems(value)
-  const characters = parseJsonList(value.structured_characters)
-  const beats = parseJsonList(value.plot_beats)
-  const involvedScenes = candidates.filter((item) => normalizeMainCandidateType(item) === 'scene_script')
-
-  function patch(patchValue: Partial<Script>) {
-    if (readOnly || !onChange) return
-    onChange({ ...value, ...patchValue })
-  }
-
-  function patchJsonList(key: 'structured_characters' | 'plot_beats', items: Array<Record<string, unknown>>) {
-    patch({ [key]: JSON.stringify(items) } as Partial<Script>)
-  }
-
-  function patchCandidatesForTypes(types: MainCandidateKind[], nextItems: Array<Record<string, unknown>>) {
-    if (readOnly || !onCandidatesChange) return
-    const rest = candidates.filter((item) => !types.includes(normalizeMainCandidateType(item)))
-    onCandidatesChange([...rest, ...nextItems])
-  }
-
-  function fieldChanged(key: keyof Script) {
-    return changedFields.some((field) => field.key === key)
-  }
-
-  return (
-    <section className={cn('overflow-hidden rounded-lg border bg-background', tone === 'accent' ? 'border-primary/25' : 'border-border')}>
-      <div className={cn('flex items-center justify-between gap-3 border-b px-3 py-2', tone === 'accent' ? 'border-primary/20 bg-primary/5' : 'border-border bg-muted/40')}>
-        <p className="text-xs font-semibold text-foreground">{title}</p>
-        <span className="text-[11px] text-muted-foreground">{readOnly ? '只读' : '可编辑'}</span>
-      </div>
-      <div className="space-y-3 p-3">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1fr)]">
-          <StructurePanel title="基础信息">
-            <CompareTextInput label="标题" value={value.title} placeholder="剧本标题" changed={fieldChanged('title')} readOnly={readOnly} onChange={(next) => patch({ title: next })} />
-            <CompareTextArea label="描述" value={value.description} placeholder="用于团队识别和检索的简短说明" changed={fieldChanged('description')} readOnly={readOnly} onChange={(next) => patch({ description: next })} />
-          </StructurePanel>
-          <StructurePanel title="提纲">
-            <CompareTextArea
-              label="剧本提纲"
-              value={value.summary}
-              placeholder={isMain ? '概括整部剧的主线、核心冲突和结局方向' : isEpisode ? '概括本集的起承转合和结尾落点' : '概括本场发生了什么'}
-              changed={fieldChanged('summary')}
-              readOnly={readOnly}
-              onChange={(next) => patch({ summary: next })}
-            />
-            {isEpisode && <CompareTextArea label="钩子" value={value.hook} placeholder="本集最重要的悬念、爽点或追看理由" changed={fieldChanged('hook')} readOnly={readOnly} onChange={(next) => patch({ hook: next })} />}
-          </StructurePanel>
-        </div>
-
-        {!isMain && (
-          <div className="grid gap-2 md:grid-cols-5">
-            {isEpisode ? (
-              <>
-                <StructureMetric icon={Database} label="设定" value={value.core_settings ? '已填写' : '待填写'} tone="violet" />
-                <StructureMetric icon={Layers} label="场次" value={value.planned_scene_count || '待填写'} tone="sky" />
-                <StructureMetric icon={Sparkles} label="钩子" value={value.hook ? '已填写' : '待填写'} tone="rose" />
-                <StructureMetric icon={GitBranch} label="提纲" value={value.summary ? '已填写' : '待填写'} tone="teal" />
-                <StructureMetric icon={GitBranch} label="描述" value={value.description ? '已填写' : '待填写'} tone="amber" />
-              </>
-            ) : (
-              <>
-                <StructureMetric icon={Clock} label="时间" value={value.time_text || '待填写'} tone="sky" />
-                <StructureMetric icon={MapPin} label="地点" value={value.location_text || '待填写'} tone="teal" />
-                <StructureMetric icon={Users} label="人物" value={characters.length || '待填写'} tone="violet" />
-                <StructureMetric icon={Layers} label="情节点" value={beats.length || '待填写'} tone="amber" />
-                <StructureMetric icon={Sparkles} label="氛围" value={value.atmosphere || '待填写'} tone="rose" />
-              </>
-            )}
-          </div>
-        )}
-
-        {isMain && (
-          <StructurePanel title="候选收件箱" contentClassName="p-0">
-            <MainCandidateInbox items={candidates} readOnly={readOnly} onChange={onCandidatesChange} emptyText={readOnly ? '当前暂无候选' : 'AI 暂未拆出候选'} />
-          </StructurePanel>
-        )}
-
-        {isEpisode && (
-          <div className="grid gap-3">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-              <StructurePanel title="设定与场次">
-                <CompareTextArea label="设定" value={value.core_settings} placeholder="本集沿用或新增的世界观、人物关系、限制条件" changed={fieldChanged('core_settings')} readOnly={readOnly} onChange={(next) => patch({ core_settings: next })} />
-                <CompareNumberInput label="场次" value={value.planned_scene_count} placeholder="例如：8" changed={fieldChanged('planned_scene_count')} readOnly={readOnly} onChange={(next) => patch({ planned_scene_count: next })} />
-              </StructurePanel>
-              <StructurePanel title="分集边界">
-                <p className="text-xs leading-relaxed text-muted-foreground">分集剧本描述集级结构：设定、场次、钩子、提纲、描述，以及涉及到的分场。</p>
-              </StructurePanel>
-            </div>
-            <StructurePanel title="涉及分场" contentClassName="p-0">
-              <MainCandidateInbox
-                items={involvedScenes}
-                groups={['scene_script']}
-                readOnly={readOnly}
-                onChange={(items) => patchCandidatesForTypes(['scene_script'], items)}
-                emptyText={readOnly ? '当前暂无涉及分场' : 'AI 暂未拆出涉及分场'}
-              />
-            </StructurePanel>
-          </div>
-        )}
-
-        {isScene && (
-          <div className="grid gap-3">
-            <div className="grid gap-3 lg:grid-cols-2">
-              <StructurePanel title="分场结构">
-                <CompareTextInput label="时间" value={value.time_text} placeholder="例如：深夜，暴雨刚起，预计 72 秒" changed={fieldChanged('time_text')} readOnly={readOnly} onChange={(next) => patch({ time_text: next })} />
-                <CompareTextInput label="地点" value={value.location_text} placeholder="例如：老城区窄巷，路灯闪烁，地面积水" changed={fieldChanged('location_text')} readOnly={readOnly} onChange={(next) => patch({ location_text: next })} />
-                <CompareTextArea label="氛围" value={value.atmosphere} placeholder="描述本场的情绪、光线、节奏和视觉压迫感" changed={fieldChanged('atmosphere')} readOnly={readOnly} onChange={(next) => patch({ atmosphere: next })} />
-              </StructurePanel>
-              <StructurePanel title="分场边界">
-                <p className="text-xs leading-relaxed text-muted-foreground">分场剧本只填写本场的时间、人物、场景、情节、氛围、标题、描述和提纲。</p>
-              </StructurePanel>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <StructureList
-                title="人物"
-                items={characters}
-                empty="暂无人物"
-                primaryKey="name"
-                secondaryKey="state"
-                addLabel="添加人物"
-                readOnly={readOnly}
-                onAdd={() => patchJsonList('structured_characters', [...characters, { id: `c${characters.length + 1}`, name: '新人物', state: '' }])}
-                onUpdate={(items) => patchJsonList('structured_characters', items)}
-              />
-              <StructureList
-                title="情节"
-                items={beats}
-                empty="暂无情节"
-                primaryKey="label"
-                secondaryKey="plot"
-                addLabel="添加情节"
-                readOnly={readOnly}
-                onAdd={() => patchJsonList('plot_beats', [...beats, { id: `b${beats.length + 1}`, label: '新情节', plot: '' }])}
-                onUpdate={(items) => patchJsonList('plot_beats', items)}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
-function CandidateFieldLabel({ label }: { label: string }) {
-  return <span className="mb-1 block text-[10px] font-medium text-muted-foreground">{label}</span>
-}
-
-function CompareFieldChrome({ label, changed, children }: { label: string; changed?: boolean; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        {changed && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">不同</span>}
-      </div>
-      {children}
-    </label>
-  )
-}
-
-function CompareTextInput({ label, value, placeholder, changed, readOnly, onChange }: { label: string; value?: string; placeholder: string; changed?: boolean; readOnly?: boolean; onChange: (value: string) => void }) {
-  return (
-    <CompareFieldChrome label={label} changed={changed}>
-      <input
-        readOnly={readOnly}
-        className={cn(
-          'h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none',
-          changed ? 'border-amber-500/40 bg-amber-500/5' : 'border-border',
-          readOnly ? 'cursor-default' : 'focus:border-ring',
-        )}
-        value={value ?? ''}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </CompareFieldChrome>
-  )
-}
-
-function CompareNumberInput({ label, value, placeholder, changed, readOnly, onChange }: { label: string; value?: number; placeholder: string; changed?: boolean; readOnly?: boolean; onChange: (value: number) => void }) {
-  return (
-    <CompareFieldChrome label={label} changed={changed}>
-      <input
-        readOnly={readOnly}
-        type="number"
-        min={0}
-        className={cn(
-          'h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none',
-          changed ? 'border-amber-500/40 bg-amber-500/5' : 'border-border',
-          readOnly ? 'cursor-default' : 'focus:border-ring',
-        )}
-        value={value ?? ''}
-        placeholder={placeholder}
-        onChange={(event) => onChange(Number(event.target.value) || 0)}
-      />
-    </CompareFieldChrome>
-  )
-}
-
-function CompareTextArea({ label, value, placeholder, changed, readOnly, onChange }: { label: string; value?: string; placeholder: string; changed?: boolean; readOnly?: boolean; onChange: (value: string) => void }) {
-  return (
-    <CompareFieldChrome label={label} changed={changed}>
-      <textarea
-        readOnly={readOnly}
-        className={cn(
-          'min-h-[58px] w-full resize-none rounded-md border bg-background px-2.5 py-2 text-xs leading-relaxed text-foreground outline-none',
-          changed ? 'border-amber-500/40 bg-amber-500/5' : 'border-border',
-          readOnly ? 'cursor-default' : 'focus:border-ring',
-        )}
-        value={value ?? ''}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </CompareFieldChrome>
-  )
-}
-
-function CandidateTextArea({
-  value,
-  placeholder,
-  readOnly,
-  minHeight,
-  onChange,
-}: {
-  value: string
-  placeholder: string
-  readOnly?: boolean
-  minHeight: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <textarea
-      readOnly={readOnly}
-      className={cn(
-        'resize-none rounded-md border border-transparent bg-card px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground outline-none',
-        minHeight,
-        readOnly ? 'cursor-default' : 'hover:border-border focus:border-ring',
-      )}
-      value={value}
-      placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  )
-}
-
-function CandidateInput({
-  value,
-  placeholder,
-  readOnly,
-  onChange,
-}: {
-  value: string
-  placeholder: string
-  readOnly?: boolean
-  onChange: (value: string) => void
-}) {
-  return (
-    <input
-      readOnly={readOnly}
-      className={cn(
-        'h-7 min-w-0 flex-1 rounded-md border border-transparent bg-card px-2 text-xs font-medium text-foreground outline-none',
-        readOnly ? 'cursor-default' : 'hover:border-border focus:border-ring',
-      )}
-      value={value}
-      placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  )
-}
-
-function normalizeFieldValue(value: unknown) {
-  if (value === undefined || value === null) return ''
-  if (typeof value === 'number') return String(value)
-  return String(value).trim()
-}
-
-function buildAnalysisCandidateItems(script: Partial<Script>): Array<Record<string, unknown>> {
-  const structure = parseJsonObject(script.structure_json)
-  return mergeAnalysisCandidates([
-    ...parseJsonList(script.entity_candidates).map(normalizeAnalysisCandidate),
-    ...candidateListFromRaw(structure.episode_scripts, 'episode'),
-    ...candidateListFromRaw(structure.scene_scripts, 'scene_script'),
-    ...candidateListFromRaw(structure.settings, 'setting'),
-    ...candidateListFromRaw(structure.involved_scenes, 'scene_script'),
-  ])
-}
-
-function candidateListFromRaw(raw: unknown, fallbackType: MainCandidateKind): Array<Record<string, unknown>> {
-  return normalizeRawCandidateItems(raw).map((item, index) => normalizeAnalysisCandidate({
-    ...item,
-    id: item.id ?? `${fallbackType}_${index + 1}`,
-    type: fallbackType === 'setting' ? item.type ?? 'setting' : fallbackType,
-  }))
-}
-
-function normalizeRawCandidateItems(raw: unknown): Array<Record<string, unknown>> {
-  if (!raw) return []
-  if (Array.isArray(raw)) {
-    return raw.flatMap((item, index) => {
-      if (item && typeof item === 'object') return [item as Record<string, unknown>]
-      if (typeof item === 'string' && item.trim()) return [{ id: `item_${index + 1}`, name: item.trim(), description: item.trim() }]
-      return []
-    })
-  }
-  if (typeof raw === 'object') return [raw as Record<string, unknown>]
-  if (typeof raw === 'string') {
-    return raw.split('\n')
-      .map((line) => line.trim().replace(/^[-*]\s*/, ''))
-      .filter(Boolean)
-      .map((line, index) => ({ id: `item_${index + 1}`, name: line, description: line }))
-  }
-  return []
-}
-
-function normalizeAnalysisCandidate(item: Record<string, unknown>): Record<string, unknown> {
-  const title = candidateTitle(item)
-  const description = candidateDescription(item)
-  const outline = candidateOutline(item)
-  return {
-    ...item,
-    name: title,
-    title,
-    summary: String(item.summary ?? outline ?? description ?? ''),
-    description,
-    outline,
-  }
-}
-
-function mergeAnalysisCandidates(items: Array<Record<string, unknown>>) {
-  const merged: Array<Record<string, unknown>> = []
-  const indexByKey = new Map<string, number>()
-  for (const item of items) {
-    const normalized = normalizeAnalysisCandidate(item)
-    const key = `${normalizeMainCandidateType(normalized)}:${String(normalized.id ?? normalized.name ?? normalized.title ?? '').toLowerCase()}`
-    if (!key.endsWith(':') && indexByKey.has(key)) {
-      const existingIndex = indexByKey.get(key)!
-      merged[existingIndex] = mergeCandidateRecord(merged[existingIndex], normalized)
-      continue
-    }
-    indexByKey.set(key || `item:${merged.length}`, merged.length)
-    merged.push(normalized)
-  }
-  return merged
-}
-
-function mergeCandidateRecord(existing: Record<string, unknown>, incoming: Record<string, unknown>) {
-  const merged = { ...existing }
-  for (const [key, value] of Object.entries(incoming)) {
-    if (value === undefined || value === null || String(value).trim() === '') continue
-    const current = merged[key]
-    if (current === undefined || current === null || String(current).trim() === '') {
-      merged[key] = value
-    }
-  }
-  return normalizeAnalysisCandidate(merged)
-}
-
-function normalizeMainCandidateType(item: Record<string, unknown>): MainCandidateKind {
-  const type = String(item.type ?? '')
-  if (type === 'episode') return 'episode'
-  if (type === 'scene_script') return 'scene_script'
-  return 'setting'
-}
-
-function candidateTitle(item: Record<string, unknown>) {
-  return String(item.name ?? item.title ?? item.location_text ?? '')
-}
-
-function candidateDescription(item: Record<string, unknown>) {
-  return String(item.description ?? item.summary ?? item.outline ?? item.plot ?? item.evidence ?? '')
-}
-
-function candidateOutline(item: Record<string, unknown>) {
-  return String(item.outline ?? item.summary ?? item.description ?? item.plot ?? '')
-}
-
-function parseJsonObject(raw?: string): Record<string, unknown> {
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
-  } catch {
-    return {}
-  }
 }
 
 function StructuredScriptOverview({
@@ -1190,6 +416,82 @@ const MAIN_CANDIDATE_GROUPS = [
     lineTone: 'bg-teal-500/30',
   },
 ] satisfies Array<{ type: MainCandidateKind; label: string; addLabel: string; placeholder: string; icon: typeof Film; tone: string; itemTone: string; lineTone: string }>
+
+function normalizeMainCandidateType(item: Record<string, unknown>): MainCandidateKind {
+  const type = String(item.type ?? '')
+  if (type === 'episode') return 'episode'
+  if (type === 'scene_script') return 'scene_script'
+  return 'setting'
+}
+
+function candidateTitle(item: Record<string, unknown>) {
+  return String(item.name ?? item.title ?? item.location_text ?? '')
+}
+
+function candidateDescription(item: Record<string, unknown>) {
+  return String(item.description ?? item.summary ?? item.outline ?? item.plot ?? item.evidence ?? '')
+}
+
+function candidateOutline(item: Record<string, unknown>) {
+  return String(item.outline ?? item.summary ?? item.description ?? item.plot ?? '')
+}
+
+function CandidateFieldLabel({ label }: { label: string }) {
+  return <span className="mb-1 block text-[10px] font-medium text-muted-foreground">{label}</span>
+}
+
+function CandidateInput({
+  value,
+  placeholder,
+  readOnly,
+  onChange,
+}: {
+  value: string
+  placeholder: string
+  readOnly?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <input
+      readOnly={readOnly}
+      className={cn(
+        'h-7 min-w-0 flex-1 rounded-md border border-transparent bg-card px-2 text-xs font-medium text-foreground outline-none',
+        readOnly ? 'cursor-default' : 'hover:border-border focus:border-ring',
+      )}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  )
+}
+
+function CandidateTextArea({
+  value,
+  placeholder,
+  readOnly,
+  minHeight,
+  onChange,
+}: {
+  value: string
+  placeholder: string
+  readOnly?: boolean
+  minHeight: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <textarea
+      readOnly={readOnly}
+      className={cn(
+        'resize-none rounded-md border border-transparent bg-card px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground outline-none',
+        minHeight,
+        readOnly ? 'cursor-default' : 'hover:border-border focus:border-ring',
+      )}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  )
+}
 
 function MainCandidateInbox({
   items,

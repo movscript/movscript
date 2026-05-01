@@ -116,7 +116,44 @@ func RegisteredMigrations() []Migration {
 			Name:    "script_analysis_feature_channels",
 			Up:      migrateScriptAnalysisFeatureChannels,
 		},
+		{
+			Version: "000018",
+			Name:    "v2_semantic_skeleton",
+			Up:      migrateV2SemanticSkeleton,
+		},
+		{
+			Version: "000019",
+			Name:    "script_preview_draft_snapshots",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.ScriptPreviewDraft{})
+			},
+		},
 	}
+}
+
+func migrateV2SemanticSkeleton(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&model.ScriptPreviewDraft{},
+		&model.ScriptVersion{},
+		&model.ScriptSection{},
+		&model.Situation{},
+		&model.ContentUnit{},
+		&model.Keyframe{},
+		&model.PreviewTimeline{},
+		&model.PreviewTimelineItem{},
+		&model.CreativeReference{},
+		&model.CreativeReferenceState{},
+		&model.CreativeReferenceUsage{},
+		&model.CreativeRelationship{},
+		&model.AssetRequirement{},
+		&model.AssetRequirementCandidate{},
+		&model.WorkItem{},
+		&model.WorkReview{},
+		&model.WorkDependency{},
+		&model.DeliveryVersion{},
+		&model.DeliveryTimelineItem{},
+		&model.ExportRecord{},
+	)
 }
 
 func migrateScriptAnalysisFeatureChannels(db *gorm.DB) error {
@@ -427,6 +464,26 @@ func allModels() []any {
 		&model.Project{},
 		&model.ProjectMember{},
 		&model.Script{},
+		&model.ScriptPreviewDraft{},
+		&model.ScriptVersion{},
+		&model.ScriptSection{},
+		&model.Situation{},
+		&model.ContentUnit{},
+		&model.Keyframe{},
+		&model.PreviewTimeline{},
+		&model.PreviewTimelineItem{},
+		&model.CreativeReference{},
+		&model.CreativeReferenceState{},
+		&model.CreativeReferenceUsage{},
+		&model.CreativeRelationship{},
+		&model.AssetRequirement{},
+		&model.AssetRequirementCandidate{},
+		&model.WorkItem{},
+		&model.WorkReview{},
+		&model.WorkDependency{},
+		&model.DeliveryVersion{},
+		&model.DeliveryTimelineItem{},
+		&model.ExportRecord{},
 		&model.ScriptAnalysis{},
 		&model.Setting{},
 		&model.ScriptSettingRef{},
