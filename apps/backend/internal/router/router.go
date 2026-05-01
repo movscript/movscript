@@ -235,6 +235,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.POST("/projects/:id/script-preview/draft", scriptPreview.SaveDraft)
 			protected.POST("/projects/:id/script-preview/analyze", scriptPreview.AnalyzeScriptToSections)
 			protected.POST("/projects/:id/script-preview/generate-preview", scriptPreview.GenerateKeyframesForContentUnits)
+			protected.POST("/projects/:id/script-preview/confirm-preview", scriptPreview.ConfirmPreview)
 			protected.POST("/projects/:id/script-preview/storyboard-suggestions/accept", scriptPreview.AcceptStoryboardSuggestion)
 			protected.POST("/projects/:id/script-preview/storyboard-suggestions/reject", scriptPreview.RejectStoryboardSuggestion)
 			protected.POST("/projects/:id/script-preview/keyframe-candidates/accept", scriptPreview.AcceptKeyframeCandidate)

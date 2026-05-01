@@ -128,6 +128,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&model.ScriptPreviewDraft{})
 			},
 		},
+		{
+			Version: "000020",
+			Name:    "script_preview_draft_confirmed_state",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.ScriptPreviewDraft{})
+			},
+		},
 	}
 }
 

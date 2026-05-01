@@ -468,9 +468,43 @@ rejectAssetGap
 - 未生成预演前的素材缺口仍是只读占位，不允许写回；生成预演后才出现可写回的 `asset_gap_client_id`。
 - 本次仍未把主页面接到底层 `AssetRequirement` CRUD，素材缺口确认仍通过 `/script-preview` 产品动作 API 完成。
 
+### 2026-05-01 本次推进 13
+
+- 按 Next 1 完成“确认预演并进入内容生产的最小状态动作”。
+- 新增后端产品动作：
+
+```text
+POST /api/v1/projects/:id/script-preview/confirm-preview
+```
+
+- 确认前做最小校验：
+
+```text
+至少有一个分镜行
+至少有一个 accepted 关键帧候选或可预演时间线项
+没有 missing / accepted 且未 resolved 的素材缺口阻塞项
+```
+
+- 草稿快照新增并持久化：
+
+```text
+preview_status
+confirmed_at
+```
+
+- 确认成功后草稿进入：
+
+```text
+ready_for_production
+```
+
+- 前端“下一步动作”区域新增“确认预演”入口，并在满足条件时展示“进入内容生产”按钮。
+- 当前版本列表会显示已确认预演状态和确认时间，分镜编辑或候选变化后会自动失效并要求重新确认。
+- `/production` 仍是独立页面，不直接创建 `WorkItem`，这一步只完成产品状态边界和入口提示。
+
 ## 当前代码状态摘要
 
-截至 2026-05-01 本次推进 12 结束时，工作区已有未提交改动。后续会话必须先查看最新 `git status --short`。
+截至 2026-05-01 本次推进 13 结束时，工作区已有未提交改动。后续会话必须先查看最新 `git status --short`。
 
 已观察到的 V2 相关草稿：
 
@@ -580,6 +614,19 @@ script / setting / asset / episode / scene / storyboard / shot / final_video
 - `apps/backend/internal/router/router.go`
 - `apps/frontend/src/api/scriptPreview.ts`
 - `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
+
+本次推进 13 新增/修改：
+
+- `apps/backend/internal/model/script_preview_draft.go`
+- `apps/backend/internal/v2/scriptpreview/store.go`
+- `apps/backend/internal/v2/scriptpreview/service.go`
+- `apps/backend/internal/v2/scriptpreview/service_test.go`
+- `apps/backend/internal/handler/script_preview.go`
+- `apps/backend/internal/router/router.go`
+- `apps/backend/internal/db/migrations.go`
+- `apps/frontend/src/api/scriptPreview.ts`
+- `apps/frontend/src/pages/script-preview/ScriptPreviewPage.tsx`
+- `docs/movscript-v2-progress.md`
 
 本次修改的文档：
 
@@ -994,6 +1041,36 @@ confirmed_at
 - 确认成功后显示“进入内容生产”的下一步入口或占位，但不直接创建完整 `WorkItem` / Production Runtime 任务。
 - 不直接把主页面接到底层 `WorkItem` CRUD；仍通过 `/script-preview` 产品动作 API。
 
+### Done：内容生产页的最小状态读取
+
+目标：
+
+```text
+让 /production 至少能读取 script-preview 的 ready_for_production 状态，并把确认时间和下一步建议显式展示出来。
+```
+
+建议交付标准：
+
+- `/production` 读取当前项目最近草稿的 `preview_status` 和 `confirmed_at`。
+- 页面明确显示是否已经进入生产前状态。
+- 没有确认预演时，内容生产页只展示引导，不创建任务。
+- 后续再进入 Sprint 2 的 `ContentUnit` / `PreviewTimeline` 薄切片。
+
+### Next 2：制作任务页的最小状态读取
+
+目标：
+
+```text
+让 /collaboration 至少能读取 script-preview 的 ready_for_production 状态，并把确认时间和下一步建议显式展示出来。
+```
+
+建议交付标准：
+
+- `/collaboration` 读取当前项目最近草稿的 `preview_status` 和 `confirmed_at`。
+- 页面明确显示是否已经进入生产前状态。
+- 没有确认预演时，制作任务页只展示引导，不创建任务。
+- 后续再进入 Phase 2 的剧本导入、版本与剧本节数据动作薄切片。
+
 ## 每次会话结束必须更新
 
 推进者结束前应更新以下字段：
@@ -1137,6 +1214,31 @@ Cannot find name 'V2UseCaseToolCard'
 - 运行 `pnpm --filter movscript-frontend typecheck`。
 - 结果：通过。
 
+### 2026-05-01 本次推进 13
+
+- 运行 `gofmt -w apps/backend/internal/model/script_preview_draft.go apps/backend/internal/v2/scriptpreview/store.go apps/backend/internal/v2/scriptpreview/service.go apps/backend/internal/v2/scriptpreview/service_test.go apps/backend/internal/handler/script_preview.go apps/backend/internal/router/router.go apps/backend/internal/db/migrations.go`。
+- 首次运行 `go test ./internal/v2/scriptpreview ./internal/db ./internal/handler ./internal/router`。
+- 结果：失败，原因是沙箱不允许写入 `/Users/zhaoqian/Library/Caches/go-build`，不是代码编译错误。
+- 申请权限后运行 `GOCACHE=/tmp/movscript-gocache go test ./internal/v2/scriptpreview ./internal/db ./internal/handler ./internal/router`。
+- 结果：通过。
+- 运行 `pnpm --dir apps/frontend typecheck`。
+- 结果：失败，失败点集中在既有未提交改动 `apps/frontend/src/pages/admin/UIPreviewPage.tsx`，与本次 `script-preview` 改动无关。
+- 本次修改的 `script-preview` 前端与后端文件在 Go 测试层面已通过；全量前端 typecheck 仍被仓库中已有的 admin 预览改动阻塞。
+
+### 2026-05-01 本次推进 14
+
+- 运行 `pnpm --filter movscript-frontend typecheck`。
+- 首次结果：失败，本次新增的 `apps/frontend/src/pages/production/ProductionFramePage.tsx` 暴露了类型层级错误，已修正为读取 `draft.preview_status` 和 `draft.confirmed_at`。
+- 复验 `pnpm --filter movscript-frontend typecheck`。
+- 结果：失败，剩余失败点仅来自既有未提交改动 `apps/frontend/src/pages/admin/UIPreviewPage.tsx`：
+
+```text
+Cannot find name 'GitBranch'
+Cannot find name 'MapPin'
+```
+
+- 本次修改的 `/production` 页面已完成最小状态读取和下一步引导；全量前端 typecheck 仍被仓库中已有的 admin 预览改动阻塞。
+
 ## 遗留问题
 
 - 已临时确认真实产品入口落在应用 shell 的 `Sidebar` 项目分组，`/creation` 保留为“项目首页”。
@@ -1152,6 +1254,7 @@ Cannot find name 'V2UseCaseToolCard'
 - 关键帧候选确认/拒绝和预演时间线确认状态已升级为 V2 数据动作。
 - 素材缺口确认、补齐和忽略已升级为 V2 数据动作。
 - 本次 `pnpm --filter movscript-frontend typecheck` 已恢复通过；上一轮记录的 `apps/frontend/src/pages/admin/UIPreviewPage.tsx` 类型错误在当前工作区已不再阻塞 typecheck，但该文件仍有未提交改动，后续会话仍需避免误回滚。
+- 本次新增确认预演状态和进入内容生产入口，但全量前端 typecheck 仍会被 `apps/frontend/src/pages/admin/UIPreviewPage.tsx` 的既有改动阻塞。
 
 ## 单句推进模板
 

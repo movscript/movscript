@@ -26,6 +26,8 @@ type DraftPayload struct {
 	ScriptVersion      ScriptVersionDraft    `json:"script_version"`
 	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
 	PreviewTimeline    []PreviewTimelineIn   `json:"preview_timeline"`
+	PreviewStatus      string                `json:"preview_status,omitempty"`
+	ConfirmedAt        string                `json:"confirmed_at,omitempty"`
 	AnalysisCandidates *AnalysisCandidates   `json:"analysis_candidates,omitempty"`
 	PreviewCandidates  *PreviewCandidateData `json:"preview_candidates,omitempty"`
 }
@@ -79,6 +81,8 @@ type DraftPayloadResponse struct {
 	ScriptVersion      ScriptVersionDraft    `json:"script_version"`
 	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
 	PreviewTimeline    []PreviewTimelineIn   `json:"preview_timeline"`
+	PreviewStatus      string                `json:"preview_status,omitempty"`
+	ConfirmedAt        string                `json:"confirmed_at,omitempty"`
 	AnalysisCandidates *AnalysisCandidates   `json:"analysis_candidates,omitempty"`
 	PreviewCandidates  *PreviewCandidateData `json:"preview_candidates,omitempty"`
 }
@@ -145,6 +149,10 @@ type GeneratePreviewResponse struct {
 	PreviewTimeline    []PreviewTimelineItem `json:"preview_timeline"`
 	AssetGaps          []AssetGap            `json:"asset_gaps"`
 	Status             string                `json:"status"`
+}
+
+type ConfirmPreviewRequest struct {
+	DraftID string `json:"draft_id"`
 }
 
 type PreviewCandidateData struct {
@@ -229,6 +237,8 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 			ScriptVersion:      req.ScriptVersion,
 			StoryboardRows:     req.StoryboardRows,
 			PreviewTimeline:    req.PreviewTimeline,
+			PreviewStatus:      fallback(req.PreviewStatus, "draft"),
+			ConfirmedAt:        req.ConfirmedAt,
 			AnalysisCandidates: req.AnalysisCandidates,
 			PreviewCandidates:  req.PreviewCandidates,
 		},
@@ -245,6 +255,8 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 			SourceType:           resp.Draft.ScriptVersion.SourceType,
 			SourceText:           resp.Draft.SourceText,
 			Status:               resp.Status,
+			PreviewStatus:        fallback(resp.Draft.PreviewStatus, "draft"),
+			ConfirmedAt:          resp.Draft.ConfirmedAt,
 			StoryboardRevisionID: resp.StoryboardRevisionID,
 			PreviewTimelineID:    resp.PreviewTimelineID,
 			SnapshotJSON:         string(snapshotJSON),
@@ -295,10 +307,47 @@ func (s *Service) GetLatestDraftWithContext(ctx context.Context, projectID uint)
 		PreviewTimelineID:    snapshot.PreviewTimelineID,
 		SavedAt:              snapshot.SavedAt,
 		Status:               fallback(snapshot.Status, "draft"),
-		NextActions:          []string{"analyze_script_to_sections", "generate_keyframes_for_preview"},
+		NextActions:          deriveNextActions(draft.PreviewStatus),
 		Draft:                draft,
 	}
 	return GetLatestDraftResponse{Found: true, Draft: &resp}, nil
+}
+
+func (s *Service) ConfirmPreview(projectID uint, req ConfirmPreviewRequest) (SaveDraftResponse, error) {
+	return s.ConfirmPreviewWithContext(context.Background(), projectID, req)
+}
+
+func (s *Service) ConfirmPreviewWithContext(ctx context.Context, projectID uint, req ConfirmPreviewRequest) (SaveDraftResponse, error) {
+	if projectID == 0 {
+		return SaveDraftResponse{}, fmt.Errorf("project id is required")
+	}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	if req.DraftID == "" {
+		return SaveDraftResponse{}, fmt.Errorf("draft id is required")
+	}
+	if s.store == nil {
+		return SaveDraftResponse{}, fmt.Errorf("draft store is required")
+	}
+
+	return s.updateDraftSnapshotAndReturn(ctx, projectID, req.DraftID, func(draft *DraftPayloadResponse) error {
+		if len(draft.StoryboardRows) == 0 {
+			return fmt.Errorf("at least one storyboard row is required before confirming preview")
+		}
+		if draft.PreviewCandidates == nil && len(draft.PreviewTimeline) == 0 {
+			return fmt.Errorf("at least one keyframe candidate or preview timeline item is required before confirming preview")
+		}
+		if hasBlockingAssetGap(draft.PreviewCandidates) {
+			return fmt.Errorf("resolve or ignore blocking asset gaps before confirming preview")
+		}
+		if !hasAcceptedPreviewReadiness(draft.PreviewCandidates, draft.PreviewTimeline) {
+			return fmt.Errorf("at least one accepted keyframe candidate or preview timeline item is required before confirming preview")
+		}
+
+		now := s.now().Format(time.RFC3339)
+		draft.PreviewStatus = "ready_for_production"
+		draft.ConfirmedAt = now
+		return nil
+	})
 }
 
 func (s *Service) Analyze(projectID uint, req AnalyzeRequest) (AnalyzeResponse, error) {
@@ -769,6 +818,8 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 	snapshot.Title = fallback(draft.ScriptVersion.Title, snapshot.Title)
 	snapshot.SourceType = fallback(draft.ScriptVersion.SourceType, snapshot.SourceType)
 	snapshot.SourceText = draft.SourceText
+	snapshot.PreviewStatus = fallback(draft.PreviewStatus, snapshot.PreviewStatus)
+	snapshot.ConfirmedAt = draft.ConfirmedAt
 	snapshot.SnapshotJSON = string(snapshotJSON)
 	snapshot.DurationSec = timelineDuration(draft.PreviewTimeline)
 	snapshot.SavedAt = s.now().Format(time.RFC3339)
@@ -795,7 +846,7 @@ func saveDraftResponseFromSnapshot(projectID uint, snapshot DraftSnapshot, draft
 		PreviewTimelineID:    snapshot.PreviewTimelineID,
 		SavedAt:              snapshot.SavedAt,
 		Status:               fallback(snapshot.Status, "draft"),
-		NextActions:          []string{"analyze_script_to_sections", "generate_keyframes_for_preview"},
+		NextActions:          deriveNextActions(draft.PreviewStatus),
 		Draft:                draft,
 	}
 }
@@ -860,6 +911,37 @@ func previewTimelineItemsToInput(items []PreviewTimelineItem) []PreviewTimelineI
 		})
 	}
 	return out
+}
+
+func hasAcceptedPreviewReadiness(data *PreviewCandidateData, timeline []PreviewTimelineIn) bool {
+	if data == nil {
+		return false
+	}
+	for _, candidate := range data.KeyframeCandidates {
+		if candidate.DecisionStatus == "accepted" {
+			return true
+		}
+	}
+	return len(timeline) > 0
+}
+
+func hasBlockingAssetGap(data *PreviewCandidateData) bool {
+	if data == nil {
+		return false
+	}
+	for _, gap := range data.AssetGaps {
+		if gap.Status == "missing" || gap.Status == "accepted" {
+			return true
+		}
+	}
+	return false
+}
+
+func deriveNextActions(previewStatus string) []string {
+	if previewStatus == "ready_for_production" {
+		return []string{"enter_content_production"}
+	}
+	return []string{"analyze_script_to_sections", "generate_keyframes_for_preview"}
 }
 
 func timelineDuration(items []PreviewTimelineIn) float64 {

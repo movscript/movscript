@@ -12,6 +12,8 @@ export type ScriptPreviewDraftPayload = {
   }
   storyboard_rows: ScriptPreviewStoryboardRow[]
   preview_timeline: ScriptPreviewTimelineInput[]
+  preview_status?: string
+  confirmed_at?: string
   analysis_candidates?: ScriptPreviewAnalysisCandidates
   preview_candidates?: ScriptPreviewCandidateData
 }
@@ -47,6 +49,8 @@ export type SaveScriptPreviewDraftResponse = {
     script_version: ScriptPreviewDraftPayload['script_version']
     storyboard_rows: ScriptPreviewStoryboardRow[]
     preview_timeline: ScriptPreviewTimelineInput[]
+    preview_status?: string
+    confirmed_at?: string
     analysis_candidates?: ScriptPreviewAnalysisCandidates
     preview_candidates?: ScriptPreviewCandidateData
   }
@@ -126,6 +130,8 @@ export type GenerateScriptPreviewResponse = {
   status: string
 }
 
+export type ConfirmScriptPreviewResponse = SaveScriptPreviewDraftResponse
+
 export type ScriptPreviewCandidateData = {
   generated_at: string
   keyframe_candidates: GenerateScriptPreviewResponse['keyframe_candidates']
@@ -157,6 +163,14 @@ export async function generateScriptPreview(
   payload: { draft_id: string; storyboard_rows: ScriptPreviewStoryboardRow[] },
 ) {
   const res = await api.post<GenerateScriptPreviewResponse>(`/projects/${projectId}/script-preview/generate-preview`, payload)
+  return res.data
+}
+
+export async function confirmScriptPreview(
+  projectId: number,
+  payload: { draft_id: string },
+) {
+  const res = await api.post<ConfirmScriptPreviewResponse>(`/projects/${projectId}/script-preview/confirm-preview`, payload)
   return res.data
 }
 

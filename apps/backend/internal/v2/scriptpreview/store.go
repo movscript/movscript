@@ -18,6 +18,8 @@ type DraftSnapshot struct {
 	SourceType           string
 	SourceText           string
 	Status               string
+	PreviewStatus        string
+	ConfirmedAt          string
 	StoryboardRevisionID string
 	PreviewTimelineID    string
 	SnapshotJSON         string
@@ -47,6 +49,8 @@ func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSn
 		SourceType:           snapshot.SourceType,
 		SourceText:           snapshot.SourceText,
 		Status:               snapshot.Status,
+		PreviewStatus:        snapshot.PreviewStatus,
+		ConfirmedAt:          snapshot.ConfirmedAt,
 		StoryboardRevisionID: snapshot.StoryboardRevisionID,
 		PreviewTimelineID:    snapshot.PreviewTimelineID,
 		SnapshotJSON:         snapshot.SnapshotJSON,
@@ -60,6 +64,8 @@ func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSn
 			"source_type",
 			"source_text",
 			"status",
+			"preview_status",
+			"confirmed_at",
 			"storyboard_revision_id",
 			"preview_timeline_id",
 			"snapshot_json",
@@ -107,6 +113,8 @@ func draftSnapshotFromRecord(record model.ScriptPreviewDraft) DraftSnapshot {
 		SourceType:           record.SourceType,
 		SourceText:           record.SourceText,
 		Status:               record.Status,
+		PreviewStatus:        record.PreviewStatus,
+		ConfirmedAt:          record.ConfirmedAt,
 		StoryboardRevisionID: record.StoryboardRevisionID,
 		PreviewTimelineID:    record.PreviewTimelineID,
 		SnapshotJSON:         record.SnapshotJSON,

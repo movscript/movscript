@@ -44,6 +44,105 @@ V3 不直接推进 V2 页面或后端数据模型，只通过文档化契约与 
 
 ## 已完成
 
+### 2026-05-01 ExtractSituations deterministic executor
+
+- `ProductionRuntime` 的 deterministic executor 已支持：
+
+```text
+ExtractSituations
+```
+
+- `ExtractSituations` 只生成 runtime-local `situation` candidate，不调用 V2 fallback，不写 V2 后端数据模型或数据库核心表。
+- 输入上下文优先级：
+
+```text
+inputContext.script_sections / scriptSections
+inputContext.storyboard_rows / storyboardRows
+inputContext.source_text / sourceText
+```
+
+- `script_sections` / `storyboard_rows` 会归一化为 `situation` candidates，payload 包含：
+
+```text
+client_id
+order
+title
+summary
+location optional
+time_of_day optional
+characters optional
+source_ref
+confirm_question
+```
+
+- `source_text` 兜底复用当前 deterministic section split 逻辑，按文本片段生成 `situation` candidates，并保留 source range。
+- 有候选产出时 run 状态为 `waiting_approval`，candidate 状态保持 `candidate`。
+- 无有效输入时 run 状态为 `failed`，不写 candidate。
+- `situation` 的 apply preview 已通过既有映射返回：
+
+```text
+UpsertSituationCandidates
+```
+
+- apply preview 仍只返回 `blocked` / `not_applicable`，不调用 V2 apply，不写正式事实。
+- 新增测试覆盖：
+  - script sections 生成 situation candidates。
+  - storyboard rows 和 source text 兜底生成 situation candidates。
+  - 无有效输入失败且 candidates 为空。
+  - situation apply preview 返回 `UpsertSituationCandidates`，但仍需要 accept / V2 data action gate。
+
+### 2026-05-01 GenerateKeyframeCandidates V2 fallback 边界
+
+- 扩展 `ProductionV2FallbackClient`，新增：
+
+```text
+writeGenerateKeyframeCandidates(action, run)
+```
+
+- `DisabledProductionV2FallbackClient` 对 keyframe fallback 继续返回：
+
+```text
+V2 fallback disabled
+```
+
+- `ScriptPreviewV2FallbackClient` 新增 `GenerateKeyframeCandidates` 临时 fallback：
+
+```text
+POST /projects/:id/script-preview/generate-preview
+```
+
+- fallback 请求体保持当前 V2 薄切片形状：
+
+```text
+draft_id
+storyboard_rows
+```
+
+- `storyboard_rows` 来源优先级：
+
+```text
+inputContext.storyboard_rows / storyboardRows
+inputContext.content_units / contentUnits 归一化
+runtime keyframe candidates 快照兜底归一化
+```
+
+- `ProductionRuntime.applyV2Fallback` 现在支持：
+
+```text
+AnalyzeScriptToSections -> script-preview/analyze
+GenerateKeyframeCandidates -> script-preview/generate-preview
+```
+
+- fallback 仍默认关闭，只有显式配置 `MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true` 和 base URL 才会执行。
+- fallback 成功只在 `ProductionRun.warnings` 记录已通过薄切片写入；不会把 candidate 标为 `accepted`，不会执行 V2 apply。
+- fallback 失败只在 `ProductionRun.warnings` 记录错误；runtime-local keyframe candidate 仍保留 `candidate` 状态。
+- lifecycle 和 apply-preview 不会再次触发 V2 fallback。
+- 新增测试覆盖：
+  - `GenerateKeyframeCandidates` fallback 默认关闭。
+  - keyframe fallback 成功时 candidate 仍为 `candidate`，run 记录 `script-preview/generate-preview` warning。
+  - keyframe fallback 失败时保留 runtime candidate，run 记录 warning。
+  - keyframe lifecycle / apply-preview 不重复调用 fallback。
+
 ### 2026-05-01 Production Approval / Apply Preview 最小契约
 
 - 新增 runtime-local approval / apply preview 类型：
@@ -329,17 +428,15 @@ V3 BuildPreviewTimelineProposal -> V2 BuildPreviewTimeline / SavePreviewProposal
 - 当前 V2 剧本预演薄切片已有 `script-preview` draft/analyze/generate-preview 接口，可作为 V3 mock executor 临时对接点。
 - `apps/production-runtime/src/production/` 已建立第一版内部概念层，当前类型和 store 仍位于 runtime app 内，后续稳定后再抽 `packages/production-contracts`。
 - 当前 `/production/*` HTTP API 已存在，server 默认使用 `FileProductionStore` 持久化 run/candidate；单元测试仍可使用 `InMemoryProductionStore`。
-- 当前 V2 fallback client 仅支持 `AnalyzeScriptToSections -> POST /projects/:id/script-preview/analyze`，默认关闭。
+- 当前 V2 fallback client 支持 `AnalyzeScriptToSections -> POST /projects/:id/script-preview/analyze` 和 `GenerateKeyframeCandidates -> POST /projects/:id/script-preview/generate-preview`，默认关闭。
 - 当前 runtime-local candidate lifecycle API 已存在，可标记 `accepted` / `rejected` / `revised` / `superseded`，但不会应用到 V2 正式事实。
 - 当前 runtime-local apply preview API 已存在，可说明候选未来对应的 V2 data action、当前是否 blocked、以及缺少哪些上下文；它仍不会调用 V2 或写正式事实。
+- 当前 deterministic executor 支持 `AnalyzeScriptToSections`、`ExtractSituations` 和 `GenerateKeyframeCandidates`；其余第一批 action 仍只登记契约，尚未生成候选。
 
 本次新增/修改：
 
-- `apps/production-runtime/src/production/types.ts`
-- `apps/production-runtime/src/production/runtime.ts`
-- `apps/production-runtime/src/production/index.ts`
+- `apps/production-runtime/src/production/deterministicExecutor.ts`
 - `apps/production-runtime/src/production/runtime.test.ts`
-- `apps/production-runtime/src/server.ts`
 - `docs/movscript-v3-progress.md`
 
 ## 当前产品决策
@@ -400,34 +497,62 @@ V2 窗口维护对象、状态和数据动作 API；V3 窗口维护 ProductionAc
 
 `/production/candidates/:id/apply-preview` 只表达当前候选能否进入 apply gate、未来应调用哪个 V2 data action、以及缺少哪些上下文。它不调用 V2 fallback，不调用 V2 apply，不写正式事实；因此当前返回只能是 `blocked` 或 `not_applicable`，不能返回已应用成功。
 
+### 决策 13：V2 fallback 只服务临时薄切片写回
+
+`AnalyzeScriptToSections` 和 `GenerateKeyframeCandidates` 的 V2 fallback 都只是 V3 runtime 到当前 V2 剧本预演薄切片的临时写回边界。fallback 成功不代表 canonical apply，失败不丢弃 runtime candidate；长期仍要替换为明确的 `Upsert*Candidates` 数据动作。
+
+### 决策 14：ExtractSituations 暂不增加 V2 fallback
+
+当前 V2 还没有专用 `UpsertSituationCandidates` 薄切片接口，因此 `ExtractSituations` 只在 runtime-local run/candidate store 中产出 `situation` candidates。后续应等 V2 数据动作 API 稳定后再接入写回，不复用现有 `script-preview/analyze` 作为隐式情境写入。
+
 ## 下一步任务
 
-### Next 6：补齐 GenerateKeyframeCandidates 的 V2 fallback 边界
+### Next 8：补齐 GenerateStoryboardScript deterministic executor
 
 目标：
 
 ```text
-为 GenerateKeyframeCandidates 建立和 AnalyzeScriptToSections 同级的显式 V2 fallback 边界，但仍保持 opt-in、失败不污染候选、不会自动 accept/apply。
+在 production-runtime 内为 GenerateStoryboardScript 建立最小 deterministic executor，让剧本节 / 情境上下文可以生成 runtime-local storyboard_script candidates，但不调用 V2、不写正式事实。
 ```
 
 建议交付标准：
 
 - 不改 V2 后端数据模型，不直接写数据库核心表。
-- 不实现真正 apply 到 V2 canonical objects；只允许临时 fallback 写入当前薄切片接口。
-- 扩展 `ProductionV2FallbackClient`，支持：
+- 不新增 V2 fallback；只生成 runtime-local candidate。
+- `GenerateStoryboardScript` 可从以下输入读取上下文：
 
 ```text
-GenerateKeyframeCandidates -> POST /projects/:id/script-preview/generate-preview
+inputContext.script_sections / scriptSections
+inputContext.situations / situations
+inputContext.storyboard_rows / storyboardRows optional
+inputContext.duration_target / durationTarget optional
 ```
 
-- fallback 默认关闭，继续由 `MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true` 和 base URL 显式启用。
-- fallback 成功或失败都不能改变 candidate status；成功只记录 warning，失败只记录 warning。
-- fallback 请求体应只使用 action inputContext 和 runtime candidate 快照，不绕过 V2 数据动作边界。
+- 生成 `storyboard_script` candidates，payload 至少包含：
+
+```text
+client_id
+order
+title
+body
+duration_seconds
+status
+adoption_intent
+source_section_id optional
+situation_id optional
+source_ref
+confirm_question
+```
+
+- 输出状态仍为 `candidate`，run 状态为 `waiting_approval`。
+- 无有效输入时应 failed，且不写 candidate。
+- apply preview 应能映射 `storyboard_script -> UpsertStoryboardSuggestions`。
 - 补充测试覆盖：
-  - GenerateKeyframeCandidates fallback 默认关闭。
-  - fallback 成功时 candidate 仍为 `candidate`，run 记录 warning。
-  - fallback 失败时保留 runtime candidate，run 记录 warning。
-  - lifecycle / apply-preview 仍不调用 fallback。
+  - script sections + situations 生成 storyboard_script candidates。
+  - 仅 script sections 时可生成 storyboard_script candidates。
+  - existing storyboard rows 可作为 source_ref / 去重上下文，但不被直接覆盖。
+  - 无有效输入失败且 candidates 为空。
+  - storyboard_script apply preview 返回 `UpsertStoryboardSuggestions`，但仍 blocked / not_applicable。
 
 ## 每次会话结束必须更新
 
@@ -451,6 +576,53 @@ GenerateKeyframeCandidates -> POST /projects/:id/script-preview/generate-preview
 - 没有运行测试的原因。
 
 ## 验证记录
+
+### 2026-05-01 ExtractSituations deterministic executor
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/deterministicExecutor.ts`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 64 tests
+```
+
+- 未运行前端或后端测试；本切片未改前端和后端代码，也未改 V2 数据模型。
+
+### 2026-05-01 GenerateKeyframeCandidates V2 fallback 边界
+
+- 本次新增/修改代码：
+  - `apps/production-runtime/src/production/v2FallbackClient.ts`
+  - `apps/production-runtime/src/production/runtime.ts`
+  - `apps/production-runtime/src/production/runtime.test.ts`
+- 本次更新文档：
+  - `docs/movscript-v3-progress.md`
+- 已运行验证：
+
+```text
+pnpm --dir apps/production-runtime typecheck
+pnpm --dir apps/production-runtime test
+```
+
+- 结果：
+
+```text
+typecheck passed
+test passed: 60 tests
+```
+
+- 未运行前端或后端测试；本切片未改前端和后端代码，也未改 V2 数据模型。
 
 ### 2026-05-01 Production Approval / Apply Preview 最小契约
 
@@ -585,9 +757,10 @@ test passed: 48 tests
 - `/production/*` 当前已有 create/list/get、candidate accept/reject/revise/supersede 和 apply-preview；仍没有 run cancellation 或真正的 approval/apply API。
 - `FileProductionStore` 当前是 runtime-local JSON 文件持久化，不是后端可信状态，也没有并发写入锁。
 - `accepted` candidate 目前只表示 runtime-local 审查状态，不代表已经应用到 V2 canonical objects；apply preview 也只会返回 blocked / not_applicable。
-- deterministic executor 目前只覆盖 `AnalyzeScriptToSections` 和 `GenerateKeyframeCandidates`，尚未覆盖 `ExtractSituations`、`GenerateStoryboardScript`、`PrepareAssetRequirements`、`BuildPreviewTimelineProposal`。
+- deterministic executor 目前只覆盖 `AnalyzeScriptToSections`、`ExtractSituations` 和 `GenerateKeyframeCandidates`，尚未覆盖 `GenerateStoryboardScript`、`PrepareAssetRequirements`、`BuildPreviewTimelineProposal`。
 - `AnalyzeScriptToSections` 当前只基于段落/句子做简单拆分，没有调用模型；V2 `script-preview/analyze` fallback 已有边界但默认关闭。
-- V2 fallback 当前只支持 `AnalyzeScriptToSections`，还没有 `GenerateKeyframeCandidates -> generate-preview` fallback。
+- `ExtractSituations` 当前只从已有 section / storyboard row / source text 做 deterministic 归一化，不调用模型，也不写回 V2 situation candidate API。
+- `GenerateKeyframeCandidates` 当前只基于 storyboard rows / content units 做简单 keyframe candidate，不调用图像或视频生成服务；V2 `script-preview/generate-preview` fallback 已有边界但默认关闭。
 
 ## 单句推进模板
 

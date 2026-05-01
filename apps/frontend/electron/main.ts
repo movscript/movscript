@@ -35,9 +35,19 @@ function createWindow(): void {
   })
 }
 
+async function startProductionRuntimeOnAppReady(): Promise<void> {
+  const status = await ensureProductionRuntimeRunning()
+  if (!status.ok) {
+    console.warn(`[production-runtime] auto-start failed: ${status.error ?? 'unknown error'}`)
+    return
+  }
+  console.info(`[production-runtime] auto-start ${status.started ? 'started' : 'ready'} at ${status.baseURL}${status.pid ? ` pid=${status.pid}` : ''}`)
+}
+
 app.whenReady().then(async () => {
   await startBackend()
   await startMCPServer()
+  void startProductionRuntimeOnAppReady()
   createWindow()
 
   app.on('activate', () => {

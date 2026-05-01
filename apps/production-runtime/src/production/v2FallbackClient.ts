@@ -11,6 +11,7 @@ export interface ProductionV2FallbackResult {
 export interface ProductionV2FallbackClient {
   isEnabled(): boolean
   writeAnalyzeScriptToSections(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
+  writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
 }
 
 export class DisabledProductionV2FallbackClient implements ProductionV2FallbackClient {
@@ -19,6 +20,10 @@ export class DisabledProductionV2FallbackClient implements ProductionV2FallbackC
   }
 
   async writeAnalyzeScriptToSections(): Promise<ProductionV2FallbackResult> {
+    return { performed: false, skippedReason: 'V2 fallback disabled' }
+  }
+
+  async writeGenerateKeyframeCandidates(): Promise<ProductionV2FallbackResult> {
     return { performed: false, skippedReason: 'V2 fallback disabled' }
   }
 }
@@ -69,6 +74,69 @@ export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient
       ...(parsed !== undefined ? { response: parsed } : {}),
     }
   }
+
+  async writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult> {
+    if (!this.isEnabled() || !this.baseURL) {
+      return { performed: false, skippedReason: 'V2 fallback disabled: set MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true and a backend API base URL' }
+    }
+    if (action.type !== 'GenerateKeyframeCandidates') {
+      return { performed: false, skippedReason: `V2 fallback does not support ${action.type}` }
+    }
+    const storyboardRows = inferStoryboardRows(action, run)
+    if (storyboardRows.length === 0) {
+      return { performed: false, skippedReason: 'V2 fallback skipped: storyboard_rows are missing' }
+    }
+    const draftId = inferDraftId(action)
+    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/script-preview/generate-preview`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        draft_id: draftId,
+        storyboard_rows: storyboardRows,
+      }),
+    })
+    const responseText = await response.text()
+    const parsed = parseJSONText(responseText)
+    if (!response.ok) {
+      throw new Error(`V2 script-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+    }
+    return {
+      performed: true,
+      url,
+      ...(parsed !== undefined ? { response: parsed } : {}),
+    }
+  }
+}
+
+function inferStoryboardRows(action: ProductionAction, run: ProductionRun): JSONValue[] {
+  const explicitRows = getArray(action.inputContext, 'storyboard_rows') ?? getArray(action.inputContext, 'storyboardRows')
+  if (explicitRows && explicitRows.length > 0) return explicitRows
+  const contentUnits = getArray(action.inputContext, 'content_units') ?? getArray(action.inputContext, 'contentUnits')
+  if (contentUnits && contentUnits.length > 0) return normalizeRowsFromRecords(contentUnits)
+  return run.candidates
+    .filter((candidate) => candidate.type === 'keyframe')
+    .map((candidate, index) => ({
+      client_id: getString(candidate.payload, 'client_id') ?? `keyframe-${index + 1}`,
+      order: getNumber(candidate.payload, 'order') ?? index + 1,
+      title: getString(candidate.payload, 'title') ?? `Keyframe ${index + 1}`,
+      body: getString(candidate.payload, 'visual_prompt') ?? getString(candidate.payload, 'title') ?? '',
+      duration_seconds: 6,
+      status: '待确认',
+    }))
+}
+
+function normalizeRowsFromRecords(rows: JSONValue[]): JSONValue[] {
+  return rows
+    .filter((row): row is Record<string, JSONValue> => isRecord(row))
+    .map((row, index) => ({
+      client_id: getString(row, 'client_id') ?? getString(row, 'clientId') ?? `row-${index + 1}`,
+      order: getNumber(row, 'order') ?? index + 1,
+      title: getString(row, 'title') ?? getString(row, 'shot') ?? getString(row, 'summary') ?? `Storyboard row ${index + 1}`,
+      body: getString(row, 'body') ?? getString(row, 'description') ?? getString(row, 'visual_prompt') ?? getString(row, 'visualPrompt') ?? '',
+      duration_seconds: getNumber(row, 'duration_seconds') ?? getNumber(row, 'durationSeconds') ?? 6,
+      status: getString(row, 'status') ?? '待确认',
+    }))
 }
 
 function inferDraftId(action: ProductionAction): string {
@@ -100,6 +168,11 @@ function parseJSONText(text: string): JSONValue | undefined {
 function getString(record: Record<string, JSONValue>, key: string): string | undefined {
   const value = record[key]
   return typeof value === 'string' ? value : undefined
+}
+
+function getNumber(record: Record<string, JSONValue>, key: string): number | undefined {
+  const value = record[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function getArray(record: Record<string, JSONValue>, key: string): JSONValue[] | undefined {

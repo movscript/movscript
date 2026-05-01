@@ -90,6 +90,24 @@ func (h *ScriptPreviewHandler) GenerateKeyframesForContentUnits(c *gin.Context) 
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *ScriptPreviewHandler) ConfirmPreview(c *gin.Context) {
+	projectID, ok := h.ensureProject(c)
+	if !ok {
+		return
+	}
+	var req scriptpreview.ConfirmPreviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	resp, err := h.service.ConfirmPreviewWithContext(c.Request.Context(), projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *ScriptPreviewHandler) AcceptStoryboardSuggestion(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {

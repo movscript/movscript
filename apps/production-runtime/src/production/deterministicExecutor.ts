@@ -34,6 +34,26 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
       for (const candidate of candidates) run.candidates.push(candidate)
       completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
       completeStep(run, 'request_approval', 'Candidates require explicit user acceptance before becoming facts.')
+    } else if (action.type === 'ExtractSituations') {
+      completeStep(run, 'analyze', 'Extract deterministic situation candidates from script sections, storyboard rows, or source text.')
+      const candidates = buildSituationCandidates(action, run.id)
+      if (candidates.length === 0) {
+        throw new Error('ExtractSituations requires inputContext.script_sections, inputContext.storyboard_rows, or inputContext.source_text')
+      }
+      completeStep(run, 'validate', `Validated ${candidates.length} situation candidate(s).`)
+      for (const candidate of candidates) run.candidates.push(candidate)
+      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
+      completeStep(run, 'request_approval', 'Situation candidates require explicit user acceptance before becoming facts.')
+    } else if (action.type === 'GenerateStoryboardScript') {
+      completeStep(run, 'generate', 'Generate deterministic storyboard script candidates from script sections and situations.')
+      const candidates = buildStoryboardScriptCandidates(action, run.id)
+      if (candidates.length === 0) {
+        throw new Error('GenerateStoryboardScript requires inputContext.script_sections or inputContext.situations')
+      }
+      completeStep(run, 'validate', `Validated ${candidates.length} storyboard script candidate(s).`)
+      for (const candidate of candidates) run.candidates.push(candidate)
+      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
+      completeStep(run, 'request_approval', 'Storyboard script candidates require explicit user acceptance before becoming facts.')
     } else if (action.type === 'GenerateKeyframeCandidates') {
       completeStep(run, 'generate', 'Generate deterministic keyframe candidates from storyboard rows or content units.')
       const candidates = buildKeyframeCandidates(action, run.id)
@@ -58,6 +78,107 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
     run.finishedAt = isoNow()
     return run
   }
+}
+
+function buildStoryboardScriptCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
+  const scriptSections = getRecordArray(action.inputContext, 'script_sections') ?? getRecordArray(action.inputContext, 'scriptSections') ?? []
+  const situations = getRecordArray(action.inputContext, 'situations') ?? getRecordArray(action.inputContext, 'situations') ?? []
+  const storyboardRows = getRecordArray(action.inputContext, 'storyboard_rows') ?? getRecordArray(action.inputContext, 'storyboardRows') ?? []
+  const sources = scriptSections.length > 0 ? scriptSections.slice(0, 24) : situations.slice(0, 24)
+  if (sources.length === 0) return []
+
+  const durationTarget = getNumber(action.inputContext, 'duration_target') ?? getNumber(action.inputContext, 'durationTarget')
+  const targetDuration = durationTarget && durationTarget > 0 ? Math.max(3, Math.round(durationTarget / sources.length)) : undefined
+
+  return sources.map((source, index) => {
+    const sourceSectionId = inferSourceSectionId(source)
+    const matchedSituation = findMatchingSituation(situations, source, index)
+    const situationId = matchedSituation ? inferSituationId(matchedSituation) : undefined
+    const existingStoryboardRow = findMatchingStoryboardRow(storyboardRows, sourceSectionId, index)
+    const title = getRowString(source, ['title', 'name', 'heading']) ?? getRowString(matchedSituation ?? {}, ['title', 'name']) ?? `Storyboard ${index + 1}`
+    const summary = getRowString(source, ['summary', 'description', 'content', 'body', 'text'])
+      ?? getRowString(matchedSituation ?? {}, ['summary', 'description', 'content', 'body', 'text'])
+      ?? title
+    const location = getRowString(matchedSituation ?? source, ['location', 'location_text', 'locationText', 'where'])
+    const timeOfDay = getRowString(matchedSituation ?? source, ['time_of_day', 'timeOfDay', 'time_text', 'timeText', 'when'])
+    const durationSeconds = targetDuration ?? getRowNumber(source, ['duration_seconds', 'durationSeconds', 'duration']) ?? getRowNumber(matchedSituation ?? {}, ['duration_seconds', 'durationSeconds', 'duration']) ?? 8
+    const adoptionIntent = existingStoryboardRow ? 'revise_existing_storyboard_row' : 'append_storyboard_row'
+
+    return {
+      id: makeId('production_candidate'),
+      type: 'storyboard_script',
+      projectId: action.projectId,
+      sourceActionId: action.id,
+      sourceRunId: runId,
+      targetObject: action.sourceObject,
+      status: 'candidate',
+      payload: {
+        client_id: `storyboard-script-${index + 1}`,
+        order: index + 1,
+        title,
+        body: buildStoryboardBody(summary, location, timeOfDay),
+        duration_seconds: durationSeconds,
+        status: '待确认',
+        adoption_intent: adoptionIntent,
+        ...(sourceSectionId ? { source_section_id: sourceSectionId } : {}),
+        ...(situationId ? { situation_id: situationId } : {}),
+        source_ref: {
+          type: scriptSections.length > 0 ? 'script_section' : 'situation',
+          value: normalizeJSON(source),
+          ...(matchedSituation ? { situation: normalizeJSON(matchedSituation) } : {}),
+          ...(existingStoryboardRow ? { existing_storyboard_row: normalizeJSON(existingStoryboardRow) } : {}),
+        },
+        confirm_question: '是否采用这个分镜脚本候选？',
+      },
+      confidence: existingStoryboardRow ? 0.58 : 0.62,
+      evidence: [
+        `${scriptSections.length > 0 ? 'script_section' : 'situation'}:${sourceSectionId ?? situationId ?? index + 1}`,
+        ...(existingStoryboardRow ? [`existing_storyboard_row:${getRowString(existingStoryboardRow, ['client_id', 'id']) ?? index + 1}`] : []),
+      ],
+      createdAt: isoNow(),
+    } satisfies ProductionCandidate
+  })
+}
+
+function inferSourceSectionId(row: Record<string, JSONValue>): string | undefined {
+  return getRowString(row, ['source_section_id', 'sourceSectionId', 'section_id', 'sectionId', 'client_id', 'clientId', 'id'])
+}
+
+function inferSituationId(row: Record<string, JSONValue>): string | undefined {
+  return getRowString(row, ['situation_id', 'situationId', 'client_id', 'clientId', 'id'])
+}
+
+function findMatchingSituation(
+  situations: Array<Record<string, JSONValue>>,
+  section: Record<string, JSONValue>,
+  index: number,
+): Record<string, JSONValue> | undefined {
+  if (situations.length === 0) return undefined
+  const sourceSectionId = inferSourceSectionId(section)
+  const sectionOrder = getRowNumber(section, ['order'])
+  return situations.find((situation) => {
+    const situationSourceSectionId = getRowString(situation, ['source_section_id', 'sourceSectionId', 'section_id', 'sectionId'])
+    if (sourceSectionId && situationSourceSectionId === sourceSectionId) return true
+    const situationOrder = getRowNumber(situation, ['order'])
+    return sectionOrder !== undefined && situationOrder === sectionOrder
+  }) ?? situations[index]
+}
+
+function findMatchingStoryboardRow(
+  rows: Array<Record<string, JSONValue>>,
+  sourceSectionId: string | undefined,
+  index: number,
+): Record<string, JSONValue> | undefined {
+  if (rows.length === 0) return undefined
+  const matchedBySection = sourceSectionId
+    ? rows.find((row) => getRowString(row, ['source_section_id', 'sourceSectionId', 'section_id', 'sectionId']) === sourceSectionId)
+    : undefined
+  return matchedBySection ?? rows.find((row) => getRowNumber(row, ['order']) === index + 1)
+}
+
+function buildStoryboardBody(summary: string, location: string | undefined, timeOfDay: string | undefined): string {
+  const context = [location, timeOfDay].filter(Boolean).join(' / ')
+  return context ? `${summary}\n场景：${context}` : summary
 }
 
 function buildScriptSectionCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
@@ -89,6 +210,89 @@ function buildScriptSectionCandidates(action: ProductionAction, runId: string): 
     evidence: [`source_text:${section.start}-${section.end}`],
     createdAt: isoNow(),
   }))
+}
+
+function buildSituationCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
+  const scriptSections = getRecordArray(action.inputContext, 'script_sections') ?? getRecordArray(action.inputContext, 'scriptSections')
+  if (scriptSections && scriptSections.length > 0) {
+    return scriptSections.slice(0, 24).map((section, index) => buildSituationCandidateFromRecord(action, runId, section, index, 'script_section'))
+  }
+
+  const storyboardRows = getRecordArray(action.inputContext, 'storyboard_rows') ?? getRecordArray(action.inputContext, 'storyboardRows')
+  if (storyboardRows && storyboardRows.length > 0) {
+    return storyboardRows.slice(0, 24).map((row, index) => buildSituationCandidateFromRecord(action, runId, row, index, 'storyboard_row'))
+  }
+
+  const sourceText = getString(action.inputContext, 'source_text') ?? getString(action.inputContext, 'sourceText')
+  if (!sourceText?.trim()) return []
+
+  return splitIntoSections(sourceText).slice(0, 24).map((section, index) => ({
+    id: makeId('production_candidate'),
+    type: 'situation',
+    projectId: action.projectId,
+    sourceActionId: action.id,
+    sourceRunId: runId,
+    targetObject: action.sourceObject,
+    status: 'candidate',
+    payload: {
+      client_id: `situation-${index + 1}`,
+      order: index + 1,
+      title: section.title,
+      summary: section.summary,
+      source_ref: {
+        type: 'source_text',
+        source_range: {
+          start: section.start,
+          end: section.end,
+        },
+      },
+      confirm_question: '是否采用这个情境候选？',
+    },
+    confidence: 0.58,
+    evidence: [`source_text:${section.start}-${section.end}`],
+    createdAt: isoNow(),
+  }))
+}
+
+function buildSituationCandidateFromRecord(
+  action: ProductionAction,
+  runId: string,
+  row: Record<string, JSONValue>,
+  index: number,
+  sourceType: 'script_section' | 'storyboard_row',
+): ProductionCandidate {
+  const summary = getRowString(row, ['summary', 'description', 'content', 'body', 'text', 'visual_prompt', 'visualPrompt'])
+  const title = getRowString(row, ['title', 'name', 'heading', 'shot']) ?? inferSectionTitle(summary ?? '', index)
+  const location = getRowString(row, ['location', 'location_text', 'locationText', 'where'])
+  const timeOfDay = getRowString(row, ['time_of_day', 'timeOfDay', 'time_text', 'timeText', 'when'])
+  const characters = getStringArray(row, 'characters') ?? splitList(getRowString(row, ['character_names', 'characterNames', 'participants']))
+
+  return {
+    id: makeId('production_candidate'),
+    type: 'situation',
+    projectId: action.projectId,
+    sourceActionId: action.id,
+    sourceRunId: runId,
+    targetObject: action.sourceObject,
+    status: 'candidate',
+    payload: {
+      client_id: `situation-${index + 1}`,
+      order: index + 1,
+      title,
+      summary: summary ?? title,
+      ...(location ? { location } : {}),
+      ...(timeOfDay ? { time_of_day: timeOfDay } : {}),
+      ...(characters && characters.length > 0 ? { characters } : {}),
+      source_ref: {
+        type: sourceType,
+        value: normalizeJSON(row),
+      },
+      confirm_question: '是否采用这个情境候选？',
+    },
+    confidence: sourceType === 'script_section' ? 0.64 : 0.6,
+    evidence: [`${sourceType}:${getRowString(row, ['client_id', 'id']) ?? index + 1}`],
+    createdAt: isoNow(),
+  }
 }
 
 function buildKeyframeCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
@@ -192,6 +396,16 @@ function getString(record: Record<string, JSONValue>, key: string): string | und
   return typeof value === 'string' ? value : undefined
 }
 
+function getNumber(record: Record<string, JSONValue>, key: string): number | undefined {
+  const value = record[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
 function getRecordArray(record: Record<string, JSONValue>, key: string): Array<Record<string, JSONValue>> | undefined {
   const value = record[key]
   if (!Array.isArray(value)) return undefined
@@ -202,8 +416,39 @@ function getRowString(row: Record<string, JSONValue>, keys: string[]): string | 
   for (const key of keys) {
     const value = row[key]
     if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   }
   return undefined
+}
+
+function getRowNumber(row: Record<string, JSONValue>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = row[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return undefined
+}
+
+function getStringArray(row: Record<string, JSONValue>, key: string): string[] | undefined {
+  const value = row[key]
+  if (!Array.isArray(value)) return undefined
+  const strings = value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
+  return strings.length > 0 ? strings : undefined
+}
+
+function splitList(value: string | undefined): string[] | undefined {
+  if (!value) return undefined
+  const items = value
+    .split(/[、,，/]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+  return items.length > 0 ? items : undefined
 }
 
 function normalizeJSON(value: JSONValue): JSONValue {

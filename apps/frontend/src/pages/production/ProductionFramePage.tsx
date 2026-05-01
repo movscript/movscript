@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowRight,
@@ -23,6 +24,7 @@ import {
   Wand2,
 } from 'lucide-react'
 
+import { getLatestScriptPreviewDraft, type GetLatestScriptPreviewDraftResponse } from '@/api/scriptPreview'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -96,6 +98,7 @@ function safeCount<T>(data?: T[]) {
 export default function ProductionFramePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const navigate = useNavigate()
   const [view, setView] = useState<WorkbenchView>('overview')
 
   const { data: progress } = useQuery<Progress>({
@@ -134,6 +137,12 @@ export default function ProductionFramePage() {
     queryFn: () => api.get(`/projects/${projectId}/assets`).then((r) => r.data),
     enabled: !!projectId,
   })
+  const { data: latestScriptPreviewDraft } = useQuery<GetLatestScriptPreviewDraftResponse>({
+    queryKey: ['script-preview-latest-draft', projectId],
+    queryFn: () => getLatestScriptPreviewDraft(projectId!),
+    enabled: !!projectId,
+    refetchInterval: 60_000,
+  })
   const metrics = useMemo(() => {
     const storyboardTotal = progress?.storyboards.total ?? safeCount(storyboards)
     const shotTotal = progress?.shots.total ?? safeCount(shots)
@@ -154,6 +163,21 @@ export default function ProductionFramePage() {
   const firstEpisode = episodes?.[0]
   const firstScene = scenes?.[0]
   const firstScript = scripts?.[0]
+  const latestPreviewDraft = latestScriptPreviewDraft?.found ? latestScriptPreviewDraft.draft : undefined
+  const latestPreviewStatus = latestPreviewDraft?.draft.preview_status ?? 'draft'
+  const latestPreviewConfirmedAt = latestPreviewDraft?.draft.confirmed_at ?? ''
+  const latestPreviewSavedAt = latestPreviewDraft?.saved_at ?? ''
+  const latestPreviewTitle = latestPreviewDraft?.draft.script_version.title ?? '最近预演草稿'
+  const isReadyForProduction = latestPreviewStatus === 'ready_for_production'
+  const previewStatusLabel = isReadyForProduction ? '已确认' : latestScriptPreviewDraft?.found ? '待确认' : '未找到草稿'
+  const previewStatusTone = isReadyForProduction ? 'text-emerald-600' : latestScriptPreviewDraft?.found ? 'text-amber-600' : 'text-muted-foreground'
+  const previewSummary = isReadyForProduction
+    ? '预演已经确认，可以继续进入制作任务。'
+    : latestScriptPreviewDraft?.found
+      ? '当前项目已有预演草稿，但还没有进入可生产状态。'
+      : '当前项目还没有可用的预演草稿，先完成剧本预演确认。'
+  const nextActionLabel = isReadyForProduction ? '进入制作任务' : '前往剧本预演'
+  const nextActionTarget = isReadyForProduction ? '/collaboration' : '/script-preview'
 
   return (
     <div className="h-full overflow-auto bg-background">
@@ -176,12 +200,57 @@ export default function ProductionFramePage() {
               <Gauge size={15} />
               查看进度
             </Button>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={() => navigate(nextActionTarget)}>
               <Play size={15} />
-              开始生产
+              {nextActionLabel}
             </Button>
           </div>
         </header>
+
+        <section className="grid grid-cols-[minmax(0,1fr)_320px] gap-4">
+          <div className="rounded-lg border border-border bg-card px-4 py-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <BadgeCheck size={15} className={previewStatusTone} />
+                  <span>剧本预演状态</span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {previewStatusLabel}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{previewSummary}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {latestScriptPreviewDraft?.found ? latestPreviewTitle : '进入剧本预演后会显示最近保存的草稿状态。'}
+                </p>
+              </div>
+              <div className="shrink-0 text-right text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">
+                  {isReadyForProduction ? '可进入内容生产' : '尚未进入生产前状态'}
+                </p>
+                <p className="mt-1">保存时间：{latestPreviewSavedAt ? formatDateTime(latestPreviewSavedAt) : '暂无'}</p>
+                <p className="mt-1">确认时间：{latestPreviewConfirmedAt ? formatDateTime(latestPreviewConfirmedAt) : '暂无'}</p>
+              </div>
+            </div>
+          </div>
+
+          <Panel title="下一步动作" icon={ArrowRight}>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {isReadyForProduction
+                ? '预演已确认，下一步进入制作任务；这里只读取状态，不创建任务。'
+                : '先去剧本预演确认当前草稿，再回到这里继续后续生产流程。'}
+            </p>
+            <div className="mt-3 space-y-2">
+              <Button className="w-full justify-start gap-2" onClick={() => navigate(nextActionTarget)}>
+                <ArrowRight size={15} />
+                {nextActionLabel}
+              </Button>
+              <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/script-preview')}>
+                <Film size={15} />
+                查看剧本预演
+              </Button>
+            </div>
+          </Panel>
+        </section>
 
         <section className="grid grid-cols-5 gap-3">
           {stageFlow.map((stage, index) => {
@@ -474,4 +543,16 @@ function AssetLine({ label, value }: { label: string; value: string }) {
       <span className="font-medium">{value}</span>
     </div>
   )
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }

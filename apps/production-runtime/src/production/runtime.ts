@@ -236,11 +236,18 @@ export class ProductionRuntime {
   }
 
   private async applyV2Fallback(action: ProductionAction, run: ProductionRun): Promise<void> {
-    if (run.status === 'failed' || action.type !== 'AnalyzeScriptToSections') return
+    if (run.status === 'failed') return
     try {
-      const result = await this.v2FallbackClient.writeAnalyzeScriptToSections(action, run)
+      const result = action.type === 'AnalyzeScriptToSections'
+        ? await this.v2FallbackClient.writeAnalyzeScriptToSections(action, run)
+        : action.type === 'GenerateKeyframeCandidates'
+          ? await this.v2FallbackClient.writeGenerateKeyframeCandidates(action, run)
+          : undefined
+      if (!result) return
       if (result.performed) {
-        run.warnings.push('V2 fallback wrote AnalyzeScriptToSections output through script-preview/analyze.')
+        run.warnings.push(action.type === 'AnalyzeScriptToSections'
+          ? 'V2 fallback wrote AnalyzeScriptToSections output through script-preview/analyze.'
+          : 'V2 fallback wrote GenerateKeyframeCandidates output through script-preview/generate-preview.')
       } else if (result.skippedReason) {
         run.warnings.push(result.skippedReason)
       }

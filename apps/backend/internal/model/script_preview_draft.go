@@ -13,6 +13,8 @@ type ScriptPreviewDraft struct {
 	SourceType           string  `gorm:"default:'script';index" json:"source_type"`
 	SourceText           string  `gorm:"type:text" json:"source_text"`
 	Status               string  `gorm:"not null;default:'draft';index" json:"status"`
+	PreviewStatus        string  `gorm:"not null;default:'draft';index" json:"preview_status"`
+	ConfirmedAt          string  `json:"confirmed_at"`
 	StoryboardRevisionID string  `json:"storyboard_revision_id"`
 	PreviewTimelineID    string  `json:"preview_timeline_id"`
 	SnapshotJSON         string  `gorm:"type:text" json:"snapshot_json"`

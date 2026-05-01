@@ -548,6 +548,100 @@ func TestServiceRejectAssetGapPersistsStatusAndBlocksResolve(t *testing.T) {
 	}
 }
 
+func TestServiceConfirmPreviewPersistsPreviewState(t *testing.T) {
+	store := newMemoryDraftStore()
+	svc := NewServiceWithStore(store)
+	svc.now = func() time.Time {
+		return time.Date(2026, 5, 1, 13, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	}
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "预演确认草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview returned error: %v", err)
+	}
+	_, err = svc.AcceptKeyframeCandidate(1, KeyframeCandidateDecisionRequest{
+		DraftID:                   "draft-1",
+		KeyframeCandidateClientID: "keyframe-001",
+	})
+	if err != nil {
+		t.Fatalf("AcceptKeyframeCandidate returned error: %v", err)
+	}
+
+	resp, err := svc.ConfirmPreview(1, ConfirmPreviewRequest{DraftID: "draft-1"})
+	if err != nil {
+		t.Fatalf("ConfirmPreview returned error: %v", err)
+	}
+	if got := resp.Draft.PreviewStatus; got != "ready_for_production" {
+		t.Fatalf("preview status = %q, want ready_for_production", got)
+	}
+	if resp.Draft.ConfirmedAt == "" {
+		t.Fatal("expected confirmed_at to be recorded")
+	}
+
+	loaded, err := svc.GetLatestDraft(1)
+	if err != nil {
+		t.Fatalf("GetLatestDraft returned error: %v", err)
+	}
+	if got := loaded.Draft.Draft.PreviewStatus; got != "ready_for_production" {
+		t.Fatalf("loaded preview status = %q, want ready_for_production", got)
+	}
+	if loaded.Draft.Draft.ConfirmedAt == "" {
+		t.Fatal("expected confirmed_at to be restored")
+	}
+}
+
+func TestServiceConfirmPreviewRejectsBlockedDraft(t *testing.T) {
+	svc := NewServiceWithStore(newMemoryDraftStore())
+	_, err := svc.SaveDraft(1, SaveDraftRequest{
+		DraftPayload: DraftPayload{
+			SourceText: "第一段",
+			ScriptVersion: ScriptVersionDraft{
+				DraftID: "draft-1",
+				Title:   "阻塞草稿",
+			},
+			StoryboardRows: []StoryboardRow{
+				{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveDraft returned error: %v", err)
+	}
+	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePreview returned error: %v", err)
+	}
+
+	_, err = svc.ConfirmPreview(1, ConfirmPreviewRequest{DraftID: "draft-1"})
+	if err == nil {
+		t.Fatal("expected preview confirmation to fail while asset gaps are blocking")
+	}
+}
+
 type memoryDraftStore struct {
 	snapshots map[uint]map[string]DraftSnapshot
 }
