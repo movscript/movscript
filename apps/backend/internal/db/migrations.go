@@ -118,8 +118,8 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000018",
-			Name:    "v2_semantic_skeleton",
-			Up:      migrateV2SemanticSkeleton,
+			Name:    "semantic_entity_skeleton",
+			Up:      migrateSemanticEntitySkeleton,
 		},
 		{
 			Version: "000019",
@@ -142,14 +142,14 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000022",
-			Name:    "v2_reference_relation_review_fields",
+			Name:    "semantic_reference_relation_review_fields",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&model.CreativeReferenceUsage{}, &model.CreativeRelationship{})
 			},
 		},
 		{
 			Version: "000023",
-			Name:    "v2_storyboard_script_and_canvas_output",
+			Name:    "semantic_storyboard_script_and_canvas_output",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(
 					&model.StoryboardScript{},
@@ -161,7 +161,7 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000024",
-			Name:    "v2_candidate_decision_review_event",
+			Name:    "semantic_candidate_decision_review_event",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&model.CandidateDecision{}, &model.ReviewEvent{})
 			},
@@ -173,8 +173,8 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000026",
-			Name:    "content_zone_v2_tables",
-			Up:      migrateContentZoneV2Tables,
+			Name:    "content_zone_semantic_tables",
+			Up:      migrateContentZoneSemanticTables,
 		},
 		{
 			Version: "000027",
@@ -189,7 +189,7 @@ func RegisteredMigrations() []Migration {
 	}
 }
 
-func migrateContentZoneV2Tables(db *gorm.DB) error {
+func migrateContentZoneSemanticTables(db *gorm.DB) error {
 	if err := migrateRemoveV1ProductionEntities(db); err != nil {
 		return err
 	}
@@ -332,7 +332,7 @@ func migrateRemoveLegacyAssetEntities(db *gorm.DB) error {
 	return db.AutoMigrate(&model.AssetSlot{}, &model.AssetSlotCandidate{}, &model.DeliveryTimelineItem{})
 }
 
-func migrateV2SemanticSkeleton(db *gorm.DB) error {
+func migrateSemanticEntitySkeleton(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.ProjectPreviewDraft{},
 		&model.ScriptVersion{},

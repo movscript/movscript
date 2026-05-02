@@ -29,11 +29,11 @@ import {
   resourceFromId,
   updateDeliveryTimelineItem,
   updateDeliveryVersion,
-  type V2ContentUnit,
-  type V2DeliveryTimelineItem,
-  type V2DeliveryVersion,
-  type V2ExportRecord,
-} from '@/api/v2Delivery'
+  type ContentUnit,
+  type DeliveryTimelineItem,
+  type DeliveryVersion,
+  type ExportRecord,
+} from '@/api/deliveryEntities'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 import { api } from '@/lib/api'
@@ -60,7 +60,7 @@ const statusTone: Record<string, string> = {
   failed: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
 }
 
-export default function V2FinalVideosPage() {
+export default function FinalVideosWorkspacePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const qc = useQueryClient()
@@ -73,7 +73,7 @@ export default function V2FinalVideosPage() {
   const [resourcePage, setResourcePage] = useState(1)
 
   const versionsQuery = useQuery({
-    queryKey: ['v2-delivery-versions', projectId],
+    queryKey: ['semantic-delivery-versions', projectId],
     queryFn: () => listDeliveryVersions(projectId!),
     enabled: !!projectId,
   })
@@ -81,7 +81,7 @@ export default function V2FinalVideosPage() {
   const selectedVersion = versions.find((item) => item.ID === selectedVersionId) ?? null
 
   const itemsQuery = useQuery({
-    queryKey: ['v2-delivery-timeline-items', projectId, selectedVersionId],
+    queryKey: ['semantic-delivery-timeline-items', projectId, selectedVersionId],
     queryFn: () => listDeliveryTimelineItems(projectId!, selectedVersionId),
     enabled: !!projectId && !!selectedVersionId,
   })
@@ -91,26 +91,26 @@ export default function V2FinalVideosPage() {
   )
 
   const exportsQuery = useQuery({
-    queryKey: ['v2-export-records', projectId, selectedVersionId],
+    queryKey: ['semantic-export-records', projectId, selectedVersionId],
     queryFn: () => listExportRecords(projectId!, selectedVersionId),
     enabled: !!projectId && !!selectedVersionId,
   })
   const exportRecords = exportsQuery.data ?? []
 
   const previewTimelinesQuery = useQuery({
-    queryKey: ['v2-preview-timelines', projectId],
+    queryKey: ['semantic-preview-timelines', projectId],
     queryFn: () => listPreviewTimelines(projectId!),
     enabled: !!projectId,
   })
   const contentUnitsQuery = useQuery({
-    queryKey: ['v2-content-units', projectId],
+    queryKey: ['semantic-content-units', projectId],
     queryFn: () => listContentUnits(projectId!),
     enabled: !!projectId,
   })
 
   const resourcePageSize = 6
   const resourcesQuery = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['resources', 'v2-final-library', resourceType, resourceSearch, resourcePage],
+    queryKey: ['resources', 'semantic-final-library', resourceType, resourceSearch, resourcePage],
     queryFn: () =>
       api.get('/resources', {
         params: {
@@ -158,9 +158,9 @@ export default function V2FinalVideosPage() {
   const versionReadiness = readiness(timelineItems)
   const contentUnitById = new Map((contentUnitsQuery.data ?? []).map((item) => [item.ID, item]))
 
-  const versionKey = ['v2-delivery-versions', projectId]
-  const itemsKey = ['v2-delivery-timeline-items', projectId, selectedVersionId]
-  const exportsKey = ['v2-export-records', projectId, selectedVersionId]
+  const versionKey = ['semantic-delivery-versions', projectId]
+  const itemsKey = ['semantic-delivery-timeline-items', projectId, selectedVersionId]
+  const exportsKey = ['semantic-export-records', projectId, selectedVersionId]
 
   const createVersion = useMutation({
     mutationFn: () => createDeliveryVersion(projectId!, {
@@ -175,7 +175,7 @@ export default function V2FinalVideosPage() {
   })
 
   const updateVersion = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Partial<V2DeliveryVersion> }) => updateDeliveryVersion(projectId!, id, payload),
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<DeliveryVersion> }) => updateDeliveryVersion(projectId!, id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: versionKey }),
   })
 
@@ -200,7 +200,7 @@ export default function V2FinalVideosPage() {
   })
 
   const updateItem = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Partial<V2DeliveryTimelineItem> }) => updateDeliveryTimelineItem(projectId!, id, {
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<DeliveryTimelineItem> }) => updateDeliveryTimelineItem(projectId!, id, {
       ...payload,
       delivery_version_id: selectedVersionId!,
     }),
@@ -233,12 +233,12 @@ export default function V2FinalVideosPage() {
     contentUnitsQuery.refetch()
   }
 
-  function patchSelectedVersion(payload: Partial<V2DeliveryVersion>) {
+  function patchSelectedVersion(payload: Partial<DeliveryVersion>) {
     if (!selectedVersion) return
     updateVersion.mutate({ id: selectedVersion.ID, payload })
   }
 
-  function patchSelectedItem(payload: Partial<V2DeliveryTimelineItem>) {
+  function patchSelectedItem(payload: Partial<DeliveryTimelineItem>) {
     if (!selectedItem) return
     updateItem.mutate({ id: selectedItem.ID, payload })
   }
@@ -285,7 +285,7 @@ export default function V2FinalVideosPage() {
 
         <div className="flex-1 overflow-auto p-3">
           {versionsQuery.isLoading ? (
-            <EmptyBlock icon={Clock3} title="正在加载" detail="读取 V2 交付版本" />
+            <EmptyBlock icon={Clock3} title="正在加载" detail="读取交付版本" />
           ) : visibleVersions.length === 0 ? (
             <EmptyBlock icon={FileVideo} title="暂无版本" detail="创建交付版本后开始组织成片时间线" />
           ) : (
@@ -481,7 +481,7 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
   )
 }
 
-function VersionCard({ version, selected, itemCount, onClick }: { version: V2DeliveryVersion; selected: boolean; itemCount?: number; onClick: () => void }) {
+function VersionCard({ version, selected, itemCount, onClick }: { version: DeliveryVersion; selected: boolean; itemCount?: number; onClick: () => void }) {
   return (
     <button
       className={cn(
@@ -518,7 +518,7 @@ function ReadinessCard({ icon: Icon, label, value, detail, tone }: { icon: Lucid
   )
 }
 
-function TimelineStrip({ items, selectedId, onSelect }: { items: V2DeliveryTimelineItem[]; selectedId: number | null; onSelect: (id: number) => void }) {
+function TimelineStrip({ items, selectedId, onSelect }: { items: DeliveryTimelineItem[]; selectedId: number | null; onSelect: (id: number) => void }) {
   if (items.length === 0) return null
   const total = Math.max(sumDuration(items), 1)
   return (
@@ -555,8 +555,8 @@ function TimelineRow({
   selected,
   onClick,
 }: {
-  item: V2DeliveryTimelineItem
-  contentUnit?: V2ContentUnit
+  item: DeliveryTimelineItem
+  contentUnit?: ContentUnit
   selected: boolean
   onClick: () => void
 }) {
@@ -586,9 +586,9 @@ function ItemEditor({
   onDelete,
   deleting,
 }: {
-  item: V2DeliveryTimelineItem
-  contentUnits: V2ContentUnit[]
-  onChange: (payload: Partial<V2DeliveryTimelineItem>) => void
+  item: DeliveryTimelineItem
+  contentUnits: ContentUnit[]
+  onChange: (payload: Partial<DeliveryTimelineItem>) => void
   onDelete: () => void
   deleting: boolean
 }) {
@@ -634,7 +634,7 @@ function ItemEditor({
   )
 }
 
-function ExportPanel({ exportRecords, onCreate, creating }: { exportRecords: V2ExportRecord[]; onCreate: () => void; creating: boolean }) {
+function ExportPanel({ exportRecords, onCreate, creating }: { exportRecords: ExportRecord[]; onCreate: () => void; creating: boolean }) {
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -690,7 +690,7 @@ function StatusPill({ status, label }: { status: string; label?: string }) {
   )
 }
 
-function readiness(items: V2DeliveryTimelineItem[]) {
+function readiness(items: DeliveryTimelineItem[]) {
   const missingCount = items.filter((item) => ['missing', 'needs_asset'].includes(item.status)).length
   const noResourceCount = items.filter((item) => ['video', 'image', 'audio'].includes(item.kind) && !item.resource_id).length
   const lockedCount = items.filter((item) => ['locked', 'approved'].includes(item.status)).length
@@ -703,7 +703,7 @@ function readiness(items: V2DeliveryTimelineItem[]) {
   }
 }
 
-function sumDuration(items: V2DeliveryTimelineItem[]) {
+function sumDuration(items: DeliveryTimelineItem[]) {
   return items.reduce((total, item) => total + (Number.isFinite(item.duration_sec) ? item.duration_sec : 0), 0)
 }
 

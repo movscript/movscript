@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { createScriptVersion, listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
-import type { Asset, AssetView, PaginatedResponse, RawResource, Script, Setting } from '@/types'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import type { AssetSlot, Script, Setting } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import {
   AlertTriangle,
@@ -41,45 +41,21 @@ interface SettingPreview {
   isVideo: boolean
 }
 
-function resourceMediaSrc(resource?: RawResource): string | undefined {
-  if (!resource?.url) return undefined
-  return `${API_BASE}${resource.url}`
+type SettingAssetSlot = SemanticEntityRecord & AssetSlot
+
+function slotPreviewCandidates(slot: SettingAssetSlot): SettingPreview[] {
+  const resource = slot.resource
+  if (!resource?.url) return []
+  const src = resource.url.startsWith('http') ? resource.url : resource.url
+  return [{ key: `slot:${slot.ID}:${resource.ID}`, src, isVideo: resource.type === 'video' || !!resource.mime_type?.startsWith('video/') }]
 }
 
-function viewMediaSrc(view: AssetView): string | undefined {
-  if (view.resource?.url) return `${API_BASE}${view.resource.url}`
-  if (view.image_url) return view.image_url.startsWith('http') ? view.image_url : `${API_BASE}${view.image_url}`
-  return undefined
-}
-
-function isVideoResource(resource?: RawResource): boolean {
-  return resource?.type === 'video' || !!resource?.mime_type?.startsWith('video/')
-}
-
-function isVideoView(view: AssetView): boolean {
-  return view.resource?.type === 'video' || !!view.resource?.mime_type?.startsWith('video/')
-}
-
-function assetPreviewCandidates(asset: Asset): SettingPreview[] {
-  const candidates: SettingPreview[] = []
-  const resourceSrc = resourceMediaSrc(asset.resource)
-  if (resourceSrc) {
-    candidates.push({ key: `resource:${asset.resource?.ID ?? resourceSrc}`, src: resourceSrc, isVideo: isVideoResource(asset.resource) })
-  }
-  for (const view of asset.views ?? []) {
-    const src = viewMediaSrc(view)
-    if (!src) continue
-    candidates.push({ key: `view:${view.ID}:${src}`, src, isVideo: view.resource ? isVideoView(view) : false })
-  }
-  return candidates
-}
-
-function settingAssetPreviews(settingId: number, assets: Asset[], limit = 4): SettingPreview[] {
+function settingAssetPreviews(settingId: number, slots: SettingAssetSlot[], limit = 4): SettingPreview[] {
   const previews: SettingPreview[] = []
   const seen = new Set<string>()
-  for (const asset of assets) {
-    if (asset.setting_id !== settingId) continue
-    for (const preview of assetPreviewCandidates(asset)) {
+  for (const slot of slots) {
+    if (slot.creative_reference_id !== settingId && !(slot.owner_type === 'setting' && slot.owner_id === settingId)) continue
+    for (const preview of slotPreviewCandidates(slot)) {
       if (seen.has(preview.src)) continue
       seen.add(preview.src)
       previews.push(preview)
@@ -106,7 +82,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     enabled: !!projectId,
   })
   const { data: scriptVersions = [] } = useQuery<ScriptVersion[]>({
-    queryKey: ['v2-script-versions', projectId],
+    queryKey: ['semantic-script-versions', projectId],
     queryFn: () => listScriptVersions(projectId),
     enabled: !!projectId,
   })
@@ -134,7 +110,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     onSuccess: (updated: Script) => {
       setDraft((current) => ({ ...current, ...updated }))
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
-      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
     },
   })
 
@@ -153,7 +129,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       })
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
     },
   })
 
@@ -273,7 +249,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   <div className="grid gap-4 p-4 lg:grid-cols-[240px_minmax(0,1fr)]">
                     <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
                       {versionsForSelected.length === 0 ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs leading-5 text-muted-foreground">暂无 v2 剧本版本。编辑正文后可创建版本。</p>
+                        <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs leading-5 text-muted-foreground">暂无剧本版本。编辑正文后可创建版本。</p>
                       ) : versionsForSelected.map((version) => (
                         <div key={version.ID} className="rounded-md border border-border bg-background px-3 py-2">
                           <p className="truncate text-sm font-medium text-foreground">{version.title || `剧本版本 ${version.version_number}`}</p>
@@ -531,6 +507,7 @@ function SettingsSection({ projectId }: { projectId: number }) {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState('')
+  const assetSlotConfig = semanticEntityConfig('assetSlots')
 
   const { data: rawSettings, isLoading } = useQuery<Setting[]>({
     queryKey: ['settings', projectId, filterType],
@@ -539,15 +516,12 @@ function SettingsSection({ projectId }: { projectId: number }) {
         .then((r) => r.data),
     enabled: !!projectId,
   })
-  const { data: rawSettingAssets } = useQuery<PaginatedResponse<Asset>>({
-    queryKey: ['assets', projectId, 'settings-preview'],
-    queryFn: () =>
-      api.get(`/projects/${projectId}/assets`, { params: { page: 1, page_size: 200 } })
-        .then((r) => r.data),
+  const { data: settingAssets = [] } = useQuery<SettingAssetSlot[]>({
+    queryKey: ['asset-slots', projectId, 'settings-preview'],
+    queryFn: () => listSemanticEntities(projectId, assetSlotConfig) as Promise<SettingAssetSlot[]>,
     enabled: !!projectId,
   })
   const settings = rawSettings ?? []
-  const settingAssets = rawSettingAssets?.items ?? []
 
   const create = useMutation({
     mutationFn: (s: Partial<Setting>) => api.post(`/projects/${projectId}/settings`, s).then((r) => r.data),

@@ -1,9 +1,9 @@
 import { api } from '@/lib/api'
-import type { V2EntityRecord } from '@/api/v2Entities'
+import type { SemanticEntityRecord } from '@/api/semanticEntities'
 
 export type RelationTab = 'usage' | 'relationship'
 
-export interface CreativeReferenceUsage extends V2EntityRecord {
+export interface CreativeReferenceUsage extends SemanticEntityRecord {
   owner_type: string
   owner_id: number
   creative_reference_id: number
@@ -18,7 +18,7 @@ export interface CreativeReferenceUsage extends V2EntityRecord {
   creative_reference_state?: CreativeReferenceState
 }
 
-export interface CreativeRelationship extends V2EntityRecord {
+export interface CreativeRelationship extends SemanticEntityRecord {
   source_creative_reference_id: number
   target_creative_reference_id: number
   scope_type?: string
@@ -35,7 +35,7 @@ export interface CreativeRelationship extends V2EntityRecord {
   target_creative_reference?: CreativeReference
 }
 
-export interface CreativeReference extends V2EntityRecord {
+export interface CreativeReference extends SemanticEntityRecord {
   name: string
   kind: string
   alias?: string
@@ -43,7 +43,7 @@ export interface CreativeReference extends V2EntityRecord {
   status?: string
 }
 
-export interface CreativeReferenceState extends V2EntityRecord {
+export interface CreativeReferenceState extends SemanticEntityRecord {
   creative_reference_id: number
   scope_type: string
   scope_id?: number | null
@@ -80,49 +80,49 @@ export interface RelationshipPayload {
 }
 
 export async function listCreativeReferences(projectId: number) {
-  const { data } = await api.get<CreativeReference[]>(`/projects/${projectId}/v2/creative-references`)
+  const { data } = await api.get<CreativeReference[]>(`/projects/${projectId}/entities/creative-references`)
   return data
 }
 
 export async function listCreativeReferenceStates(projectId: number) {
-  const { data } = await api.get<CreativeReferenceState[]>(`/projects/${projectId}/v2/creative-reference-states`)
+  const { data } = await api.get<CreativeReferenceState[]>(`/projects/${projectId}/entities/creative-reference-states`)
   return data
 }
 
 export async function listCreativeReferenceUsages(projectId: number) {
-  const { data } = await api.get<CreativeReferenceUsage[]>(`/projects/${projectId}/v2/creative-reference-usages`)
+  const { data } = await api.get<CreativeReferenceUsage[]>(`/projects/${projectId}/entities/creative-reference-usages`)
   return data
 }
 
 export async function createCreativeReferenceUsage(projectId: number, payload: UsagePayload) {
-  const { data } = await api.post<CreativeReferenceUsage>(`/projects/${projectId}/v2/creative-reference-usages`, payload)
+  const { data } = await api.post<CreativeReferenceUsage>(`/projects/${projectId}/entities/creative-reference-usages`, payload)
   return data
 }
 
 export async function updateCreativeReferenceUsage(projectId: number, id: number, payload: UsagePayload) {
-  const { data } = await api.patch<CreativeReferenceUsage>(`/projects/${projectId}/v2/creative-reference-usages/${id}`, payload)
+  const { data } = await api.patch<CreativeReferenceUsage>(`/projects/${projectId}/entities/creative-reference-usages/${id}`, payload)
   return data
 }
 
 export async function deleteCreativeReferenceUsage(projectId: number, id: number) {
-  await api.delete(`/projects/${projectId}/v2/creative-reference-usages/${id}`)
+  await api.delete(`/projects/${projectId}/entities/creative-reference-usages/${id}`)
 }
 
 export async function listCreativeRelationships(projectId: number) {
-  const { data } = await api.get<CreativeRelationship[]>(`/projects/${projectId}/v2/creative-relationships`)
+  const { data } = await api.get<CreativeRelationship[]>(`/projects/${projectId}/entities/creative-relationships`)
   return data
 }
 
 export async function createCreativeRelationship(projectId: number, payload: RelationshipPayload) {
-  const { data } = await api.post<CreativeRelationship>(`/projects/${projectId}/v2/creative-relationships`, payload)
+  const { data } = await api.post<CreativeRelationship>(`/projects/${projectId}/entities/creative-relationships`, payload)
   return data
 }
 
 export async function updateCreativeRelationship(projectId: number, id: number, payload: RelationshipPayload) {
-  const { data } = await api.patch<CreativeRelationship>(`/projects/${projectId}/v2/creative-relationships/${id}`, payload)
+  const { data } = await api.patch<CreativeRelationship>(`/projects/${projectId}/entities/creative-relationships/${id}`, payload)
   return data
 }
 
 export async function deleteCreativeRelationship(projectId: number, id: number) {
-  await api.delete(`/projects/${projectId}/v2/creative-relationships/${id}`)
+  await api.delete(`/projects/${projectId}/entities/creative-relationships/${id}`)
 }

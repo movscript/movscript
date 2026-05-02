@@ -20,7 +20,7 @@ type Production struct {
 	MetadataJSON      string           `gorm:"type:text" json:"metadata_json"`
 }
 
-// AssetSlot is the V2 material unit. It can represent a missing production
+// AssetSlot is the semantic material unit. It can represent a missing production
 // need, a candidate result, or the locked material used downstream.
 type AssetSlot struct {
 	gorm.Model
@@ -83,7 +83,7 @@ type CandidateDecision struct {
 }
 
 // ReviewEvent is an append-only event stream for review and approval history
-// across V2 objects. WorkReview remains task-specific; ReviewEvent covers
+// across semantic objects. WorkReview remains task-specific; ReviewEvent covers
 // candidates, facts, timelines, delivery items, and canvas outputs.
 type ReviewEvent struct {
 	gorm.Model

@@ -26,8 +26,8 @@ import {
   type CreativeReferenceCardKind,
   type CreativeReferenceCardStatus,
 } from '@/components/creative/CreativeReferenceCard'
-import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
-import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge } from '@movscript/ui'
@@ -56,7 +56,7 @@ interface CreativeReference {
   accent: string
 }
 
-type CreativeReferenceRecord = V2EntityRecord & {
+type CreativeReferenceRecord = SemanticEntityRecord & {
   kind?: string
   name?: string
   alias?: string
@@ -68,7 +68,7 @@ type CreativeReferenceRecord = V2EntityRecord & {
   tags_json?: string
 }
 
-type CreativeReferenceUsageRecord = V2EntityRecord & {
+type CreativeReferenceUsageRecord = SemanticEntityRecord & {
   creative_reference_id?: number
 }
 
@@ -79,7 +79,7 @@ const FALLBACK_REFERENCES: CreativeReference[] = [
     title: '林夏',
     subtitle: '女主 / 雨夜受伤状态',
     status: 'review',
-    version: 'v2.4',
+    version: '2.4',
     owner: '编剧组',
     usage: 12,
     coverage: 76,
@@ -147,7 +147,7 @@ const FALLBACK_REFERENCES: CreativeReference[] = [
     title: '冷雨低照度',
     subtitle: '视觉风格 / 悬疑段落',
     status: 'locked',
-    version: 'v2.1',
+    version: '2.1',
     owner: '摄影组',
     usage: 14,
     coverage: 94,
@@ -196,7 +196,7 @@ function normalizeReferenceStatus(value: string): 'all' | ReferenceStatus {
 export default function CreativeReferencesPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const referenceConfig = v2EntityConfig('creativeReferences')
+  const referenceConfig = semanticEntityConfig('creativeReferences')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -207,13 +207,13 @@ export default function CreativeReferencesPage() {
   const query = readStringParam(searchParams, 'q')
 
   const referencesQuery = useQuery({
-    queryKey: ['v2-creative-references-page', projectId, 'creative-references'],
-    queryFn: () => listV2Entities(projectId!, referenceConfig) as Promise<CreativeReferenceRecord[]>,
+    queryKey: ['semantic-creative-references-page', projectId, 'creative-references'],
+    queryFn: () => listSemanticEntities(projectId!, referenceConfig) as Promise<CreativeReferenceRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['v2-creative-references-page', projectId, 'creative-reference-usages'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
+    queryKey: ['semantic-creative-references-page', projectId, 'creative-reference-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
     enabled: !!projectId,
   })
 
@@ -272,7 +272,7 @@ export default function CreativeReferencesPage() {
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>v2 创作资料</span>
+              <span>创作资料</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">创作资料库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
@@ -410,7 +410,7 @@ export default function CreativeReferencesPage() {
                   <Sparkles size={15} className="text-primary" />
                   <p className="text-sm font-semibold text-foreground">情节引用</p>
                 </div>
-                <span className="text-xs text-muted-foreground">展示资料如何进入 v2 语义层</span>
+                <span className="text-xs text-muted-foreground">展示资料如何进入语义层</span>
               </div>
               <div className="divide-y divide-border/70">
                 {sceneMomentRows.map((row) => (
@@ -445,14 +445,14 @@ export default function CreativeReferencesPage() {
           </aside>
         </section>
       </div>
-      <V2EntityCrudDialog
+      <SemanticEntityCrudDialog
         open={dialogOpen}
         mode={dialogMode}
         projectId={projectId}
         config={referenceConfig}
         record={dialogMode === 'edit' ? selectedRecord : null}
         defaults={{ kind: 'person', importance: 'supporting', status: 'draft' }}
-        queryKey={['v2-creative-references-page', projectId]}
+        queryKey={['semantic-creative-references-page', projectId]}
         onOpenChange={setDialogOpen}
         onSaved={(record) => setFilter({ selected: record.ID, reference_id: null })}
         onDeleted={() => setFilter({ selected: null, reference_id: null })}

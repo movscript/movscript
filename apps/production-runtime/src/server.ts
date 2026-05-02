@@ -10,7 +10,7 @@ import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtime/modelConfig.js'
 import { ProductionRuntime } from './production/runtime.js'
 import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
-import { ProjectPreviewV2FallbackClient } from './production/v2FallbackClient.js'
+import { ProjectPreviewSemanticFallbackClient } from './production/semanticFallbackClient.js'
 import type { JSONValue } from './types.js'
 
 const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
@@ -22,13 +22,13 @@ const productionStatePath = resolveProductionStatePath()
 const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
 const backendApplyClient = new BackendApplyClient()
 const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
-const productionV2FallbackClient = new ProjectPreviewV2FallbackClient()
+const productionSemanticFallbackClient = new ProjectPreviewSemanticFallbackClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
 const chatRuntime = new ChatRuntime({ mcpClient: client })
 const productionRuntime = new ProductionRuntime({
   store: new FileProductionStore(productionStatePath),
-  v2FallbackClient: productionV2FallbackClient,
+  semanticFallbackClient: productionSemanticFallbackClient,
 })
 const agentRuntime = new AgentRuntime({
   mcpClient: client,
@@ -82,7 +82,7 @@ const server = createServer(async (req, res) => {
         modelConfigPath,
         modelConfig: modelConfigStore.getPublicConfig(),
         backendApplyEnabled: backendApplyClient.isEnabled(),
-        productionV2FallbackEnabled: productionRuntime.isV2FallbackEnabled(),
+        productionSemanticFallbackEnabled: productionRuntime.isSemanticFallbackEnabled(),
       })
       return
     }
@@ -399,7 +399,7 @@ server.listen(port, '127.0.0.1', () => {
   console.info(`[production-runtime] production state path ${productionStatePath}`)
   console.info(`[production-runtime] model config path ${modelConfigPath}`)
   console.info(`[production-runtime] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
-  console.info(`[production-runtime] production V2 fallback ${productionRuntime.isV2FallbackEnabled() ? 'enabled' : 'disabled'}`)
+  console.info(`[production-runtime] production semantic fallback ${productionRuntime.isSemanticFallbackEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[production-runtime] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
   console.info(`[production-runtime] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
   for (const warning of pluginCatalog.warnings) console.warn(`[production-runtime] plugin warning: ${warning}`)

@@ -1,7 +1,7 @@
 import type { JSONValue } from '../types.js'
 import { executeDeterministicProductionAction } from './deterministicExecutor.js'
 import { InMemoryProductionStore, type ProductionStore } from './store.js'
-import { DisabledProductionV2FallbackClient, type ProductionV2FallbackClient } from './v2FallbackClient.js'
+import { DisabledProductionSemanticFallbackClient, type ProductionSemanticFallbackClient } from './semanticFallbackClient.js'
 import type {
   CreateProductionActionInput,
   ProductionAction,
@@ -18,17 +18,17 @@ import type {
 
 export class ProductionRuntime {
   private readonly store: ProductionStore
-  private readonly v2FallbackClient: ProductionV2FallbackClient
+  private readonly semanticFallbackClient: ProductionSemanticFallbackClient
 
-  constructor(options: { store?: ProductionStore; v2FallbackClient?: ProductionV2FallbackClient } = {}) {
+  constructor(options: { store?: ProductionStore; semanticFallbackClient?: ProductionSemanticFallbackClient } = {}) {
     this.store = options.store ?? new InMemoryProductionStore()
-    this.v2FallbackClient = options.v2FallbackClient ?? new DisabledProductionV2FallbackClient()
+    this.semanticFallbackClient = options.semanticFallbackClient ?? new DisabledProductionSemanticFallbackClient()
   }
 
   async createAction(input: CreateProductionActionInput): Promise<ProductionRun> {
     const action = normalizeProductionAction(input)
     const run = executeDeterministicProductionAction(action)
-    await this.applyV2Fallback(action, run)
+    await this.applySemanticFallback(action, run)
     this.store.createRun(run)
     for (const candidate of run.candidates) this.store.createCandidate(candidate)
     return run
@@ -52,11 +52,11 @@ export class ProductionRuntime {
 
   previewCandidateApply(candidateId: string): ProductionApplyPreview {
     const candidate = this.requireCandidate(candidateId)
-    const v2DataOperation = resolveV2DataOperation(candidate)
+    const semanticDataOperation = resolveSemanticDataOperation(candidate)
     const requiredContext = resolveRequiredApplyContext(candidate)
     const warnings = [
-      'Apply preview only; no V2 data action was called.',
-      ...(v2DataOperation ? [] : [`No V2 data operation target is registered for candidate type ${candidate.type}.`]),
+      'Apply preview only; no semantic data action was called.',
+      ...(semanticDataOperation ? [] : [`No semantic data operation target is registered for candidate type ${candidate.type}.`]),
     ]
 
     if (candidate.status !== 'accepted') {
@@ -73,10 +73,10 @@ export class ProductionRuntime {
           requiredAction,
           status: 'not_applicable',
           reason: candidate.status === 'candidate'
-            ? 'Candidate must be accepted before apply preview can reach the V2 apply gate.'
+            ? 'Candidate must be accepted before apply preview can reach the semantic apply gate.'
             : `Candidate status ${candidate.status} cannot be applied.`,
         },
-        ...(v2DataOperation ? { v2DataOperation } : {}),
+        ...(semanticDataOperation ? { semanticDataOperation } : {}),
         ...(candidate.targetObject ? { targetObject: candidate.targetObject } : {}),
         requiredContext,
         warnings,
@@ -92,11 +92,11 @@ export class ProductionRuntime {
       approval: {
         candidateId: candidate.id,
         approvalPolicy: 'explicit_accept_required',
-        requiredAction: 'call_v2_data_action',
+        requiredAction: 'call_semantic_data_action',
         status: 'blocked',
-        reason: 'Candidate is accepted in runtime-local state, but applying to V2 canonical objects requires a dedicated V2 data action.',
+        reason: 'Candidate is accepted in runtime-local state, but applying to semantic canonical objects requires a dedicated semantic data action.',
       },
-      ...(v2DataOperation ? { v2DataOperation } : {}),
+      ...(semanticDataOperation ? { semanticDataOperation } : {}),
       ...(candidate.targetObject ? { targetObject: candidate.targetObject } : {}),
       requiredContext,
       warnings,
@@ -140,7 +140,7 @@ export class ProductionRuntime {
       status: 'accepted',
       updatedAt: now,
       statusChangedAt: now,
-      statusReason: normalizeOptionalString(input.reason) ?? 'explicit_accept_required; runtime status only, no V2 apply performed',
+      statusReason: normalizeOptionalString(input.reason) ?? 'explicit_accept_required; runtime status only, no semantic apply performed',
     })
     return this.requireCandidate(candidate.id)
   }
@@ -231,23 +231,23 @@ export class ProductionRuntime {
     return this.requireCandidate(candidate.id)
   }
 
-  isV2FallbackEnabled(): boolean {
-    return this.v2FallbackClient.isEnabled()
+  isSemanticFallbackEnabled(): boolean {
+    return this.semanticFallbackClient.isEnabled()
   }
 
-  private async applyV2Fallback(action: ProductionAction, run: ProductionRun): Promise<void> {
+  private async applySemanticFallback(action: ProductionAction, run: ProductionRun): Promise<void> {
     if (run.status === 'failed') return
     try {
       const result = action.type === 'AnalyzeScriptToSegments'
-        ? await this.v2FallbackClient.writeAnalyzeScriptToSegments(action, run)
+        ? await this.semanticFallbackClient.writeAnalyzeScriptToSegments(action, run)
         : action.type === 'GenerateKeyframeCandidates'
-          ? await this.v2FallbackClient.writeGenerateKeyframeCandidates(action, run)
+          ? await this.semanticFallbackClient.writeGenerateKeyframeCandidates(action, run)
           : undefined
       if (!result) return
       if (result.performed) {
         run.warnings.push(action.type === 'AnalyzeScriptToSegments'
-          ? 'V2 fallback wrote AnalyzeScriptToSegments output through project-preview/analyze.'
-          : 'V2 fallback wrote GenerateKeyframeCandidates output through project-preview/generate-preview.')
+          ? 'semantic fallback wrote AnalyzeScriptToSegments output through project-preview/analyze.'
+          : 'semantic fallback wrote GenerateKeyframeCandidates output through project-preview/generate-preview.')
       } else if (result.skippedReason) {
         run.warnings.push(result.skippedReason)
       }
@@ -368,7 +368,7 @@ function withLifecycle(candidate: ProductionCandidate, event: ProductionCandidat
   }
 }
 
-function resolveV2DataOperation(candidate: ProductionCandidate): string | undefined {
+function resolveSemanticDataOperation(candidate: ProductionCandidate): string | undefined {
   switch (candidate.type) {
     case 'segment':
       return 'UpsertSegmentCandidates'

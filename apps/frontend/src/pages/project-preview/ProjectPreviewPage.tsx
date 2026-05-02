@@ -110,7 +110,7 @@ export default function ProjectPreviewPage() {
   })
 
   const { data: scriptVersions = [] } = useQuery<ScriptVersion[]>({
-    queryKey: ['v2-script-versions', projectId],
+    queryKey: ['semantic-script-versions', projectId],
     queryFn: () => listScriptVersions(projectId!),
     enabled: !!projectId,
   })

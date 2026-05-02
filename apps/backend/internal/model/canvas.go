@@ -99,7 +99,7 @@ type CanvasEntityWriteAudit struct {
 	ResourceBindingIDs string `gorm:"type:text" json:"resource_binding_ids,omitempty"`
 }
 
-// CanvasOutput records an explicit output target from a canvas run to a V2 or
+// CanvasOutput records an explicit output target from a canvas run to a semantic entity or
 // legacy entity. It complements the write audit with product-level intent.
 type CanvasOutput struct {
 	gorm.Model

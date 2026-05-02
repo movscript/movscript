@@ -21,7 +21,7 @@ export type ProductionApprovalStatus = 'pending' | 'approved' | 'blocked' | 'not
 export type ProductionApplyPreviewStatus = 'blocked' | 'not_applicable'
 export type ProductionApprovalRequiredAction =
   | 'accept_candidate'
-  | 'call_v2_data_action'
+  | 'call_semantic_data_action'
   | 'none'
 
 export type ProductionCandidateLifecycleEventType =
@@ -106,7 +106,7 @@ export interface ProductionApplyPreview {
   status: ProductionApplyPreviewStatus
   canApply: false
   approval: ProductionApproval
-  v2DataOperation?: string
+  semanticDataOperation?: string
   targetObject?: ProductionObjectRef
   requiredContext: string[]
   warnings: string[]

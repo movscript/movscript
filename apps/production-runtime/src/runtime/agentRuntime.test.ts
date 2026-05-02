@@ -155,7 +155,7 @@ test('previews plan and policy without creating a run or executing planned tools
   assert.equal(preview.threadId, thread.id)
   assert.equal(preview.currentProjectId, 42)
   assert.equal(preview.pendingApprovals[0]?.toolName, 'movscript.create_draft')
-  assert.equal(preview.agentManifest?.schema, 'movscript.agent.v2')
+  assert.equal(preview.agentManifest?.schema, 'movscript.agent.current')
   assert.ok(preview.context)
   assert.ok(preview.skills)
   assert.ok(preview.tools?.available.some((tool) => tool.name === 'movscript.create_draft'))

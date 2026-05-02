@@ -216,6 +216,7 @@ export function Sidebar() {
               <NavItem to="/assets" icon={PackageCheck} label={t('sidebar.items.assets')} collapsed={collapsed} />
               <NavItem to="/reference-relations" icon={GitBranch} label={t('sidebar.items.relations')} collapsed={collapsed} />
               <NavItem to="/contents" icon={Boxes} label={t('sidebar.items.content')} collapsed={collapsed} />
+              <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />
             </Section>
 
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />

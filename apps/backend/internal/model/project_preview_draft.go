@@ -2,7 +2,7 @@ package model
 
 import "gorm.io/gorm"
 
-// ProjectPreviewDraft stores the project-level draft snapshot used by the V2
+// ProjectPreviewDraft stores the project-level draft snapshot used by the semantic
 // project preview flow. It is intentionally a thin snapshot and not a public
 // replacement for ScriptVersion, ContentUnit, or PreviewTimeline.
 type ProjectPreviewDraft struct {

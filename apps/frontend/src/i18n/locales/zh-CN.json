@@ -388,7 +388,7 @@
     "notes": "备注"
   },
   "pages": {
-    "projectHomeV2": {
+    "projectHome": {
       "badge": "首页",
       "noDescription": "暂无项目描述。这里会汇总剧本、素材、生产和交付的当前状态。",
       "actions": {
@@ -495,7 +495,7 @@
           "linked": "已绑定设定"
         }
       },
-      "v2": {
+      "semantic": {
         "title": "素材生成",
         "subtitle": "按缺口处理正式生产需要的参考图、视频、声音和品牌素材。",
         "searchPlaceholder": "搜索缺口、片段或素材提示…",
@@ -2158,7 +2158,7 @@
       "finalVideos": "成片库",
       "collaboration": "任务",
       "delivery": "交付",
-      "v2Entities": "V2 实体",
+      "semanticEntities": "语义实体",
       "scenes": "情节库",
       "storyboards": "分镜管理",
       "shots": "镜头管理",
@@ -2232,7 +2232,7 @@
       "projectPlan": "筹备总览",
       "projectPreview": "项目预演",
       "previewProgress": "预演进度",
-      "v2Entities": "V2 实体",
+      "semanticEntities": "语义实体",
       "entityManagement": "实体管理",
       "creativeReferences": "创作资料库",
       "referenceRelations": "引用关系",

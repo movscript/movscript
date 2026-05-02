@@ -205,7 +205,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   production: {
     queue: [
-      { id: 'v2', title: '片段 02 人物停步', subtitle: '版本 B 待审', status: 'review', priority: 'high', progress: 61 },
+      { id: 'variant-b', title: '片段 02 人物停步', subtitle: '版本 B 待审', status: 'review', priority: 'high', progress: 61 },
       { id: 'v3', title: '纸条特写', subtitle: '缺正式视频', status: 'blocked', priority: 'high', progress: 34 },
       { id: 'v1', title: '雨夜全景', subtitle: '可采用', status: 'ready', priority: 'medium', progress: 86 },
     ],

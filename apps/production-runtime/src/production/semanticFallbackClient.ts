@@ -1,56 +1,56 @@
 import type { JSONValue } from '../types.js'
 import type { ProductionAction, ProductionRun } from './types.js'
 
-export interface ProductionV2FallbackResult {
+export interface ProductionSemanticFallbackResult {
   performed: boolean
   skippedReason?: string
   url?: string
   response?: JSONValue
 }
 
-export interface ProductionV2FallbackClient {
+export interface ProductionSemanticFallbackClient {
   isEnabled(): boolean
-  writeAnalyzeScriptToSegments(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
-  writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
+  writeAnalyzeScriptToSegments(action: ProductionAction, run: ProductionRun): Promise<ProductionSemanticFallbackResult>
+  writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionSemanticFallbackResult>
 }
 
-export class DisabledProductionV2FallbackClient implements ProductionV2FallbackClient {
+export class DisabledProductionSemanticFallbackClient implements ProductionSemanticFallbackClient {
   isEnabled(): boolean {
     return false
   }
 
-  async writeAnalyzeScriptToSegments(): Promise<ProductionV2FallbackResult> {
-    return { performed: false, skippedReason: 'V2 fallback disabled' }
+  async writeAnalyzeScriptToSegments(): Promise<ProductionSemanticFallbackResult> {
+    return { performed: false, skippedReason: 'semantic fallback disabled' }
   }
 
-  async writeGenerateKeyframeCandidates(): Promise<ProductionV2FallbackResult> {
-    return { performed: false, skippedReason: 'V2 fallback disabled' }
+  async writeGenerateKeyframeCandidates(): Promise<ProductionSemanticFallbackResult> {
+    return { performed: false, skippedReason: 'semantic fallback disabled' }
   }
 }
 
-export class ProjectPreviewV2FallbackClient implements ProductionV2FallbackClient {
+export class ProjectPreviewSemanticFallbackClient implements ProductionSemanticFallbackClient {
   private readonly baseURL?: string
   private readonly enabled: boolean
 
   constructor(options: { baseURL?: string; enabled?: boolean } = {}) {
-    this.enabled = options.enabled ?? process.env.MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED === 'true'
-    this.baseURL = normalizeBaseURL(options.baseURL ?? process.env.MOVSCRIPT_PRODUCTION_V2_FALLBACK_BASE_URL ?? process.env.MOVSCRIPT_BACKEND_API_BASE_URL ?? process.env.MOVSCRIPT_API_BASE_URL)
+    this.enabled = options.enabled ?? process.env.MOVSCRIPT_PRODUCTION_SEMANTIC_FALLBACK_ENABLED === 'true'
+    this.baseURL = normalizeBaseURL(options.baseURL ?? process.env.MOVSCRIPT_PRODUCTION_SEMANTIC_FALLBACK_BASE_URL ?? process.env.MOVSCRIPT_BACKEND_API_BASE_URL ?? process.env.MOVSCRIPT_API_BASE_URL)
   }
 
   isEnabled(): boolean {
     return this.enabled && !!this.baseURL
   }
 
-  async writeAnalyzeScriptToSegments(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult> {
+  async writeAnalyzeScriptToSegments(action: ProductionAction, run: ProductionRun): Promise<ProductionSemanticFallbackResult> {
     if (!this.isEnabled() || !this.baseURL) {
-      return { performed: false, skippedReason: 'V2 fallback disabled: set MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true and a backend API base URL' }
+      return { performed: false, skippedReason: 'semantic fallback disabled: set MOVSCRIPT_PRODUCTION_SEMANTIC_FALLBACK_ENABLED=true and a backend API base URL' }
     }
     if (action.type !== 'AnalyzeScriptToSegments') {
-      return { performed: false, skippedReason: `V2 fallback does not support ${action.type}` }
+      return { performed: false, skippedReason: `semantic fallback does not support ${action.type}` }
     }
     const sourceText = getString(action.inputContext, 'source_text') ?? getString(action.inputContext, 'sourceText')
     if (!sourceText?.trim()) {
-      return { performed: false, skippedReason: 'V2 fallback skipped: source_text is missing' }
+      return { performed: false, skippedReason: 'semantic fallback skipped: source_text is missing' }
     }
     const draftId = inferDraftId(action)
     const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/project-preview/analyze`
@@ -66,7 +66,7 @@ export class ProjectPreviewV2FallbackClient implements ProductionV2FallbackClien
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`V2 project-preview/analyze fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`semantic project-preview/analyze fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,
@@ -75,16 +75,16 @@ export class ProjectPreviewV2FallbackClient implements ProductionV2FallbackClien
     }
   }
 
-  async writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult> {
+  async writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionSemanticFallbackResult> {
     if (!this.isEnabled() || !this.baseURL) {
-      return { performed: false, skippedReason: 'V2 fallback disabled: set MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true and a backend API base URL' }
+      return { performed: false, skippedReason: 'semantic fallback disabled: set MOVSCRIPT_PRODUCTION_SEMANTIC_FALLBACK_ENABLED=true and a backend API base URL' }
     }
     if (action.type !== 'GenerateKeyframeCandidates') {
-      return { performed: false, skippedReason: `V2 fallback does not support ${action.type}` }
+      return { performed: false, skippedReason: `semantic fallback does not support ${action.type}` }
     }
     const storyboardRows = inferStoryboardRows(action, run)
     if (storyboardRows.length === 0) {
-      return { performed: false, skippedReason: 'V2 fallback skipped: storyboard_rows are missing' }
+      return { performed: false, skippedReason: 'semantic fallback skipped: storyboard_rows are missing' }
     }
     const draftId = inferDraftId(action)
     const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/project-preview/generate-preview`
@@ -99,7 +99,7 @@ export class ProjectPreviewV2FallbackClient implements ProductionV2FallbackClien
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`V2 project-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`semantic project-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,

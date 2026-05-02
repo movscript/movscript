@@ -1,5 +1,5 @@
-import V2FinalVideosPage from './V2FinalVideosPage'
+import FinalVideosWorkspacePage from './FinalVideosWorkspacePage'
 
 export default function FinalVideosPage() {
-  return <V2FinalVideosPage />
+  return <FinalVideosWorkspacePage />
 }

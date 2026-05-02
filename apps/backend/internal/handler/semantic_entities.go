@@ -12,13 +12,13 @@ import (
 	"gorm.io/gorm"
 )
 
-type V2SemanticHandler struct{ db *gorm.DB }
+type SemanticEntityHandler struct{ db *gorm.DB }
 
-func NewV2SemanticHandler(db *gorm.DB) *V2SemanticHandler {
-	return &V2SemanticHandler{db: db}
+func NewSemanticEntityHandler(db *gorm.DB) *SemanticEntityHandler {
+	return &SemanticEntityHandler{db: db}
 }
 
-func (h *V2SemanticHandler) ListScriptVersions(c *gin.Context) {
+func (h *SemanticEntityHandler) ListScriptVersions(c *gin.Context) {
 	var items []model.ScriptVersion
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if scriptID := parseID(c.Query("script_id")); scriptID > 0 {
@@ -34,7 +34,7 @@ func (h *V2SemanticHandler) ListScriptVersions(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateScriptVersion(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateScriptVersion(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req scriptVersionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -69,7 +69,7 @@ func (h *V2SemanticHandler) CreateScriptVersion(c *gin.Context) {
 	c.JSON(http.StatusCreated, item)
 }
 
-func (h *V2SemanticHandler) PatchScriptVersion(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchScriptVersion(c *gin.Context) {
 	var item model.ScriptVersion
 	if !h.loadProjectItem(c, &item, c.Param("versionId")) {
 		return
@@ -91,7 +91,7 @@ func (h *V2SemanticHandler) PatchScriptVersion(c *gin.Context) {
 	h.patchItem(c, &item, updates)
 }
 
-func (h *V2SemanticHandler) ListSegments(c *gin.Context) {
+func (h *SemanticEntityHandler) ListSegments(c *gin.Context) {
 	var items []model.Segment
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if scriptID := parseID(c.Query("script_id")); scriptID > 0 {
@@ -110,7 +110,7 @@ func (h *V2SemanticHandler) ListSegments(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateSegment(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateSegment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req segmentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -145,7 +145,7 @@ func (h *V2SemanticHandler) CreateSegment(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchSegment(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchSegment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var item model.Segment
 	if !h.loadProjectItem(c, &item, c.Param("segmentId")) {
@@ -182,7 +182,7 @@ func (h *V2SemanticHandler) PatchSegment(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListSceneMoments(c *gin.Context) {
+func (h *SemanticEntityHandler) ListSceneMoments(c *gin.Context) {
 	var items []model.SceneMoment
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if segmentID := parseID(c.Query("segment_id")); segmentID > 0 {
@@ -195,7 +195,7 @@ func (h *V2SemanticHandler) ListSceneMoments(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateSceneMoment(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateSceneMoment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req sceneMomentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -222,7 +222,7 @@ func (h *V2SemanticHandler) CreateSceneMoment(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchSceneMoment(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchSceneMoment(c *gin.Context) {
 	var item model.SceneMoment
 	if !h.loadProjectItem(c, &item, c.Param("sceneMomentId")) {
 		return
@@ -250,7 +250,7 @@ func (h *V2SemanticHandler) PatchSceneMoment(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListStoryboardScripts(c *gin.Context) {
+func (h *SemanticEntityHandler) ListStoryboardScripts(c *gin.Context) {
 	var items []model.StoryboardScript
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if scriptVersionID := parseID(c.Query("script_version_id")); scriptVersionID > 0 {
@@ -266,7 +266,7 @@ func (h *V2SemanticHandler) ListStoryboardScripts(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateStoryboardScript(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateStoryboardScript(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req storyboardScriptInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -288,7 +288,7 @@ func (h *V2SemanticHandler) CreateStoryboardScript(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchStoryboardScript(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchStoryboardScript(c *gin.Context) {
 	var item model.StoryboardScript
 	if !h.loadProjectItem(c, &item, c.Param("storyboardScriptId")) {
 		return
@@ -311,7 +311,7 @@ func (h *V2SemanticHandler) PatchStoryboardScript(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListStoryboardVersions(c *gin.Context) {
+func (h *SemanticEntityHandler) ListStoryboardVersions(c *gin.Context) {
 	var items []model.StoryboardVersion
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if storyboardScriptID := parseID(c.Query("storyboard_script_id")); storyboardScriptID > 0 {
@@ -327,7 +327,7 @@ func (h *V2SemanticHandler) ListStoryboardVersions(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateStoryboardVersion(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateStoryboardVersion(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req storyboardVersionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -354,7 +354,7 @@ func (h *V2SemanticHandler) CreateStoryboardVersion(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchStoryboardVersion(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchStoryboardVersion(c *gin.Context) {
 	var item model.StoryboardVersion
 	if !h.loadProjectItem(c, &item, c.Param("storyboardVersionId")) {
 		return
@@ -374,7 +374,7 @@ func (h *V2SemanticHandler) PatchStoryboardVersion(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListStoryboardLines(c *gin.Context) {
+func (h *SemanticEntityHandler) ListStoryboardLines(c *gin.Context) {
 	var items []model.StoryboardLine
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if storyboardScriptID := parseID(c.Query("storyboard_script_id")); storyboardScriptID > 0 {
@@ -393,7 +393,7 @@ func (h *V2SemanticHandler) ListStoryboardLines(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateStoryboardLine(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateStoryboardLine(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req storyboardLineInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -425,7 +425,7 @@ func (h *V2SemanticHandler) CreateStoryboardLine(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchStoryboardLine(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchStoryboardLine(c *gin.Context) {
 	var item model.StoryboardLine
 	if !h.loadProjectItem(c, &item, c.Param("storyboardLineId")) {
 		return
@@ -458,7 +458,7 @@ func (h *V2SemanticHandler) PatchStoryboardLine(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListProductions(c *gin.Context) {
+func (h *SemanticEntityHandler) ListProductions(c *gin.Context) {
 	var items []model.Production
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
@@ -474,7 +474,7 @@ func (h *V2SemanticHandler) ListProductions(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateProduction(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateProduction(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req productionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -502,7 +502,7 @@ func (h *V2SemanticHandler) CreateProduction(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchProduction(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchProduction(c *gin.Context) {
 	var item model.Production
 	if !h.loadProjectItem(c, &item, c.Param("productionId")) {
 		return
@@ -528,7 +528,7 @@ func (h *V2SemanticHandler) PatchProduction(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListContentUnits(c *gin.Context) {
+func (h *SemanticEntityHandler) ListContentUnits(c *gin.Context) {
 	var items []model.ContentUnit
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
@@ -547,7 +547,7 @@ func (h *V2SemanticHandler) ListContentUnits(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateContentUnit(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateContentUnit(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req contentUnitInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -577,7 +577,7 @@ func (h *V2SemanticHandler) CreateContentUnit(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchContentUnit(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchContentUnit(c *gin.Context) {
 	var item model.ContentUnit
 	if !h.loadProjectItem(c, &item, c.Param("contentUnitId")) {
 		return
@@ -608,7 +608,7 @@ func (h *V2SemanticHandler) PatchContentUnit(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListKeyframes(c *gin.Context) {
+func (h *SemanticEntityHandler) ListKeyframes(c *gin.Context) {
 	var items []model.Keyframe
 	q := h.db.Preload("Resource").Where("project_id = ?", parseID(c.Param("id")))
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
@@ -628,7 +628,7 @@ func (h *V2SemanticHandler) ListKeyframes(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateKeyframe(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateKeyframe(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req keyframeInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -658,7 +658,7 @@ func (h *V2SemanticHandler) CreateKeyframe(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchKeyframe(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchKeyframe(c *gin.Context) {
 	var item model.Keyframe
 	if !h.loadProjectItem(c, &item, c.Param("keyframeId")) {
 		return
@@ -689,7 +689,7 @@ func (h *V2SemanticHandler) PatchKeyframe(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListPreviewTimelines(c *gin.Context) {
+func (h *SemanticEntityHandler) ListPreviewTimelines(c *gin.Context) {
 	var items []model.PreviewTimeline
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
@@ -702,7 +702,7 @@ func (h *V2SemanticHandler) ListPreviewTimelines(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreatePreviewTimeline(c *gin.Context) {
+func (h *SemanticEntityHandler) CreatePreviewTimeline(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req previewTimelineInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -728,7 +728,7 @@ func (h *V2SemanticHandler) CreatePreviewTimeline(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchPreviewTimeline(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchPreviewTimeline(c *gin.Context) {
 	var item model.PreviewTimeline
 	if !h.loadProjectItem(c, &item, c.Param("timelineId")) {
 		return
@@ -752,7 +752,7 @@ func (h *V2SemanticHandler) PatchPreviewTimeline(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListPreviewTimelineItems(c *gin.Context) {
+func (h *SemanticEntityHandler) ListPreviewTimelineItems(c *gin.Context) {
 	var items []model.PreviewTimelineItem
 	projectID := parseID(c.Param("id"))
 	timelineID := parseID(c.Param("timelineId"))
@@ -766,7 +766,7 @@ func (h *V2SemanticHandler) ListPreviewTimelineItems(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) ListPreviewTimelineItemsFlat(c *gin.Context) {
+func (h *SemanticEntityHandler) ListPreviewTimelineItemsFlat(c *gin.Context) {
 	var items []model.PreviewTimelineItem
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if timelineID := parseID(c.Query("preview_timeline_id")); timelineID > 0 {
@@ -782,7 +782,7 @@ func (h *V2SemanticHandler) ListPreviewTimelineItemsFlat(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
+func (h *SemanticEntityHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req previewTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -810,7 +810,7 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchPreviewTimelineItemFlat(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchPreviewTimelineItemFlat(c *gin.Context) {
 	var item model.PreviewTimelineItem
 	if !h.loadProjectItem(c, &item, c.Param("itemId")) {
 		return
@@ -839,7 +839,7 @@ func (h *V2SemanticHandler) PatchPreviewTimelineItemFlat(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) CreatePreviewTimelineItem(c *gin.Context) {
+func (h *SemanticEntityHandler) CreatePreviewTimelineItem(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	timelineID := parseID(c.Param("timelineId"))
 	if !h.ownerInProject(c, "preview_timeline", timelineID) {
@@ -868,7 +868,7 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItem(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchPreviewTimelineItem(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchPreviewTimelineItem(c *gin.Context) {
 	var item model.PreviewTimelineItem
 	if !h.loadProjectItem(c, &item, c.Param("itemId")) {
 		return
@@ -898,7 +898,7 @@ func (h *V2SemanticHandler) PatchPreviewTimelineItem(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListCreativeReferences(c *gin.Context) {
+func (h *SemanticEntityHandler) ListCreativeReferences(c *gin.Context) {
 	var items []model.CreativeReference
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if kind := strings.TrimSpace(c.Query("kind")); kind != "" {
@@ -911,7 +911,7 @@ func (h *V2SemanticHandler) ListCreativeReferences(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateCreativeReference(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateCreativeReference(c *gin.Context) {
 	var req creativeReferenceInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
@@ -935,7 +935,7 @@ func (h *V2SemanticHandler) CreateCreativeReference(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchCreativeReference(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchCreativeReference(c *gin.Context) {
 	var item model.CreativeReference
 	if !h.loadProjectItem(c, &item, c.Param("referenceId")) {
 		return
@@ -961,7 +961,7 @@ func (h *V2SemanticHandler) PatchCreativeReference(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListCreativeReferenceStates(c *gin.Context) {
+func (h *SemanticEntityHandler) ListCreativeReferenceStates(c *gin.Context) {
 	var items []model.CreativeReferenceState
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if refID := parseID(c.Query("creative_reference_id")); refID > 0 {
@@ -974,7 +974,7 @@ func (h *V2SemanticHandler) ListCreativeReferenceStates(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateCreativeReferenceState(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateCreativeReferenceState(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req creativeReferenceStateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1002,7 +1002,7 @@ func (h *V2SemanticHandler) CreateCreativeReferenceState(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchCreativeReferenceState(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchCreativeReferenceState(c *gin.Context) {
 	var item model.CreativeReferenceState
 	if !h.loadProjectItem(c, &item, c.Param("stateId")) {
 		return
@@ -1031,7 +1031,7 @@ func (h *V2SemanticHandler) PatchCreativeReferenceState(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListCreativeReferenceUsages(c *gin.Context) {
+func (h *SemanticEntityHandler) ListCreativeReferenceUsages(c *gin.Context) {
 	var items []model.CreativeReferenceUsage
 	q := h.db.Preload("CreativeReference").Preload("CreativeReferenceState").Where("project_id = ?", parseID(c.Param("id")))
 	if ownerType := strings.TrimSpace(c.Query("owner_type")); ownerType != "" {
@@ -1053,7 +1053,7 @@ func (h *V2SemanticHandler) ListCreativeReferenceUsages(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateCreativeReferenceUsage(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateCreativeReferenceUsage(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req creativeReferenceUsageInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1081,7 +1081,7 @@ func (h *V2SemanticHandler) CreateCreativeReferenceUsage(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchCreativeReferenceUsage(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchCreativeReferenceUsage(c *gin.Context) {
 	var item model.CreativeReferenceUsage
 	if !h.loadProjectItem(c, &item, c.Param("usageId")) {
 		return
@@ -1110,7 +1110,7 @@ func (h *V2SemanticHandler) PatchCreativeReferenceUsage(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListCreativeRelationships(c *gin.Context) {
+func (h *SemanticEntityHandler) ListCreativeRelationships(c *gin.Context) {
 	var items []model.CreativeRelationship
 	q := h.db.Preload("SourceCreativeReference").Preload("TargetCreativeReference").Where("project_id = ?", parseID(c.Param("id")))
 	if refID := parseID(c.Query("creative_reference_id")); refID > 0 {
@@ -1129,7 +1129,7 @@ func (h *V2SemanticHandler) ListCreativeRelationships(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateCreativeRelationship(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateCreativeRelationship(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req creativeRelationshipInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1159,7 +1159,7 @@ func (h *V2SemanticHandler) CreateCreativeRelationship(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchCreativeRelationship(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchCreativeRelationship(c *gin.Context) {
 	var item model.CreativeRelationship
 	if !h.loadProjectItem(c, &item, c.Param("relationshipId")) {
 		return
@@ -1190,7 +1190,7 @@ func (h *V2SemanticHandler) PatchCreativeRelationship(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListAssetSlots(c *gin.Context) {
+func (h *SemanticEntityHandler) ListAssetSlots(c *gin.Context) {
 	var items []model.AssetSlot
 	q := h.db.Preload("Resource").Preload("LockedAssetSlot.Resource").Where("project_id = ?", parseID(c.Param("id")))
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
@@ -1209,7 +1209,7 @@ func (h *V2SemanticHandler) ListAssetSlots(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateAssetSlot(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateAssetSlot(c *gin.Context) {
 	var req assetSlotInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
@@ -1239,7 +1239,7 @@ func (h *V2SemanticHandler) CreateAssetSlot(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchAssetSlot(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchAssetSlot(c *gin.Context) {
 	var item model.AssetSlot
 	if !h.loadProjectItem(c, &item, c.Param("slotId")) {
 		return
@@ -1271,7 +1271,7 @@ func (h *V2SemanticHandler) PatchAssetSlot(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListAssetSlotCandidates(c *gin.Context) {
+func (h *SemanticEntityHandler) ListAssetSlotCandidates(c *gin.Context) {
 	var items []model.AssetSlotCandidate
 	q := h.db.Preload("CandidateAssetSlot.Resource").Where("project_id = ?", parseID(c.Param("id")))
 	if slotID := parseID(c.Query("asset_slot_id")); slotID > 0 {
@@ -1287,7 +1287,7 @@ func (h *V2SemanticHandler) ListAssetSlotCandidates(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateAssetSlotCandidate(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateAssetSlotCandidate(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req assetSlotCandidateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1310,7 +1310,7 @@ func (h *V2SemanticHandler) CreateAssetSlotCandidate(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchAssetSlotCandidate(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchAssetSlotCandidate(c *gin.Context) {
 	var item model.AssetSlotCandidate
 	if !h.loadProjectItem(c, &item, c.Param("candidateId")) {
 		return
@@ -1334,7 +1334,7 @@ func (h *V2SemanticHandler) PatchAssetSlotCandidate(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListCandidateDecisions(c *gin.Context) {
+func (h *SemanticEntityHandler) ListCandidateDecisions(c *gin.Context) {
 	var items []model.CandidateDecision
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if candidateType := strings.TrimSpace(c.Query("candidate_type")); candidateType != "" {
@@ -1359,7 +1359,7 @@ func (h *V2SemanticHandler) ListCandidateDecisions(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateCandidateDecision(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateCandidateDecision(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req candidateDecisionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1389,7 +1389,7 @@ func (h *V2SemanticHandler) CreateCandidateDecision(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchCandidateDecision(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchCandidateDecision(c *gin.Context) {
 	var item model.CandidateDecision
 	if !h.loadProjectItem(c, &item, c.Param("decisionId")) {
 		return
@@ -1420,7 +1420,7 @@ func (h *V2SemanticHandler) PatchCandidateDecision(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListReviewEvents(c *gin.Context) {
+func (h *SemanticEntityHandler) ListReviewEvents(c *gin.Context) {
 	var items []model.ReviewEvent
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if subjectType := strings.TrimSpace(c.Query("subject_type")); subjectType != "" {
@@ -1442,7 +1442,7 @@ func (h *V2SemanticHandler) ListReviewEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateReviewEvent(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateReviewEvent(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req reviewEventInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1469,7 +1469,7 @@ func (h *V2SemanticHandler) CreateReviewEvent(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchReviewEvent(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchReviewEvent(c *gin.Context) {
 	var item model.ReviewEvent
 	if !h.loadProjectItem(c, &item, c.Param("eventId")) {
 		return
@@ -1497,7 +1497,7 @@ func (h *V2SemanticHandler) PatchReviewEvent(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListWorkItems(c *gin.Context) {
+func (h *SemanticEntityHandler) ListWorkItems(c *gin.Context) {
 	var items []model.WorkItem
 	q := h.db.Preload("Assignee").Where("project_id = ?", parseID(c.Param("id")))
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
@@ -1516,7 +1516,7 @@ func (h *V2SemanticHandler) ListWorkItems(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateWorkItem(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateWorkItem(c *gin.Context) {
 	var req workItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
@@ -1543,7 +1543,7 @@ func (h *V2SemanticHandler) CreateWorkItem(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchWorkItem(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchWorkItem(c *gin.Context) {
 	var item model.WorkItem
 	if !h.loadProjectItem(c, &item, c.Param("workItemId")) {
 		return
@@ -1572,7 +1572,7 @@ func (h *V2SemanticHandler) PatchWorkItem(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListWorkReviews(c *gin.Context) {
+func (h *SemanticEntityHandler) ListWorkReviews(c *gin.Context) {
 	var items []model.WorkReview
 	q := h.db.Preload("Reviewer").Where("project_id = ?", parseID(c.Param("id")))
 	if workItemID := parseID(c.Query("work_item_id")); workItemID > 0 {
@@ -1588,7 +1588,7 @@ func (h *V2SemanticHandler) ListWorkReviews(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateWorkReview(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateWorkReview(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req workReviewInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1609,7 +1609,7 @@ func (h *V2SemanticHandler) CreateWorkReview(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchWorkReview(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchWorkReview(c *gin.Context) {
 	var item model.WorkReview
 	if !h.loadProjectItem(c, &item, c.Param("reviewId")) {
 		return
@@ -1631,7 +1631,7 @@ func (h *V2SemanticHandler) PatchWorkReview(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListWorkDependencies(c *gin.Context) {
+func (h *SemanticEntityHandler) ListWorkDependencies(c *gin.Context) {
 	var items []model.WorkDependency
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if workItemID := parseID(c.Query("work_item_id")); workItemID > 0 {
@@ -1644,7 +1644,7 @@ func (h *V2SemanticHandler) ListWorkDependencies(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateWorkDependency(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateWorkDependency(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req workDependencyInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1663,7 +1663,7 @@ func (h *V2SemanticHandler) CreateWorkDependency(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchWorkDependency(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchWorkDependency(c *gin.Context) {
 	var item model.WorkDependency
 	if !h.loadProjectItem(c, &item, c.Param("dependencyId")) {
 		return
@@ -1683,7 +1683,7 @@ func (h *V2SemanticHandler) PatchWorkDependency(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListDeliveryVersions(c *gin.Context) {
+func (h *SemanticEntityHandler) ListDeliveryVersions(c *gin.Context) {
 	var items []model.DeliveryVersion
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
@@ -1696,7 +1696,7 @@ func (h *V2SemanticHandler) ListDeliveryVersions(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateDeliveryVersion(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateDeliveryVersion(c *gin.Context) {
 	var req deliveryVersionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
@@ -1722,7 +1722,7 @@ func (h *V2SemanticHandler) CreateDeliveryVersion(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchDeliveryVersion(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchDeliveryVersion(c *gin.Context) {
 	var item model.DeliveryVersion
 	if !h.loadProjectItem(c, &item, c.Param("deliveryVersionId")) {
 		return
@@ -1747,7 +1747,7 @@ func (h *V2SemanticHandler) PatchDeliveryVersion(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListDeliveryTimelineItems(c *gin.Context) {
+func (h *SemanticEntityHandler) ListDeliveryTimelineItems(c *gin.Context) {
 	var items []model.DeliveryTimelineItem
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if deliveryVersionID := parseID(c.Query("delivery_version_id")); deliveryVersionID > 0 {
@@ -1763,7 +1763,7 @@ func (h *V2SemanticHandler) ListDeliveryTimelineItems(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateDeliveryTimelineItem(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateDeliveryTimelineItem(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req deliveryTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1793,7 +1793,7 @@ func (h *V2SemanticHandler) CreateDeliveryTimelineItem(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchDeliveryTimelineItem(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchDeliveryTimelineItem(c *gin.Context) {
 	var item model.DeliveryTimelineItem
 	if !h.loadProjectItem(c, &item, c.Param("itemId")) {
 		return
@@ -1824,7 +1824,7 @@ func (h *V2SemanticHandler) PatchDeliveryTimelineItem(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListExportRecords(c *gin.Context) {
+func (h *SemanticEntityHandler) ListExportRecords(c *gin.Context) {
 	var items []model.ExportRecord
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if deliveryVersionID := parseID(c.Query("delivery_version_id")); deliveryVersionID > 0 {
@@ -1840,7 +1840,7 @@ func (h *V2SemanticHandler) ListExportRecords(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateExportRecord(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateExportRecord(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req exportRecordInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1863,7 +1863,7 @@ func (h *V2SemanticHandler) CreateExportRecord(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchExportRecord(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchExportRecord(c *gin.Context) {
 	var item model.ExportRecord
 	if !h.loadProjectItem(c, &item, c.Param("exportId")) {
 		return
@@ -1887,7 +1887,7 @@ func (h *V2SemanticHandler) PatchExportRecord(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListCanvasOutputs(c *gin.Context) {
+func (h *SemanticEntityHandler) ListCanvasOutputs(c *gin.Context) {
 	var items []model.CanvasOutput
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if canvasID := parseID(c.Query("canvas_id")); canvasID > 0 {
@@ -1906,7 +1906,7 @@ func (h *V2SemanticHandler) ListCanvasOutputs(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateCanvasOutput(c *gin.Context) {
+func (h *SemanticEntityHandler) CreateCanvasOutput(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req canvasOutputInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1937,7 +1937,7 @@ func (h *V2SemanticHandler) CreateCanvasOutput(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchCanvasOutput(c *gin.Context) {
+func (h *SemanticEntityHandler) PatchCanvasOutput(c *gin.Context) {
 	var item model.CanvasOutput
 	if !h.loadProjectItem(c, &item, c.Param("outputId")) {
 		return
@@ -1969,7 +1969,7 @@ func (h *V2SemanticHandler) PatchCanvasOutput(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) DeleteV2Item(c *gin.Context, item any, id string) {
+func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id string) {
 	if !h.loadProjectItem(c, item, id) {
 		return
 	}
@@ -1980,7 +1980,7 @@ func (h *V2SemanticHandler) DeleteV2Item(c *gin.Context, item any, id string) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *V2SemanticHandler) createItem(c *gin.Context, item any) {
+func (h *SemanticEntityHandler) createItem(c *gin.Context, item any) {
 	if err := h.db.Create(item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
@@ -1988,7 +1988,7 @@ func (h *V2SemanticHandler) createItem(c *gin.Context, item any) {
 	c.JSON(http.StatusCreated, item)
 }
 
-func (h *V2SemanticHandler) patchItem(c *gin.Context, item any, updates map[string]any) {
+func (h *SemanticEntityHandler) patchItem(c *gin.Context, item any, updates map[string]any) {
 	if len(updates) > 0 {
 		if err := h.db.Model(item).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
@@ -1999,7 +1999,7 @@ func (h *V2SemanticHandler) patchItem(c *gin.Context, item any, updates map[stri
 	c.JSON(http.StatusOK, item)
 }
 
-func (h *V2SemanticHandler) loadProjectItem(c *gin.Context, item any, id string) bool {
+func (h *SemanticEntityHandler) loadProjectItem(c *gin.Context, item any, id string) bool {
 	projectID := parseID(c.Param("id"))
 	if err := h.db.Where("project_id = ?", projectID).First(item, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2012,12 +2012,12 @@ func (h *V2SemanticHandler) loadProjectItem(c *gin.Context, item any, id string)
 	return true
 }
 
-func (h *V2SemanticHandler) ownerInProject(c *gin.Context, ownerType string, ownerID uint) bool {
+func (h *SemanticEntityHandler) ownerInProject(c *gin.Context, ownerType string, ownerID uint) bool {
 	if ownerID == 0 {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner id is required"))
 		return false
 	}
-	if err := h.ensureV2OwnerInProject(parseID(c.Param("id")), ownerType, ownerID); err != nil {
+	if err := h.ensureSemanticOwnerInProject(parseID(c.Param("id")), ownerType, ownerID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, apierr.NotFound("关联对象不存在"))
 			return false
@@ -2028,21 +2028,21 @@ func (h *V2SemanticHandler) ownerInProject(c *gin.Context, ownerType string, own
 	return true
 }
 
-func (h *V2SemanticHandler) optionalOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
+func (h *SemanticEntityHandler) optionalOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
 	if ownerID == nil {
 		return true
 	}
 	return h.ownerInProject(c, ownerType, *ownerID)
 }
 
-func (h *V2SemanticHandler) optionalScopedOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
+func (h *SemanticEntityHandler) optionalScopedOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
 	if strings.TrimSpace(ownerType) == "" || ownerID == nil {
 		return true
 	}
 	return h.ownerInProject(c, ownerType, *ownerID)
 }
 
-func (h *V2SemanticHandler) ensureV2OwnerInProject(projectID uint, ownerType string, ownerID uint) error {
+func (h *SemanticEntityHandler) ensureSemanticOwnerInProject(projectID uint, ownerType string, ownerID uint) error {
 	var ownerProjectID uint
 	switch ownerType {
 	case "script_version":
@@ -2190,7 +2190,7 @@ func (h *V2SemanticHandler) ensureV2OwnerInProject(projectID uint, ownerType str
 	return nil
 }
 
-func (h *V2SemanticHandler) nextScriptVersionNumber(projectID uint, scriptID uint) int {
+func (h *SemanticEntityHandler) nextScriptVersionNumber(projectID uint, scriptID uint) int {
 	var maxVersion int
 	h.db.Model(&model.ScriptVersion{}).
 		Select("COALESCE(MAX(version_number), 0)").
@@ -2199,7 +2199,7 @@ func (h *V2SemanticHandler) nextScriptVersionNumber(projectID uint, scriptID uin
 	return maxVersion + 1
 }
 
-func (h *V2SemanticHandler) nextStoryboardVersionNumber(projectID uint, storyboardScriptID uint) int {
+func (h *SemanticEntityHandler) nextStoryboardVersionNumber(projectID uint, storyboardScriptID uint) int {
 	var maxVersion int
 	h.db.Model(&model.StoryboardVersion{}).
 		Select("COALESCE(MAX(version_number), 0)").

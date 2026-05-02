@@ -226,7 +226,7 @@ export interface PluginBundle {
  *   document.getElementById('root').innerHTML = `<p>${models.length} models</p>`
  */
 export interface PluginWebview {
-  schema: 'movscript.clientPlugin.v2'
+  schema: 'movscript.clientPlugin.webview'
   id: string
   name: string
   version: string

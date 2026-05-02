@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Asset, RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
+import type { RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import {
   Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File,
   FolderPlus, Folder, FolderOpen, Share2,
-  PlusSquare, ChevronRight, MoreHorizontal, Globe, MoveRight,
+  ChevronRight, MoreHorizontal, Globe, MoveRight,
   ShieldCheck, Pencil, Eye, PenLine, X as XIcon, UserPlus,
   LayoutGrid, List, ChevronLeft, Download, FileText,
 } from 'lucide-react'
@@ -394,116 +394,10 @@ function FolderOption({ label, selected, isShared, onClick }: {
   )
 }
 
-// ─── Add to Asset Dialog ──────────────────────────────────────────────────────
-function AddToAssetDialog({
-  resource,
-  onClose,
-}: {
-  resource: RawResource
-  onClose: () => void
-}) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const project = useProjectStore(s => s.current)
-  const [assetId, setAssetId] = useState<number | ''>('')
-  const [viewType, setViewType] = useState('custom')
-  const [label, setLabel] = useState('')
-
-  const { data: assets = [] } = useQuery<Asset[]>({
-    queryKey: ['assets', project?.ID],
-    queryFn: () => api.get(`/projects/${project!.ID}/assets`).then(r => r.data),
-    enabled: !!project,
-  })
-
-  const add = useMutation({
-    mutationFn: () =>
-      api.post(`/resources/${resource.ID}/to-asset`, {
-        asset_id: assetId,
-        view_type: viewType,
-        label,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['assets'] })
-      onClose()
-    },
-  })
-
-  const VIEW_TYPES = ['front', 'back', 'left', 'right', 'detail', 'custom']
-  const VIEW_LABEL_KEYS: Record<string, string> = {
-    front: 'pages.resources.viewTypes.front',
-    back: 'pages.resources.viewTypes.back',
-    left: 'pages.resources.viewTypes.left',
-    right: 'pages.resources.viewTypes.right',
-    detail: 'pages.resources.viewTypes.detail',
-    custom: 'pages.resources.viewTypes.custom',
-  }
-
-  return (
-    <Dialog.Root open onOpenChange={v => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
-          <Dialog.Title className="text-sm font-semibold mb-4">{t('pages.resources.addToAsset')}</Dialog.Title>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">{t('pages.resources.selectAsset')}</label>
-              <select
-                value={assetId}
-                onChange={e => setAssetId(Number(e.target.value))}
-                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none"
-              >
-                <option value="">{t('pages.resources.pleaseSelect')}</option>
-                {assets.map(a => (
-                  <option key={a.ID} value={a.ID}>{a.name}</option>
-                ))}
-              </select>
-              {!project && (
-                <p className="text-xs text-muted-foreground mt-1">{t('pages.resources.selectProjectFirst')}</p>
-              )}
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">{t('pages.resources.viewType')}</label>
-              <select
-                value={viewType}
-                onChange={e => setViewType(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none"
-              >
-                {VIEW_TYPES.map(v => (
-                  <option key={v} value={v}>{t(VIEW_LABEL_KEYS[v])}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">{t('pages.resources.labelOptional')}</label>
-              <input
-                value={label}
-                onChange={e => setLabel(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder={t('pages.resources.labelPlaceholder')}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-5">
-            <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
-            <Button
-              size="sm"
-              onClick={() => add.mutate()}
-              disabled={!assetId || add.isPending}
-            >
-              {add.isPending ? t('pages.resources.adding') : t('pages.resources.add')}
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
-}
-
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({
   resource,
   onDelete,
-  onAddToAsset,
   onMove,
   onRename,
   onDownload,
@@ -511,7 +405,6 @@ function ResourceCard({
 }: {
   resource: RawResource
   onDelete?: () => void
-  onAddToAsset: () => void
   onMove: () => void
   onRename: () => void
   onDownload: () => void
@@ -548,13 +441,6 @@ function ResourceCard({
               align="end"
               sideOffset={4}
             >
-              <DropdownMenu.Item
-                className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
-                onSelect={onAddToAsset}
-              >
-                <PlusSquare size={13} />
-                {t('pages.resources.addToAsset')}
-              </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
                 onSelect={onDownload}
@@ -632,7 +518,6 @@ export default function ResourcesPage() {
   const [selectedFolder, setSelectedFolder] = useState<number | 'root' | null>(null)
   const [selectedFolderTab, setSelectedFolderTab] = useState<'mine' | 'shared'>('mine')
   const [folderDialog, setFolderDialog] = useState<{ open: boolean; folder?: ResourceFolder | null }>({ open: false })
-  const [addToAssetResource, setAddToAssetResource] = useState<RawResource | null>(null)
   const [moveResource, setMoveResource] = useState<RawResource | null>(null)
   const [renameResource, setRenameResource] = useState<RawResource | null>(null)
   const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
@@ -927,7 +812,6 @@ export default function ResourcesPage() {
                   resource={r}
                   isSharedView={isSharedView}
                   onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
-                  onAddToAsset={() => setAddToAssetResource(r)}
                   onMove={() => setMoveResource(r)}
                   onRename={() => setRenameResource(r)}
                   onDownload={() => downloadResource(resolveResourceUrl(r), r.name)}
@@ -953,9 +837,6 @@ export default function ResourcesPage() {
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Portal>
                         <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 text-sm" align="end" sideOffset={4}>
-                          <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setAddToAssetResource(r)}>
-                            <PlusSquare size={13} />{t('pages.resources.addToAsset')}
-                          </DropdownMenu.Item>
                           <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => downloadResource(resolveResourceUrl(r), r.name)}>
                             <Download size={13} />{t('shared.mediaViewer.download')}
                           </DropdownMenu.Item>
@@ -1008,12 +889,6 @@ export default function ResourcesPage() {
           open
           onClose={() => setFolderDialog({ open: false })}
           editFolder={folderDialog.folder}
-        />
-      )}
-      {addToAssetResource && (
-        <AddToAssetDialog
-          resource={addToAssetResource}
-          onClose={() => setAddToAssetResource(null)}
         />
       )}
       {moveResource && (

@@ -11,6 +11,7 @@ import {
   Database,
   Eye,
   Film,
+  GitBranch,
   Image,
   Layers3,
   MapPin,
@@ -23,8 +24,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 
-import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
-import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -33,14 +34,14 @@ import { Badge, Button, Progress } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
-type SegmentRecord = V2EntityRecord & {
+type SegmentRecord = SemanticEntityRecord & {
   title?: string
   summary?: string
   content?: string
   status?: string
 }
 
-type SceneMomentRecord = V2EntityRecord & {
+type SceneMomentRecord = SemanticEntityRecord & {
   segment_id?: number
   title?: string
   description?: string
@@ -53,7 +54,7 @@ type SceneMomentRecord = V2EntityRecord & {
   status?: string
 }
 
-type RelatedRecord = V2EntityRecord & {
+type RelatedRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   content_unit_id?: number
@@ -116,7 +117,7 @@ const statusLabels: Record<string, string> = {
 export default function SceneMomentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const sceneMomentConfig = v2EntityConfig('sceneMoments')
+  const sceneMomentConfig = semanticEntityConfig('sceneMoments')
   const [momentDialogOpen, setMomentDialogOpen] = useState(false)
   const [momentDialogMode, setMomentDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -129,43 +130,43 @@ export default function SceneMomentsPage() {
   const statusFilter = normalizeStatusFilter(readStringParam(searchParams, 'status'))
 
   const segmentsQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'segments'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('segments')) as Promise<SegmentRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'segments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('segments')) as Promise<SegmentRecord[]>,
     enabled: !!projectId,
   })
   const sceneMomentsQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'sceneMoments'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'sceneMoments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
     enabled: !!projectId,
   })
   const contentUnitsQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'content-units'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'content-units'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const storyboardLinesQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'storyboard-lines'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'storyboard-lines'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const keyframesQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'keyframes'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('keyframes')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'keyframes'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('keyframes')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const referencesQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'creative-references'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferences')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'creative-references'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'creative-reference-usages'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferenceUsages')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'creative-reference-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
-    queryKey: ['v2-scene-moment-page', projectId, 'asset-slots'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-scene-moment-page', projectId, 'asset-slots'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
 
@@ -451,14 +452,14 @@ export default function SceneMomentsPage() {
           </aside>
         </section>
       </div>
-      <V2EntityCrudDialog
+      <SemanticEntityCrudDialog
         open={momentDialogOpen}
         mode={momentDialogMode}
         projectId={projectId}
         config={sceneMomentConfig}
         record={momentDialogMode === 'edit' ? selected?.moment : null}
         defaults={{ segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, order: momentWorkspaces.length + 1, status: 'draft' }}
-        queryKey={['v2-scene-moment-page', projectId]}
+        queryKey={['semantic-scene-moment-page', projectId]}
         onOpenChange={setMomentDialogOpen}
         onSaved={(record) => setFilter({ scene_moment_id: record.ID, segment_id: record.segment_id as number | undefined })}
         onDeleted={() => setFilter({ scene_moment_id: null, content_unit_id: null })}

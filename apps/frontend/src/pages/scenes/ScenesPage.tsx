@@ -25,8 +25,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 
-import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
-import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -35,7 +35,7 @@ import { Badge, Button, Progress as ProgressBar } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
-type SegmentRecord = V2EntityRecord & {
+type SegmentRecord = SemanticEntityRecord & {
   script_id?: number
   script_version_id?: number
   title?: string
@@ -47,7 +47,7 @@ type SegmentRecord = V2EntityRecord & {
   status?: string
 }
 
-type SceneMomentRecord = V2EntityRecord & {
+type SceneMomentRecord = SemanticEntityRecord & {
   segment_id?: number
   title?: string
   description?: string
@@ -60,7 +60,7 @@ type SceneMomentRecord = V2EntityRecord & {
   status?: string
 }
 
-type RelatedRecord = V2EntityRecord & {
+type RelatedRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   content_unit_id?: number
@@ -169,7 +169,7 @@ function formatDuration(value?: number) {
 export default function ScenesPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const segmentConfig = v2EntityConfig('segments')
+  const segmentConfig = semanticEntityConfig('segments')
   const [segmentDialogOpen, setSegmentDialogOpen] = useState(false)
   const [segmentDialogMode, setSegmentDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -182,43 +182,43 @@ export default function ScenesPage() {
   const statusFilter = normalizeStatusFilter(readStringParam(searchParams, 'status'))
 
   const segmentsQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'segments'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('segments')) as Promise<SegmentRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'segments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('segments')) as Promise<SegmentRecord[]>,
     enabled: !!projectId,
   })
   const sceneMomentsQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'sceneMoments'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'sceneMoments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
     enabled: !!projectId,
   })
   const storyboardLinesQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'storyboard-lines'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'storyboard-lines'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const contentUnitsQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'content-units'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'content-units'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const keyframesQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'keyframes'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('keyframes')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'keyframes'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('keyframes')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const referencesQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'creative-references'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferences')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'creative-references'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'creative-reference-usages'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferenceUsages')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'creative-reference-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
-    queryKey: ['v2-segment-workspace', projectId, 'asset-slots'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
+    queryKey: ['semantic-segment-workspace', projectId, 'asset-slots'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
 
@@ -566,14 +566,14 @@ export default function ScenesPage() {
           </aside>
         </section>
       </div>
-      <V2EntityCrudDialog
+      <SemanticEntityCrudDialog
         open={segmentDialogOpen}
         mode={segmentDialogMode}
         projectId={projectId}
         config={segmentConfig}
         record={segmentDialogMode === 'edit' ? selectedSegment?.segment : null}
         defaults={{ order: segmentWorkspaces.length + 1, status: 'draft', kind: 'section' }}
-        queryKey={['v2-segment-workspace', projectId]}
+        queryKey={['semantic-segment-workspace', projectId]}
         onOpenChange={setSegmentDialogOpen}
         onSaved={(record) => setFilter({ segment_id: record.ID })}
         onDeleted={() => setFilter({ segment_id: null, scene_moment_id: null, content_unit_id: null })}

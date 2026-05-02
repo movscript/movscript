@@ -32,7 +32,7 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
       }
       completeStep(run, 'validate', `Validated ${candidates.length} segment candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
-      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
+      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no semantic data action was called.`)
       completeStep(run, 'request_approval', 'Candidates require explicit user acceptance before becoming facts.')
     } else if (action.type === 'ExtractSceneMoments') {
       completeStep(run, 'analyze', 'Extract deterministic scene moment candidates from segments, storyboard rows, or source text.')
@@ -42,7 +42,7 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
       }
       completeStep(run, 'validate', `Validated ${candidates.length} scene moment candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
-      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
+      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no semantic data action was called.`)
       completeStep(run, 'request_approval', 'Scene moment candidates require explicit user acceptance before becoming facts.')
     } else if (action.type === 'GenerateStoryboardScript') {
       completeStep(run, 'generate', 'Generate deterministic storyboard script candidates from Segments and SceneMoments.')
@@ -52,7 +52,7 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
       }
       completeStep(run, 'validate', `Validated ${candidates.length} storyboard script candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
-      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
+      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no semantic data action was called.`)
       completeStep(run, 'request_approval', 'Storyboard script candidates require explicit user acceptance before becoming facts.')
     } else if (action.type === 'GenerateKeyframeCandidates') {
       completeStep(run, 'generate', 'Generate deterministic keyframe candidates from storyboard rows or content units.')
@@ -62,7 +62,7 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
       }
       completeStep(run, 'validate', `Validated ${candidates.length} keyframe candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
-      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
+      completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no semantic data action was called.`)
       completeStep(run, 'request_approval', 'Candidates require explicit user acceptance before becoming facts.')
     } else {
       run.warnings.push(`${action.type} is registered but does not have a deterministic executor yet.`)

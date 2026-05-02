@@ -33,7 +33,7 @@ export type CreateScriptVersionPayload = {
 }
 
 export async function listScriptVersions(projectId: number, params: { scriptId?: number; status?: string } = {}) {
-  const res = await api.get<ScriptVersion[]>(`/projects/${projectId}/v2/script-versions`, {
+  const res = await api.get<ScriptVersion[]>(`/projects/${projectId}/entities/script-versions`, {
     params: {
       ...(params.scriptId ? { script_id: params.scriptId } : {}),
       ...(params.status ? { status: params.status } : {}),
@@ -43,6 +43,6 @@ export async function listScriptVersions(projectId: number, params: { scriptId?:
 }
 
 export async function createScriptVersion(projectId: number, payload: CreateScriptVersionPayload) {
-  const res = await api.post<ScriptVersion>(`/projects/${projectId}/v2/script-versions`, payload)
+  const res = await api.post<ScriptVersion>(`/projects/${projectId}/entities/script-versions`, payload)
   return res.data
 }

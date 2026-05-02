@@ -17,7 +17,7 @@ test('normalizes a valid agent manifest v1', () => {
     metadata: { owner: 'studio' },
   })
 
-  assert.equal(manifest.schema, 'movscript.agent.v2')
+  assert.equal(manifest.schema, 'movscript.agent.current')
   assert.equal(manifest.sourceSchema, 'movscript.agent.v1')
   assert.equal(manifest.id, 'studio.shot-planner')
   assert.deepEqual(manifest.permissions, ['project.read', 'draft.write'])
@@ -26,9 +26,9 @@ test('normalizes a valid agent manifest v1', () => {
   assert.equal(manifest.metadata?.owner, 'studio')
 })
 
-test('normalizes structured skills from manifest v2', () => {
+test('normalizes structured skills from manifest current', () => {
   const manifest = normalizeAgentManifest({
-    schema: 'movscript.agent.v2',
+    schema: 'movscript.agent.current',
     id: 'studio.writer',
     version: '2.0.0',
     name: 'Writer',

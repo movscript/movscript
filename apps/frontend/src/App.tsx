@@ -31,7 +31,7 @@ import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
-import ProjectHomeV2Page from './pages/project-home/ProjectHomeV2Page'
+import ProjectHomePage from './pages/project-home/ProjectHomePage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
@@ -182,7 +182,7 @@ export default function App() {
                       <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                       <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
                       <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
-                      <Route path="/project-home" element={<ProjectGuard><ProjectHomeV2Page /></ProjectGuard>} />
+                      <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
                       <Route path="/project-plan" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
                       <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />

@@ -15,7 +15,6 @@ import {
   Play,
   Route,
   ScrollText,
-  ShieldCheck,
   Sparkles,
   XCircle,
 } from 'lucide-react'
@@ -103,7 +102,7 @@ export default function PreviewProgressPage() {
                 <span>{project?.name ?? '当前项目'}</span>
                 <ArrowRight size={13} />
                 <span>预演进度</span>
-                <Badge variant="outline">确认记录 / 生产门禁</Badge>
+                <Badge variant="outline">确认记录 / 推进状态</Badge>
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">预演进度</h1>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -244,7 +243,7 @@ export default function PreviewProgressPage() {
               </div>
             ) : (
               <div className="flex h-full items-center justify-center">
-                <StatusBlock icon={Film} title="等待预演记录" text="确认预演后，可以在这里检查每条记录的进度、门禁和下一步动作。" />
+                <StatusBlock icon={Film} title="等待预演记录" text="确认预演后，可以在这里检查每条记录的进度、状态和下一步动作。" />
               </div>
             )}
           </main>
@@ -252,20 +251,20 @@ export default function PreviewProgressPage() {
           <aside className="min-h-0 space-y-4 overflow-y-auto">
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-                <ShieldCheck size={16} className="text-muted-foreground" />
-                <h2 className="text-sm font-semibold text-foreground">确认门禁</h2>
+                <ListChecks size={16} className="text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">确认条件</h2>
               </div>
               <div className="space-y-2 p-4">
                 {selectedRecord ? (
                   <>
-                    <GateItem label="结构已解析" done={selectedRecord.stats.segments > 0} />
-                    <GateItem label="预演时间线" done={selectedRecord.stats.timelineItems > 0} />
-                    <GateItem label="关键帧已确认" done={selectedRecord.stats.acceptedKeyframes > 0 || selectedRecord.stats.keyframes === 0} />
-                    <GateItem label="素材缺口可控" done={selectedRecord.stats.assetGaps === 0 || selectedRecord.stats.resolvedAssetGaps > 0} />
-                    <GateItem label="预演已确认" done={selectedRecord.status === 'confirmed'} />
+                    <ConditionItem label="结构已解析" done={selectedRecord.stats.segments > 0} />
+                    <ConditionItem label="预演时间线" done={selectedRecord.stats.timelineItems > 0} />
+                    <ConditionItem label="关键帧已确认" done={selectedRecord.stats.acceptedKeyframes > 0 || selectedRecord.stats.keyframes === 0} />
+                    <ConditionItem label="素材缺口可控" done={selectedRecord.stats.assetGaps === 0 || selectedRecord.stats.resolvedAssetGaps > 0} />
+                    <ConditionItem label="预演已确认" done={selectedRecord.status === 'confirmed'} />
                   </>
                 ) : (
-                  <StatusBlock icon={Clock3} title="暂无门禁状态" text="选择一条预演记录查看确认条件。" />
+                  <StatusBlock icon={Clock3} title="暂无确认状态" text="选择一条预演记录查看确认条件。" />
                 )}
               </div>
             </section>
@@ -292,7 +291,7 @@ export default function PreviewProgressPage() {
                 <h2 className="text-sm font-semibold text-foreground">记录说明</h2>
               </div>
               <div className="space-y-3 p-4 text-sm leading-6 text-muted-foreground">
-                <p>一条预演记录对应一次被确认的制作预演。记录保留版本来源、时间线、候选关键帧、素材缺口和确认门禁。</p>
+                <p>一条预演记录对应一次被确认的制作预演。记录保留版本来源、时间线、候选关键帧、素材缺口和确认条件。</p>
                 <p>当前后端只暴露最近草稿；页面已经按多记录列表设计，后续增加 records API 后可直接扩展为完整历史。</p>
               </div>
             </section>
@@ -360,9 +359,9 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
       progress: keyframes > 0 ? Math.round(((acceptedKeyframes + acceptedTimelineItems) / Math.max(1, keyframes + timelineItems)) * 100) : 0,
     },
     {
-      id: 'gate',
-      title: '确认进入生产',
-      detail: confirmed ? `已于 ${formatDateTime(draft.confirmed_at || response.saved_at)} 确认预演。` : blocked ? '仍有素材缺口或候选未确认，暂不建议进入生产。' : '等待在工作台确认预演。',
+      id: 'confirmation',
+      title: '确认预演结果',
+      detail: confirmed ? `已于 ${formatDateTime(draft.confirmed_at || response.saved_at)} 确认预演。` : blocked ? '仍有素材缺口或候选未确认，建议继续处理。' : '等待在工作台确认预演。',
       status: confirmed ? 'done' : blocked ? 'blocked' : 'waiting',
       progress: confirmed ? 100 : 0,
     },
@@ -380,7 +379,7 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
     createdAt: response.saved_at,
     confirmedAt: draft.confirmed_at || undefined,
     savedAt: response.saved_at,
-    summary: confirmed ? '这条预演已经确认，可作为后续内容生产和交付门禁的来源。' : '这条预演仍处在确认流程中，需要继续处理结构、候选、素材缺口或最终确认。',
+    summary: confirmed ? '这条预演已经确认，可作为后续内容制作和交付检查的来源。' : '这条预演仍处在确认流程中，需要继续处理结构、候选、素材缺口或最终确认。',
     stats: {
       segments,
       storyboardRows,
@@ -405,7 +404,7 @@ function deriveNextActions(input: {
   resolvedAssetGaps: number
   confirmed: boolean
 }) {
-  if (input.confirmed) return ['进入内容生产，基于已确认预演拆分生产任务。']
+  if (input.confirmed) return ['基于已确认预演拆分内容制作任务。']
   if (input.segments === 0) return ['返回制作编排，先解析剧本结构。']
   if (input.timelineItems === 0) return ['生成预演时间线和关键帧候选。']
   if (input.keyframes > 0 && input.acceptedKeyframes === 0) return ['在项目预演工作台确认关键帧候选。']
@@ -487,7 +486,7 @@ function StatCard({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
   )
 }
 
-function GateItem({ label, done }: { label: string; done: boolean }) {
+function ConditionItem({ label, done }: { label: string; done: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
       <span className="min-w-0 truncate text-sm text-foreground">{label}</span>

@@ -200,13 +200,9 @@ function semanticFieldLabel(
   field: EntitySemanticSchemaField,
   t: (key: string, options?: Record<string, unknown>) => string,
 ) {
-  if (kind === 'episode') {
-    if (field.id === 'title') return t('forms.episodeTitle', { defaultValue: 'Episode title' })
-    if (field.id === 'number') return t('details.episodeNumber', { defaultValue: 'Episode Number' })
-  }
-  if (kind === 'scene') {
-    if (field.id === 'title') return t('forms.sceneTitle', { defaultValue: 'Scene title' })
-    if (field.id === 'number') return t('details.sceneNumber', { defaultValue: 'Scene Number' })
+  if (kind === 'asset_slot') {
+    if (field.id === 'name') return t('details.assetSlotName', { defaultValue: 'Asset slot name' })
+    if (field.id === 'prompt_hint') return t('details.promptHint', { defaultValue: 'Prompt hint' })
   }
   return t(field.labelKey, { defaultValue: field.fallbackLabel })
 }
@@ -522,15 +518,12 @@ function relatedEntityStatus(item: unknown) {
 }
 
 function relatedEntityMeta(record: Record<string, unknown>, kind: string | undefined, t: (key: string, options?: Record<string, unknown>) => string) {
-  if (kind === 'storyboard') {
-    const count = record.shots_count
-    return typeof count === 'number' ? t('common.shotsCount', { count, defaultValue: '{{count}} shots' }) : ''
+  if (kind === 'asset_slot') {
+    const ownerType = record.owner_type
+    const ownerId = record.owner_id
+    return ownerType && ownerId ? `${ownerType} #${ownerId}` : ''
   }
-  if (kind === 'shot') {
-    const storyboardId = record.storyboard_id
-    return storyboardId ? t('common.storyboardRef', { id: storyboardId, defaultValue: 'storyboard #{{id}}' }) : ''
-  }
-  if (kind === 'scene') {
+  if (kind) {
     return ''
   }
   return ''

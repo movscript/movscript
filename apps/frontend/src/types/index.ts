@@ -122,164 +122,50 @@ export interface SettingRelationship {
   UpdatedAt: string
 }
 
-export interface AssetView {
-  ID: number
-  asset_id: number
-  view_type: string // front|back|left|right|detail|custom
-  label: string
-  shot_type?: string // full_body|half_body|closeup|environment|prop_detail
-  resource?: RawResource
-  canvas_id?: number
-  image_url?: string
-  prompt?: string
-  seed?: string
-  generation_meta_json?: string
-  quality_status?: 'draft' | 'selected' | 'rejected' | 'final'
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface Asset {
+export interface AssetSlot {
   ID: number
   project_id: number
+  production_id?: number | null
+  owner_type?: string
+  owner_id?: number | null
+  creative_reference_id?: number | null
+  creative_reference_state_id?: number | null
+  kind?: 'image' | 'video' | 'audio' | 'text' | 'brand_pack' | 'reference' | string
   name: string
-  type: string
-  resource_id?: number
+  slot_key?: string
+  description?: string
+  prompt_hint?: string
+  priority?: 'low' | 'normal' | 'high' | 'critical' | string
+  resource_id?: number | null
   resource?: RawResource
-  description: string
-  variant_type?: string
-  variant_name?: string
-  costume?: string
-  time_of_day?: string
-  period?: string
-  state?: string
-  style_profile?: string
-  prompt?: string
-  negative_prompt?: string
-  is_primary?: boolean
-  review_status?: ReviewStatus
-  effective_status?: string
-  setting_id?: number // optional link to a Setting
-  setting?: Setting
-  follow_setting_status?: boolean
-  views?: AssetView[]
+  locked_asset_slot_id?: number | null
+  locked_asset_slot?: AssetSlot
+  status?: 'missing' | 'candidate' | 'locked' | 'waived' | string
+  metadata_json?: string
   CreatedAt: string
   UpdatedAt: string
 }
 
-// Scene belongs to a Project directly (not to an Episode).
-// Episodes link to Scenes via EpisodeScene (many-to-many).
-export interface Scene {
+export interface AssetSlotCandidate {
   ID: number
   project_id: number
-  script_id?: number | null
-  script?: Script
-  number: number
-  title: string
-  notes: string
-  review_status?: ReviewStatus
-  settings?: Setting[]
-  storyboards?: Storyboard[]
-  final_videos?: FinalVideo[]
+  asset_slot_id: number
+  asset_slot?: AssetSlot
+  candidate_asset_slot_id: number
+  candidate_asset_slot?: AssetSlot
+  source_type?: 'manual' | 'upload' | 'job' | 'canvas' | 'import' | string
+  source_id?: number | null
+  score?: number
+  status?: 'candidate' | 'selected' | 'rejected' | string
+  note?: string
   CreatedAt: string
   UpdatedAt: string
 }
 
-export interface EpisodeScene {
-  episode_id: number
-  scene_id: number
-  order: number
-}
-
-export interface Episode {
-  ID: number
-  project_id: number
-  title: string
-  number: number
-  synopsis: string
-  review_status?: ReviewStatus
-  script_id?: number | null // optional — can be created without a script
-  script?: Script
-  settings?: Setting[]
-  scenes?: Scene[]
-  storyboards?: Storyboard[]
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-// Storyboard is the director's written description for a scene.
-// scene_id and episode_id are optional — can be associated later.
-export interface Storyboard {
-  ID: number
-  project_id: number
-  scene_id?: number | null
-  episode_id?: number | null
-  setting_id?: number | null
-  setting?: Setting
-  assignee_id?: number
-  assignee?: User
-  order: number
-  title: string
-  description: string
-  notes: string
-  characters: string
-  actions: string
-  dialogue: string
-  atmosphere: string
-  // Camera parameters
-  lighting: string
-  duration: number
-  shot_size?: string    // close_up|near|medium|full|wide|extreme_wide
-  angle?: string        // eye_level|overhead|low_angle|side|top|dutch
-  movement?: string     // push|pull|pan|dolly|follow|crane|handheld|static
-  focal_length?: string // wide|standard|telephoto
-  pacing?: string       // fast_cut|long_take|pause
-  intent?: string       // 镜头意图
-  review_status?: ReviewStatus
-  shots?: Shot[]
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export type ShotStatus = 'draft' | 'prompt_ready' | 'generating' | 'generated' | 'approved'
-
-// Shot is the executable unit — one generation task.
-// storyboard_id is optional — shots can exist without a storyboard.
-export interface Shot {
-  ID: number
-  project_id: number
-  storyboard_id?: number | null
-  assignee_id?: number
-  assignee?: User
-  order: number
-  description: string
-  canvas_id?: number
-  is_approved?: boolean
-  review_status?: ReviewStatus
-  status: ShotStatus
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface FinalVideo {
-  ID: number
-  project_id: number
-  episode_id?: number | null
-  scene_id?: number | null
-  storyboard_id?: number | null
-  shot_id?: number | null
-  title: string
-  description: string
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export type ArtifactKind = 'script' | 'asset' | 'storyboard' | 'shot' | 'final_video'
+export type ArtifactKind = 'script' | 'setting' | 'asset_slot'
 
 export interface ArtifactEntityContext {
-  episode_id?: number | null
-  scene_id?: number | null
-  storyboard_id?: number | null
+  asset_slot_id?: number | null
   setting_id?: number | null
 }
 
@@ -303,13 +189,8 @@ export interface User {
 
 export interface Progress {
   scripts: number
-  episodes: number
-  total_episodes: number
-  scenes: number
-  assets: number
+  asset_slots: number
   members: number
-  storyboards: { total: number }
-  shots: { total: number; draft: number; prompt_ready: number; generating: number; generated: number; approved: number; is_approved: number }
 }
 
 // AICredential stores authentication credentials for one adapter type.
@@ -599,13 +480,15 @@ export interface RawResource {
 export type ResourceBindingOwnerType =
   | 'script'
   | 'setting'
-  | 'episode'
-  | 'scene'
-  | 'storyboard'
-  | 'shot'
-  | 'final_video'
-  | 'asset'
-  | 'asset_view'
+  | 'asset_slot'
+  | 'script_version'
+  | 'segment'
+  | 'scene_moment'
+  | 'storyboard_script'
+  | 'storyboard_line'
+  | 'content_unit'
+  | 'keyframe'
+  | 'delivery_version'
   | 'canvas'
 
 export type ResourceBindingRole =
@@ -684,7 +567,7 @@ export interface Job {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'video_edit'
-export type CanvasEntityKind = 'script' | 'setting' | 'asset' | 'episode' | 'scene' | 'storyboard' | 'shot' | 'final_video'
+export type CanvasEntityKind = 'script' | 'setting' | 'asset_slot'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType

@@ -82,7 +82,7 @@ export async function cmdBuild(options: BuildOptions) {
 
 function buildOutputManifest(m: MovJson, hasUi: boolean) {
   const base = {
-    schema: hasUi ? 'movscript.clientPlugin.v2' : 'movscript.clientPlugin.v1',
+    schema: hasUi ? 'movscript.clientPlugin.webview' : 'movscript.clientPlugin.v1',
     id: m.id,
     name: m.name,
     version: m.version,

@@ -17,11 +17,11 @@ export function defineCanvasPlugin<TArgs = Record<string, unknown>>(config: {
 }
 
 /**
- * Define a webview plugin (v2). The bundle at `bundleUrl` runs in a sandboxed
+ * Define a webview plugin webview. The bundle at `bundleUrl` runs in a sandboxed
  * iframe and communicates with the platform via `window.mov`.
  */
 export function defineWebviewPlugin(options: Omit<PluginWebview, 'schema'>): PluginWebview {
-  return { schema: 'movscript.clientPlugin.v2', ...options }
+  return { schema: 'movscript.clientPlugin.webview', ...options }
 }
 
 /**

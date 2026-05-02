@@ -2,28 +2,14 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
-import { API_BASE_URL as API_BASE } from '@/lib/config'
-import type { RawResource, Asset, AssetView, PaginatedResponse } from '@/types'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import type { AssetSlot, RawResource, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { MediaViewer } from '@/components/shared/MediaViewer'
-import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { FileAudio, FileText, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const ASSET_VIEW_TYPES = ['front', 'side', 'back', 'left', 'right', 'detail', 'custom'] as const
-const ASSET_VIEW_LABEL_KEYS: Record<string, string> = {
-  front: 'pages.resources.viewTypes.front',
-  side: 'pages.resources.viewTypes.side',
-  back: 'pages.resources.viewTypes.back',
-  left: 'pages.resources.viewTypes.left',
-  right: 'pages.resources.viewTypes.right',
-  detail: 'pages.resources.viewTypes.detail',
-  custom: 'pages.resources.viewTypes.custom',
-}
-
-function assetViewType(asset: Asset): string {
-  return asset.variant_type || asset.type || 'custom'
-}
+type AssetSlotPanelRecord = SemanticEntityRecord & AssetSlot
 
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 
@@ -109,41 +95,28 @@ export function ResourceListItem({
   )
 }
 
-// ─── Shared asset list item ───────────────────────────────────────────────────
-// Used in ResourcePanel (tool sidebar) and AssetsPage (list view).
+// ─── Shared asset slot list item ─────────────────────────────────────────────
 
-interface AssetListItemProps {
-  asset: Asset
+interface AssetSlotListItemProps {
+  slot: AssetSlotPanelRecord
   selected?: boolean
   onClick?: () => void
-  /** When true, view thumbnails are draggable */
   draggable?: boolean
   selectedResourceIds?: number[]
   trailing?: React.ReactNode
 }
 
-function viewThumbUrl(view: AssetView): string | null {
-  if (view.resource?.direct_url) return view.resource.direct_url
-  if (view.resource?.url) return `${API_BASE}${view.resource.url}`
-  if (view.image_url) return view.image_url.startsWith('http') ? view.image_url : `${API_BASE}${view.image_url}`
-  return null
-}
-
-export function AssetListItem({
-  asset,
+export function AssetSlotListItem({
+  slot,
   selected,
   onClick,
   draggable: isDraggable,
   selectedResourceIds = [],
   trailing,
-}: AssetListItemProps) {
+}: AssetSlotListItemProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<RawResource | null>(null)
-  const views = asset.views?.filter(v => v.resource) ?? []
-  const firstView = views[0]
-  const thumbUrl = firstView ? viewThumbUrl(firstView) : null
-  const isVid = firstView?.resource?.type === 'video'
-  const viewType = assetViewType(asset)
+  const resource = slot.resource
 
   function handleDragStart(e: React.DragEvent, res: RawResource) {
     e.dataTransfer.setData('application/resource-id', String(res.ID))
@@ -163,10 +136,8 @@ export function AssetListItem({
       >
         <div className="flex items-center gap-2 mb-1">
           <div className="w-7 h-7 rounded shrink-0 overflow-hidden bg-muted">
-            {thumbUrl ? (
-              isVid
-                ? <AuthedVideo src={thumbUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-                : <MediaViewer resource={firstView!.resource!} className="w-full h-full" lightbox={false} />
+            {resource ? (
+              <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                 <Package size={12} />
@@ -174,44 +145,29 @@ export function AssetListItem({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-foreground truncate leading-tight">{asset.name}</p>
+            <p className="text-xs text-foreground truncate leading-tight">{slot.name || `#${slot.ID}`}</p>
             <p className="text-[10px] text-muted-foreground truncate">
-              {asset.setting?.name ?? (asset.setting_id ? t('pages.assets.settingFallback', { id: asset.setting_id }) : t('pages.assets.unlinkedSetting'))}
+              {slot.owner_type && slot.owner_id ? `${slot.owner_type} #${slot.owner_id}` : t('shared.resourcePanel.assetLibrary')}
               {' · '}
-              {ASSET_VIEW_LABEL_KEYS[viewType] ? t(ASSET_VIEW_LABEL_KEYS[viewType]) : viewType}
+              {slot.kind || 'reference'}
             </p>
           </div>
           {trailing}
         </div>
 
-        {isDraggable && views.length > 0 && (
-          <div className="flex gap-1 flex-wrap pl-1">
-            {views.map(view => {
-              if (!view.resource) return null
-              const res = view.resource
-              const inUse = selectedResourceIds.includes(res.ID)
-              const vUrl = res.direct_url ?? `${API_BASE}${res.url}`
-              return (
-                <div
-                  key={view.ID}
-                  draggable={!inUse}
-                  onDragStart={e => { e.stopPropagation(); !inUse && handleDragStart(e, res) }}
-                  onClick={e => { e.stopPropagation(); setPreview(res) }}
-                  title={view.label || view.view_type}
-                  className={cn(
-                    'w-8 h-8 rounded overflow-hidden border transition-colors cursor-pointer',
-                    inUse ? 'border-primary opacity-50' : 'border-border hover:border-primary cursor-grab active:cursor-grabbing'
-                  )}
-                >
-                  {res.type === 'video' ? (
-                    <AuthedVideo src={vUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-                  ) : (
-                    <MediaViewer resource={res} className="w-full h-full" lightbox={false} />
-                  )}
-                </div>
-              )
-            })}
-          </div>
+        {isDraggable && resource && (
+          <button
+            draggable={!selectedResourceIds.includes(resource.ID)}
+            onDragStart={e => { e.stopPropagation(); !selectedResourceIds.includes(resource.ID) && handleDragStart(e, resource) }}
+            onClick={e => { e.stopPropagation(); setPreview(resource) }}
+            title={resource.name}
+            className={cn(
+              'ml-1 h-8 w-8 rounded overflow-hidden border transition-colors cursor-pointer',
+              selectedResourceIds.includes(resource.ID) ? 'border-primary opacity-50' : 'border-border hover:border-primary cursor-grab active:cursor-grabbing'
+            )}
+          >
+            <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
+          </button>
         )}
       </div>
 
@@ -230,14 +186,15 @@ interface ResourcePanelProps {
 
 export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: ResourcePanelProps) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'resources' | 'assets'>('resources')
+  const [tab, setTab] = useState<'resources' | 'assetSlots'>('resources')
   const [keyword, setKeyword] = useState('')
   const [resourceType, setResourceType] = useState<'all' | 'image' | 'video'>('all')
-  const [assetType, setAssetType] = useState<'all' | typeof ASSET_VIEW_TYPES[number]>('all')
+  const [slotKind, setSlotKind] = useState<'all' | 'image' | 'video' | 'audio' | 'text' | 'reference'>('all')
   const [resourcePage, setResourcePage] = useState(1)
-  const [assetPage, setAssetPage] = useState(1)
+  const [slotPage, setSlotPage] = useState(1)
   const current = useProjectStore(s => s.current)
   const pageSize = 12
+  const slotConfig = semanticEntityConfig('assetSlots')
 
   const resourceTypeParam = (() => {
     if (inputType === 'image+video') return resourceType === 'all' ? 'image,video' : resourceType
@@ -254,26 +211,27 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   const resourceTotal = resourcesPageData?.total ?? 0
   const resourcePageCount = Math.max(1, Math.ceil(resourceTotal / pageSize))
 
-  const { data: assetsPageData } = useQuery<PaginatedResponse<Asset>>({
-    queryKey: ['assets', 'panel', current?.ID, assetType, keyword, assetPage],
-    queryFn: () => api.get(`/projects/${current!.ID}/assets`, {
-      params: {
-        page: assetPage,
-        page_size: pageSize,
-        type: assetType === 'all' ? undefined : assetType,
-        q: keyword || undefined,
-      },
-    }).then(r => r.data),
+  const { data: slotRecords = [] } = useQuery<AssetSlotPanelRecord[]>({
+    queryKey: ['asset-slots', 'panel', current?.ID],
+    queryFn: () => listSemanticEntities(current!.ID, slotConfig) as Promise<AssetSlotPanelRecord[]>,
     enabled: !!current,
   })
-  const assets = assetsPageData?.items ?? []
-  const assetTotal = assetsPageData?.total ?? 0
-  const assetPageCount = Math.max(1, Math.ceil(assetTotal / pageSize))
+  const filteredSlots = slotRecords.filter((slot) => {
+    if (slotKind !== 'all' && slot.kind !== slotKind) return false
+    if (keyword.trim()) {
+      const q = keyword.trim().toLowerCase()
+      return [slot.name, slot.description, slot.prompt_hint, slot.kind, slot.status].filter(Boolean).join(' ').toLowerCase().includes(q)
+    }
+    return true
+  })
+  const slotTotal = filteredSlots.length
+  const slotPageCount = Math.max(1, Math.ceil(slotTotal / pageSize))
+  const slots = filteredSlots.slice((slotPage - 1) * pageSize, slotPage * pageSize)
 
-  function resetFilters(nextTab?: 'resources' | 'assets') {
+  function resetFilters(nextTab?: 'resources' | 'assetSlots') {
     if (nextTab) setTab(nextTab)
     setResourcePage(1)
-    setAssetPage(1)
+    setSlotPage(1)
   }
 
   function Pager({ page, pageCount, total, onPage }: { page: number; pageCount: number; total: number; onPage: (p: number) => void }) {
@@ -296,7 +254,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   return (
     <div className="w-56 shrink-0 border-r border-border bg-background flex flex-col overflow-hidden">
       <div className="flex border-b border-border shrink-0">
-        {(['resources', 'assets'] as const).map(panelTab => (
+        {(['resources', 'assetSlots'] as const).map(panelTab => (
           <button
             key={panelTab}
             onClick={() => resetFilters(panelTab)}
@@ -333,16 +291,14 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
             ))}
           </div>
         )}
-        {tab === 'assets' && (
+        {tab === 'assetSlots' && (
           <select
-            value={assetType}
-            onChange={e => { setAssetType(e.target.value as typeof assetType); setAssetPage(1) }}
+            value={slotKind}
+            onChange={e => { setSlotKind(e.target.value as typeof slotKind); setSlotPage(1) }}
             className="w-full px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="all">{t('shared.resourcePanel.allAssets')}</option>
-            {ASSET_VIEW_TYPES.map((type) => (
-              <option key={type} value={type}>{t(ASSET_VIEW_LABEL_KEYS[type])}</option>
-            ))}
+            {(['image', 'video', 'audio', 'text', 'reference'] as const).map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
         )}
       </div>
@@ -366,14 +322,14 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
           </div>
         )}
 
-        {tab === 'assets' && (
+        {tab === 'assetSlots' && (
           <div className="space-y-1">
             {!current && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.selectProjectFirst')}</p>}
-            {current && assets.length === 0 && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noAssets')}</p>}
-            {assets.map(asset => (
-              <AssetListItem
-                key={asset.ID}
-                asset={asset}
+            {current && slots.length === 0 && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noAssets')}</p>}
+            {slots.map(slot => (
+              <AssetSlotListItem
+                key={slot.ID}
+                slot={slot}
                 draggable
                 selectedResourceIds={selectedIds}
               />
@@ -384,7 +340,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
       {tab === 'resources' ? (
         <Pager page={resourcePage} pageCount={resourcePageCount} total={resourceTotal} onPage={setResourcePage} />
       ) : (
-        <Pager page={assetPage} pageCount={assetPageCount} total={assetTotal} onPage={setAssetPage} />
+        <Pager page={slotPage} pageCount={slotPageCount} total={slotTotal} onPage={setSlotPage} />
       )}
     </div>
   )

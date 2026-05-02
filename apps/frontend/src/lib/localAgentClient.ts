@@ -84,7 +84,7 @@ export interface AgentToolCall {
 }
 
 export interface AgentManifest {
-  schema: 'movscript.agent.v1' | 'movscript.agent.v2'
+  schema: 'movscript.agent.v1' | 'movscript.agent.current'
   id: string
   version: string
   name: string
@@ -103,7 +103,7 @@ export interface AgentManifest {
     platformModelId?: number
   }
   metadata?: Record<string, unknown>
-  sourceSchema?: 'movscript.agent.v1' | 'movscript.agent.v2'
+  sourceSchema?: 'movscript.agent.v1' | 'movscript.agent.current'
 }
 
 export interface AgentSkillManifest {

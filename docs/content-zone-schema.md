@@ -1,10 +1,10 @@
 # 内容区数据库收敛
 
-当前内容区以 V2 语义实体为准，不再兼容旧的分集、分场、分镜、镜头生产链表。
+当前内容区以语义实体为准，不再兼容旧的分集、分场、分镜、镜头生产链表。
 
 ## 已清理旧表
 
-迁移 `000025_remove_v1_production_entities` 和 `000026_content_zone_v2_tables` 会删除：
+迁移 `000025_remove_v1_production_entities` 和 `000026_content_zone_semantic_tables` 会删除：
 
 - `final_videos`
 - `shots`
@@ -15,7 +15,7 @@
 - `episode_setting_refs`
 - `episodes`
 
-这些表对应旧版「分集 -> 分场 -> 分镜 -> 镜头 -> 成片」链路。内容区页面改走 V2 表和 `/projects/:id/v2/...` 接口。
+这些表对应旧版「分集 -> 分场 -> 分镜 -> 镜头 -> 成片」链路。内容区页面改走语义实体表和 `/projects/:id/entities/...` 接口。
 
 ## 内容区新表
 

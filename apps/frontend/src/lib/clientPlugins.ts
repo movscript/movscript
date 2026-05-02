@@ -45,7 +45,7 @@ export interface ClientPluginContributions {
 }
 
 export interface ClientPluginManifest {
-  schema: 'movscript.clientPlugin.v1' | 'movscript.clientPlugin.v2' | string
+  schema: 'movscript.clientPlugin.v1' | 'movscript.clientPlugin.webview' | string
   id: string
   name: string
   version: string
@@ -60,7 +60,7 @@ export interface ClientPluginManifest {
   script?: string
   /** Compiled bundle source (installed from URL, v1) */
   bundle?: string
-  /** URL of the compiled JS bundle to load in iframe (v2 webview plugins) */
+  /** URL of the compiled JS bundle to load in iframe (webview plugins) */
   bundleUrl?: string
   /** URL this plugin was installed from */
   sourceUrl?: string

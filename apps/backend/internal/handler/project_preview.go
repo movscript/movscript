@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
-	"github.com/movscript/movscript/internal/v2/projectpreview"
+	"github.com/movscript/movscript/internal/semantic/projectpreview"
 	"gorm.io/gorm"
 )
 

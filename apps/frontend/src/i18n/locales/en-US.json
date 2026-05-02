@@ -388,7 +388,7 @@
     "notes": "Notes"
   },
   "pages": {
-    "projectHomeV2": {
+    "projectHome": {
       "badge": "Home",
       "noDescription": "No project description yet. This dashboard summarizes script, asset, production, and delivery status.",
       "actions": {
@@ -495,7 +495,7 @@
           "linked": "Linked settings"
         }
       },
-      "v2": {
+      "semantic": {
         "title": "Asset Generation",
         "subtitle": "Track the reference images, videos, audio, and brand assets still needed for production.",
         "searchPlaceholder": "Search gaps, segments, or asset cues...",
@@ -2158,7 +2158,7 @@
       "finalVideos": "Final Video Library",
       "collaboration": "Tasks",
       "delivery": "Delivery",
-      "v2Entities": "V2 Entities",
+      "semanticEntities": "Semantic Entities",
       "scenes": "Plot Beat Library",
       "storyboards": "Storyboard Management",
       "shots": "Shot Management",
@@ -2232,7 +2232,7 @@
       "projectPlan": "Prep Overview",
       "projectPreview": "Project Preview",
       "previewProgress": "Preview Progress",
-      "v2Entities": "V2 Entities",
+      "semanticEntities": "Semantic Entities",
       "entityManagement": "Entity Management",
       "creativeReferences": "Reference Library",
       "referenceRelations": "Reference Relations",

@@ -48,7 +48,7 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 		return
 	}
 	if err := h.ensureInitialScriptVersion(&s, currentUserID(c)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "V2 剧本版本初始化失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "剧本版本初始化失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, s)
@@ -83,7 +83,7 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.ensureInitialScriptVersion(&s, currentUserID(c)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "V2 剧本版本同步失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "剧本版本同步失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, s)
@@ -120,7 +120,7 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 	}
 	h.db.First(&s, s.ID)
 	if err := h.ensureInitialScriptVersion(&s, currentUserID(c)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "V2 剧本版本同步失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "剧本版本同步失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, s)

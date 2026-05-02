@@ -22,7 +22,7 @@ import { useProjectStore } from '@/store/projectStore'
 import { projectSurfaces, workbenchSurfaces, type StageKey } from '@/pages/project-workspace/structure'
 
 type StageState = 'ready' | 'active' | 'blocked'
-type V2Record = Record<string, unknown> & {
+type SemanticRecord = Record<string, unknown> & {
   ID: number
   title?: string
   name?: string
@@ -67,8 +67,8 @@ function formatDate(value?: string) {
   }
 }
 
-async function listV2Records(projectId: number, path: string) {
-  const { data } = await api.get<V2Record[] | { items?: V2Record[] }>(`/projects/${projectId}/v2/${path}`)
+async function listSemanticRecords(projectId: number, path: string) {
+  const { data } = await api.get<SemanticRecord[] | { items?: SemanticRecord[] }>(`/projects/${projectId}/entities/${path}`)
   return Array.isArray(data) ? data : data.items ?? []
 }
 
@@ -187,7 +187,7 @@ function FocusRow({ item }: { item: FocusItem }) {
   )
 }
 
-export default function ProjectHomeV2Page() {
+export default function ProjectHomePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
 
@@ -197,38 +197,38 @@ export default function ProjectHomeV2Page() {
     enabled: !!projectId,
   })
   const { data: scriptVersions = [] } = useQuery({
-    queryKey: ['v2', projectId, 'script-versions'],
-    queryFn: () => listV2Records(projectId!, 'script-versions'),
+    queryKey: ['semantic', projectId, 'script-versions'],
+    queryFn: () => listSemanticRecords(projectId!, 'script-versions'),
     enabled: !!projectId,
   })
   const { data: creativeReferences = [] } = useQuery({
-    queryKey: ['v2', projectId, 'creative-references'],
-    queryFn: () => listV2Records(projectId!, 'creative-references'),
+    queryKey: ['semantic', projectId, 'creative-references'],
+    queryFn: () => listSemanticRecords(projectId!, 'creative-references'),
     enabled: !!projectId,
   })
   const { data: assetSlots = [] } = useQuery({
-    queryKey: ['v2', projectId, 'asset-slots'],
-    queryFn: () => listV2Records(projectId!, 'asset-slots'),
+    queryKey: ['semantic', projectId, 'asset-slots'],
+    queryFn: () => listSemanticRecords(projectId!, 'asset-slots'),
     enabled: !!projectId,
   })
   const { data: contentUnits = [] } = useQuery({
-    queryKey: ['v2', projectId, 'content-units'],
-    queryFn: () => listV2Records(projectId!, 'content-units'),
+    queryKey: ['semantic', projectId, 'content-units'],
+    queryFn: () => listSemanticRecords(projectId!, 'content-units'),
     enabled: !!projectId,
   })
   const { data: keyframes = [] } = useQuery({
-    queryKey: ['v2', projectId, 'keyframes'],
-    queryFn: () => listV2Records(projectId!, 'keyframes'),
+    queryKey: ['semantic', projectId, 'keyframes'],
+    queryFn: () => listSemanticRecords(projectId!, 'keyframes'),
     enabled: !!projectId,
   })
   const { data: deliveryVersions = [] } = useQuery({
-    queryKey: ['v2', projectId, 'delivery-versions'],
-    queryFn: () => listV2Records(projectId!, 'delivery-versions'),
+    queryKey: ['semantic', projectId, 'delivery-versions'],
+    queryFn: () => listSemanticRecords(projectId!, 'delivery-versions'),
     enabled: !!projectId,
   })
   const { data: workItems = [] } = useQuery({
-    queryKey: ['v2', projectId, 'work-items'],
-    queryFn: () => listV2Records(projectId!, 'work-items'),
+    queryKey: ['semantic', projectId, 'work-items'],
+    queryFn: () => listSemanticRecords(projectId!, 'work-items'),
     enabled: !!projectId,
   })
 

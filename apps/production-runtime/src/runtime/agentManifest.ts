@@ -1,6 +1,6 @@
 import type { JSONValue } from '../types.js'
 
-export type AgentManifestSchema = 'movscript.agent.v1' | 'movscript.agent.v2'
+export type AgentManifestSchema = 'movscript.agent.v1' | 'movscript.agent.current'
 export type AgentToolGrantMode = 'allow' | 'deny'
 export type AgentToolApprovalMode = 'never' | 'always' | 'on_write'
 
@@ -45,7 +45,7 @@ export interface AgentManifest {
 }
 
 export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.v2',
+  schema: 'movscript.agent.current',
   id: 'movscript.default.local-agent',
   version: '0.1.0',
   name: 'MovScript Local Agent',
@@ -82,19 +82,19 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
 
 export function normalizeAgentManifest(input: unknown): AgentManifest {
   if (!isRecord(input)) return DEFAULT_AGENT_MANIFEST
-  if (input.schema !== 'movscript.agent.v1' && input.schema !== 'movscript.agent.v2') return DEFAULT_AGENT_MANIFEST
+  if (input.schema !== 'movscript.agent.v1' && input.schema !== 'movscript.agent.current') return DEFAULT_AGENT_MANIFEST
 
   const id = nonEmptyString(input.id) ?? DEFAULT_AGENT_MANIFEST.id
   const version = nonEmptyString(input.version) ?? DEFAULT_AGENT_MANIFEST.version
   const name = nonEmptyString(input.name) ?? DEFAULT_AGENT_MANIFEST.name
   const permissions = stringArray(input.permissions)
   const tools = toolGrantArray(input.tools)
-  const skills = input.schema === 'movscript.agent.v2'
+  const skills = input.schema === 'movscript.agent.current'
     ? skillManifestArray(input.skills)
     : legacySkillManifestArray(input)
 
   return {
-    schema: 'movscript.agent.v2',
+    schema: 'movscript.agent.current',
     id,
     version,
     name,

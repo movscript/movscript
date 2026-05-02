@@ -249,7 +249,7 @@ export default function DeliveryPage() {
               <Archive size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>v2 交付</span>
+              <span>交付</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">交付版本检查台</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">

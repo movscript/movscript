@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 
-export type V2EntityKind =
+export type SemanticEntityKind =
   | 'scriptVersions'
   | 'segments'
   | 'sceneMoments'
@@ -28,7 +28,7 @@ export type V2EntityKind =
   | 'exportRecords'
   | 'canvasOutputs'
 
-export type V2EntityRecord = Record<string, unknown> & {
+export type SemanticEntityRecord = Record<string, unknown> & {
   ID: number
   CreatedAt?: string
   UpdatedAt?: string
@@ -42,66 +42,66 @@ export type V2EntityRecord = Record<string, unknown> & {
   order?: number
 }
 
-export interface V2EntityOption {
+export interface SemanticEntityOption {
   value: string
   label: string
 }
 
-export interface V2EntityField {
+export interface SemanticEntityField {
   key: string
   label: string
   type: 'text' | 'textarea' | 'number' | 'select' | 'boolean'
   required?: boolean
   placeholder?: string
-  options?: V2EntityOption[]
+  options?: SemanticEntityOption[]
   createOnly?: boolean
   helper?: string
 }
 
-export interface V2EntityConfig {
-  kind: V2EntityKind
+export interface SemanticEntityConfig {
+  kind: SemanticEntityKind
   path: string
   label: string
   pluralLabel: string
   description: string
   requiredHint?: string
   iconTone: string
-  fields: V2EntityField[]
+  fields: SemanticEntityField[]
   summaryKeys: string[]
 }
 
-export type V2EntityPayload = Record<string, string | number | boolean | null>
+export type SemanticEntityPayload = Record<string, string | number | boolean | null>
 
-export const v2EntityConfigs: V2EntityConfig[] = v2CoreEntityConfigs()
+export const semanticEntityConfigs: SemanticEntityConfig[] = semanticCoreEntityConfigs()
 
-export function v2EntityConfig(kind: V2EntityKind) {
-  return v2EntityConfigs.find((config) => config.kind === kind) ?? v2EntityConfigs[0]
+export function semanticEntityConfig(kind: SemanticEntityKind) {
+  return semanticEntityConfigs.find((config) => config.kind === kind) ?? semanticEntityConfigs[0]
 }
 
-export function v2EntityPath(projectId: number, config: V2EntityConfig) {
-  return `/projects/${projectId}/v2/${config.path}`
+export function semanticEntityPath(projectId: number, config: SemanticEntityConfig) {
+  return `/projects/${projectId}/entities/${config.path}`
 }
 
-export async function listV2Entities(projectId: number, config: V2EntityConfig) {
-  const { data } = await api.get<V2EntityRecord[] | { items?: V2EntityRecord[] }>(v2EntityPath(projectId, config))
+export async function listSemanticEntities(projectId: number, config: SemanticEntityConfig) {
+  const { data } = await api.get<SemanticEntityRecord[] | { items?: SemanticEntityRecord[] }>(semanticEntityPath(projectId, config))
   return Array.isArray(data) ? data : data.items ?? []
 }
 
-export async function createV2Entity(projectId: number, config: V2EntityConfig, payload: V2EntityPayload) {
-  const { data } = await api.post<V2EntityRecord>(v2EntityPath(projectId, config), payload)
+export async function createSemanticEntity(projectId: number, config: SemanticEntityConfig, payload: SemanticEntityPayload) {
+  const { data } = await api.post<SemanticEntityRecord>(semanticEntityPath(projectId, config), payload)
   return data
 }
 
-export async function updateV2Entity(projectId: number, config: V2EntityConfig, id: number, payload: V2EntityPayload) {
-  const { data } = await api.patch<V2EntityRecord>(`${v2EntityPath(projectId, config)}/${id}`, payload)
+export async function updateSemanticEntity(projectId: number, config: SemanticEntityConfig, id: number, payload: SemanticEntityPayload) {
+  const { data } = await api.patch<SemanticEntityRecord>(`${semanticEntityPath(projectId, config)}/${id}`, payload)
   return data
 }
 
-export async function deleteV2Entity(projectId: number, config: V2EntityConfig, id: number) {
-  await api.delete(`${v2EntityPath(projectId, config)}/${id}`)
+export async function deleteSemanticEntity(projectId: number, config: SemanticEntityConfig, id: number) {
+  await api.delete(`${semanticEntityPath(projectId, config)}/${id}`)
 }
 
-function v2CoreEntityConfigs(): V2EntityConfig[] {
+function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
     cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是片段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
@@ -115,7 +115,15 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
     cfg('segments', 'segments', '片段', '项目里的内容片段，可手动创建，也可选填剧本版本作为来源引用。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
       num('script_version_id', 'ScriptVersion ID', false, false, '可选：仅在需要追溯来源剧本版本时填写'),
       text('title', '标题', true),
-      select('kind', '类型', ['section', 'scene', 'montage', 'narration', 'product_showcase', 'title_card', 'transition']),
+      selectOptions('kind', '类型', [
+        { value: 'section', label: '片段' },
+        { value: 'scene', label: '场次' },
+        { value: 'montage', label: '蒙太奇' },
+        { value: 'narration', label: '旁白' },
+        { value: 'product_showcase', label: '产品展示' },
+        { value: 'title_card', label: '标题卡' },
+        { value: 'transition', label: '转场' },
+      ]),
       num('order', '顺序'),
       area('summary', '摘要'),
       area('content', '内容'),
@@ -147,7 +155,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       num('preview_timeline_id', 'PreviewTimeline ID'),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情节到内容单元之间的正式 V2 对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
+    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情节到内容单元之间的正式语义对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
       num('script_version_id', 'ScriptVersion ID'),
       text('name', '名称', true),
       area('description', '描述'),
@@ -279,19 +287,20 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('description', '用途说明'),
       area('prompt_hint', '生成提示'),
       select('priority', '优先级', ['low', 'normal', 'high', 'critical']),
-      num('locked_asset_id', '已锁定素材 ID'),
+      num('resource_id', 'Resource ID'),
+      num('locked_asset_slot_id', '已锁定素材位 ID'),
       select('status', '状态', ['missing', 'candidate', 'locked', 'waived']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '某个素材位下的候选素材及选择状态。', 'text-amber-600', ['asset_slot_id', 'asset_id', 'score', 'status'], [
+    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '某个素材位下的候选素材及选择状态。', 'text-amber-600', ['asset_slot_id', 'candidate_asset_slot_id', 'score', 'status'], [
       num('asset_slot_id', 'AssetSlot ID', true),
-      num('asset_id', 'Asset ID', true),
+      num('candidate_asset_slot_id', 'Candidate AssetSlot ID', true),
       select('source_type', '来源类型', ['manual', 'upload', 'job', 'canvas', 'import']),
       num('source_id', 'Source ID'),
       num('score', '评分'),
       select('status', '状态', ['candidate', 'selected', 'rejected']),
       area('note', '备注'),
-    ], '创建时需要填写 asset_slot_id 和 asset_id。'),
+    ], '创建时需要填写 asset_slot_id 和 candidate_asset_slot_id。'),
     cfg('candidateDecisions', 'candidate-decisions', '候选决策', '记录候选的采纳、拒绝、修改、延后或回滚决策。', 'text-amber-600', ['candidate_type', 'decision', 'status', 'source'], [
       select('candidate_type', '候选类型', ['segment', 'scene_moment', 'storyboard_line', 'keyframe', 'asset_slot_candidate', 'preview_timeline'], true),
       num('candidate_id', 'Candidate ID'),
@@ -307,7 +316,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       text('applied_at', 'Applied At'),
       area('metadata_json', '元数据 JSON'),
     ], '可用 candidate_id 关联已落库候选，也可用 candidate_client_id 记录草稿或 runtime 候选。'),
-    cfg('reviewEvents', 'review-events', '评审事件', '记录 V2 对象、候选和输出的评审事件流。', 'text-orange-600', ['subject_type', 'event_type', 'from_status', 'to_status'], [
+    cfg('reviewEvents', 'review-events', '评审事件', '记录语义对象、候选和输出的评审事件流。', 'text-orange-600', ['subject_type', 'event_type', 'from_status', 'to_status'], [
       select('subject_type', '对象类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'asset_slot_candidate', 'candidate_decision', 'work_item', 'delivery_version', 'canvas_output'], true),
       num('subject_id', 'Subject ID'),
       text('subject_client_id', 'Subject Client ID'),
@@ -322,7 +331,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
     ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录草稿或 runtime 对象。'),
     cfg('workItems', 'work-items', '制作任务', '执行、分配、审核和返工状态，不作为内容事实源。', 'text-orange-600', ['title', 'target_type', 'kind', 'status'], [
       num('production_id', 'Production ID'),
-      select('target_type', '目标类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'asset', 'keyframe', 'delivery_version'], true),
+      select('target_type', '目标类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'keyframe', 'delivery_version'], true),
       num('target_id', 'Target ID', true),
       text('title', '标题', true),
       select('kind', '任务类型', ['human', 'ai', 'hybrid', 'review', 'fix']),
@@ -366,7 +375,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('error', '错误'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 delivery_version_id。'),
-    cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布运行结果写回 V2 或当前实体的明确落点。', 'text-purple-600', ['owner_type', 'owner_id', 'output_type', 'status'], [
+    cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布运行结果写回语义实体或当前实体的明确落点。', 'text-purple-600', ['owner_type', 'owner_id', 'output_type', 'status'], [
       num('canvas_id', 'Canvas ID', true),
       num('canvas_run_id', 'CanvasRun ID'),
       text('canvas_node_id', 'Canvas Node ID'),
@@ -384,43 +393,47 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
 }
 
 function cfg(
-  kind: V2EntityKind,
+  kind: SemanticEntityKind,
   path: string,
   label: string,
   description: string,
   iconTone: string,
   summaryKeys: string[],
-  fields: V2EntityField[],
+  fields: SemanticEntityField[],
   requiredHint?: string,
-): V2EntityConfig {
+): SemanticEntityConfig {
   return { kind, path, label, pluralLabel: label, description, iconTone, summaryKeys, fields, requiredHint }
 }
 
-function text(key: string, label: string, required = false): V2EntityField {
+function text(key: string, label: string, required = false): SemanticEntityField {
   return { key, label, type: 'text', required }
 }
 
-function area(key: string, label: string): V2EntityField {
+function area(key: string, label: string): SemanticEntityField {
   return { key, label, type: 'textarea' }
 }
 
-function num(key: string, label: string, required = false, createOnly = false, helper?: string): V2EntityField {
+function num(key: string, label: string, required = false, createOnly = false, helper?: string): SemanticEntityField {
   return { key, label, type: 'number', required, createOnly, helper }
 }
 
-function bool(key: string, label: string): V2EntityField {
+function bool(key: string, label: string): SemanticEntityField {
   return { key, label, type: 'boolean' }
 }
 
-function select(key: string, label: string, values: string[], required = false): V2EntityField {
+function select(key: string, label: string, values: string[], required = false): SemanticEntityField {
   return { key, label, type: 'select', required, options: options(values) }
 }
 
-function timelineFields(ownerKey: string, ownerLabel: string): V2EntityField[] {
+function selectOptions(key: string, label: string, options: SemanticEntityOption[], required = false): SemanticEntityField {
+  return { key, label, type: 'select', required, options }
+}
+
+function timelineFields(ownerKey: string, ownerLabel: string): SemanticEntityField[] {
   return [
     num(ownerKey, ownerLabel, true),
     num('content_unit_id', 'ContentUnit ID'),
-    num('asset_id', 'Asset ID'),
+    num('asset_slot_id', 'AssetSlot ID'),
     num('resource_id', 'Resource ID'),
     num('segment_id', 'Segment ID'),
     num('scene_moment_id', 'SceneMoment ID'),
@@ -435,6 +448,6 @@ function timelineFields(ownerKey: string, ownerLabel: string): V2EntityField[] {
   ]
 }
 
-function options(values: string[]): V2EntityOption[] {
+function options(values: string[]): SemanticEntityOption[] {
   return values.map((value) => ({ value, label: value }))
 }

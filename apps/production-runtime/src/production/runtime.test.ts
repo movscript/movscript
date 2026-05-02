@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ProductionRuntime } from './runtime.js'
 import { FileProductionStore } from './store.js'
-import type { ProductionV2FallbackClient } from './v2FallbackClient.js'
+import type { ProductionSemanticFallbackClient } from './semanticFallbackClient.js'
 import type { ProductionAction, ProductionRun } from './types.js'
 
 test('production runtime executes AnalyzeScriptToSegments into candidates', async () => {
@@ -29,7 +29,7 @@ test('production runtime executes AnalyzeScriptToSegments into candidates', asyn
   assert.equal(run.candidates[0].payload.order, 1)
   assert.equal(runtime.getRun(run.id)?.id, run.id)
   assert.equal(runtime.getCandidate(run.candidates[0].id)?.id, run.candidates[0].id)
-  assert.equal(run.warnings.includes('V2 fallback disabled'), true)
+  assert.equal(run.warnings.includes('semantic fallback disabled'), true)
 })
 
 test('production runtime executes GenerateKeyframeCandidates from storyboard rows', async () => {
@@ -49,7 +49,7 @@ test('production runtime executes GenerateKeyframeCandidates from storyboard row
   assert.equal(run.candidates.length, 1)
   assert.equal(run.candidates[0].type, 'keyframe')
   assert.equal(run.candidates[0].payload.title, '走廊追逐')
-  assert.equal(run.warnings.includes('V2 fallback disabled'), true)
+  assert.equal(run.warnings.includes('semantic fallback disabled'), true)
 })
 
 test('production runtime executes ExtractSceneMoments from segments', async () => {
@@ -58,7 +58,7 @@ test('production runtime executes ExtractSceneMoments from segments', async () =
   const run = await runtime.createAction({
     actionType: 'ExtractSceneMoments',
     projectId: 3,
-    sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'v2' },
+    sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'current' },
     inputContext: {
       segments: [
         {
@@ -145,7 +145,7 @@ test('production runtime fails ExtractSceneMoments without usable input', async 
   assert.equal(run.candidates.length, 0)
 })
 
-test('production runtime scene moment apply preview maps to V2 data operation but remains gated', async () => {
+test('production runtime scene moment apply preview maps to semantic data operation but remains gated', async () => {
   const runtime = new ProductionRuntime()
   const run = await runtime.createAction({
     actionType: 'ExtractSceneMoments',
@@ -168,11 +168,11 @@ test('production runtime scene moment apply preview maps to V2 data operation bu
   assert.equal(candidatePreview.status, 'not_applicable')
   assert.equal(candidatePreview.canApply, false)
   assert.equal(candidatePreview.approval.requiredAction, 'accept_candidate')
-  assert.equal(candidatePreview.v2DataOperation, 'UpsertSceneMomentCandidates')
+  assert.equal(candidatePreview.semanticDataOperation, 'UpsertSceneMomentCandidates')
   assert.equal(acceptedPreview.status, 'blocked')
   assert.equal(acceptedPreview.canApply, false)
-  assert.equal(acceptedPreview.approval.requiredAction, 'call_v2_data_action')
-  assert.equal(acceptedPreview.v2DataOperation, 'UpsertSceneMomentCandidates')
+  assert.equal(acceptedPreview.approval.requiredAction, 'call_semantic_data_action')
+  assert.equal(acceptedPreview.semanticDataOperation, 'UpsertSceneMomentCandidates')
   assert.equal(acceptedPreview.requiredContext.includes('targetObject'), true)
 })
 
@@ -182,7 +182,7 @@ test('production runtime executes GenerateStoryboardScript from Segments and Sce
   const run = await runtime.createAction({
     actionType: 'GenerateStoryboardScript',
     projectId: 4,
-    sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'v2' },
+    sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'current' },
     inputContext: {
       duration_target: 20,
       segments: [
@@ -321,7 +321,7 @@ test('production runtime fails GenerateStoryboardScript without usable input', a
   assert.equal(run.candidates.length, 0)
 })
 
-test('production runtime storyboard script apply preview maps to V2 data operation but remains gated', async () => {
+test('production runtime storyboard script apply preview maps to semantic data operation but remains gated', async () => {
   const runtime = new ProductionRuntime()
   const run = await runtime.createAction({
     actionType: 'GenerateStoryboardScript',
@@ -344,11 +344,11 @@ test('production runtime storyboard script apply preview maps to V2 data operati
   assert.equal(candidatePreview.status, 'not_applicable')
   assert.equal(candidatePreview.canApply, false)
   assert.equal(candidatePreview.approval.requiredAction, 'accept_candidate')
-  assert.equal(candidatePreview.v2DataOperation, 'UpsertStoryboardSuggestions')
+  assert.equal(candidatePreview.semanticDataOperation, 'UpsertStoryboardSuggestions')
   assert.equal(acceptedPreview.status, 'blocked')
   assert.equal(acceptedPreview.canApply, false)
-  assert.equal(acceptedPreview.approval.requiredAction, 'call_v2_data_action')
-  assert.equal(acceptedPreview.v2DataOperation, 'UpsertStoryboardSuggestions')
+  assert.equal(acceptedPreview.approval.requiredAction, 'call_semantic_data_action')
+  assert.equal(acceptedPreview.semanticDataOperation, 'UpsertStoryboardSuggestions')
 })
 
 test('production runtime fails unsupported deterministic input before candidate write', async () => {
@@ -438,9 +438,9 @@ test('production runtime revises candidate into a new candidate and updates the 
   assert.equal(updatedRun?.candidates.find((candidate) => candidate.id === result.revision.id)?.status, 'candidate')
 })
 
-test('production runtime lifecycle updates do not call V2 fallback', async () => {
+test('production runtime lifecycle updates do not call semantic fallback', async () => {
   const fallback = new RecordingFallbackClient()
-  const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
+  const runtime = new ProductionRuntime({ semanticFallbackClient: fallback })
   const run = await runtime.createAction({
     actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
@@ -458,9 +458,9 @@ test('production runtime lifecycle updates do not call V2 fallback', async () =>
   assert.equal(fallback.calls, 1)
 })
 
-test('production runtime apply preview blocks accepted candidates before V2 apply', async () => {
+test('production runtime apply preview blocks accepted candidates before semantic apply', async () => {
   const fallback = new RecordingFallbackClient()
-  const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
+  const runtime = new ProductionRuntime({ semanticFallbackClient: fallback })
   const run = await runtime.createAction({
     actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
@@ -480,11 +480,11 @@ test('production runtime apply preview blocks accepted candidates before V2 appl
   assert.equal(preview.canApply, false)
   assert.equal(preview.candidateStatus, 'accepted')
   assert.equal(preview.approval.approvalPolicy, 'explicit_accept_required')
-  assert.equal(preview.approval.requiredAction, 'call_v2_data_action')
+  assert.equal(preview.approval.requiredAction, 'call_semantic_data_action')
   assert.equal(preview.approval.status, 'blocked')
-  assert.equal(preview.v2DataOperation, 'UpsertSegmentCandidates')
+  assert.equal(preview.semanticDataOperation, 'UpsertSegmentCandidates')
   assert.deepEqual(preview.targetObject, { objectType: 'script', objectId: 12, versionId: 'v1' })
-  assert.equal(preview.warnings.some((warning) => warning.includes('no V2 data action was called')), true)
+  assert.equal(preview.warnings.some((warning) => warning.includes('no semantic data action was called')), true)
   assert.equal(fallback.calls, 1)
 })
 
@@ -529,7 +529,7 @@ test('production runtime apply preview marks rejected revised and superseded can
 
 test('production runtime apply preview requires candidate acceptance before apply gate', async () => {
   const fallback = new RecordingFallbackClient()
-  const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
+  const runtime = new ProductionRuntime({ semanticFallbackClient: fallback })
   const run = await runtime.createAction({
     actionType: 'GenerateKeyframeCandidates',
     projectId: 2,
@@ -546,14 +546,14 @@ test('production runtime apply preview requires candidate acceptance before appl
   assert.equal(preview.canApply, false)
   assert.equal(preview.candidateStatus, 'candidate')
   assert.equal(preview.approval.requiredAction, 'accept_candidate')
-  assert.equal(preview.v2DataOperation, 'UpsertKeyframeCandidates')
+  assert.equal(preview.semanticDataOperation, 'UpsertKeyframeCandidates')
   assert.equal(preview.requiredContext.includes('targetObject'), true)
   assert.equal(fallback.generateKeyframeCalls, 1)
 })
 
-test('production runtime keeps runtime candidates when V2 fallback fails', async () => {
+test('production runtime keeps runtime candidates when semantic fallback fails', async () => {
   const runtime = new ProductionRuntime({
-    v2FallbackClient: new FailingFallbackClient(),
+    semanticFallbackClient: new FailingFallbackClient(),
   })
 
   const run = await runtime.createAction({
@@ -566,12 +566,12 @@ test('production runtime keeps runtime candidates when V2 fallback fails', async
 
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 1)
-  assert.equal(run.warnings.some((warning) => warning.includes('simulated V2 fallback failure')), true)
+  assert.equal(run.warnings.some((warning) => warning.includes('simulated semantic fallback failure')), true)
 })
 
-test('production runtime keeps keyframe candidates when V2 fallback fails', async () => {
+test('production runtime keeps keyframe candidates when semantic fallback fails', async () => {
   const runtime = new ProductionRuntime({
-    v2FallbackClient: new FailingFallbackClient(),
+    semanticFallbackClient: new FailingFallbackClient(),
   })
 
   const run = await runtime.createAction({
@@ -587,12 +587,12 @@ test('production runtime keeps keyframe candidates when V2 fallback fails', asyn
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 1)
   assert.equal(run.candidates[0].status, 'candidate')
-  assert.equal(run.warnings.some((warning) => warning.includes('simulated V2 keyframe fallback failure')), true)
+  assert.equal(run.warnings.some((warning) => warning.includes('simulated semantic keyframe fallback failure')), true)
 })
 
-test('production runtime records enabled V2 fallback without changing candidate status', async () => {
+test('production runtime records enabled semantic fallback without changing candidate status', async () => {
   const fallback = new RecordingFallbackClient()
-  const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
+  const runtime = new ProductionRuntime({ semanticFallbackClient: fallback })
 
   const run = await runtime.createAction({
     actionType: 'AnalyzeScriptToSegments',
@@ -604,12 +604,12 @@ test('production runtime records enabled V2 fallback without changing candidate 
 
   assert.equal(fallback.calls, 1)
   assert.equal(run.candidates[0].status, 'candidate')
-  assert.equal(run.warnings.some((warning) => warning.includes('V2 fallback wrote')), true)
+  assert.equal(run.warnings.some((warning) => warning.includes('semantic fallback wrote')), true)
 })
 
-test('production runtime records enabled keyframe V2 fallback without changing candidate status', async () => {
+test('production runtime records enabled keyframe semantic fallback without changing candidate status', async () => {
   const fallback = new RecordingFallbackClient()
-  const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
+  const runtime = new ProductionRuntime({ semanticFallbackClient: fallback })
 
   const run = await runtime.createAction({
     actionType: 'GenerateKeyframeCandidates',
@@ -627,9 +627,9 @@ test('production runtime records enabled keyframe V2 fallback without changing c
   assert.equal(run.warnings.some((warning) => warning.includes('project-preview/generate-preview')), true)
 })
 
-test('production runtime keyframe lifecycle and apply preview do not call V2 fallback again', async () => {
+test('production runtime keyframe lifecycle and apply preview do not call semantic fallback again', async () => {
   const fallback = new RecordingFallbackClient()
-  const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
+  const runtime = new ProductionRuntime({ semanticFallbackClient: fallback })
   const run = await runtime.createAction({
     actionType: 'GenerateKeyframeCandidates',
     projectId: 1,
@@ -647,21 +647,21 @@ test('production runtime keyframe lifecycle and apply preview do not call V2 fal
   assert.equal(fallback.generateKeyframeCalls, 1)
 })
 
-class FailingFallbackClient implements ProductionV2FallbackClient {
+class FailingFallbackClient implements ProductionSemanticFallbackClient {
   isEnabled(): boolean {
     return true
   }
 
   async writeAnalyzeScriptToSegments(): Promise<never> {
-    throw new Error('simulated V2 fallback failure')
+    throw new Error('simulated semantic fallback failure')
   }
 
   async writeGenerateKeyframeCandidates(): Promise<never> {
-    throw new Error('simulated V2 keyframe fallback failure')
+    throw new Error('simulated semantic keyframe fallback failure')
   }
 }
 
-class RecordingFallbackClient implements ProductionV2FallbackClient {
+class RecordingFallbackClient implements ProductionSemanticFallbackClient {
   calls = 0
   generateKeyframeCalls = 0
 

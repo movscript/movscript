@@ -28,8 +28,8 @@ import {
   Wand2,
 } from 'lucide-react'
 
-import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
-import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -38,7 +38,7 @@ import { Badge, Button, Progress } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'locked'
 
-type ContentUnitRecord = V2EntityRecord & {
+type ContentUnitRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   title?: string
@@ -50,7 +50,7 @@ type ContentUnitRecord = V2EntityRecord & {
   status?: string
 }
 
-type SceneMomentRecord = V2EntityRecord & {
+type SceneMomentRecord = SemanticEntityRecord & {
   title?: string
   description?: string
   time_text?: string
@@ -61,14 +61,14 @@ type SceneMomentRecord = V2EntityRecord & {
   status?: string
 }
 
-type SegmentRecord = V2EntityRecord & {
+type SegmentRecord = SemanticEntityRecord & {
   title?: string
   summary?: string
   content?: string
   status?: string
 }
 
-type StoryboardLineRecord = V2EntityRecord & {
+type StoryboardLineRecord = SemanticEntityRecord & {
   scene_moment_id?: number
   segment_id?: number
   title?: string
@@ -77,7 +77,7 @@ type StoryboardLineRecord = V2EntityRecord & {
   status?: string
 }
 
-type KeyframeRecord = V2EntityRecord & {
+type KeyframeRecord = SemanticEntityRecord & {
   scene_moment_id?: number
   content_unit_id?: number
   title?: string
@@ -86,7 +86,7 @@ type KeyframeRecord = V2EntityRecord & {
   status?: string
 }
 
-type CreativeReferenceRecord = V2EntityRecord & {
+type CreativeReferenceRecord = SemanticEntityRecord & {
   name?: string
   kind?: string
   description?: string
@@ -94,7 +94,7 @@ type CreativeReferenceRecord = V2EntityRecord & {
   status?: string
 }
 
-type CreativeReferenceUsageRecord = V2EntityRecord & {
+type CreativeReferenceUsageRecord = SemanticEntityRecord & {
   owner_type?: string
   owner_id?: number
   creative_reference_id?: number
@@ -103,7 +103,7 @@ type CreativeReferenceUsageRecord = V2EntityRecord & {
   status?: string
 }
 
-type AssetSlotRecord = V2EntityRecord & {
+type AssetSlotRecord = SemanticEntityRecord & {
   owner_type?: string
   owner_id?: number
   creative_reference_id?: number
@@ -157,7 +157,7 @@ function normalizeStatusFilter(value: string): StatusFilter {
 export default function ContentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const contentUnitConfig = v2EntityConfig('contentUnits')
+  const contentUnitConfig = semanticEntityConfig('contentUnits')
   const [contentDialogOpen, setContentDialogOpen] = useState(false)
   const [contentDialogMode, setContentDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -171,43 +171,43 @@ export default function ContentsPage() {
   const query = readStringParam(searchParams, 'q')
 
   const contentUnitsQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'content-units'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('contentUnits')) as Promise<ContentUnitRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'content-units'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<ContentUnitRecord[]>,
     enabled: !!projectId,
   })
   const sceneMomentsQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'sceneMoments'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'sceneMoments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
     enabled: !!projectId,
   })
   const sectionsQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'segments'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('segments')) as Promise<SegmentRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'segments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('segments')) as Promise<SegmentRecord[]>,
     enabled: !!projectId,
   })
   const storyboardLinesQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'storyboard-lines'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('storyboardLines')) as Promise<StoryboardLineRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'storyboard-lines'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<StoryboardLineRecord[]>,
     enabled: !!projectId,
   })
   const keyframesQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'keyframes'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('keyframes')) as Promise<KeyframeRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'keyframes'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('keyframes')) as Promise<KeyframeRecord[]>,
     enabled: !!projectId,
   })
   const referencesQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'creative-references'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferences')) as Promise<CreativeReferenceRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'creative-references'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')) as Promise<CreativeReferenceRecord[]>,
     enabled: !!projectId,
   })
   const usagesQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'creative-reference-usages'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'creative-reference-usages'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
-    queryKey: ['v2-content-positioning', projectId, 'asset-slots'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('assetSlots')) as Promise<AssetSlotRecord[]>,
+    queryKey: ['semantic-content-positioning', projectId, 'asset-slots'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<AssetSlotRecord[]>,
     enabled: !!projectId,
   })
 
@@ -338,7 +338,7 @@ export default function ContentsPage() {
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>v2 内容生产</span>
+              <span>内容生产</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">内容单元</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
@@ -530,7 +530,7 @@ export default function ContentsPage() {
           </aside>
         </section>
       </div>
-      <V2EntityCrudDialog
+      <SemanticEntityCrudDialog
         open={contentDialogOpen}
         mode={contentDialogMode}
         projectId={projectId}
@@ -543,7 +543,7 @@ export default function ContentsPage() {
           kind: 'shot',
           status: 'draft',
         }}
-        queryKey={['v2-content-positioning', projectId]}
+        queryKey={['semantic-content-positioning', projectId]}
         onOpenChange={setContentDialogOpen}
         onSaved={(record) => setFilter({ content_unit_id: record.ID, scene_moment_id: record.scene_moment_id as number | undefined, segment_id: record.segment_id as number | undefined })}
         onDeleted={() => setFilter({ content_unit_id: null })}
@@ -699,38 +699,6 @@ function GateRow({ icon: Icon, title, detail }: { icon: LucideIcon; title: strin
         <p className="text-xs font-medium text-foreground">{title}</p>
         <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{detail}</p>
       </div>
-    </div>
-  )
-}
-
-function PipelineTile({ icon: Icon, label, value, detail, to }: { icon: LucideIcon; label: string; value: string | number; detail: string; to?: string }) {
-  const content = (
-    <>
-      <ArrowRight className="absolute -right-5 top-1/2 hidden -translate-y-1/2 text-muted-foreground last:hidden md:block" size={16} />
-      <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon size={15} />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-xs text-muted-foreground">{label}</p>
-          <p className="truncate text-sm font-semibold text-foreground">{value}</p>
-        </div>
-      </div>
-      <p className="mt-3 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-    </>
-  )
-
-  if (to) {
-    return (
-      <Link to={to} className="relative rounded-md border border-border bg-background p-3 transition-colors hover:border-primary/40">
-        {content}
-      </Link>
-    )
-  }
-
-  return (
-    <div className="relative rounded-md border border-border bg-background p-3">
-      {content}
     </div>
   )
 }

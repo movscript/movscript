@@ -369,7 +369,7 @@ export default function PluginToolPage() {
     )
   }
 
-  // v2 webview plugins render in an iframe; bundle/script plugins use native UI
+  // webview plugins render in an iframe; bundle/script plugins use native UI
   const isWebview = !!plugin.bundleUrl
 
   return (

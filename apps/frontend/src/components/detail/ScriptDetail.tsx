@@ -30,7 +30,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
 
   const { data: versions = [], isLoading: versionsLoading } = useQuery<ScriptVersion[]>({
-    queryKey: ['v2-script-versions', projectId, script.ID],
+    queryKey: ['semantic-script-versions', projectId, script.ID],
     queryFn: () => listScriptVersions(projectId!, { scriptId: script.ID }),
     enabled: !!projectId,
   })
@@ -42,7 +42,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
     onSuccess: (updated: Script) => {
       setDraft((d) => ({ ...d, ...updated }))
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
-      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId, script.ID] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId, script.ID] })
       qc.invalidateQueries({ queryKey: ['settings', projectId] })
       qc.invalidateQueries({ queryKey: ['setting-refs', projectId, script.ID] })
       qc.invalidateQueries({ queryKey: ['setting-relationships', projectId, script.ID] })
@@ -70,8 +70,8 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
     }),
     onSuccess: (version) => {
       setSelectedVersionId(version.ID)
-      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId] })
-      qc.invalidateQueries({ queryKey: ['v2-script-versions', projectId, script.ID] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId, script.ID] })
     },
   })
 
@@ -165,7 +165,7 @@ function ScriptVersionViewer({
             {isLoading ? (
               <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">正在读取版本</p>
             ) : versions.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">暂无 v2 剧本版本</p>
+              <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">暂无剧本版本</p>
             ) : versions.map((version) => (
               <button
                 key={version.ID}

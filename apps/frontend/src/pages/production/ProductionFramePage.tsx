@@ -3,14 +3,10 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
-  AlertTriangle,
-  ArrowRight,
   Boxes,
-  CheckCircle2,
   ChevronRight,
   Clapperboard,
   Clock3,
-  FileText,
   Film,
   GitBranch,
   Layers3,
@@ -20,14 +16,13 @@ import {
   Plus,
   Route,
   ScrollText,
-  ShieldCheck,
   Sparkles,
   Video,
   Wand2,
 } from 'lucide-react'
 
-import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
-import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -88,7 +83,7 @@ interface ProductionRecord {
   nextActions: string[]
 }
 
-type ProductionBackendRecord = V2EntityRecord & {
+type ProductionBackendRecord = SemanticEntityRecord & {
   script_version_id?: number
   preview_timeline_id?: number
   name?: string
@@ -101,11 +96,11 @@ type ProductionBackendRecord = V2EntityRecord & {
 
 type ProductionData = {
   productions: ProductionBackendRecord[]
-  contentUnits: V2EntityRecord[]
-  assetSlots: V2EntityRecord[]
-  keyframes: V2EntityRecord[]
-  previewTimelines: V2EntityRecord[]
-  deliveryVersions: V2EntityRecord[]
+  contentUnits: SemanticEntityRecord[]
+  assetSlots: SemanticEntityRecord[]
+  keyframes: SemanticEntityRecord[]
+  previewTimelines: SemanticEntityRecord[]
+  deliveryVersions: SemanticEntityRecord[]
 }
 
 const statusMeta: Record<ProductionStatus, { label: string; badge: string; dot: string }> = {
@@ -130,7 +125,7 @@ export default function ProductionFramePage() {
   const [selectedId, setSelectedId] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
 
-  const productionQueryKey = ['production-frame-v2', projectId] as const
+  const productionQueryKey = ['production-frame', projectId] as const
   const { data: productionData } = useQuery<ProductionData>({
     queryKey: productionQueryKey,
     queryFn: () => loadProductionData(projectId!),
@@ -221,7 +216,7 @@ export default function ProductionFramePage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck size={16} className="text-muted-foreground" />
+                      <ListChecks size={16} className="text-muted-foreground" />
                       <h2 className="text-sm font-semibold text-foreground">当前制作预演进度</h2>
                     </div>
                     <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
@@ -263,7 +258,7 @@ export default function ProductionFramePage() {
                   <ProductionListCard
                     key={production.id}
                     production={production}
-                    active={production.id === selected.id}
+                    active={production.id === selected?.id}
                     onSelect={() => setSelectedId(production.id)}
                   />
                 )) : (
@@ -306,42 +301,6 @@ export default function ProductionFramePage() {
                 </div>
               </section>
 
-              <section className="rounded-lg border border-border bg-card">
-                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                  <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-foreground">制作结构</h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">制作是核心主体，其他对象围绕它建立关联和推演关系。</p>
-                  </div>
-                  <Badge variant="outline">核心关系</Badge>
-                </div>
-                <div className="grid gap-3 p-4 md:grid-cols-5">
-                  {[
-                    { icon: FileText, title: '剧本', detail: '创建来源', value: selected.source },
-                    { icon: Layers3, title: '结构', detail: '片段 / 分镜行', value: `${selected.stats.structures} 项` },
-                    { icon: Route, title: '情节', detail: '时间地点条件', value: `${selected.stats.sceneMoments} 项` },
-                    { icon: PackageCheck, title: '素材', detail: '推演出的需求', value: `${selected.stats.assets} 项` },
-                    { icon: Video, title: '成片', detail: '交付输出', value: `${selected.stats.finals} 版` },
-                  ].map((item, index) => {
-                    const Icon = item.icon
-                    return (
-                      <div key={item.title} className="relative rounded-md border border-border bg-background p-3">
-                        {index < 4 ? <ArrowRight className="absolute -right-5 top-1/2 hidden -translate-y-1/2 text-muted-foreground md:block" size={16} /> : null}
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <Icon size={15} />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">{item.detail}</p>
-                          </div>
-                        </div>
-                        <p className="mt-3 truncate text-xs font-medium text-foreground">{item.value}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-
               <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="rounded-lg border border-border bg-card">
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -368,7 +327,7 @@ export default function ProductionFramePage() {
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预演进度挂在制作下面，作为进入素材推演、内容生产和成片门禁的来源。
+                      预演进度挂在制作下面，用于追踪结构、关键帧、素材和内容准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">
@@ -399,7 +358,7 @@ export default function ProductionFramePage() {
                     <ScrollText size={15} className="text-muted-foreground" />
                     <h2 className="text-sm font-semibold text-foreground">内容单元</h2>
                   </div>
-                  <p className="text-xs text-muted-foreground">预演确认后转为制作下的正式内容结构</p>
+                  <p className="text-xs text-muted-foreground">可从预演生成，也可以直接维护制作下的内容结构</p>
                 </div>
                 <div className="divide-y divide-border">
                   {selected.units.map((unit) => (
@@ -410,26 +369,7 @@ export default function ProductionFramePage() {
               </div>
             </main> : null}
 
-            {selected ? <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_220px]">
-            <section className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={16} className="text-muted-foreground" />
-                  <h2 className="text-sm font-semibold text-foreground">预演门禁</h2>
-                </div>
-                <Badge variant={selected.blockers.length > 0 ? 'warning' : 'success'}>
-                  {selected.blockers.length > 0 ? '有阻塞' : '可推进'}
-                </Badge>
-              </div>
-              <div className="mt-4 space-y-2">
-                {selected.blockers.length > 0 ? selected.blockers.map((item) => (
-                  <GateRow key={item} icon={AlertTriangle} text={item} tone="blocked" />
-                )) : (
-                  <GateRow icon={CheckCircle2} text="预演、结构和资料状态允许继续推进。" tone="ready" />
-                )}
-              </div>
-            </section>
-
+            {selected ? <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]">
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
                 <Wand2 size={15} className="text-muted-foreground" />
@@ -454,7 +394,7 @@ export default function ProductionFramePage() {
               </div>
               <div className="space-y-3 p-4">
                 {[
-                  ['预演', selected.preview.status === 'done' ? '预演已确认，可作为制作输入。' : '预演仍需确认后才能稳定推演。'],
+                  ['预演', selected.preview.status === 'done' ? '已有确认记录，可作为制作输入。' : '可继续挂载或更新预演记录。'],
                   ['结构', `${selected.stats.structures} 个结构对象已挂在制作下。`],
                   ['素材', `${selected.stats.assets} 个素材需求等待候选或锁定。`],
                   ['成片', selected.stats.finals > 0 ? '已有成片版本进入交付检查。' : '尚未生成成片版本。'],
@@ -488,11 +428,11 @@ export default function ProductionFramePage() {
           </div>
         </div>
       </div>
-      <V2EntityCrudDialog
+      <SemanticEntityCrudDialog
         open={createOpen}
         mode="create"
         projectId={projectId}
-        config={v2EntityConfig('productions')}
+        config={semanticEntityConfig('productions')}
         defaults={{ source_type: 'direct', status: 'planning', owner_label: '导演组', progress: 0 }}
         queryKey={productionQueryKey}
         title="直接创建制作"
@@ -609,77 +549,86 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function GateRow({ icon: Icon, text, tone }: { icon: LucideIcon; text: string; tone: 'ready' | 'blocked' }) {
-  return (
-    <div className="flex gap-2 rounded-md border border-border bg-background p-3">
-      <Icon size={15} className={cn('mt-0.5 shrink-0', tone === 'ready' ? 'text-emerald-600' : 'text-amber-600')} />
-      <p className="text-sm leading-5 text-foreground">{text}</p>
-    </div>
-  )
+async function loadProductionData(projectId: number): Promise<ProductionData> {
+  const [productions, contentUnits, assetSlots, keyframes, previewTimelines, deliveryVersions] = await Promise.all([
+    listSemanticEntities(projectId, semanticEntityConfig('productions')),
+    listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
+    listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
+    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
+    listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
+    listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
+  ])
+  return {
+    productions: productions as ProductionBackendRecord[],
+    contentUnits,
+    assetSlots,
+    keyframes,
+    previewTimelines,
+    deliveryVersions,
+  }
 }
 
-function buildProductionRecords(data?: GetLatestProjectPreviewDraftResponse): ProductionRecord[] {
-  const draft = data?.found ? data.draft : undefined
-  const storyboardRows = draft?.draft.storyboard_rows ?? []
-  const assetGaps = draft?.draft.preview_candidates?.asset_gaps ?? []
-  const previewConfirmed = draft?.draft.preview_status === 'ready_for_production'
-  const units = storyboardRows.length > 0 ? mapDraftRowsToUnits(storyboardRows, assetGaps) : fallbackUnits
-  const blockedUnits = units.filter((unit) => unit.status === 'blocked').length
-  const activeUnits = units.filter((unit) => unit.status === 'active').length
-  const doneUnits = units.filter((unit) => unit.status === 'done').length
-  const unitProgress = Math.round((doneUnits / Math.max(units.length, 1)) * 100)
-  const previewProgress = previewConfirmed ? 100 : data?.found ? 72 : 0
-  const sourceTitle = draft?.draft.script_version.title || '最近制作预演'
+function buildProductionRecords(data?: ProductionData): ProductionRecord[] {
+  if (!data?.productions.length) return []
+  return data.productions.map((production) => {
+    const productionId = production.ID
+    const units = mapContentUnitsToProductionUnits(recordsForProduction(data.contentUnits, productionId), recordsForProduction(data.assetSlots, productionId))
+    const assetSlots = recordsForProduction(data.assetSlots, productionId)
+    const keyframes = recordsForProduction(data.keyframes, productionId)
+    const previewTimelines = recordsForProduction(data.previewTimelines, productionId)
+    const deliveryVersions = recordsForProduction(data.deliveryVersions, productionId)
+    const blockedUnits = units.filter((unit) => unit.status === 'blocked').length
+    const activeUnits = units.filter((unit) => unit.status === 'active').length
+    const doneUnits = units.filter((unit) => unit.status === 'done').length
+    const unitProgress = Math.round((doneUnits / Math.max(units.length, 1)) * 100)
+    const previewConfirmed = previewTimelines.some((item) => item.status === 'confirmed')
+    const previewProgress = previewConfirmed ? 100 : previewTimelines.length > 0 ? 65 : 0
+    const storedProgress = Number(production.progress ?? 0)
+    const progress = storedProgress > 0 ? clampProgress(storedProgress) : Math.round((previewProgress * 0.3) + (unitProgress * 0.45) + (deliveryVersions.length > 0 ? 20 : 0))
 
-  const current: ProductionRecord = {
-    id: 'PRD-001',
-    name: sourceTitle,
-    status: previewConfirmed ? (blockedUnits > 0 ? 'materializing' : 'producing') : 'previewing',
-    source: draft?.draft.script_version.title || '制作预演草稿',
-    owner: '导演组',
-    progress: Math.round((previewProgress * 0.35) + (unitProgress * 0.4) + (blockedUnits > 0 ? 5 : 20)),
-    updatedAt: draft?.saved_at ? formatShortDate(draft.saved_at) : '刚刚',
-    description: '从最近一次制作预演创建的制作，用于承载结构、资料、素材需求、内容候选和成片版本。',
-    preview: {
-      title: sourceTitle,
-      status: previewConfirmed ? 'done' : data?.found ? 'active' : 'waiting',
-      progress: previewProgress,
-      savedAt: draft?.saved_at ?? '',
-      confirmedAt: draft?.draft.confirmed_at ?? '',
-    },
-    stats: {
-      structures: Math.max(storyboardRows.length, units.length),
-      sceneMoments: Math.max(Math.ceil(units.length * 0.75), 1),
-      references: Math.max(4, units.length + 2),
-      assets: Math.max(assetGaps.length, units.length + blockedUnits),
-      contents: units.length,
-      finals: previewConfirmed && blockedUnits === 0 ? 1 : 0,
-    },
-    areas: buildAreas({
-      previewProgress,
-      structureCount: Math.max(storyboardRows.length, units.length),
-      sceneMomentCount: Math.max(Math.ceil(units.length * 0.75), 1),
-      referenceCount: Math.max(4, units.length + 2),
-      assetCount: Math.max(assetGaps.length, units.length + blockedUnits),
-      contentCount: units.length,
-      finalCount: previewConfirmed && blockedUnits === 0 ? 1 : 0,
-      blockedUnits,
-      activeUnits,
-      previewConfirmed,
-    }),
-    units,
-    blockers: [
-      ...(previewConfirmed ? [] : ['预演尚未确认，不能稳定进入正式制作。']),
-      ...(blockedUnits > 0 ? [`${blockedUnits} 个内容单元仍有素材或资料缺口。`] : []),
-    ],
-    nextActions: previewConfirmed
-      ? blockedUnits > 0
-        ? ['先补齐阻塞内容单元的素材需求。', '锁定关键创作资料和资料状态。', '再进入内容候选生成与选片。']
-        : ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
-      : ['回到制作预演确认结构、关键帧和素材缺口。', '确认后把预演进度挂载到当前制作。', '再推演素材需求和内容单元。'],
-  }
-
-  return [current, ...fallbackProductions]
+    return {
+      dbId: productionId,
+      id: `PRD-${productionId}`,
+      name: production.name || `制作 ${productionId}`,
+      status: normalizeProductionStatus(production.status, previewConfirmed, deliveryVersions),
+      source: sourceLabel(production),
+      owner: production.owner_label || '导演组',
+      progress: clampProgress(progress),
+      updatedAt: production.UpdatedAt ? formatShortDate(production.UpdatedAt) : '',
+      description: production.description || '直接创建的制作。可以继续挂载预演、内容单元、素材位和成片版本。',
+      preview: {
+        title: previewTimelines[0]?.name as string || '未挂载预演',
+        status: previewConfirmed ? 'done' : previewTimelines.length > 0 ? 'active' : 'waiting',
+        progress: previewProgress,
+        savedAt: String(previewTimelines[0]?.UpdatedAt ?? ''),
+      },
+      stats: {
+        structures: units.length,
+        sceneMoments: uniqueCount(data.contentUnits.filter((item) => Number(item.production_id) === productionId).map((item) => item.scene_moment_id)),
+        references: 0,
+        assets: assetSlots.length,
+        contents: units.length,
+        finals: deliveryVersions.length,
+      },
+      areas: buildAreas({
+        previewProgress,
+        structureCount: units.length,
+        sceneMomentCount: uniqueCount(data.contentUnits.filter((item) => Number(item.production_id) === productionId).map((item) => item.scene_moment_id)),
+        referenceCount: 0,
+        assetCount: assetSlots.length,
+        contentCount: units.length,
+        finalCount: deliveryVersions.length,
+        blockedUnits,
+        activeUnits,
+      }),
+      units,
+      blockers: [
+        ...(blockedUnits > 0 ? [`${blockedUnits} 个内容单元仍有素材或资料缺口。`] : []),
+        ...(units.length === 0 ? ['当前制作还没有内容单元。'] : []),
+      ],
+      nextActions: nextActionsForProduction({ blockedUnits, units: units.length, deliveryVersions: deliveryVersions.length, keyframes: keyframes.length }),
+    }
+  })
 }
 
 function buildAreas(input: {
@@ -692,7 +641,6 @@ function buildAreas(input: {
   finalCount: number
   blockedUnits: number
   activeUnits: number
-  previewConfirmed: boolean
 }): ProductionArea[] {
   return [
     {
@@ -702,8 +650,8 @@ function buildAreas(input: {
       icon: GitBranch,
       count: input.structureCount,
       progress: input.previewProgress,
-      status: input.previewConfirmed ? 'done' : 'active',
-      href: '/v2-entities',
+      status: input.structureCount > 0 ? 'active' : 'waiting',
+      href: '/semantic-entities',
     },
     {
       key: 'sceneMoments',
@@ -711,8 +659,8 @@ function buildAreas(input: {
       description: '时间、地点、条件和动作',
       icon: Route,
       count: input.sceneMomentCount,
-      progress: input.previewConfirmed ? 82 : 48,
-      status: input.previewConfirmed ? 'active' : 'waiting',
+      progress: input.sceneMomentCount > 0 ? 60 : 0,
+      status: input.sceneMomentCount > 0 ? 'active' : 'waiting',
       href: '/scene-moments',
     },
     {
@@ -721,8 +669,8 @@ function buildAreas(input: {
       description: '人物、场景、道具、风格规则',
       icon: Sparkles,
       count: input.referenceCount,
-      progress: input.previewConfirmed ? 76 : 42,
-      status: input.previewConfirmed ? 'active' : 'waiting',
+      progress: input.referenceCount > 0 ? 60 : 0,
+      status: input.referenceCount > 0 ? 'active' : 'waiting',
       href: '/creative-references',
     },
     {
@@ -731,8 +679,8 @@ function buildAreas(input: {
       description: '从结构和资料推演出的素材位',
       icon: PackageCheck,
       count: input.assetCount,
-      progress: input.blockedUnits > 0 ? 38 : input.previewConfirmed ? 68 : 20,
-      status: input.blockedUnits > 0 ? 'blocked' : input.previewConfirmed ? 'active' : 'waiting',
+      progress: input.blockedUnits > 0 ? 38 : input.assetCount > 0 ? 68 : 0,
+      status: input.blockedUnits > 0 ? 'blocked' : input.assetCount > 0 ? 'active' : 'waiting',
       href: '/assets',
     },
     {
@@ -741,8 +689,8 @@ function buildAreas(input: {
       description: '正式候选、返工、锁定片段',
       icon: Film,
       count: input.contentCount,
-      progress: input.activeUnits > 0 ? 44 : input.previewConfirmed ? 30 : 0,
-      status: input.previewConfirmed ? 'active' : 'waiting',
+      progress: input.activeUnits > 0 ? 44 : input.contentCount > 0 ? 30 : 0,
+      status: input.contentCount > 0 ? 'active' : 'waiting',
       href: '/workbench/production',
     },
     {
@@ -758,122 +706,76 @@ function buildAreas(input: {
   ]
 }
 
-function mapDraftRowsToUnits(rows: ProjectPreviewStoryboardRow[], assetGaps: Array<{ storyboard_row_client_id: string; name: string; status: string }>): ProductionUnit[] {
+function mapContentUnitsToProductionUnits(rows: SemanticEntityRecord[], assetSlots: SemanticEntityRecord[]): ProductionUnit[] {
   let cursor = 0
   return rows.map((row, index) => {
+    const duration = Number(row.duration_sec ?? 0)
     const start = cursor
-    const end = cursor + row.duration_seconds
+    const end = cursor + duration
     cursor = end
-    const gaps = assetGaps.filter((gap) => gap.storyboard_row_client_id === row.client_id)
-    const blocked = gaps.some((gap) => gap.status === 'missing' || gap.status === 'accepted')
-    const status: UnitStatus = blocked ? 'blocked' : index === 0 ? 'active' : index < 3 ? 'waiting' : 'done'
+    const slots = assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === row.ID)
+    const blocked = slots.some((slot) => slot.status === 'missing')
+    const status = contentUnitStatus(row.status, blocked)
     return {
       id: `CU-${String(index + 1).padStart(3, '0')}`,
-      title: row.title || `内容单元 ${index + 1}`,
-      summary: row.body || '从预演分镜继承的内容单元。',
+      title: String(row.title || `内容单元 ${index + 1}`),
+      summary: String(row.description || row.prompt || '制作下的正式内容单元。'),
       timeRange: `${formatTime(start)}-${formatTime(end)}`,
-      duration: row.duration_seconds,
+      duration,
       status,
-      assets: blocked ? `${gaps.length} 个缺口` : '素材可推演',
-      content: status === 'done' ? '已有锁定版本' : status === 'active' ? '候选生成中' : '待生成',
+      assets: slots.length > 0 ? `${slots.filter((slot) => slot.status === 'locked').length}/${slots.length} 已锁定` : '暂无素材位',
+      content: status === 'done' ? '已锁定' : status === 'active' ? '制作中' : status === 'blocked' ? '有阻塞' : '待生成',
     }
   })
 }
 
-const fallbackUnits: ProductionUnit[] = [
-  {
-    id: 'CU-001',
-    title: '雨夜巷口对峙',
-    summary: '林夏攥着湿透旧伞，与顾言保持距离，纸条线索即将暴露。',
-    timeRange: '00:00-00:08',
-    duration: 8,
-    status: 'done',
-    assets: '4/4 已锁定',
-    content: '主版本已锁定',
-  },
-  {
-    id: 'CU-002',
-    title: '旧伞纸条暴露',
-    summary: '伞骨夹层滑出纸条，道具从气氛物转为剧情证据。',
-    timeRange: '00:08-00:14',
-    duration: 6,
-    status: 'blocked',
-    assets: '2 个缺口',
-    content: '候选需返工',
-  },
-  {
-    id: 'CU-003',
-    title: '顾言低声追问',
-    summary: '顾言压低声音追问旧伞来历，林夏把纸条攥进掌心。',
-    timeRange: '00:14-00:22',
-    duration: 8,
-    status: 'active',
-    assets: '3/3 已就绪',
-    content: '待选片',
-  },
-]
-
-const fallbackProductions: ProductionRecord[] = [
-  {
-    id: 'PRD-002',
-    name: '第二集开场制作',
-    status: 'planning',
-    source: '第二集剧本 v1',
-    owner: '编导组',
-    progress: 18,
-    updatedAt: '昨天',
-    description: '用于展示一个项目可同时拥有多个制作，当前还处于剧本理解和预演准备阶段。',
-    preview: { title: '第二集开场预演', status: 'waiting', progress: 12, savedAt: '' },
-    stats: { structures: 3, sceneMoments: 2, references: 5, assets: 0, contents: 0, finals: 0 },
-    areas: buildAreas({
-      previewProgress: 12,
-      structureCount: 3,
-      sceneMomentCount: 2,
-      referenceCount: 5,
-      assetCount: 0,
-      contentCount: 0,
-      finalCount: 0,
-      blockedUnits: 0,
-      activeUnits: 0,
-      previewConfirmed: false,
-    }),
-    units: [],
-    blockers: ['尚未生成可确认的预演。'],
-    nextActions: ['完成剧本理解确认。', '生成预演草稿并确认结构。', '从预演推演制作资料和素材需求。'],
-  },
-  {
-    id: 'PRD-003',
-    name: '品牌口播 15 秒制作',
-    status: 'delivered',
-    source: '品牌短片脚本 v3',
-    owner: '交付组',
-    progress: 100,
-    updatedAt: '4 天前',
-    description: '已完成的短制作样例，用于体现成片版本仍然归属于制作主体。',
-    preview: { title: '品牌口播预演', status: 'done', progress: 100, savedAt: '2026-05-01T10:30:00+08:00', confirmedAt: '2026-05-01T11:20:00+08:00' },
-    stats: { structures: 5, sceneMoments: 3, references: 8, assets: 11, contents: 5, finals: 2 },
-    areas: [
-      { key: 'structure', title: '制作结构', description: '结构已锁定', icon: GitBranch, count: 5, progress: 100, status: 'done', href: '/v2-entities' },
-      { key: 'sceneMoments', title: '情节', description: '情节已确认', icon: Route, count: 3, progress: 100, status: 'done', href: '/scene-moments' },
-      { key: 'references', title: '创作资料', description: '资料已锁定', icon: Sparkles, count: 8, progress: 100, status: 'done', href: '/creative-references' },
-      { key: 'assets', title: '素材需求', description: '素材已采用', icon: PackageCheck, count: 11, progress: 100, status: 'done', href: '/assets' },
-      { key: 'content', title: '内容', description: '内容已锁定', icon: Film, count: 5, progress: 100, status: 'done', href: '/workbench/production' },
-      { key: 'final', title: '成片', description: '版本已交付', icon: Video, count: 2, progress: 100, status: 'done', href: '/final-videos' },
-    ],
-    units: [
-      { id: 'CU-001', title: '产品亮相', summary: '产品与品牌主视觉入场。', timeRange: '00:00-00:04', duration: 4, status: 'done', assets: '已采用', content: '已锁定' },
-      { id: 'CU-002', title: '利益点展示', summary: '强调核心卖点并配合口播。', timeRange: '00:04-00:11', duration: 7, status: 'done', assets: '已采用', content: '已锁定' },
-      { id: 'CU-003', title: '收束 CTA', summary: '品牌口号与行动引导。', timeRange: '00:11-00:15', duration: 4, status: 'done', assets: '已采用', content: '已锁定' },
-    ],
-    blockers: [],
-    nextActions: ['复核交付文件命名。', '归档成片版本和生成记录。', '同步客户确认记录。'],
-  },
-]
-
 function formatTime(seconds: number) {
   const minute = Math.floor(seconds / 60)
-  const second = seconds % 60
+  const second = Math.round(seconds % 60)
   return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
+}
+
+function recordsForProduction(records: SemanticEntityRecord[], productionId: number) {
+  return records.filter((item) => Number(item.production_id) === productionId)
+}
+
+function uniqueCount(values: unknown[]) {
+  return new Set(values.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)).size
+}
+
+function clampProgress(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function normalizeProductionStatus(status: unknown, previewConfirmed: boolean, deliveryVersions: SemanticEntityRecord[]): ProductionStatus {
+  const value = String(status ?? '')
+  if (value in statusMeta) return value as ProductionStatus
+  if (deliveryVersions.some((item) => item.status === 'exported' || item.status === 'approved')) return 'reviewing'
+  return previewConfirmed ? 'producing' : 'planning'
+}
+
+function sourceLabel(production: ProductionBackendRecord) {
+  if (production.source_type === 'script' && production.script_version_id) return `剧本版本 #${production.script_version_id}`
+  if (production.source_type === 'brief') return '简介创建'
+  if (production.source_type === 'preview' && production.preview_timeline_id) return `预演 #${production.preview_timeline_id}`
+  if (production.source_type === 'import') return '导入创建'
+  return '直接创建'
+}
+
+function contentUnitStatus(status: unknown, blocked: boolean): UnitStatus {
+  if (blocked) return 'blocked'
+  if (status === 'locked') return 'done'
+  if (status === 'in_production') return 'active'
+  if (status === 'confirmed') return 'active'
+  return 'waiting'
+}
+
+function nextActionsForProduction(input: { blockedUnits: number; units: number; deliveryVersions: number; keyframes: number }) {
+  if (input.units === 0) return ['创建或导入内容单元。', '为内容单元补充素材位。', '建立预演时间线或直接开始内容生成。']
+  if (input.blockedUnits > 0) return ['先补齐阻塞内容单元的素材需求。', '锁定关键创作资料和素材。', '再进入内容候选生成与选片。']
+  if (input.deliveryVersions === 0) return ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
+  return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']
 }
 
 function formatShortDate(value: string) {

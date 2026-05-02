@@ -2,29 +2,29 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, SlidersHorizontal, Trash2 } from 'lucide-react'
 
-import { createV2Entity, deleteV2Entity, updateV2Entity, type V2EntityConfig, type V2EntityPayload, type V2EntityRecord } from '@/api/v2Entities'
+import { createSemanticEntity, deleteSemanticEntity, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { toast } from '@/store/toastStore'
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Textarea } from '@movscript/ui'
 
 type Mode = 'create' | 'edit'
 
-interface V2EntityCrudDialogProps {
+interface SemanticEntityCrudDialogProps {
   open: boolean
   mode: Mode
   projectId?: number
-  config: V2EntityConfig
-  record?: V2EntityRecord | null
-  defaults?: Partial<V2EntityPayload>
+  config: SemanticEntityConfig
+  record?: SemanticEntityRecord | null
+  defaults?: Partial<SemanticEntityPayload>
   queryKey?: readonly unknown[]
   title?: string
   onOpenChange: (open: boolean) => void
-  onSaved?: (record: V2EntityRecord) => void
+  onSaved?: (record: SemanticEntityRecord) => void
   onDeleted?: () => void
 }
 
 type FormState = Record<string, string | boolean>
 
-export function V2EntityCrudDialog({
+export function SemanticEntityCrudDialog({
   open,
   mode,
   projectId,
@@ -36,7 +36,7 @@ export function V2EntityCrudDialog({
   onOpenChange,
   onSaved,
   onDeleted,
-}: V2EntityCrudDialogProps) {
+}: SemanticEntityCrudDialogProps) {
   const queryClient = useQueryClient()
   const fields = useMemo(() => config.fields.filter((field) => mode === 'create' || !field.createOnly), [config.fields, mode])
   const basicFields = useMemo(() => fields.filter((field) => !isAdvancedField(config.kind, field.key)), [config.kind, fields])
@@ -52,7 +52,7 @@ export function V2EntityCrudDialog({
   }, [defaults, fields, open, record])
 
   const createMutation = useMutation({
-    mutationFn: (payload: V2EntityPayload) => createV2Entity(projectId!, config, payload),
+    mutationFn: (payload: SemanticEntityPayload) => createSemanticEntity(projectId!, config, payload),
     onSuccess: (saved) => {
       invalidate()
       toast.success(`${config.label}已创建`)
@@ -62,7 +62,7 @@ export function V2EntityCrudDialog({
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload: V2EntityPayload) => updateV2Entity(projectId!, config, record!.ID, payload),
+    mutationFn: (payload: SemanticEntityPayload) => updateSemanticEntity(projectId!, config, record!.ID, payload),
     onSuccess: (saved) => {
       invalidate()
       toast.success(`${config.label}已保存`)
@@ -72,7 +72,7 @@ export function V2EntityCrudDialog({
   })
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteV2Entity(projectId!, config, record!.ID),
+    mutationFn: () => deleteSemanticEntity(projectId!, config, record!.ID),
     onSuccess: () => {
       invalidate()
       toast.success(`${config.label}已删除`)
@@ -181,14 +181,14 @@ function FieldControl({
   advanced = false,
   onChange,
 }: {
-  configKind: V2EntityConfig['kind']
-  field: V2EntityConfig['fields'][number]
+  configKind: SemanticEntityConfig['kind']
+  field: SemanticEntityConfig['fields'][number]
   value: string | boolean
   advanced?: boolean
   onChange: (value: string | boolean) => void
 }) {
   const common = {
-    id: `v2-${configKind}-${field.key}`,
+    id: `semantic-${configKind}-${field.key}`,
     required: field.required,
   }
 
@@ -242,32 +242,32 @@ function FieldControl({
   )
 }
 
-function isAdvancedField(kind: V2EntityConfig['kind'], key: string) {
+function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
   if (key.endsWith('_json') || key.endsWith('Json')) return true
   if (key === 'metadata_json' || key === 'profile_json' || key === 'tags_json' || key === 'snapshot_json' || key === 'value_json') return true
   if (key === 'order' || key === 'status' || key === 'source' || key === 'source_type' || key === 'source_id') return true
-  if (key === 'slot_key' || key === 'locked_asset_id') return true
+  if (key === 'slot_key' || key === 'locked_asset_slot_id') return true
   if (key === 'owner_type' || key === 'owner_id') return true
   if (key.endsWith('_id') && !basicIdFieldsByKind[kind]?.includes(key)) return true
   return advancedFieldsByKind[kind]?.includes(key) ?? false
 }
 
-const basicIdFieldsByKind: Partial<Record<V2EntityConfig['kind'], string[]>> = {
+const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id'],
   contentUnits: ['segment_id', 'scene_moment_id'],
   keyframes: ['scene_moment_id', 'content_unit_id'],
 }
 
-const advancedFieldsByKind: Partial<Record<V2EntityConfig['kind'], string[]>> = {
+const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
   contentUnits: ['segment_id', 'scene_moment_id'],
-  assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_id'],
+  assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 
-function dialogDescription(kind: V2EntityConfig['kind'], fallback: string) {
+function dialogDescription(kind: SemanticEntityConfig['kind'], fallback: string) {
   if (kind === 'productions') return '创建一个制作主体。可以先不绑定剧本、brief 或预演，后续再把内容、素材和成片挂载到这个制作下。'
   if (kind === 'contentUnits') return '描述这段内容要生成什么。情节、片段、排序和 JSON 可在高级选项中维护。'
-  if (kind === 'assetSlots') return '描述生产还缺什么素材。归属关系、锁定素材和 JSON 可在高级选项中维护。'
+  if (kind === 'assetSlots') return '描述生产还缺什么素材。归属关系、锁定素材位和 JSON 可在高级选项中维护。'
   return fallback
 }
 
@@ -278,7 +278,7 @@ function hasFieldValue(value: unknown) {
   return true
 }
 
-function buildInitialForm(fields: V2EntityConfig['fields'], record?: V2EntityRecord | null, defaults?: Partial<V2EntityPayload>): FormState {
+function buildInitialForm(fields: SemanticEntityConfig['fields'], record?: SemanticEntityRecord | null, defaults?: Partial<SemanticEntityPayload>): FormState {
   const source = record ?? defaults ?? {}
   return Object.fromEntries(fields.map((field) => {
     const raw = source[field.key] ?? defaultValueForField(field.type)
@@ -286,8 +286,8 @@ function buildInitialForm(fields: V2EntityConfig['fields'], record?: V2EntityRec
   }))
 }
 
-function buildPayload(fields: V2EntityConfig['fields'], form: FormState): V2EntityPayload {
-  const payload: V2EntityPayload = {}
+function buildPayload(fields: SemanticEntityConfig['fields'], form: FormState): SemanticEntityPayload {
+  const payload: SemanticEntityPayload = {}
   for (const field of fields) {
     const value = form[field.key]
     if (field.type === 'boolean') {
@@ -304,7 +304,7 @@ function buildPayload(fields: V2EntityConfig['fields'], form: FormState): V2Enti
   return payload
 }
 
-function defaultValueForField(type: V2EntityConfig['fields'][number]['type']) {
+function defaultValueForField(type: SemanticEntityConfig['fields'][number]['type']) {
   if (type === 'boolean') return false
   return ''
 }

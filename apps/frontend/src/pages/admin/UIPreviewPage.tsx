@@ -77,7 +77,7 @@ const ENTITY_PREVIEWS: EntityPreviewItem[] = [
       status: '进行中',
       selected: true,
       bindings: [
-        { id: 'portrait', label: '形象', kind: 'image', state: 'bound', resourceLabel: '主视觉 v2' },
+        { id: 'portrait', label: '形象', kind: 'image', state: 'bound', resourceLabel: '主视觉新版' },
         { id: 'reference', label: '参考', kind: 'image', state: 'bound', resourceLabel: '3 张' },
         { id: 'result', label: '输出', kind: 'resource', state: 'empty' },
       ],
@@ -1611,7 +1611,7 @@ function SettingAssetRelationCanvas({ preview }: { preview: EntityPreviewItem })
       subtitle: '角色资产 · 正面半身',
       status: '已绑定',
       bindings: [
-        { id: 'image', label: '图像', kind: 'image', state: 'bound', resourceLabel: 'portrait_v2.png' },
+        { id: 'image', label: '图像', kind: 'image', state: 'bound', resourceLabel: 'portrait_current.png' },
         { id: 'reference', label: '参考', kind: 'image', state: 'bound', resourceLabel: '设定' },
         { id: 'result', label: '输出', kind: 'resource', state: 'empty' },
       ],

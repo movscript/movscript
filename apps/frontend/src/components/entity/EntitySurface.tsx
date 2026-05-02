@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Camera, Clapperboard, Database, FileText, Film, Image, Layers, Video } from 'lucide-react'
+import { Database, FileText, Image } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CanvasEntityKind, EntityWorkflowSchema, EntityWorkflowSchemaField } from '@/types'
 import { cn } from '@/lib/utils'
@@ -18,12 +18,7 @@ export const ENTITY_KIND_META: Record<CanvasEntityKind, {
 }> = {
   script:      { labelKey: 'entities.scripts',      icon: FileText,     tone: 'sky',     accent: 'bg-sky-500',     accentSoft: 'bg-sky-500/10',     activeColor: 'text-sky-600' },
   setting:     { labelKey: 'entities.settings',     icon: Database,     tone: 'teal',    accent: 'bg-teal-500',    accentSoft: 'bg-teal-500/10',    activeColor: 'text-teal-600' },
-  asset:       { labelKey: 'entities.assets',       icon: Image,        tone: 'emerald', accent: 'bg-emerald-500', accentSoft: 'bg-emerald-500/10', activeColor: 'text-emerald-600' },
-  episode:     { labelKey: 'entities.episodes',     icon: Film,         tone: 'violet',  accent: 'bg-violet-500',  accentSoft: 'bg-violet-500/10',  activeColor: 'text-violet-600' },
-  scene:       { labelKey: 'entities.scenes',       icon: Clapperboard, tone: 'blue',    accent: 'bg-blue-500',    accentSoft: 'bg-blue-500/10',    activeColor: 'text-blue-600' },
-  storyboard:  { labelKey: 'entities.storyboards',  icon: Layers,       tone: 'indigo',  accent: 'bg-indigo-500',  accentSoft: 'bg-indigo-500/10',  activeColor: 'text-indigo-600' },
-  shot:        { labelKey: 'entities.shots',        icon: Camera,       tone: 'orange',  accent: 'bg-orange-500',  accentSoft: 'bg-orange-500/10',  activeColor: 'text-orange-600' },
-  final_video: { labelKey: 'entities.finalVideos',  icon: Video,        tone: 'rose',    accent: 'bg-rose-500',    accentSoft: 'bg-rose-500/10',    activeColor: 'text-rose-600' },
+  asset_slot:  { labelKey: 'entities.assetSlots',   icon: Image,        tone: 'amber',   accent: 'bg-amber-500',   accentSoft: 'bg-amber-500/10',   activeColor: 'text-amber-600' },
 }
 
 export const ENTITY_TONE_CLASS: Record<EntityTone, string> = {

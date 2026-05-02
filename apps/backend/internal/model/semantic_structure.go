@@ -3,7 +3,7 @@ package model
 import "gorm.io/gorm"
 
 // ScriptVersion is the immutable-ish working version of imported script text.
-// Script remains the legacy/project-facing record; new V2 structure hangs from
+// Script remains the legacy/project-facing record; new semantic structure hangs from
 // versions so AI parsing and user edits can be compared or rolled back.
 type ScriptVersion struct {
 	gorm.Model
@@ -21,7 +21,7 @@ type ScriptVersion struct {
 	CreatedByID     *uint   `json:"created_by_id,omitempty"`
 }
 
-// Segment is the first V2 semantic cut of a script version. It is not a
+// Segment is the first semantic entity cut of a script version. It is not a
 // scene synonym; it can represent a scene, montage, product beat, narration,
 // title card, transition, or any other meaningful segment.
 type Segment struct {
@@ -137,7 +137,7 @@ type ContentUnit struct {
 	MetadataJSON  string       `gorm:"type:text" json:"metadata_json"`
 }
 
-// Keyframe is a visual anchor for a scene moment or content unit. In early V2 it
+// Keyframe is a visual anchor for a scene moment or content unit. In early semantic model it
 // can power the whole preview timeline before final video segments exist.
 type Keyframe struct {
 	gorm.Model
