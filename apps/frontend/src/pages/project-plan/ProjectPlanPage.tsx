@@ -23,7 +23,7 @@ import {
   Wand2,
 } from 'lucide-react'
 
-import { getLatestScriptPreviewDraft, type GetLatestScriptPreviewDraftResponse } from '@/api/scriptPreview'
+import { getLatestProjectPreviewDraft, type GetLatestProjectPreviewDraftResponse } from '@/api/projectPreview'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -197,9 +197,9 @@ export default function ProjectPlanPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
 
-  const { data: latestDraft, isLoading } = useQuery<GetLatestScriptPreviewDraftResponse>({
-    queryKey: ['script-preview-draft', projectId],
-    queryFn: () => getLatestScriptPreviewDraft(projectId!),
+  const { data: latestDraft, isLoading } = useQuery<GetLatestProjectPreviewDraftResponse>({
+    queryKey: ['project-preview-draft', projectId],
+    queryFn: () => getLatestProjectPreviewDraft(projectId!),
     enabled: !!projectId,
   })
 
@@ -252,7 +252,7 @@ export default function ProjectPlanPage() {
         key: 'source',
         title: '剧本来源',
         description: '确认筹备草稿来自哪一版剧本，并保留正文证据。',
-        href: '/production-preview',
+        href: '/project-preview',
         icon: FileText,
         status: trackStatus(sourceProgress),
         metric: draft?.script_version?.title || '未选择剧本版本',
@@ -262,7 +262,7 @@ export default function ProjectPlanPage() {
         key: 'proposal',
         title: '提案结构',
         description: '把剧本拆成可对外沟通的项目概览、故事、人物、视觉和风险页。',
-        href: '/production-preview',
+        href: '/project-preview',
         icon: Presentation,
         status: trackStatus(proposalProgress),
         metric: `${analysis?.sections?.length ?? 0} 个理解段落`,
@@ -271,8 +271,8 @@ export default function ProjectPlanPage() {
       {
         key: 'storyboard',
         title: '分镜脚本',
-        description: '将情境和内容单元整理成可编辑、可确认、可进入预演的片段。',
-        href: '/production-preview',
+        description: '将情节和内容单元整理成可编辑、可确认、可进入预演的片段。',
+        href: '/project-preview',
         icon: Layers,
         status: trackStatus(structureProgress),
         metric: `${storyboardRows.length} 个片段`,
@@ -282,7 +282,7 @@ export default function ProjectPlanPage() {
         key: 'preview',
         title: '视频版 PPT',
         description: '形成可播放的预演时间线，检查旁白、字幕、节奏和关键画面。',
-        href: '/production-preview',
+        href: '/project-preview',
         icon: Play,
         status: trackStatus(previewProgress),
         metric: `${timeline.length} 段 · ${formatDuration(totalDurationSeconds(timeline))}`,
@@ -365,7 +365,7 @@ export default function ProjectPlanPage() {
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <Button variant="outline" className="gap-2" asChild>
-                  <Link to="/production-preview">
+                  <Link to="/project-preview">
                     <Film size={15} />
                     回到制作预演
                   </Link>
@@ -377,7 +377,7 @@ export default function ProjectPlanPage() {
                   </Link>
                 </Button>
                 <Button className="gap-2" asChild>
-                  <Link to={productionReady ? '/production' : '/production-preview'}>
+                  <Link to={productionReady ? '/production' : '/project-preview'}>
                     {productionReady ? '进入内容生产' : '补齐筹备包'}
                     <ArrowRight size={15} />
                   </Link>
@@ -438,7 +438,7 @@ export default function ProjectPlanPage() {
               先进入制作预演，选择剧本版本并保存筹备草稿。这里会自动汇总提案结构、视频版 PPT、素材缺口和下一步决策。
             </p>
             <Button asChild className="mt-5 gap-2">
-              <Link to="/production-preview">
+              <Link to="/project-preview">
                 进入制作预演 <ArrowRight size={15} />
               </Link>
             </Button>

@@ -1,4 +1,4 @@
-package scriptpreview
+package projectpreview
 
 import (
 	"context"
@@ -16,10 +16,10 @@ func analysisRequest(draftID string, texts ...string) AnalyzeRequest {
 	}
 	for i, text := range texts {
 		order := i + 1
-		sectionID := fmt.Sprintf("section-%03d", order)
+		segmentID := fmt.Sprintf("section-%03d", order)
 		question := fmt.Sprintf("第 %d 段的情绪转折是否需要用户确认？", order)
-		req.Sections = append(req.Sections, ScriptSectionResult{
-			ClientID:        sectionID,
+		req.Sections = append(req.Sections, SegmentResult{
+			ClientID:        segmentID,
 			Order:           order,
 			Title:           text,
 			Summary:         text,
@@ -30,7 +30,7 @@ func analysisRequest(draftID string, texts ...string) AnalyzeRequest {
 		req.ConfirmQuestions = append(req.ConfirmQuestions, question)
 		req.Suggestions = append(req.Suggestions, StoryboardSuggestion{
 			ClientID:        fmt.Sprintf("suggestion-%03d", order),
-			SourceSectionID: sectionID,
+			SourceSegmentID: segmentID,
 			Order:           order,
 			Title:           text,
 			Body:            text,

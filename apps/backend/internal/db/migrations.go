@@ -125,14 +125,14 @@ func RegisteredMigrations() []Migration {
 			Version: "000019",
 			Name:    "script_preview_draft_snapshots",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&model.ScriptPreviewDraft{})
+				return db.AutoMigrate(&model.ProjectPreviewDraft{})
 			},
 		},
 		{
 			Version: "000020",
 			Name:    "script_preview_draft_confirmed_state",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&model.ScriptPreviewDraft{})
+				return db.AutoMigrate(&model.ProjectPreviewDraft{})
 			},
 		},
 		{
@@ -194,10 +194,10 @@ func migrateRemoveV1ProductionEntities(db *gorm.DB) error {
 
 func migrateV2SemanticSkeleton(db *gorm.DB) error {
 	return db.AutoMigrate(
-		&model.ScriptPreviewDraft{},
+		&model.ProjectPreviewDraft{},
 		&model.ScriptVersion{},
-		&model.ScriptSection{},
-		&model.Situation{},
+		&model.Segment{},
+		&model.SceneMoment{},
 		&model.StoryboardScript{},
 		&model.StoryboardVersion{},
 		&model.StoryboardLine{},
@@ -553,10 +553,10 @@ func allModels() []any {
 		&model.Project{},
 		&model.ProjectMember{},
 		&model.Script{},
-		&model.ScriptPreviewDraft{},
+		&model.ProjectPreviewDraft{},
 		&model.ScriptVersion{},
-		&model.ScriptSection{},
-		&model.Situation{},
+		&model.Segment{},
+		&model.SceneMoment{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.PreviewTimeline{},

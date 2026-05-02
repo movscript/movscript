@@ -22,7 +22,8 @@ import CreativeReferencesPage from './pages/creative-references/CreativeReferenc
 import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
 import DeliveryPage from './pages/delivery/DeliveryPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
-import ScriptPreviewPage from './pages/script-preview/ScriptPreviewPage'
+import ContentsPage from './pages/contents/ContentsPage'
+import ProjectPreviewPage from './pages/project-preview/ProjectPreviewPage'
 import PreviewProgressPage from './pages/preview-progress/PreviewProgressPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
@@ -31,7 +32,6 @@ import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectHomeV2Page from './pages/project-home/ProjectHomeV2Page'
-import ProjectPlanPage from './pages/project-plan/ProjectPlanPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
@@ -169,19 +169,19 @@ export default function App() {
 
                       {/* 工作模块 */}
                       <Route path="/scripts" element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
-                      <Route path="/script-sections" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
+                      <Route path="/segments" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
                       <Route path="/scenes" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
-                      <Route path="/contents" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
+                      <Route path="/contents" element={<ProjectGuard><ContentsPage /></ProjectGuard>} />
                       <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
-                      <Route path="/production-management" element={<ProjectGuard><ScriptPreviewPage /></ProjectGuard>} />
-                      <Route path="/production-preview" element={<ProjectGuard><Navigate to="/production-management" replace /></ProjectGuard>} />
-                      <Route path="/script-preview" element={<ProjectGuard><Navigate to="/production-management" replace /></ProjectGuard>} />
+                      <Route path="/project-preview" element={<ProjectGuard><ProjectPreviewPage /></ProjectGuard>} />
+                      <Route path="/production-management" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
+                      <Route path="/production-preview" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/preview-progress" element={<ProjectGuard><PreviewProgressPage /></ProjectGuard>} />
                       <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                       <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
                       <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
                       <Route path="/project-home" element={<ProjectGuard><ProjectHomeV2Page /></ProjectGuard>} />
-                      <Route path="/project-plan" element={<ProjectGuard><ProjectPlanPage /></ProjectGuard>} />
+                      <Route path="/project-plan" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
                       <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
                       <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />

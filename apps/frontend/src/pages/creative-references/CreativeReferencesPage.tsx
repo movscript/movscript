@@ -46,7 +46,7 @@ interface CreativeReference {
   summary: string
   visualNotes: string[]
   facts: string[]
-  linkedSituations: string[]
+  linkedSceneMoments: string[]
   assets: string[]
   accent: string
 }
@@ -65,7 +65,7 @@ const references: CreativeReference[] = [
     summary: '外表冷静但处在高度戒备中，左眉伤痕与湿发是雨夜段落的连续性标记。',
     visualNotes: ['黑色短外套', '湿发贴脸', '左眉浅伤', '戒备眼神'],
     facts: ['母亲线索持有人', '不主动解释旧伞来源', '对顾言保持防御距离'],
-    linkedSituations: ['雨夜巷口对峙', '旧伞纸条暴露', '医院走廊追问'],
+    linkedSceneMoments: ['雨夜巷口对峙', '旧伞纸条暴露', '医院走廊追问'],
     assets: ['主形象参考', '雨夜伤痕状态', '侧脸补充'],
     accent: 'from-sky-500/20 to-cyan-500/10',
   },
@@ -82,7 +82,7 @@ const references: CreativeReference[] = [
     summary: '动作克制，始终和林夏保持半步距离，用低声追问制造压迫感。',
     visualNotes: ['黑色长外套', '雨伞未完全撑开', '肩线挺直', '低照度侧光'],
     facts: ['知道旧伞来历', '不直接说出母亲线索', '对第三人保持警觉'],
-    linkedSituations: ['雨夜巷口对峙', '第三人入画'],
+    linkedSceneMoments: ['雨夜巷口对峙', '第三人入画'],
     assets: ['正面参考', '半身雨景', '手部动作'],
     accent: 'from-violet-500/20 to-indigo-500/10',
   },
@@ -99,7 +99,7 @@ const references: CreativeReference[] = [
     summary: '窄巷形成视觉压迫，地面积水和路灯反光用于承接人物情绪转折。',
     visualNotes: ['窄巷纵深', '路灯闪烁', '墙面旧广告', '水面高反光'],
     facts: ['巷口只能容纳两人并行', '尽头接医院侧门', '第三人从画面右侧进入'],
-    linkedSituations: ['雨夜巷口对峙', '旧伞纸条暴露'],
+    linkedSceneMoments: ['雨夜巷口对峙', '旧伞纸条暴露'],
     assets: ['空间设定图', '雨夜光效', '动线草图'],
     accent: 'from-teal-500/20 to-emerald-500/10',
   },
@@ -116,7 +116,7 @@ const references: CreativeReference[] = [
     summary: '伞柄磨损和伞骨夹层是剧情证据，缺少可用于特写镜头的清晰状态图。',
     visualNotes: ['深蓝伞面', '银色磨损伞柄', '伞骨夹层', '纸条边角露出'],
     facts: ['母亲留下的旧物', '伞骨夹层藏纸条', '必须能被观众一眼识别'],
-    linkedSituations: ['旧伞纸条暴露', '结尾反转留钩'],
+    linkedSceneMoments: ['旧伞纸条暴露', '结尾反转留钩'],
     assets: ['基础道具图'],
     accent: 'from-amber-500/20 to-yellow-500/10',
   },
@@ -133,7 +133,7 @@ const references: CreativeReference[] = [
     summary: '低饱和、强反光、窄景深，避免纯氛围化，所有风格规则服务剧情证据可读性。',
     visualNotes: ['蓝绿冷调', '皮肤低饱和', '雨滴边缘光', '背景轻微失焦'],
     facts: ['不能压暗关键道具', '人物眼神必须可读', '反光用于引导视线'],
-    linkedSituations: ['雨夜巷口对峙', '手机屏幕推近', '旧伞纸条暴露'],
+    linkedSceneMoments: ['雨夜巷口对峙', '手机屏幕推近', '旧伞纸条暴露'],
     assets: ['色彩板', '光效参考', '负面示例'],
     accent: 'from-rose-500/20 to-fuchsia-500/10',
   },
@@ -150,7 +150,7 @@ const references: CreativeReference[] = [
     summary: '屏幕 UI 需要在 5 秒内让观众读懂危险信号，同时不能暴露后续反转答案。',
     visualNotes: ['高亮转账金额', '联系人昵称半遮挡', '屏幕有雨滴', '通知停留 2 秒'],
     facts: ['金额是误会触发点', '联系人不能完整显示', '屏幕反光不能盖住文字'],
-    linkedSituations: ['电梯压迫特写', '手机屏幕推近'],
+    linkedSceneMoments: ['电梯压迫特写', '手机屏幕推近'],
     assets: ['屏幕 UI 草图', '文字版式参考'],
     accent: 'from-violet-500/20 to-purple-500/10',
   },
@@ -158,9 +158,9 @@ const references: CreativeReference[] = [
 
 const referenceKinds: Array<'all' | ReferenceKind> = ['all', 'person', 'location', 'object', 'style', 'product']
 
-const situationRows = [
-  { title: '雨夜巷口对峙', source: 'ScriptSection 03', refs: ['林夏', '顾言', '雨夜巷口', '冷雨低照度'], status: '可预演' },
-  { title: '旧伞纸条暴露', source: 'ScriptSection 04', refs: ['林夏', '旧伞', '雨夜巷口'], status: '缺特写' },
+const sceneMomentRows = [
+  { title: '雨夜巷口对峙', source: 'Segment 03', refs: ['林夏', '顾言', '雨夜巷口', '冷雨低照度'], status: '可预演' },
+  { title: '旧伞纸条暴露', source: 'Segment 04', refs: ['林夏', '旧伞', '雨夜巷口'], status: '缺特写' },
   { title: '手机屏幕推近', source: 'ContentUnit CU-02', refs: ['手机转账提醒', '冷雨低照度'], status: '待确认' },
 ]
 
@@ -198,7 +198,7 @@ export default function CreativeReferencesPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">创作资料库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              人物、地点、道具、产品和风格作为可复用资料被情境引用，帮助制作预演、资产准备和内容生产保持连续性。
+              人物、地点、道具、产品和风格作为可复用资料被情节引用，帮助制作预演、资产准备和内容生产保持连续性。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ export default function CreativeReferencesPage() {
             </Panel>
 
             <Panel title="进入下游" icon={ArrowRight}>
-              <FlowStep icon={Film} label="制作预演" detail="情境引用资料" />
+              <FlowStep icon={Film} label="制作预演" detail="情节引用资料" />
               <FlowStep icon={Image} label="资产准备" detail="补充视觉状态" />
               <FlowStep icon={Clapperboard} label="内容生产" detail="继承连续性约束" />
             </Panel>
@@ -273,7 +273,7 @@ export default function CreativeReferencesPage() {
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">资料清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">以资料卡为中心管理事实、视觉状态、引用情境和资产覆盖。</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">以资料卡为中心管理事实、视觉状态、引用情节和资产覆盖。</p>
                 </div>
                 <div className="relative w-64">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
@@ -302,12 +302,12 @@ export default function CreativeReferencesPage() {
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Sparkles size={15} className="text-primary" />
-                  <p className="text-sm font-semibold text-foreground">情境引用</p>
+                  <p className="text-sm font-semibold text-foreground">情节引用</p>
                 </div>
                 <span className="text-xs text-muted-foreground">展示资料如何进入 v2 语义层</span>
               </div>
               <div className="divide-y divide-border/70">
-                {situationRows.map((row) => (
+                {sceneMomentRows.map((row) => (
                   <div key={row.title} className="grid grid-cols-[190px_150px_minmax(0,1fr)_80px] items-center gap-3 px-4 py-3">
                     <div>
                       <p className="truncate text-sm font-medium text-foreground">{row.title}</p>
@@ -407,9 +407,9 @@ function ReferenceDetail({ reference }: { reference: CreativeReference }) {
           <MiniStat label="负责人" value={reference.owner} />
         </div>
         <div>
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">关联情境</p>
+          <p className="mb-2 text-xs font-semibold text-muted-foreground">关联情节</p>
           <div className="space-y-1.5">
-            {reference.linkedSituations.map((item) => (
+            {reference.linkedSceneMoments.map((item) => (
               <div key={item} className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2">
                 <Clapperboard size={13} className="text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate text-xs text-foreground">{item}</span>

@@ -10,7 +10,7 @@ import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtime/modelConfig.js'
 import { ProductionRuntime } from './production/runtime.js'
 import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
-import { ScriptPreviewV2FallbackClient } from './production/v2FallbackClient.js'
+import { ProjectPreviewV2FallbackClient } from './production/v2FallbackClient.js'
 import type { JSONValue } from './types.js'
 
 const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
@@ -22,7 +22,7 @@ const productionStatePath = resolveProductionStatePath()
 const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
 const backendApplyClient = new BackendApplyClient()
 const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
-const productionV2FallbackClient = new ScriptPreviewV2FallbackClient()
+const productionV2FallbackClient = new ProjectPreviewV2FallbackClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
 const chatRuntime = new ChatRuntime({ mcpClient: client })

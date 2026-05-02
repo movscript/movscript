@@ -54,7 +54,7 @@ type ScriptStructurePreviewItem = {
   description: string
 }
 
-type StructuredScriptPreviewItem = {
+type StructuredScriptItem = {
   id: string
   type: 'structured-script'
   name: string
@@ -62,7 +62,7 @@ type StructuredScriptPreviewItem = {
   scriptKind: 'main' | 'scene'
 }
 
-type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptPreviewItem | AgentPreviewItem
+type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptItem | AgentPreviewItem
 
 const ENTITY_PREVIEWS: EntityPreviewItem[] = [
   {
@@ -355,7 +355,7 @@ const AGENT_PREVIEWS: AgentPreviewItem[] = [
   },
 ]
 
-const STRUCTURED_SCRIPT_PREVIEWS: StructuredScriptPreviewItem[] = [
+const STRUCTURED_SCRIPT_ITEMS: StructuredScriptItem[] = [
   {
     id: 'main-script-detail',
     type: 'structured-script',
@@ -374,10 +374,10 @@ const STRUCTURED_SCRIPT_PREVIEWS: StructuredScriptPreviewItem[] = [
 
 const SCRIPT_STRUCTURE_PREVIEWS: ScriptStructurePreviewItem[] = [
   {
-    id: 'script-section-hierarchy',
+    id: 'production-segment-hierarchy',
     type: 'script-structure',
-    name: '剧本节层级',
-    description: '展示剧本原文如何进入剧本节、情境、内容单元，以及人物/场景/产品等创作资料如何被引用。',
+    name: '片段层级',
+    description: '展示剧本原文如何进入片段、情节、内容单元，以及人物/场景/产品等创作资料如何被引用。',
   },
 ]
 
@@ -414,14 +414,14 @@ const PREVIEW_GROUPS: Array<{
   {
     id: 'script-structure',
     title: '剧本结构',
-    description: 'ScriptSection / Situation / ContentUnit',
+    description: 'Segment / SceneMoment / ContentUnit',
     items: SCRIPT_STRUCTURE_PREVIEWS,
   },
   {
     id: 'script-detail',
     title: '剧本详情',
     description: 'Structured Script',
-    items: STRUCTURED_SCRIPT_PREVIEWS,
+    items: STRUCTURED_SCRIPT_ITEMS,
   },
   {
     id: 'agent',
@@ -557,9 +557,9 @@ export function UIPreviewPage() {
               </>
             ) : selected.type === 'script-structure' ? (
               <>
-                <SpecCard title="结构主干" text="剧本节、情境、内容单元是从文本到 AI 预演的主路径，负责叙事位置和生产颗粒度。" />
-                <SpecCard title="资料引用" text="人物、场景、产品、风格等作为创作资料被情境引用，不强行成为所有项目的固定结构层。" />
-                <SpecCard title="画布落点" text="每个情境或内容单元都可以打开自己的画布，执行关键帧、素材和视频生成动作。" />
+                <SpecCard title="结构主干" text="片段、情节、内容单元是从文本到 AI 预演的主路径，负责叙事位置和生产颗粒度。" />
+                <SpecCard title="资料引用" text="人物、场景、产品、风格等作为创作资料被情节引用，不强行成为所有项目的固定结构层。" />
+                <SpecCard title="画布落点" text="每个情节或内容单元都可以打开自己的画布，执行关键帧、素材和视频生成动作。" />
               </>
             ) : selected.type === 'structured-script' ? (
               selected.scriptKind === 'main' ? (
@@ -623,7 +623,7 @@ function ScriptStructureHierarchyPreviewCanvas() {
     },
   ]
 
-  const situations = [
+  const sceneMoments = [
     {
       id: 'sit-01',
       title: '雨夜巷口对峙',
@@ -662,7 +662,7 @@ function ScriptStructureHierarchyPreviewCanvas() {
           <div className="border-b border-border px-3 py-3">
             <div className="flex items-center gap-2">
               <FileText size={14} className="text-sky-600" />
-              <p className="font-semibold text-foreground">剧本节</p>
+              <p className="font-semibold text-foreground">片段</p>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
               原文先切成可确认的语义段落，不直接变成镜头。
@@ -671,14 +671,14 @@ function ScriptStructureHierarchyPreviewCanvas() {
 
           <div className="space-y-2 p-3">
             {sections.map((section, index) => (
-              <ScriptSectionPreviewCard key={section.id} index={index + 1} {...section} />
+              <SegmentPreviewCard key={section.id} index={index + 1} {...section} />
             ))}
           </div>
 
           <div className="border-t border-border p-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">结构规则</p>
-            <ScriptStructureCheck label="剧本节保留 source span" ok />
-            <ScriptStructureCheck label="情境从剧本节派生" ok />
+            <ScriptStructureCheck label="片段保留 source span" ok />
+            <ScriptStructureCheck label="情节从片段派生" ok />
             <ScriptStructureCheck label="内容单元进入预演时间线" />
           </div>
         </aside>
@@ -689,7 +689,7 @@ function ScriptStructureHierarchyPreviewCanvas() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <ListChecks size={14} className="text-primary" />
-                  <h3 className="text-sm font-semibold text-foreground">ScriptSection 到 Situation 到 ContentUnit</h3>
+                  <h3 className="text-sm font-semibold text-foreground">Segment 到 SceneMoment 到 ContentUnit</h3>
                 </div>
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                   中间层负责 AI 理解和一键预演；人物、地点、产品、风格通过引用参与，而不是固定压进层级。
@@ -705,12 +705,12 @@ function ScriptStructureHierarchyPreviewCanvas() {
           <div className="grid gap-4 p-4">
             <section>
               <div className="mb-2 flex items-center justify-between">
-                <p className="font-semibold text-foreground">情境候选</p>
-                <span className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">来自选中剧本节</span>
+                <p className="font-semibold text-foreground">情节候选</p>
+                <span className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">来自选中片段</span>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                {situations.map((situation) => (
-                  <SituationPreviewCard key={situation.id} {...situation} />
+                {sceneMoments.map((sceneMoment) => (
+                  <SceneMomentPreviewCard key={sceneMoment.id} {...sceneMoment} />
                 ))}
               </div>
             </section>
@@ -762,7 +762,7 @@ function ScriptStructureHierarchyPreviewCanvas() {
               <p className="font-semibold text-foreground">创作资料引用</p>
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              人物/场景/产品仍存在，只是作为可复用资料被情境引用。
+              人物/场景/产品仍存在，只是作为可复用资料被情节引用。
             </p>
           </div>
 
@@ -778,8 +778,8 @@ function ScriptStructureHierarchyPreviewCanvas() {
 
             <section>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">关系说明</p>
-              <ContinuityItem label="剧本节" value="文本来源和叙事位置" />
-              <ContinuityItem label="情境" value="AI 理解画面的上下文" />
+              <ContinuityItem label="片段" value="文本来源和叙事位置" />
+              <ContinuityItem label="情节" value="AI 理解画面的上下文" />
               <ContinuityItem label="内容单元" value="关键帧/视频生产颗粒度" />
               <ContinuityItem label="创作资料" value="主体、地点、产品、风格等复用事实" />
             </section>
@@ -787,9 +787,9 @@ function ScriptStructureHierarchyPreviewCanvas() {
             <section>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">画布入口</p>
               <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-2">
-                <p className="text-[11px] font-medium text-foreground">打开「雨夜巷口对峙」情境画布</p>
+                <p className="text-[11px] font-medium text-foreground">打开「雨夜巷口对峙」情节画布</p>
                 <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-                  画布中放置情境卡、资料引用卡、关键帧动作和生成结果。
+                  画布中放置情节卡、资料引用卡、关键帧动作和生成结果。
                 </p>
               </div>
             </section>
@@ -800,7 +800,7 @@ function ScriptStructureHierarchyPreviewCanvas() {
   )
 }
 
-function ScriptSectionPreviewCard({
+function SegmentPreviewCard({
   index,
   type,
   title,
@@ -834,7 +834,7 @@ function ScriptSectionPreviewCard({
   )
 }
 
-function SituationPreviewCard({
+function SceneMomentPreviewCard({
   title,
   summary,
   tone,

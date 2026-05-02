@@ -23,7 +23,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Palette,
-  PlaySquare,
   Puzzle,
   Scissors,
   ShieldAlert,
@@ -199,6 +198,7 @@ export function Sidebar() {
           {current && (
             <>
               <NavItem to="/project-home" icon={LayoutDashboard} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.script')} collapsed={collapsed} />
               <NavItem to="/production" icon={Boxes} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={ClipboardList} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
               <NavItem to="/delivery" icon={Video} label={t('sidebar.items.delivery')} collapsed={collapsed} />
@@ -210,10 +210,8 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.contentArea')} collapsed={collapsed}>
-              <NavItem to="/production-management" icon={PlaySquare} label={t('sidebar.items.contentAreaProduction')} collapsed={collapsed} />
-              <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.script')} collapsed={collapsed} />
-              <NavItem to="/script-sections" icon={Film} label={t('sidebar.items.scriptSections')} collapsed={collapsed} />
-              <NavItem to="/scenes" icon={Film} label={t('sidebar.items.situations')} collapsed={collapsed} />
+              <NavItem to="/segments" icon={Film} label={t('sidebar.items.segments')} collapsed={collapsed} />
+              <NavItem to="/scenes" icon={Film} label={t('sidebar.items.sceneMoments')} collapsed={collapsed} />
               <NavItem to="/creative-references" icon={Sparkles} label={t('sidebar.items.references')} collapsed={collapsed} />
               <NavItem to="/assets" icon={PackageCheck} label={t('sidebar.items.assets')} collapsed={collapsed} />
               <NavItem to="/reference-relations" icon={GitBranch} label={t('sidebar.items.relations')} collapsed={collapsed} />

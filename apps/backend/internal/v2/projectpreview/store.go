@@ -1,4 +1,4 @@
-package scriptpreview
+package projectpreview
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var ErrDraftNotFound = errors.New("script preview draft not found")
+var ErrDraftNotFound = errors.New("project preview draft not found")
 
 type DraftSnapshot struct {
 	ProjectID            uint
@@ -43,7 +43,7 @@ func NewGormDraftStore(db *gorm.DB) DraftStore {
 }
 
 func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSnapshot) error {
-	record := model.ScriptPreviewDraft{
+	record := model.ProjectPreviewDraft{
 		ProjectID:            snapshot.ProjectID,
 		ScriptVersionID:      snapshot.ScriptVersionID,
 		DraftID:              snapshot.DraftID,
@@ -80,7 +80,7 @@ func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSn
 }
 
 func (s *gormDraftStore) GetDraftSnapshot(ctx context.Context, projectID uint, draftID string) (DraftSnapshot, error) {
-	var record model.ScriptPreviewDraft
+	var record model.ProjectPreviewDraft
 	err := s.db.WithContext(ctx).
 		Where("project_id = ? AND draft_id = ? AND status <> ?", projectID, draftID, "archived").
 		First(&record).Error
@@ -94,7 +94,7 @@ func (s *gormDraftStore) GetDraftSnapshot(ctx context.Context, projectID uint, d
 }
 
 func (s *gormDraftStore) GetLatestDraftSnapshot(ctx context.Context, projectID uint) (DraftSnapshot, error) {
-	var record model.ScriptPreviewDraft
+	var record model.ProjectPreviewDraft
 	err := s.db.WithContext(ctx).
 		Where("project_id = ? AND status <> ?", projectID, "archived").
 		Order("updated_at desc").
@@ -108,7 +108,7 @@ func (s *gormDraftStore) GetLatestDraftSnapshot(ctx context.Context, projectID u
 	return draftSnapshotFromRecord(record), nil
 }
 
-func draftSnapshotFromRecord(record model.ScriptPreviewDraft) DraftSnapshot {
+func draftSnapshotFromRecord(record model.ProjectPreviewDraft) DraftSnapshot {
 	return DraftSnapshot{
 		ProjectID:            record.ProjectID,
 		ScriptVersionID:      record.ScriptVersionID,

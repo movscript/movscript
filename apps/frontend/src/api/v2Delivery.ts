@@ -26,8 +26,8 @@ export interface V2DeliveryTimelineItem {
   content_unit_id?: number | null
   asset_id?: number | null
   resource_id?: number | null
-  script_section_id?: number | null
-  situation_id?: number | null
+  segment_id?: number | null
+  sceneMoment_id?: number | null
   keyframe_id?: number | null
   kind: 'video' | 'image' | 'audio' | 'caption' | 'gap' | 'note' | string
   order: number

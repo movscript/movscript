@@ -12,7 +12,7 @@ type AssetSlot struct {
 	CreativeReference        *CreativeReference      `gorm:"foreignKey:CreativeReferenceID" json:"creative_reference,omitempty"`
 	CreativeReferenceStateID *uint                   `gorm:"index" json:"creative_reference_state_id,omitempty"`
 	CreativeReferenceState   *CreativeReferenceState `gorm:"foreignKey:CreativeReferenceStateID" json:"creative_reference_state,omitempty"`
-	OwnerType                string                  `gorm:"index:idx_asset_slot_owner" json:"owner_type"` // script_section|situation|content_unit|keyframe|creative_reference_state
+	OwnerType                string                  `gorm:"index:idx_asset_slot_owner" json:"owner_type"` // segment|sceneMoment|content_unit|keyframe|creative_reference_state
 	OwnerID                  *uint                   `gorm:"index:idx_asset_slot_owner" json:"owner_id,omitempty"`
 	Kind                     string                  `gorm:"not null;index" json:"kind"` // image|video|audio|text|brand_pack|reference
 	Name                     string                  `gorm:"not null" json:"name"`
@@ -46,7 +46,7 @@ type AssetSlotCandidate struct {
 type CandidateDecision struct {
 	gorm.Model
 	ProjectID         uint   `gorm:"not null;index" json:"project_id"`
-	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // script_section|situation|storyboard_line|keyframe|asset_slot_candidate|preview_timeline
+	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // segment|sceneMoment|storyboard_line|keyframe|asset_slot_candidate|preview_timeline
 	CandidateID       *uint  `gorm:"index:idx_candidate_decision_candidate" json:"candidate_id,omitempty"`
 	CandidateClientID string `gorm:"index" json:"candidate_client_id"`
 	TargetType        string `gorm:"index:idx_candidate_decision_target" json:"target_type"` // optional fact/result object
@@ -85,7 +85,7 @@ type ReviewEvent struct {
 type WorkItem struct {
 	gorm.Model
 	ProjectID      uint   `gorm:"not null;index" json:"project_id"`
-	TargetType     string `gorm:"not null;index:idx_work_item_target" json:"target_type"` // script_section|situation|content_unit|creative_reference|creative_reference_state|asset_slot|asset|keyframe|delivery_version
+	TargetType     string `gorm:"not null;index:idx_work_item_target" json:"target_type"` // segment|sceneMoment|content_unit|creative_reference|creative_reference_state|asset_slot|asset|keyframe|delivery_version
 	TargetID       uint   `gorm:"not null;index:idx_work_item_target" json:"target_id"`
 	Kind           string `gorm:"not null;index" json:"kind"` // human|ai|hybrid|review|fix
 	Title          string `gorm:"not null" json:"title"`

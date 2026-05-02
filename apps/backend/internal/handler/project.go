@@ -216,10 +216,10 @@ func (h *ProjectHandler) ListMembers(c *gin.Context) {
 
 func (h *ProjectHandler) Progress(c *gin.Context) {
 	pid := c.Param("id")
-	var scriptVersionCount, scriptSectionCount, memberCount, assetSlotCount int64
+	var scriptVersionCount, segmentCount, memberCount, assetSlotCount int64
 
 	h.db.Model(&model.ScriptVersion{}).Where("project_id = ?", pid).Count(&scriptVersionCount)
-	h.db.Model(&model.ScriptSection{}).Where("project_id = ?", pid).Count(&scriptSectionCount)
+	h.db.Model(&model.Segment{}).Where("project_id = ?", pid).Count(&segmentCount)
 	h.db.Model(&model.ProjectMember{}).Where("project_id = ?", pid).Count(&memberCount)
 	h.db.Model(&model.AssetSlot{}).Where("project_id = ?", pid).Count(&assetSlotCount)
 
@@ -251,7 +251,7 @@ func (h *ProjectHandler) Progress(c *gin.Context) {
 		"scripts":        scriptVersionCount,
 		"episodes":       int64(0),
 		"total_episodes": int64(0),
-		"scenes":         scriptSectionCount,
+		"scenes":         segmentCount,
 		"assets":         assetSlotCount,
 		"members":        memberCount,
 		"storyboards": gin.H{

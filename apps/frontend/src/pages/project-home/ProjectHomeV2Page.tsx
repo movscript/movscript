@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Badge, Button, Card, Progress } from '@movscript/ui'
 
-import { getLatestScriptPreviewDraft, type GetLatestScriptPreviewDraftResponse } from '@/api/scriptPreview'
+import { getLatestProjectPreviewDraft, type GetLatestProjectPreviewDraftResponse } from '@/api/projectPreview'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -191,9 +191,9 @@ export default function ProjectHomeV2Page() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
 
-  const { data: latestDraft } = useQuery<GetLatestScriptPreviewDraftResponse>({
-    queryKey: ['script-preview-draft', projectId],
-    queryFn: () => getLatestScriptPreviewDraft(projectId!),
+  const { data: latestDraft } = useQuery<GetLatestProjectPreviewDraftResponse>({
+    queryKey: ['project-preview-draft', projectId],
+    queryFn: () => getLatestProjectPreviewDraft(projectId!),
     enabled: !!projectId,
   })
   const { data: scriptVersions = [] } = useQuery({
@@ -307,7 +307,7 @@ export default function ProjectHomeV2Page() {
       {
         key: 'preview',
         title: '检查预演和生产方案',
-        area: '预演决策工作台',
+        area: '项目预演工作台',
         href: '/workbench/production-plan',
         priority: 'low',
         detail: '没有高优先级阻塞时，优先确认下一批可生产片段',

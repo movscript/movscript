@@ -21,10 +21,10 @@ import {
 } from 'lucide-react'
 
 import {
-  getLatestScriptPreviewDraft,
-  type GetLatestScriptPreviewDraftResponse,
-  type SaveScriptPreviewDraftResponse,
-} from '@/api/scriptPreview'
+  getLatestProjectPreviewDraft,
+  type GetLatestProjectPreviewDraftResponse,
+  type SaveProjectPreviewDraftResponse,
+} from '@/api/projectPreview'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -69,9 +69,9 @@ export default function PreviewProgressPage() {
   const projectId = project?.ID
   const [selectedRecordId, setSelectedRecordId] = useState<string>('')
 
-  const { data, isLoading, isError, error } = useQuery<GetLatestScriptPreviewDraftResponse>({
-    queryKey: ['script-preview-progress', projectId],
-    queryFn: () => getLatestScriptPreviewDraft(projectId!),
+  const { data, isLoading, isError, error } = useQuery<GetLatestProjectPreviewDraftResponse>({
+    queryKey: ['project-preview-progress', projectId],
+    queryFn: () => getLatestProjectPreviewDraft(projectId!),
     enabled: !!projectId,
   })
 
@@ -112,15 +112,15 @@ export default function PreviewProgressPage() {
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="outline" className="gap-2" asChild>
-                <Link to="/production-preview">
+                <Link to="/project-preview">
                   <Film size={15} />
-                  打开制作预演
+                  打开制作编排
                 </Link>
               </Button>
               <Button className="gap-2" asChild>
                 <Link to="/workbench/preview">
                   <Play size={15} />
-                  处理预演决策
+                  进入项目预演
                 </Link>
               </Button>
             </div>
@@ -152,7 +152,7 @@ export default function PreviewProgressPage() {
                 ) : isError ? (
                   <StatusBlock icon={XCircle} title="读取失败" text={error instanceof Error ? error.message : '无法读取预演记录'} tone="danger" />
                 ) : records.length === 0 ? (
-                  <StatusBlock icon={Film} title="暂无预演记录" text="在制作预演页保存并确认预演后，这里会出现一条记录。" />
+                  <StatusBlock icon={Film} title="暂无预演记录" text="在制作编排保存并到项目预演确认后，这里会出现一条记录。" />
                 ) : (
                   records.map((record) => (
                     <button
@@ -203,7 +203,7 @@ export default function PreviewProgressPage() {
                     </div>
                   </div>
                   <div className="mt-5 grid gap-3 md:grid-cols-4">
-                    <StatCard icon={Layers} label="剧本节" value={selectedRecord.stats.sections} />
+                    <StatCard icon={Layers} label="片段" value={selectedRecord.stats.sections} />
                     <StatCard icon={Route} label="时间线" value={selectedRecord.stats.timelineItems} />
                     <StatCard icon={Sparkles} label="关键帧" value={`${selectedRecord.stats.acceptedKeyframes}/${selectedRecord.stats.keyframes}`} />
                     <StatCard icon={PackageCheck} label="素材缺口" value={selectedRecord.stats.assetGaps} />
@@ -303,12 +303,12 @@ export default function PreviewProgressPage() {
   )
 }
 
-function buildPreviewProgressRecords(data?: GetLatestScriptPreviewDraftResponse): PreviewProgressRecord[] {
+function buildPreviewProgressRecords(data?: GetLatestProjectPreviewDraftResponse): PreviewProgressRecord[] {
   if (!data?.found || !data.draft) return []
   return [mapDraftToRecord(data.draft)]
 }
 
-function mapDraftToRecord(response: SaveScriptPreviewDraftResponse): PreviewProgressRecord {
+function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewProgressRecord {
   const draft = response.draft
   const analysis = draft.analysis_candidates
   const preview = draft.preview_candidates
@@ -341,7 +341,7 @@ function mapDraftToRecord(response: SaveScriptPreviewDraftResponse): PreviewProg
     {
       id: 'analysis',
       title: '结构解析',
-      detail: sections > 0 ? `已生成 ${sections} 个剧本节和 ${analysis?.storyboard_suggestions.length ?? 0} 条分镜建议。` : '等待解析剧本节、情境和分镜建议。',
+      detail: sections > 0 ? `已生成 ${sections} 个片段和 ${analysis?.storyboard_suggestions.length ?? 0} 条分镜建议。` : '等待解析片段、情节和分镜建议。',
       status: sections > 0 ? 'done' : 'active',
       progress: sections > 0 ? 100 : 35,
     },
@@ -406,11 +406,11 @@ function deriveNextActions(input: {
   confirmed: boolean
 }) {
   if (input.confirmed) return ['进入内容生产，基于已确认预演拆分生产任务。']
-  if (input.sections === 0) return ['返回制作预演页，先解析剧本结构。']
+  if (input.sections === 0) return ['返回制作编排，先解析剧本结构。']
   if (input.timelineItems === 0) return ['生成预演时间线和关键帧候选。']
-  if (input.keyframes > 0 && input.acceptedKeyframes === 0) return ['在预演决策工作台确认关键帧候选。']
+  if (input.keyframes > 0 && input.acceptedKeyframes === 0) return ['在项目预演工作台确认关键帧候选。']
   if (input.assetGaps > 0 && input.resolvedAssetGaps === 0) return ['补齐或接受高优先素材缺口。']
-  return ['在预演决策工作台确认当前预演，生成正式预演记录。']
+  return ['在项目预演工作台确认当前预演，生成正式预演记录。']
 }
 
 function formatDateTime(value: string) {

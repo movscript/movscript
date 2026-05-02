@@ -24,31 +24,31 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
   try {
     completeStep(run, 'read_context', summarizeContext(action.inputContext))
 
-    if (action.type === 'AnalyzeScriptToSections') {
-      completeStep(run, 'analyze', 'Split source text into script section candidates.')
-      const candidates = buildScriptSectionCandidates(action, run.id)
+    if (action.type === 'AnalyzeScriptToSegments') {
+      completeStep(run, 'analyze', 'Split source text into production segment candidates.')
+      const candidates = buildSegmentCandidates(action, run.id)
       if (candidates.length === 0) {
-        throw new Error('AnalyzeScriptToSections requires inputContext.source_text or inputContext.sourceText')
+        throw new Error('AnalyzeScriptToSegments requires inputContext.source_text or inputContext.sourceText')
       }
-      completeStep(run, 'validate', `Validated ${candidates.length} script section candidate(s).`)
+      completeStep(run, 'validate', `Validated ${candidates.length} production segment candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
       completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
       completeStep(run, 'request_approval', 'Candidates require explicit user acceptance before becoming facts.')
-    } else if (action.type === 'ExtractSituations') {
-      completeStep(run, 'analyze', 'Extract deterministic situation candidates from script sections, storyboard rows, or source text.')
-      const candidates = buildSituationCandidates(action, run.id)
+    } else if (action.type === 'ExtractSceneMoments') {
+      completeStep(run, 'analyze', 'Extract deterministic sceneMoment candidates from production segments, storyboard rows, or source text.')
+      const candidates = buildSceneMomentCandidates(action, run.id)
       if (candidates.length === 0) {
-        throw new Error('ExtractSituations requires inputContext.script_sections, inputContext.storyboard_rows, or inputContext.source_text')
+        throw new Error('ExtractSceneMoments requires inputContext.segments, inputContext.storyboard_rows, or inputContext.source_text')
       }
-      completeStep(run, 'validate', `Validated ${candidates.length} situation candidate(s).`)
+      completeStep(run, 'validate', `Validated ${candidates.length} sceneMoment candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
       completeStep(run, 'write_candidate', `Created ${candidates.length} runtime candidate(s); no V2 data action was called.`)
-      completeStep(run, 'request_approval', 'Situation candidates require explicit user acceptance before becoming facts.')
+      completeStep(run, 'request_approval', 'SceneMoment candidates require explicit user acceptance before becoming facts.')
     } else if (action.type === 'GenerateStoryboardScript') {
-      completeStep(run, 'generate', 'Generate deterministic storyboard script candidates from script sections and situations.')
+      completeStep(run, 'generate', 'Generate deterministic storyboard script candidates from production segments and sceneMoments.')
       const candidates = buildStoryboardScriptCandidates(action, run.id)
       if (candidates.length === 0) {
-        throw new Error('GenerateStoryboardScript requires inputContext.script_sections or inputContext.situations')
+        throw new Error('GenerateStoryboardScript requires inputContext.segments or inputContext.sceneMoments')
       }
       completeStep(run, 'validate', `Validated ${candidates.length} storyboard script candidate(s).`)
       for (const candidate of candidates) run.candidates.push(candidate)
@@ -81,27 +81,27 @@ export function executeDeterministicProductionAction(action: ProductionAction): 
 }
 
 function buildStoryboardScriptCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
-  const scriptSections = getRecordArray(action.inputContext, 'script_sections') ?? getRecordArray(action.inputContext, 'scriptSections') ?? []
-  const situations = getRecordArray(action.inputContext, 'situations') ?? getRecordArray(action.inputContext, 'situations') ?? []
+  const segments = getRecordArray(action.inputContext, 'segments') ?? getRecordArray(action.inputContext, 'segments') ?? []
+  const sceneMoments = getRecordArray(action.inputContext, 'sceneMoments') ?? getRecordArray(action.inputContext, 'sceneMoments') ?? []
   const storyboardRows = getRecordArray(action.inputContext, 'storyboard_rows') ?? getRecordArray(action.inputContext, 'storyboardRows') ?? []
-  const sources = scriptSections.length > 0 ? scriptSections.slice(0, 24) : situations.slice(0, 24)
+  const sources = segments.length > 0 ? segments.slice(0, 24) : sceneMoments.slice(0, 24)
   if (sources.length === 0) return []
 
   const durationTarget = getNumber(action.inputContext, 'duration_target') ?? getNumber(action.inputContext, 'durationTarget')
   const targetDuration = durationTarget && durationTarget > 0 ? Math.max(3, Math.round(durationTarget / sources.length)) : undefined
 
   return sources.map((source, index) => {
-    const sourceSectionId = inferSourceSectionId(source)
-    const matchedSituation = findMatchingSituation(situations, source, index)
-    const situationId = matchedSituation ? inferSituationId(matchedSituation) : undefined
-    const existingStoryboardRow = findMatchingStoryboardRow(storyboardRows, sourceSectionId, index)
-    const title = getRowString(source, ['title', 'name', 'heading']) ?? getRowString(matchedSituation ?? {}, ['title', 'name']) ?? `Storyboard ${index + 1}`
+    const sourceSegmentId = inferSourceSegmentId(source)
+    const matchedSceneMoment = findMatchingSceneMoment(sceneMoments, source, index)
+    const sceneMomentId = matchedSceneMoment ? inferSceneMomentId(matchedSceneMoment) : undefined
+    const existingStoryboardRow = findMatchingStoryboardRow(storyboardRows, sourceSegmentId, index)
+    const title = getRowString(source, ['title', 'name', 'heading']) ?? getRowString(matchedSceneMoment ?? {}, ['title', 'name']) ?? `Storyboard ${index + 1}`
     const summary = getRowString(source, ['summary', 'description', 'content', 'body', 'text'])
-      ?? getRowString(matchedSituation ?? {}, ['summary', 'description', 'content', 'body', 'text'])
+      ?? getRowString(matchedSceneMoment ?? {}, ['summary', 'description', 'content', 'body', 'text'])
       ?? title
-    const location = getRowString(matchedSituation ?? source, ['location', 'location_text', 'locationText', 'where'])
-    const timeOfDay = getRowString(matchedSituation ?? source, ['time_of_day', 'timeOfDay', 'time_text', 'timeText', 'when'])
-    const durationSeconds = targetDuration ?? getRowNumber(source, ['duration_seconds', 'durationSeconds', 'duration']) ?? getRowNumber(matchedSituation ?? {}, ['duration_seconds', 'durationSeconds', 'duration']) ?? 8
+    const location = getRowString(matchedSceneMoment ?? source, ['location', 'location_text', 'locationText', 'where'])
+    const timeOfDay = getRowString(matchedSceneMoment ?? source, ['time_of_day', 'timeOfDay', 'time_text', 'timeText', 'when'])
+    const durationSeconds = targetDuration ?? getRowNumber(source, ['duration_seconds', 'durationSeconds', 'duration']) ?? getRowNumber(matchedSceneMoment ?? {}, ['duration_seconds', 'durationSeconds', 'duration']) ?? 8
     const adoptionIntent = existingStoryboardRow ? 'revise_existing_storyboard_row' : 'append_storyboard_row'
 
     return {
@@ -120,19 +120,19 @@ function buildStoryboardScriptCandidates(action: ProductionAction, runId: string
         duration_seconds: durationSeconds,
         status: '待确认',
         adoption_intent: adoptionIntent,
-        ...(sourceSectionId ? { source_section_id: sourceSectionId } : {}),
-        ...(situationId ? { situation_id: situationId } : {}),
+        ...(sourceSegmentId ? { source_segment_id: sourceSegmentId } : {}),
+        ...(sceneMomentId ? { sceneMoment_id: sceneMomentId } : {}),
         source_ref: {
-          type: scriptSections.length > 0 ? 'script_section' : 'situation',
+          type: segments.length > 0 ? 'segment' : 'sceneMoment',
           value: normalizeJSON(source),
-          ...(matchedSituation ? { situation: normalizeJSON(matchedSituation) } : {}),
+          ...(matchedSceneMoment ? { sceneMoment: normalizeJSON(matchedSceneMoment) } : {}),
           ...(existingStoryboardRow ? { existing_storyboard_row: normalizeJSON(existingStoryboardRow) } : {}),
         },
         confirm_question: '是否采用这个分镜脚本候选？',
       },
       confidence: existingStoryboardRow ? 0.58 : 0.62,
       evidence: [
-        `${scriptSections.length > 0 ? 'script_section' : 'situation'}:${sourceSectionId ?? situationId ?? index + 1}`,
+        `${segments.length > 0 ? 'segment' : 'sceneMoment'}:${sourceSegmentId ?? sceneMomentId ?? index + 1}`,
         ...(existingStoryboardRow ? [`existing_storyboard_row:${getRowString(existingStoryboardRow, ['client_id', 'id']) ?? index + 1}`] : []),
       ],
       createdAt: isoNow(),
@@ -140,38 +140,38 @@ function buildStoryboardScriptCandidates(action: ProductionAction, runId: string
   })
 }
 
-function inferSourceSectionId(row: Record<string, JSONValue>): string | undefined {
-  return getRowString(row, ['source_section_id', 'sourceSectionId', 'section_id', 'sectionId', 'client_id', 'clientId', 'id'])
+function inferSourceSegmentId(row: Record<string, JSONValue>): string | undefined {
+  return getRowString(row, ['source_segment_id', 'sourceSegmentId', 'section_id', 'segmentId', 'client_id', 'clientId', 'id'])
 }
 
-function inferSituationId(row: Record<string, JSONValue>): string | undefined {
-  return getRowString(row, ['situation_id', 'situationId', 'client_id', 'clientId', 'id'])
+function inferSceneMomentId(row: Record<string, JSONValue>): string | undefined {
+  return getRowString(row, ['sceneMoment_id', 'sceneMomentId', 'client_id', 'clientId', 'id'])
 }
 
-function findMatchingSituation(
-  situations: Array<Record<string, JSONValue>>,
+function findMatchingSceneMoment(
+  sceneMoments: Array<Record<string, JSONValue>>,
   section: Record<string, JSONValue>,
   index: number,
 ): Record<string, JSONValue> | undefined {
-  if (situations.length === 0) return undefined
-  const sourceSectionId = inferSourceSectionId(section)
+  if (sceneMoments.length === 0) return undefined
+  const sourceSegmentId = inferSourceSegmentId(section)
   const sectionOrder = getRowNumber(section, ['order'])
-  return situations.find((situation) => {
-    const situationSourceSectionId = getRowString(situation, ['source_section_id', 'sourceSectionId', 'section_id', 'sectionId'])
-    if (sourceSectionId && situationSourceSectionId === sourceSectionId) return true
-    const situationOrder = getRowNumber(situation, ['order'])
-    return sectionOrder !== undefined && situationOrder === sectionOrder
-  }) ?? situations[index]
+  return sceneMoments.find((sceneMoment) => {
+    const sceneMomentSourceSegmentId = getRowString(sceneMoment, ['source_segment_id', 'sourceSegmentId', 'section_id', 'segmentId'])
+    if (sourceSegmentId && sceneMomentSourceSegmentId === sourceSegmentId) return true
+    const sceneMomentOrder = getRowNumber(sceneMoment, ['order'])
+    return sectionOrder !== undefined && sceneMomentOrder === sectionOrder
+  }) ?? sceneMoments[index]
 }
 
 function findMatchingStoryboardRow(
   rows: Array<Record<string, JSONValue>>,
-  sourceSectionId: string | undefined,
+  sourceSegmentId: string | undefined,
   index: number,
 ): Record<string, JSONValue> | undefined {
   if (rows.length === 0) return undefined
-  const matchedBySection = sourceSectionId
-    ? rows.find((row) => getRowString(row, ['source_section_id', 'sourceSectionId', 'section_id', 'sectionId']) === sourceSectionId)
+  const matchedBySection = sourceSegmentId
+    ? rows.find((row) => getRowString(row, ['source_segment_id', 'sourceSegmentId', 'section_id', 'segmentId']) === sourceSegmentId)
     : undefined
   return matchedBySection ?? rows.find((row) => getRowNumber(row, ['order']) === index + 1)
 }
@@ -181,14 +181,14 @@ function buildStoryboardBody(summary: string, location: string | undefined, time
   return context ? `${summary}\n场景：${context}` : summary
 }
 
-function buildScriptSectionCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
+function buildSegmentCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
   const sourceText = getString(action.inputContext, 'source_text') ?? getString(action.inputContext, 'sourceText')
   if (!sourceText?.trim()) return []
 
   const sections = splitIntoSections(sourceText)
   return sections.map((section, index) => ({
     id: makeId('production_candidate'),
-    type: 'script_section',
+    type: 'segment',
     projectId: action.projectId,
     sourceActionId: action.id,
     sourceRunId: runId,
@@ -204,7 +204,7 @@ function buildScriptSectionCandidates(action: ProductionAction, runId: string): 
         end: section.end,
       },
       confidence: section.confidence,
-      confirm_question: '是否采用这个剧本节拆分？',
+      confirm_question: '是否采用这个片段拆分？',
     },
     confidence: section.confidence,
     evidence: [`source_text:${section.start}-${section.end}`],
@@ -212,15 +212,15 @@ function buildScriptSectionCandidates(action: ProductionAction, runId: string): 
   }))
 }
 
-function buildSituationCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
-  const scriptSections = getRecordArray(action.inputContext, 'script_sections') ?? getRecordArray(action.inputContext, 'scriptSections')
-  if (scriptSections && scriptSections.length > 0) {
-    return scriptSections.slice(0, 24).map((section, index) => buildSituationCandidateFromRecord(action, runId, section, index, 'script_section'))
+function buildSceneMomentCandidates(action: ProductionAction, runId: string): ProductionCandidate[] {
+  const segments = getRecordArray(action.inputContext, 'segments') ?? getRecordArray(action.inputContext, 'segments')
+  if (segments && segments.length > 0) {
+    return segments.slice(0, 24).map((section, index) => buildSceneMomentCandidateFromRecord(action, runId, section, index, 'segment'))
   }
 
   const storyboardRows = getRecordArray(action.inputContext, 'storyboard_rows') ?? getRecordArray(action.inputContext, 'storyboardRows')
   if (storyboardRows && storyboardRows.length > 0) {
-    return storyboardRows.slice(0, 24).map((row, index) => buildSituationCandidateFromRecord(action, runId, row, index, 'storyboard_row'))
+    return storyboardRows.slice(0, 24).map((row, index) => buildSceneMomentCandidateFromRecord(action, runId, row, index, 'storyboard_row'))
   }
 
   const sourceText = getString(action.inputContext, 'source_text') ?? getString(action.inputContext, 'sourceText')
@@ -228,14 +228,14 @@ function buildSituationCandidates(action: ProductionAction, runId: string): Prod
 
   return splitIntoSections(sourceText).slice(0, 24).map((section, index) => ({
     id: makeId('production_candidate'),
-    type: 'situation',
+    type: 'sceneMoment',
     projectId: action.projectId,
     sourceActionId: action.id,
     sourceRunId: runId,
     targetObject: action.sourceObject,
     status: 'candidate',
     payload: {
-      client_id: `situation-${index + 1}`,
+      client_id: `sceneMoment-${index + 1}`,
       order: index + 1,
       title: section.title,
       summary: section.summary,
@@ -246,7 +246,7 @@ function buildSituationCandidates(action: ProductionAction, runId: string): Prod
           end: section.end,
         },
       },
-      confirm_question: '是否采用这个情境候选？',
+      confirm_question: '是否采用这个情节候选？',
     },
     confidence: 0.58,
     evidence: [`source_text:${section.start}-${section.end}`],
@@ -254,12 +254,12 @@ function buildSituationCandidates(action: ProductionAction, runId: string): Prod
   }))
 }
 
-function buildSituationCandidateFromRecord(
+function buildSceneMomentCandidateFromRecord(
   action: ProductionAction,
   runId: string,
   row: Record<string, JSONValue>,
   index: number,
-  sourceType: 'script_section' | 'storyboard_row',
+  sourceType: 'segment' | 'storyboard_row',
 ): ProductionCandidate {
   const summary = getRowString(row, ['summary', 'description', 'content', 'body', 'text', 'visual_prompt', 'visualPrompt'])
   const title = getRowString(row, ['title', 'name', 'heading', 'shot']) ?? inferSectionTitle(summary ?? '', index)
@@ -269,14 +269,14 @@ function buildSituationCandidateFromRecord(
 
   return {
     id: makeId('production_candidate'),
-    type: 'situation',
+    type: 'sceneMoment',
     projectId: action.projectId,
     sourceActionId: action.id,
     sourceRunId: runId,
     targetObject: action.sourceObject,
     status: 'candidate',
     payload: {
-      client_id: `situation-${index + 1}`,
+      client_id: `sceneMoment-${index + 1}`,
       order: index + 1,
       title,
       summary: summary ?? title,
@@ -287,9 +287,9 @@ function buildSituationCandidateFromRecord(
         type: sourceType,
         value: normalizeJSON(row),
       },
-      confirm_question: '是否采用这个情境候选？',
+      confirm_question: '是否采用这个情节候选？',
     },
-    confidence: sourceType === 'script_section' ? 0.64 : 0.6,
+    confidence: sourceType === 'segment' ? 0.64 : 0.6,
     evidence: [`${sourceType}:${getRowString(row, ['client_id', 'id']) ?? index + 1}`],
     createdAt: isoNow(),
   }

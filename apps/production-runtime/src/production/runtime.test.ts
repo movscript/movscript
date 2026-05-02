@@ -8,11 +8,11 @@ import { FileProductionStore } from './store.js'
 import type { ProductionV2FallbackClient } from './v2FallbackClient.js'
 import type { ProductionAction, ProductionRun } from './types.js'
 
-test('production runtime executes AnalyzeScriptToSections into candidates', async () => {
+test('production runtime executes AnalyzeScriptToSegments into candidates', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     sourceObject: { objectType: 'script', objectId: 12, versionId: 'v1' },
     inputContext: {
@@ -21,10 +21,10 @@ test('production runtime executes AnalyzeScriptToSections into candidates', asyn
     requestedBy: 'test',
   })
 
-  assert.equal(run.actionType, 'AnalyzeScriptToSections')
+  assert.equal(run.actionType, 'AnalyzeScriptToSegments')
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 2)
-  assert.equal(run.candidates[0].type, 'script_section')
+  assert.equal(run.candidates[0].type, 'segment')
   assert.equal(run.candidates[0].status, 'candidate')
   assert.equal(run.candidates[0].payload.order, 1)
   assert.equal(runtime.getRun(run.id)?.id, run.id)
@@ -52,15 +52,15 @@ test('production runtime executes GenerateKeyframeCandidates from storyboard row
   assert.equal(run.warnings.includes('V2 fallback disabled'), true)
 })
 
-test('production runtime executes ExtractSituations from script sections', async () => {
+test('production runtime executes ExtractSceneMoments from production segments', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
-    actionType: 'ExtractSituations',
+    actionType: 'ExtractSceneMoments',
     projectId: 3,
     sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'v2' },
     inputContext: {
-      script_sections: [
+      segments: [
         {
           client_id: 'section-1',
           order: 1,
@@ -74,27 +74,27 @@ test('production runtime executes ExtractSituations from script sections', async
     },
   })
 
-  assert.equal(run.actionType, 'ExtractSituations')
+  assert.equal(run.actionType, 'ExtractSceneMoments')
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 1)
-  assert.equal(run.candidates[0].type, 'situation')
+  assert.equal(run.candidates[0].type, 'sceneMoment')
   assert.equal(run.candidates[0].status, 'candidate')
-  assert.equal(run.candidates[0].payload.client_id, 'situation-1')
+  assert.equal(run.candidates[0].payload.client_id, 'sceneMoment-1')
   assert.equal(run.candidates[0].payload.order, 1)
   assert.equal(run.candidates[0].payload.title, '夜晚仓库对峙')
   assert.equal(run.candidates[0].payload.summary, '主角在仓库里发现交易线索，并与对手短暂对峙。')
   assert.equal(run.candidates[0].payload.location, '仓库')
   assert.equal(run.candidates[0].payload.time_of_day, '夜晚')
   assert.deepEqual(run.candidates[0].payload.characters, ['主角', '对手'])
-  assert.equal(run.candidates[0].payload.confirm_question, '是否采用这个情境候选？')
+  assert.equal(run.candidates[0].payload.confirm_question, '是否采用这个情节候选？')
   assert.equal(runtime.getCandidate(run.candidates[0].id)?.id, run.candidates[0].id)
 })
 
-test('production runtime extracts situations from storyboard rows or source text fallback', async () => {
+test('production runtime extracts sceneMoments from storyboard rows or source text fallback', async () => {
   const runtime = new ProductionRuntime()
 
   const storyboardRun = await runtime.createAction({
-    actionType: 'ExtractSituations',
+    actionType: 'ExtractSceneMoments',
     projectId: 3,
     inputContext: {
       storyboardRows: [
@@ -110,7 +110,7 @@ test('production runtime extracts situations from storyboard rows or source text
     },
   })
   const sourceTextRun = await runtime.createAction({
-    actionType: 'ExtractSituations',
+    actionType: 'ExtractSceneMoments',
     projectId: 3,
     inputContext: {
       sourceText: '第一场。主角进入车站寻找线索。\n\n第二场。对手提前离开，留下车票。',
@@ -119,39 +119,39 @@ test('production runtime extracts situations from storyboard rows or source text
 
   assert.equal(storyboardRun.status, 'waiting_approval')
   assert.equal(storyboardRun.candidates.length, 1)
-  assert.equal(storyboardRun.candidates[0].type, 'situation')
+  assert.equal(storyboardRun.candidates[0].type, 'sceneMoment')
   assert.equal(storyboardRun.candidates[0].payload.title, '雨中告别')
   assert.equal(storyboardRun.candidates[0].payload.location, '车站外')
   assert.equal(storyboardRun.candidates[0].payload.time_of_day, '清晨')
   assert.deepEqual(storyboardRun.candidates[0].payload.characters, ['主角', '对手'])
   assert.equal(sourceTextRun.status, 'waiting_approval')
   assert.equal(sourceTextRun.candidates.length, 2)
-  assert.equal(sourceTextRun.candidates[0].type, 'situation')
+  assert.equal(sourceTextRun.candidates[0].type, 'sceneMoment')
   assert.equal(sourceTextRun.candidates[0].payload.title, '第一场')
-  assert.equal(sourceTextRun.candidates[0].payload.confirm_question, '是否采用这个情境候选？')
+  assert.equal(sourceTextRun.candidates[0].payload.confirm_question, '是否采用这个情节候选？')
 })
 
-test('production runtime fails ExtractSituations without usable input', async () => {
+test('production runtime fails ExtractSceneMoments without usable input', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
-    actionType: 'ExtractSituations',
+    actionType: 'ExtractSceneMoments',
     projectId: 3,
     inputContext: {},
   })
 
   assert.equal(run.status, 'failed')
-  assert.match(run.error ?? '', /script_sections/)
+  assert.match(run.error ?? '', /segments/)
   assert.equal(run.candidates.length, 0)
 })
 
-test('production runtime situation apply preview maps to V2 data operation but remains gated', async () => {
+test('production runtime sceneMoment apply preview maps to V2 data operation but remains gated', async () => {
   const runtime = new ProductionRuntime()
   const run = await runtime.createAction({
-    actionType: 'ExtractSituations',
+    actionType: 'ExtractSceneMoments',
     projectId: 3,
     inputContext: {
-      script_sections: [
+      segments: [
         {
           client_id: 'section-1',
           title: '夜晚仓库对峙',
@@ -168,15 +168,15 @@ test('production runtime situation apply preview maps to V2 data operation but r
   assert.equal(candidatePreview.status, 'not_applicable')
   assert.equal(candidatePreview.canApply, false)
   assert.equal(candidatePreview.approval.requiredAction, 'accept_candidate')
-  assert.equal(candidatePreview.v2DataOperation, 'UpsertSituationCandidates')
+  assert.equal(candidatePreview.v2DataOperation, 'UpsertSceneMomentCandidates')
   assert.equal(acceptedPreview.status, 'blocked')
   assert.equal(acceptedPreview.canApply, false)
   assert.equal(acceptedPreview.approval.requiredAction, 'call_v2_data_action')
-  assert.equal(acceptedPreview.v2DataOperation, 'UpsertSituationCandidates')
+  assert.equal(acceptedPreview.v2DataOperation, 'UpsertSceneMomentCandidates')
   assert.equal(acceptedPreview.requiredContext.includes('targetObject'), true)
 })
 
-test('production runtime executes GenerateStoryboardScript from script sections and situations', async () => {
+test('production runtime executes GenerateStoryboardScript from production segments and sceneMoments', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
@@ -185,7 +185,7 @@ test('production runtime executes GenerateStoryboardScript from script sections 
     sourceObject: { objectType: 'script_version', objectId: 18, versionId: 'v2' },
     inputContext: {
       duration_target: 20,
-      script_sections: [
+      segments: [
         {
           client_id: 'section-1',
           order: 1,
@@ -199,10 +199,10 @@ test('production runtime executes GenerateStoryboardScript from script sections 
           summary: '主角追上对手，逼问真正的交货地点。',
         },
       ],
-      situations: [
+      sceneMoments: [
         {
-          client_id: 'situation-1',
-          source_section_id: 'section-1',
+          client_id: 'sceneMoment-1',
+          source_segment_id: 'section-1',
           order: 1,
           title: '仓库交易',
           summary: '仓库里藏着关键证据。',
@@ -210,8 +210,8 @@ test('production runtime executes GenerateStoryboardScript from script sections 
           time_of_day: '夜晚',
         },
         {
-          client_id: 'situation-2',
-          source_section_id: 'section-2',
+          client_id: 'sceneMoment-2',
+          source_segment_id: 'section-2',
           order: 2,
           title: '天台逼问',
           summary: '主角在天台逼问对手。',
@@ -228,8 +228,8 @@ test('production runtime executes GenerateStoryboardScript from script sections 
   assert.equal(run.candidates[0].type, 'storyboard_script')
   assert.equal(run.candidates[0].status, 'candidate')
   assert.equal(run.candidates[0].payload.client_id, 'storyboard-script-1')
-  assert.equal(run.candidates[0].payload.source_section_id, 'section-1')
-  assert.equal(run.candidates[0].payload.situation_id, 'situation-1')
+  assert.equal(run.candidates[0].payload.source_segment_id, 'section-1')
+  assert.equal(run.candidates[0].payload.sceneMoment_id, 'sceneMoment-1')
   assert.equal(run.candidates[0].payload.duration_seconds, 10)
   assert.equal(run.candidates[0].payload.status, '待确认')
   assert.equal(run.candidates[0].payload.adoption_intent, 'append_storyboard_row')
@@ -237,14 +237,14 @@ test('production runtime executes GenerateStoryboardScript from script sections 
   assert.equal(run.candidates[0].payload.confirm_question, '是否采用这个分镜脚本候选？')
 })
 
-test('production runtime executes GenerateStoryboardScript from script sections only', async () => {
+test('production runtime executes GenerateStoryboardScript from production segments only', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
     actionType: 'GenerateStoryboardScript',
     projectId: 4,
     inputContext: {
-      scriptSections: [
+      segments: [
         {
           id: 'section-a',
           order: 1,
@@ -259,7 +259,7 @@ test('production runtime executes GenerateStoryboardScript from script sections 
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 1)
   assert.equal(run.candidates[0].type, 'storyboard_script')
-  assert.equal(run.candidates[0].payload.source_section_id, 'section-a')
+  assert.equal(run.candidates[0].payload.source_segment_id, 'section-a')
   assert.equal(run.candidates[0].payload.title, '开场')
   assert.equal(run.candidates[0].payload.body, '主角进入车站大厅寻找线索。')
   assert.equal(run.candidates[0].payload.duration_seconds, 7)
@@ -273,7 +273,7 @@ test('production runtime uses existing storyboard rows as source context without
     actionType: 'GenerateStoryboardScript',
     projectId: 4,
     inputContext: {
-      script_sections: [
+      segments: [
         {
           client_id: 'section-1',
           order: 1,
@@ -285,7 +285,7 @@ test('production runtime uses existing storyboard rows as source context without
         {
           client_id: 'row-existing-1',
           order: 1,
-          source_section_id: 'section-1',
+          source_segment_id: 'section-1',
           title: '旧分镜行',
           body: '旧版本分镜内容。',
           status: '已确认',
@@ -317,7 +317,7 @@ test('production runtime fails GenerateStoryboardScript without usable input', a
   })
 
   assert.equal(run.status, 'failed')
-  assert.match(run.error ?? '', /script_sections/)
+  assert.match(run.error ?? '', /segments/)
   assert.equal(run.candidates.length, 0)
 })
 
@@ -327,7 +327,7 @@ test('production runtime storyboard script apply preview maps to V2 data operati
     actionType: 'GenerateStoryboardScript',
     projectId: 4,
     inputContext: {
-      script_sections: [
+      segments: [
         {
           client_id: 'section-1',
           title: '夜晚仓库对峙',
@@ -355,7 +355,7 @@ test('production runtime fails unsupported deterministic input before candidate 
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {},
   })
@@ -369,7 +369,7 @@ test('file production store persists runs and candidates across runtime rebuilds
   const filePath = join(mkdtempSync(join(tmpdir(), 'movscript-production-store-')), 'production-state.json')
   const runtime = new ProductionRuntime({ store: new FileProductionStore(filePath) })
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
@@ -386,7 +386,7 @@ test('production runtime persists rejected candidate lifecycle across runtime re
   const filePath = join(mkdtempSync(join(tmpdir(), 'movscript-production-store-')), 'production-state.json')
   const runtime = new ProductionRuntime({ store: new FileProductionStore(filePath) })
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
@@ -411,7 +411,7 @@ test('production runtime persists rejected candidate lifecycle across runtime re
 test('production runtime revises candidate into a new candidate and updates the original', async () => {
   const runtime = new ProductionRuntime()
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
@@ -442,7 +442,7 @@ test('production runtime lifecycle updates do not call V2 fallback', async () =>
   const fallback = new RecordingFallbackClient()
   const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
@@ -462,7 +462,7 @@ test('production runtime apply preview blocks accepted candidates before V2 appl
   const fallback = new RecordingFallbackClient()
   const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     sourceObject: { objectType: 'script', objectId: 12, versionId: 'v1' },
     inputContext: {
@@ -482,7 +482,7 @@ test('production runtime apply preview blocks accepted candidates before V2 appl
   assert.equal(preview.approval.approvalPolicy, 'explicit_accept_required')
   assert.equal(preview.approval.requiredAction, 'call_v2_data_action')
   assert.equal(preview.approval.status, 'blocked')
-  assert.equal(preview.v2DataOperation, 'UpsertScriptSectionCandidates')
+  assert.equal(preview.v2DataOperation, 'UpsertSegmentCandidates')
   assert.deepEqual(preview.targetObject, { objectType: 'script', objectId: 12, versionId: 'v1' })
   assert.equal(preview.warnings.some((warning) => warning.includes('no V2 data action was called')), true)
   assert.equal(fallback.calls, 1)
@@ -491,14 +491,14 @@ test('production runtime apply preview blocks accepted candidates before V2 appl
 test('production runtime apply preview marks rejected revised and superseded candidates not applicable', async () => {
   const runtime = new ProductionRuntime()
   const rejectedRun = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
     },
   })
   const revisedRun = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第二场。主角离开房间。',
@@ -557,7 +557,7 @@ test('production runtime keeps runtime candidates when V2 fallback fails', async
   })
 
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
@@ -595,7 +595,7 @@ test('production runtime records enabled V2 fallback without changing candidate 
   const runtime = new ProductionRuntime({ v2FallbackClient: fallback })
 
   const run = await runtime.createAction({
-    actionType: 'AnalyzeScriptToSections',
+    actionType: 'AnalyzeScriptToSegments',
     projectId: 1,
     inputContext: {
       source_text: '第一场。主角进入房间。',
@@ -624,7 +624,7 @@ test('production runtime records enabled keyframe V2 fallback without changing c
 
   assert.equal(fallback.generateKeyframeCalls, 1)
   assert.equal(run.candidates[0].status, 'candidate')
-  assert.equal(run.warnings.some((warning) => warning.includes('script-preview/generate-preview')), true)
+  assert.equal(run.warnings.some((warning) => warning.includes('project-preview/generate-preview')), true)
 })
 
 test('production runtime keyframe lifecycle and apply preview do not call V2 fallback again', async () => {
@@ -652,7 +652,7 @@ class FailingFallbackClient implements ProductionV2FallbackClient {
     return true
   }
 
-  async writeAnalyzeScriptToSections(): Promise<never> {
+  async writeAnalyzeScriptToSegments(): Promise<never> {
     throw new Error('simulated V2 fallback failure')
   }
 
@@ -669,13 +669,13 @@ class RecordingFallbackClient implements ProductionV2FallbackClient {
     return true
   }
 
-  async writeAnalyzeScriptToSections(_action: ProductionAction, _run: ProductionRun) {
+  async writeAnalyzeScriptToSegments(_action: ProductionAction, _run: ProductionRun) {
     this.calls += 1
-    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/script-preview/analyze' }
+    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/project-preview/analyze' }
   }
 
   async writeGenerateKeyframeCandidates(_action: ProductionAction, _run: ProductionRun) {
     this.generateKeyframeCalls += 1
-    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/script-preview/generate-preview' }
+    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/project-preview/generate-preview' }
   }
 }

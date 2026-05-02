@@ -1,8 +1,8 @@
 import type { JSONValue } from '../types.js'
 
 export type ProductionActionType =
-  | 'AnalyzeScriptToSections'
-  | 'ExtractSituations'
+  | 'AnalyzeScriptToSegments'
+  | 'ExtractSceneMoments'
   | 'GenerateStoryboardScript'
   | 'GenerateKeyframeCandidates'
   | 'PrepareAssetSlots'

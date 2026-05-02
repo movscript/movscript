@@ -7,23 +7,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/model"
-	"github.com/movscript/movscript/internal/v2/scriptpreview"
+	"github.com/movscript/movscript/internal/v2/projectpreview"
 	"gorm.io/gorm"
 )
 
-type ScriptPreviewHandler struct {
+type ProjectPreviewHandler struct {
 	db      *gorm.DB
-	service *scriptpreview.Service
+	service *projectpreview.Service
 }
 
-func NewScriptPreviewHandler(db *gorm.DB) *ScriptPreviewHandler {
-	return &ScriptPreviewHandler{
+func NewProjectPreviewHandler(db *gorm.DB) *ProjectPreviewHandler {
+	return &ProjectPreviewHandler{
 		db:      db,
-		service: scriptpreview.NewServiceWithStore(scriptpreview.NewGormDraftStore(db)),
+		service: projectpreview.NewServiceWithStore(projectpreview.NewGormDraftStore(db)),
 	}
 }
 
-func (h *ScriptPreviewHandler) GetLatestDraft(c *gin.Context) {
+func (h *ProjectPreviewHandler) GetLatestDraft(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
@@ -36,12 +36,12 @@ func (h *ScriptPreviewHandler) GetLatestDraft(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) SaveDraft(c *gin.Context) {
+func (h *ProjectPreviewHandler) SaveDraft(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.SaveDraftRequest
+	var req projectpreview.SaveDraftRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -54,12 +54,12 @@ func (h *ScriptPreviewHandler) SaveDraft(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) AnalyzeScriptToSections(c *gin.Context) {
+func (h *ProjectPreviewHandler) AnalyzeScriptToSegments(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.AnalyzeRequest
+	var req projectpreview.AnalyzeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -72,12 +72,16 @@ func (h *ScriptPreviewHandler) AnalyzeScriptToSections(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) GenerateKeyframesForContentUnits(c *gin.Context) {
+func (h *ProjectPreviewHandler) AnalyzeScriptToSections(c *gin.Context) {
+	h.AnalyzeScriptToSegments(c)
+}
+
+func (h *ProjectPreviewHandler) GenerateKeyframesForContentUnits(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.GeneratePreviewRequest
+	var req projectpreview.GeneratePreviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -90,12 +94,12 @@ func (h *ScriptPreviewHandler) GenerateKeyframesForContentUnits(c *gin.Context) 
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) ConfirmPreview(c *gin.Context) {
+func (h *ProjectPreviewHandler) ConfirmPreview(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.ConfirmPreviewRequest
+	var req projectpreview.ConfirmPreviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -108,12 +112,12 @@ func (h *ScriptPreviewHandler) ConfirmPreview(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) AcceptStoryboardSuggestion(c *gin.Context) {
+func (h *ProjectPreviewHandler) AcceptStoryboardSuggestion(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.StoryboardSuggestionDecisionRequest
+	var req projectpreview.StoryboardSuggestionDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -126,12 +130,12 @@ func (h *ScriptPreviewHandler) AcceptStoryboardSuggestion(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) RejectStoryboardSuggestion(c *gin.Context) {
+func (h *ProjectPreviewHandler) RejectStoryboardSuggestion(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.StoryboardSuggestionDecisionRequest
+	var req projectpreview.StoryboardSuggestionDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -144,12 +148,12 @@ func (h *ScriptPreviewHandler) RejectStoryboardSuggestion(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) AcceptKeyframeCandidate(c *gin.Context) {
+func (h *ProjectPreviewHandler) AcceptKeyframeCandidate(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.KeyframeCandidateDecisionRequest
+	var req projectpreview.KeyframeCandidateDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -162,12 +166,12 @@ func (h *ScriptPreviewHandler) AcceptKeyframeCandidate(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) RejectKeyframeCandidate(c *gin.Context) {
+func (h *ProjectPreviewHandler) RejectKeyframeCandidate(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.KeyframeCandidateDecisionRequest
+	var req projectpreview.KeyframeCandidateDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -180,12 +184,12 @@ func (h *ScriptPreviewHandler) RejectKeyframeCandidate(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) AcceptAssetGap(c *gin.Context) {
+func (h *ProjectPreviewHandler) AcceptAssetGap(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.AssetGapDecisionRequest
+	var req projectpreview.AssetGapDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -198,12 +202,12 @@ func (h *ScriptPreviewHandler) AcceptAssetGap(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) ResolveAssetGap(c *gin.Context) {
+func (h *ProjectPreviewHandler) ResolveAssetGap(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.AssetGapDecisionRequest
+	var req projectpreview.AssetGapDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -216,12 +220,12 @@ func (h *ScriptPreviewHandler) ResolveAssetGap(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) RejectAssetGap(c *gin.Context) {
+func (h *ProjectPreviewHandler) RejectAssetGap(c *gin.Context) {
 	projectID, ok := h.ensureProject(c)
 	if !ok {
 		return
 	}
-	var req scriptpreview.AssetGapDecisionRequest
+	var req projectpreview.AssetGapDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -234,7 +238,7 @@ func (h *ScriptPreviewHandler) RejectAssetGap(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *ScriptPreviewHandler) ensureProject(c *gin.Context) (uint, bool) {
+func (h *ProjectPreviewHandler) ensureProject(c *gin.Context) (uint, bool) {
 	projectID := parseID(c.Param("id"))
 	if projectID == 0 {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("project id is required"))

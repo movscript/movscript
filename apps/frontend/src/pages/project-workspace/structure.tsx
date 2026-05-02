@@ -68,12 +68,12 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
   },
   {
     key: 'script',
-    title: '剧本与情境',
+    title: '剧本与情节',
     shortTitle: '剧本',
     href: '/scripts',
     icon: FileText,
-    purpose: '管理原始剧本、结构化剧本、场景和情境对象。',
-    owns: '剧本文本、剧本版本、场景/情境库',
+    purpose: '管理原始剧本、结构化剧本、场景和情节对象。',
+    owns: '剧本文本、剧本版本、场景/情节库',
     output: '可被预演和生产引用的叙事结构',
   },
   {
@@ -110,7 +110,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     key: 'plan',
     title: '预演与制作方案',
     shortTitle: '预演',
-    href: '/production-management',
+    href: '/project-preview',
     icon: Clapperboard,
     purpose: '把剧本理解转成分镜、时间线、关键帧和生产计划。',
     owns: '分镜脚本、预演时间线、关键帧候选、制作缺口',
@@ -147,17 +147,17 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     icon: BookOpenCheck,
     purpose: '只处理 AI 对剧本的理解是否成立。',
     decision: '确认、拆分、合并或忽略剧本结构候选。',
-    output: '稳定的情境、人物、地点、道具和叙事证据。',
+    output: '稳定的情节、人物、地点、道具和叙事证据。',
   },
   {
     value: 'preview',
-    title: '预演决策工作台',
+    title: '项目预演工作台',
     shortTitle: '预演',
     href: '/workbench/production-plan',
     icon: Clapperboard,
-    purpose: '把结构化剧本变成可检查的分镜和时间线。',
-    decision: '选择分镜方案、补齐关键帧、确认是否进入生产。',
-    output: '制作预演、关键帧候选和生产缺口清单。',
+    purpose: '把制作编排变成可检查、可播放、可确认的项目预演。',
+    decision: '补齐关键帧和素材缺口，确认时间线是否可以进入生产。',
+    output: '项目预演、关键帧候选和生产缺口清单。',
   },
   {
     value: 'creative',
@@ -218,4 +218,3 @@ export function getWorkbenchSurface(value: WorkbenchCategory) {
 export function getProjectSurface(key: StageKey) {
   return projectSurfaces.find((item) => item.key === key) ?? projectSurfaces[0]
 }
-

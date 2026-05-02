@@ -91,8 +91,8 @@ func (h *V2SemanticHandler) PatchScriptVersion(c *gin.Context) {
 	h.patchItem(c, &item, updates)
 }
 
-func (h *V2SemanticHandler) ListScriptSections(c *gin.Context) {
-	var items []model.ScriptSection
+func (h *V2SemanticHandler) ListSegments(c *gin.Context) {
+	var items []model.Segment
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
 	if scriptID := parseID(c.Query("script_id")); scriptID > 0 {
 		q = q.Where("script_id = ?", scriptID)
@@ -110,9 +110,9 @@ func (h *V2SemanticHandler) ListScriptSections(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateScriptSection(c *gin.Context) {
+func (h *V2SemanticHandler) CreateSegment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
-	var req scriptSectionInput
+	var req segmentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
@@ -122,11 +122,11 @@ func (h *V2SemanticHandler) CreateScriptSection(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("剧本版本不存在"))
 		return
 	}
-	item := model.ScriptSection{
+	item := model.Segment{
 		ProjectID:       projectID,
 		ScriptID:        version.ScriptID,
 		ScriptVersionID: version.ID,
-		ParentSectionID: req.ParentSectionID,
+		ParentSegmentID: req.ParentSegmentID,
 		Kind:            fallbackString(req.Kind, "section"),
 		Order:           req.Order,
 		Title:           req.Title,
@@ -139,18 +139,18 @@ func (h *V2SemanticHandler) CreateScriptSection(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchScriptSection(c *gin.Context) {
-	var item model.ScriptSection
-	if !h.loadProjectItem(c, &item, c.Param("sectionId")) {
+func (h *V2SemanticHandler) PatchSegment(c *gin.Context) {
+	var item model.Segment
+	if !h.loadProjectItem(c, &item, c.Param("segmentId")) {
 		return
 	}
-	var req scriptSectionPatchInput
+	var req segmentPatchInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"parent_section_id": req.ParentSectionID,
+		"parent_segment_id": req.ParentSegmentID,
 		"kind":              req.Kind,
 		"order":             req.Order,
 		"title":             req.Title,
@@ -162,32 +162,32 @@ func (h *V2SemanticHandler) PatchScriptSection(c *gin.Context) {
 	}))
 }
 
-func (h *V2SemanticHandler) ListSituations(c *gin.Context) {
-	var items []model.Situation
+func (h *V2SemanticHandler) ListSceneMoments(c *gin.Context) {
+	var items []model.SceneMoment
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
-	if sectionID := parseID(c.Query("script_section_id")); sectionID > 0 {
-		q = q.Where("script_section_id = ?", sectionID)
+	if segmentID := parseID(c.Query("segment_id")); segmentID > 0 {
+		q = q.Where("segment_id = ?", segmentID)
 	}
-	if err := q.Order(`script_section_id, "order", id`).Find(&items).Error; err != nil {
+	if err := q.Order(`segment_id, "order", id`).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
 }
 
-func (h *V2SemanticHandler) CreateSituation(c *gin.Context) {
+func (h *V2SemanticHandler) CreateSceneMoment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
-	var req situationInput
+	var req sceneMomentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "script_section", req.ScriptSectionID) {
+	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) {
 		return
 	}
-	item := model.Situation{
+	item := model.SceneMoment{
 		ProjectID:       projectID,
-		ScriptSectionID: req.ScriptSectionID,
+		SegmentID: req.SegmentID,
 		Order:           req.Order,
 		Title:           req.Title,
 		Description:     req.Description,
@@ -202,21 +202,21 @@ func (h *V2SemanticHandler) CreateSituation(c *gin.Context) {
 	h.createItem(c, &item)
 }
 
-func (h *V2SemanticHandler) PatchSituation(c *gin.Context) {
-	var item model.Situation
-	if !h.loadProjectItem(c, &item, c.Param("situationId")) {
+func (h *V2SemanticHandler) PatchSceneMoment(c *gin.Context) {
+	var item model.SceneMoment
+	if !h.loadProjectItem(c, &item, c.Param("sceneMomentId")) {
 		return
 	}
-	var req situationPatchInput
+	var req sceneMomentPatchInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "script_section", req.ScriptSectionID) {
+	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"script_section_id": req.ScriptSectionID,
+		"segment_id": req.SegmentID,
 		"order":             req.Order,
 		"title":             req.Title,
 		"description":       req.Description,
@@ -382,16 +382,16 @@ func (h *V2SemanticHandler) CreateStoryboardLine(c *gin.Context) {
 	}
 	if !h.ownerInProject(c, "storyboard_script", req.StoryboardScriptID) ||
 		!h.optionalOwnerInProject(c, "storyboard_version", req.StoryboardVersionID) ||
-		!h.optionalOwnerInProject(c, "script_section", req.ScriptSectionID) ||
-		!h.optionalOwnerInProject(c, "situation", req.SituationID) {
+		!h.optionalOwnerInProject(c, "segment", req.SegmentID) ||
+		!h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
 		return
 	}
 	item := model.StoryboardLine{
 		ProjectID:           projectID,
 		StoryboardScriptID:  req.StoryboardScriptID,
 		StoryboardVersionID: req.StoryboardVersionID,
-		ScriptSectionID:     req.ScriptSectionID,
-		SituationID:         req.SituationID,
+		SegmentID:     req.SegmentID,
+		SceneMomentID:         req.SceneMomentID,
 		Order:               req.Order,
 		Kind:                fallbackString(req.Kind, "beat"),
 		Title:               req.Title,
@@ -417,15 +417,15 @@ func (h *V2SemanticHandler) PatchStoryboardLine(c *gin.Context) {
 	}
 	if !h.ownerInProject(c, "storyboard_script", req.StoryboardScriptID) ||
 		!h.optionalOwnerInProject(c, "storyboard_version", req.StoryboardVersionID) ||
-		!h.optionalOwnerInProject(c, "script_section", req.ScriptSectionID) ||
-		!h.optionalOwnerInProject(c, "situation", req.SituationID) {
+		!h.optionalOwnerInProject(c, "segment", req.SegmentID) ||
+		!h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
 		"storyboard_script_id":  req.StoryboardScriptID,
 		"storyboard_version_id": req.StoryboardVersionID,
-		"script_section_id":     req.ScriptSectionID,
-		"situation_id":          req.SituationID,
+		"segment_id":     req.SegmentID,
+		"sceneMoment_id":          req.SceneMomentID,
 		"order":                 req.Order,
 		"kind":                  req.Kind,
 		"title":                 req.Title,
@@ -441,13 +441,13 @@ func (h *V2SemanticHandler) PatchStoryboardLine(c *gin.Context) {
 func (h *V2SemanticHandler) ListContentUnits(c *gin.Context) {
 	var items []model.ContentUnit
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
-	if sectionID := parseID(c.Query("script_section_id")); sectionID > 0 {
-		q = q.Where("script_section_id = ?", sectionID)
+	if segmentID := parseID(c.Query("segment_id")); segmentID > 0 {
+		q = q.Where("segment_id = ?", segmentID)
 	}
-	if situationID := parseID(c.Query("situation_id")); situationID > 0 {
-		q = q.Where("situation_id = ?", situationID)
+	if sceneMomentID := parseID(c.Query("sceneMoment_id")); sceneMomentID > 0 {
+		q = q.Where("sceneMoment_id = ?", sceneMomentID)
 	}
-	if err := q.Order(`script_section_id, situation_id, "order", id`).Find(&items).Error; err != nil {
+	if err := q.Order(`segment_id, sceneMoment_id, "order", id`).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -461,13 +461,13 @@ func (h *V2SemanticHandler) CreateContentUnit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "script_section", req.ScriptSectionID) || !h.optionalOwnerInProject(c, "situation", req.SituationID) {
+	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) || !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
 		return
 	}
 	item := model.ContentUnit{
 		ProjectID:       projectID,
-		ScriptSectionID: req.ScriptSectionID,
-		SituationID:     req.SituationID,
+		SegmentID: req.SegmentID,
+		SceneMomentID:     req.SceneMomentID,
 		Kind:            fallbackString(req.Kind, "shot"),
 		Order:           req.Order,
 		Title:           req.Title,
@@ -490,12 +490,12 @@ func (h *V2SemanticHandler) PatchContentUnit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "script_section", req.ScriptSectionID) || !h.optionalOwnerInProject(c, "situation", req.SituationID) {
+	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) || !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"script_section_id": req.ScriptSectionID,
-		"situation_id":      req.SituationID,
+		"segment_id": req.SegmentID,
+		"sceneMoment_id":      req.SceneMomentID,
 		"kind":              req.Kind,
 		"order":             req.Order,
 		"title":             req.Title,
@@ -510,13 +510,13 @@ func (h *V2SemanticHandler) PatchContentUnit(c *gin.Context) {
 func (h *V2SemanticHandler) ListKeyframes(c *gin.Context) {
 	var items []model.Keyframe
 	q := h.db.Preload("Resource").Where("project_id = ?", parseID(c.Param("id")))
-	if situationID := parseID(c.Query("situation_id")); situationID > 0 {
-		q = q.Where("situation_id = ?", situationID)
+	if sceneMomentID := parseID(c.Query("sceneMoment_id")); sceneMomentID > 0 {
+		q = q.Where("sceneMoment_id = ?", sceneMomentID)
 	}
 	if contentUnitID := parseID(c.Query("content_unit_id")); contentUnitID > 0 {
 		q = q.Where("content_unit_id = ?", contentUnitID)
 	}
-	if err := q.Order(`content_unit_id, situation_id, "order", id`).Find(&items).Error; err != nil {
+	if err := q.Order(`content_unit_id, sceneMoment_id, "order", id`).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -531,12 +531,12 @@ func (h *V2SemanticHandler) CreateKeyframe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "situation", req.SituationID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
+	if !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
 		return
 	}
 	item := model.Keyframe{
 		ProjectID:     projectID,
-		SituationID:   req.SituationID,
+		SceneMomentID:   req.SceneMomentID,
 		ContentUnitID: req.ContentUnitID,
 		ResourceID:    req.ResourceID,
 		CanvasID:      req.CanvasID,
@@ -560,11 +560,11 @@ func (h *V2SemanticHandler) PatchKeyframe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "situation", req.SituationID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
+	if !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"situation_id":    req.SituationID,
+		"sceneMoment_id":    req.SceneMomentID,
 		"content_unit_id": req.ContentUnitID,
 		"resource_id":     req.ResourceID,
 		"canvas_id":       req.CanvasID,
@@ -672,8 +672,8 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
 	item := model.PreviewTimelineItem{
 		ProjectID:         projectID,
 		PreviewTimelineID: req.PreviewTimelineID,
-		ScriptSectionID:   req.ScriptSectionID,
-		SituationID:       req.SituationID,
+		SegmentID:   req.SegmentID,
+		SceneMomentID:       req.SceneMomentID,
 		ContentUnitID:     req.ContentUnitID,
 		KeyframeID:        req.KeyframeID,
 		Kind:              fallbackString(req.Kind, "keyframe"),
@@ -702,8 +702,8 @@ func (h *V2SemanticHandler) PatchPreviewTimelineItemFlat(c *gin.Context) {
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
 		"preview_timeline_id": req.PreviewTimelineID,
-		"script_section_id":   req.ScriptSectionID,
-		"situation_id":        req.SituationID,
+		"segment_id":   req.SegmentID,
+		"sceneMoment_id":        req.SceneMomentID,
 		"content_unit_id":     req.ContentUnitID,
 		"keyframe_id":         req.KeyframeID,
 		"kind":                req.Kind,
@@ -730,8 +730,8 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItem(c *gin.Context) {
 	item := model.PreviewTimelineItem{
 		ProjectID:         projectID,
 		PreviewTimelineID: timelineID,
-		ScriptSectionID:   req.ScriptSectionID,
-		SituationID:       req.SituationID,
+		SegmentID:   req.SegmentID,
+		SceneMomentID:       req.SceneMomentID,
 		ContentUnitID:     req.ContentUnitID,
 		KeyframeID:        req.KeyframeID,
 		Kind:              fallbackString(req.Kind, "keyframe"),
@@ -761,8 +761,8 @@ func (h *V2SemanticHandler) PatchPreviewTimelineItem(c *gin.Context) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"script_section_id": req.ScriptSectionID,
-		"situation_id":      req.SituationID,
+		"segment_id": req.SegmentID,
+		"sceneMoment_id":      req.SceneMomentID,
 		"content_unit_id":   req.ContentUnitID,
 		"keyframe_id":       req.KeyframeID,
 		"kind":              req.Kind,
@@ -1893,14 +1893,14 @@ func (h *V2SemanticHandler) ensureV2OwnerInProject(projectID uint, ownerType str
 			return err
 		}
 		ownerProjectID = item.ProjectID
-	case "script_section":
-		var item model.ScriptSection
+	case "segment":
+		var item model.Segment
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return err
 		}
 		ownerProjectID = item.ProjectID
-	case "situation":
-		var item model.Situation
+	case "sceneMoment":
+		var item model.SceneMoment
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return err
 		}
@@ -2125,9 +2125,9 @@ type scriptVersionPatchInput struct {
 	Status          string `json:"status"`
 }
 
-type scriptSectionInput struct {
+type segmentInput struct {
 	ScriptVersionID uint   `json:"script_version_id" binding:"required"`
-	ParentSectionID *uint  `json:"parent_section_id"`
+	ParentSegmentID *uint  `json:"parent_segment_id"`
 	Kind            string `json:"kind"`
 	Order           int    `json:"order"`
 	Title           string `json:"title"`
@@ -2138,8 +2138,8 @@ type scriptSectionInput struct {
 	MetadataJSON    string `json:"metadata_json"`
 }
 
-type scriptSectionPatchInput struct {
-	ParentSectionID *uint  `json:"parent_section_id"`
+type segmentPatchInput struct {
+	ParentSegmentID *uint  `json:"parent_segment_id"`
 	Kind            string `json:"kind"`
 	Order           int    `json:"order"`
 	Title           string `json:"title"`
@@ -2150,8 +2150,8 @@ type scriptSectionPatchInput struct {
 	MetadataJSON    string `json:"metadata_json"`
 }
 
-type situationInput struct {
-	ScriptSectionID *uint  `json:"script_section_id"`
+type sceneMomentInput struct {
+	SegmentID *uint  `json:"segment_id"`
 	Order           int    `json:"order"`
 	Title           string `json:"title"`
 	Description     string `json:"description"`
@@ -2164,7 +2164,7 @@ type situationInput struct {
 	MetadataJSON    string `json:"metadata_json"`
 }
 
-type situationPatchInput = situationInput
+type sceneMomentPatchInput = sceneMomentInput
 
 type storyboardScriptInput struct {
 	ScriptVersionID *uint  `json:"script_version_id"`
@@ -2198,8 +2198,8 @@ type storyboardVersionPatchInput struct {
 type storyboardLineInput struct {
 	StoryboardScriptID  uint    `json:"storyboard_script_id" binding:"required"`
 	StoryboardVersionID *uint   `json:"storyboard_version_id"`
-	ScriptSectionID     *uint   `json:"script_section_id"`
-	SituationID         *uint   `json:"situation_id"`
+	SegmentID     *uint   `json:"segment_id"`
+	SceneMomentID         *uint   `json:"sceneMoment_id"`
 	Order               int     `json:"order"`
 	Kind                string  `json:"kind"`
 	Title               string  `json:"title"`
@@ -2212,8 +2212,8 @@ type storyboardLineInput struct {
 }
 
 type contentUnitInput struct {
-	ScriptSectionID *uint   `json:"script_section_id"`
-	SituationID     *uint   `json:"situation_id"`
+	SegmentID *uint   `json:"segment_id"`
+	SceneMomentID     *uint   `json:"sceneMoment_id"`
 	Kind            string  `json:"kind"`
 	Order           int     `json:"order"`
 	Title           string  `json:"title"`
@@ -2227,7 +2227,7 @@ type contentUnitInput struct {
 type contentUnitPatchInput = contentUnitInput
 
 type keyframeInput struct {
-	SituationID   *uint  `json:"situation_id"`
+	SceneMomentID   *uint  `json:"sceneMoment_id"`
 	ContentUnitID *uint  `json:"content_unit_id"`
 	ResourceID    *uint  `json:"resource_id"`
 	CanvasID      *uint  `json:"canvas_id"`
@@ -2250,8 +2250,8 @@ type previewTimelineInput struct {
 
 type previewTimelineItemInput struct {
 	PreviewTimelineID uint    `json:"preview_timeline_id"`
-	ScriptSectionID   *uint   `json:"script_section_id"`
-	SituationID       *uint   `json:"situation_id"`
+	SegmentID   *uint   `json:"segment_id"`
+	SceneMomentID       *uint   `json:"sceneMoment_id"`
 	ContentUnitID     *uint   `json:"content_unit_id"`
 	KeyframeID        *uint   `json:"keyframe_id"`
 	Kind              string  `json:"kind"`

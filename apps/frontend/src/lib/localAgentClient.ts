@@ -401,8 +401,8 @@ export interface RuntimeModelTestResult {
 }
 
 export type ProductionActionType =
-  | 'AnalyzeScriptToSections'
-  | 'ExtractSituations'
+  | 'AnalyzeScriptToSegments'
+  | 'ExtractSceneMoments'
   | 'GenerateStoryboardScript'
   | 'GenerateKeyframeCandidates'
   | 'PrepareAssetSlots'

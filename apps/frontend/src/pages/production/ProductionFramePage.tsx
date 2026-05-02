@@ -27,10 +27,10 @@ import {
 } from 'lucide-react'
 
 import {
-  getLatestScriptPreviewDraft,
-  type GetLatestScriptPreviewDraftResponse,
-  type ScriptPreviewStoryboardRow,
-} from '@/api/scriptPreview'
+  getLatestProjectPreviewDraft,
+  type GetLatestProjectPreviewDraftResponse,
+  type ProjectPreviewStoryboardRow,
+} from '@/api/projectPreview'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -78,7 +78,7 @@ interface ProductionRecord {
   }
   stats: {
     structures: number
-    situations: number
+    sceneMoments: number
     references: number
     assets: number
     contents: number
@@ -111,14 +111,14 @@ export default function ProductionFramePage() {
   const projectId = project?.ID
   const [selectedId, setSelectedId] = useState('')
 
-  const { data: latestScriptPreviewDraft } = useQuery<GetLatestScriptPreviewDraftResponse>({
+  const { data: latestProjectPreviewDraft } = useQuery<GetLatestProjectPreviewDraftResponse>({
     queryKey: ['production-frame-latest-preview', projectId],
-    queryFn: () => getLatestScriptPreviewDraft(projectId!),
+    queryFn: () => getLatestProjectPreviewDraft(projectId!),
     enabled: !!projectId,
     refetchInterval: 60_000,
   })
 
-  const productions = useMemo(() => buildProductionRecords(latestScriptPreviewDraft), [latestScriptPreviewDraft])
+  const productions = useMemo(() => buildProductionRecords(latestProjectPreviewDraft), [latestProjectPreviewDraft])
   const selected = productions.find((item) => item.id === selectedId) ?? productions[0]
 
   useEffect(() => {
@@ -148,7 +148,7 @@ export default function ProductionFramePage() {
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作</h1>
               <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载预演进度、制作结构、情景、创作资料、素材需求、内容和成片。
+                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载预演进度、制作结构、情节、创作资料、素材需求、内容和成片。
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
@@ -158,8 +158,14 @@ export default function ProductionFramePage() {
                   预演进度
                 </Link>
               </Button>
+              <Button variant="outline" className="gap-2" asChild>
+                <Link to="/project-preview">
+                  <Route size={15} />
+                  制作编排
+                </Link>
+              </Button>
               <Button className="gap-2" asChild>
-                <Link to="/production-preview">
+                <Link to="/project-preview">
                   <Plus size={15} />
                   从剧本创建制作
                 </Link>
@@ -175,7 +181,7 @@ export default function ProductionFramePage() {
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Boxes size={16} className="text-muted-foreground" />
-                    <h2 className="text-sm font-semibold text-foreground">制作总览</h2>
+                    <h2 className="text-sm font-semibold text-foreground">制作</h2>
                   </div>
                   <Badge variant="outline">{productions.length} 个制作</Badge>
                 </div>
@@ -259,7 +265,7 @@ export default function ProductionFramePage() {
 
                 <div className="mt-5 grid gap-3 md:grid-cols-6">
                   <StatCard icon={GitBranch} label="结构" value={selected.stats.structures} />
-                  <StatCard icon={Route} label="情景" value={selected.stats.situations} />
+                  <StatCard icon={Route} label="情节" value={selected.stats.sceneMoments} />
                   <StatCard icon={Sparkles} label="资料" value={selected.stats.references} />
                   <StatCard icon={PackageCheck} label="素材" value={selected.stats.assets} />
                   <StatCard icon={Film} label="内容" value={selected.stats.contents} />
@@ -278,8 +284,8 @@ export default function ProductionFramePage() {
                 <div className="grid gap-3 p-4 md:grid-cols-5">
                   {[
                     { icon: FileText, title: '剧本', detail: '创建来源', value: selected.source },
-                    { icon: Layers3, title: '结构', detail: '剧本节 / 分镜行', value: `${selected.stats.structures} 项` },
-                    { icon: Route, title: '情景', detail: '时间地点条件', value: `${selected.stats.situations} 项` },
+                    { icon: Layers3, title: '结构', detail: '片段 / 分镜行', value: `${selected.stats.structures} 项` },
+                    { icon: Route, title: '情节', detail: '时间地点条件', value: `${selected.stats.sceneMoments} 项` },
                     { icon: PackageCheck, title: '素材', detail: '推演出的需求', value: `${selected.stats.assets} 项` },
                     { icon: Video, title: '成片', detail: '交付输出', value: `${selected.stats.finals} 版` },
                   ].map((item, index) => {
@@ -308,7 +314,7 @@ export default function ProductionFramePage() {
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="min-w-0">
                       <h2 className="text-sm font-semibold text-foreground">推演对象</h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">从制作结构推导出情景、资料、素材、内容与成片。</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">从制作结构推导出情节、资料、素材、内容与成片。</p>
                     </div>
                   </div>
                   <div className="grid gap-3 p-4 md:grid-cols-2">
@@ -338,9 +344,9 @@ export default function ProductionFramePage() {
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <Button variant="outline" size="sm" className="gap-2" asChild>
-                        <Link to="/production-preview">
+                        <Link to="/workbench/production-plan">
                           <Play size={14} />
-                          打开预演
+                          项目预演
                         </Link>
                       </Button>
                       <Button variant="outline" size="sm" className="gap-2" asChild>
@@ -568,7 +574,7 @@ function GateRow({ icon: Icon, text, tone }: { icon: LucideIcon; text: string; t
   )
 }
 
-function buildProductionRecords(data?: GetLatestScriptPreviewDraftResponse): ProductionRecord[] {
+function buildProductionRecords(data?: GetLatestProjectPreviewDraftResponse): ProductionRecord[] {
   const draft = data?.found ? data.draft : undefined
   const storyboardRows = draft?.draft.storyboard_rows ?? []
   const assetGaps = draft?.draft.preview_candidates?.asset_gaps ?? []
@@ -599,7 +605,7 @@ function buildProductionRecords(data?: GetLatestScriptPreviewDraftResponse): Pro
     },
     stats: {
       structures: Math.max(storyboardRows.length, units.length),
-      situations: Math.max(Math.ceil(units.length * 0.75), 1),
+      sceneMoments: Math.max(Math.ceil(units.length * 0.75), 1),
       references: Math.max(4, units.length + 2),
       assets: Math.max(assetGaps.length, units.length + blockedUnits),
       contents: units.length,
@@ -608,7 +614,7 @@ function buildProductionRecords(data?: GetLatestScriptPreviewDraftResponse): Pro
     areas: buildAreas({
       previewProgress,
       structureCount: Math.max(storyboardRows.length, units.length),
-      situationCount: Math.max(Math.ceil(units.length * 0.75), 1),
+      sceneMomentCount: Math.max(Math.ceil(units.length * 0.75), 1),
       referenceCount: Math.max(4, units.length + 2),
       assetCount: Math.max(assetGaps.length, units.length + blockedUnits),
       contentCount: units.length,
@@ -635,7 +641,7 @@ function buildProductionRecords(data?: GetLatestScriptPreviewDraftResponse): Pro
 function buildAreas(input: {
   previewProgress: number
   structureCount: number
-  situationCount: number
+  sceneMomentCount: number
   referenceCount: number
   assetCount: number
   contentCount: number
@@ -648,7 +654,7 @@ function buildAreas(input: {
     {
       key: 'structure',
       title: '制作结构',
-      description: '剧本节、分镜行、内容单元骨架',
+      description: '片段、分镜行、内容单元骨架',
       icon: GitBranch,
       count: input.structureCount,
       progress: input.previewProgress,
@@ -656,11 +662,11 @@ function buildAreas(input: {
       href: '/v2-entities',
     },
     {
-      key: 'situations',
-      title: '情景',
+      key: 'sceneMoments',
+      title: '情节',
       description: '时间、地点、条件和动作',
       icon: Route,
-      count: input.situationCount,
+      count: input.sceneMomentCount,
       progress: input.previewConfirmed ? 82 : 48,
       status: input.previewConfirmed ? 'active' : 'waiting',
       href: '/scenes',
@@ -708,7 +714,7 @@ function buildAreas(input: {
   ]
 }
 
-function mapDraftRowsToUnits(rows: ScriptPreviewStoryboardRow[], assetGaps: Array<{ storyboard_row_client_id: string; name: string; status: string }>): ProductionUnit[] {
+function mapDraftRowsToUnits(rows: ProjectPreviewStoryboardRow[], assetGaps: Array<{ storyboard_row_client_id: string; name: string; status: string }>): ProductionUnit[] {
   let cursor = 0
   return rows.map((row, index) => {
     const start = cursor
@@ -774,11 +780,11 @@ const fallbackProductions: ProductionRecord[] = [
     updatedAt: '昨天',
     description: '用于展示一个项目可同时拥有多个制作，当前还处于剧本理解和预演准备阶段。',
     preview: { title: '第二集开场预演', status: 'waiting', progress: 12, savedAt: '' },
-    stats: { structures: 3, situations: 2, references: 5, assets: 0, contents: 0, finals: 0 },
+    stats: { structures: 3, sceneMoments: 2, references: 5, assets: 0, contents: 0, finals: 0 },
     areas: buildAreas({
       previewProgress: 12,
       structureCount: 3,
-      situationCount: 2,
+      sceneMomentCount: 2,
       referenceCount: 5,
       assetCount: 0,
       contentCount: 0,
@@ -801,10 +807,10 @@ const fallbackProductions: ProductionRecord[] = [
     updatedAt: '4 天前',
     description: '已完成的短制作样例，用于体现成片版本仍然归属于制作主体。',
     preview: { title: '品牌口播预演', status: 'done', progress: 100, savedAt: '2026-05-01T10:30:00+08:00', confirmedAt: '2026-05-01T11:20:00+08:00' },
-    stats: { structures: 5, situations: 3, references: 8, assets: 11, contents: 5, finals: 2 },
+    stats: { structures: 5, sceneMoments: 3, references: 8, assets: 11, contents: 5, finals: 2 },
     areas: [
       { key: 'structure', title: '制作结构', description: '结构已锁定', icon: GitBranch, count: 5, progress: 100, status: 'done', href: '/v2-entities' },
-      { key: 'situations', title: '情景', description: '情景已确认', icon: Route, count: 3, progress: 100, status: 'done', href: '/scenes' },
+      { key: 'sceneMoments', title: '情节', description: '情节已确认', icon: Route, count: 3, progress: 100, status: 'done', href: '/scenes' },
       { key: 'references', title: '创作资料', description: '资料已锁定', icon: Sparkles, count: 8, progress: 100, status: 'done', href: '/creative-references' },
       { key: 'assets', title: '素材需求', description: '素材已采用', icon: PackageCheck, count: 11, progress: 100, status: 'done', href: '/assets' },
       { key: 'content', title: '内容', description: '内容已锁定', icon: Film, count: 5, progress: 100, status: 'done', href: '/workbench/production' },

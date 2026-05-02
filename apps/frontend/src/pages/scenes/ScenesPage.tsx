@@ -30,7 +30,7 @@ import { Badge, Button, Input, Progress as ProgressBar } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'confirmed' | 'draft' | 'attention'
 
-type ScriptSectionRecord = V2EntityRecord & {
+type SegmentRecord = V2EntityRecord & {
   title?: string
   kind?: string
   summary?: string
@@ -39,8 +39,8 @@ type ScriptSectionRecord = V2EntityRecord & {
   status?: string
 }
 
-type SituationRecord = V2EntityRecord & {
-  script_section_id?: number
+type SceneMomentRecord = V2EntityRecord & {
+  segment_id?: number
   title?: string
   description?: string
   time_text?: string
@@ -53,7 +53,7 @@ type SituationRecord = V2EntityRecord & {
 }
 
 type RelatedRecord = V2EntityRecord & {
-  situation_id?: number
+  sceneMoment_id?: number
   owner_type?: string
   owner_id?: number
   title?: string
@@ -87,7 +87,7 @@ const statusTone: Record<string, string> = {
 }
 
 const sectionKinds: Record<string, string> = {
-  section: '剧本节',
+  section: '片段',
   scene: '场次',
   montage: '蒙太奇',
   narration: '旁白',
@@ -103,7 +103,7 @@ function matchesStatus(status: StatusFilter, recordStatus?: string) {
   return value === status
 }
 
-function titleOf(record?: RelatedRecord | SituationRecord | ScriptSectionRecord | null) {
+function titleOf(record?: RelatedRecord | SceneMomentRecord | SegmentRecord | null) {
   if (!record) return '未命名'
   return String(record.title ?? record.name ?? record.label ?? `#${record.ID}`)
 }
@@ -125,43 +125,43 @@ export default function ScenesPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const [selectedSectionId, setSelectedSectionId] = useState<number | 'all'>('all')
-  const [selectedSituationId, setSelectedSituationId] = useState<number | null>(null)
+  const [selectedSceneMomentId, setSelectedSceneMomentId] = useState<number | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [query, setQuery] = useState('')
 
-  const scriptSectionsQuery = useQuery({
-    queryKey: ['v2-situation-library', projectId, 'script-sections'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('scriptSections')) as Promise<ScriptSectionRecord[]>,
+  const segmentsQuery = useQuery({
+    queryKey: ['v2-sceneMoment-library', projectId, 'segments'],
+    queryFn: () => listV2Entities(projectId!, v2EntityConfig('segments')) as Promise<SegmentRecord[]>,
     enabled: !!projectId,
   })
-  const situationsQuery = useQuery({
-    queryKey: ['v2-situation-library', projectId, 'situations'],
-    queryFn: () => listV2Entities(projectId!, v2EntityConfig('situations')) as Promise<SituationRecord[]>,
+  const sceneMomentsQuery = useQuery({
+    queryKey: ['v2-sceneMoment-library', projectId, 'sceneMoments'],
+    queryFn: () => listV2Entities(projectId!, v2EntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
     enabled: !!projectId,
   })
   const storyboardLinesQuery = useQuery({
-    queryKey: ['v2-situation-library', projectId, 'storyboard-lines'],
+    queryKey: ['v2-sceneMoment-library', projectId, 'storyboard-lines'],
     queryFn: () => listV2Entities(projectId!, v2EntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const contentUnitsQuery = useQuery({
-    queryKey: ['v2-situation-library', projectId, 'content-units'],
+    queryKey: ['v2-sceneMoment-library', projectId, 'content-units'],
     queryFn: () => listV2Entities(projectId!, v2EntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const keyframesQuery = useQuery({
-    queryKey: ['v2-situation-library', projectId, 'keyframes'],
+    queryKey: ['v2-sceneMoment-library', projectId, 'keyframes'],
     queryFn: () => listV2Entities(projectId!, v2EntityConfig('keyframes')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
   const assetSlotsQuery = useQuery({
-    queryKey: ['v2-situation-library', projectId, 'asset-slots'],
+    queryKey: ['v2-sceneMoment-library', projectId, 'asset-slots'],
     queryFn: () => listV2Entities(projectId!, v2EntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
 
-  const sections = useMemo(() => (scriptSectionsQuery.data ?? []).slice().sort(compareByOrder), [scriptSectionsQuery.data])
-  const situations = useMemo(() => (situationsQuery.data ?? []).slice().sort(compareByOrder), [situationsQuery.data])
+  const sections = useMemo(() => (segmentsQuery.data ?? []).slice().sort(compareByOrder), [segmentsQuery.data])
+  const sceneMoments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
   const storyboardLines = storyboardLinesQuery.data ?? []
   const contentUnits = contentUnitsQuery.data ?? []
   const keyframes = keyframesQuery.data ?? []
@@ -169,62 +169,62 @@ export default function ScenesPage() {
 
   const sectionCounts = useMemo(() => {
     const counts = new Map<number, number>()
-    for (const situation of situations) {
-      if (situation.script_section_id) counts.set(situation.script_section_id, (counts.get(situation.script_section_id) ?? 0) + 1)
+    for (const sceneMoment of sceneMoments) {
+      if (sceneMoment.segment_id) counts.set(sceneMoment.segment_id, (counts.get(sceneMoment.segment_id) ?? 0) + 1)
     }
     return counts
-  }, [situations])
+  }, [sceneMoments])
 
-  const visibleSituations = useMemo(() => {
+  const visibleSceneMoments = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return situations.filter((situation) => {
-      const section = sections.find((item) => item.ID === situation.script_section_id)
-      const inSection = selectedSectionId === 'all' || situation.script_section_id === selectedSectionId
-      const inStatus = matchesStatus(statusFilter, situation.status)
+    return sceneMoments.filter((sceneMoment) => {
+      const section = sections.find((item) => item.ID === sceneMoment.segment_id)
+      const inSection = selectedSectionId === 'all' || sceneMoment.segment_id === selectedSectionId
+      const inStatus = matchesStatus(statusFilter, sceneMoment.status)
       const haystack = [
-        titleOf(situation),
-        situation.description,
-        situation.time_text,
-        situation.location_text,
-        situation.condition_text,
-        situation.action_text,
-        situation.mood,
+        titleOf(sceneMoment),
+        sceneMoment.description,
+        sceneMoment.time_text,
+        sceneMoment.location_text,
+        sceneMoment.condition_text,
+        sceneMoment.action_text,
+        sceneMoment.mood,
         titleOf(section),
         section?.summary,
       ].filter(Boolean).join(' ').toLowerCase()
       return inSection && inStatus && (!q || haystack.includes(q))
     })
-  }, [query, sections, selectedSectionId, situations, statusFilter])
+  }, [query, sections, selectedSectionId, sceneMoments, statusFilter])
 
-  const selectedSituation = useMemo(() => {
-    if (selectedSituationId) {
-      const selected = situations.find((item) => item.ID === selectedSituationId)
-      if (selected && visibleSituations.some((item) => item.ID === selected.ID)) return selected
+  const selectedSceneMoment = useMemo(() => {
+    if (selectedSceneMomentId) {
+      const selected = sceneMoments.find((item) => item.ID === selectedSceneMomentId)
+      if (selected && visibleSceneMoments.some((item) => item.ID === selected.ID)) return selected
     }
-    return visibleSituations[0] ?? situations[0] ?? null
-  }, [selectedSituationId, situations, visibleSituations])
+    return visibleSceneMoments[0] ?? sceneMoments[0] ?? null
+  }, [selectedSceneMomentId, sceneMoments, visibleSceneMoments])
 
-  const selectedSection = selectedSituation?.script_section_id
-    ? sections.find((section) => section.ID === selectedSituation.script_section_id) ?? null
+  const selectedSection = selectedSceneMoment?.segment_id
+    ? sections.find((section) => section.ID === selectedSceneMoment.segment_id) ?? null
     : selectedSectionId !== 'all'
       ? sections.find((section) => section.ID === selectedSectionId) ?? null
       : null
 
-  const selectedSituationKey = selectedSituation?.ID
-  const selectedStoryboardLines = storyboardLines.filter((item) => item.situation_id === selectedSituationKey).sort(compareByOrder)
-  const selectedContentUnits = contentUnits.filter((item) => item.situation_id === selectedSituationKey).sort(compareByOrder)
-  const selectedKeyframes = keyframes.filter((item) => item.situation_id === selectedSituationKey).sort(compareByOrder)
-  const selectedAssetSlots = assetSlots.filter((item) => item.owner_type === 'situation' && item.owner_id === selectedSituationKey).sort(compareByOrder)
+  const selectedSceneMomentKey = selectedSceneMoment?.ID
+  const selectedStoryboardLines = storyboardLines.filter((item) => item.sceneMoment_id === selectedSceneMomentKey).sort(compareByOrder)
+  const selectedContentUnits = contentUnits.filter((item) => item.sceneMoment_id === selectedSceneMomentKey).sort(compareByOrder)
+  const selectedKeyframes = keyframes.filter((item) => item.sceneMoment_id === selectedSceneMomentKey).sort(compareByOrder)
+  const selectedAssetSlots = assetSlots.filter((item) => item.owner_type === 'sceneMoment' && item.owner_id === selectedSceneMomentKey).sort(compareByOrder)
 
-  const confirmedCount = situations.filter((item) => item.status === 'confirmed').length
-  const attentionCount = situations.filter((item) => ['draft', 'candidate', 'missing', 'review', 'blocked'].includes(String(item.status ?? ''))).length
-  const coverage = situations.length > 0 ? Math.round((confirmedCount / situations.length) * 100) : 0
-  const isLoading = scriptSectionsQuery.isLoading || situationsQuery.isLoading
-  const isFetching = scriptSectionsQuery.isFetching || situationsQuery.isFetching || storyboardLinesQuery.isFetching || contentUnitsQuery.isFetching || keyframesQuery.isFetching || assetSlotsQuery.isFetching
+  const confirmedCount = sceneMoments.filter((item) => item.status === 'confirmed').length
+  const attentionCount = sceneMoments.filter((item) => ['draft', 'candidate', 'missing', 'review', 'blocked'].includes(String(item.status ?? ''))).length
+  const coverage = sceneMoments.length > 0 ? Math.round((confirmedCount / sceneMoments.length) * 100) : 0
+  const isLoading = segmentsQuery.isLoading || sceneMomentsQuery.isLoading
+  const isFetching = segmentsQuery.isFetching || sceneMomentsQuery.isFetching || storyboardLinesQuery.isFetching || contentUnitsQuery.isFetching || keyframesQuery.isFetching || assetSlotsQuery.isFetching
 
   function refreshAll() {
-    scriptSectionsQuery.refetch()
-    situationsQuery.refetch()
+    segmentsQuery.refetch()
+    sceneMomentsQuery.refetch()
     storyboardLinesQuery.refetch()
     contentUnitsQuery.refetch()
     keyframesQuery.refetch()
@@ -240,11 +240,11 @@ export default function ScenesPage() {
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>v2 情景库</span>
+              <span>v2 情节库</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">情景库</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">情节库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              剧本节作为来源和分组，情境作为可确认的画面上下文；分镜、内容单元、关键帧和素材位围绕情境展开。
+              片段作为来源和分组，情节作为可确认的画面上下文；分镜、内容单元、关键帧和素材位围绕情节展开。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -260,20 +260,20 @@ export default function ScenesPage() {
         </header>
 
         <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={BookOpenText} label="剧本节" value={sections.length} detail="情境的来源分组" tone="text-cyan-600" />
-          <MetricCard icon={Film} label="情境" value={situations.length} detail={`${visibleSituations.length} 个符合当前筛选`} tone="text-teal-600" />
+          <MetricCard icon={BookOpenText} label="片段" value={sections.length} detail="情节的来源分组" tone="text-cyan-600" />
+          <MetricCard icon={Film} label="情节" value={sceneMoments.length} detail={`${visibleSceneMoments.length} 个符合当前筛选`} tone="text-teal-600" />
           <MetricCard icon={CheckCircle2} label="已确认" value={confirmedCount} detail={`${coverage}% 可进入预演`} tone="text-emerald-600" />
-          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail="草稿、候选或阻塞情境" tone="text-amber-600" />
+          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail="草稿、候选或阻塞情节" tone="text-amber-600" />
         </section>
 
         <section className="grid grid-cols-[260px_minmax(0,1fr)_350px] gap-4">
           <aside className="space-y-4">
-            <Panel title="剧本节分组" icon={Layers3}>
+            <Panel title="片段分组" icon={Layers3}>
               <div className="space-y-1">
                 <SectionButton
                   active={selectedSectionId === 'all'}
-                  title="全部剧本节"
-                  subtitle={`${situations.length} 个情境`}
+                  title="全部片段"
+                  subtitle={`${sceneMoments.length} 个情节`}
                   status="source"
                   onClick={() => setSelectedSectionId('all')}
                 />
@@ -282,7 +282,7 @@ export default function ScenesPage() {
                     key={section.ID}
                     active={selectedSectionId === section.ID}
                     title={titleOf(section)}
-                    subtitle={`${sectionKinds[String(section.kind ?? '')] ?? section.kind ?? '剧本节'} · ${sectionCounts.get(section.ID) ?? 0} 个情境`}
+                    subtitle={`${sectionKinds[String(section.kind ?? '')] ?? section.kind ?? '片段'} · ${sectionCounts.get(section.ID) ?? 0} 个情节`}
                     status={section.status ?? 'draft'}
                     onClick={() => setSelectedSectionId(section.ID)}
                   />
@@ -302,7 +302,7 @@ export default function ScenesPage() {
             </Panel>
 
             <Panel title="下游落点" icon={ArrowRight}>
-              <FlowStep icon={Film} label="分镜脚本" detail="情境转为分镜行" />
+              <FlowStep icon={Film} label="分镜脚本" detail="情节转为分镜行" />
               <FlowStep icon={Image} label="预演关键帧" detail="锁定视觉锚点" />
               <FlowStep icon={PackageCheck} label="素材位" detail="补齐生产缺口" />
             </Panel>
@@ -312,8 +312,8 @@ export default function ScenesPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">情境清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">按剧本节聚合，优先处理待确认和缺素材的情境。</p>
+                  <p className="text-sm font-semibold text-foreground">情节清单</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">按片段聚合，优先处理待确认和缺素材的情节。</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative w-64">
@@ -336,24 +336,24 @@ export default function ScenesPage() {
               </div>
 
               {isLoading ? (
-                <EmptyState title="正在加载情境" detail="读取剧本节和情境对象" />
-              ) : visibleSituations.length === 0 ? (
-                <EmptyState title="暂无情境" detail="可先在制作预演中解析并采纳情境候选" />
+                <EmptyState title="正在加载情节" detail="读取片段和情节对象" />
+              ) : visibleSceneMoments.length === 0 ? (
+                <EmptyState title="暂无情节" detail="可先在制作预演中解析并采纳情节候选" />
               ) : (
                 <div className="grid grid-cols-2 gap-3 p-4">
-                  {visibleSituations.map((situation) => {
-                    const section = sections.find((item) => item.ID === situation.script_section_id)
+                  {visibleSceneMoments.map((sceneMoment) => {
+                    const section = sections.find((item) => item.ID === sceneMoment.segment_id)
                     return (
-                      <SituationCard
-                        key={situation.ID}
-                        situation={situation}
+                      <SceneMomentCard
+                        key={sceneMoment.ID}
+                        sceneMoment={sceneMoment}
                         section={section}
-                        selected={selectedSituation?.ID === situation.ID}
-                        storyboardCount={storyboardLines.filter((item) => item.situation_id === situation.ID).length}
-                        contentUnitCount={contentUnits.filter((item) => item.situation_id === situation.ID).length}
-                        keyframeCount={keyframes.filter((item) => item.situation_id === situation.ID).length}
-                        assetGapCount={assetSlots.filter((item) => item.owner_type === 'situation' && item.owner_id === situation.ID && item.status === 'missing').length}
-                        onSelect={() => setSelectedSituationId(situation.ID)}
+                        selected={selectedSceneMoment?.ID === sceneMoment.ID}
+                        storyboardCount={storyboardLines.filter((item) => item.sceneMoment_id === sceneMoment.ID).length}
+                        contentUnitCount={contentUnits.filter((item) => item.sceneMoment_id === sceneMoment.ID).length}
+                        keyframeCount={keyframes.filter((item) => item.sceneMoment_id === sceneMoment.ID).length}
+                        assetGapCount={assetSlots.filter((item) => item.owner_type === 'sceneMoment' && item.owner_id === sceneMoment.ID && item.status === 'missing').length}
+                        onSelect={() => setSelectedSceneMomentId(sceneMoment.ID)}
                       />
                     )
                   })}
@@ -365,12 +365,12 @@ export default function ScenesPage() {
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Wand2 size={15} className="text-primary" />
-                  <p className="text-sm font-semibold text-foreground">情境到预演</p>
+                  <p className="text-sm font-semibold text-foreground">情节到预演</p>
                 </div>
-                <span className="text-xs text-muted-foreground">展示当前情境如何进入分镜、关键帧和素材准备</span>
+                <span className="text-xs text-muted-foreground">展示当前情节如何进入分镜、关键帧和素材准备</span>
               </div>
               <div className="grid grid-cols-4 gap-3 p-4">
-                <PipelineTile icon={BookOpenText} label="来源剧本节" value={selectedSection ? titleOf(selectedSection) : '未绑定'} detail={selectedSection?.summary || selectedSection?.content || '情境可以暂时不绑定剧本节'} />
+                <PipelineTile icon={BookOpenText} label="来源片段" value={selectedSection ? titleOf(selectedSection) : '未绑定'} detail={selectedSection?.summary || selectedSection?.content || '情节可以暂时不绑定片段'} />
                 <PipelineTile icon={Film} label="分镜行" value={selectedStoryboardLines.length} detail="可编译为内容单元" />
                 <PipelineTile icon={Image} label="关键帧" value={selectedKeyframes.length} detail="预演视觉锚点" />
                 <PipelineTile icon={PackageCheck} label="素材位" value={selectedAssetSlots.length} detail="生产前缺口管理" />
@@ -379,7 +379,7 @@ export default function ScenesPage() {
           </main>
 
           <aside className="space-y-4">
-            <SituationDetail situation={selectedSituation} section={selectedSection} />
+            <SceneMomentDetail sceneMoment={selectedSceneMoment} section={selectedSection} />
             <RelatedPanel title="分镜行" icon={Film} records={selectedStoryboardLines} empty="暂无分镜行" />
             <RelatedPanel title="内容单元" icon={Boxes} records={selectedContentUnits} empty="暂无内容单元" />
             <RelatedPanel title="关键帧" icon={Image} records={selectedKeyframes} empty="暂无关键帧" />
@@ -442,8 +442,8 @@ function SectionButton({ active, title, subtitle, status, onClick }: { active: b
   )
 }
 
-function SituationCard({
-  situation,
+function SceneMomentCard({
+  sceneMoment,
   section,
   selected,
   storyboardCount,
@@ -452,8 +452,8 @@ function SituationCard({
   assetGapCount,
   onSelect,
 }: {
-  situation: SituationRecord
-  section?: ScriptSectionRecord
+  sceneMoment: SceneMomentRecord
+  section?: SegmentRecord
   selected: boolean
   storyboardCount: number
   contentUnitCount: number
@@ -475,16 +475,16 @@ function SituationCard({
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-500/10 text-teal-700 dark:text-teal-300">
             <Film size={18} />
           </span>
-          <StatusBadge status={situation.status ?? 'draft'} />
+          <StatusBadge status={sceneMoment.status ?? 'draft'} />
         </div>
-        <h3 className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground">{titleOf(situation)}</h3>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{section ? titleOf(section) : '未绑定剧本节'}</p>
+        <h3 className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground">{titleOf(sceneMoment)}</h3>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{section ? titleOf(section) : '未绑定片段'}</p>
       </div>
       <div className="p-3">
-        <p className="line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{situation.description || situation.action_text || situation.condition_text || '暂无情境描述'}</p>
+        <p className="line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{sceneMoment.description || sceneMoment.action_text || sceneMoment.condition_text || '暂无情节描述'}</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <InfoChip icon={Clock3} label={situation.time_text || '时间未定'} />
-          <InfoChip icon={MapPin} label={situation.location_text || '地点未定'} />
+          <InfoChip icon={Clock3} label={sceneMoment.time_text || '时间未定'} />
+          <InfoChip icon={MapPin} label={sceneMoment.location_text || '地点未定'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Badge variant="outline" className="text-[10px]">分镜 {storyboardCount}</Badge>
@@ -506,11 +506,11 @@ function InfoChip({ icon: Icon, label }: { icon: typeof Clock3; label: string })
   )
 }
 
-function SituationDetail({ situation, section }: { situation: SituationRecord | null; section: ScriptSectionRecord | null }) {
-  if (!situation) {
+function SceneMomentDetail({ sceneMoment, section }: { sceneMoment: SceneMomentRecord | null; section: SegmentRecord | null }) {
+  if (!sceneMoment) {
     return (
       <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择情境" detail="从中间情境清单选择一个对象" compact />
+        <EmptyState title="未选择情节" detail="从中间情节清单选择一个对象" compact />
       </section>
     )
   }
@@ -522,20 +522,20 @@ function SituationDetail({ situation, section }: { situation: SituationRecord | 
           <span className="flex h-10 w-10 items-center justify-center rounded-md bg-teal-500/10 text-teal-700 dark:text-teal-300">
             <Eye size={19} />
           </span>
-          <StatusBadge status={situation.status ?? 'draft'} />
+          <StatusBadge status={sceneMoment.status ?? 'draft'} />
         </div>
-        <h2 className="mt-3 text-lg font-semibold text-foreground">{titleOf(situation)}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{section ? `来自 ${titleOf(section)}` : '未绑定剧本节'}</p>
+        <h2 className="mt-3 text-lg font-semibold text-foreground">{titleOf(sceneMoment)}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{section ? `来自 ${titleOf(section)}` : '未绑定片段'}</p>
       </div>
       <div className="space-y-4 p-4">
-        <InfoBlock label="情境描述" value={situation.description || '暂无描述'} />
+        <InfoBlock label="情节描述" value={sceneMoment.description || '暂无描述'} />
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="时间" value={situation.time_text || '-'} />
-          <MiniStat label="地点" value={situation.location_text || '-'} />
+          <MiniStat label="时间" value={sceneMoment.time_text || '-'} />
+          <MiniStat label="地点" value={sceneMoment.location_text || '-'} />
         </div>
-        <InfoBlock label="条件" value={situation.condition_text || '-'} />
-        <InfoBlock label="动作" value={situation.action_text || '-'} />
-        <InfoBlock label="情绪" value={situation.mood || '-'} />
+        <InfoBlock label="条件" value={sceneMoment.condition_text || '-'} />
+        <InfoBlock label="动作" value={sceneMoment.action_text || '-'} />
+        <InfoBlock label="情绪" value={sceneMoment.mood || '-'} />
       </div>
     </section>
   )

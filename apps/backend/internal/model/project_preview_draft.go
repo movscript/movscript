@@ -2,10 +2,10 @@ package model
 
 import "gorm.io/gorm"
 
-// ScriptPreviewDraft stores the product-level draft snapshot used by the V2
-// script preview flow. It is intentionally a thin snapshot and not a public
+// ProjectPreviewDraft stores the project-level draft snapshot used by the V2
+// project preview flow. It is intentionally a thin snapshot and not a public
 // replacement for ScriptVersion, ContentUnit, or PreviewTimeline.
-type ScriptPreviewDraft struct {
+type ProjectPreviewDraft struct {
 	gorm.Model
 	ProjectID            uint    `gorm:"not null;index;uniqueIndex:idx_script_preview_draft_project_draft" json:"project_id"`
 	ScriptVersionID      *uint   `gorm:"index" json:"script_version_id,omitempty"`
@@ -21,4 +21,8 @@ type ScriptPreviewDraft struct {
 	SnapshotJSON         string  `gorm:"type:text" json:"snapshot_json"`
 	DurationSec          float64 `json:"duration_sec"`
 	SavedAt              string  `json:"saved_at"`
+}
+
+func (ProjectPreviewDraft) TableName() string {
+	return "script_preview_drafts"
 }

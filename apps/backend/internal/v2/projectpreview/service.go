@@ -1,4 +1,4 @@
-package scriptpreview
+package projectpreview
 
 import (
 	"context"
@@ -90,34 +90,34 @@ type DraftPayloadResponse struct {
 }
 
 type AnalyzeRequest struct {
-	DraftID          string                 `json:"draft_id"`
-	SourceText       string                 `json:"source_text"`
-	StoryboardRows   []StoryboardRow        `json:"storyboard_rows"`
-	GeneratedAt      string                 `json:"generated_at"`
-	Sections         []ScriptSectionResult  `json:"sections"`
-	ConfirmQuestions []string               `json:"confirm_questions"`
-	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
-	Status           string                 `json:"status"`
+	DraftID          string                    `json:"draft_id"`
+	SourceText       string                    `json:"source_text"`
+	StoryboardRows   []StoryboardRow           `json:"storyboard_rows"`
+	GeneratedAt      string                    `json:"generated_at"`
+	Sections         []SegmentResult `json:"sections"`
+	ConfirmQuestions []string                  `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion    `json:"storyboard_suggestions"`
+	Status           string                    `json:"status"`
 }
 
 type AnalyzeResponse struct {
-	DraftID          string                 `json:"draft_id"`
-	GeneratedAt      string                 `json:"generated_at"`
-	Sections         []ScriptSectionResult  `json:"sections"`
-	ConfirmQuestions []string               `json:"confirm_questions"`
-	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
-	Status           string                 `json:"status"`
+	DraftID          string                    `json:"draft_id"`
+	GeneratedAt      string                    `json:"generated_at"`
+	Sections         []SegmentResult `json:"sections"`
+	ConfirmQuestions []string                  `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion    `json:"storyboard_suggestions"`
+	Status           string                    `json:"status"`
 }
 
 type AnalysisCandidates struct {
-	GeneratedAt      string                 `json:"generated_at"`
-	Sections         []ScriptSectionResult  `json:"sections"`
-	ConfirmQuestions []string               `json:"confirm_questions"`
-	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
-	Status           string                 `json:"status"`
+	GeneratedAt      string                    `json:"generated_at"`
+	Sections         []SegmentResult `json:"sections"`
+	ConfirmQuestions []string                  `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion    `json:"storyboard_suggestions"`
+	Status           string                    `json:"status"`
 }
 
-type ScriptSectionResult struct {
+type SegmentResult struct {
 	ClientID        string  `json:"client_id"`
 	Order           int     `json:"order"`
 	Title           string  `json:"title"`
@@ -129,7 +129,7 @@ type ScriptSectionResult struct {
 
 type StoryboardSuggestion struct {
 	ClientID        string  `json:"client_id"`
-	SourceSectionID string  `json:"source_section_id"`
+	SourceSegmentID string  `json:"source_segment_id"`
 	Order           int     `json:"order"`
 	Title           string  `json:"title"`
 	Body            string  `json:"body"`
@@ -243,7 +243,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 		PreviewTimelineID:    fmt.Sprintf("%s-preview", req.ScriptVersion.DraftID),
 		SavedAt:              savedAt,
 		Status:               "draft",
-		NextActions:          []string{"analyze_script_to_sections", "generate_keyframes_for_preview"},
+		NextActions:          []string{"analyze_script_to_segments", "generate_keyframes_for_preview"},
 		Draft: DraftPayloadResponse{
 			ProjectID:          projectID,
 			SourceText:         req.SourceText,
@@ -835,8 +835,8 @@ func normalizeRows(rows []StoryboardRow) []StoryboardRow {
 	return out
 }
 
-func normalizeAnalysisSections(sections []ScriptSectionResult) []ScriptSectionResult {
-	out := make([]ScriptSectionResult, 0, len(sections))
+func normalizeAnalysisSections(sections []SegmentResult) []SegmentResult {
+	out := make([]SegmentResult, 0, len(sections))
 	for i, section := range sections {
 		order := i + 1
 		if section.Order > 0 {
@@ -853,7 +853,7 @@ func normalizeAnalysisSections(sections []ScriptSectionResult) []ScriptSectionRe
 	return out
 }
 
-func normalizeConfirmQuestions(questions []string, sections []ScriptSectionResult) []string {
+func normalizeConfirmQuestions(questions []string, sections []SegmentResult) []string {
 	out := make([]string, 0, len(questions)+len(sections))
 	seen := map[string]bool{}
 	for _, question := range questions {
@@ -883,7 +883,7 @@ func normalizeStoryboardSuggestions(suggestions []StoryboardSuggestion) []Storyb
 			order = suggestion.Order
 		}
 		suggestion.ClientID = strings.TrimSpace(suggestion.ClientID)
-		suggestion.SourceSectionID = strings.TrimSpace(suggestion.SourceSectionID)
+		suggestion.SourceSegmentID = strings.TrimSpace(suggestion.SourceSegmentID)
 		suggestion.Order = order
 		suggestion.Title = strings.TrimSpace(suggestion.Title)
 		suggestion.Body = strings.TrimSpace(suggestion.Body)
@@ -1021,7 +1021,7 @@ func deriveNextActions(previewStatus string) []string {
 	if previewStatus == "ready_for_production" {
 		return []string{"enter_content_production"}
 	}
-	return []string{"analyze_script_to_sections", "generate_keyframes_for_preview"}
+	return []string{"analyze_script_to_segments", "generate_keyframes_for_preview"}
 }
 
 func timelineDuration(items []PreviewTimelineIn) float64 {

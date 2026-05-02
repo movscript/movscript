@@ -10,7 +10,7 @@ export interface ProductionV2FallbackResult {
 
 export interface ProductionV2FallbackClient {
   isEnabled(): boolean
-  writeAnalyzeScriptToSections(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
+  writeAnalyzeScriptToSegments(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
   writeGenerateKeyframeCandidates(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult>
 }
 
@@ -19,7 +19,7 @@ export class DisabledProductionV2FallbackClient implements ProductionV2FallbackC
     return false
   }
 
-  async writeAnalyzeScriptToSections(): Promise<ProductionV2FallbackResult> {
+  async writeAnalyzeScriptToSegments(): Promise<ProductionV2FallbackResult> {
     return { performed: false, skippedReason: 'V2 fallback disabled' }
   }
 
@@ -28,7 +28,7 @@ export class DisabledProductionV2FallbackClient implements ProductionV2FallbackC
   }
 }
 
-export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient {
+export class ProjectPreviewV2FallbackClient implements ProductionV2FallbackClient {
   private readonly baseURL?: string
   private readonly enabled: boolean
 
@@ -41,11 +41,11 @@ export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient
     return this.enabled && !!this.baseURL
   }
 
-  async writeAnalyzeScriptToSections(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult> {
+  async writeAnalyzeScriptToSegments(action: ProductionAction, run: ProductionRun): Promise<ProductionV2FallbackResult> {
     if (!this.isEnabled() || !this.baseURL) {
       return { performed: false, skippedReason: 'V2 fallback disabled: set MOVSCRIPT_PRODUCTION_V2_FALLBACK_ENABLED=true and a backend API base URL' }
     }
-    if (action.type !== 'AnalyzeScriptToSections') {
+    if (action.type !== 'AnalyzeScriptToSegments') {
       return { performed: false, skippedReason: `V2 fallback does not support ${action.type}` }
     }
     const sourceText = getString(action.inputContext, 'source_text') ?? getString(action.inputContext, 'sourceText')
@@ -53,7 +53,7 @@ export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient
       return { performed: false, skippedReason: 'V2 fallback skipped: source_text is missing' }
     }
     const draftId = inferDraftId(action)
-    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/script-preview/analyze`
+    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/project-preview/analyze`
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -66,7 +66,7 @@ export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`V2 script-preview/analyze fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`V2 project-preview/analyze fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,
@@ -87,7 +87,7 @@ export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient
       return { performed: false, skippedReason: 'V2 fallback skipped: storyboard_rows are missing' }
     }
     const draftId = inferDraftId(action)
-    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/script-preview/generate-preview`
+    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/project-preview/generate-preview`
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,7 +99,7 @@ export class ScriptPreviewV2FallbackClient implements ProductionV2FallbackClient
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`V2 script-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`V2 project-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,

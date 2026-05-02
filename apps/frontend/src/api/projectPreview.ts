@@ -1,36 +1,36 @@
 import { api } from '@/lib/api'
 
-const productionManagementPath = (projectId: number | string) => `/projects/${projectId}/production-management`
+const projectPreviewPath = (projectId: number | string) => `/projects/${projectId}/project-preview`
 
-export type ScriptPreviewSourceType = 'brief' | 'script' | 'storyboard_script'
-export type ScriptPreviewStoryboardStatus = '待确认' | '需补素材' | '可预演'
+export type ProjectPreviewSourceType = 'brief' | 'script' | 'storyboard_script'
+export type ProjectPreviewStoryboardStatus = '待确认' | '需补素材' | '可预演'
 
-export type ScriptPreviewDraftPayload = {
+export type ProjectPreviewDraftPayload = {
   source_text: string
   script_version_id?: number | null
   script_version: {
     draft_id: string | null
     title: string
-    source_type: ScriptPreviewSourceType
+    source_type: ProjectPreviewSourceType
   }
-  storyboard_rows: ScriptPreviewStoryboardRow[]
-  preview_timeline: ScriptPreviewTimelineInput[]
+  storyboard_rows: ProjectPreviewStoryboardRow[]
+  preview_timeline: ProjectPreviewTimelineInput[]
   preview_status?: string
   confirmed_at?: string
-  analysis_candidates?: ScriptPreviewAnalysisCandidates
-  preview_candidates?: ScriptPreviewCandidateData
+  analysis_candidates?: ProjectPreviewAnalysisCandidates
+  preview_candidates?: ProjectPreviewCandidateData
 }
 
-export type ScriptPreviewStoryboardRow = {
+export type ProjectPreviewStoryboardRow = {
   client_id: string
   order: number
   title: string
   body: string
   duration_seconds: number
-  status: ScriptPreviewStoryboardStatus
+  status: ProjectPreviewStoryboardStatus
 }
 
-export type ScriptPreviewTimelineInput = {
+export type ProjectPreviewTimelineInput = {
   client_id: string
   order: number
   start_seconds: number
@@ -38,7 +38,7 @@ export type ScriptPreviewTimelineInput = {
   duration_seconds: number
 }
 
-export type SaveScriptPreviewDraftResponse = {
+export type SaveProjectPreviewDraftResponse = {
   draft_id: string
   script_version_id?: number | null
   storyboard_revision_id: string
@@ -50,22 +50,22 @@ export type SaveScriptPreviewDraftResponse = {
     project_id: number
     source_text: string
     script_version_id?: number | null
-    script_version: ScriptPreviewDraftPayload['script_version']
-    storyboard_rows: ScriptPreviewStoryboardRow[]
-    preview_timeline: ScriptPreviewTimelineInput[]
+    script_version: ProjectPreviewDraftPayload['script_version']
+    storyboard_rows: ProjectPreviewStoryboardRow[]
+    preview_timeline: ProjectPreviewTimelineInput[]
     preview_status?: string
     confirmed_at?: string
-    analysis_candidates?: ScriptPreviewAnalysisCandidates
-    preview_candidates?: ScriptPreviewCandidateData
+    analysis_candidates?: ProjectPreviewAnalysisCandidates
+    preview_candidates?: ProjectPreviewCandidateData
   }
 }
 
-export type GetLatestScriptPreviewDraftResponse = {
+export type GetLatestProjectPreviewDraftResponse = {
   found: boolean
-  draft?: SaveScriptPreviewDraftResponse
+  draft?: SaveProjectPreviewDraftResponse
 }
 
-export type AnalyzeScriptPreviewResponse = {
+export type AnalyzeProjectPreviewResponse = {
   draft_id: string
   generated_at: string
   sections: Array<{
@@ -80,27 +80,27 @@ export type AnalyzeScriptPreviewResponse = {
   confirm_questions: string[]
   storyboard_suggestions: Array<{
     client_id: string
-    source_section_id: string
+    source_segment_id: string
     order: number
     title: string
     body: string
     duration_seconds: number
-    status: ScriptPreviewStoryboardStatus
+    status: ProjectPreviewStoryboardStatus
     adoption_intent: string
     adoption_status?: 'pending' | 'accepted' | 'rejected' | string
   }>
   status: string
 }
 
-export type ScriptPreviewAnalysisCandidates = {
+export type ProjectPreviewAnalysisCandidates = {
   generated_at: string
-  sections: AnalyzeScriptPreviewResponse['sections']
+  sections: AnalyzeProjectPreviewResponse['sections']
   confirm_questions: string[]
-  storyboard_suggestions: AnalyzeScriptPreviewResponse['storyboard_suggestions']
+  storyboard_suggestions: AnalyzeProjectPreviewResponse['storyboard_suggestions']
   status: string
 }
 
-export type GenerateScriptPreviewResponse = {
+export type GenerateProjectPreviewResponse = {
   draft_id: string
   generated_at: string
   keyframe_candidates: Array<{
@@ -134,69 +134,69 @@ export type GenerateScriptPreviewResponse = {
   status: string
 }
 
-export type ConfirmScriptPreviewResponse = SaveScriptPreviewDraftResponse
+export type ConfirmProjectPreviewResponse = SaveProjectPreviewDraftResponse
 
-export type ScriptPreviewCandidateData = {
+export type ProjectPreviewCandidateData = {
   generated_at: string
-  keyframe_candidates: GenerateScriptPreviewResponse['keyframe_candidates']
-  preview_timeline: GenerateScriptPreviewResponse['preview_timeline']
-  asset_gaps: GenerateScriptPreviewResponse['asset_gaps']
+  keyframe_candidates: GenerateProjectPreviewResponse['keyframe_candidates']
+  preview_timeline: GenerateProjectPreviewResponse['preview_timeline']
+  asset_gaps: GenerateProjectPreviewResponse['asset_gaps']
   status: string
 }
 
-type AnalyzeScriptPreviewPayload = Pick<ScriptPreviewDraftPayload, 'source_text' | 'storyboard_rows'> & {
+type AnalyzeProjectPreviewPayload = Pick<ProjectPreviewDraftPayload, 'source_text' | 'storyboard_rows'> & {
   draft_id: string
   generated_at?: string
-  sections?: AnalyzeScriptPreviewResponse['sections']
+  sections?: AnalyzeProjectPreviewResponse['sections']
   confirm_questions?: string[]
-  storyboard_suggestions?: AnalyzeScriptPreviewResponse['storyboard_suggestions']
+  storyboard_suggestions?: AnalyzeProjectPreviewResponse['storyboard_suggestions']
   status?: string
 }
 
-type GenerateScriptPreviewPayload = {
+type GenerateProjectPreviewPayload = {
   draft_id: string
-  storyboard_rows: ScriptPreviewStoryboardRow[]
+  storyboard_rows: ProjectPreviewStoryboardRow[]
   generated_at?: string
-  keyframe_candidates?: GenerateScriptPreviewResponse['keyframe_candidates']
-  preview_timeline?: GenerateScriptPreviewResponse['preview_timeline']
-  asset_gaps?: GenerateScriptPreviewResponse['asset_gaps']
+  keyframe_candidates?: GenerateProjectPreviewResponse['keyframe_candidates']
+  preview_timeline?: GenerateProjectPreviewResponse['preview_timeline']
+  asset_gaps?: GenerateProjectPreviewResponse['asset_gaps']
   status?: string
 }
 
-export async function saveScriptPreviewDraft(projectId: number, payload: ScriptPreviewDraftPayload) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/draft`, payload)
+export async function saveProjectPreviewDraft(projectId: number, payload: ProjectPreviewDraftPayload) {
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/draft`, payload)
   return res.data
 }
 
-export async function getLatestScriptPreviewDraft(projectId: number) {
-  const res = await api.get<GetLatestScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/draft`)
+export async function getLatestProjectPreviewDraft(projectId: number) {
+  const res = await api.get<GetLatestProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/draft`)
   return res.data
 }
 
-export async function analyzeScriptPreview(
+export async function analyzeProjectPreview(
   projectId: number,
-  payload: AnalyzeScriptPreviewPayload,
+  payload: AnalyzeProjectPreviewPayload,
 ) {
-  const res = await api.post<AnalyzeScriptPreviewResponse>(
-    `${productionManagementPath(projectId)}/analyze`,
+  const res = await api.post<AnalyzeProjectPreviewResponse>(
+    `${projectPreviewPath(projectId)}/analyze`,
     buildAnalysisCandidatePayload(payload),
   )
   return res.data
 }
 
-export async function generateScriptPreview(
+export async function generateProjectPreview(
   projectId: number,
-  payload: GenerateScriptPreviewPayload,
+  payload: GenerateProjectPreviewPayload,
 ) {
-  const res = await api.post<GenerateScriptPreviewResponse>(
-    `${productionManagementPath(projectId)}/generate-preview`,
+  const res = await api.post<GenerateProjectPreviewResponse>(
+    `${projectPreviewPath(projectId)}/generate-preview`,
     buildPreviewCandidatePayload(payload),
   )
   return res.data
 }
 
 function buildAnalysisCandidatePayload(
-  payload: AnalyzeScriptPreviewPayload,
+  payload: AnalyzeProjectPreviewPayload,
 ) {
   if ((payload.sections?.length ?? 0) > 0 || (payload.storyboard_suggestions?.length ?? 0) > 0) {
     return {
@@ -215,17 +215,17 @@ function buildAnalysisCandidatePayload(
     }
   }
 
-  const sections: AnalyzeScriptPreviewResponse['sections'] = []
-  const storyboardSuggestions: AnalyzeScriptPreviewResponse['storyboard_suggestions'] = []
+  const sections: AnalyzeProjectPreviewResponse['sections'] = []
+  const storyboardSuggestions: AnalyzeProjectPreviewResponse['storyboard_suggestions'] = []
   const confirmQuestions: string[] = []
 
   sourceLines.forEach((line, index) => {
     const order = index + 1
-    const sectionId = `section-${String(order).padStart(3, '0')}`
+    const segmentId = `section-${String(order).padStart(3, '0')}`
     const title = summarizeTitle(line, order)
     const question = `第 ${order} 段的情绪转折是否需要用户确认？`
     sections.push({
-      client_id: sectionId,
+      client_id: segmentId,
       order,
       title,
       summary: line,
@@ -236,7 +236,7 @@ function buildAnalysisCandidatePayload(
     confirmQuestions.push(question)
     storyboardSuggestions.push({
       client_id: `suggestion-${String(order).padStart(3, '0')}`,
-      source_section_id: sectionId,
+      source_segment_id: segmentId,
       order,
       title,
       body: line,
@@ -257,7 +257,7 @@ function buildAnalysisCandidatePayload(
   }
 }
 
-function buildPreviewCandidatePayload(payload: GenerateScriptPreviewPayload) {
+function buildPreviewCandidatePayload(payload: GenerateProjectPreviewPayload) {
   if (
     (payload.keyframe_candidates?.length ?? 0) > 0 ||
     (payload.preview_timeline?.length ?? 0) > 0 ||
@@ -271,9 +271,9 @@ function buildPreviewCandidatePayload(payload: GenerateScriptPreviewPayload) {
   }
 
   const rows = normalizeStoryboardRows(payload.storyboard_rows)
-  const keyframeCandidates: GenerateScriptPreviewResponse['keyframe_candidates'] = []
-  const previewTimeline: GenerateScriptPreviewResponse['preview_timeline'] = []
-  const assetGaps: GenerateScriptPreviewResponse['asset_gaps'] = []
+  const keyframeCandidates: GenerateProjectPreviewResponse['keyframe_candidates'] = []
+  const previewTimeline: GenerateProjectPreviewResponse['preview_timeline'] = []
+  const assetGaps: GenerateProjectPreviewResponse['asset_gaps'] = []
   let cursor = 0
 
   rows.forEach((row, index) => {
@@ -333,10 +333,10 @@ function meaningfulLines(text: string) {
 
 function summarizeTitle(text: string, order: number) {
   const trimmed = text.trim()
-  return trimmed ? [...trimmed].slice(0, 14).join('') : `剧本节 ${order}`
+  return trimmed ? [...trimmed].slice(0, 14).join('') : `片段 ${order}`
 }
 
-function normalizeStoryboardRows(rows: ScriptPreviewStoryboardRow[]) {
+function normalizeStoryboardRows(rows: ProjectPreviewStoryboardRow[]) {
   return rows.map((row, index) => ({
     ...row,
     client_id: row.client_id || String(index + 1).padStart(2, '0'),
@@ -348,7 +348,7 @@ function normalizeStoryboardRows(rows: ScriptPreviewStoryboardRow[]) {
   }))
 }
 
-function buildKeyframePrompt(row: ScriptPreviewStoryboardRow) {
+function buildKeyframePrompt(row: ProjectPreviewStoryboardRow) {
   const body = row.body || row.title
   return `为「${row.title || '未命名片段'}」生成预演关键帧：${body}`
 }
@@ -359,11 +359,11 @@ function previewStatus(rowStatus: string) {
   return 'draft'
 }
 
-export async function confirmScriptPreview(
+export async function confirmProjectPreview(
   projectId: number,
   payload: { draft_id: string },
 ) {
-  const res = await api.post<ConfirmScriptPreviewResponse>(`${productionManagementPath(projectId)}/confirm-preview`, payload)
+  const res = await api.post<ConfirmProjectPreviewResponse>(`${projectPreviewPath(projectId)}/confirm-preview`, payload)
   return res.data
 }
 
@@ -371,7 +371,7 @@ export async function acceptStoryboardSuggestion(
   projectId: number,
   payload: { draft_id: string; suggestion_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/storyboard-suggestions/accept`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/storyboard-suggestions/accept`, payload)
   return res.data
 }
 
@@ -379,7 +379,7 @@ export async function rejectStoryboardSuggestion(
   projectId: number,
   payload: { draft_id: string; suggestion_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/storyboard-suggestions/reject`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/storyboard-suggestions/reject`, payload)
   return res.data
 }
 
@@ -387,7 +387,7 @@ export async function acceptKeyframeCandidate(
   projectId: number,
   payload: { draft_id: string; keyframe_candidate_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/keyframe-candidates/accept`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/keyframe-candidates/accept`, payload)
   return res.data
 }
 
@@ -395,7 +395,7 @@ export async function rejectKeyframeCandidate(
   projectId: number,
   payload: { draft_id: string; keyframe_candidate_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/keyframe-candidates/reject`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/keyframe-candidates/reject`, payload)
   return res.data
 }
 
@@ -403,7 +403,7 @@ export async function acceptAssetGap(
   projectId: number,
   payload: { draft_id: string; asset_gap_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/asset-gaps/accept`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/asset-gaps/accept`, payload)
   return res.data
 }
 
@@ -411,7 +411,7 @@ export async function resolveAssetGap(
   projectId: number,
   payload: { draft_id: string; asset_gap_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/asset-gaps/resolve`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/asset-gaps/resolve`, payload)
   return res.data
 }
 
@@ -419,6 +419,6 @@ export async function rejectAssetGap(
   projectId: number,
   payload: { draft_id: string; asset_gap_client_id: string },
 ) {
-  const res = await api.post<SaveScriptPreviewDraftResponse>(`${productionManagementPath(projectId)}/asset-gaps/reject`, payload)
+  const res = await api.post<SaveProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/asset-gaps/reject`, payload)
   return res.data
 }

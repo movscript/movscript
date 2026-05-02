@@ -1,7 +1,7 @@
 export { executeDeterministicProductionAction } from './deterministicExecutor.js'
 export { ProductionRuntime, normalizeProductionAction } from './runtime.js'
 export { FileProductionStore, InMemoryProductionStore, resolveProductionStatePath } from './store.js'
-export { DisabledProductionV2FallbackClient, ScriptPreviewV2FallbackClient } from './v2FallbackClient.js'
+export { DisabledProductionV2FallbackClient, ProjectPreviewV2FallbackClient } from './v2FallbackClient.js'
 export type { ProductionV2FallbackClient, ProductionV2FallbackResult } from './v2FallbackClient.js'
 export type {
   CreateProductionActionInput,
