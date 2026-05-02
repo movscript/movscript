@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BookOpenText,
-  Box,
   CheckCircle2,
   ChevronRight,
   Clapperboard,
@@ -12,25 +11,27 @@ import {
   Film,
   Image,
   Layers3,
-  MapPin,
-  Palette,
   Plus,
   Search,
   ShieldCheck,
   Sparkles,
-  Tag,
-  UserRound,
 } from 'lucide-react'
 
+import {
+  CreativeReferenceCard,
+  creativeReferenceKindMeta,
+  creativeReferenceStatusMeta,
+  type CreativeReferenceCardKind,
+  type CreativeReferenceCardStatus,
+} from '@/components/creative/CreativeReferenceCard'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
-import { Progress as ProgressBar } from '@movscript/ui'
 
-type ReferenceKind = 'person' | 'location' | 'object' | 'style' | 'product'
-type ReferenceStatus = 'locked' | 'review' | 'missing'
+type ReferenceKind = CreativeReferenceCardKind
+type ReferenceStatus = Extract<CreativeReferenceCardStatus, 'locked' | 'review' | 'missing'>
 
 interface CreativeReference {
   id: string
@@ -48,20 +49,6 @@ interface CreativeReference {
   linkedSituations: string[]
   assets: string[]
   accent: string
-}
-
-const kindMeta: Record<ReferenceKind, { label: string; icon: typeof UserRound; dot: string; bg: string; text: string }> = {
-  person: { label: '人物', icon: UserRound, dot: 'bg-sky-500', bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300' },
-  location: { label: '地点', icon: MapPin, dot: 'bg-teal-500', bg: 'bg-teal-500/10', text: 'text-teal-700 dark:text-teal-300' },
-  object: { label: '道具', icon: Box, dot: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300' },
-  style: { label: '风格', icon: Palette, dot: 'bg-rose-500', bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300' },
-  product: { label: '产品', icon: Tag, dot: 'bg-violet-500', bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-300' },
-}
-
-const statusMeta: Record<ReferenceStatus, { label: string; className: string }> = {
-  locked: { label: '已锁定', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-  review: { label: '待确认', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-  missing: { label: '缺资料', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
 }
 
 const references: CreativeReference[] = [
@@ -211,7 +198,7 @@ export default function CreativeReferencesPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">创作资料库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              人物、地点、道具、产品和风格作为可复用资料被情境引用，帮助剧本预演、资产准备和内容生产保持连续性。
+              人物、地点、道具、产品和风格作为可复用资料被情境引用，帮助制作预演、资产准备和内容生产保持连续性。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -242,7 +229,7 @@ export default function CreativeReferencesPage() {
                   const count = item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length
                   const meta = item === 'all'
                     ? { label: '全部资料', icon: Database, dot: 'bg-foreground', bg: 'bg-muted', text: 'text-foreground' }
-                    : kindMeta[item]
+                    : creativeReferenceKindMeta[item]
                   const Icon = meta.icon
                   return (
                     <button
@@ -275,7 +262,7 @@ export default function CreativeReferencesPage() {
             </Panel>
 
             <Panel title="进入下游" icon={ArrowRight}>
-              <FlowStep icon={Film} label="剧本预演" detail="情境引用资料" />
+              <FlowStep icon={Film} label="制作预演" detail="情境引用资料" />
               <FlowStep icon={Image} label="资产准备" detail="补充视觉状态" />
               <FlowStep icon={Clapperboard} label="内容生产" detail="继承连续性约束" />
             </Panel>
@@ -386,56 +373,14 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Da
 }
 
 function ReferenceCard({ reference, selected, onSelect }: { reference: CreativeReference; selected: boolean; onSelect: () => void }) {
-  const meta = kindMeta[reference.kind]
-  const status = statusMeta[reference.status]
-  const Icon = meta.icon
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'overflow-hidden rounded-lg border bg-background text-left transition-all hover:border-primary/50 hover:shadow-sm',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
-      )}
-    >
-      <div className={cn('h-20 border-b border-border bg-gradient-to-br', reference.accent)}>
-        <div className="flex h-full items-center justify-between px-4">
-          <span className={cn('flex h-10 w-10 items-center justify-center rounded-md', meta.bg)}>
-            <Icon size={19} className={meta.text} />
-          </span>
-          <div className="text-right">
-            <p className="text-xs font-medium text-muted-foreground">{reference.version}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">引用 {reference.usage}</p>
-          </div>
-        </div>
-      </div>
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className={cn('h-2 w-2 rounded-full', meta.dot)} />
-              <p className="truncate text-sm font-semibold text-foreground">{reference.title}</p>
-            </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{reference.subtitle}</p>
-          </div>
-          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', status.className)}>{status.label}</span>
-        </div>
-        <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-relaxed text-muted-foreground">{reference.summary}</p>
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground">完整度</span>
-            <span className="font-medium text-foreground">{reference.coverage}%</span>
-          </div>
-          <ProgressBar value={reference.coverage} className="h-1.5" />
-        </div>
-      </div>
-    </button>
+    <CreativeReferenceCard reference={reference} selected={selected} onSelect={onSelect} />
   )
 }
 
 function ReferenceDetail({ reference }: { reference: CreativeReference }) {
-  const meta = kindMeta[reference.kind]
-  const status = statusMeta[reference.status]
+  const meta = creativeReferenceKindMeta[reference.kind]
+  const status = creativeReferenceStatusMeta[reference.status]
   const Icon = meta.icon
   return (
     <section className="rounded-lg border border-border bg-card">

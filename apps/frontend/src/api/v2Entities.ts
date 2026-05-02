@@ -4,14 +4,28 @@ export type V2EntityKind =
   | 'scriptVersions'
   | 'scriptSections'
   | 'situations'
+  | 'storyboardScripts'
+  | 'storyboardVersions'
+  | 'storyboardLines'
   | 'contentUnits'
   | 'keyframes'
   | 'previewTimelines'
+  | 'previewTimelineItems'
   | 'creativeReferences'
   | 'creativeReferenceStates'
-  | 'assetRequirements'
+  | 'creativeReferenceUsages'
+  | 'creativeRelationships'
+  | 'assetSlots'
+  | 'assetSlotCandidates'
+  | 'candidateDecisions'
+  | 'reviewEvents'
   | 'workItems'
+  | 'workReviews'
+  | 'workDependencies'
   | 'deliveryVersions'
+  | 'deliveryTimelineItems'
+  | 'exportRecords'
+  | 'canvasOutputs'
 
 export type V2EntityRecord = Record<string, unknown> & {
   ID: number
@@ -20,7 +34,9 @@ export type V2EntityRecord = Record<string, unknown> & {
   project_id?: number
   title?: string
   name?: string
+  label?: string
   status?: string
+  review_status?: string
   kind?: string
   order?: number
 }
@@ -55,240 +71,350 @@ export interface V2EntityConfig {
 
 export type V2EntityPayload = Record<string, string | number | boolean | null>
 
-export const v2EntityConfigs: V2EntityConfig[] = [
-  {
-    kind: 'scriptVersions',
-    path: 'script-versions',
-    label: '剧本版本',
-    pluralLabel: '剧本版本',
-    description: '导入剧本、brief 或修订文本后的稳定版本，是剧本节和预演的源头。',
-    requiredHint: '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。',
-    iconTone: 'text-sky-600',
-    summaryKeys: ['title', 'source_type', 'status', 'summary'],
-    fields: [
-      { key: 'script_id', label: 'Script ID', type: 'number', required: true, createOnly: true, helper: '关联旧 Script 记录' },
-      { key: 'title', label: '标题', type: 'text', required: true },
-      { key: 'source_type', label: '来源类型', type: 'select', options: options(['raw', 'adapted', 'revised', 'ai']) },
-      { key: 'content', label: '正文', type: 'textarea' },
-      { key: 'raw_source', label: '原文', type: 'textarea' },
-      { key: 'summary', label: '摘要', type: 'textarea' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'active', 'archived']) },
-    ],
-  },
-  {
-    kind: 'scriptSections',
-    path: 'script-sections',
-    label: '剧本节',
-    pluralLabel: '剧本节',
-    description: '从剧本版本切出的语义段落，不等同于传统场景。',
-    requiredHint: '创建时需要填写 script_version_id。',
-    iconTone: 'text-cyan-600',
-    summaryKeys: ['title', 'kind', 'status', 'summary'],
-    fields: [
-      { key: 'script_version_id', label: 'ScriptVersion ID', type: 'number', required: true, createOnly: true },
-      { key: 'title', label: '标题', type: 'text', required: true },
-      { key: 'kind', label: '类型', type: 'select', options: options(['section', 'scene', 'montage', 'narration', 'product_showcase', 'title_card', 'transition']) },
-      { key: 'order', label: '顺序', type: 'number' },
-      { key: 'summary', label: '摘要', type: 'textarea' },
-      { key: 'content', label: '内容', type: 'textarea' },
-      { key: 'source_range', label: '原文范围', type: 'text' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'confirmed', 'ignored']) },
-    ],
-  },
-  {
-    kind: 'situations',
-    path: 'situations',
-    label: '情境',
-    pluralLabel: '情境',
-    description: 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。',
-    iconTone: 'text-teal-600',
-    summaryKeys: ['title', 'time_text', 'location_text', 'status'],
-    fields: [
-      { key: 'script_section_id', label: 'ScriptSection ID', type: 'number' },
-      { key: 'title', label: '标题', type: 'text', required: true },
-      { key: 'order', label: '顺序', type: 'number' },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'time_text', label: '时间', type: 'text' },
-      { key: 'location_text', label: '地点', type: 'text' },
-      { key: 'condition_text', label: '条件', type: 'textarea' },
-      { key: 'action_text', label: '动作', type: 'textarea' },
-      { key: 'mood', label: '情绪', type: 'text' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'confirmed', 'ignored']) },
-    ],
-  },
-  {
-    kind: 'contentUnits',
-    path: 'content-units',
-    label: '内容单元',
-    pluralLabel: '内容单元',
-    description: '预演与生产的最小颗粒，镜头只是其中一种类型。',
-    iconTone: 'text-indigo-600',
-    summaryKeys: ['title', 'kind', 'duration_sec', 'status'],
-    fields: [
-      { key: 'script_section_id', label: 'ScriptSection ID', type: 'number' },
-      { key: 'situation_id', label: 'Situation ID', type: 'number' },
-      { key: 'title', label: '标题', type: 'text', required: true },
-      { key: 'kind', label: '类型', type: 'select', options: options(['shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']) },
-      { key: 'order', label: '顺序', type: 'number' },
-      { key: 'duration_sec', label: '时长秒', type: 'number' },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'prompt', label: '生成提示', type: 'textarea' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'confirmed', 'in_production', 'locked']) },
-    ],
-  },
-  {
-    kind: 'keyframes',
-    path: 'keyframes',
-    label: '关键帧',
-    pluralLabel: '关键帧',
-    description: '情境或内容单元的视觉锚点，用于驱动预演时间线。',
-    iconTone: 'text-rose-600',
-    summaryKeys: ['title', 'status', 'description', 'prompt'],
-    fields: [
-      { key: 'situation_id', label: 'Situation ID', type: 'number' },
-      { key: 'content_unit_id', label: 'ContentUnit ID', type: 'number' },
-      { key: 'title', label: '标题', type: 'text', required: true },
-      { key: 'order', label: '顺序', type: 'number' },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'prompt', label: '生成提示', type: 'textarea' },
-      { key: 'status', label: '状态', type: 'select', options: options(['generated', 'candidate', 'attached', 'accepted', 'rejected']) },
-    ],
-  },
-  {
-    kind: 'previewTimelines',
-    path: 'preview-timelines',
-    label: '预演时间线',
-    pluralLabel: '预演时间线',
-    description: '按内容单元排列的可播放预演版本。',
-    iconTone: 'text-emerald-600',
-    summaryKeys: ['name', 'status', 'duration_sec', 'is_primary'],
-    fields: [
-      { key: 'script_version_id', label: 'ScriptVersion ID', type: 'number' },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'duration_sec', label: '总时长秒', type: 'number' },
-      { key: 'is_primary', label: '主时间线', type: 'boolean' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'playable', 'confirmed', 'archived']) },
-    ],
-  },
-  {
-    kind: 'creativeReferences',
-    path: 'creative-references',
-    label: '创作资料',
-    pluralLabel: '创作资料',
-    description: '人物、地点、道具、产品、风格和规则等项目资料。',
-    iconTone: 'text-violet-600',
-    summaryKeys: ['name', 'kind', 'importance', 'status'],
-    fields: [
-      { key: 'kind', label: '类型', type: 'select', required: true, options: options(['person', 'animal', 'place', 'prop', 'product', 'brand', 'style', 'world_rule', 'time_period', 'restriction']) },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'alias', label: '别名', type: 'text' },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'content', label: '资料内容', type: 'textarea' },
-      { key: 'importance', label: '重要性', type: 'select', options: options(['main', 'supporting', 'background']) },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'confirmed', 'merged', 'ignored', 'locked']) },
-      { key: 'tags_json', label: '标签 JSON', type: 'textarea' },
-    ],
-  },
-  {
-    kind: 'creativeReferenceStates',
-    path: 'creative-reference-states',
-    label: '资料状态',
-    pluralLabel: '资料状态',
-    description: '创作资料在特定剧本节、情境或内容单元中的临时状态。',
-    requiredHint: '创建时需要填写 creative_reference_id。',
-    iconTone: 'text-fuchsia-600',
-    summaryKeys: ['name', 'scope_type', 'status', 'emotion'],
-    fields: [
-      { key: 'creative_reference_id', label: 'CreativeReference ID', type: 'number', required: true },
-      { key: 'scope_type', label: '作用范围', type: 'select', required: true, options: options(['script', 'script_section', 'situation', 'content_unit', 'time_period']) },
-      { key: 'scope_id', label: 'Scope ID', type: 'number' },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'visual_notes', label: '视觉说明', type: 'textarea' },
-      { key: 'emotion', label: '情绪', type: 'text' },
-      { key: 'costume', label: '服装', type: 'text' },
-      { key: 'props', label: '道具', type: 'textarea' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'confirmed', 'locked', 'ignored']) },
-    ],
-  },
-  {
-    kind: 'assetRequirements',
-    path: 'asset-requirements',
-    label: '素材需求',
-    pluralLabel: '素材需求',
-    description: '正式生产前需要补齐、候选或锁定的素材缺口。',
-    iconTone: 'text-amber-600',
-    summaryKeys: ['name', 'kind', 'priority', 'status'],
-    fields: [
-      { key: 'owner_type', label: '归属类型', type: 'select', options: options(['script_section', 'situation', 'content_unit', 'keyframe', 'creative_reference_state']) },
-      { key: 'owner_id', label: 'Owner ID', type: 'number' },
-      { key: 'kind', label: '素材类型', type: 'select', options: options(['image', 'video', 'audio', 'text', 'brand_pack', 'reference']) },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'required_slot', label: '需求槽位', type: 'text' },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'prompt_hint', label: '生成提示', type: 'textarea' },
-      { key: 'priority', label: '优先级', type: 'select', options: options(['low', 'normal', 'high', 'critical']) },
-      { key: 'status', label: '状态', type: 'select', options: options(['missing', 'candidate', 'locked', 'waived']) },
-    ],
-  },
-  {
-    kind: 'workItems',
-    path: 'work-items',
-    label: '制作任务',
-    pluralLabel: '制作任务',
-    description: '执行、分配、审核和返工状态，不作为内容事实源。',
-    iconTone: 'text-orange-600',
-    summaryKeys: ['title', 'target_type', 'kind', 'status'],
-    fields: [
-      { key: 'target_type', label: '目标类型', type: 'select', required: true, options: options(['script_section', 'situation', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_requirement', 'asset', 'keyframe', 'delivery_version']) },
-      { key: 'target_id', label: 'Target ID', type: 'number', required: true },
-      { key: 'title', label: '标题', type: 'text', required: true },
-      { key: 'kind', label: '任务类型', type: 'select', options: options(['human', 'ai', 'hybrid', 'review', 'fix']) },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'priority', label: '优先级', type: 'select', options: options(['low', 'normal', 'high', 'critical']) },
-      { key: 'status', label: '状态', type: 'select', options: options(['todo', 'running', 'blocked', 'review', 'done', 'cancelled']) },
-    ],
-  },
-  {
-    kind: 'deliveryVersions',
-    path: 'delivery-versions',
-    label: '交付版本',
-    pluralLabel: '交付版本',
-    description: '成片检查、审核和导出版本记录。',
-    iconTone: 'text-lime-600',
-    summaryKeys: ['name', 'status', 'duration_sec', 'is_primary'],
-    fields: [
-      { key: 'preview_timeline_id', label: 'PreviewTimeline ID', type: 'number' },
-      { key: 'name', label: '名称', type: 'text', required: true },
-      { key: 'description', label: '描述', type: 'textarea' },
-      { key: 'duration_sec', label: '总时长秒', type: 'number' },
-      { key: 'is_primary', label: '主版本', type: 'boolean' },
-      { key: 'status', label: '状态', type: 'select', options: options(['draft', 'checking', 'approved', 'exported', 'archived']) },
-    ],
-  },
-]
+export const v2EntityConfigs: V2EntityConfig[] = v2CoreEntityConfigs()
 
 export function v2EntityConfig(kind: V2EntityKind) {
   return v2EntityConfigs.find((config) => config.kind === kind) ?? v2EntityConfigs[0]
 }
 
+export function v2EntityPath(projectId: number, config: V2EntityConfig) {
+  return `/projects/${projectId}/v2/${config.path}`
+}
+
 export async function listV2Entities(projectId: number, config: V2EntityConfig) {
-  const { data } = await api.get<V2EntityRecord[]>(`/projects/${projectId}/v2/${config.path}`)
-  return data
+  const { data } = await api.get<V2EntityRecord[] | { items?: V2EntityRecord[] }>(v2EntityPath(projectId, config))
+  return Array.isArray(data) ? data : data.items ?? []
 }
 
 export async function createV2Entity(projectId: number, config: V2EntityConfig, payload: V2EntityPayload) {
-  const { data } = await api.post<V2EntityRecord>(`/projects/${projectId}/v2/${config.path}`, payload)
+  const { data } = await api.post<V2EntityRecord>(v2EntityPath(projectId, config), payload)
   return data
 }
 
 export async function updateV2Entity(projectId: number, config: V2EntityConfig, id: number, payload: V2EntityPayload) {
-  const { data } = await api.patch<V2EntityRecord>(`/projects/${projectId}/v2/${config.path}/${id}`, payload)
+  const { data } = await api.patch<V2EntityRecord>(`${v2EntityPath(projectId, config)}/${id}`, payload)
   return data
 }
 
 export async function deleteV2Entity(projectId: number, config: V2EntityConfig, id: number) {
-  await api.delete(`/projects/${projectId}/v2/${config.path}/${id}`)
+  await api.delete(`${v2EntityPath(projectId, config)}/${id}`)
+}
+
+function v2CoreEntityConfigs(): V2EntityConfig[] {
+  return [
+    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是剧本节和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
+      num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
+      text('title', '标题', true),
+      select('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
+      area('content', '正文'),
+      area('raw_source', '原文'),
+      area('summary', '摘要'),
+      select('status', '状态', ['draft', 'active', 'archived']),
+    ], '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。'),
+    cfg('scriptSections', 'script-sections', '剧本节', '从剧本版本切出的语义段落，不等同于传统场景。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
+      num('script_version_id', 'ScriptVersion ID', true, true),
+      text('title', '标题', true),
+      select('kind', '类型', ['section', 'scene', 'montage', 'narration', 'product_showcase', 'title_card', 'transition']),
+      num('order', '顺序'),
+      area('summary', '摘要'),
+      area('content', '内容'),
+      text('source_range', '原文范围'),
+      select('status', '状态', ['draft', 'confirmed', 'ignored']),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 script_version_id。'),
+    cfg('situations', 'situations', '情境', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
+      num('script_section_id', 'ScriptSection ID'),
+      text('title', '标题', true),
+      num('order', '顺序'),
+      area('description', '描述'),
+      text('time_text', '时间'),
+      text('location_text', '地点'),
+      area('condition_text', '条件'),
+      area('action_text', '动作'),
+      text('mood', '情绪'),
+      select('status', '状态', ['draft', 'confirmed', 'ignored']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情境到内容单元之间的正式 V2 对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
+      num('script_version_id', 'ScriptVersion ID'),
+      text('name', '名称', true),
+      area('description', '描述'),
+      bool('is_primary', '主分镜脚本'),
+      select('status', '状态', ['draft', 'active', 'locked', 'archived']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '结构化分镜脚本的版本快照，用于比较 AI 候选和人工修改。', 'text-blue-600', ['title', 'version_number', 'source', 'status'], [
+      num('storyboard_script_id', 'StoryboardScript ID', true, true),
+      num('parent_version_id', 'ParentVersion ID'),
+      num('version_number', '版本号', false, true),
+      text('title', '标题'),
+      select('source', '来源', ['manual', 'ai', 'import']),
+      select('status', '状态', ['draft', 'active', 'archived']),
+      area('snapshot_json', '快照 JSON'),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 storyboard_script_id。'),
+    cfg('storyboardLines', 'storyboard-lines', '分镜行', '结构化分镜脚本中的一行，可编译为一个或多个内容单元。', 'text-blue-600', ['title', 'kind', 'order', 'status'], [
+      num('storyboard_script_id', 'StoryboardScript ID', true),
+      num('storyboard_version_id', 'StoryboardVersion ID'),
+      num('script_section_id', 'ScriptSection ID'),
+      num('situation_id', 'Situation ID'),
+      num('order', '顺序'),
+      select('kind', '类型', ['beat', 'shot', 'caption', 'narration', 'transition', 'note']),
+      text('title', '标题'),
+      area('description', '描述'),
+      area('dialogue', '对白'),
+      area('visual_intent', '视觉意图'),
+      num('duration_sec', '时长秒'),
+      select('status', '状态', ['draft', 'candidate', 'confirmed', 'ignored']),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 storyboard_script_id。'),
+    cfg('contentUnits', 'content-units', '内容单元', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
+      num('script_section_id', 'ScriptSection ID'),
+      num('situation_id', 'Situation ID'),
+      text('title', '标题', true),
+      select('kind', '类型', ['shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']),
+      num('order', '顺序'),
+      num('duration_sec', '时长秒'),
+      area('description', '描述'),
+      area('prompt', '生成提示'),
+      select('status', '状态', ['draft', 'confirmed', 'in_production', 'locked']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('keyframes', 'keyframes', '关键帧', '情境或内容单元的视觉锚点，用于驱动预演时间线。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
+      num('situation_id', 'Situation ID'),
+      num('content_unit_id', 'ContentUnit ID'),
+      num('resource_id', 'Resource ID'),
+      num('canvas_id', 'Canvas ID'),
+      text('title', '标题', true),
+      num('order', '顺序'),
+      area('description', '描述'),
+      area('prompt', '生成提示'),
+      select('status', '状态', ['generated', 'candidate', 'attached', 'accepted', 'rejected']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('previewTimelines', 'preview-timelines', '预演时间线', '按内容单元排列的可播放预演版本。', 'text-emerald-600', ['name', 'status', 'duration_sec', 'is_primary'], [
+      num('script_version_id', 'ScriptVersion ID'),
+      text('name', '名称', true),
+      num('duration_sec', '总时长秒'),
+      bool('is_primary', '主时间线'),
+      select('status', '状态', ['draft', 'playable', 'confirmed', 'archived']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的关键帧、内容单元、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
+    cfg('creativeReferences', 'creative-references', '创作资料', '人物、地点、道具、产品、风格和规则等项目资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
+      select('kind', '类型', ['person', 'place', 'prop', 'product', 'brand', 'style', 'world_rule', 'time_period', 'restriction'], true),
+      text('name', '名称', true),
+      text('alias', '别名'),
+      area('description', '描述'),
+      area('content', '资料内容'),
+      select('importance', '重要性', ['main', 'supporting', 'background']),
+      select('status', '状态', ['draft', 'confirmed', 'merged', 'ignored', 'locked']),
+      area('profile_json', '档案 JSON'),
+      area('tags_json', '标签 JSON'),
+    ]),
+    cfg('creativeReferenceStates', 'creative-reference-states', '资料状态', '创作资料在特定剧本节、情境或内容单元中的临时状态。', 'text-fuchsia-600', ['name', 'scope_type', 'status', 'emotion'], [
+      num('creative_reference_id', 'CreativeReference ID', true),
+      select('scope_type', '作用范围', ['script', 'script_section', 'situation', 'storyboard_line', 'content_unit', 'time_period'], true),
+      num('scope_id', 'Scope ID'),
+      text('name', '名称', true),
+      area('description', '描述'),
+      area('visual_notes', '视觉说明'),
+      text('emotion', '情绪'),
+      text('costume', '服装'),
+      area('props', '道具'),
+      select('status', '状态', ['draft', 'confirmed', 'locked', 'ignored']),
+      area('tags_json', '标签 JSON'),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 creative_reference_id。'),
+    cfg('creativeReferenceUsages', 'creative-reference-usages', '资料使用', '记录结构对象使用哪一个创作资料及其状态。', 'text-fuchsia-600', ['owner_type', 'owner_id', 'role', 'status'], [
+      select('owner_type', '归属类型', ['script_section', 'situation', 'storyboard_line', 'content_unit', 'keyframe'], true),
+      num('owner_id', 'Owner ID', true),
+      num('creative_reference_id', 'CreativeReference ID', true),
+      num('creative_reference_state_id', 'CreativeReferenceState ID'),
+      select('role', '角色', ['protagonist', 'supporting', 'location', 'prop', 'style', 'brand', 'rule']),
+      num('order', '顺序'),
+      area('evidence', '证据'),
+      select('source', '来源', ['manual', 'ai', 'import']),
+      select('status', '状态', ['draft', 'confirmed', 'corrected', 'ignored']),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 owner_type、owner_id 和 creative_reference_id。'),
+    cfg('creativeRelationships', 'creative-relationships', '资料关系', '创作资料之间的关系、约束、引用和冲突。', 'text-fuchsia-600', ['label', 'category', 'type', 'status'], [
+      num('source_creative_reference_id', 'SourceCreativeReference ID', true),
+      num('target_creative_reference_id', 'TargetCreativeReference ID', true),
+      select('scope_type', '作用范围', ['project', 'script', 'script_section', 'situation', 'storyboard_line', 'content_unit']),
+      num('scope_id', 'Scope ID'),
+      select('category', '分类', ['relationship', 'continuity', 'conflict', 'constraint']),
+      text('type', '类型'),
+      text('label', '标签'),
+      area('description', '描述'),
+      select('source', '来源', ['manual', 'ai', 'import']),
+      select('status', '状态', ['draft', 'confirmed', 'corrected', 'ignored']),
+      area('evidence', '证据'),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
+    cfg('assetSlots', 'asset-slots', '素材位', '正式生产前需要补齐、候选或锁定的素材缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
+      select('owner_type', '归属类型', ['script_section', 'situation', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
+      num('owner_id', 'Owner ID'),
+      num('creative_reference_id', 'CreativeReference ID'),
+      num('creative_reference_state_id', 'CreativeReferenceState ID'),
+      select('kind', '素材类型', ['image', 'video', 'audio', 'text', 'brand_pack', 'reference']),
+      text('name', '名称', true),
+      text('slot_key', '素材位键'),
+      area('description', '描述'),
+      area('prompt_hint', '生成提示'),
+      select('priority', '优先级', ['low', 'normal', 'high', 'critical']),
+      num('locked_asset_id', 'LockedAsset ID'),
+      select('status', '状态', ['missing', 'candidate', 'locked', 'waived']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '某个素材位下的候选素材及选择状态。', 'text-amber-600', ['asset_slot_id', 'asset_id', 'score', 'status'], [
+      num('asset_slot_id', 'AssetSlot ID', true),
+      num('asset_id', 'Asset ID', true),
+      select('source_type', '来源类型', ['manual', 'upload', 'job', 'canvas', 'import']),
+      num('source_id', 'Source ID'),
+      num('score', '评分'),
+      select('status', '状态', ['candidate', 'selected', 'rejected']),
+      area('note', '备注'),
+    ], '创建时需要填写 asset_slot_id 和 asset_id。'),
+    cfg('candidateDecisions', 'candidate-decisions', '候选决策', '记录候选的采纳、拒绝、修改、延后或回滚决策。', 'text-amber-600', ['candidate_type', 'decision', 'status', 'source'], [
+      select('candidate_type', '候选类型', ['script_section', 'situation', 'storyboard_line', 'keyframe', 'asset_slot_candidate', 'preview_timeline'], true),
+      num('candidate_id', 'Candidate ID'),
+      text('candidate_client_id', 'Candidate Client ID'),
+      select('target_type', '目标类型', ['script_section', 'situation', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'preview_timeline', 'delivery_version']),
+      num('target_id', 'Target ID'),
+      select('decision', '决策', ['accept', 'reject', 'revise', 'defer', 'rollback'], true),
+      select('status', '状态', ['recorded', 'applied', 'superseded', 'failed']),
+      area('reason', '原因'),
+      area('note', '备注'),
+      select('source', '来源', ['manual', 'ai', 'runtime', 'import']),
+      num('decided_by_id', 'DecidedBy ID'),
+      text('applied_at', 'Applied At'),
+      area('metadata_json', '元数据 JSON'),
+    ], '可用 candidate_id 关联已落库候选，也可用 candidate_client_id 记录草稿或 runtime 候选。'),
+    cfg('reviewEvents', 'review-events', '评审事件', '记录 V2 对象、候选和输出的评审事件流。', 'text-orange-600', ['subject_type', 'event_type', 'from_status', 'to_status'], [
+      select('subject_type', '对象类型', ['script_section', 'situation', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'asset_slot_candidate', 'candidate_decision', 'work_item', 'delivery_version', 'canvas_output'], true),
+      num('subject_id', 'Subject ID'),
+      text('subject_client_id', 'Subject Client ID'),
+      select('event_type', '事件类型', ['submitted', 'commented', 'approved', 'changes_requested', 'rejected', 'resolved', 'reopened', 'applied', 'rolled_back'], true),
+      text('from_status', '原状态'),
+      text('to_status', '新状态'),
+      area('comment', '评论'),
+      area('reason', '原因'),
+      select('source', '来源', ['manual', 'ai', 'runtime', 'import']),
+      num('actor_id', 'Actor ID'),
+      area('metadata_json', '元数据 JSON'),
+    ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录草稿或 runtime 对象。'),
+    cfg('workItems', 'work-items', '制作任务', '执行、分配、审核和返工状态，不作为内容事实源。', 'text-orange-600', ['title', 'target_type', 'kind', 'status'], [
+      select('target_type', '目标类型', ['script_section', 'situation', 'storyboard_line', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'asset', 'keyframe', 'delivery_version'], true),
+      num('target_id', 'Target ID', true),
+      text('title', '标题', true),
+      select('kind', '任务类型', ['human', 'ai', 'hybrid', 'review', 'fix']),
+      area('description', '描述'),
+      select('priority', '优先级', ['low', 'normal', 'high', 'critical']),
+      select('status', '状态', ['todo', 'running', 'blocked', 'review', 'done', 'cancelled']),
+      num('assignee_id', 'Assignee ID'),
+      num('source_job_id', 'SourceJob ID'),
+      num('source_canvas_id', 'SourceCanvas ID'),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('workReviews', 'work-reviews', '任务审核', '制作任务的审核、修改意见和拒绝记录。', 'text-orange-600', ['work_item_id', 'status', 'comment'], [
+      num('work_item_id', 'WorkItem ID', true),
+      num('reviewer_id', 'Reviewer ID'),
+      select('status', '状态', ['pending', 'approved', 'changes_requested', 'rejected']),
+      area('comment', '意见'),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 work_item_id。'),
+    cfg('workDependencies', 'work-dependencies', '任务依赖', '制作任务之间的阻塞和顺序依赖。', 'text-orange-600', ['work_item_id', 'depends_on_work_item_id', 'dependency_type'], [
+      num('work_item_id', 'WorkItem ID', true),
+      num('depends_on_work_item_id', 'DependsOnWorkItem ID', true),
+      select('dependency_type', '依赖类型', ['blocks', 'requires', 'relates_to']),
+    ], '创建时需要填写 work_item_id 和 depends_on_work_item_id。'),
+    cfg('deliveryVersions', 'delivery-versions', '交付版本', '成片检查、审核和导出版本记录。', 'text-lime-600', ['name', 'status', 'duration_sec', 'is_primary'], [
+      num('preview_timeline_id', 'PreviewTimeline ID'),
+      text('name', '名称', true),
+      area('description', '描述'),
+      num('duration_sec', '总时长秒'),
+      bool('is_primary', '主版本'),
+      select('status', '状态', ['draft', 'checking', 'approved', 'exported', 'archived']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('deliveryTimelineItems', 'delivery-timeline-items', '交付时间线项', '交付版本中的视频、图片、音频、字幕或缺口项。', 'text-lime-600', ['label', 'kind', 'order', 'status'], timelineFields('delivery_version_id', 'DeliveryVersion ID'), '创建时需要填写 delivery_version_id。'),
+    cfg('exportRecords', 'export-records', '导出记录', '交付版本的导出任务、格式、预设和失败信息。', 'text-lime-600', ['delivery_version_id', 'format', 'preset', 'status'], [
+      num('delivery_version_id', 'DeliveryVersion ID', true),
+      num('resource_id', 'Resource ID'),
+      select('status', '状态', ['pending', 'running', 'succeeded', 'failed']),
+      text('format', '格式'),
+      text('preset', '预设'),
+      area('error', '错误'),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 delivery_version_id。'),
+    cfg('canvasOutputs', 'canvas-outputs', '画布输出', '画布运行结果写回 V2 或当前实体的明确落点。', 'text-purple-600', ['owner_type', 'owner_id', 'output_type', 'status'], [
+      num('canvas_id', 'Canvas ID', true),
+      num('canvas_run_id', 'CanvasRun ID'),
+      text('canvas_node_id', 'Canvas Node ID'),
+      text('port_id', 'Port ID', true),
+      select('owner_type', '归属类型', ['script_version', 'script_section', 'situation', 'storyboard_script', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'delivery_version'], true),
+      num('owner_id', 'Owner ID', true),
+      select('output_type', '输出类型', ['resource', 'field', 'candidate', 'note']),
+      num('resource_id', 'Resource ID'),
+      text('target_field', '目标字段'),
+      area('value_json', '值 JSON'),
+      select('status', '状态', ['pending', 'attached', 'applied', 'rejected']),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 canvas_id、port_id、owner_type 和 owner_id。'),
+  ]
+}
+
+function cfg(
+  kind: V2EntityKind,
+  path: string,
+  label: string,
+  description: string,
+  iconTone: string,
+  summaryKeys: string[],
+  fields: V2EntityField[],
+  requiredHint?: string,
+): V2EntityConfig {
+  return { kind, path, label, pluralLabel: label, description, iconTone, summaryKeys, fields, requiredHint }
+}
+
+function text(key: string, label: string, required = false): V2EntityField {
+  return { key, label, type: 'text', required }
+}
+
+function area(key: string, label: string): V2EntityField {
+  return { key, label, type: 'textarea' }
+}
+
+function num(key: string, label: string, required = false, createOnly = false, helper?: string): V2EntityField {
+  return { key, label, type: 'number', required, createOnly, helper }
+}
+
+function bool(key: string, label: string): V2EntityField {
+  return { key, label, type: 'boolean' }
+}
+
+function select(key: string, label: string, values: string[], required = false): V2EntityField {
+  return { key, label, type: 'select', required, options: options(values) }
+}
+
+function timelineFields(ownerKey: string, ownerLabel: string): V2EntityField[] {
+  return [
+    num(ownerKey, ownerLabel, true),
+    num('content_unit_id', 'ContentUnit ID'),
+    num('asset_id', 'Asset ID'),
+    num('resource_id', 'Resource ID'),
+    num('script_section_id', 'ScriptSection ID'),
+    num('situation_id', 'Situation ID'),
+    num('keyframe_id', 'Keyframe ID'),
+    select('kind', '类型', ['keyframe', 'content_unit', 'video', 'image', 'audio', 'caption', 'gap', 'note']),
+    num('order', '顺序'),
+    num('start_sec', '开始秒'),
+    num('duration_sec', '时长秒'),
+    text('label', '标签'),
+    select('status', '状态', ['draft', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved']),
+    area('metadata_json', '元数据 JSON'),
+  ]
 }
 
 function options(values: string[]): V2EntityOption[] {

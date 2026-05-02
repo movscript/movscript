@@ -26,6 +26,7 @@
     "related": "关联",
     "loading": "加载中...",
     "loadingShort": "加载中…",
+    "next": "下一页",
     "switch": "切换",
     "selectProject": "选择项目...",
     "requestFailed": "请求失败，请稍后重试",
@@ -367,7 +368,7 @@
     },
     "episodeNumber": "集数编号",
     "episodeSynopsis": "剧情概要",
-    "productionStatus": "制作状态",
+    "productionStatus": "制作管理状态",
     "linkedScenes": "关联分场",
     "noLinkedScenes": "暂无关联分场",
     "sceneFallback": "场景 #{{id}}",
@@ -388,11 +389,10 @@
   },
   "pages": {
     "projectHomeV2": {
-      "badge": "项目首页 v2",
+      "badge": "首页",
       "noDescription": "暂无项目描述。这里会汇总剧本、素材、生产和交付的当前状态。",
       "actions": {
         "continue": "继续推进",
-        "openWorkbench": "打开工作台",
         "viewTasks": "查看任务"
       },
       "stageState": {
@@ -429,14 +429,14 @@
       },
       "sections": {
         "pipeline": "制作链路",
-        "pipelineHint": "从剧本预演到交付的五段式项目总览。",
+        "pipelineHint": "从制作管理到交付的五段式项目总览。",
         "focus": "今日关注",
         "focusHint": "优先处理会阻塞后续生产的内容缺口。",
         "quickLinks": "快速入口"
       },
       "stages": {
         "script": {
-          "title": "剧本预演",
+          "title": "制作管理",
           "description": "导入、分析和校准剧本，为后续资产和镜头拆解提供依据。"
         },
         "references": {
@@ -448,8 +448,8 @@
           "description": "确认生产引用的角色、场景、道具、声音和品牌素材。"
         },
         "production": {
-          "title": "内容生产",
-          "description": "管理分镜、镜头生成和内容迭代。"
+          "title": "制作",
+          "description": "承载一次从剧本、制作管理、资料、素材、内容到成片的完整制作。"
         },
         "delivery": {
           "title": "交付",
@@ -466,14 +466,14 @@
         "awaitingApproval": "等待审核通过"
       },
       "emptyFocus": {
-        "scriptPreview": "从剧本预演开始整理内容输入",
+        "scriptPreview": "从制作管理开始整理内容输入",
         "scriptPreviewMeta": "生成结构和素材缺口",
         "assets": "检查素材准备状态",
         "assetsMeta": "锁定生产引用"
       }
     },
-    "assets": {
-      "searchPlaceholder": "搜索素材…",
+      "assets": {
+        "searchPlaceholder": "搜索素材…",
       "gridTitle": "缩略图",
       "listTitle": "列表",
       "empty": "暂无素材",
@@ -483,13 +483,25 @@
       "settingFallback": "设定 #{{id}}",
       "unlinkedSetting": "未绑定设定",
       "pagination": "{{total}} 个素材 · {{page}}/{{pageCount}}",
+      "library": {
+        "title": "素材库总览",
+        "subtitle": "只查看当前项目已沉淀的素材、设定绑定和可用媒体；素材位生成与候选锁定请进入素材生成。",
+        "openGeneration": "素材生成",
+        "emptyHint": "上传素材后会在这里形成项目素材总览。",
+        "metrics": {
+          "assets": "素材总数",
+          "settings": "设定数量",
+          "media": "可预览媒体",
+          "linked": "已绑定设定"
+        }
+      },
       "v2": {
-        "title": "素材准备",
+        "title": "素材生成",
         "subtitle": "按缺口处理正式生产需要的参考图、视频、声音和品牌素材。",
         "searchPlaceholder": "搜索缺口、片段或素材提示…",
         "noSelection": "请选择一个素材缺口",
-        "emptyRequirements": "没有匹配的素材缺口",
-        "emptyRequirementsHint": "调整筛选条件，或从剧本预演里生成新的素材缺口。",
+        "emptyAssetSlots": "没有匹配的素材位",
+        "emptyAssetSlotsHint": "调整筛选条件，或从制作管理里生成新的素材缺口。",
         "candidateCount": "{{count}} 个候选",
         "status": {
           "missing": "缺失",
@@ -538,7 +550,7 @@
           "context": "项目上下文"
         },
         "readiness": {
-          "requirementConfirmed": "缺口已确认或处理",
+          "slotConfirmed": "素材位已确认或处理",
           "hasCandidate": "已有可评估候选",
           "lockedOrWaived": "已锁定或明确忽略"
         },
@@ -671,23 +683,23 @@
       "tasks": "任务",
       "management": "管理",
       "preview": {
-        "title": "预演生产状态",
+        "title": "制作管理状态",
         "ready": "已确认",
         "pending": "待确认",
         "missing": "未找到草稿",
-        "readySummary": "预演已经确认，可以继续进入制作任务。",
-        "pendingSummary": "当前项目已有预演草稿，但还没有进入可生产状态。",
-        "missingSummary": "当前项目还没有可用的预演草稿，先完成剧本预演确认。",
+        "readySummary": "制作管理已经确认，可以继续进入任务分配与审核。",
+        "pendingSummary": "当前项目已有制作管理草稿，但还没有进入可生产状态。",
+        "missingSummary": "当前项目还没有可用的制作管理草稿，先完成制作管理确认。",
         "readyTitle": "可进入内容生产",
         "notReadyTitle": "尚未进入生产前状态",
         "savedAt": "保存时间：{{value}}",
         "confirmedAt": "确认时间：{{value}}",
         "unknown": "暂无",
-        "foundDraft": "最近预演草稿",
-        "noDraft": "进入剧本预演后会显示最近保存的草稿状态。",
+        "foundDraft": "最近制作管理草稿",
+        "noDraft": "进入制作管理后会显示最近保存的草稿状态。",
         "enterProduction": "进入内容生产",
-        "goPreview": "前往剧本预演",
-        "viewPreview": "查看剧本预演"
+        "goPreview": "前往制作管理",
+        "viewPreview": "查看制作管理"
       }
     },
     "canvases": {
@@ -2122,16 +2134,32 @@
   "header": {
     "titles": {
       "projects": "项目",
-      "projectHome": "项目首页",
-      "creation": "工作台",
+      "projectHome": "首页",
+      "projectPlan": "筹备总览",
+      "creation": "首页",
+      "workbenchScript": "理解确认",
+      "workbenchPreview": "制作决策",
+      "workbenchCreative": "资料确认",
+      "workbenchAssets": "素材生成",
+      "workbenchProduction": "生产决策",
+      "workbenchDelivery": "交付门禁",
+      "workbenchReferenceRelations": "关系校正",
+      "assetProductionWorkbench": "素材制作工作台",
+      "contentProductionWorkbench": "内容生产工作台",
       "scripts": "剧本管理",
       "settings": "设定管理",
-      "assets": "素材准备",
+      "assets": "素材库",
       "episodes": "分集管理",
-      "scriptPreview": "剧本预演",
-      "referenceRelations": "引用关系",
-      "collaboration": "协作进度",
-      "scenes": "分场管理",
+      "scriptPreview": "制作管理",
+      "previewProgress": "制作管理进度",
+      "creativeReferences": "创作资料库",
+      "referenceRelations": "关系总览",
+      "production": "内容生产",
+      "finalVideos": "成片库",
+      "collaboration": "任务",
+      "delivery": "交付",
+      "v2Entities": "V2 实体",
+      "scenes": "情景库",
       "storyboards": "分镜管理",
       "shots": "镜头管理",
       "canvases": "画布",
@@ -2154,16 +2182,21 @@
   "sidebar": {
     "sections": {
       "project": "项目",
+      "contentArea": "内容区",
       "progress": "进度",
       "tools": "工具",
       "files": "文件",
       "manage": "管理",
-      "workspace": "工作区",
+      "workspace": "工作台",
       "contentLibrary": "内容库",
-      "legacyManage": "旧版管理"
+      "legacyManage": "旧版管理",
+      "entityManage": "实体管理"
+    },
+    "groups": {
+      "scriptPreviewWorkbench": "制作管理"
     },
     "items": {
-      "scripts": "剧本",
+      "scripts": "剧本库",
       "settings": "设定",
       "assets": "素材",
       "episodes": "分集",
@@ -2185,17 +2218,42 @@
       "myAgents": "我的 Agent",
       "agentDebug": "Agent 调试",
       "production": "生产中台",
-      "creation": "工作台",
+      "creation": "处理台",
       "collaboration": "协作",
-      "projectHome": "项目首页",
-      "projectPlan": "项目规划",
-      "scriptPreview": "剧本预演",
+      "projectHome": "首页",
+      "projectProduction": "制作",
+      "contentAreaProduction": "制作",
+      "script": "剧本",
+      "scriptSections": "剧本节",
+      "situations": "情景",
+      "references": "资料",
+      "relations": "关系",
+      "content": "内容",
+      "projectPlan": "筹备总览",
+      "scriptPreview": "制作管理",
+      "previewProgress": "制作管理进度",
       "v2Entities": "V2 实体",
-      "creativeReferences": "创作资料",
+      "entityManagement": "实体管理",
+      "creativeReferences": "创作资料库",
       "referenceRelations": "引用关系",
-      "assetPreparation": "素材准备",
-      "contentProduction": "内容生产",
-      "productionTasks": "制作任务",
+      "relationOverview": "关系总览",
+      "assetPreparation": "素材库",
+      "contentProduction": "制作",
+      "situationLibrary": "情景库",
+      "finalVideoLibrary": "成片库",
+      "assetProductionWorkbench": "素材制作工作台",
+      "contentProductionWorkbench": "内容生产工作台",
+      "workbenchScript": "理解确认",
+      "workbenchPreview": "制作决策",
+      "workbenchCreative": "资料确认",
+      "workbenchAssets": "素材生成",
+      "workbenchProduction": "生产决策",
+      "workbenchDelivery": "交付门禁",
+      "workbenchReferenceRelations": "关系校正",
+      "workbenchProjectPreview": "项目预演",
+      "workbenchAssetPreparation": "素材准备",
+      "workbenchContentGeneration": "内容生成",
+      "productionTasks": "任务",
       "delivery": "交付",
       "user": "用户资料",
       "admin": "管理后台",

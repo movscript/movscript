@@ -62,6 +62,60 @@ type Situation struct {
 	MetadataJSON    string         `gorm:"type:text" json:"metadata_json"`
 }
 
+// StoryboardScript is the structured written plan that bridges confirmed
+// situations and content units.
+type StoryboardScript struct {
+	gorm.Model
+	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
+	ScriptVersionID *uint          `gorm:"index" json:"script_version_id,omitempty"`
+	ScriptVersion   *ScriptVersion `gorm:"foreignKey:ScriptVersionID" json:"script_version,omitempty"`
+	Name            string         `gorm:"not null" json:"name"`
+	Description     string         `gorm:"type:text" json:"description"`
+	Status          string         `gorm:"not null;default:'draft';index" json:"status"` // draft|active|locked|archived
+	IsPrimary       bool           `gorm:"default:false;index" json:"is_primary"`
+	MetadataJSON    string         `gorm:"type:text" json:"metadata_json"`
+}
+
+// StoryboardVersion stores revision snapshots for a structured storyboard
+// script so generated proposals and user edits can be compared.
+type StoryboardVersion struct {
+	gorm.Model
+	ProjectID          uint              `gorm:"not null;index" json:"project_id"`
+	StoryboardScriptID uint              `gorm:"not null;index" json:"storyboard_script_id"`
+	StoryboardScript   *StoryboardScript `gorm:"foreignKey:StoryboardScriptID" json:"storyboard_script,omitempty"`
+	ParentVersionID    *uint             `gorm:"index" json:"parent_version_id,omitempty"`
+	VersionNumber      int               `gorm:"not null;default:1" json:"version_number"`
+	Title              string            `json:"title"`
+	Source             string            `gorm:"not null;default:'manual';index" json:"source"` // ai|manual|import
+	Status             string            `gorm:"not null;default:'draft';index" json:"status"`  // draft|active|archived
+	SnapshotJSON       string            `gorm:"type:text" json:"snapshot_json"`
+	MetadataJSON       string            `gorm:"type:text" json:"metadata_json"`
+}
+
+// StoryboardLine is one row of the structured storyboard script. It can later
+// compile into one or more content units.
+type StoryboardLine struct {
+	gorm.Model
+	ProjectID           uint               `gorm:"not null;index" json:"project_id"`
+	StoryboardScriptID  uint               `gorm:"not null;index" json:"storyboard_script_id"`
+	StoryboardScript    *StoryboardScript  `gorm:"foreignKey:StoryboardScriptID" json:"storyboard_script,omitempty"`
+	StoryboardVersionID *uint              `gorm:"index" json:"storyboard_version_id,omitempty"`
+	StoryboardVersion   *StoryboardVersion `gorm:"foreignKey:StoryboardVersionID" json:"storyboard_version,omitempty"`
+	ScriptSectionID     *uint              `gorm:"index" json:"script_section_id,omitempty"`
+	ScriptSection       *ScriptSection     `gorm:"foreignKey:ScriptSectionID" json:"script_section,omitempty"`
+	SituationID         *uint              `gorm:"index" json:"situation_id,omitempty"`
+	Situation           *Situation         `gorm:"foreignKey:SituationID" json:"situation,omitempty"`
+	Order               int                `gorm:"not null;default:0;index" json:"order"`
+	Kind                string             `gorm:"not null;default:'beat';index" json:"kind"` // beat|shot|caption|narration|transition|note
+	Title               string             `json:"title"`
+	Description         string             `gorm:"type:text" json:"description"`
+	Dialogue            string             `gorm:"type:text" json:"dialogue"`
+	VisualIntent        string             `gorm:"type:text" json:"visual_intent"`
+	DurationSec         float64            `json:"duration_sec"`
+	Status              string             `gorm:"not null;default:'draft';index" json:"status"` // draft|candidate|confirmed|ignored
+	MetadataJSON        string             `gorm:"type:text" json:"metadata_json"`
+}
+
 // ContentUnit is the preview and production grain. A traditional shot is just
 // one kind of content unit.
 type ContentUnit struct {

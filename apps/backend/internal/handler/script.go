@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -41,14 +40,6 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 	service.ApplyScriptInput(&s, req)
 	s.ProjectID = parseID(c.Param("id"))
 	normalizeScriptDefaults(&s)
-	if err := h.validateScriptEpisodeBinding(&s); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	if err := h.validateSingleMainScript(&s); err != nil {
-		c.JSON(http.StatusConflict, apierr.Conflict(err.Error()))
-		return
-	}
 	if user := currentUser(c); user != nil {
 		s.AuthorID = user.ID
 	}
@@ -58,10 +49,6 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 	}
 	if err := h.ensureInitialScriptVersion(&s, currentUserID(c)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "V2 剧本版本初始化失败: " + err.Error()})
-		return
-	}
-	if err := h.syncEpisodeScriptCompatibility(&s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "分集剧本关联同步失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, s)
@@ -91,24 +78,12 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 	service.ApplyScriptInput(&s, req)
 	s.ProjectID = projectID
 	normalizeScriptDefaults(&s)
-	if err := h.validateScriptEpisodeBinding(&s); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	if err := h.validateSingleMainScript(&s); err != nil {
-		c.JSON(http.StatusConflict, apierr.Conflict(err.Error()))
-		return
-	}
 	if err := h.db.Save(&s).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if err := h.ensureInitialScriptVersion(&s, currentUserID(c)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "V2 剧本版本同步失败: " + err.Error()})
-		return
-	}
-	if err := h.syncEpisodeScriptCompatibility(&s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "分集剧本关联同步失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, s)
@@ -136,40 +111,7 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 		next.ScriptType = scriptType
 	}
 	normalizeScriptDefaults(&next)
-	if rawEpisodeID, ok := body["episode_id"]; ok {
-		next.EpisodeID = nil
-		switch v := rawEpisodeID.(type) {
-		case float64:
-			if v > 0 {
-				id := uint(v)
-				next.EpisodeID = &id
-			}
-		case int:
-			if v > 0 {
-				id := uint(v)
-				next.EpisodeID = &id
-			}
-		case string:
-			if v != "" {
-				var id uint
-				if _, err := fmt.Sscanf(v, "%d", &id); err == nil && id > 0 {
-					next.EpisodeID = &id
-				}
-			}
-		}
-	}
-	if err := h.validateScriptEpisodeBinding(&next); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	if err := h.validateSingleMainScript(&next); err != nil {
-		c.JSON(http.StatusConflict, apierr.Conflict(err.Error()))
-		return
-	}
 	updates := service.ScriptPatchUpdates(body)
-	if next.ScriptType == "main" {
-		updates["episode_id"] = nil
-	}
 	if len(updates) > 0 {
 		if err := h.db.Model(&s).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -181,16 +123,12 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "V2 剧本版本同步失败: " + err.Error()})
 		return
 	}
-	if err := h.syncEpisodeScriptCompatibility(&s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "分集剧本关联同步失败: " + err.Error()})
-		return
-	}
 	c.JSON(http.StatusOK, s)
 }
 
 func normalizeScriptDefaults(s *model.Script) {
 	if s.ScriptType == "" {
-		s.ScriptType = "main"
+		s.ScriptType = "uncategorized"
 	}
 	if s.SourceType == "" {
 		s.SourceType = "raw"
@@ -207,76 +145,6 @@ func normalizeScriptDefaults(s *model.Script) {
 	if strings.TrimSpace(s.RawSource) != "" {
 		s.Content = s.RawSource
 	}
-}
-
-func (h *ScriptHandler) validateSingleMainScript(s *model.Script) error {
-	if s.ScriptType != "main" {
-		return nil
-	}
-	var count int64
-	if err := h.db.Model(&model.Script{}).
-		Where("project_id = ? AND script_type = ? AND id <> ?", s.ProjectID, "main", s.ID).
-		Count(&count).Error; err != nil {
-		return validateSingleMainScriptCount(*s, count, err)
-	}
-	return validateSingleMainScriptCount(*s, count, nil)
-}
-
-func validateSingleMainScriptCount(s model.Script, count int64, queryErr error) error {
-	if s.ScriptType != "main" {
-		return nil
-	}
-	if queryErr != nil {
-		return queryErr
-	}
-	if count > 0 {
-		return fmt.Errorf("一个项目只能有一个总剧本")
-	}
-	return nil
-}
-
-func (h *ScriptHandler) validateScriptEpisodeBinding(s *model.Script) error {
-	if s.ScriptType == "main" {
-		s.EpisodeID = nil
-		return nil
-	}
-	if s.ScriptType != "episode" && s.ScriptType != "scene" {
-		return fmt.Errorf("剧本类型无效")
-	}
-	if s.ScriptType == "episode" && s.EpisodeID == nil {
-		return fmt.Errorf("分集剧本必须关联分集")
-	}
-	if s.EpisodeID == nil {
-		return nil
-	}
-	var episode model.Episode
-	if err := h.db.Where("id = ? AND project_id = ?", *s.EpisodeID, s.ProjectID).First(&episode).Error; err != nil {
-		return fmt.Errorf("关联分集不存在或不属于该项目")
-	}
-	return nil
-}
-
-func (h *ScriptHandler) syncEpisodeScriptCompatibility(s *model.Script) error {
-	if err := h.db.Model(&model.Episode{}).
-		Where("script_id = ? AND (id <> ? OR ? = 0)", s.ID, currentEpisodeID(s), currentEpisodeID(s)).
-		Update("script_id", nil).Error; err != nil {
-		return err
-	}
-	if s.ScriptType != "episode" || s.EpisodeID == nil {
-		return h.db.Model(&model.Episode{}).
-			Where("script_id = ?", s.ID).
-			Update("script_id", nil).Error
-	}
-	return h.db.Model(&model.Episode{}).
-		Where("id = ? AND project_id = ?", *s.EpisodeID, s.ProjectID).
-		Update("script_id", s.ID).Error
-}
-
-func currentEpisodeID(s *model.Script) uint {
-	if s.EpisodeID == nil {
-		return 0
-	}
-	return *s.EpisodeID
 }
 
 func (h *ScriptHandler) ensureInitialScriptVersion(s *model.Script, createdByID *uint) error {

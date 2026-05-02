@@ -299,7 +299,7 @@ function normalizeActionType(value: unknown): ProductionActionType {
     value === 'ExtractSituations' ||
     value === 'GenerateStoryboardScript' ||
     value === 'GenerateKeyframeCandidates' ||
-    value === 'PrepareAssetRequirements' ||
+    value === 'PrepareAssetSlots' ||
     value === 'BuildPreviewTimelineProposal'
   ) {
     return value
@@ -378,8 +378,8 @@ function resolveV2DataOperation(candidate: ProductionCandidate): string | undefi
       return 'UpsertStoryboardSuggestions'
     case 'keyframe':
       return 'UpsertKeyframeCandidates'
-    case 'asset_requirement':
-      return 'UpsertAssetRequirementCandidates'
+    case 'asset_slot':
+      return 'UpsertAssetSlotCandidates'
     case 'preview_timeline':
       return 'BuildPreviewTimeline / SavePreviewProposal'
     default:

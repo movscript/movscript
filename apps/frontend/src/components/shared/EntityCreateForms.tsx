@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Asset, PaginatedResponse, Script, Scene, Episode, Storyboard, Setting, RawResource } from '@/types'
+import type { Asset, PaginatedResponse, Scene, Episode, Storyboard, Setting, RawResource } from '@/types'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -10,12 +10,6 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { buildSettingStateOptions, normalizeSettingStateTags, settingStatusLabel } from '@/components/settings/SettingDetailEditor'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
-
-const SCRIPT_TYPES = [
-  { type: 'main' as const, labelKey: 'domain.scriptTypes.mainAlt', color: 'bg-primary text-primary-foreground' },
-  { type: 'episode' as const, labelKey: 'domain.scriptTypes.episode', color: 'bg-primary text-primary-foreground' },
-  { type: 'scene' as const, labelKey: 'domain.scriptTypes.scene', color: 'bg-primary text-primary-foreground' },
-]
 
 export interface EntityFormProps {
   projectId: number
@@ -27,30 +21,19 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [title, setTitle] = useState('')
-  const [type, setType] = useState<Script['script_type']>('main')
+  const [category, setCategory] = useState('')
   const [desc, setDesc] = useState('')
-  const [episodeId, setEpisodeId] = useState<number | null>(null)
-
-  const { data: rawEpisodes } = useQuery<Episode[]>({
-    queryKey: ['episodes-project', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/episodes`).then((r) => r.data),
-    enabled: !!projectId,
-  })
-  const episodes = rawEpisodes ?? []
-  const needsEpisode = type === 'episode'
-  const canCreate = !!title.trim() && (!needsEpisode || !!episodeId)
+  const canCreate = !!title.trim()
 
   const create = useMutation({
     mutationFn: () =>
       api.post(`/projects/${projectId}/scripts`, {
         title,
         description: desc || undefined,
-        script_type: type,
-        episode_id: episodeId ?? undefined,
+        script_type: category.trim() || 'uncategorized',
       }).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
-      qc.invalidateQueries({ queryKey: ['episodes-project', projectId] })
       qc.invalidateQueries({ queryKey: ['artifact-refs', projectId] })
       onSuccess()
     },
@@ -69,43 +52,14 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
         />
       </div>
       <div>
-        <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.type')}</Label>
-        <div className="flex flex-wrap gap-2">
-          {SCRIPT_TYPES.map((scriptType) => (
-            <button
-              key={scriptType.type}
-              onClick={() => {
-                setType(scriptType.type)
-                if (scriptType.type === 'main') setEpisodeId(null)
-              }}
-              className={cn(
-                'px-3 py-1.5 text-xs rounded-full border transition-colors',
-                type === scriptType.type ? cn(scriptType.color, 'border-transparent') : 'border-border text-muted-foreground hover:border-ring'
-              )}
-            >
-              {t(scriptType.labelKey)}
-            </button>
-          ))}
-        </div>
+        <Label className="text-xs font-medium text-muted-foreground mb-1">分类</Label>
+        <Input
+          placeholder="例如：第一集、广告脚本、口播、拍摄版"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">分类是自由标签，不限制固定选项。</p>
       </div>
-      {type !== 'main' && (
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground mb-1">
-            {type === 'episode' ? t('forms.parentEpisodeRequired') : t('forms.parentEpisodeOptional')}
-          </Label>
-          <select
-            className="w-full border border-border rounded px-3 py-2 text-sm bg-background text-foreground"
-            value={episodeId ?? ''}
-            onChange={(e) => setEpisodeId(Number(e.target.value) || null)}
-          >
-            <option value="">{type === 'episode' ? t('forms.selectEpisodeFirst') : t('forms.unlinked')}</option>
-            {episodes.map((e) => <option key={e.ID} value={e.ID}>EP{e.number} {e.title}</option>)}
-          </select>
-          {type === 'episode' && episodes.length === 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">{t('forms.createEpisodeBeforeEpisodeScript')}</p>
-          )}
-        </div>
-      )}
       <div>
         <Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.summaryOptional')}</Label>
         <Textarea className="resize-none" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} />

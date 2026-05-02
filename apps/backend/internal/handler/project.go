@@ -216,61 +216,55 @@ func (h *ProjectHandler) ListMembers(c *gin.Context) {
 
 func (h *ProjectHandler) Progress(c *gin.Context) {
 	pid := c.Param("id")
-	var scriptCount, episodeCount, sceneCount, memberCount, assetCount int64
+	var scriptVersionCount, scriptSectionCount, memberCount, assetSlotCount int64
 
-	h.db.Model(&model.Script{}).Where("project_id = ?", pid).Count(&scriptCount)
-	h.db.Model(&model.Episode{}).Where("project_id = ?", pid).Count(&episodeCount)
-	h.db.Model(&model.Scene{}).Where("project_id = ?", pid).Count(&sceneCount)
+	h.db.Model(&model.ScriptVersion{}).Where("project_id = ?", pid).Count(&scriptVersionCount)
+	h.db.Model(&model.ScriptSection{}).Where("project_id = ?", pid).Count(&scriptSectionCount)
 	h.db.Model(&model.ProjectMember{}).Where("project_id = ?", pid).Count(&memberCount)
-	h.db.Model(&model.Asset{}).Where("project_id = ?", pid).Count(&assetCount)
-
-	// Fetch project for total_episodes target
-	var project model.Project
-	h.db.Select("total_episodes").First(&project, pid)
+	h.db.Model(&model.AssetSlot{}).Where("project_id = ?", pid).Count(&assetSlotCount)
 
 	type statusCount struct {
 		Status string
 		Count  int64
 	}
 
-	var sbTotal int64
-	h.db.Model(&model.Storyboard{}).Where("project_id = ?", pid).Count(&sbTotal)
+	var storyboardLineCount int64
+	h.db.Model(&model.StoryboardLine{}).Where("project_id = ?", pid).Count(&storyboardLineCount)
 
-	// Shot breakdown — use project_id directly
-	var shotBreakdown []statusCount
-	h.db.Model(&model.Shot{}).
+	var contentUnitBreakdown []statusCount
+	h.db.Model(&model.ContentUnit{}).
 		Select("status, count(*) as count").
 		Where("project_id = ?", pid).
 		Group("status").
-		Scan(&shotBreakdown)
-	shotMap := map[string]int64{}
-	var shotTotal int64
-	for _, r := range shotBreakdown {
-		shotMap[r.Status] = r.Count
-		shotTotal += r.Count
+		Scan(&contentUnitBreakdown)
+	contentUnitMap := map[string]int64{}
+	var contentUnitTotal int64
+	for _, r := range contentUnitBreakdown {
+		contentUnitMap[r.Status] = r.Count
+		contentUnitTotal += r.Count
 	}
 
-	var approvedShotCount int64
-	h.db.Model(&model.Shot{}).Where("project_id = ? AND is_approved = true", pid).Count(&approvedShotCount)
+	var acceptedKeyframeCount int64
+	h.db.Model(&model.Keyframe{}).Where("project_id = ? AND status IN ?", pid, []string{"attached", "accepted"}).Count(&acceptedKeyframeCount)
 
 	c.JSON(http.StatusOK, gin.H{
-		"scripts":        scriptCount,
-		"episodes":       episodeCount,
-		"total_episodes": project.TotalEpisodes,
-		"scenes":         sceneCount,
-		"assets":         assetCount,
+		"scripts":        scriptVersionCount,
+		"episodes":       int64(0),
+		"total_episodes": int64(0),
+		"scenes":         scriptSectionCount,
+		"assets":         assetSlotCount,
 		"members":        memberCount,
 		"storyboards": gin.H{
-			"total": sbTotal,
+			"total": storyboardLineCount,
 		},
 		"shots": gin.H{
-			"total":        shotTotal,
-			"draft":        shotMap["draft"],
-			"prompt_ready": shotMap["prompt_ready"],
-			"generating":   shotMap["generating"],
-			"generated":    shotMap["generated"],
-			"approved":     shotMap["approved"],
-			"is_approved":  approvedShotCount,
+			"total":        contentUnitTotal,
+			"draft":        contentUnitMap["draft"],
+			"prompt_ready": contentUnitMap["confirmed"],
+			"generating":   contentUnitMap["in_production"],
+			"generated":    acceptedKeyframeCount,
+			"approved":     contentUnitMap["locked"],
+			"is_approved":  contentUnitMap["locked"],
 		},
 	})
 }

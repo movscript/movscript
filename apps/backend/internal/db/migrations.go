@@ -147,7 +147,49 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&model.CreativeReferenceUsage{}, &model.CreativeRelationship{})
 			},
 		},
+		{
+			Version: "000023",
+			Name:    "v2_storyboard_script_and_canvas_output",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(
+					&model.StoryboardScript{},
+					&model.StoryboardVersion{},
+					&model.StoryboardLine{},
+					&model.CanvasOutput{},
+				)
+			},
+		},
+		{
+			Version: "000024",
+			Name:    "v2_candidate_decision_review_event",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.CandidateDecision{}, &model.ReviewEvent{})
+			},
+		},
+		{
+			Version: "000025",
+			Name:    "remove_v1_production_entities",
+			Up:      migrateRemoveV1ProductionEntities,
+		},
 	}
+}
+
+func migrateRemoveV1ProductionEntities(db *gorm.DB) error {
+	for _, stmt := range []string{
+		`DROP TABLE IF EXISTS final_videos CASCADE`,
+		`DROP TABLE IF EXISTS shots CASCADE`,
+		`DROP TABLE IF EXISTS storyboards CASCADE`,
+		`DROP TABLE IF EXISTS episode_scenes CASCADE`,
+		`DROP TABLE IF EXISTS scene_setting_refs CASCADE`,
+		`DROP TABLE IF EXISTS scenes CASCADE`,
+		`DROP TABLE IF EXISTS episode_setting_refs CASCADE`,
+		`DROP TABLE IF EXISTS episodes CASCADE`,
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateV2SemanticSkeleton(db *gorm.DB) error {
@@ -156,6 +198,9 @@ func migrateV2SemanticSkeleton(db *gorm.DB) error {
 		&model.ScriptVersion{},
 		&model.ScriptSection{},
 		&model.Situation{},
+		&model.StoryboardScript{},
+		&model.StoryboardVersion{},
+		&model.StoryboardLine{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.PreviewTimeline{},
@@ -164,8 +209,10 @@ func migrateV2SemanticSkeleton(db *gorm.DB) error {
 		&model.CreativeReferenceState{},
 		&model.CreativeReferenceUsage{},
 		&model.CreativeRelationship{},
-		&model.AssetRequirement{},
-		&model.AssetRequirementCandidate{},
+		&model.AssetSlot{},
+		&model.AssetSlotCandidate{},
+		&model.CandidateDecision{},
+		&model.ReviewEvent{},
 		&model.WorkItem{},
 		&model.WorkReview{},
 		&model.WorkDependency{},
@@ -518,8 +565,10 @@ func allModels() []any {
 		&model.CreativeReferenceState{},
 		&model.CreativeReferenceUsage{},
 		&model.CreativeRelationship{},
-		&model.AssetRequirement{},
-		&model.AssetRequirementCandidate{},
+		&model.AssetSlot{},
+		&model.AssetSlotCandidate{},
+		&model.CandidateDecision{},
+		&model.ReviewEvent{},
 		&model.WorkItem{},
 		&model.WorkReview{},
 		&model.WorkDependency{},
@@ -532,14 +581,6 @@ func allModels() []any {
 		&model.SettingRelationship{},
 		&model.Asset{},
 		&model.AssetView{},
-		&model.Episode{},
-		&model.EpisodeSettingRef{},
-		&model.Scene{},
-		&model.SceneSettingRef{},
-		&model.EpisodeScene{},
-		&model.Storyboard{},
-		&model.Shot{},
-		&model.FinalVideo{},
 		&model.AICredential{},
 		&model.AIModelConfig{},
 		&model.UserQuota{},
@@ -555,6 +596,7 @@ func allModels() []any {
 		&model.CanvasRun{},
 		&model.CanvasTask{},
 		&model.CanvasEntityWriteAudit{},
+		&model.CanvasOutput{},
 		&model.FeatureConfig{},
 		&model.Job{},
 		&model.Plugin{},

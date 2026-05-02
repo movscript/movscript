@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { Script } from '@/types'
 import { Save, Upload } from 'lucide-react'
-import { Button, Label, Textarea } from '@movscript/ui'
+import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 interface ScriptFormProps {
@@ -53,8 +53,8 @@ export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProp
         </div>
       </div>
 
-      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="flex min-h-[560px] flex-col">
+      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="flex min-h-[430px] flex-col">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <input
               ref={fileInputRef}
@@ -75,7 +75,7 @@ export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProp
           </div>
           <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('details.scriptBody')}</Label>
           <Textarea
-            className="min-h-[520px] flex-1 resize-y font-mono leading-relaxed"
+            className="min-h-[380px] flex-1 resize-y font-mono leading-relaxed"
             placeholder={t('details.scriptBodyPlaceholder')}
             value={draft.raw_source ?? draft.content ?? ''}
             onChange={(event) => updateRawSource(event.target.value)}
@@ -83,6 +83,16 @@ export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProp
         </div>
 
         <aside className="space-y-4">
+          <div className="rounded-lg border border-border bg-card p-3">
+            <Label className="text-xs font-semibold text-foreground">分类</Label>
+            <Input
+              className="mt-2"
+              placeholder="未分类"
+              value={draft.script_type === 'uncategorized' ? '' : draft.script_type ?? ''}
+              onChange={(event) => onChange({ ...draft, script_type: event.target.value })}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">分类是自由标签，例如：第一集、广告脚本、拍摄版。</p>
+          </div>
           <div className="rounded-lg border border-border bg-card p-3">
             <p className="text-xs font-semibold text-foreground">文件说明</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">

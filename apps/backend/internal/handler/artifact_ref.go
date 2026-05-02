@@ -15,10 +15,11 @@ type ArtifactRefHandler struct{ db *gorm.DB }
 func NewArtifactRefHandler(db *gorm.DB) *ArtifactRefHandler { return &ArtifactRefHandler{db: db} }
 
 type ArtifactEntityContext struct {
-	EpisodeID    *uint `json:"episode_id,omitempty"`
-	SceneID      *uint `json:"scene_id,omitempty"`
-	StoryboardID *uint `json:"storyboard_id,omitempty"`
-	SettingID    *uint `json:"setting_id,omitempty"`
+	ScriptVersionID   *uint `json:"script_version_id,omitempty"`
+	ContentUnitID     *uint `json:"content_unit_id,omitempty"`
+	KeyframeID        *uint `json:"keyframe_id,omitempty"`
+	AssetSlotID       *uint `json:"asset_slot_id,omitempty"`
+	DeliveryVersionID *uint `json:"delivery_version_id,omitempty"`
 }
 
 type ArtifactRef struct {
@@ -38,20 +39,20 @@ func (h *ArtifactRefHandler) ListByProject(c *gin.Context) {
 	kindFilter := strings.TrimSpace(c.Query("kind"))
 	refs := make([]ArtifactRef, 0)
 
-	if kindFilter == "" || kindFilter == "script" {
-		refs = append(refs, h.scriptRefs(projectID)...)
+	if kindFilter == "" || kindFilter == "script_version" {
+		refs = append(refs, h.scriptVersionRefs(projectID)...)
 	}
 	if kindFilter == "" || kindFilter == "asset" {
 		refs = append(refs, h.assetRefs(c, projectID)...)
 	}
-	if kindFilter == "" || kindFilter == "storyboard" {
-		refs = append(refs, h.storyboardRefs(projectID)...)
+	if kindFilter == "" || kindFilter == "content_unit" {
+		refs = append(refs, h.contentUnitRefs(projectID)...)
 	}
-	if kindFilter == "" || kindFilter == "shot" {
-		refs = append(refs, h.shotRefs(projectID)...)
+	if kindFilter == "" || kindFilter == "keyframe" {
+		refs = append(refs, h.keyframeRefs(c, projectID)...)
 	}
-	if kindFilter == "" || kindFilter == "final_video" {
-		refs = append(refs, h.finalVideoRefs(c, projectID)...)
+	if kindFilter == "" || kindFilter == "delivery_version" {
+		refs = append(refs, h.deliveryVersionRefs(projectID)...)
 	}
 
 	sort.SliceStable(refs, func(i, j int) bool {
@@ -60,26 +61,21 @@ func (h *ArtifactRefHandler) ListByProject(c *gin.Context) {
 	c.JSON(http.StatusOK, refs)
 }
 
-func (h *ArtifactRefHandler) scriptRefs(projectID uint) []ArtifactRef {
-	var scripts []model.Script
-	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&scripts)
-	refs := make([]ArtifactRef, 0, len(scripts))
-	for _, script := range scripts {
-		subtitle := scriptTypeLabel(script.ScriptType)
-		if script.EpisodeID != nil {
-			var episode model.Episode
-			if err := h.db.Select("id, number, title").First(&episode, *script.EpisodeID).Error; err == nil {
-				subtitle = subtitle + " · EP" + padEpisodeNumber(episode.Number) + " " + episode.Title
-			}
-		}
+func (h *ArtifactRefHandler) scriptVersionRefs(projectID uint) []ArtifactRef {
+	var versions []model.ScriptVersion
+	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&versions)
+	refs := make([]ArtifactRef, 0, len(versions))
+	for _, version := range versions {
+		id := version.ID
 		refs = append(refs, ArtifactRef{
-			Kind:          "script",
-			ID:            script.ID,
-			Title:         fallbackTitle(script.Title, "未命名剧本"),
-			Subtitle:      subtitle,
-			EntityContext: ArtifactEntityContext{EpisodeID: script.EpisodeID},
-			CreatedAt:     script.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:     script.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "script_version",
+			ID:            version.ID,
+			Title:         fallbackTitle(version.Title, "未命名剧本版本"),
+			Subtitle:      version.SourceType,
+			Status:        version.Status,
+			EntityContext: ArtifactEntityContext{ScriptVersionID: &id},
+			CreatedAt:     version.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     version.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
@@ -111,7 +107,7 @@ func (h *ArtifactRefHandler) assetRefs(c *gin.Context, projectID uint) []Artifac
 			Title:         fallbackTitle(asset.Name, "未命名素材"),
 			Subtitle:      asset.Type,
 			Status:        asset.ReviewStatus,
-			EntityContext: ArtifactEntityContext{SettingID: asset.SettingID},
+			EntityContext: ArtifactEntityContext{},
 			Resource:      resource,
 			CreatedAt:     asset.CreatedAt.Format(timeFormatRFC3339),
 			UpdatedAt:     asset.UpdatedAt.Format(timeFormatRFC3339),
@@ -120,70 +116,66 @@ func (h *ArtifactRefHandler) assetRefs(c *gin.Context, projectID uint) []Artifac
 	return refs
 }
 
-func (h *ArtifactRefHandler) storyboardRefs(projectID uint) []ArtifactRef {
-	var storyboards []model.Storyboard
-	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&storyboards)
-	refs := make([]ArtifactRef, 0, len(storyboards))
-	for _, storyboard := range storyboards {
+func (h *ArtifactRefHandler) contentUnitRefs(projectID uint) []ArtifactRef {
+	var units []model.ContentUnit
+	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&units)
+	refs := make([]ArtifactRef, 0, len(units))
+	for _, unit := range units {
+		id := unit.ID
 		refs = append(refs, ArtifactRef{
-			Kind:          "storyboard",
-			ID:            storyboard.ID,
-			Title:         fallbackTitle(storyboard.Title, "分镜 #"+intToString(storyboard.Order)),
-			Subtitle:      storyboard.Description,
-			EntityContext: ArtifactEntityContext{EpisodeID: storyboard.EpisodeID, SceneID: storyboard.SceneID, SettingID: storyboard.SettingID},
-			CreatedAt:     storyboard.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:     storyboard.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "content_unit",
+			ID:            unit.ID,
+			Title:         fallbackTitle(unit.Title, "内容单元 #"+intToString(unit.Order)),
+			Subtitle:      unit.Description,
+			Status:        unit.Status,
+			EntityContext: ArtifactEntityContext{ContentUnitID: &id},
+			CreatedAt:     unit.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     unit.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
 }
 
-func (h *ArtifactRefHandler) shotRefs(projectID uint) []ArtifactRef {
-	var shots []model.Shot
-	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&shots)
-	refs := make([]ArtifactRef, 0, len(shots))
-	for _, shot := range shots {
-		ctx := ArtifactEntityContext{StoryboardID: shot.StoryboardID}
-		if shot.StoryboardID != nil {
-			var storyboard model.Storyboard
-			if err := h.db.Select("id, episode_id, scene_id").First(&storyboard, *shot.StoryboardID).Error; err == nil {
-				ctx.EpisodeID = storyboard.EpisodeID
-				ctx.SceneID = storyboard.SceneID
-			}
+func (h *ArtifactRefHandler) keyframeRefs(c *gin.Context, projectID uint) []ArtifactRef {
+	var keyframes []model.Keyframe
+	h.db.Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&keyframes)
+	refs := make([]ArtifactRef, 0, len(keyframes))
+	for _, keyframe := range keyframes {
+		id := keyframe.ID
+		resource := keyframe.Resource
+		if resource != nil {
+			resource.URL = resourceURL(c, resource.ID)
 		}
 		refs = append(refs, ArtifactRef{
-			Kind:          "shot",
-			ID:            shot.ID,
-			Title:         "镜头 #" + intToString(shot.Order),
-			Subtitle:      fallbackTitle(shot.FinalDescription, shot.Description),
-			Status:        shot.Status,
-			EntityContext: ctx,
-			CreatedAt:     shot.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:     shot.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "keyframe",
+			ID:            keyframe.ID,
+			Title:         fallbackTitle(keyframe.Title, "关键帧 #"+intToString(keyframe.Order)),
+			Subtitle:      keyframe.Description,
+			Status:        keyframe.Status,
+			EntityContext: ArtifactEntityContext{KeyframeID: &id, ContentUnitID: keyframe.ContentUnitID},
+			Resource:      resource,
+			CreatedAt:     keyframe.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     keyframe.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
 }
 
-func (h *ArtifactRefHandler) finalVideoRefs(c *gin.Context, projectID uint) []ArtifactRef {
-	var videos []model.FinalVideo
-	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&videos)
-	refs := make([]ArtifactRef, 0, len(videos))
-	for _, video := range videos {
-		resource := h.firstBoundResource(c, projectID, "final_video", video.ID, "final", "output", "draft")
+func (h *ArtifactRefHandler) deliveryVersionRefs(projectID uint) []ArtifactRef {
+	var versions []model.DeliveryVersion
+	h.db.Where("project_id = ?", projectID).Order("updated_at desc").Find(&versions)
+	refs := make([]ArtifactRef, 0, len(versions))
+	for _, version := range versions {
+		id := version.ID
 		refs = append(refs, ArtifactRef{
-			Kind:     "final_video",
-			ID:       video.ID,
-			Title:    fallbackTitle(video.Title, "成片"),
-			Subtitle: video.Description,
-			EntityContext: ArtifactEntityContext{
-				EpisodeID:    video.EpisodeID,
-				SceneID:      video.SceneID,
-				StoryboardID: video.StoryboardID,
-			},
-			Resource:  resource,
-			CreatedAt: video.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt: video.UpdatedAt.Format(timeFormatRFC3339),
+			Kind:          "delivery_version",
+			ID:            version.ID,
+			Title:         fallbackTitle(version.Name, "交付版本"),
+			Subtitle:      version.Description,
+			Status:        version.Status,
+			EntityContext: ArtifactEntityContext{DeliveryVersionID: &id},
+			CreatedAt:     version.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     version.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs
@@ -205,19 +197,6 @@ func (h *ArtifactRefHandler) firstBoundResource(c *gin.Context, projectID uint, 
 }
 
 const timeFormatRFC3339 = "2006-01-02T15:04:05Z07:00"
-
-func scriptTypeLabel(scriptType string) string {
-	switch scriptType {
-	case "main":
-		return "主剧本"
-	case "episode":
-		return "分集剧本"
-	case "scene":
-		return "分场剧本"
-	default:
-		return scriptType
-	}
-}
 
 func fallbackTitle(value string, fallback string) string {
 	if strings.TrimSpace(value) != "" {
@@ -246,11 +225,4 @@ func intToString(value int) string {
 		digits[i], digits[j] = digits[j], digits[i]
 	}
 	return string(digits)
-}
-
-func padEpisodeNumber(value int) string {
-	if value >= 0 && value < 10 {
-		return "0" + intToString(value)
-	}
-	return intToString(value)
 }

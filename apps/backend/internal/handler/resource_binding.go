@@ -402,8 +402,8 @@ func normalizeSourceType(value string) string {
 func validOwnerType(value string) bool {
 	switch value {
 	case "script", "script_version", "script_section", "situation", "content_unit", "keyframe", "preview_timeline",
-		"creative_reference", "creative_reference_state", "asset_requirement",
-		"setting", "episode", "scene", "storyboard", "shot", "final_video", "delivery_version", "asset", "asset_view", "canvas":
+		"creative_reference", "creative_reference_state", "asset_slot",
+		"delivery_version", "asset", "asset_view", "canvas":
 		return true
 	default:
 		return false
@@ -529,44 +529,8 @@ func (h *ResourceBindingHandler) projectIDForOwner(ownerType string, ownerID uin
 			return 0, err
 		}
 		return item.ProjectID, nil
-	case "asset_requirement":
-		var item model.AssetRequirement
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "setting":
-		var item model.Setting
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "episode":
-		var item model.Episode
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "scene":
-		var item model.Scene
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "storyboard":
-		var item model.Storyboard
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "shot":
-		var item model.Shot
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "final_video":
-		var item model.FinalVideo
+	case "asset_slot":
+		var item model.AssetSlot
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return 0, err
 		}

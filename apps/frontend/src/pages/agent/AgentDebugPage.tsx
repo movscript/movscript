@@ -164,12 +164,12 @@ const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
     missingVisibility: ['full input_values inspector', 'per-node resolved prompt/model/resources', 'provider request/response trace'],
   },
   {
-    id: 'script_preview_analyze',
-    name: 'Script Preview Analyze',
-    surface: '/script-preview',
+    id: 'production_preview_analyze',
+    name: 'Production Preview Analyze',
+    surface: '/production-preview',
     frontendEntry: 'apps/frontend/src/api/scriptPreview.ts',
     trigger: 'analyzeScriptPreview()',
-    endpoint: 'backend: POST /projects/:id/script-preview/analyze',
+    endpoint: 'backend: POST /projects/:id/production-preview/analyze',
     requestShape: {
       draft_id: 'string',
       source_text: 'string',
@@ -180,12 +180,12 @@ const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
     missingVisibility: ['whether backend used deterministic or model path', 'analysis steps', 'candidate diff trace'],
   },
   {
-    id: 'script_preview_generate',
-    name: 'Script Preview Generate Keyframes',
-    surface: '/script-preview',
+    id: 'production_preview_generate',
+    name: 'Production Preview Generate Keyframes',
+    surface: '/production-preview',
     frontendEntry: 'apps/frontend/src/api/scriptPreview.ts',
     trigger: 'generateScriptPreview()',
-    endpoint: 'backend: POST /projects/:id/script-preview/generate-preview',
+    endpoint: 'backend: POST /projects/:id/production-preview/generate-preview',
     requestShape: {
       draft_id: 'string',
       storyboard_rows: 'ScriptPreviewStoryboardRow[]',

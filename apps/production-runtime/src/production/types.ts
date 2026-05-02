@@ -5,7 +5,7 @@ export type ProductionActionType =
   | 'ExtractSituations'
   | 'GenerateStoryboardScript'
   | 'GenerateKeyframeCandidates'
-  | 'PrepareAssetRequirements'
+  | 'PrepareAssetSlots'
   | 'BuildPreviewTimelineProposal'
 
 export type ProductionRunStatus = 'queued' | 'running' | 'waiting_approval' | 'succeeded' | 'failed' | 'cancelled'

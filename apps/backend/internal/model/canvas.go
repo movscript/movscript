@@ -98,3 +98,22 @@ type CanvasEntityWriteAudit struct {
 	NewValueJSON       string `gorm:"type:text" json:"new_value_json,omitempty"`
 	ResourceBindingIDs string `gorm:"type:text" json:"resource_binding_ids,omitempty"`
 }
+
+// CanvasOutput records an explicit output target from a canvas run to a V2 or
+// legacy entity. It complements the write audit with product-level intent.
+type CanvasOutput struct {
+	gorm.Model
+	ProjectID    uint   `gorm:"not null;index" json:"project_id"`
+	CanvasID     uint   `gorm:"not null;index" json:"canvas_id"`
+	CanvasRunID  *uint  `gorm:"index" json:"canvas_run_id,omitempty"`
+	CanvasNodeID string `gorm:"index" json:"canvas_node_id"`
+	PortID       string `gorm:"not null;index" json:"port_id"`
+	OwnerType    string `gorm:"not null;index:idx_canvas_output_owner" json:"owner_type"`
+	OwnerID      uint   `gorm:"not null;index:idx_canvas_output_owner" json:"owner_id"`
+	OutputType   string `gorm:"not null;default:'resource';index" json:"output_type"` // resource|field|candidate|note
+	ResourceID   *uint  `gorm:"index" json:"resource_id,omitempty"`
+	TargetField  string `json:"target_field"`
+	ValueJSON    string `gorm:"type:text" json:"value_json"`
+	Status       string `gorm:"not null;default:'pending';index" json:"status"` // pending|attached|applied|rejected
+	MetadataJSON string `gorm:"type:text" json:"metadata_json"`
+}

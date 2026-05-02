@@ -90,9 +90,14 @@ type DraftPayloadResponse struct {
 }
 
 type AnalyzeRequest struct {
-	DraftID        string          `json:"draft_id"`
-	SourceText     string          `json:"source_text"`
-	StoryboardRows []StoryboardRow `json:"storyboard_rows"`
+	DraftID          string                 `json:"draft_id"`
+	SourceText       string                 `json:"source_text"`
+	StoryboardRows   []StoryboardRow        `json:"storyboard_rows"`
+	GeneratedAt      string                 `json:"generated_at"`
+	Sections         []ScriptSectionResult  `json:"sections"`
+	ConfirmQuestions []string               `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
+	Status           string                 `json:"status"`
 }
 
 type AnalyzeResponse struct {
@@ -140,8 +145,13 @@ type StoryboardSuggestionDecisionRequest struct {
 }
 
 type GeneratePreviewRequest struct {
-	DraftID        string          `json:"draft_id"`
-	StoryboardRows []StoryboardRow `json:"storyboard_rows"`
+	DraftID            string                `json:"draft_id"`
+	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
+	GeneratedAt        string                `json:"generated_at"`
+	KeyframeCandidates []KeyframeCandidate   `json:"keyframe_candidates"`
+	PreviewTimeline    []PreviewTimelineItem `json:"preview_timeline"`
+	AssetGaps          []AssetGap            `json:"asset_gaps"`
+	Status             string                `json:"status"`
 }
 
 type GeneratePreviewResponse struct {
@@ -367,56 +377,27 @@ func (s *Service) AnalyzeWithContext(ctx context.Context, projectID uint, req An
 	if projectID == 0 {
 		return AnalyzeResponse{}, fmt.Errorf("project id is required")
 	}
-	sourceLines := meaningfulLines(req.SourceText)
-	if len(sourceLines) == 0 {
-		for _, row := range req.StoryboardRows {
-			if text := strings.TrimSpace(row.Body); text != "" {
-				sourceLines = append(sourceLines, text)
-			}
-		}
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	if req.DraftID == "" {
+		return AnalyzeResponse{}, fmt.Errorf("draft id is required")
 	}
-	if len(sourceLines) == 0 {
-		return AnalyzeResponse{}, fmt.Errorf("source text or storyboard rows are required")
+	if len(req.Sections) == 0 && len(req.Suggestions) == 0 {
+		return AnalyzeResponse{}, fmt.Errorf("analysis candidates are required")
 	}
 
-	sections := make([]ScriptSectionResult, 0, len(sourceLines))
-	suggestions := make([]StoryboardSuggestion, 0, len(sourceLines))
-	questions := make([]string, 0, len(sourceLines))
-	for i, line := range sourceLines {
-		order := i + 1
-		sectionID := fmt.Sprintf("section-%03d", order)
-		title := summarizeTitle(line, order)
-		question := fmt.Sprintf("第 %d 段的情绪转折是否需要用户确认？", order)
-		sections = append(sections, ScriptSectionResult{
-			ClientID:        sectionID,
-			Order:           order,
-			Title:           title,
-			Summary:         line,
-			SourceRange:     fmt.Sprintf("line:%d", order),
-			Confidence:      0.78,
-			ConfirmQuestion: question,
-		})
-		questions = append(questions, question)
-		suggestions = append(suggestions, StoryboardSuggestion{
-			ClientID:        fmt.Sprintf("suggestion-%03d", order),
-			SourceSectionID: sectionID,
-			Order:           order,
-			Title:           title,
-			Body:            line,
-			DurationSeconds: 6 + float64(order%3)*2,
-			Status:          "待确认",
-			AdoptionIntent:  "append_storyboard_row",
-			AdoptionStatus:  "pending",
-		})
-	}
+	sections := normalizeAnalysisSections(req.Sections)
+	suggestions := normalizeStoryboardSuggestions(req.Suggestions)
+	questions := normalizeConfirmQuestions(req.ConfirmQuestions, sections)
+	generatedAt := fallback(req.GeneratedAt, s.now().Format(time.RFC3339))
+	status := fallback(req.Status, "succeeded")
 
 	resp := AnalyzeResponse{
 		DraftID:          req.DraftID,
-		GeneratedAt:      s.now().Format(time.RFC3339),
+		GeneratedAt:      generatedAt,
 		Sections:         sections,
 		ConfirmQuestions: questions,
 		Suggestions:      suggestions,
-		Status:           "succeeded",
+		Status:           status,
 	}
 	if err := s.saveAnalysisCandidates(ctx, projectID, resp); err != nil {
 		return AnalyzeResponse{}, err
@@ -523,61 +504,27 @@ func (s *Service) GeneratePreviewWithContext(ctx context.Context, projectID uint
 	if projectID == 0 {
 		return GeneratePreviewResponse{}, fmt.Errorf("project id is required")
 	}
-	rows := normalizeRows(req.StoryboardRows)
-	if len(rows) == 0 {
-		return GeneratePreviewResponse{}, fmt.Errorf("storyboard rows are required")
+	req.DraftID = strings.TrimSpace(req.DraftID)
+	if req.DraftID == "" {
+		return GeneratePreviewResponse{}, fmt.Errorf("draft id is required")
+	}
+	if len(req.KeyframeCandidates) == 0 && len(req.PreviewTimeline) == 0 && len(req.AssetGaps) == 0 {
+		return GeneratePreviewResponse{}, fmt.Errorf("preview candidates are required")
 	}
 
-	candidates := make([]KeyframeCandidate, 0, len(rows))
-	timeline := make([]PreviewTimelineItem, 0, len(rows))
-	gaps := make([]AssetGap, 0)
-	var cursor float64
-	for i, row := range rows {
-		order := i + 1
-		candidateID := fmt.Sprintf("keyframe-%03d", order)
-		status := "候选"
-		if row.Status == "需补素材" {
-			status = "待补素材"
-			gaps = append(gaps, AssetGap{
-				ClientID:              fmt.Sprintf("asset-gap-%03d", order),
-				StoryboardRowClientID: row.ClientID,
-				Name:                  fmt.Sprintf("第 %d 段参考素材", order),
-				Description:           fallback(row.Title, "未命名片段"),
-				Priority:              "normal",
-				Status:                "missing",
-			})
-		}
-		candidates = append(candidates, KeyframeCandidate{
-			ClientID:       candidateID,
-			StoryboardRow:  row.ClientID,
-			Prompt:         buildPrompt(row),
-			VisualAnchor:   fmt.Sprintf("%s的关键画面", fallback(row.Title, "片段")),
-			Status:         status,
-			DecisionStatus: "pending",
-		})
-		duration := row.DurationSeconds
-		timeline = append(timeline, PreviewTimelineItem{
-			ClientID:                  fmt.Sprintf("timeline-%03d", order),
-			StoryboardRowClientID:     row.ClientID,
-			KeyframeCandidateClientID: candidateID,
-			Order:                     order,
-			StartSeconds:              cursor,
-			DurationSeconds:           duration,
-			EndSeconds:                cursor + duration,
-			Label:                     fallback(row.Title, fmt.Sprintf("片段 %d", order)),
-			Status:                    previewStatus(row.Status),
-			ConfirmationStatus:        "pending",
-		})
-		cursor += duration
-	}
+	candidates := normalizeKeyframeCandidates(req.KeyframeCandidates)
+	timeline := normalizePreviewTimelineItems(req.PreviewTimeline)
+	gaps := normalizeAssetGaps(req.AssetGaps)
+	generatedAt := fallback(req.GeneratedAt, s.now().Format(time.RFC3339))
+	status := fallback(req.Status, "succeeded")
 
 	resp := GeneratePreviewResponse{
 		DraftID:            req.DraftID,
-		GeneratedAt:        s.now().Format(time.RFC3339),
+		GeneratedAt:        generatedAt,
 		KeyframeCandidates: candidates,
 		PreviewTimeline:    timeline,
 		AssetGaps:          gaps,
-		Status:             "succeeded",
+		Status:             status,
 	}
 	if err := s.savePreviewCandidates(ctx, projectID, resp); err != nil {
 		return GeneratePreviewResponse{}, err
@@ -888,6 +835,122 @@ func normalizeRows(rows []StoryboardRow) []StoryboardRow {
 	return out
 }
 
+func normalizeAnalysisSections(sections []ScriptSectionResult) []ScriptSectionResult {
+	out := make([]ScriptSectionResult, 0, len(sections))
+	for i, section := range sections {
+		order := i + 1
+		if section.Order > 0 {
+			order = section.Order
+		}
+		section.ClientID = strings.TrimSpace(section.ClientID)
+		section.Order = order
+		section.Title = strings.TrimSpace(section.Title)
+		section.Summary = strings.TrimSpace(section.Summary)
+		section.SourceRange = strings.TrimSpace(section.SourceRange)
+		section.ConfirmQuestion = strings.TrimSpace(section.ConfirmQuestion)
+		out = append(out, section)
+	}
+	return out
+}
+
+func normalizeConfirmQuestions(questions []string, sections []ScriptSectionResult) []string {
+	out := make([]string, 0, len(questions)+len(sections))
+	seen := map[string]bool{}
+	for _, question := range questions {
+		question = strings.TrimSpace(question)
+		if question == "" || seen[question] {
+			continue
+		}
+		seen[question] = true
+		out = append(out, question)
+	}
+	for _, section := range sections {
+		question := strings.TrimSpace(section.ConfirmQuestion)
+		if question == "" || seen[question] {
+			continue
+		}
+		seen[question] = true
+		out = append(out, question)
+	}
+	return out
+}
+
+func normalizeStoryboardSuggestions(suggestions []StoryboardSuggestion) []StoryboardSuggestion {
+	out := make([]StoryboardSuggestion, 0, len(suggestions))
+	for i, suggestion := range suggestions {
+		order := i + 1
+		if suggestion.Order > 0 {
+			order = suggestion.Order
+		}
+		suggestion.ClientID = strings.TrimSpace(suggestion.ClientID)
+		suggestion.SourceSectionID = strings.TrimSpace(suggestion.SourceSectionID)
+		suggestion.Order = order
+		suggestion.Title = strings.TrimSpace(suggestion.Title)
+		suggestion.Body = strings.TrimSpace(suggestion.Body)
+		suggestion.Status = fallback(suggestion.Status, "待确认")
+		suggestion.AdoptionIntent = fallback(suggestion.AdoptionIntent, "append_storyboard_row")
+		suggestion.AdoptionStatus = fallback(suggestion.AdoptionStatus, "pending")
+		if suggestion.DurationSeconds <= 0 {
+			suggestion.DurationSeconds = 6
+		}
+		out = append(out, suggestion)
+	}
+	return out
+}
+
+func normalizeKeyframeCandidates(candidates []KeyframeCandidate) []KeyframeCandidate {
+	out := make([]KeyframeCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidate.ClientID = strings.TrimSpace(candidate.ClientID)
+		candidate.StoryboardRow = strings.TrimSpace(candidate.StoryboardRow)
+		candidate.Prompt = strings.TrimSpace(candidate.Prompt)
+		candidate.VisualAnchor = strings.TrimSpace(candidate.VisualAnchor)
+		candidate.Status = fallback(candidate.Status, "候选")
+		candidate.DecisionStatus = fallback(candidate.DecisionStatus, "pending")
+		out = append(out, candidate)
+	}
+	return out
+}
+
+func normalizePreviewTimelineItems(items []PreviewTimelineItem) []PreviewTimelineItem {
+	out := make([]PreviewTimelineItem, 0, len(items))
+	for i, item := range items {
+		order := i + 1
+		if item.Order > 0 {
+			order = item.Order
+		}
+		item.ClientID = strings.TrimSpace(item.ClientID)
+		item.StoryboardRowClientID = strings.TrimSpace(item.StoryboardRowClientID)
+		item.KeyframeCandidateClientID = strings.TrimSpace(item.KeyframeCandidateClientID)
+		item.Order = order
+		item.Label = strings.TrimSpace(item.Label)
+		item.Status = fallback(item.Status, "draft")
+		item.ConfirmationStatus = fallback(item.ConfirmationStatus, "pending")
+		if item.DurationSeconds <= 0 && item.EndSeconds > item.StartSeconds {
+			item.DurationSeconds = item.EndSeconds - item.StartSeconds
+		}
+		if item.EndSeconds <= 0 && item.DurationSeconds > 0 {
+			item.EndSeconds = item.StartSeconds + item.DurationSeconds
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func normalizeAssetGaps(gaps []AssetGap) []AssetGap {
+	out := make([]AssetGap, 0, len(gaps))
+	for _, gap := range gaps {
+		gap.ClientID = strings.TrimSpace(gap.ClientID)
+		gap.StoryboardRowClientID = strings.TrimSpace(gap.StoryboardRowClientID)
+		gap.Name = strings.TrimSpace(gap.Name)
+		gap.Description = strings.TrimSpace(gap.Description)
+		gap.Priority = fallback(gap.Priority, "normal")
+		gap.Status = fallback(gap.Status, "missing")
+		out = append(out, gap)
+	}
+	return out
+}
+
 func buildTimelineInput(rows []StoryboardRow) []PreviewTimelineIn {
 	items := make([]PreviewTimelineIn, 0, len(rows))
 	var cursor float64
@@ -973,42 +1036,6 @@ func timelineDuration(items []PreviewTimelineIn) float64 {
 		}
 	}
 	return duration
-}
-
-func meaningfulLines(text string) []string {
-	lines := strings.Split(text, "\n")
-	out := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
-func summarizeTitle(text string, order int) string {
-	text = strings.TrimSpace(text)
-	runes := []rune(text)
-	if len(runes) > 14 {
-		text = string(runes[:14])
-	}
-	return fallback(text, fmt.Sprintf("剧本节 %d", order))
-}
-
-func buildPrompt(row StoryboardRow) string {
-	body := fallback(row.Body, row.Title)
-	return fmt.Sprintf("为「%s」生成预演关键帧：%s", fallback(row.Title, "未命名片段"), body)
-}
-
-func previewStatus(rowStatus string) string {
-	if rowStatus == "需补素材" {
-		return "needs_asset"
-	}
-	if rowStatus == "可预演" {
-		return "playable"
-	}
-	return "draft"
 }
 
 func fallback(value string, fallbackValue string) string {

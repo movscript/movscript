@@ -6,13 +6,7 @@ import { Toaster } from './components/ui/Toaster'
 import { useProjectStore } from './store/projectStore'
 import { useUserStore } from './store/userStore'
 import ProjectsPage from './pages/projects/ProjectsPage'
-import ScriptsPage from './pages/scripts/ScriptsPage'
 import AssetsPage from './pages/assets/AssetsPage'
-import EpisodesPage from './pages/episodes/EpisodesPage'
-import ScenesPage from './pages/scenes/ScenesPage'
-import StoryboardsPage from './pages/storyboards/StoryboardsPage'
-import ShotsPage from './pages/shots/ShotsPage'
-import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
 import AuthPage from './pages/AuthPage'
 import CanvasListPage from './pages/canvas/CanvasListPage'
@@ -29,7 +23,7 @@ import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelatio
 import DeliveryPage from './pages/delivery/DeliveryPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
 import ScriptPreviewPage from './pages/script-preview/ScriptPreviewPage'
-import V2EntitiesPage from './pages/v2-entities/V2EntitiesPage'
+import PreviewProgressPage from './pages/preview-progress/PreviewProgressPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
@@ -40,6 +34,9 @@ import ProjectHomeV2Page from './pages/project-home/ProjectHomeV2Page'
 import ProjectPlanPage from './pages/project-plan/ProjectPlanPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
+import ScriptsPage from './pages/scripts/ScriptsPage'
+import ScenesPage from './pages/scenes/ScenesPage'
+import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 
@@ -148,64 +145,74 @@ export default function App() {
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               <Header />
               <main className="flex-1 min-h-0 overflow-hidden flex">
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <RouteErrorBoundary>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/projects" replace />} />
-                    <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <RouteErrorBoundary>
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/projects" replace />} />
+                      <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
 
-                    {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
-                    <Route path="/scripts"     element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
-                    <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
-                    <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
-                    <Route path="/settings"    element={<ProjectGuard><ScriptsPage initialTab="settings" /></ProjectGuard>} />
-                    <Route path="/assets"      element={<ProjectGuard><AssetsPage /></ProjectGuard>} />
-                    <Route path="/episodes"    element={<ProjectGuard><EpisodesPage /></ProjectGuard>} />
-                    <Route path="/scenes"      element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
-                    <Route path="/storyboards" element={<ProjectGuard><StoryboardsPage /></ProjectGuard>} />
-                    <Route path="/shots"       element={<ProjectGuard><ShotsPage /></ProjectGuard>} />
-                    <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
+                      {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
+                      <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
+                      <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
+                      <Route path="/assets" element={<ProjectGuard><AssetsPage /></ProjectGuard>} />
 
-                    {/* 工具模块 */}
-                    <Route path="/canvases"                  element={<Padded><CanvasListPage /></Padded>} />
-                    <Route path="/tools/ref-image-gen"       element={<RefImageGenPage />} />
-                    <Route path="/tools/ref-video-gen"       element={<RefVideoGenPage />} />
-                    <Route path="/tools/motion-imitation"    element={<MotionImitationPage />} />
-                    <Route path="/tools/style-transfer"      element={<StyleTransferPage />} />
-                    <Route path="/tools/multi-angle"         element={<MultiAnglePage />} />
-                    <Route path="/tools/video-edit"          element={<VideoEditPage />} />
-                    <Route path="/tools/brainstorm"          element={<BrainstormPage />} />
-                    <Route path="/tools/plugin/:pluginId"    element={<PluginToolPage />} />
+                      {/* 工具模块 */}
+                      <Route path="/canvases" element={<Padded><CanvasListPage /></Padded>} />
+                      <Route path="/tools/ref-image-gen" element={<RefImageGenPage />} />
+                      <Route path="/tools/ref-video-gen" element={<RefVideoGenPage />} />
+                      <Route path="/tools/motion-imitation" element={<MotionImitationPage />} />
+                      <Route path="/tools/style-transfer" element={<StyleTransferPage />} />
+                      <Route path="/tools/multi-angle" element={<MultiAnglePage />} />
+                      <Route path="/tools/video-edit" element={<VideoEditPage />} />
+                      <Route path="/tools/brainstorm" element={<BrainstormPage />} />
+                      <Route path="/tools/plugin/:pluginId" element={<PluginToolPage />} />
 
-                    {/* 工作模块 */}
-                    <Route path="/script-preview" element={<ProjectGuard><ScriptPreviewPage /></ProjectGuard>} />
-                    <Route path="/v2-entities" element={<ProjectGuard><V2EntitiesPage /></ProjectGuard>} />
-                    <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
-                    <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
-                    <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
-                    <Route path="/project-home" element={<ProjectGuard><ProjectHomeV2Page /></ProjectGuard>} />
-                    <Route path="/project-plan" element={<ProjectGuard><ProjectPlanPage /></ProjectGuard>} />
-                    <Route path="/creation"      element={<ProjectGuard><WorkbenchPage mode="free" /></ProjectGuard>} />
+                      {/* 工作模块 */}
+                      <Route path="/scripts" element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
+                      <Route path="/script-sections" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
+                      <Route path="/scenes" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
+                      <Route path="/contents" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
+                      <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
+                      <Route path="/production-management" element={<ProjectGuard><ScriptPreviewPage /></ProjectGuard>} />
+                      <Route path="/production-preview" element={<ProjectGuard><Navigate to="/production-management" replace /></ProjectGuard>} />
+                      <Route path="/script-preview" element={<ProjectGuard><Navigate to="/production-management" replace /></ProjectGuard>} />
+                      <Route path="/preview-progress" element={<ProjectGuard><PreviewProgressPage /></ProjectGuard>} />
+                      <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
+                      <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
+                      <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
+                      <Route path="/project-home" element={<ProjectGuard><ProjectHomeV2Page /></ProjectGuard>} />
+                      <Route path="/project-plan" element={<ProjectGuard><ProjectPlanPage /></ProjectGuard>} />
+                      <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
+                      <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
+                      <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
+                      <Route path="/workbench/production-plan" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />
+                      <Route path="/workbench/preview" element={<ProjectGuard><Navigate to="/workbench/production-plan" replace /></ProjectGuard>} />
+                      <Route path="/workbench/creative" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="creative" showCategoryTabs={false} /></ProjectGuard>} />
+                      <Route path="/workbench/assets" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="assets" showCategoryTabs={false} /></ProjectGuard>} />
+                      <Route path="/workbench/production" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
+                      <Route path="/workbench/delivery" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="delivery" showCategoryTabs={false} /></ProjectGuard>} />
+                      <Route path="/workbench/object" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
+                      <Route path="/workbench/reference-relations" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="reference-relations" showCategoryTabs={false} /></ProjectGuard>} />
 
-                    {/* 用户 */}
-                    <Route path="/user" element={<Padded><UserProfilePage /></Padded>} />
+                      {/* 用户 */}
+                      <Route path="/user" element={<Padded><UserProfilePage /></Padded>} />
 
-                    {/* 文件 */}
-                    <Route path="/resources" element={<ResourcesPage />} />
-                    <Route path="/jobs" element={<JobsPage />} />
-                    <Route path="/plugins" element={<ClientPluginsPage />} />
+                      {/* 文件 */}
+                      <Route path="/resources" element={<ResourcesPage />} />
+                      <Route path="/jobs" element={<JobsPage />} />
+                      <Route path="/plugins" element={<ClientPluginsPage />} />
 
-                    {/* Agent */}
-                    <Route path="/agent/debug" element={<AgentDebugPage />} />
-                    <Route path="/agent/settings" element={<Navigate to="/agent/debug" replace />} />
-                    <Route path="/agents" element={<Navigate to="/agent/debug" replace />} />
+                      {/* Agent */}
+                      <Route path="/agent/debug" element={<AgentDebugPage />} />
+                      <Route path="/agent/settings" element={<Navigate to="/agent/debug" replace />} />
+                      <Route path="/agents" element={<Navigate to="/agent/debug" replace />} />
 
-                    {/* 管理后台 — super_admin only */}
-                    <Route path="/admin" element={<AdminGuard><Padded><AdminPage /></Padded></AdminGuard>} />
-                    <Route path="/admin/ai-config" element={<Navigate to="/admin" replace />} />
-                  </Routes>
-                </RouteErrorBoundary>
-              </div>
+                      {/* 管理后台 — super_admin only */}
+                      <Route path="/admin" element={<AdminGuard><Padded><AdminPage /></Padded></AdminGuard>} />
+                      <Route path="/admin/ai-config" element={<Navigate to="/admin" replace />} />
+                    </Routes>
+                  </RouteErrorBoundary>
+                </div>
               </main>
             </div>
           </div>

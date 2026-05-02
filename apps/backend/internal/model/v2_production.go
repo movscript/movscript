@@ -2,22 +2,22 @@ package model
 
 import "gorm.io/gorm"
 
-// AssetRequirement is the missing/candidate/locked bridge between creative
-// meaning and actual assets. Assets should satisfy requirements instead of
-// being direct children of creative references.
-type AssetRequirement struct {
+// AssetSlot is the missing/candidate/locked bridge between creative meaning
+// and actual assets. It represents a production slot that needs an asset,
+// not a standalone requirement system.
+type AssetSlot struct {
 	gorm.Model
 	ProjectID                uint                    `gorm:"not null;index" json:"project_id"`
 	CreativeReferenceID      *uint                   `gorm:"index" json:"creative_reference_id,omitempty"`
 	CreativeReference        *CreativeReference      `gorm:"foreignKey:CreativeReferenceID" json:"creative_reference,omitempty"`
 	CreativeReferenceStateID *uint                   `gorm:"index" json:"creative_reference_state_id,omitempty"`
 	CreativeReferenceState   *CreativeReferenceState `gorm:"foreignKey:CreativeReferenceStateID" json:"creative_reference_state,omitempty"`
-	OwnerType                string                  `gorm:"index:idx_asset_requirement_owner" json:"owner_type"` // script_section|situation|content_unit|keyframe|creative_reference_state
-	OwnerID                  *uint                   `gorm:"index:idx_asset_requirement_owner" json:"owner_id,omitempty"`
+	OwnerType                string                  `gorm:"index:idx_asset_slot_owner" json:"owner_type"` // script_section|situation|content_unit|keyframe|creative_reference_state
+	OwnerID                  *uint                   `gorm:"index:idx_asset_slot_owner" json:"owner_id,omitempty"`
 	Kind                     string                  `gorm:"not null;index" json:"kind"` // image|video|audio|text|brand_pack|reference
 	Name                     string                  `gorm:"not null" json:"name"`
 	Description              string                  `gorm:"type:text" json:"description"`
-	RequiredSlot             string                  `json:"required_slot"` // front_half_body|prop_detail|environment|voice|logo
+	SlotKey                  string                  `json:"slot_key"` // front_half_body|prop_detail|environment|voice|logo
 	PromptHint               string                  `gorm:"type:text" json:"prompt_hint"`
 	Status                   string                  `gorm:"not null;default:'missing';index" json:"status"`  // missing|candidate|locked|waived
 	Priority                 string                  `gorm:"not null;default:'normal';index" json:"priority"` // low|normal|high|critical
@@ -26,18 +26,58 @@ type AssetRequirement struct {
 	MetadataJSON             string                  `gorm:"type:text" json:"metadata_json"`
 }
 
-type AssetRequirementCandidate struct {
+type AssetSlotCandidate struct {
 	gorm.Model
-	ProjectID          uint              `gorm:"not null;index" json:"project_id"`
-	AssetRequirementID uint              `gorm:"not null;index" json:"asset_requirement_id"`
-	AssetRequirement   *AssetRequirement `gorm:"foreignKey:AssetRequirementID" json:"asset_requirement,omitempty"`
-	AssetID            uint              `gorm:"not null;index" json:"asset_id"`
-	Asset              *Asset            `gorm:"foreignKey:AssetID" json:"asset,omitempty"`
-	SourceType         string            `gorm:"not null;default:'manual';index" json:"source_type"` // upload|job|canvas|manual|import
-	SourceID           *uint             `json:"source_id,omitempty"`
-	Score              float64           `json:"score"`
-	Status             string            `gorm:"not null;default:'candidate';index" json:"status"` // candidate|selected|rejected
-	Note               string            `gorm:"type:text" json:"note"`
+	ProjectID   uint       `gorm:"not null;index" json:"project_id"`
+	AssetSlotID uint       `gorm:"not null;index" json:"asset_slot_id"`
+	AssetSlot   *AssetSlot `gorm:"foreignKey:AssetSlotID" json:"asset_slot,omitempty"`
+	AssetID     uint       `gorm:"not null;index" json:"asset_id"`
+	Asset       *Asset     `gorm:"foreignKey:AssetID" json:"asset,omitempty"`
+	SourceType  string     `gorm:"not null;default:'manual';index" json:"source_type"` // upload|job|canvas|manual|import
+	SourceID    *uint      `json:"source_id,omitempty"`
+	Score       float64    `json:"score"`
+	Status      string     `gorm:"not null;default:'candidate';index" json:"status"` // candidate|selected|rejected
+	Note        string     `gorm:"type:text" json:"note"`
+}
+
+// CandidateDecision records user or system decisions for generated candidates.
+// It supports persisted candidates by ID and draft/runtime candidates by client
+// ID so acceptance history is not lost before a candidate becomes a fact.
+type CandidateDecision struct {
+	gorm.Model
+	ProjectID         uint   `gorm:"not null;index" json:"project_id"`
+	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // script_section|situation|storyboard_line|keyframe|asset_slot_candidate|preview_timeline
+	CandidateID       *uint  `gorm:"index:idx_candidate_decision_candidate" json:"candidate_id,omitempty"`
+	CandidateClientID string `gorm:"index" json:"candidate_client_id"`
+	TargetType        string `gorm:"index:idx_candidate_decision_target" json:"target_type"` // optional fact/result object
+	TargetID          *uint  `gorm:"index:idx_candidate_decision_target" json:"target_id,omitempty"`
+	Decision          string `gorm:"not null;index" json:"decision"`                  // accept|reject|revise|defer|rollback
+	Status            string `gorm:"not null;default:'recorded';index" json:"status"` // recorded|applied|superseded|failed
+	Reason            string `gorm:"type:text" json:"reason"`
+	Note              string `gorm:"type:text" json:"note"`
+	Source            string `gorm:"not null;default:'manual';index" json:"source"` // manual|ai|runtime|import
+	DecidedByID       *uint  `gorm:"index" json:"decided_by_id,omitempty"`
+	AppliedAt         string `json:"applied_at"`
+	MetadataJSON      string `gorm:"type:text" json:"metadata_json"`
+}
+
+// ReviewEvent is an append-only event stream for review and approval history
+// across V2 objects. WorkReview remains task-specific; ReviewEvent covers
+// candidates, facts, timelines, delivery items, and canvas outputs.
+type ReviewEvent struct {
+	gorm.Model
+	ProjectID       uint   `gorm:"not null;index" json:"project_id"`
+	SubjectType     string `gorm:"not null;index:idx_review_event_subject" json:"subject_type"`
+	SubjectID       *uint  `gorm:"index:idx_review_event_subject" json:"subject_id,omitempty"`
+	SubjectClientID string `gorm:"index" json:"subject_client_id"`
+	EventType       string `gorm:"not null;index" json:"event_type"` // submitted|commented|approved|changes_requested|rejected|resolved|reopened|applied|rolled_back
+	FromStatus      string `json:"from_status"`
+	ToStatus        string `json:"to_status"`
+	Comment         string `gorm:"type:text" json:"comment"`
+	Reason          string `gorm:"type:text" json:"reason"`
+	Source          string `gorm:"not null;default:'manual';index" json:"source"` // manual|ai|runtime|import
+	ActorID         *uint  `gorm:"index" json:"actor_id,omitempty"`
+	MetadataJSON    string `gorm:"type:text" json:"metadata_json"`
 }
 
 // WorkItem is execution/assignment/review state. It is deliberately not a
@@ -45,7 +85,7 @@ type AssetRequirementCandidate struct {
 type WorkItem struct {
 	gorm.Model
 	ProjectID      uint   `gorm:"not null;index" json:"project_id"`
-	TargetType     string `gorm:"not null;index:idx_work_item_target" json:"target_type"` // script_section|situation|content_unit|creative_reference|creative_reference_state|asset_requirement|asset|keyframe|delivery_version
+	TargetType     string `gorm:"not null;index:idx_work_item_target" json:"target_type"` // script_section|situation|content_unit|creative_reference|creative_reference_state|asset_slot|asset|keyframe|delivery_version
 	TargetID       uint   `gorm:"not null;index:idx_work_item_target" json:"target_id"`
 	Kind           string `gorm:"not null;index" json:"kind"` // human|ai|hybrid|review|fix
 	Title          string `gorm:"not null" json:"title"`

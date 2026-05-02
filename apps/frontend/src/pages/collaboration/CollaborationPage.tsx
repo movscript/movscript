@@ -1,32 +1,31 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
-  ArrowRight,
   BadgeCheck,
-  CalendarClock,
   CheckCircle2,
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
-  Film,
-  Image,
-  Layers3,
+  Clock3,
+  FileCheck2,
+  ListChecks,
   ListFilter,
   ListTodo,
+  MessageSquareText,
   Plus,
   RefreshCcw,
-  Sparkles,
+  Send,
   Trash2,
   UserCheck,
-  Wand2,
+  Users,
 } from 'lucide-react'
 
-import { getLatestScriptPreviewDraft, type GetLatestScriptPreviewDraftResponse } from '@/api/scriptPreview'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
+import { useUserStore } from '@/store/userStore'
 import type { ProjectMember, User } from '@/types'
 import { Badge, Button } from '@movscript/ui'
 
@@ -34,106 +33,179 @@ const ROLE_LABELS: Record<string, string> = {
   owner: '负责人',
   director: '导演',
   writer: '编剧',
-  generator: '生成执行',
+  generator: '执行',
   viewer: '观察者',
 }
 
-const statusStyles: Record<string, string> = {
-  待领取: 'border-muted bg-muted/40 text-muted-foreground',
-  进行中: 'border-sky-500/25 bg-sky-500/10 text-sky-700',
-  待审核: 'border-amber-500/25 bg-amber-500/10 text-amber-700',
-  需返工: 'border-rose-500/25 bg-rose-500/10 text-rose-700',
-  已完成: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700',
-  阻塞: 'border-red-500/30 bg-red-500/10 text-red-700',
+type TaskStatus = 'todo' | 'in_progress' | 'submitted' | 'changes_requested' | 'approved'
+type TaskPriority = 'high' | 'medium' | 'low'
+type TaskView = 'all' | 'mine' | 'review'
+
+interface ProjectTask {
+  id: string
+  title: string
+  description: string
+  target: string
+  assigneeId: number
+  assigneeName: string
+  reviewerName: string
+  priority: TaskPriority
+  status: TaskStatus
+  due: string
+  submittedAt?: string
+  approvedAt?: string
+  deliverable?: string
+  reviewNote?: string
 }
 
-const metricRows = [
-  { label: '待领取', value: 4, icon: ListTodo, className: 'text-muted-foreground' },
-  { label: '进行中', value: 8, icon: Wand2, className: 'text-sky-600' },
-  { label: '待审核', value: 3, icon: BadgeCheck, className: 'text-amber-600' },
-  { label: '返工中', value: 2, icon: RefreshCcw, className: 'text-rose-600' },
-  { label: '已完成', value: 21, icon: CheckCircle2, className: 'text-emerald-600' },
-  { label: '阻塞', value: 1, icon: AlertTriangle, className: 'text-red-600' },
-]
-
-const contentUnits = [
-  { id: 'all', title: '全部任务', meta: '38 个任务', status: '总览' },
-  { id: 'S01', title: '雨夜巷口对峙', meta: '6 个任务 · 2 待审核', status: '待审核' },
-  { id: 'S02', title: '旧伞纸条特写', meta: '4 个任务 · 1 阻塞', status: '阻塞' },
-  { id: 'S03', title: '女主离开窄巷', meta: '3 个任务 · 进行中', status: '进行中' },
-  { id: 'S04', title: '天台反转对白', meta: '5 个任务 · 需返工', status: '需返工' },
-]
-
-const productionTasks = [
+const seededTasks: ProjectTask[] = [
   {
-    id: 'T-1024',
-    unitId: 'S01',
-    title: '雨夜巷口角色站位关键帧',
-    type: '关键帧参考图',
-    status: '待审核',
-    priority: '高',
-    owner: '导演审核',
-    executor: 'AI 辅助 / 张三',
+    id: 'TASK-1042',
+    title: '补齐雨夜巷口关键帧参考',
+    description: '根据已确认的角色资料生成 3 张关键帧候选，突出巷口空间、伞面遮挡和人物对峙距离。',
+    target: 'S01 雨夜巷口对峙',
+    assigneeId: 2,
+    assigneeName: '张三',
+    reviewerName: '项目负责人',
+    priority: 'high',
+    status: 'submitted',
     due: '今天 18:00',
-    output: '3 个候选结果',
-    source: 'S01 雨夜巷口对峙',
-    intent: '确认男女主在窄巷中的距离、雨伞遮挡和对峙张力，作为后续视频片段的视觉锚点。',
-    inputs: ['已锁定角色参考：林夏', '场景需求：老城区窄巷雨夜', '预演关键帧 KF-01'],
-    review: ['等待导演确认画面构图', '通过后回到内容生产继续生成正式片段'],
-    icon: Image,
+    submittedAt: '今天 16:20',
+    deliverable: '已提交 3 张候选图和提示词说明',
+    reviewNote: '待负责人确认是否可作为后续视频生成锚点。',
   },
   {
-    id: 'T-1025',
-    unitId: 'S02',
-    title: '旧伞纸条特写素材补齐',
-    type: '素材补齐',
-    status: '阻塞',
-    priority: '高',
-    owner: '素材组',
-    executor: '人工上传',
+    id: 'TASK-1043',
+    title: '旧伞纸条特写素材整理',
+    description: '上传或整理旧伞、湿纸条和字迹可读性的参考素材，标记推荐版本。',
+    target: 'S02 旧伞纸条特写',
+    assigneeId: 3,
+    assigneeName: '李四',
+    reviewerName: '项目负责人',
+    priority: 'high',
+    status: 'changes_requested',
     due: '明天 12:00',
-    output: '缺少纸条湿皱参考',
-    source: 'S02 旧伞纸条特写',
-    intent: '补齐旧伞、湿纸条和雨水质感参考，避免正式镜头中剧情道具不可读。',
-    inputs: ['素材缺口：旧伞纸条特写', '候选图 2 张未锁定', '道具描述：雨泡皱的纸条'],
-    review: ['阻塞原因：候选图无法清楚读出纸条内容', '需要补一张可读性更强的特写参考'],
-    icon: AlertTriangle,
+    deliverable: '候选图 2 张',
+    reviewNote: '纸条文字仍然不够清楚，需要补一张更近的特写。',
   },
   {
-    id: 'T-1026',
-    unitId: 'S01',
-    title: '雨声与脚步声氛围层',
-    type: '声音 / 音效',
-    status: '进行中',
-    priority: '中',
-    owner: '声音执行',
-    executor: '人机协作',
+    id: 'TASK-1044',
+    title: '雨声与脚步声音效草案',
+    description: '整理 2 条音效方案，区分环境雨声、远处车流和脚步声层次。',
+    target: 'S01 雨夜巷口对峙',
+    assigneeId: 4,
+    assigneeName: '王五',
+    reviewerName: '项目负责人',
+    priority: 'medium',
+    status: 'in_progress',
     due: '明天 20:00',
-    output: '2 条音效草案',
-    source: 'S01 雨夜巷口对峙',
-    intent: '用雨声、远处车流和脚步声制造压迫感，不提前释放剧情反转。',
-    inputs: ['情境摘要：雨夜窄巷', '预演时长：8 秒', '情绪：紧张、克制'],
-    review: ['需要和预演节奏对齐', '通过后进入交付页做整片检查'],
-    icon: Film,
+    deliverable: '制作中',
   },
   {
-    id: 'T-1027',
-    unitId: 'S04',
-    title: '天台对白镜头返工',
-    type: '正式视频片段',
-    status: '需返工',
-    priority: '中',
-    owner: '视频执行',
-    executor: 'AI 生视频',
+    id: 'TASK-1045',
+    title: '天台对白镜头返工说明',
+    description: '把负责人反馈整理成可执行返工清单，明确视线、停顿和对白节奏。',
+    target: 'S04 天台反转对白',
+    assigneeId: 2,
+    assigneeName: '张三',
+    reviewerName: '项目负责人',
+    priority: 'medium',
+    status: 'todo',
     due: '周五 19:00',
-    output: '1 个返工版本',
-    source: 'S04 天台反转对白',
-    intent: '重做人物视线和停顿节奏，让反转信息在对白后半段才成立。',
-    inputs: ['已生成视频 V02', '返工意见：眼神方向不稳定', '台词节奏：先迟疑后确认'],
-    review: ['返工后重新进入待审核', '通过不等于交付通过，仍需最终检查'],
+  },
+  {
+    id: 'TASK-1046',
+    title: '第一集视频候选验收',
+    description: '检查已生成视频片段是否满足画面连续性、剧情信息和交付规格。',
+    target: 'EP01 成片候选',
+    assigneeId: 1,
+    assigneeName: '项目负责人',
+    reviewerName: '项目负责人',
+    priority: 'low',
+    status: 'approved',
+    due: '昨天 17:00',
+    submittedAt: '昨天 15:10',
+    approvedAt: '昨天 16:30',
+    deliverable: '验收记录已归档',
+  },
+]
+
+const statusMeta: Record<TaskStatus, { label: string; className: string; icon: typeof ClipboardList }> = {
+  todo: {
+    label: '待处理',
+    className: 'border-muted bg-muted/45 text-muted-foreground',
+    icon: ListTodo,
+  },
+  in_progress: {
+    label: '进行中',
+    className: 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+    icon: Clock3,
+  },
+  submitted: {
+    label: '待审核',
+    className: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+    icon: Send,
+  },
+  changes_requested: {
+    label: '需修改',
+    className: 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300',
     icon: RefreshCcw,
   },
+  approved: {
+    label: '已完成',
+    className: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    icon: CheckCircle2,
+  },
+}
+
+const priorityMeta: Record<TaskPriority, { label: string; className: string }> = {
+  high: { label: '高', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+  medium: { label: '中', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  low: { label: '低', className: 'bg-muted text-muted-foreground' },
+}
+
+const workflow = [
+  { title: '分配任务', detail: '负责人把任务指派给项目成员', icon: UserCheck },
+  { title: '成员处理', detail: '成员在我的任务里查看并推进', icon: ListChecks },
+  { title: '提交审核', detail: '完成后提交交付物与说明', icon: Send },
+  { title: '通过完成', detail: '负责人审核通过或要求修改', icon: BadgeCheck },
 ]
+
+function memberDisplayName(member: ProjectMember) {
+  return member.user?.username || `成员 ${member.user_id}`
+}
+
+function buildMemberOptions(members: ProjectMember[], currentUser: User | null) {
+  if (members.length > 0) {
+    return members.map((member) => ({
+      id: member.user_id,
+      name: memberDisplayName(member),
+      role: ROLE_LABELS[member.role] ?? member.role,
+    }))
+  }
+  return currentUser ? [{ id: currentUser.ID, name: currentUser.username, role: '负责人' }] : []
+}
+
+function taskMatchesUser(task: ProjectTask, user: User | null) {
+  if (!user) return false
+  return task.assigneeId === user.ID || task.assigneeName === user.username
+}
+
+function StatusPill({ status }: { status: TaskStatus }) {
+  const meta = statusMeta[status]
+  const Icon = meta.icon
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium', meta.className)}>
+      <Icon size={12} />
+      {meta.label}
+    </span>
+  )
+}
+
+function PriorityPill({ priority }: { priority: TaskPriority }) {
+  const meta = priorityMeta[priority]
+  return <span className={cn('rounded-md px-2 py-1 text-xs font-medium', meta.className)}>{meta.label}优先级</span>
+}
 
 function ManagementTab({
   members,
@@ -165,31 +237,31 @@ function ManagementTab({
     <section className="rounded-lg border border-border bg-card p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <UserCheck size={15} />
-          <span>执行成员</span>
+          <Users size={15} />
+          <span>项目成员</span>
         </div>
         <Badge variant="secondary" className="text-[10px]">{members.length} 人</Badge>
       </div>
 
       {canManageMembers && (
-        <div className="mb-3 grid gap-2">
+        <div className="mb-3 grid gap-2 rounded-md border border-border bg-background p-2">
           <select
-            className="h-9 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+            className="h-9 rounded-md border border-border bg-card px-2 text-xs text-foreground"
             value={selectedUser}
-            onChange={(e) => setSelectedUser(e.target.value)}
+            onChange={(event) => setSelectedUser(event.target.value)}
           >
             <option value="">选择成员</option>
-            {users.map((u) => <option key={u.ID} value={u.ID}>{u.username}</option>)}
+            {users.map((user) => <option key={user.ID} value={user.ID}>{user.username}</option>)}
           </select>
           <div className="flex gap-2">
             <select
-              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+              className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-xs text-foreground"
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={(event) => setRole(event.target.value)}
             >
               <option value="director">导演</option>
               <option value="writer">编剧</option>
-              <option value="generator">生成执行</option>
+              <option value="generator">执行</option>
               <option value="viewer">观察者</option>
             </select>
             <Button
@@ -208,20 +280,20 @@ function ManagementTab({
       )}
 
       <div className="space-y-2">
-        {members.slice(0, 4).map((m) => (
-          <div key={m.ID} className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2">
+        {members.slice(0, 6).map((member) => (
+          <div key={member.ID} className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-              {m.user?.username?.[0]?.toUpperCase() ?? '?'}
+              {memberDisplayName(member)[0]?.toUpperCase() ?? '?'}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium">{m.user?.username}</p>
-              <p className="text-[11px] text-muted-foreground">{ROLE_LABELS[m.role] ?? m.role}</p>
+              <p className="truncate text-xs font-medium">{memberDisplayName(member)}</p>
+              <p className="text-[11px] text-muted-foreground">{ROLE_LABELS[member.role] ?? member.role}</p>
             </div>
-            {canManageMembers && m.role !== 'owner' && (
+            {canManageMembers && member.role !== 'owner' && (
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => removeMember.mutate(m.ID)}
+                onClick={() => removeMember.mutate(member.ID)}
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 aria-label="移除成员"
               >
@@ -230,61 +302,92 @@ function ManagementTab({
             )}
           </div>
         ))}
-        {members.length === 0 && <p className="text-xs text-muted-foreground">暂无执行成员。</p>}
+        {members.length === 0 && <p className="text-xs text-muted-foreground">暂无项目成员。先添加成员后即可分配任务。</p>}
       </div>
     </section>
   )
 }
 
 export default function CollaborationPage() {
-  const project = useProjectStore((s) => s.current)
+  const project = useProjectStore((state) => state.current)
+  const currentUser = useUserStore((state) => state.currentUser)
   const projectId = project?.ID
-  const navigate = useNavigate()
-  const [selectedUnit, setSelectedUnit] = useState('all')
-  const [selectedTaskId, setSelectedTaskId] = useState(productionTasks[0]?.id ?? '')
-  const [view, setView] = useState<'list' | 'board' | 'unit'>('list')
+  const [tasks, setTasks] = useState<ProjectTask[]>(seededTasks)
+  const [selectedTaskId, setSelectedTaskId] = useState(seededTasks[0]?.id ?? '')
+  const [view, setView] = useState<TaskView>('all')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskAssignee, setNewTaskAssignee] = useState('')
+  const [newTaskDue, setNewTaskDue] = useState('明天 18:00')
 
   const { data: projectDetail } = useQuery({
     queryKey: ['project', projectId],
-    queryFn: () => api.get(`/projects/${projectId}`).then((r) => r.data),
+    queryFn: () => api.get(`/projects/${projectId}`).then((response) => response.data),
     enabled: !!projectId,
   })
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
-    queryFn: () => api.get('/users').then((r) => r.data),
-  })
-
-  const { data: latestScriptPreviewDraft } = useQuery<GetLatestScriptPreviewDraftResponse>({
-    queryKey: ['script-preview-latest-draft', projectId],
-    queryFn: () => getLatestScriptPreviewDraft(projectId!),
-    enabled: !!projectId,
-    refetchInterval: 60_000,
+    queryFn: () => api.get('/users').then((response) => response.data),
   })
 
   const members: ProjectMember[] = projectDetail?.members ?? []
   const { canManageMembers } = usePermissions(members)
-  const latestPreviewDraft = latestScriptPreviewDraft?.found ? latestScriptPreviewDraft.draft : undefined
-  const latestPreviewStatus = latestPreviewDraft?.draft.preview_status ?? 'draft'
-  const latestPreviewConfirmedAt = latestPreviewDraft?.draft.confirmed_at ?? ''
-  const latestPreviewSavedAt = latestPreviewDraft?.saved_at ?? ''
-  const latestPreviewTitle = latestPreviewDraft?.draft.script_version.title ?? '最近预演草稿'
-  const isReadyForProduction = latestPreviewStatus === 'ready_for_production'
-  const previewStatusLabel = latestScriptPreviewDraft?.found
-    ? (isReadyForProduction ? '预演已确认' : '待确认预演')
-    : '无预演草稿'
-  const previewStatusTone = latestScriptPreviewDraft?.found
-    ? (isReadyForProduction ? 'text-emerald-600' : 'text-amber-600')
-    : 'text-muted-foreground'
+  const memberOptions = useMemo(() => buildMemberOptions(members, currentUser), [members, currentUser])
+  const reviewerName = members.find((member) => member.role === 'owner')?.user?.username ?? currentUser?.username ?? '项目负责人'
+
+  const metrics = useMemo(() => {
+    const mine = tasks.filter((task) => taskMatchesUser(task, currentUser)).length
+    const review = tasks.filter((task) => task.status === 'submitted').length
+    const doing = tasks.filter((task) => task.status === 'in_progress' || task.status === 'changes_requested').length
+    const done = tasks.filter((task) => task.status === 'approved').length
+    return [
+      { label: '全部任务', value: tasks.length, icon: ClipboardList, className: 'text-foreground' },
+      { label: '我的任务', value: mine, icon: UserCheck, className: 'text-sky-600' },
+      { label: '待审核', value: review, icon: BadgeCheck, className: 'text-amber-600' },
+      { label: '处理中', value: doing, icon: Clock3, className: 'text-blue-600' },
+      { label: '已完成', value: done, icon: CheckCircle2, className: 'text-emerald-600' },
+    ]
+  }, [tasks, currentUser])
 
   const visibleTasks = useMemo(() => {
-    if (selectedUnit === 'all') return productionTasks
-    return productionTasks.filter((task) => task.unitId === selectedUnit)
-  }, [selectedUnit])
+    return tasks.filter((task) => {
+      if (view === 'mine' && !taskMatchesUser(task, currentUser)) return false
+      if (view === 'review' && task.status !== 'submitted') return false
+      if (statusFilter !== 'all' && task.status !== statusFilter) return false
+      return true
+    })
+  }, [currentUser, statusFilter, tasks, view])
 
   const selectedTask = useMemo(() => {
-    return visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? productionTasks[0]
-  }, [selectedTaskId, visibleTasks])
+    return visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? tasks[0]
+  }, [selectedTaskId, tasks, visibleTasks])
+
+  function updateTask(taskId: string, patch: Partial<ProjectTask>) {
+    setTasks((items) => items.map((task) => task.id === taskId ? { ...task, ...patch } : task))
+  }
+
+  function createTask() {
+    const assignee = memberOptions.find((member) => String(member.id) === newTaskAssignee) ?? memberOptions[0]
+    if (!newTaskTitle.trim() || !assignee) return
+    const task: ProjectTask = {
+      id: `TASK-${1100 + tasks.length}`,
+      title: newTaskTitle.trim(),
+      description: '由负责人新建并分配给项目成员，成员完成后提交审核。',
+      target: project?.name ?? '当前项目',
+      assigneeId: assignee.id,
+      assigneeName: assignee.name,
+      reviewerName,
+      priority: 'medium',
+      status: 'todo',
+      due: newTaskDue.trim() || '未设置',
+    }
+    setTasks((items) => [task, ...items])
+    setSelectedTaskId(task.id)
+    setView('all')
+    setStatusFilter('all')
+    setNewTaskTitle('')
+  }
 
   return (
     <div className="h-full min-w-[1180px] overflow-auto bg-background">
@@ -294,289 +397,302 @@ export default function CollaborationPage() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>制作任务</span>
+              <span>任务</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作任务</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">任务</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              管理由已确认预演派生出的执行事项，跟踪分配、进度、审核和返工。
+              面向项目成员的任务分配、个人执行、提交审核和负责人通过。
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={() => navigate('/script-preview')}>
-              <Sparkles size={15} />
-              查看剧本预演
+            <Button variant="outline" className="gap-2" onClick={() => setView('mine')}>
+              <UserCheck size={15} />
+              我的任务
             </Button>
-            <Button className="gap-2" onClick={() => navigate(isReadyForProduction ? '/production' : '/script-preview')}>
-              <ArrowRight size={15} />
-              {isReadyForProduction ? '进入内容生产' : '前往预演确认'}
+            <Button className="gap-2" onClick={createTask}>
+              <Plus size={15} />
+              分配任务
             </Button>
           </div>
         </header>
 
-        <section className="rounded-lg border border-border bg-card px-4 py-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <BadgeCheck size={15} className={previewStatusTone} />
-                <span>剧本预演状态</span>
-                <Badge variant="secondary" className="text-[10px]">{previewStatusLabel}</Badge>
+        <section className="grid grid-cols-4 gap-3">
+          {workflow.map((step, index) => {
+            const Icon = step.icon
+            return (
+              <div key={step.title} className="rounded-lg border border-border bg-card p-3">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon size={16} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{index + 1}. {step.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.detail}</p>
+                  </div>
+                </div>
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {isReadyForProduction
-                  ? '预演已经确认，制作任务可以围绕内容单元、关键帧和素材缺口展开。'
-                  : latestScriptPreviewDraft?.found
-                    ? '当前项目已有预演草稿，但还没有进入可生产状态。'
-                    : '当前项目还没有可用的预演草稿，先完成剧本预演确认。'}
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                来源版本：{latestScriptPreviewDraft?.found ? latestPreviewTitle : '暂无'}
-              </p>
-            </div>
-            <div className="grid shrink-0 grid-cols-2 gap-x-5 gap-y-1 text-right text-xs text-muted-foreground">
-              <span>保存时间</span>
-              <span className="font-medium text-foreground">{latestPreviewSavedAt ? formatDateTime(latestPreviewSavedAt) : '暂无'}</span>
-              <span>确认时间</span>
-              <span className="font-medium text-foreground">{latestPreviewConfirmedAt ? formatDateTime(latestPreviewConfirmedAt) : '暂无'}</span>
-            </div>
-          </div>
+            )
+          })}
         </section>
 
-        {!isReadyForProduction ? (
-          <section className="grid min-h-[520px] place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center">
-            <div className="max-w-md">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                <ClipboardList size={22} className="text-muted-foreground" />
+        <section className="grid grid-cols-5 gap-3">
+          {metrics.map((metric) => {
+            const Icon = metric.icon
+            return (
+              <button
+                key={metric.label}
+                type="button"
+                onClick={() => {
+                  if (metric.label === '我的任务') setView('mine')
+                  if (metric.label === '待审核') setView('review')
+                  if (metric.label === '全部任务') setView('all')
+                }}
+                className="rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-primary/40"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{metric.label}</span>
+                  <Icon size={15} className={metric.className} />
+                </div>
+                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{metric.value}</p>
+              </button>
+            )
+          })}
+        </section>
+
+        <section className="grid grid-cols-[260px_minmax(0,1fr)_360px] gap-4">
+          <aside className="space-y-3">
+            <section className="rounded-lg border border-border bg-card p-3">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                <Plus size={15} />
+                <span>快速分配</span>
               </div>
-              <h2 className="mt-4 text-lg font-semibold">当前项目还没有进入制作任务阶段</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                制作任务需要基于已确认的剧本预演创建。先在剧本预演中确认分镜、关键帧和素材缺口，再回到这里安排执行任务。
-              </p>
-              <div className="mt-5 flex justify-center gap-2">
-                <Button className="gap-2" onClick={() => navigate('/script-preview')}>
-                  <ArrowRight size={15} />
-                  前往剧本预演
+              <div className="space-y-2">
+                <input
+                  value={newTaskTitle}
+                  onChange={(event) => setNewTaskTitle(event.target.value)}
+                  placeholder="任务标题"
+                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                />
+                <select
+                  value={newTaskAssignee}
+                  onChange={(event) => setNewTaskAssignee(event.target.value)}
+                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                >
+                  <option value="">选择执行成员</option>
+                  {memberOptions.map((member) => (
+                    <option key={member.id} value={member.id}>{member.name} · {member.role}</option>
+                  ))}
+                </select>
+                <input
+                  value={newTaskDue}
+                  onChange={(event) => setNewTaskDue(event.target.value)}
+                  placeholder="截止时间"
+                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                />
+                <Button className="w-full gap-2" onClick={createTask} disabled={!newTaskTitle.trim() || memberOptions.length === 0}>
+                  <UserCheck size={15} />
+                  分配给成员
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={() => navigate('/production')}>
-                  <Film size={15} />
-                  查看内容生产
-                </Button>
+              </div>
+            </section>
+
+            <ManagementTab
+              members={members}
+              users={users}
+              canManageMembers={canManageMembers}
+              projectId={projectId}
+            />
+          </aside>
+
+          <main className="rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <ListTodo size={16} />
+                <h2 className="text-sm font-semibold">任务列表</h2>
+                <Badge variant="secondary" className="text-[10px]">{visibleTasks.length} 项</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                {(['all', 'mine', 'review'] as const).map((mode) => (
+                  <Button
+                    key={mode}
+                    variant={view === mode ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setView(mode)}
+                  >
+                    {mode === 'all' ? '全部' : mode === 'mine' ? '我的' : '待审核'}
+                  </Button>
+                ))}
+                <div className="flex items-center gap-1 rounded-md border border-border bg-background px-2">
+                  <ListFilter size={13} className="text-muted-foreground" />
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
+                    className="h-8 bg-transparent text-xs outline-none"
+                    aria-label="状态筛选"
+                  >
+                    <option value="all">全部状态</option>
+                    {Object.entries(statusMeta).map(([status, meta]) => (
+                      <option key={status} value={status}>{meta.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
-          </section>
-        ) : (
-          <>
-            <section className="grid grid-cols-6 gap-3">
-              {metricRows.map((item) => {
-                const Icon = item.icon
+
+            <div className="space-y-3 p-3">
+              {visibleTasks.map((task) => {
+                const active = selectedTask?.id === task.id
                 return (
-                  <div key={item.label} className="rounded-lg border border-border bg-card p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">{item.label}</span>
-                      <Icon size={15} className={item.className} />
+                  <button
+                    key={task.id}
+                    type="button"
+                    onClick={() => setSelectedTaskId(task.id)}
+                    className={cn(
+                      'w-full rounded-lg border bg-background p-3 text-left transition-colors',
+                      active ? 'border-primary/45 shadow-sm' : 'border-border hover:border-muted-foreground/30'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusPill status={task.status} />
+                          <PriorityPill priority={task.priority} />
+                          <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
+                        </div>
+                        <p className="mt-2 truncate text-sm font-semibold">{task.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{task.description}</p>
+                      </div>
+                      <div className="grid w-[260px] shrink-0 grid-cols-2 gap-2 text-xs">
+                        <Info label="执行成员" value={task.assigneeName} />
+                        <Info label="截止时间" value={task.due} />
+                        <Info label="关联对象" value={task.target} />
+                        <Info label="审核人" value={task.reviewerName} />
+                      </div>
                     </div>
-                    <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{item.value}</p>
-                  </div>
+                  </button>
                 )
               })}
-            </section>
-
-            <section className="grid grid-cols-[220px_minmax(0,1fr)_340px] gap-4">
-              <aside className="space-y-3">
-                <section className="rounded-lg border border-border bg-card p-3">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                    <Layers3 size={15} />
-                    <span>内容单元</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {contentUnits.map((unit) => (
-                      <button
-                        key={unit.id}
-                        type="button"
-                        onClick={() => setSelectedUnit(unit.id)}
-                        className={cn(
-                          'w-full rounded-md border px-3 py-2 text-left transition-colors',
-                          selectedUnit === unit.id
-                            ? 'border-primary/30 bg-primary/10'
-                            : 'border-transparent hover:border-border hover:bg-muted/40'
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-medium">{unit.title}</p>
-                          {unit.status !== '总览' && (
-                            <span className={cn('rounded border px-1.5 py-0.5 text-[10px]', statusStyles[unit.status])}>
-                              {unit.status}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{unit.meta}</p>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <ManagementTab
-                  members={members}
-                  users={users}
-                  canManageMembers={canManageMembers}
-                  projectId={projectId}
-                />
-              </aside>
-
-              <main className="rounded-lg border border-border bg-card">
-                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <ListTodo size={16} />
-                    <h2 className="text-sm font-semibold">任务列表</h2>
-                    <Badge variant="secondary" className="text-[10px]">{visibleTasks.length} 项</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="gap-1.5">
-                      <ListFilter size={14} />
-                      筛选
-                    </Button>
-                    {(['list', 'board', 'unit'] as const).map((mode) => (
-                      <Button
-                        key={mode}
-                        variant={view === mode ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setView(mode)}
-                      >
-                        {mode === 'list' ? '列表' : mode === 'board' ? '看板' : '按单元'}
-                      </Button>
-                    ))}
+              {visibleTasks.length === 0 && (
+                <div className="grid min-h-[260px] place-items-center rounded-lg border border-dashed border-border text-center">
+                  <div>
+                    <ClipboardList size={24} className="mx-auto text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium">没有符合条件的任务</p>
+                    <p className="mt-1 text-xs text-muted-foreground">调整筛选条件，或在左侧快速分配新任务。</p>
                   </div>
                 </div>
+              )}
+            </div>
+          </main>
 
-                <div className="space-y-3 p-3">
-                  {visibleTasks.map((task) => {
-                    const Icon = task.icon
-                    const active = selectedTask?.id === task.id
-                    return (
-                      <button
-                        key={task.id}
-                        type="button"
-                        onClick={() => setSelectedTaskId(task.id)}
-                        className={cn(
-                          'w-full rounded-lg border bg-background p-3 text-left transition-colors',
-                          active ? 'border-primary/40 shadow-sm' : 'border-border hover:border-muted-foreground/30'
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
-                            <Icon size={17} className="text-muted-foreground" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className={cn('rounded border px-1.5 py-0.5 text-[10px]', statusStyles[task.status])}>
-                                {task.status}
-                              </span>
-                              <Badge variant="secondary" className="text-[10px]">{task.priority}优先级</Badge>
-                              <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
-                            </div>
-                            <p className="mt-2 truncate text-sm font-semibold">{task.title}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">来源：{task.source}</p>
-                            <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
-                              <div>
-                                <p className="text-muted-foreground">类型</p>
-                                <p className="mt-1 truncate font-medium">{task.type}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">执行</p>
-                                <p className="mt-1 truncate font-medium">{task.executor}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">截止</p>
-                                <p className="mt-1 truncate font-medium">{task.due}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">输出</p>
-                                <p className="mt-1 truncate font-medium">{task.output}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </main>
+          <aside className="rounded-lg border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <ClipboardCheck size={16} />
+                <span>任务详情</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">任务完成只代表执行事项通过，不直接改变内容采用或交付状态。</p>
+            </div>
 
-              <aside className="rounded-lg border border-border bg-card">
-                <div className="border-b border-border px-4 py-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <ClipboardList size={16} />
-                    <span>任务详情</span>
+            {selectedTask && (
+              <div className="space-y-4 p-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill status={selectedTask.status} />
+                    <PriorityPill priority={selectedTask.priority} />
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">这里只展示执行状态，不把任务结果直接写成正式事实。</p>
+                  <h3 className="mt-3 text-base font-semibold">{selectedTask.title}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedTask.id} · {selectedTask.target}</p>
                 </div>
 
-                {selectedTask && (
-                  <div className="space-y-4 p-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn('rounded border px-1.5 py-0.5 text-[10px]', statusStyles[selectedTask.status])}>
-                          {selectedTask.status}
-                        </span>
-                        <Badge variant="secondary" className="text-[10px]">{selectedTask.type}</Badge>
-                      </div>
-                      <h3 className="mt-2 text-base font-semibold">{selectedTask.title}</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">{selectedTask.id} · {selectedTask.source}</p>
+                <DetailBlock title="分配信息" icon={UserCheck}>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <Info label="执行成员" value={selectedTask.assigneeName} />
+                    <Info label="审核人" value={selectedTask.reviewerName} />
+                    <Info label="截止时间" value={selectedTask.due} />
+                    <Info label="关联对象" value={selectedTask.target} />
+                  </div>
+                </DetailBlock>
+
+                <DetailBlock title="任务说明" icon={ListChecks}>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{selectedTask.description}</p>
+                </DetailBlock>
+
+                <DetailBlock title="提交内容" icon={FileCheck2}>
+                  <div className="rounded-md border border-border bg-background p-3">
+                    <p className="text-sm text-foreground">{selectedTask.deliverable ?? '成员尚未提交交付物。'}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <span>提交时间：{selectedTask.submittedAt ?? '暂无'}</span>
+                      <span>通过时间：{selectedTask.approvedAt ?? '暂无'}</span>
                     </div>
+                  </div>
+                </DetailBlock>
 
-                    <DetailBlock title="执行信息" icon={CalendarClock}>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <Info label="负责人" value={selectedTask.owner} />
-                        <Info label="执行方式" value={selectedTask.executor} />
-                        <Info label="截止时间" value={selectedTask.due} />
-                        <Info label="当前输出" value={selectedTask.output} />
-                      </div>
-                    </DetailBlock>
+                <DetailBlock title="审核意见" icon={MessageSquareText}>
+                  <div className="rounded-md border border-border bg-background p-3 text-sm leading-relaxed text-muted-foreground">
+                    {selectedTask.reviewNote ?? '暂无审核意见。'}
+                  </div>
+                </DetailBlock>
 
-                    <DetailBlock title="任务说明" icon={ListTodo}>
-                      <p className="text-sm leading-relaxed text-muted-foreground">{selectedTask.intent}</p>
-                    </DetailBlock>
+                <div className="grid gap-2 border-t border-border pt-3">
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2"
+                    onClick={() => updateTask(selectedTask.id, { status: 'in_progress', deliverable: '处理中' })}
+                    disabled={selectedTask.status === 'approved'}
+                  >
+                    <Clock3 size={15} />
+                    标记进行中
+                  </Button>
+                  <Button
+                    className="justify-start gap-2"
+                    onClick={() => updateTask(selectedTask.id, {
+                      status: 'submitted',
+                      submittedAt: '刚刚',
+                      deliverable: selectedTask.deliverable === '处理中' || !selectedTask.deliverable ? '已提交执行结果，等待负责人审核。' : selectedTask.deliverable,
+                      reviewNote: '等待负责人审核。',
+                    })}
+                    disabled={selectedTask.status === 'submitted' || selectedTask.status === 'approved'}
+                  >
+                    <Send size={15} />
+                    提交审核
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2"
+                    onClick={() => updateTask(selectedTask.id, {
+                      status: 'changes_requested',
+                      reviewNote: '负责人要求修改后重新提交。',
+                    })}
+                    disabled={selectedTask.status !== 'submitted' || !canManageMembers}
+                  >
+                    <RefreshCcw size={15} />
+                    要求修改
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2"
+                    onClick={() => updateTask(selectedTask.id, {
+                      status: 'approved',
+                      approvedAt: '刚刚',
+                      reviewNote: '负责人已通过，任务完成。',
+                    })}
+                    disabled={selectedTask.status !== 'submitted' || !canManageMembers}
+                  >
+                    <CheckCircle2 size={15} />
+                    通过完成
+                  </Button>
+                </div>
 
-                    <DetailBlock title="输入材料" icon={Image}>
-                      <div className="space-y-2">
-                        {selectedTask.inputs.map((input) => (
-                          <div key={input} className="rounded-md border border-border bg-background px-2 py-2 text-xs">
-                            {input}
-                          </div>
-                        ))}
-                      </div>
-                    </DetailBlock>
-
-                    <DetailBlock title="审核与返工" icon={BadgeCheck}>
-                      <div className="space-y-2">
-                        {selectedTask.review.map((item) => (
-                          <div key={item} className="flex gap-2 text-xs text-muted-foreground">
-                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                            <span>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </DetailBlock>
-
-                    <div className="grid gap-2 border-t border-border pt-3">
-                      <Button className="justify-start gap-2">
-                        <BadgeCheck size={15} />
-                        通过审核
-                      </Button>
-                      <Button variant="outline" className="justify-start gap-2">
-                        <RefreshCcw size={15} />
-                        要求返工
-                      </Button>
-                      <Button variant="outline" className="justify-start gap-2" onClick={() => navigate('/production')}>
-                        <Film size={15} />
-                        查看内容生产
-                      </Button>
-                    </div>
+                {!canManageMembers && selectedTask.status === 'submitted' && (
+                  <div className="flex gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <span>只有项目负责人或具备成员管理权限的用户可以通过任务或要求修改。</span>
                   </div>
                 )}
-              </aside>
-            </section>
-          </>
-        )}
+              </div>
+            )}
+          </aside>
+        </section>
       </div>
     </div>
   )
@@ -604,21 +720,9 @@ function DetailBlock({
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border bg-background px-2 py-2">
+    <div className="min-w-0 rounded-md border border-border bg-card px-2 py-2">
       <p className="text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate font-medium">{value}</p>
+      <p className="mt-1 truncate font-medium text-foreground">{value}</p>
     </div>
   )
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
 }

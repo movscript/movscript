@@ -21,6 +21,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { Asset, AssetView, RawResource, Setting, PaginatedResponse } from '@/types'
@@ -33,28 +34,28 @@ import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
-type RequirementStatus = 'missing' | 'candidate' | 'locked' | 'waived'
-type RequirementKind = 'image' | 'video' | 'audio' | 'brand'
-type RequirementPriority = 'high' | 'medium' | 'low'
-type StatusFilter = 'active' | RequirementStatus
+type AssetSlotStatus = 'missing' | 'candidate' | 'locked' | 'waived'
+type AssetSlotKind = 'image' | 'video' | 'audio' | 'brand'
+type AssetSlotPriority = 'high' | 'medium' | 'low'
+type StatusFilter = 'active' | AssetSlotStatus
 
-interface AssetRequirement {
+interface AssetSlot {
   id: string
   title: string
   description: string
-  kind: RequirementKind
-  priority: RequirementPriority
+  kind: AssetSlotKind
+  priority: AssetSlotPriority
   scope: string
   cue: string
-  status: RequirementStatus
+  status: AssetSlotStatus
   candidateAssetIds: number[]
   lockedAssetId?: number
 }
 
-const STATUS_ORDER: RequirementStatus[] = ['missing', 'candidate', 'locked', 'waived']
+const STATUS_ORDER: AssetSlotStatus[] = ['missing', 'candidate', 'locked', 'waived']
 const PAGE_SIZE = 18
 
-const FALLBACK_REQUIREMENTS: AssetRequirement[] = [
+const FALLBACK_ASSET_SLOTS: AssetSlot[] = [
   {
     id: 'rain-injury-front',
     title: '林夏雨夜受伤状态 · 正面半身参考',
@@ -173,7 +174,7 @@ function assetSubtitle(asset: Asset, t: (key: string, options?: Record<string, u
   return state ? `${settingName} / ${settingStatusLabel(state)}` : settingName
 }
 
-function statusMeta(status: RequirementStatus, t: (key: string) => string) {
+function statusMeta(status: AssetSlotStatus, t: (key: string) => string) {
   switch (status) {
     case 'missing':
       return { label: t('pages.assets.v2.status.missing'), icon: AlertCircle, className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900' }
@@ -186,7 +187,7 @@ function statusMeta(status: RequirementStatus, t: (key: string) => string) {
   }
 }
 
-function kindMeta(kind: RequirementKind, t: (key: string) => string) {
+function kindMeta(kind: AssetSlotKind, t: (key: string) => string) {
   switch (kind) {
     case 'image':
       return { label: t('pages.assets.v2.kinds.image'), icon: Image }
@@ -199,7 +200,7 @@ function kindMeta(kind: RequirementKind, t: (key: string) => string) {
   }
 }
 
-function priorityLabel(priority: RequirementPriority, t: (key: string) => string) {
+function priorityLabel(priority: AssetSlotPriority, t: (key: string) => string) {
   return t(`pages.assets.v2.priority.${priority}`)
 }
 
@@ -219,7 +220,7 @@ function AssetThumb({ asset, className }: { asset?: Asset; className?: string })
     : <AuthedImage src={src} alt={asset?.name ?? ''} className={cn('object-cover', className)} />
 }
 
-function RequirementStatusBadge({ status }: { status: RequirementStatus }) {
+function AssetSlotStatusBadge({ status }: { status: AssetSlotStatus }) {
   const { t } = useTranslation()
   const meta = statusMeta(status, t)
   const Icon = meta.icon
@@ -232,17 +233,17 @@ function RequirementStatusBadge({ status }: { status: RequirementStatus }) {
   )
 }
 
-function RequirementCard({
-  requirement,
+function AssetSlotCard({
+  slot,
   selected,
   onSelect,
 }: {
-  requirement: AssetRequirement
+  slot: AssetSlot
   selected: boolean
   onSelect: () => void
 }) {
   const { t } = useTranslation()
-  const kind = kindMeta(requirement.kind, t)
+  const kind = kindMeta(slot.kind, t)
   const KindIcon = kind.icon
 
   return (
@@ -260,16 +261,16 @@ function RequirementCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">{requirement.title}</p>
-            <RequirementStatusBadge status={requirement.status} />
+            <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">{slot.title}</p>
+            <AssetSlotStatusBadge status={slot.status} />
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{requirement.scope}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{slot.scope}</p>
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
         <span className="rounded bg-muted px-1.5 py-0.5">{kind.label}</span>
-        <span className="rounded bg-muted px-1.5 py-0.5">{priorityLabel(requirement.priority, t)}</span>
-        <span className="ml-auto">{t('pages.assets.v2.candidateCount', { count: requirement.candidateAssetIds.length })}</span>
+        <span className="rounded bg-muted px-1.5 py-0.5">{priorityLabel(slot.priority, t)}</span>
+        <span className="ml-auto">{t('pages.assets.v2.candidateCount', { count: slot.candidateAssetIds.length })}</span>
       </div>
     </button>
   )
@@ -326,14 +327,14 @@ function EmptyPreview({ title, description }: { title: string; description: stri
   )
 }
 
-export default function AssetsPage() {
+export function AssetGenerationWorkspace() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
-  const [kindFilter, setKindFilter] = useState<'all' | RequirementKind>('all')
-  const [selectedId, setSelectedId] = useState(FALLBACK_REQUIREMENTS[0]?.id ?? '')
-  const [localStatuses, setLocalStatuses] = useState<Record<string, RequirementStatus>>({})
+  const [kindFilter, setKindFilter] = useState<'all' | AssetSlotKind>('all')
+  const [selectedId, setSelectedId] = useState(FALLBACK_ASSET_SLOTS[0]?.id ?? '')
+  const [localStatuses, setLocalStatuses] = useState<Record<string, AssetSlotStatus>>({})
   const [lockedAssets, setLockedAssets] = useState<Record<string, number>>({})
   const [showCreate, setShowCreate] = useState(false)
   const [page, setPage] = useState(1)
@@ -361,8 +362,8 @@ export default function AssetsPage() {
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const requirements = useMemo(() => {
-    return FALLBACK_REQUIREMENTS.map((item, index) => {
+  const assetSlots = useMemo(() => {
+    return FALLBACK_ASSET_SLOTS.map((item, index) => {
       const candidateAssetIds = item.candidateAssetIds.length > 0
         ? item.candidateAssetIds
         : assets.slice(index, index + 3).map((asset) => asset.ID)
@@ -381,30 +382,30 @@ export default function AssetsPage() {
     })
   }, [assets, localStatuses, lockedAssets])
 
-  const filteredRequirements = useMemo(() => {
+  const filteredAssetSlots = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return requirements.filter((item) => {
+    return assetSlots.filter((item) => {
       if (statusFilter === 'active' && (item.status === 'locked' || item.status === 'waived')) return false
       if (statusFilter !== 'active' && item.status !== statusFilter) return false
       if (kindFilter !== 'all' && item.kind !== kindFilter) return false
       if (!q) return true
       return [item.title, item.description, item.scope, item.cue].some((value) => value.toLowerCase().includes(q))
     })
-  }, [requirements, search, statusFilter, kindFilter])
+  }, [assetSlots, search, statusFilter, kindFilter])
 
-  const selected = requirements.find((item) => item.id === selectedId) ?? filteredRequirements[0] ?? requirements[0]
+  const selected = assetSlots.find((item) => item.id === selectedId) ?? filteredAssetSlots[0] ?? assetSlots[0]
   const candidateAssets = selected ? selected.candidateAssetIds.map((id) => assets.find((asset) => asset.ID === id)).filter((asset): asset is Asset => Boolean(asset)) : []
   const lockedAsset = selected?.status === 'locked' && selected.lockedAssetId ? assets.find((asset) => asset.ID === selected.lockedAssetId) : undefined
-  const summary = STATUS_ORDER.reduce<Record<RequirementStatus, number>>((acc, status) => {
-    acc[status] = requirements.filter((item) => item.status === status).length
+  const summary = STATUS_ORDER.reduce<Record<AssetSlotStatus, number>>((acc, status) => {
+    acc[status] = assetSlots.filter((item) => item.status === status).length
     return acc
   }, { missing: 0, candidate: 0, locked: 0, waived: 0 })
 
-  const updateStatus = (id: string, status: RequirementStatus) => {
+  const updateStatus = (id: string, status: AssetSlotStatus) => {
     setLocalStatuses((prev) => ({ ...prev, [id]: status }))
   }
 
-  const lockRequirement = (assetId: number) => {
+  const lockAssetSlot = (assetId: number) => {
     if (!selected) return
     setLockedAssets((prev) => ({ ...prev, [selected.id]: assetId }))
     updateStatus(selected.id, 'locked')
@@ -461,7 +462,7 @@ export default function AssetsPage() {
           </div>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {(['all', 'image', 'video', 'audio', 'brand'] as ('all' | RequirementKind)[]).map((kind) => (
+            {(['all', 'image', 'video', 'audio', 'brand'] as ('all' | AssetSlotKind)[]).map((kind) => (
               <FilterChip
                 key={kind}
                 active={kindFilter === kind}
@@ -474,16 +475,16 @@ export default function AssetsPage() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {filteredRequirements.length === 0 ? (
-            <EmptyPreview title={t('pages.assets.v2.emptyRequirements')} description={t('pages.assets.v2.emptyRequirementsHint')} />
+          {filteredAssetSlots.length === 0 ? (
+            <EmptyPreview title={t('pages.assets.v2.emptyAssetSlots')} description={t('pages.assets.v2.emptyAssetSlotsHint')} />
           ) : (
             <div className="space-y-2">
-              {filteredRequirements.map((requirement) => (
-                <RequirementCard
-                  key={requirement.id}
-                  requirement={requirement}
-                  selected={selected?.id === requirement.id}
-                  onSelect={() => setSelectedId(requirement.id)}
+              {filteredAssetSlots.map((slot) => (
+                <AssetSlotCard
+                  key={slot.id}
+                  slot={slot}
+                  selected={selected?.id === slot.id}
+                  onSelect={() => setSelectedId(slot.id)}
                 />
               ))}
             </div>
@@ -496,7 +497,7 @@ export default function AssetsPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                {selected && <RequirementStatusBadge status={selected.status} />}
+                {selected && <AssetSlotStatusBadge status={selected.status} />}
                 {selected && <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">{priorityLabel(selected.priority, t)}</span>}
                 {selected && <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">{kindMeta(selected.kind, t).label}</span>}
               </div>
@@ -553,7 +554,7 @@ export default function AssetsPage() {
                           <div key={asset.ID} className="overflow-hidden rounded-md border border-border bg-background">
                             <CandidateCard asset={asset} selected={selected.status === 'locked' && selected.lockedAssetId === asset.ID} />
                             <div className="flex items-center gap-2 border-t border-border p-2">
-                              <Button variant="outline" size="xs" className="flex-1" onClick={() => lockRequirement(asset.ID)}>
+                              <Button variant="outline" size="xs" className="flex-1" onClick={() => lockAssetSlot(asset.ID)}>
                                 <Lock size={12} />
                                 {t('pages.assets.v2.actions.lock')}
                               </Button>
@@ -574,14 +575,14 @@ export default function AssetsPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">{t('pages.assets.v2.sections.productionReadinessHint')}</p>
                   </div>
                   <div className="grid gap-3 p-4 md:grid-cols-3">
-                    <ReadinessItem complete={selected.status !== 'missing'} label={t('pages.assets.v2.readiness.requirementConfirmed')} />
+                    <ReadinessItem complete={selected.status !== 'missing'} label={t('pages.assets.v2.readiness.slotConfirmed')} />
                     <ReadinessItem complete={candidateAssets.length > 0 || selected.status === 'waived'} label={t('pages.assets.v2.readiness.hasCandidate')} />
                     <ReadinessItem complete={selected.status === 'locked' || selected.status === 'waived'} label={t('pages.assets.v2.readiness.lockedOrWaived')} />
                   </div>
                 </section>
               </div>
             ) : (
-              <EmptyPreview title={t('pages.assets.v2.noSelection')} description={t('pages.assets.v2.emptyRequirementsHint')} />
+              <EmptyPreview title={t('pages.assets.v2.noSelection')} description={t('pages.assets.v2.emptyAssetSlotsHint')} />
             )}
           </section>
 
@@ -666,6 +667,126 @@ export default function AssetsPage() {
             if (selected) {
               updateStatus(selected.id, 'candidate')
             }
+          }}
+          onSuccess={() => setShowCreate(false)}
+          onCancel={() => setShowCreate(false)}
+        />
+      </CreateDialog>
+    </div>
+  )
+}
+
+export default function AssetsPage() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const projectId = useProjectStore((s) => s.current?.ID)
+  const [search, setSearch] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [page, setPage] = useState(1)
+
+  const { data, isLoading } = useQuery<PaginatedResponse<Asset>>({
+    queryKey: ['assets-overview', projectId, search, page],
+    queryFn: () =>
+      api.get(`/projects/${projectId}/assets`, {
+        params: {
+          page,
+          page_size: PAGE_SIZE,
+          q: search.trim() || undefined,
+        },
+      }).then((r) => r.data),
+    enabled: !!projectId,
+  })
+
+  const { data: settings = [] } = useQuery<Setting[]>({
+    queryKey: ['settings', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/settings`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+
+  const assets = data?.items ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const mediaAssets = assets.filter((asset) => assetPreviewSrc(asset).src).length
+  const linkedAssets = assets.filter((asset) => asset.setting_id || asset.setting).length
+
+  return (
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-background">
+      <div className="shrink-0 border-b border-border bg-background px-6 py-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">{t('pages.assets.library.title')}</p>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{t('pages.assets.library.subtitle')}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/workbench/assets')}>
+              <Sparkles size={14} />
+              {t('pages.assets.library.openGeneration')}
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} />
+              {t('pages.assets.createTitle')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <InfoBox icon={PackageCheck} label={t('pages.assets.library.metrics.assets')} value={String(total)} />
+          <InfoBox icon={Layers3} label={t('pages.assets.library.metrics.settings')} value={String(settings.length)} />
+          <InfoBox icon={Image} label={t('pages.assets.library.metrics.media')} value={String(mediaAssets)} />
+          <InfoBox icon={Lock} label={t('pages.assets.library.metrics.linked')} value={String(linkedAssets)} />
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="relative w-full max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+              placeholder={t('pages.assets.searchPlaceholder')}
+              className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <span className="shrink-0 text-xs text-muted-foreground">{t('pages.assets.pagination', { total, page, pageCount })}</span>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {isLoading ? (
+            <p className="py-12 text-center text-xs text-muted-foreground">{t('common.loadingShort')}</p>
+          ) : assets.length === 0 ? (
+            <EmptyPreview title={t('pages.assets.empty')} description={t('pages.assets.library.emptyHint')} />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {assets.map((asset) => (
+                <CandidateCard key={asset.ID} asset={asset} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-border pt-4">
+          <Button variant="outline" size="sm" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1}>
+            <ChevronLeft size={14} />
+            {t('common.back')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={page >= pageCount}>
+            {t('common.next')}
+            <ChevronRight size={14} />
+          </Button>
+        </div>
+      </div>
+
+      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.assets.createTitle')}>
+        <AssetCreateForm
+          key="asset-library-create"
+          projectId={projectId!}
+          onCreated={() => {
+            setSearch('')
+            setPage(1)
           }}
           onSuccess={() => setShowCreate(false)}
           onCancel={() => setShowCreate(false)}

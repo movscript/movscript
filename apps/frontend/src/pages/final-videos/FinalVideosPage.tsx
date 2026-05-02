@@ -11,6 +11,7 @@ import { EntitySemanticForm, type EntitySemanticFieldRenderContext } from '@/com
 import { cn } from '@/lib/utils'
 import { Clapperboard, Film, LayoutGrid, List, Plus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import V2FinalVideosPage from './V2FinalVideosPage'
 
 type ViewMode = 'grid' | 'list'
 type FilterMode = 'all' | 'episode' | 'scene' | 'storyboard' | 'shot'
@@ -21,6 +22,10 @@ function emptyToNull(value: string): number | null {
 }
 
 export default function FinalVideosPage() {
+  return <V2FinalVideosPage />
+}
+
+function LegacyFinalVideosPage() {
   const { t } = useTranslation()
   const projectId = useProjectStore((s) => s.current?.ID)
   const [filterMode, setFilterMode] = useState<FilterMode>('all')

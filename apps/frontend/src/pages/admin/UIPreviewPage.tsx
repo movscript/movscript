@@ -1074,7 +1074,7 @@ function MainScriptDetailPreviewCanvas() {
             <ScriptStructureSideBlock title="禁止直接写入">
               <ContinuityItem label="空人物实体" value="必须经候选确认或合并后创建" />
               <ContinuityItem label="空分场实体" value="必须有来源范围和结构字段" />
-              <ContinuityItem label="空素材需求" value="进入素材阶段后再生成" />
+              <ContinuityItem label="空素材位" value="进入素材阶段后再生成" />
             </ScriptStructureSideBlock>
 
             <ScriptStructureSideBlock title="关系定义">

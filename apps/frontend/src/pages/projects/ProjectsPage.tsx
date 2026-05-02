@@ -276,7 +276,7 @@ export default function ProjectsPage() {
 
   function handleOpen(p: Project) {
     setCurrent(p)
-    navigate('/scripts')
+    navigate('/project-home')
   }
 
   return (

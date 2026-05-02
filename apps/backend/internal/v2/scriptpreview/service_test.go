@@ -3,9 +3,98 @@ package scriptpreview
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
+
+func analysisRequest(draftID string, texts ...string) AnalyzeRequest {
+	req := AnalyzeRequest{
+		DraftID:     draftID,
+		GeneratedAt: time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		Status:      "succeeded",
+	}
+	for i, text := range texts {
+		order := i + 1
+		sectionID := fmt.Sprintf("section-%03d", order)
+		question := fmt.Sprintf("第 %d 段的情绪转折是否需要用户确认？", order)
+		req.Sections = append(req.Sections, ScriptSectionResult{
+			ClientID:        sectionID,
+			Order:           order,
+			Title:           text,
+			Summary:         text,
+			SourceRange:     fmt.Sprintf("line:%d", order),
+			Confidence:      0.78,
+			ConfirmQuestion: question,
+		})
+		req.ConfirmQuestions = append(req.ConfirmQuestions, question)
+		req.Suggestions = append(req.Suggestions, StoryboardSuggestion{
+			ClientID:        fmt.Sprintf("suggestion-%03d", order),
+			SourceSectionID: sectionID,
+			Order:           order,
+			Title:           text,
+			Body:            text,
+			DurationSeconds: 8,
+			Status:          "待确认",
+			AdoptionIntent:  "append_storyboard_row",
+			AdoptionStatus:  "pending",
+		})
+	}
+	return req
+}
+
+func previewRequest(draftID string, rows []StoryboardRow) GeneratePreviewRequest {
+	req := GeneratePreviewRequest{
+		DraftID:        draftID,
+		StoryboardRows: rows,
+		GeneratedAt:    time.Date(2026, 5, 1, 10, 30, 0, 0, time.UTC).Format(time.RFC3339),
+		Status:         "succeeded",
+	}
+	var cursor float64
+	for i, row := range rows {
+		order := i + 1
+		candidateID := fmt.Sprintf("keyframe-%03d", order)
+		status := "候选"
+		timelineStatus := "draft"
+		if row.Status == "需补素材" {
+			status = "待补素材"
+			timelineStatus = "needs_asset"
+			req.AssetGaps = append(req.AssetGaps, AssetGap{
+				ClientID:              fmt.Sprintf("asset-gap-%03d", order),
+				StoryboardRowClientID: row.ClientID,
+				Name:                  fmt.Sprintf("第 %d 段参考素材", order),
+				Description:           row.Title,
+				Priority:              "normal",
+				Status:                "missing",
+			})
+		}
+		if row.Status == "可预演" {
+			timelineStatus = "playable"
+		}
+		req.KeyframeCandidates = append(req.KeyframeCandidates, KeyframeCandidate{
+			ClientID:       candidateID,
+			StoryboardRow:  row.ClientID,
+			Prompt:         fmt.Sprintf("外部生成关键帧：%s", row.Body),
+			VisualAnchor:   row.Title,
+			Status:         status,
+			DecisionStatus: "pending",
+		})
+		req.PreviewTimeline = append(req.PreviewTimeline, PreviewTimelineItem{
+			ClientID:                  fmt.Sprintf("timeline-%03d", order),
+			StoryboardRowClientID:     row.ClientID,
+			KeyframeCandidateClientID: candidateID,
+			Order:                     order,
+			StartSeconds:              cursor,
+			DurationSeconds:           row.DurationSeconds,
+			EndSeconds:                cursor + row.DurationSeconds,
+			Label:                     row.Title,
+			Status:                    timelineStatus,
+			ConfirmationStatus:        "pending",
+		})
+		cursor += row.DurationSeconds
+	}
+	return req
+}
 
 func TestServiceSaveDraftNormalizesTimeline(t *testing.T) {
 	svc := NewService()
@@ -106,12 +195,9 @@ func TestServiceGetLatestDraftReturnsNotFoundShape(t *testing.T) {
 	}
 }
 
-func TestServiceAnalyzeBuildsSuggestions(t *testing.T) {
+func TestServiceAnalyzeStoresProvidedSuggestions(t *testing.T) {
 	svc := NewService()
-	resp, err := svc.Analyze(1, AnalyzeRequest{
-		DraftID:    "draft-1",
-		SourceText: "第一段\n\n第二段",
-	})
+	resp, err := svc.Analyze(1, analysisRequest("draft-1", "第一段", "第二段"))
 	if err != nil {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
@@ -123,6 +209,17 @@ func TestServiceAnalyzeBuildsSuggestions(t *testing.T) {
 	}
 	if resp.Suggestions[0].AdoptionIntent != "append_storyboard_row" {
 		t.Fatalf("adoption intent = %q", resp.Suggestions[0].AdoptionIntent)
+	}
+}
+
+func TestServiceAnalyzeRejectsMissingCandidates(t *testing.T) {
+	svc := NewService()
+	_, err := svc.Analyze(1, AnalyzeRequest{
+		DraftID:    "draft-1",
+		SourceText: "第一段",
+	})
+	if err == nil {
+		t.Fatal("expected Analyze to require externally provided candidates")
 	}
 }
 
@@ -145,10 +242,7 @@ func TestServiceAnalyzePersistsCandidatesIntoDraftSnapshot(t *testing.T) {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
 
-	_, err = svc.Analyze(1, AnalyzeRequest{
-		DraftID:    "draft-1",
-		SourceText: "第一段",
-	})
+	_, err = svc.Analyze(1, analysisRequest("draft-1", "第一段"))
 	if err != nil {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
@@ -165,15 +259,12 @@ func TestServiceAnalyzePersistsCandidatesIntoDraftSnapshot(t *testing.T) {
 	}
 }
 
-func TestServiceGeneratePreviewCreatesAssetGaps(t *testing.T) {
+func TestServiceGeneratePreviewStoresProvidedAssetGaps(t *testing.T) {
 	svc := NewService()
-	resp, err := svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
-			{ClientID: "02", Title: "冲突", Body: "B", DurationSeconds: 6, Status: "需补素材"},
-		},
-	})
+	resp, err := svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+		{ClientID: "02", Title: "冲突", Body: "B", DurationSeconds: 6, Status: "需补素材"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -185,6 +276,19 @@ func TestServiceGeneratePreviewCreatesAssetGaps(t *testing.T) {
 	}
 	if resp.PreviewTimeline[1].Status != "needs_asset" {
 		t.Fatalf("second timeline status = %q", resp.PreviewTimeline[1].Status)
+	}
+}
+
+func TestServiceGeneratePreviewRejectsMissingCandidates(t *testing.T) {
+	svc := NewService()
+	_, err := svc.GeneratePreview(1, GeneratePreviewRequest{
+		DraftID: "draft-1",
+		StoryboardRows: []StoryboardRow{
+			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected GeneratePreview to require externally provided candidates")
 	}
 }
 
@@ -210,12 +314,9 @@ func TestServiceGeneratePreviewPersistsCandidatesIntoDraftSnapshot(t *testing.T)
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
 
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -256,10 +357,7 @@ func TestServiceAcceptStoryboardSuggestionPersistsDecisionAndRows(t *testing.T) 
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.Analyze(1, AnalyzeRequest{
-		DraftID:    "draft-1",
-		SourceText: "新增建议",
-	})
+	_, err = svc.Analyze(1, analysisRequest("draft-1", "新增建议"))
 	if err != nil {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
@@ -308,10 +406,7 @@ func TestServiceRejectStoryboardSuggestionPersistsDecisionWithoutAppending(t *te
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.Analyze(1, AnalyzeRequest{
-		DraftID:    "draft-1",
-		SourceText: "不采用建议",
-	})
+	_, err = svc.Analyze(1, analysisRequest("draft-1", "不采用建议"))
 	if err != nil {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
@@ -357,12 +452,9 @@ func TestServiceAcceptKeyframeCandidatePersistsDecisionAndTimeline(t *testing.T)
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -408,12 +500,9 @@ func TestServiceRejectKeyframeCandidatePersistsDecision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -459,12 +548,9 @@ func TestServiceAcceptAndResolveAssetGapPersistsStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -518,12 +604,9 @@ func TestServiceRejectAssetGapPersistsStatusAndBlocksResolve(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -569,12 +652,9 @@ func TestServiceConfirmPreviewPersistsPreviewState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "开场", Body: "A", DurationSeconds: 8, Status: "可预演"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}
@@ -626,12 +706,9 @@ func TestServiceConfirmPreviewRejectsBlockedDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft returned error: %v", err)
 	}
-	_, err = svc.GeneratePreview(1, GeneratePreviewRequest{
-		DraftID: "draft-1",
-		StoryboardRows: []StoryboardRow{
-			{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
-		},
-	})
+	_, err = svc.GeneratePreview(1, previewRequest("draft-1", []StoryboardRow{
+		{ClientID: "01", Title: "需要素材", Body: "A", DurationSeconds: 8, Status: "需补素材"},
+	}))
 	if err != nil {
 		t.Fatalf("GeneratePreview returned error: %v", err)
 	}

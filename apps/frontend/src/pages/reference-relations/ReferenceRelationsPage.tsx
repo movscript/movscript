@@ -1,12 +1,26 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Background,
+  Controls,
+  MarkerType,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  type Edge,
+  type NodeProps,
+  type Node,
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
 import {
   ArrowRight,
   Bot,
   CheckCircle2,
   GitBranch,
+  Gauge,
   Link2,
   ListFilter,
+  Network,
   Plus,
   RefreshCcw,
   Save,
@@ -34,11 +48,60 @@ import {
   type RelationshipPayload,
   type UsagePayload,
 } from '@/api/referenceRelations'
+import {
+  CreativeReferenceCard,
+  accentForCreativeReferenceKind,
+  normalizeCreativeReferenceKind,
+  normalizeCreativeReferenceStatus,
+  type CreativeReferenceCardData,
+} from '@/components/creative/CreativeReferenceCard'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Input, Label, Textarea } from '@movscript/ui'
 
 type Mode = 'create' | 'edit'
+type RelationView = 'graph' | 'workspace'
+type RelationGraphFocus =
+  | { kind: 'reference'; id: number }
+  | { kind: 'owner'; id: string }
+  | { kind: 'usage'; id: number }
+  | { kind: 'relationship'; id: number }
+
+interface ReferenceRelationsPageProps {
+  embedded?: boolean
+  initialView?: RelationView
+}
+
+interface RelationNodeData extends Record<string, unknown> {
+  label?: ReactNode
+  title: string
+  subtitle: string
+  meta?: string
+  referenceCard?: CreativeReferenceCardData
+  isDemo?: boolean
+}
+
+interface RelationNodeInput {
+  title: string
+  subtitle: string
+  meta?: string
+  referenceCard?: CreativeReferenceCardData
+}
+
+interface RelationEdgeData extends Record<string, unknown> {
+  kind: 'usage' | 'relationship'
+  id: number
+}
+
+interface RelationGraphModel {
+  nodes: Node<RelationNodeData>[]
+  edges: Edge<RelationEdgeData>[]
+  isDemo: boolean
+}
+
+const relationNodeTypes = {
+  relationReferenceCard: RelationReferenceCardNode,
+}
 
 const ownerTypes = ['script_section', 'situation', 'content_unit', 'keyframe']
 const scopeTypes = ['', 'project', 'script', 'script_section', 'situation', 'content_unit']
@@ -58,6 +121,24 @@ const sourceTone: Record<string, string> = {
   ai: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
   manual: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
   import: 'bg-teal-500/10 text-teal-700 dark:text-teal-300',
+}
+
+const usageRoleStroke: Record<string, string> = {
+  protagonist: 'hsl(217 91% 56% / 0.84)',
+  supporting: 'hsl(199 89% 48% / 0.82)',
+  location: 'hsl(24 95% 53% / 0.84)',
+  prop: 'hsl(262 83% 58% / 0.84)',
+  style: 'hsl(322 72% 52% / 0.84)',
+  brand: 'hsl(173 80% 34% / 0.84)',
+  rule: 'hsl(47 95% 42% / 0.86)',
+}
+
+const relationshipCategoryStroke: Record<string, string> = {
+  relationship: 'hsl(162 72% 34% / 0.84)',
+  continuity: 'hsl(217 91% 56% / 0.84)',
+  conflict: 'hsl(0 84% 60% / 0.84)',
+  dependency: 'hsl(262 83% 58% / 0.84)',
+  style_rule: 'hsl(322 72% 52% / 0.84)',
 }
 
 const emptyUsage: UsageDraft = {
@@ -116,9 +197,10 @@ interface RelationshipDraft {
   metadata_json: string
 }
 
-export default function ReferenceRelationsPage() {
+export default function ReferenceRelationsPage({ embedded = false, initialView = 'graph' }: ReferenceRelationsPageProps) {
   const project = useProjectStore((s) => s.current)
   const queryClient = useQueryClient()
+  const [view, setView] = useState<RelationView>(initialView)
   const [tab, setTab] = useState<RelationTab>('usage')
   const [mode, setMode] = useState<Mode>('create')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -155,6 +237,10 @@ export default function ReferenceRelationsPage() {
   const relationships = relationshipsQuery.data ?? []
   const usageRecords = useMemo(() => usages.map((item) => hydrateUsage(item, references, states)), [references, states, usages])
   const relationshipRecords = useMemo(() => relationships.map((item) => hydrateRelationship(item, references)), [references, relationships])
+  const graphModel = useMemo(
+    () => buildRelationGraph(references, usageRecords, relationshipRecords),
+    [references, relationshipRecords, usageRecords],
+  )
 
   const selectedUsage = tab === 'usage' ? usageRecords.find((item) => item.ID === selectedId) ?? null : null
   const selectedRelationship = tab === 'relationship' ? relationshipRecords.find((item) => item.ID === selectedId) ?? null : null
@@ -191,10 +277,6 @@ export default function ReferenceRelationsPage() {
       return matchesStatus && (!q || haystack.includes(q))
     })
   }, [query, relationshipRecords, statusFilter])
-
-  useEffect(() => {
-    startCreate()
-  }, [tab])
 
   const invalidateRelations = () => {
     queryClient.invalidateQueries({ queryKey: ['reference-relations', projectId] })
@@ -265,6 +347,11 @@ export default function ReferenceRelationsPage() {
     setRelationshipDraft(emptyRelationship)
   }
 
+  function switchTab(nextTab: RelationTab) {
+    setTab(nextTab)
+    startCreate()
+  }
+
   function selectUsage(record: CreativeReferenceUsage) {
     setMode('edit')
     setSelectedId(record.ID)
@@ -275,6 +362,44 @@ export default function ReferenceRelationsPage() {
     setMode('edit')
     setSelectedId(record.ID)
     setRelationshipDraft(relationshipToDraft(record))
+  }
+
+  function openWorkspaceTab(nextTab: RelationTab) {
+    switchTab(nextTab)
+    setView('workspace')
+  }
+
+  function focusRelation(focus: RelationGraphFocus) {
+    if (focus.kind === 'usage') {
+      const record = usageRecords.find((item) => item.ID === focus.id)
+      if (record) {
+        setTab('usage')
+        selectUsage(record)
+        setView('workspace')
+      }
+      return
+    }
+    if (focus.kind === 'relationship') {
+      const record = relationshipRecords.find((item) => item.ID === focus.id)
+      if (record) {
+        setTab('relationship')
+        selectRelationship(record)
+        setView('workspace')
+      }
+      return
+    }
+    if (focus.kind === 'reference') {
+      const reference = references.find((item) => item.ID === focus.id)
+      setQuery(reference?.name ?? `#${focus.id}`)
+      setStatusFilter('all')
+      setView('workspace')
+    }
+    if (focus.kind === 'owner') {
+      const [ownerType, ownerId] = splitOwnerKey(focus.id)
+      setQuery(`${ownerType} ${ownerId}`)
+      setStatusFilter('all')
+      setView('workspace')
+    }
   }
 
   function submit(event: FormEvent) {
@@ -324,7 +449,7 @@ export default function ReferenceRelationsPage() {
 
   return (
     <div className="h-full overflow-auto bg-background">
-      <div className="min-w-[1240px] p-5 space-y-5">
+      <div className={cn(embedded ? 'min-w-[1180px] p-4' : 'min-w-[1240px] p-5', 'space-y-5')}>
         <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -339,6 +464,10 @@ export default function ReferenceRelationsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md bg-muted p-0.5">
+              <ViewButton active={view === 'graph'} icon={Network} label="图形全览" onClick={() => setView('graph')} />
+              <ViewButton active={view === 'workspace'} icon={Gauge} label="关系工作台" onClick={() => setView('workspace')} />
+            </div>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={usagesQuery.isFetching || relationshipsQuery.isFetching}>
               <RefreshCcw size={15} />
               刷新
@@ -357,11 +486,23 @@ export default function ReferenceRelationsPage() {
           <Metric icon={ListFilter} label="待确认" value={pendingRelations} detail="draft 状态关系" tone="text-amber-600" />
         </section>
 
+        {view === 'graph' ? (
+          <RelationGraphOverview
+            nodes={graphModel.nodes}
+            edges={graphModel.edges}
+            isDemo={graphModel.isDemo}
+            usages={usageRecords}
+            relationships={relationshipRecords}
+            references={references}
+            onFocus={focusRelation}
+            onOpenWorkspace={openWorkspaceTab}
+          />
+        ) : (
         <section className="grid grid-cols-[300px_minmax(0,1fr)_420px] gap-4">
           <aside className="space-y-3">
             <div className="rounded-lg border border-border bg-card p-2">
-              <SegmentButton active={tab === 'usage'} icon={Link2} label="对象使用资料" count={usages.length} onClick={() => setTab('usage')} />
-              <SegmentButton active={tab === 'relationship'} icon={GitBranch} label="资料之间关系" count={relationships.length} onClick={() => setTab('relationship')} />
+              <SegmentButton active={tab === 'usage'} icon={Link2} label="对象使用资料" count={usages.length} onClick={() => switchTab('usage')} />
+              <SegmentButton active={tab === 'relationship'} icon={GitBranch} label="资料之间关系" count={relationships.length} onClick={() => switchTab('relationship')} />
             </div>
 
             <Panel title="筛选">
@@ -464,6 +605,7 @@ export default function ReferenceRelationsPage() {
             </form>
           </aside>
         </section>
+        )}
       </div>
     </div>
   )
@@ -635,6 +777,160 @@ function RelationBadges({ source, status }: { source?: string; status?: string }
   )
 }
 
+function RelationGraphOverview({
+  nodes,
+  edges,
+  isDemo,
+  usages,
+  relationships,
+  references,
+  onFocus,
+  onOpenWorkspace,
+}: {
+  nodes: Node<RelationNodeData>[]
+  edges: Edge<RelationEdgeData>[]
+  isDemo: boolean
+  usages: CreativeReferenceUsage[]
+  relationships: CreativeRelationship[]
+  references: CreativeReference[]
+  onFocus: (focus: RelationGraphFocus) => void
+  onOpenWorkspace: (tab: RelationTab) => void
+}) {
+  const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null)
+  const denseReferences = useMemo(() => {
+    return references
+      .map((reference) => {
+        const usageCount = usages.filter((usage) => usage.creative_reference_id === reference.ID).length
+        const relationshipCount = relationships.filter((relationship) =>
+          relationship.source_creative_reference_id === reference.ID ||
+          relationship.target_creative_reference_id === reference.ID,
+        ).length
+        return { reference, total: usageCount + relationshipCount, usageCount, relationshipCount }
+      })
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8)
+  }, [references, relationships, usages])
+  const visibleEdges = useMemo(() => {
+    return edges.map((edge) => ({
+      ...edge,
+      label: edge.id === activeEdgeId ? edge.label : undefined,
+    }))
+  }, [activeEdgeId, edges])
+
+  return (
+    <section className="grid min-h-[640px] grid-cols-[minmax(0,1fr)_320px] gap-4">
+      <div className="relative overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">引用关系图形全览</h2>
+            <p className="text-xs text-muted-foreground">资料节点、结构对象和关系边的全局分布。</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isDemo && <Badge variant="outline">Demo</Badge>}
+            <Badge variant="outline">{nodes.length} 节点</Badge>
+            <Badge variant="outline">{edges.length} 边</Badge>
+          </div>
+        </div>
+        <div className="h-[calc(100vh-330px)] min-h-[560px]">
+          {nodes.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <Network size={28} className="text-muted-foreground" />
+              <p className="mt-3 text-sm font-medium text-foreground">暂无可视化关系</p>
+              <p className="mt-1 text-xs text-muted-foreground">先在关系工作台创建使用关系或资料关系。</p>
+            </div>
+          ) : (
+            <ReactFlowProvider>
+              <ReactFlow
+                className="canvas-flow"
+                nodes={nodes}
+                edges={visibleEdges}
+                nodeTypes={relationNodeTypes}
+                fitView
+                fitViewOptions={{ padding: 0.18 }}
+                minZoom={0.25}
+                maxZoom={1.35}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable
+                onNodeClick={(_, node) => {
+                  if (isDemo) return
+                  if (node.id.startsWith('ref:')) onFocus({ kind: 'reference', id: Number(node.id.slice(4)) })
+                  if (node.id.startsWith('owner:')) onFocus({ kind: 'owner', id: String(node.data.meta ?? node.id.slice(6)) })
+                }}
+                onEdgeClick={(_, edge) => {
+                  if (isDemo) return
+                  const data = edge.data
+                  if (!data) return
+                  onFocus({ kind: data.kind, id: data.id })
+                }}
+                onEdgeMouseEnter={(_, edge) => setActiveEdgeId(edge.id)}
+                onEdgeMouseLeave={() => setActiveEdgeId(null)}
+              >
+                <Background gap={32} size={1} />
+                <Controls showInteractive={false} />
+                <MiniMap pannable zoomable nodeStrokeWidth={2} />
+              </ReactFlow>
+            </ReactFlowProvider>
+          )}
+        </div>
+      </div>
+
+      <aside className="space-y-3">
+        <Panel title="全览操作">
+          {isDemo && (
+            <div className="rounded-md border border-dashed border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+              当前没有真实关系数据，图中显示示例节点。创建第一条关系后会自动切换为项目数据。
+            </div>
+          )}
+          <Button type="button" className="w-full gap-2" onClick={() => onOpenWorkspace('usage')}>
+            <Link2 size={15} />
+            编辑对象使用资料
+          </Button>
+          <Button type="button" variant="outline" className="w-full gap-2" onClick={() => onOpenWorkspace('relationship')}>
+            <GitBranch size={15} />
+            编辑资料之间关系
+          </Button>
+        </Panel>
+
+        <Panel title="图例">
+          <LegendItem tone="bg-sky-500" label="创作资料节点" detail="人物、地点、道具、风格等资料" />
+          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="剧本段落、情境、内容单元、关键帧" />
+          <LegendItem tone="bg-blue-500" label="主角/连续性" detail="protagonist 或 continuity" />
+          <LegendItem tone="bg-orange-500" label="地点使用" detail="location" />
+          <LegendItem tone="bg-violet-500" label="道具/依赖" detail="prop 或 dependency" />
+          <LegendItem tone="bg-rose-500" label="风格/冲突" detail="style、style_rule 或 conflict" />
+        </Panel>
+
+        <Panel title="高连接资料">
+          {denseReferences.length === 0 ? (
+            <p className="text-xs text-muted-foreground">暂无已连接资料。</p>
+          ) : (
+            <div className="space-y-2">
+              {denseReferences.map(({ reference, total, usageCount, relationshipCount }) => (
+                <button
+                  key={reference.ID}
+                  type="button"
+                  onClick={() => onFocus({ kind: 'reference', id: reference.ID })}
+                  className="w-full rounded-md border border-border bg-background p-2 text-left transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-xs font-medium text-foreground">{reference.name}</span>
+                    <Badge variant="outline">{total}</Badge>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    使用 {usageCount} · 关系 {relationshipCount}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </aside>
+    </section>
+  )
+}
+
 function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Link2; label: string; value: string | number; detail: string; tone: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -648,6 +944,22 @@ function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Link2
   )
 }
 
+function ViewButton({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof Link2; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex h-9 items-center gap-1.5 rounded px-3 text-xs font-medium transition-colors',
+        active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  )
+}
+
 function SegmentButton({ active, icon: Icon, label, count, onClick }: { active: boolean; icon: typeof Link2; label: string; count: number; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors', active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
@@ -655,6 +967,18 @@ function SegmentButton({ active, icon: Icon, label, count, onClick }: { active: 
       <span className="flex-1 truncate">{label}</span>
       <span className={cn('rounded px-1.5 py-0.5 text-[11px]', active ? 'bg-background/15' : 'bg-muted text-muted-foreground')}>{count}</span>
     </button>
+  )
+}
+
+function LegendItem({ tone, label, detail }: { tone: string; label: string; detail: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', tone)} />
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-foreground">{label}</p>
+        <p className="text-[11px] text-muted-foreground">{detail}</p>
+      </div>
+    </div>
   )
 }
 
@@ -728,6 +1052,356 @@ function hydrateRelationship(item: CreativeRelationship, references: CreativeRef
     source_creative_reference: item.source_creative_reference ?? references.find((reference) => reference.ID === item.source_creative_reference_id),
     target_creative_reference: item.target_creative_reference ?? references.find((reference) => reference.ID === item.target_creative_reference_id),
   }
+}
+
+function buildRelationGraph(
+  references: CreativeReference[],
+  usages: CreativeReferenceUsage[],
+  relationships: CreativeRelationship[],
+): RelationGraphModel {
+  if (references.length === 0 && usages.length === 0 && relationships.length === 0) {
+    return buildDemoRelationGraph()
+  }
+
+  const usedReferenceIds = new Set<number>()
+  const ownerKeys = new Set<string>()
+
+  usages.forEach((usage) => {
+    if (usage.creative_reference_id) usedReferenceIds.add(usage.creative_reference_id)
+    ownerKeys.add(ownerNodeKey(usage.owner_type, usage.owner_id))
+  })
+  relationships.forEach((relationship) => {
+    if (relationship.source_creative_reference_id) usedReferenceIds.add(relationship.source_creative_reference_id)
+    if (relationship.target_creative_reference_id) usedReferenceIds.add(relationship.target_creative_reference_id)
+  })
+
+  const ownerEntries = Array.from(ownerKeys)
+    .sort()
+    .map((key, index) => {
+      const [ownerType, ownerId] = splitOwnerKey(key)
+      const relatedCount = usages.filter((usage) => ownerNodeKey(usage.owner_type, usage.owner_id) === key).length
+      return {
+        key,
+        ownerType,
+        ownerId,
+        relatedCount,
+        x: 80,
+        y: 120 + index * 150,
+      }
+    })
+  const ownerYByKey = new Map(ownerEntries.map((item) => [item.key, item.y]))
+
+  const referenceEntries = references
+    .filter((reference) => usedReferenceIds.has(reference.ID))
+    .map((reference) => {
+      const relatedUsages = usages.filter((usage) => usage.creative_reference_id === reference.ID)
+      const relatedRelationships = relationships.filter((relationship) =>
+        relationship.source_creative_reference_id === reference.ID ||
+        relationship.target_creative_reference_id === reference.ID,
+      )
+      const ownerYs = relatedUsages
+        .map((usage) => ownerYByKey.get(ownerNodeKey(usage.owner_type, usage.owner_id)))
+        .filter((value): value is number => typeof value === 'number')
+      const averageOwnerY = ownerYs.length > 0
+        ? ownerYs.reduce((sum, value) => sum + value, 0) / ownerYs.length
+        : Number.POSITIVE_INFINITY
+      return {
+        reference,
+        relatedUsages,
+        relatedRelationships,
+        averageOwnerY,
+        degree: relatedUsages.length + relatedRelationships.length,
+      }
+    })
+    .sort((a, b) => {
+      if (a.averageOwnerY !== b.averageOwnerY) return a.averageOwnerY - b.averageOwnerY
+      if (a.degree !== b.degree) return b.degree - a.degree
+      return a.reference.ID - b.reference.ID
+    })
+
+  const referenceNodes = referenceEntries
+    .map(({ reference, relatedUsages, relatedRelationships }, index) => {
+      return relationGraphNode(
+        `ref:${reference.ID}`,
+        {
+          title: reference.name,
+          subtitle: `${reference.kind || 'reference'} #${reference.ID}`,
+          meta: `${relatedUsages.length} 使用 / ${relatedRelationships.length} 关系`,
+          referenceCard: creativeReferenceToCardData(reference, relatedUsages.length + relatedRelationships.length),
+        },
+        620,
+        90 + index * 130,
+        'reference',
+      )
+    })
+
+  const ownerNodes = ownerEntries
+    .map(({ key, ownerType, ownerId, relatedCount, x, y }) => {
+       return relationGraphNode(
+        `owner:${key}`,
+        {
+          title: `${ownerType} #${ownerId}`,
+          subtitle: '结构对象',
+          meta: key,
+        },
+        x,
+        y,
+        'owner',
+        `${relatedCount} 引用`,
+      )
+    })
+
+  const usageEdges: Edge<RelationEdgeData>[] = usages.map((usage) => ({
+    id: `usage:${usage.ID}`,
+    source: `owner:${ownerNodeKey(usage.owner_type, usage.owner_id)}`,
+    target: `ref:${usage.creative_reference_id}`,
+    label: usage.role || 'uses',
+    type: 'straight',
+    animated: usage.source === 'ai',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: { kind: 'usage', id: usage.ID },
+    style: {
+      stroke: relationStroke(usage.role, usageRoleStroke, usage.status),
+      strokeWidth: 1.7,
+    },
+    labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 11 },
+    labelBgStyle: { fill: 'hsl(var(--background))', fillOpacity: 0.86 },
+  }))
+
+  const relationshipEdges: Edge<RelationEdgeData>[] = relationships.map((relationship) => ({
+    id: `relationship:${relationship.ID}`,
+    source: `ref:${relationship.source_creative_reference_id}`,
+    target: `ref:${relationship.target_creative_reference_id}`,
+    label: relationship.label || relationship.type || relationship.category || 'relation',
+    type: 'straight',
+    animated: relationship.source === 'ai',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: { kind: 'relationship', id: relationship.ID },
+    style: {
+      stroke: relationStroke(relationship.category, relationshipCategoryStroke, relationship.status),
+      strokeWidth: 2,
+    },
+    labelStyle: { fill: 'hsl(var(--foreground))', fontSize: 11 },
+    labelBgStyle: { fill: 'hsl(var(--background))', fillOpacity: 0.9 },
+  }))
+
+  const nodes = [...referenceNodes, ...ownerNodes]
+  const nodeIds = new Set(nodes.map((node) => node.id))
+
+  return {
+    nodes,
+    edges: [...relationshipEdges, ...usageEdges].filter((edge) =>
+      nodeIds.has(edge.source) && nodeIds.has(edge.target),
+    ),
+    isDemo: false,
+  }
+}
+
+function buildDemoRelationGraph(): RelationGraphModel {
+  const nodes: Node<RelationNodeData>[] = [
+    relationGraphNode('demo-owner:scene:12', { title: 'scene #12', subtitle: '结构对象', meta: 'scene:12' }, 80, 120, 'owner', '3 引用', true),
+    relationGraphNode('demo-owner:content_unit:48', { title: 'content_unit #48', subtitle: '结构对象', meta: 'content_unit:48' }, 80, 270, 'owner', '2 引用', true),
+    relationGraphNode('demo-owner:keyframe:7', { title: 'keyframe #7', subtitle: '结构对象', meta: 'keyframe:7' }, 80, 420, 'owner', '2 引用', true),
+    relationGraphNode('demo-ref:lin-xia', demoReferenceNodeInput('demo-lin-xia', 'person', '林夏', '女主角 / 3 使用 / 2 关系', 5), 620, 90, 'reference', undefined, true),
+    relationGraphNode('demo-ref:old-studio', demoReferenceNodeInput('demo-old-studio', 'location', '旧照相馆', '核心场景 / 2 使用 / 1 关系', 3), 620, 220, 'reference', undefined, true),
+    relationGraphNode('demo-ref:chen-mo', demoReferenceNodeInput('demo-chen-mo', 'person', '陈墨', '男主角 / 2 使用 / 2 关系', 4), 620, 350, 'reference', undefined, true),
+    relationGraphNode('demo-ref:film-camera', demoReferenceNodeInput('demo-film-camera', 'object', '胶片相机', '关键道具 / 2 使用 / 2 关系', 4), 620, 480, 'reference', undefined, true),
+    relationGraphNode('demo-ref:rain-noir', demoReferenceNodeInput('demo-rain-noir', 'style', '雨夜黑色电影', '视觉风格 / 2 使用 / 1 关系', 3), 620, 610, 'reference', undefined, true),
+  ]
+
+  const edges: Edge<RelationEdgeData>[] = [
+    demoRelationshipEdge('demo-rel:1', 'demo-ref:lin-xia', 'demo-ref:chen-mo', '前任搭档'),
+    demoRelationshipEdge('demo-rel:2', 'demo-ref:lin-xia', 'demo-ref:film-camera', '持有'),
+    demoRelationshipEdge('demo-rel:3', 'demo-ref:chen-mo', 'demo-ref:old-studio', '经营'),
+    demoRelationshipEdge('demo-rel:4', 'demo-ref:film-camera', 'demo-ref:rain-noir', '视觉母题'),
+    demoUsageEdge('demo-use:1', 'demo-owner:scene:12', 'demo-ref:lin-xia', 'protagonist'),
+    demoUsageEdge('demo-use:2', 'demo-owner:scene:12', 'demo-ref:old-studio', 'location'),
+    demoUsageEdge('demo-use:3', 'demo-owner:scene:12', 'demo-ref:rain-noir', 'style'),
+    demoUsageEdge('demo-use:4', 'demo-owner:content_unit:48', 'demo-ref:chen-mo', 'supporting'),
+    demoUsageEdge('demo-use:5', 'demo-owner:content_unit:48', 'demo-ref:film-camera', 'prop'),
+    demoUsageEdge('demo-use:6', 'demo-owner:keyframe:7', 'demo-ref:lin-xia', 'character'),
+    demoUsageEdge('demo-use:7', 'demo-owner:keyframe:7', 'demo-ref:rain-noir', 'style'),
+  ]
+
+  return { nodes, edges, isDemo: true }
+}
+
+function demoRelationshipEdge(id: string, source: string, target: string, label: string): Edge<RelationEdgeData> {
+  const demoCategory = label === '视觉母题' ? 'style_rule' : label === '前任搭档' ? 'relationship' : 'dependency'
+  return {
+    id,
+    source,
+    target,
+    label,
+    type: 'straight',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: { kind: 'relationship', id: 0 },
+    style: { stroke: relationStroke(demoCategory, relationshipCategoryStroke, 'confirmed'), strokeWidth: 2 },
+    labelStyle: { fill: 'hsl(var(--foreground))', fontSize: 11 },
+    labelBgStyle: { fill: 'hsl(var(--background))', fillOpacity: 0.9 },
+  }
+}
+
+function demoUsageEdge(id: string, source: string, target: string, label: string): Edge<RelationEdgeData> {
+  return {
+    id,
+    source,
+    target,
+    label,
+    type: 'straight',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: { kind: 'usage', id: 0 },
+    style: { stroke: relationStroke(label, usageRoleStroke, 'confirmed'), strokeWidth: 1.7 },
+    labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 11 },
+    labelBgStyle: { fill: 'hsl(var(--background))', fillOpacity: 0.86 },
+  }
+}
+
+function relationStroke(type: string | undefined, palette: Record<string, string>, status?: string) {
+  if (status === 'draft') return 'hsl(var(--muted-foreground) / 0.34)'
+  return palette[type ?? ''] ?? 'hsl(var(--muted-foreground) / 0.62)'
+}
+
+function relationGraphNode(
+  id: string,
+  nodeData: RelationNodeInput,
+  x: number,
+  y: number,
+  kind: 'reference' | 'owner',
+  badge?: string,
+  isDemo = false,
+): Node<RelationNodeData> {
+  const isReference = kind === 'reference'
+  if (isReference && nodeData.referenceCard) {
+    return {
+      id,
+      type: 'relationReferenceCard',
+      position: { x, y },
+      data: {
+        ...nodeData,
+        isDemo,
+      },
+      draggable: false,
+      selectable: true,
+      style: {
+        width: 280,
+        border: 0,
+        padding: 0,
+        background: 'transparent',
+        boxShadow: 'none',
+      },
+    }
+  }
+  const nodeMeta = badge ?? nodeData.meta
+  const label = (
+    <div className="w-[190px] rounded-md border border-border bg-background px-3 py-2 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate text-xs font-semibold text-foreground">{nodeData.title}</p>
+            {isDemo && <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">Demo</span>}
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{nodeData.subtitle}</p>
+        </div>
+        <span className={cn('mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full', isReference ? 'bg-sky-500' : 'bg-zinc-500')} />
+      </div>
+      <p className="mt-2 truncate text-[11px] text-muted-foreground">{nodeMeta}</p>
+    </div>
+  )
+  const data: RelationNodeData = {
+    ...nodeData,
+    label,
+  }
+
+  return {
+    id,
+    type: 'default',
+    position: { x, y },
+    data,
+    draggable: false,
+    selectable: true,
+    style: {
+      border: 0,
+      padding: 0,
+      background: 'transparent',
+      boxShadow: 'none',
+    },
+  }
+}
+
+function RelationReferenceCardNode({ data }: NodeProps<Node<RelationNodeData>>) {
+  if (!data.referenceCard) return null
+  return (
+    <div className="relative w-[280px]">
+      <CreativeReferenceCard reference={data.referenceCard} className="shadow-sm" />
+      {data.isDemo && <span className="absolute right-2 top-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Demo</span>}
+    </div>
+  )
+}
+
+function creativeReferenceToCardData(reference: CreativeReference, usage: number): CreativeReferenceCardData {
+  const kind = normalizeCreativeReferenceKind(reference.kind)
+  const title = reference.name || `#${reference.ID}`
+  const summary = String(reference.description ?? reference.content ?? reference.profile_json ?? '暂无资料摘要')
+
+  return {
+    id: reference.ID,
+    kind,
+    title,
+    subtitle: `${reference.kind || 'reference'} #${reference.ID}`,
+    status: normalizeCreativeReferenceStatus(reference.status),
+    version: reference.alias ? String(reference.alias) : `#${reference.ID}`,
+    usage,
+    coverage: referenceCoverage(reference, usage),
+    summary,
+    accent: accentForCreativeReferenceKind(kind),
+  }
+}
+
+function demoReferenceNodeInput(
+  id: string,
+  kindText: string,
+  title: string,
+  meta: string,
+  usage: number,
+): RelationNodeInput {
+  const kind = normalizeCreativeReferenceKind(kindText)
+  return {
+    title,
+    subtitle: `${kindText} #demo`,
+    meta,
+    referenceCard: {
+      id,
+      kind,
+      title,
+      subtitle: `${kindText} #demo`,
+      status: 'confirmed',
+      version: 'Demo',
+      usage,
+      coverage: 80,
+      summary: meta,
+      accent: accentForCreativeReferenceKind(kind),
+    },
+  }
+}
+
+function referenceCoverage(reference: CreativeReference, usage: number) {
+  let score = 36
+  if (reference.description) score += 22
+  if (reference.alias) score += 8
+  if (reference.status && reference.status !== 'draft') score += 14
+  score += Math.min(20, usage * 4)
+  return Math.min(100, score)
+}
+
+function ownerNodeKey(ownerType: string, ownerId: number | string) {
+  return `${ownerType || 'object'}:${ownerId || '0'}`
+}
+
+function splitOwnerKey(key: string) {
+  const idx = key.lastIndexOf(':')
+  if (idx < 0) return [key, ''] as const
+  return [key.slice(0, idx), key.slice(idx + 1)] as const
 }
 
 function referenceName(reference?: CreativeReference) {

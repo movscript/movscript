@@ -1,747 +1,840 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
   ArrowRight,
-  BadgeCheck,
+  Boxes,
   CheckCircle2,
   ChevronRight,
-  CircleDot,
   Clapperboard,
   Clock3,
-  Eye,
-  FileVideo,
+  FileText,
   Film,
-  Image,
-  LayoutDashboard,
-  ListFilter,
-  Lock,
+  GitBranch,
+  Layers3,
+  ListChecks,
+  PackageCheck,
   Play,
-  RefreshCcw,
-  Search,
+  Plus,
+  Route,
+  ScrollText,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
-  Upload,
   Video,
   Wand2,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 
-import { getLatestScriptPreviewDraft, type GetLatestScriptPreviewDraftResponse, type ScriptPreviewStoryboardRow } from '@/api/scriptPreview'
+import {
+  getLatestScriptPreviewDraft,
+  type GetLatestScriptPreviewDraftResponse,
+  type ScriptPreviewStoryboardRow,
+} from '@/api/scriptPreview'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import { Badge } from '@movscript/ui'
-import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Progress as ProgressBar } from '@movscript/ui'
+import { Badge, Button, Progress } from '@movscript/ui'
 
-type SegmentStatus = 'ready' | 'producing' | 'review' | 'revision' | 'locked' | 'blocked'
-type SegmentFilter = 'all' | SegmentStatus
-type ProductionMode = 'imageToVideo' | 'textToVideo' | 'shootUpload' | 'externalImport'
-type RequirementStatus = 'locked' | 'ready' | 'review' | 'blocked'
+type ProductionStatus = 'planning' | 'previewing' | 'materializing' | 'producing' | 'reviewing' | 'delivered'
+type UnitStatus = 'done' | 'active' | 'waiting' | 'blocked'
 
-interface ProductionSegment {
+interface ProductionArea {
+  key: string
+  title: string
+  description: string
+  icon: LucideIcon
+  count: number
+  progress: number
+  status: UnitStatus
+  href: string
+}
+
+interface ProductionUnit {
   id: string
   title: string
   summary: string
   timeRange: string
   duration: number
-  status: SegmentStatus
-  assetReady: number
-  assetTotal: number
-  versions: number
-  keyframe: string
-  intent: string
-  references: string[]
-  requirements: Array<{ label: string; detail: string; status: RequirementStatus }>
-  assetGaps: Array<{ title: string; detail: string; status: RequirementStatus }>
-  candidates: Array<{
-    id: string
+  status: UnitStatus
+  assets: string
+  content: string
+}
+
+interface ProductionRecord {
+  id: string
+  name: string
+  status: ProductionStatus
+  source: string
+  owner: string
+  progress: number
+  updatedAt: string
+  description: string
+  preview: {
     title: string
-    method: string
-    duration: string
-    status: SegmentStatus
-    note: string
-  }>
+    status: UnitStatus
+    progress: number
+    savedAt: string
+    confirmedAt?: string
+  }
+  stats: {
+    structures: number
+    situations: number
+    references: number
+    assets: number
+    contents: number
+    finals: number
+  }
+  areas: ProductionArea[]
+  units: ProductionUnit[]
+  blockers: string[]
+  nextActions: string[]
 }
 
-const statusMeta: Record<SegmentStatus, { label: string; className: string; dot: string }> = {
-  ready: { label: '可生产', className: 'bg-sky-500/10 text-sky-700 dark:text-sky-300', dot: 'bg-sky-500' },
-  producing: { label: '生产中', className: 'bg-violet-500/10 text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
-  review: { label: '待选片', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
-  revision: { label: '需返工', className: 'bg-orange-500/10 text-orange-700 dark:text-orange-300', dot: 'bg-orange-500' },
-  locked: { label: '已锁定', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  blocked: { label: '缺素材', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
+const statusMeta: Record<ProductionStatus, { label: string; badge: string; dot: string }> = {
+  planning: { label: '筹备中', badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', dot: 'bg-slate-500' },
+  previewing: { label: '预演中', badge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500' },
+  materializing: { label: '资料推演', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
+  producing: { label: '制作中', badge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
+  reviewing: { label: '审片中', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
+  delivered: { label: '已成片', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
 }
 
-const requirementMeta: Record<RequirementStatus, { label: string; className: string; dot: string }> = {
-  locked: { label: '已锁定', className: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  ready: { label: '已就绪', className: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500' },
-  review: { label: '待确认', className: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
-  blocked: { label: '阻塞', className: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
+const unitMeta: Record<UnitStatus, { label: string; badge: string; dot: string }> = {
+  done: { label: '已完成', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
+  active: { label: '进行中', badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
+  waiting: { label: '待处理', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
+  blocked: { label: '阻塞', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
 }
-
-const filterItems: Array<{ key: SegmentFilter; label: string }> = [
-  { key: 'all', label: '全部' },
-  { key: 'ready', label: '可生产' },
-  { key: 'producing', label: '生产中' },
-  { key: 'review', label: '待选片' },
-  { key: 'revision', label: '需返工' },
-  { key: 'locked', label: '已锁定' },
-  { key: 'blocked', label: '缺素材' },
-]
-
-const productionModes: Array<{ key: ProductionMode; label: string; icon: LucideIcon; detail: string }> = [
-  { key: 'imageToVideo', label: '图生视频', icon: Image, detail: '使用已确认关键帧、角色与场景资料生成正式片段。' },
-  { key: 'textToVideo', label: '文生视频', icon: Wand2, detail: '继承分镜意图、风格规则和负面要求生成候选。' },
-  { key: 'shootUpload', label: '实拍上传', icon: Upload, detail: '把外部拍摄或人工制作片段纳入同一套选片流程。' },
-  { key: 'externalImport', label: '外部导入', icon: FileVideo, detail: '接收第三方工具输出，并保留来源与版本说明。' },
-]
-
-const fallbackSegments: ProductionSegment[] = [
-  {
-    id: 'P01',
-    title: '雨夜巷口对峙',
-    summary: '林夏攥着湿透旧伞，与顾言保持距离，伞骨里的纸条即将暴露。',
-    timeRange: '00:00 - 00:08',
-    duration: 8,
-    status: 'locked',
-    assetReady: 4,
-    assetTotal: 4,
-    versions: 3,
-    keyframe: '林夏半身背光，雨滴打在旧伞边缘，顾言停在半步之外。',
-    intent: '建立压迫关系，让观众先读到两人互相防备的情绪。',
-    references: ['林夏雨夜状态', '顾言克制追问', '雨夜巷口', '冷雨低照度'],
-    requirements: [
-      { label: '关键帧', detail: '正面半身和对峙站位已确认', status: 'locked' },
-      { label: '人物资料', detail: '林夏、顾言状态连续', status: 'locked' },
-      { label: '场景资料', detail: '巷口纵深和雨夜光效可复用', status: 'locked' },
-      { label: '风格规则', detail: '低照度但道具必须可读', status: 'ready' },
-    ],
-    assetGaps: [
-      { title: '旧伞纸条特写', detail: '已补齐特写参考，可进入生成。', status: 'ready' },
-      { title: '雨滴边缘光', detail: '作为风格参考继承。', status: 'locked' },
-    ],
-    candidates: [
-      { id: 'A', title: '雨夜对峙主版本', method: '图生视频', duration: '8s', status: 'locked', note: '人物距离和伞的剧情证据最清楚。' },
-      { id: 'B', title: '更强压迫版本', method: '文生视频', duration: '8s', status: 'review', note: '情绪更强，但旧伞不够可读。' },
-      { id: 'C', title: '外部合成版本', method: '外部导入', duration: '8s', status: 'revision', note: '雨效自然，人物连续性需要修正。' },
-    ],
-  },
-  {
-    id: 'P02',
-    title: '旧伞纸条暴露',
-    summary: '伞骨夹层滑出被雨泡皱的纸条，林夏意识到旧伞与母亲线索有关。',
-    timeRange: '00:08 - 00:14',
-    duration: 6,
-    status: 'blocked',
-    assetReady: 2,
-    assetTotal: 4,
-    versions: 1,
-    keyframe: '旧伞伞骨特写，湿纸条边角露出，人物手指停顿。',
-    intent: '把道具从气氛物转成剧情证据，观众必须能一眼看懂纸条来源。',
-    references: ['旧伞', '纸条文字', '林夏手部动作', '冷雨低照度'],
-    requirements: [
-      { label: '关键帧', detail: '特写构图已确认', status: 'ready' },
-      { label: '道具资料', detail: '缺少清晰伞骨夹层结构图', status: 'blocked' },
-      { label: '文字信息', detail: '纸条露出内容需要导演确认', status: 'review' },
-      { label: '风格规则', detail: '反光不能盖住纸条文字', status: 'ready' },
-    ],
-    assetGaps: [
-      { title: '旧伞结构特写', detail: '缺少可用于生成的伞骨夹层参考。', status: 'blocked' },
-      { title: '纸条版式', detail: '需要确认露出的文字范围。', status: 'review' },
-    ],
-    candidates: [
-      { id: 'A', title: '纸条滑出候选', method: '图生视频', duration: '6s', status: 'revision', note: '动作成立，但纸条文字不可读。' },
-    ],
-  },
-  {
-    id: 'P03',
-    title: '顾言低声追问',
-    summary: '顾言压低声音追问旧伞来历，林夏没有回答，只把纸条攥进掌心。',
-    timeRange: '00:14 - 00:22',
-    duration: 8,
-    status: 'review',
-    assetReady: 3,
-    assetTotal: 3,
-    versions: 2,
-    keyframe: '顾言侧脸靠近但不越界，林夏低头把纸条藏入掌心。',
-    intent: '用克制距离制造悬疑压力，不提前释放真相。',
-    references: ['顾言克制追问', '林夏防御姿态', '雨夜巷口'],
-    requirements: [
-      { label: '关键帧', detail: '人物站位已确认', status: 'locked' },
-      { label: '人物资料', detail: '两人动作连续', status: 'locked' },
-      { label: '声音提示', detail: '低声追问可进入后期备注', status: 'ready' },
-    ],
-    assetGaps: [
-      { title: '林夏手部特写', detail: '当前候选能覆盖，不构成阻塞。', status: 'ready' },
-    ],
-    candidates: [
-      { id: 'A', title: '克制靠近版本', method: '图生视频', duration: '8s', status: 'review', note: '人物距离准确，雨夜氛围稳定。' },
-      { id: 'B', title: '强冲突版本', method: '文生视频', duration: '8s', status: 'revision', note: '压迫感更强，但顾言动作过界。' },
-    ],
-  },
-  {
-    id: 'P04',
-    title: '第三人入画打断',
-    summary: '第三人从巷口右侧入画，打断两人的追问，让真相继续悬挂。',
-    timeRange: '00:22 - 00:29',
-    duration: 7,
-    status: 'producing',
-    assetReady: 3,
-    assetTotal: 5,
-    versions: 0,
-    keyframe: '雨幕中第三人从右侧进入，林夏和顾言同时回头。',
-    intent: '用外部介入切断解释，形成下一段点击理由。',
-    references: ['第三人剪影', '巷口右侧动线', '冷雨低照度'],
-    requirements: [
-      { label: '关键帧', detail: '入画方向已确认', status: 'ready' },
-      { label: '人物资料', detail: '第三人仍是剪影状态', status: 'review' },
-      { label: '场景动线', detail: '巷口右侧入口可用', status: 'locked' },
-    ],
-    assetGaps: [
-      { title: '第三人轮廓', detail: '需要避免提前暴露身份。', status: 'review' },
-      { title: '巷口右侧入口', detail: '缺少更宽一点的环境参考。', status: 'blocked' },
-    ],
-    candidates: [],
-  },
-]
 
 export default function ProductionFramePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const navigate = useNavigate()
-  const [filter, setFilter] = useState<SegmentFilter>('all')
-  const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState(fallbackSegments[0].id)
-  const [mode, setMode] = useState<ProductionMode>('imageToVideo')
+  const [selectedId, setSelectedId] = useState('')
 
   const { data: latestScriptPreviewDraft } = useQuery<GetLatestScriptPreviewDraftResponse>({
-    queryKey: ['script-preview-latest-draft', projectId],
+    queryKey: ['production-frame-latest-preview', projectId],
     queryFn: () => getLatestScriptPreviewDraft(projectId!),
     enabled: !!projectId,
     refetchInterval: 60_000,
   })
 
-  const latestPreviewDraft = latestScriptPreviewDraft?.found ? latestScriptPreviewDraft.draft : undefined
-  const latestPreviewStatus = latestPreviewDraft?.draft.preview_status ?? 'draft'
-  const latestPreviewConfirmedAt = latestPreviewDraft?.draft.confirmed_at ?? ''
-  const latestPreviewSavedAt = latestPreviewDraft?.saved_at ?? ''
-  const latestPreviewTitle = latestPreviewDraft?.draft.script_version.title ?? '最近预演草稿'
-  const isReadyForProduction = latestPreviewStatus === 'ready_for_production'
-  const previewStatusLabel = isReadyForProduction ? '预演已确认' : latestScriptPreviewDraft?.found ? '预演待确认' : '未找到预演'
+  const productions = useMemo(() => buildProductionRecords(latestScriptPreviewDraft), [latestScriptPreviewDraft])
+  const selected = productions.find((item) => item.id === selectedId) ?? productions[0]
 
-  const segments = useMemo(() => {
-    const rows = latestPreviewDraft?.draft.storyboard_rows ?? []
-    if (rows.length === 0) return fallbackSegments
-    return mapDraftRowsToSegments(rows, latestPreviewDraft?.draft.preview_candidates?.asset_gaps)
-  }, [latestPreviewDraft])
+  useEffect(() => {
+    if (selectedId && !productions.some((item) => item.id === selectedId)) setSelectedId('')
+  }, [productions, selectedId])
 
-  const selectedSegment = segments.find((segment) => segment.id === selectedId) ?? segments[0] ?? fallbackSegments[0]
-  const selectedMode = productionModes.find((item) => item.key === mode) ?? productionModes[0]
-  const filteredSegments = useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    return segments.filter((segment) => {
-      const matchesFilter = filter === 'all' || segment.status === filter
-      const matchesQuery = !keyword || [segment.id, segment.title, segment.summary, ...segment.references].some((item) => item.toLowerCase().includes(keyword))
-      return matchesFilter && matchesQuery
-    })
-  }, [filter, query, segments])
-
-  const metrics = useMemo(() => {
-    const locked = segments.filter((segment) => segment.status === 'locked').length
-    const producing = segments.filter((segment) => segment.status === 'producing').length
-    const review = segments.filter((segment) => segment.status === 'review').length
-    const blocked = segments.filter((segment) => segment.status === 'blocked').length
-    const ready = segments.filter((segment) => segment.status === 'ready').length
-    const totalCandidates = segments.reduce((sum, segment) => sum + segment.candidates.length, 0)
-    return {
-      total: segments.length,
-      locked,
-      producing,
-      review,
-      blocked,
-      ready,
-      totalCandidates,
-      lockedPercent: Math.round((locked / Math.max(segments.length, 1)) * 100),
-    }
-  }, [segments])
+  const aggregate = useMemo(() => {
+    const active = productions.filter((item) => item.status !== 'delivered').length
+    const delivered = productions.filter((item) => item.status === 'delivered').length
+    const blocked = productions.filter((item) => item.blockers.length > 0).length
+    const avg = productions.length ? Math.round(productions.reduce((sum, item) => sum + item.progress, 0) / productions.length) : 0
+    return { active, delivered, blocked, avg }
+  }, [productions])
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="min-w-[1180px] space-y-5 p-5">
-        <header className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <LayoutDashboard size={14} />
-              <span>{project?.name ?? '当前项目'}</span>
-              <ChevronRight size={13} />
-              <span>v2 内容生产</span>
+    <div className="h-full overflow-hidden bg-background">
+      <div className="flex h-full min-w-[1200px] flex-col">
+        <header className="border-b border-border bg-card px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Boxes size={14} />
+                <span>{project?.name ?? '当前项目'}</span>
+                <ChevronRight size={13} />
+                <span>制作</span>
+                <Badge variant="outline">Production</Badge>
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作</h1>
+              <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载预演进度、制作结构、情景、创作资料、素材需求、内容和成片。
+              </p>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">内容生产</h1>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              从已确认预演进入正式片段生产，按片段推进生成、导入、选片、返工和锁定。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={() => navigate('/script-preview')}>
-              <Film size={15} />
-              查看预演
-            </Button>
-            <Button className="gap-2" onClick={() => navigate(isReadyForProduction ? '/collaboration' : '/script-preview')}>
-              <ArrowRight size={15} />
-              {isReadyForProduction ? '进入制作任务' : '前往剧本预演'}
-            </Button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" asChild>
+                <Link to="/preview-progress">
+                  <ListChecks size={15} />
+                  预演进度
+                </Link>
+              </Button>
+              <Button className="gap-2" asChild>
+                <Link to="/production-preview">
+                  <Plus size={15} />
+                  从剧本创建制作
+                </Link>
+              </Button>
+            </div>
           </div>
         </header>
 
-        <section className="grid grid-cols-[minmax(0,1fr)_280px] gap-4">
-          <div className="rounded-lg border border-border bg-card px-4 py-3">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                  <BadgeCheck size={15} className={isReadyForProduction ? 'text-emerald-600' : 'text-amber-600'} />
-                  <span>生产入口状态</span>
-                  <Badge variant="secondary" className={cn('text-[10px]', isReadyForProduction ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300')}>
-                    {previewStatusLabel}
-                  </Badge>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {metrics.blocked > 0 ? `${metrics.blocked} 个阻塞片段` : '无阻塞'}
-                  </Badge>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="space-y-4">
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Boxes size={16} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">制作总览</h2>
+                  </div>
+                  <Badge variant="outline">{productions.length} 个制作</Badge>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {isReadyForProduction
-                    ? '预演已经确认，当前页面可承接片段生产、候选选片和锁定状态。'
-                    : '当前页面展示内容生产 UI 骨架；真实生产前仍需要先在剧本预演中确认当前草稿。'}
-                </p>
-                <p className="mt-2 truncate text-xs text-muted-foreground">{latestScriptPreviewDraft?.found ? latestPreviewTitle : '进入剧本预演后会显示最近保存的草稿状态。'}</p>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <Metric label="进行中" value={aggregate.active} />
+                  <Metric label="已成片" value={aggregate.delivered} />
+                  <Metric label="阻塞制作" value={aggregate.blocked} />
+                  <Metric label="平均进度" value={`${aggregate.avg}%`} />
+                </div>
               </div>
-              <div className="shrink-0 text-right text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">{isReadyForProduction ? '可进入正式生产' : '尚未进入生产前状态'}</p>
-                <p className="mt-1">保存时间：{latestPreviewSavedAt ? formatDateTime(latestPreviewSavedAt) : '暂无'}</p>
-                <p className="mt-1">确认时间：{latestPreviewConfirmedAt ? formatDateTime(latestPreviewConfirmedAt) : '暂无'}</p>
-              </div>
-            </div>
-          </div>
 
-          <div className="rounded-lg border border-border bg-card px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={15} className="text-muted-foreground" />
-                  <p className="text-sm font-semibold">整片进度</p>
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{metrics.lockedPercent}%</p>
-              </div>
-              <Badge variant="secondary" className="text-[10px]">
-                {metrics.locked}/{metrics.total} 已锁定
-              </Badge>
-            </div>
-            <ProgressBar value={metrics.lockedPercent} className="mt-3 h-1.5" />
-            <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-              <MetricText label="生产中" value={metrics.producing} />
-              <MetricText label="待选片" value={metrics.review} />
-              <MetricText label="候选数" value={metrics.totalCandidates} />
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-[300px_minmax(0,1fr)] gap-4">
-          <aside className="space-y-4">
-            <Panel title="片段清单" icon={Clapperboard}>
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                  <Input className="h-9 pl-8 text-sm" placeholder="搜索片段、人物或场景" value={query} onChange={(event) => setQuery(event.target.value)} />
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {filterItems.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setFilter(item.key)}
-                      className={cn(
-                        'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                        filter === item.key ? 'bg-foreground text-background' : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground',
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  {filteredSegments.map((segment) => (
-                    <SegmentCard
-                      key={segment.id}
-                      segment={segment}
-                      active={segment.id === selectedSegment.id}
-                      onSelect={() => setSelectedId(segment.id)}
-                    />
-                  ))}
-                  {filteredSegments.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-border bg-background p-4 text-center text-xs text-muted-foreground">
-                      没有匹配的片段
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </Panel>
-          </aside>
-
-          <main className="space-y-4">
-            <section className="overflow-hidden rounded-lg border border-border bg-card">
-              <div className="border-b border-border px-4 py-3">
-                <div className="flex items-start justify-between gap-4">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{selectedSegment.id}</span>
-                      <Badge variant="secondary" className={cn('text-[10px]', statusMeta[selectedSegment.status].className)}>
-                        {statusMeta[selectedSegment.status].label}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{selectedSegment.timeRange}</span>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-muted-foreground" />
+                      <h2 className="text-sm font-semibold text-foreground">当前制作预演进度</h2>
                     </div>
-                    <h2 className="mt-2 text-lg font-semibold text-foreground">{selectedSegment.title}</h2>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{selectedSegment.summary}</p>
+                    <p className="mt-2 truncate text-sm font-medium text-foreground">{selected.name}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected.source}</p>
                   </div>
-                  <div className="shrink-0 rounded-md border border-border bg-background px-3 py-2 text-right">
-                    <p className="text-lg font-semibold text-foreground">{selectedSegment.duration}s</p>
-                    <p className="text-[11px] text-muted-foreground">目标时长</p>
+                  <Badge variant={selected.blockers.length > 0 ? 'warning' : 'success'}>
+                    {selected.blockers.length > 0 ? '有阻塞' : '可推进'}
+                  </Badge>
+                </div>
+                <div className="mt-4 flex items-end gap-3">
+                  <p className="text-3xl font-semibold tabular-nums text-foreground">{selected.progress}%</p>
+                  <div className="min-w-0 flex-1 pb-2">
+                    <Progress value={selected.progress} className="h-2" />
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-0">
-                <div className="space-y-4 p-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_240px] gap-3">
-                    <div className="canvas-flow min-h-[260px] rounded-lg border border-border bg-background p-4">
-                      <div className="flex h-full min-h-[228px] flex-col justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                            <Image size={14} />
-                            <span>已确认预演参考</span>
-                          </div>
-                          <p className="mt-5 max-w-xl text-base leading-7 text-foreground">{selectedSegment.keyframe}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {['关键帧', '镜头意图', '风格规则'].map((item) => (
-                            <span key={item} className="rounded-md bg-background/90 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-border">
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg border border-border bg-background p-4">
-                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                        <Eye size={14} />
-                        <span>创作意图</span>
-                      </div>
-                      <p className="mt-3 text-sm leading-6 text-foreground">{selectedSegment.intent}</p>
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {selectedSegment.references.map((reference) => (
-                          <div key={reference} className="flex max-w-full items-center gap-2 rounded-md bg-muted/70 px-2.5 py-1.5 text-xs">
-                            <CircleDot size={12} className="text-muted-foreground" />
-                            <span className="truncate">{reference}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md border border-border bg-background p-2">
+                    <p className="text-muted-foreground">预演</p>
+                    <p className="mt-1 font-medium text-foreground">{unitMeta[selected.preview.status].label}</p>
                   </div>
-
-                  <div className="rounded-lg border border-border bg-background">
-                    <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Wand2 size={15} className="text-muted-foreground" />
-                        <h3 className="text-sm font-semibold">生产方式</h3>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px]">UI 方案</Badge>
-                    </div>
-                    <div className="p-3">
-                      <div className="flex gap-2 overflow-x-auto pb-1">
-                        {productionModes.map((item) => {
-                          const Icon = item.icon
-                          const active = mode === item.key
-                          return (
-                            <button
-                              key={item.key}
-                              type="button"
-                              onClick={() => setMode(item.key)}
-                              className={cn(
-                                'flex min-w-[112px] items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors',
-                                active ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
-                              )}
-                            >
-                              <Icon size={15} />
-                              <span className="text-xs font-medium">{item.label}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                      <div className="mt-3 border-t border-border pt-3">
-                        <p className="text-sm font-medium text-foreground">{selectedMode.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{selectedMode.detail}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-border bg-background">
-                    <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <Video size={15} className="text-muted-foreground" />
-                        <h3 className="text-sm font-semibold">正式候选</h3>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <ListFilter size={13} />
-                        <span>{selectedSegment.candidates.length} 个版本</span>
-                      </div>
-                    </div>
-                    <div className="divide-y divide-border">
-                      {selectedSegment.candidates.length > 0 ? selectedSegment.candidates.map((candidate) => (
-                        <CandidateCard key={candidate.id} candidate={candidate} />
-                      )) : (
-                        <div className="p-6 text-center">
-                          <Sparkles className="mx-auto text-muted-foreground" size={22} />
-                          <p className="mt-3 text-sm font-medium text-foreground">暂无正式候选</p>
-                          <p className="mt-1 text-xs text-muted-foreground">片段进入生产后，候选视频会在这里进行对比和选片。</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-l border-border bg-muted/20">
-                  <ContextSection title="生产前提" icon={CheckCircle2}>
-                    {selectedSegment.requirements.map((item) => (
-                      <RequirementRow key={item.label} {...item} />
-                    ))}
-                  </ContextSection>
-
-                  <ContextSection title="素材缺口" icon={AlertTriangle}>
-                    {selectedSegment.assetGaps.map((item) => (
-                      <RequirementRow key={item.title} label={item.title} detail={item.detail} status={item.status} />
-                    ))}
-                  </ContextSection>
-
-                  <ContextSection title="质量检查" icon={SlidersHorizontal}>
-                    {['剧情证据是否清楚', '人物状态是否连续', '时长是否匹配预演', '风格是否一致'].map((item, index) => (
-                      <div key={item} className="flex items-center gap-2 py-1 text-xs">
-                        <span className={cn('h-2 w-2 rounded-full', index < 2 ? 'bg-emerald-500' : 'bg-amber-500')} />
-                        <span className="text-muted-foreground">{item}</span>
-                      </div>
-                    ))}
-                  </ContextSection>
-
-                  <div className="space-y-2 p-4">
-                    <Button className="w-full justify-start gap-2" disabled={!isReadyForProduction}>
-                      <Sparkles size={15} />
-                      生成候选
-                    </Button>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button variant="outline" className="justify-start gap-2">
-                        <RefreshCcw size={15} />
-                        返工
-                      </Button>
-                      <Button variant="outline" className="justify-start gap-2">
-                        <Lock size={15} />
-                        锁定
-                      </Button>
-                    </div>
+                  <div className="rounded-md border border-border bg-background p-2">
+                    <p className="text-muted-foreground">成片</p>
+                    <p className="mt-1 font-medium text-foreground">{selected.stats.finals} 版</p>
                   </div>
                 </div>
               </div>
             </section>
-          </main>
-        </section>
 
-        <section className="rounded-lg border border-border bg-card">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Clock3 size={15} className="text-muted-foreground" />
-              <h2 className="text-sm font-semibold">成片时间线</h2>
-            </div>
-            <p className="text-xs text-muted-foreground">按正式片段状态检查整片生产进度</p>
-          </div>
-          <div className="flex gap-2 overflow-x-auto p-4">
-            {segments.map((segment) => (
-              <button
-                key={segment.id}
-                type="button"
-                onClick={() => setSelectedId(segment.id)}
-                className={cn(
-                  'min-w-[180px] rounded-md border bg-background p-3 text-left transition-colors hover:bg-muted/50',
-                  selectedSegment.id === segment.id ? 'border-foreground' : 'border-border',
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">{segment.id}</span>
-                  <span className={cn('h-2.5 w-2.5 rounded-full', statusMeta[segment.status].dot)} />
+            <section className="rounded-lg border border-border bg-card">
+              <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Clapperboard size={16} className="text-muted-foreground" />
+                  <h2 className="text-sm font-semibold text-foreground">项目制作</h2>
                 </div>
-                <p className="mt-2 truncate text-sm font-medium">{segment.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{segment.timeRange}</p>
-              </button>
-            ))}
+                <Badge variant="outline">{productions.length}</Badge>
+              </div>
+              <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+                {productions.map((production) => (
+                  <ProductionListCard
+                    key={production.id}
+                    production={production}
+                    active={production.id === selected.id}
+                    onSelect={() => setSelectedId(production.id)}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <main className="min-w-0">
+              <div className="space-y-4">
+              <section className="rounded-lg border border-border bg-card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className={cn('text-[11px]', statusMeta[selected.status].badge)}>
+                        {statusMeta[selected.status].label}
+                      </Badge>
+                      <Badge variant="outline">{selected.id}</Badge>
+                      <Badge variant="secondary">来源：{selected.source}</Badge>
+                    </div>
+                    <h2 className="mt-3 text-xl font-semibold text-foreground">{selected.name}</h2>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{selected.description}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-6">
+                  <StatCard icon={GitBranch} label="结构" value={selected.stats.structures} />
+                  <StatCard icon={Route} label="情景" value={selected.stats.situations} />
+                  <StatCard icon={Sparkles} label="资料" value={selected.stats.references} />
+                  <StatCard icon={PackageCheck} label="素材" value={selected.stats.assets} />
+                  <StatCard icon={Film} label="内容" value={selected.stats.contents} />
+                  <StatCard icon={Video} label="成片" value={selected.stats.finals} />
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-foreground">制作结构</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">制作是核心主体，其他对象围绕它建立关联和推演关系。</p>
+                  </div>
+                  <Badge variant="outline">核心关系</Badge>
+                </div>
+                <div className="grid gap-3 p-4 md:grid-cols-5">
+                  {[
+                    { icon: FileText, title: '剧本', detail: '创建来源', value: selected.source },
+                    { icon: Layers3, title: '结构', detail: '剧本节 / 分镜行', value: `${selected.stats.structures} 项` },
+                    { icon: Route, title: '情景', detail: '时间地点条件', value: `${selected.stats.situations} 项` },
+                    { icon: PackageCheck, title: '素材', detail: '推演出的需求', value: `${selected.stats.assets} 项` },
+                    { icon: Video, title: '成片', detail: '交付输出', value: `${selected.stats.finals} 版` },
+                  ].map((item, index) => {
+                    const Icon = item.icon
+                    return (
+                      <div key={item.title} className="relative rounded-md border border-border bg-background p-3">
+                        {index < 4 ? <ArrowRight className="absolute -right-5 top-1/2 hidden -translate-y-1/2 text-muted-foreground md:block" size={16} /> : null}
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <Icon size={15} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">{item.detail}</p>
+                          </div>
+                        </div>
+                        <p className="mt-3 truncate text-xs font-medium text-foreground">{item.value}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="rounded-lg border border-border bg-card">
+                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-semibold text-foreground">推演对象</h2>
+                      <p className="mt-0.5 text-xs text-muted-foreground">从制作结构推导出情景、资料、素材、内容与成片。</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 p-4 md:grid-cols-2">
+                    {selected.areas.map((area) => (
+                      <AreaCard key={area.key} area={area} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-card">
+                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <ListChecks size={15} className="text-muted-foreground" />
+                      <h2 className="text-sm font-semibold text-foreground">挂载预演</h2>
+                    </div>
+                    <UnitStatusBadge status={selected.preview.status} />
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      预演进度挂在制作下面，作为进入素材推演、内容生产和成片门禁的来源。
+                    </p>
+                    <Progress value={selected.preview.progress} className="mt-4 h-2" />
+                    <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                      <p>最近保存：{selected.preview.savedAt ? formatDateTime(selected.preview.savedAt) : '暂无'}</p>
+                      <p>确认时间：{selected.preview.confirmedAt ? formatDateTime(selected.preview.confirmedAt) : '暂无'}</p>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Button variant="outline" size="sm" className="gap-2" asChild>
+                        <Link to="/production-preview">
+                          <Play size={14} />
+                          打开预演
+                        </Link>
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-2" asChild>
+                        <Link to="/preview-progress">
+                          <ListChecks size={14} />
+                          进度
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <ScrollText size={15} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">内容单元</h2>
+                  </div>
+                  <p className="text-xs text-muted-foreground">预演确认后转为制作下的正式内容结构</p>
+                </div>
+                <div className="divide-y divide-border">
+                  {selected.units.map((unit) => (
+                    <ProductionUnitRow key={unit.id} unit={unit} />
+                  ))}
+                </div>
+              </section>
+              </div>
+            </main>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_220px]">
+            <section className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-muted-foreground" />
+                  <h2 className="text-sm font-semibold text-foreground">预演门禁</h2>
+                </div>
+                <Badge variant={selected.blockers.length > 0 ? 'warning' : 'success'}>
+                  {selected.blockers.length > 0 ? '有阻塞' : '可推进'}
+                </Badge>
+              </div>
+              <div className="mt-4 space-y-2">
+                {selected.blockers.length > 0 ? selected.blockers.map((item) => (
+                  <GateRow key={item} icon={AlertTriangle} text={item} tone="blocked" />
+                )) : (
+                  <GateRow icon={CheckCircle2} text="预演、结构和资料状态允许继续推进。" tone="ready" />
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-border bg-card">
+              <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+                <Wand2 size={15} className="text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">下一步</h2>
+              </div>
+              <div className="space-y-2 p-4">
+                {selected.nextActions.map((item, index) => (
+                  <div key={item} className="flex gap-3 rounded-md border border-border bg-background p-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm leading-5 text-foreground">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-border bg-card">
+              <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+                <Clock3 size={15} className="text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">最近动态</h2>
+              </div>
+              <div className="space-y-3 p-4">
+                {[
+                  ['预演', selected.preview.status === 'done' ? '预演已确认，可作为制作输入。' : '预演仍需确认后才能稳定推演。'],
+                  ['结构', `${selected.stats.structures} 个结构对象已挂在制作下。`],
+                  ['素材', `${selected.stats.assets} 个素材需求等待候选或锁定。`],
+                  ['成片', selected.stats.finals > 0 ? '已有成片版本进入交付检查。' : '尚未生成成片版本。'],
+                ].map(([label, text]) => (
+                  <div key={label} className="flex gap-3">
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">{label}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" className="gap-2" asChild>
+                <Link to="/assets">
+                  <PackageCheck size={15} />
+                  素材
+                </Link>
+              </Button>
+              <Button variant="outline" className="gap-2" asChild>
+                <Link to="/final-videos">
+                  <Video size={15} />
+                  成片
+                </Link>
+              </Button>
+            </div>
+            </section>
           </div>
-        </section>
+        </div>
       </div>
     </div>
   )
 }
 
-function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Icon size={15} className="text-muted-foreground" />
-        <h2 className="text-sm font-semibold">{title}</h2>
-      </div>
-      <div className="p-3">{children}</div>
-    </section>
-  )
-}
-
-function SegmentCard({ segment, active, onSelect }: { segment: ProductionSegment; active: boolean; onSelect: () => void }) {
+function ProductionListCard({ production, active, onSelect }: { production: ProductionRecord; active: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
         'w-full rounded-lg border p-3 text-left transition-colors',
-        active ? 'border-foreground bg-foreground text-background' : 'border-border bg-background hover:bg-muted/50',
+        active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50',
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={cn('font-mono text-[11px]', active ? 'text-background/70' : 'text-muted-foreground')}>{segment.id}</p>
-          <h3 className="mt-1 truncate text-sm font-semibold">{segment.title}</h3>
+          <div className="flex items-center gap-2">
+            <span className={cn('h-2.5 w-2.5 rounded-full', statusMeta[production.status].dot)} />
+            <p className="truncate text-sm font-semibold text-foreground">{production.name}</p>
+          </div>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{production.source}</p>
         </div>
-        <span className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', statusMeta[segment.status].dot)} />
+        <Badge variant="secondary" className={cn('text-[10px]', statusMeta[production.status].badge)}>
+          {statusMeta[production.status].label}
+        </Badge>
       </div>
-      <p className={cn('mt-2 line-clamp-2 text-xs leading-5', active ? 'text-background/75' : 'text-muted-foreground')}>{segment.summary}</p>
-      <div className={cn('mt-3 flex items-center justify-between text-[11px]', active ? 'text-background/70' : 'text-muted-foreground')}>
-        <span>{segment.timeRange}</span>
-        <span>素材 {segment.assetReady}/{segment.assetTotal}</span>
-        <span>{segment.versions} 候选</span>
+      <p className="mt-3 line-clamp-2 text-xs leading-5 text-muted-foreground">{production.description}</p>
+      <div className="mt-3 flex items-center gap-2">
+        <Progress value={production.progress} className="h-1.5 flex-1" />
+        <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{production.progress}%</span>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>{production.owner}</span>
+        <span>{production.updatedAt}</span>
       </div>
     </button>
   )
 }
 
-function CandidateCard({ candidate }: { candidate: ProductionSegment['candidates'][number] }) {
+function AreaCard({ area }: { area: ProductionArea }) {
+  const Icon = area.icon
   return (
-    <div className="grid grid-cols-[96px_minmax(0,1fr)_132px] items-center gap-3 px-3 py-3">
-      <div className="flex aspect-video items-center justify-center rounded-md bg-muted/60">
-        <Play size={17} className="text-muted-foreground" />
+    <Link to={area.href} className="rounded-md border border-border bg-background p-3 transition-colors hover:bg-muted/40">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <Icon size={15} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{area.title}</p>
+            <p className="truncate text-xs text-muted-foreground">{area.description}</p>
+          </div>
+        </div>
+        <UnitStatusBadge status={area.status} />
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <p className="w-12 shrink-0 text-lg font-semibold tabular-nums text-foreground">{area.count}</p>
+        <Progress value={area.progress} className="h-1.5 flex-1" />
+      </div>
+    </Link>
+  )
+}
+
+function ProductionUnitRow({ unit }: { unit: ProductionUnit }) {
+  return (
+    <div className="grid grid-cols-[92px_minmax(0,1fr)_140px_140px_100px] items-center gap-3 px-4 py-3">
+      <div>
+        <p className="font-mono text-xs text-muted-foreground">{unit.id}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{unit.timeRange}</p>
       </div>
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="font-mono text-[11px] text-muted-foreground">候选 {candidate.id}</p>
-          <Badge variant="secondary" className={cn('text-[10px]', statusMeta[candidate.status].className)}>
-            {statusMeta[candidate.status].label}
-          </Badge>
-        </div>
-        <h4 className="mt-1 truncate text-sm font-semibold">{candidate.title}</h4>
-        <p className="mt-1 text-xs text-muted-foreground">{candidate.method} · {candidate.duration} · {candidate.note}</p>
+        <p className="truncate text-sm font-medium text-foreground">{unit.title}</p>
+        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{unit.summary}</p>
       </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="h-8 w-16 gap-1.5 px-2">
-          <Eye size={13} />
-          预览
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 w-16 gap-1.5 px-2">
-          <BadgeCheck size={13} />
-          选片
-        </Button>
-      </div>
+      <p className="truncate text-xs text-muted-foreground">{unit.assets}</p>
+      <p className="truncate text-xs text-muted-foreground">{unit.content}</p>
+      <UnitStatusBadge status={unit.status} />
     </div>
   )
 }
 
-function RequirementRow({ label, detail, status }: { label: string; detail: string; status: RequirementStatus }) {
-  const meta = requirementMeta[status]
+function UnitStatusBadge({ status }: { status: UnitStatus }) {
   return (
-    <div className="py-2">
-      <div className="flex items-center gap-2">
-        <span className={cn('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
-        <p className="min-w-0 flex-1 truncate text-sm font-medium">{label}</p>
-        <span className={cn('shrink-0 text-[11px] font-medium', meta.className)}>{meta.label}</span>
+    <Badge variant="secondary" className={cn('shrink-0 text-[10px]', unitMeta[status].badge)}>
+      {unitMeta[status].label}
+    </Badge>
+  )
+}
+
+function StatCard({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number | string }) {
+  return (
+    <div className="rounded-md border border-border bg-background p-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Icon size={14} />
+        <span className="truncate">{label}</span>
       </div>
-      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{detail}</p>
+      <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   )
 }
 
-function ContextSection({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
+function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <section className="border-b border-border p-4 last:border-b-0">
-      <div className="mb-2 flex items-center gap-2">
-        <Icon size={15} className="text-muted-foreground" />
-        <h3 className="text-sm font-semibold">{title}</h3>
-      </div>
-      <div className="divide-y divide-border/70">{children}</div>
-    </section>
-  )
-}
-
-function MetricText({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <p className="font-mono text-sm font-semibold text-foreground">{value}</p>
-      <p className="mt-0.5 text-muted-foreground">{label}</p>
+    <div className="rounded-md border border-border bg-background p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   )
 }
 
-function mapDraftRowsToSegments(rows: ScriptPreviewStoryboardRow[], assetGaps?: Array<{ storyboard_row_client_id: string; name: string; description: string; status: string }>): ProductionSegment[] {
+function GateRow({ icon: Icon, text, tone }: { icon: LucideIcon; text: string; tone: 'ready' | 'blocked' }) {
+  return (
+    <div className="flex gap-2 rounded-md border border-border bg-background p-3">
+      <Icon size={15} className={cn('mt-0.5 shrink-0', tone === 'ready' ? 'text-emerald-600' : 'text-amber-600')} />
+      <p className="text-sm leading-5 text-foreground">{text}</p>
+    </div>
+  )
+}
+
+function buildProductionRecords(data?: GetLatestScriptPreviewDraftResponse): ProductionRecord[] {
+  const draft = data?.found ? data.draft : undefined
+  const storyboardRows = draft?.draft.storyboard_rows ?? []
+  const assetGaps = draft?.draft.preview_candidates?.asset_gaps ?? []
+  const previewConfirmed = draft?.draft.preview_status === 'ready_for_production'
+  const units = storyboardRows.length > 0 ? mapDraftRowsToUnits(storyboardRows, assetGaps) : fallbackUnits
+  const blockedUnits = units.filter((unit) => unit.status === 'blocked').length
+  const activeUnits = units.filter((unit) => unit.status === 'active').length
+  const doneUnits = units.filter((unit) => unit.status === 'done').length
+  const unitProgress = Math.round((doneUnits / Math.max(units.length, 1)) * 100)
+  const previewProgress = previewConfirmed ? 100 : data?.found ? 72 : 0
+  const sourceTitle = draft?.draft.script_version.title || '最近制作预演'
+
+  const current: ProductionRecord = {
+    id: 'PRD-001',
+    name: sourceTitle,
+    status: previewConfirmed ? (blockedUnits > 0 ? 'materializing' : 'producing') : 'previewing',
+    source: draft?.draft.script_version.title || '制作预演草稿',
+    owner: '导演组',
+    progress: Math.round((previewProgress * 0.35) + (unitProgress * 0.4) + (blockedUnits > 0 ? 5 : 20)),
+    updatedAt: draft?.saved_at ? formatShortDate(draft.saved_at) : '刚刚',
+    description: '从最近一次制作预演创建的制作，用于承载结构、资料、素材需求、内容候选和成片版本。',
+    preview: {
+      title: sourceTitle,
+      status: previewConfirmed ? 'done' : data?.found ? 'active' : 'waiting',
+      progress: previewProgress,
+      savedAt: draft?.saved_at ?? '',
+      confirmedAt: draft?.draft.confirmed_at ?? '',
+    },
+    stats: {
+      structures: Math.max(storyboardRows.length, units.length),
+      situations: Math.max(Math.ceil(units.length * 0.75), 1),
+      references: Math.max(4, units.length + 2),
+      assets: Math.max(assetGaps.length, units.length + blockedUnits),
+      contents: units.length,
+      finals: previewConfirmed && blockedUnits === 0 ? 1 : 0,
+    },
+    areas: buildAreas({
+      previewProgress,
+      structureCount: Math.max(storyboardRows.length, units.length),
+      situationCount: Math.max(Math.ceil(units.length * 0.75), 1),
+      referenceCount: Math.max(4, units.length + 2),
+      assetCount: Math.max(assetGaps.length, units.length + blockedUnits),
+      contentCount: units.length,
+      finalCount: previewConfirmed && blockedUnits === 0 ? 1 : 0,
+      blockedUnits,
+      activeUnits,
+      previewConfirmed,
+    }),
+    units,
+    blockers: [
+      ...(previewConfirmed ? [] : ['预演尚未确认，不能稳定进入正式制作。']),
+      ...(blockedUnits > 0 ? [`${blockedUnits} 个内容单元仍有素材或资料缺口。`] : []),
+    ],
+    nextActions: previewConfirmed
+      ? blockedUnits > 0
+        ? ['先补齐阻塞内容单元的素材需求。', '锁定关键创作资料和资料状态。', '再进入内容候选生成与选片。']
+        : ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
+      : ['回到制作预演确认结构、关键帧和素材缺口。', '确认后把预演进度挂载到当前制作。', '再推演素材需求和内容单元。'],
+  }
+
+  return [current, ...fallbackProductions]
+}
+
+function buildAreas(input: {
+  previewProgress: number
+  structureCount: number
+  situationCount: number
+  referenceCount: number
+  assetCount: number
+  contentCount: number
+  finalCount: number
+  blockedUnits: number
+  activeUnits: number
+  previewConfirmed: boolean
+}): ProductionArea[] {
+  return [
+    {
+      key: 'structure',
+      title: '制作结构',
+      description: '剧本节、分镜行、内容单元骨架',
+      icon: GitBranch,
+      count: input.structureCount,
+      progress: input.previewProgress,
+      status: input.previewConfirmed ? 'done' : 'active',
+      href: '/v2-entities',
+    },
+    {
+      key: 'situations',
+      title: '情景',
+      description: '时间、地点、条件和动作',
+      icon: Route,
+      count: input.situationCount,
+      progress: input.previewConfirmed ? 82 : 48,
+      status: input.previewConfirmed ? 'active' : 'waiting',
+      href: '/scenes',
+    },
+    {
+      key: 'references',
+      title: '创作资料',
+      description: '人物、场景、道具、风格规则',
+      icon: Sparkles,
+      count: input.referenceCount,
+      progress: input.previewConfirmed ? 76 : 42,
+      status: input.previewConfirmed ? 'active' : 'waiting',
+      href: '/creative-references',
+    },
+    {
+      key: 'assets',
+      title: '素材需求',
+      description: '从结构和资料推演出的素材位',
+      icon: PackageCheck,
+      count: input.assetCount,
+      progress: input.blockedUnits > 0 ? 38 : input.previewConfirmed ? 68 : 20,
+      status: input.blockedUnits > 0 ? 'blocked' : input.previewConfirmed ? 'active' : 'waiting',
+      href: '/assets',
+    },
+    {
+      key: 'content',
+      title: '内容',
+      description: '正式候选、返工、锁定片段',
+      icon: Film,
+      count: input.contentCount,
+      progress: input.activeUnits > 0 ? 44 : input.previewConfirmed ? 30 : 0,
+      status: input.previewConfirmed ? 'active' : 'waiting',
+      href: '/workbench/production',
+    },
+    {
+      key: 'final',
+      title: '成片',
+      description: '时间线、版本和交付输出',
+      icon: Video,
+      count: input.finalCount,
+      progress: input.finalCount > 0 ? 72 : 0,
+      status: input.finalCount > 0 ? 'active' : 'waiting',
+      href: '/final-videos',
+    },
+  ]
+}
+
+function mapDraftRowsToUnits(rows: ScriptPreviewStoryboardRow[], assetGaps: Array<{ storyboard_row_client_id: string; name: string; status: string }>): ProductionUnit[] {
   let cursor = 0
   return rows.map((row, index) => {
     const start = cursor
     const end = cursor + row.duration_seconds
     cursor = end
-    const gaps = assetGaps?.filter((gap) => gap.storyboard_row_client_id === row.client_id) ?? []
+    const gaps = assetGaps.filter((gap) => gap.storyboard_row_client_id === row.client_id)
     const blocked = gaps.some((gap) => gap.status === 'missing' || gap.status === 'accepted')
-    const status: SegmentStatus = blocked ? 'blocked' : index === 0 ? 'review' : index === 1 ? 'producing' : 'ready'
+    const status: UnitStatus = blocked ? 'blocked' : index === 0 ? 'active' : index < 3 ? 'waiting' : 'done'
     return {
-      id: `P${String(index + 1).padStart(2, '0')}`,
-      title: row.title || `片段 ${index + 1}`,
-      summary: row.body || '从剧本预演继承的正式生产片段。',
-      timeRange: `${formatTime(start)} - ${formatTime(end)}`,
+      id: `CU-${String(index + 1).padStart(3, '0')}`,
+      title: row.title || `内容单元 ${index + 1}`,
+      summary: row.body || '从预演分镜继承的内容单元。',
+      timeRange: `${formatTime(start)}-${formatTime(end)}`,
       duration: row.duration_seconds,
       status,
-      assetReady: blocked ? 2 : 3,
-      assetTotal: blocked ? 4 : 3,
-      versions: status === 'ready' ? 0 : 1,
-      keyframe: row.body || '沿用已确认关键帧作为正式生产参考。',
-      intent: '继承预演中的分镜意图、人物状态和视觉约束，进入正式候选生产。',
-      references: ['已确认关键帧', '人物资料', '场景资料', '风格规则'],
-      requirements: [
-        { label: '关键帧', detail: '来自剧本预演确认结果', status: 'ready' },
-        { label: '创作资料', detail: '人物、场景和风格资料随片段继承', status: 'ready' },
-        { label: '素材缺口', detail: blocked ? '仍有未解决素材缺口' : '未发现阻塞项', status: blocked ? 'blocked' : 'ready' },
-      ],
-      assetGaps: gaps.length > 0
-        ? gaps.map((gap) => ({ title: gap.name, detail: gap.description, status: mapRequirementStatus(gap.status) }))
-        : [{ title: '素材检查', detail: '当前片段没有阻塞素材缺口。', status: 'ready' }],
-      candidates: status === 'ready'
-        ? []
-        : [{ id: 'A', title: `${row.title || `片段 ${index + 1}`}候选`, method: '图生视频', duration: `${row.duration_seconds}s`, status: status === 'blocked' ? 'revision' : 'review', note: '用于 UI 预览的正式候选占位。' }],
+      assets: blocked ? `${gaps.length} 个缺口` : '素材可推演',
+      content: status === 'done' ? '已有锁定版本' : status === 'active' ? '候选生成中' : '待生成',
     }
   })
 }
 
-function mapRequirementStatus(status: string): RequirementStatus {
-  if (status === 'resolved') return 'ready'
-  if (status === 'rejected') return 'review'
-  if (status === 'missing' || status === 'accepted') return 'blocked'
-  return 'review'
-}
+const fallbackUnits: ProductionUnit[] = [
+  {
+    id: 'CU-001',
+    title: '雨夜巷口对峙',
+    summary: '林夏攥着湿透旧伞，与顾言保持距离，纸条线索即将暴露。',
+    timeRange: '00:00-00:08',
+    duration: 8,
+    status: 'done',
+    assets: '4/4 已锁定',
+    content: '主版本已锁定',
+  },
+  {
+    id: 'CU-002',
+    title: '旧伞纸条暴露',
+    summary: '伞骨夹层滑出纸条，道具从气氛物转为剧情证据。',
+    timeRange: '00:08-00:14',
+    duration: 6,
+    status: 'blocked',
+    assets: '2 个缺口',
+    content: '候选需返工',
+  },
+  {
+    id: 'CU-003',
+    title: '顾言低声追问',
+    summary: '顾言压低声音追问旧伞来历，林夏把纸条攥进掌心。',
+    timeRange: '00:14-00:22',
+    duration: 8,
+    status: 'active',
+    assets: '3/3 已就绪',
+    content: '待选片',
+  },
+]
+
+const fallbackProductions: ProductionRecord[] = [
+  {
+    id: 'PRD-002',
+    name: '第二集开场制作',
+    status: 'planning',
+    source: '第二集剧本 v1',
+    owner: '编导组',
+    progress: 18,
+    updatedAt: '昨天',
+    description: '用于展示一个项目可同时拥有多个制作，当前还处于剧本理解和预演准备阶段。',
+    preview: { title: '第二集开场预演', status: 'waiting', progress: 12, savedAt: '' },
+    stats: { structures: 3, situations: 2, references: 5, assets: 0, contents: 0, finals: 0 },
+    areas: buildAreas({
+      previewProgress: 12,
+      structureCount: 3,
+      situationCount: 2,
+      referenceCount: 5,
+      assetCount: 0,
+      contentCount: 0,
+      finalCount: 0,
+      blockedUnits: 0,
+      activeUnits: 0,
+      previewConfirmed: false,
+    }),
+    units: [],
+    blockers: ['尚未生成可确认的预演。'],
+    nextActions: ['完成剧本理解确认。', '生成预演草稿并确认结构。', '从预演推演制作资料和素材需求。'],
+  },
+  {
+    id: 'PRD-003',
+    name: '品牌口播 15 秒制作',
+    status: 'delivered',
+    source: '品牌短片脚本 v3',
+    owner: '交付组',
+    progress: 100,
+    updatedAt: '4 天前',
+    description: '已完成的短制作样例，用于体现成片版本仍然归属于制作主体。',
+    preview: { title: '品牌口播预演', status: 'done', progress: 100, savedAt: '2026-05-01T10:30:00+08:00', confirmedAt: '2026-05-01T11:20:00+08:00' },
+    stats: { structures: 5, situations: 3, references: 8, assets: 11, contents: 5, finals: 2 },
+    areas: [
+      { key: 'structure', title: '制作结构', description: '结构已锁定', icon: GitBranch, count: 5, progress: 100, status: 'done', href: '/v2-entities' },
+      { key: 'situations', title: '情景', description: '情景已确认', icon: Route, count: 3, progress: 100, status: 'done', href: '/scenes' },
+      { key: 'references', title: '创作资料', description: '资料已锁定', icon: Sparkles, count: 8, progress: 100, status: 'done', href: '/creative-references' },
+      { key: 'assets', title: '素材需求', description: '素材已采用', icon: PackageCheck, count: 11, progress: 100, status: 'done', href: '/assets' },
+      { key: 'content', title: '内容', description: '内容已锁定', icon: Film, count: 5, progress: 100, status: 'done', href: '/workbench/production' },
+      { key: 'final', title: '成片', description: '版本已交付', icon: Video, count: 2, progress: 100, status: 'done', href: '/final-videos' },
+    ],
+    units: [
+      { id: 'CU-001', title: '产品亮相', summary: '产品与品牌主视觉入场。', timeRange: '00:00-00:04', duration: 4, status: 'done', assets: '已采用', content: '已锁定' },
+      { id: 'CU-002', title: '利益点展示', summary: '强调核心卖点并配合口播。', timeRange: '00:04-00:11', duration: 7, status: 'done', assets: '已采用', content: '已锁定' },
+      { id: 'CU-003', title: '收束 CTA', summary: '品牌口号与行动引导。', timeRange: '00:11-00:15', duration: 4, status: 'done', assets: '已采用', content: '已锁定' },
+    ],
+    blockers: [],
+    nextActions: ['复核交付文件命名。', '归档成片版本和生成记录。', '同步客户确认记录。'],
+  },
+]
 
 function formatTime(seconds: number) {
   const minute = Math.floor(seconds / 60)
   const second = seconds % 60
   return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 function formatDateTime(value: string) {

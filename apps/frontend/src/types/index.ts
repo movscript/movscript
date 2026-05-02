@@ -27,7 +27,7 @@ export interface Script {
   description: string
   content: string // full script body text
   raw_source?: string
-  script_type: 'main' | 'episode' | 'scene'
+  script_type: string // user-defined category tag
   source_type?: 'raw' | 'adapted' | 'revised'
   version?: number
   parent_script_id?: number
@@ -35,7 +35,7 @@ export interface Script {
   assignee_id?: number
   assignee?: User
   author_id: number
-  order: number // sort order for episode scripts
+  order: number // sort order
   // content management fields (内容管理)
   summary: string
   characters: string
@@ -44,9 +44,9 @@ export interface Script {
   core_settings: string
   background: string
   scenes_desc: string
-  hook: string        // 钩子（分集剧本）
-  plot_summary: string // 剧情推演总结（分集剧本）
-  script_points?: string // JSON array of structured episode script points
+  hook: string        // 钩子
+  plot_summary: string // 剧情推演总结
+  script_points?: string // JSON array of structured script points
   planned_scene_count?: number
   planned_character_count?: number
   time_text?: string

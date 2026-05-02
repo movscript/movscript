@@ -53,7 +53,6 @@ type ScriptInput struct {
 	SourceType             string `json:"source_type"`
 	Version                int    `json:"version"`
 	ParentScriptID         *uint  `json:"parent_script_id"`
-	EpisodeID              *uint  `json:"episode_id"`
 	AssigneeID             *uint  `json:"assignee_id"`
 	Summary                string `json:"summary"`
 	Characters             string `json:"characters"`
@@ -246,7 +245,6 @@ func ApplyScriptInput(s *model.Script, in ScriptInput) {
 	s.SourceType = in.SourceType
 	s.Version = in.Version
 	s.ParentScriptID = in.ParentScriptID
-	s.EpisodeID = in.EpisodeID
 	s.AssigneeID = in.AssigneeID
 	s.Summary = in.Summary
 	s.Characters = in.Characters
@@ -387,7 +385,7 @@ func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelat
 }
 
 var projectPatchFields = stringSet("name", "description", "total_episodes")
-var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "episode_id", "assignee_id", "summary", "characters", "core_settings", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
+var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "assignee_id", "summary", "characters", "core_settings", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
 var episodePatchFields = stringSet("title", "number", "synopsis", "script_id")
 var scenePatchFields = stringSet("number", "title", "notes", "script_id")
 var storyboardPatchFields = stringSet("scene_id", "episode_id", "setting_id", "assignee_id", "order", "title", "description", "notes", "characters", "actions", "dialogue", "atmosphere", "lighting", "duration", "shot_size", "angle", "movement", "focal_length", "pacing", "intent")

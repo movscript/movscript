@@ -26,6 +26,7 @@
     "related": "Related",
     "loading": "Loading...",
     "loadingShort": "Loading...",
+    "next": "Next",
     "switch": "Switch",
     "selectProject": "Select project...",
     "requestFailed": "Request failed. Please try again later.",
@@ -388,11 +389,10 @@
   },
   "pages": {
     "projectHomeV2": {
-      "badge": "Project Home v2",
+      "badge": "Home",
       "noDescription": "No project description yet. This dashboard summarizes script, asset, production, and delivery status.",
       "actions": {
         "continue": "Continue",
-        "openWorkbench": "Open Workbench",
         "viewTasks": "View Tasks"
       },
       "stageState": {
@@ -429,14 +429,14 @@
       },
       "sections": {
         "pipeline": "Production Pipeline",
-        "pipelineHint": "A five-stage overview from script preview to delivery.",
+        "pipelineHint": "A five-stage overview from production management to delivery.",
         "focus": "Today's Focus",
         "focusHint": "Prioritize gaps that block downstream production.",
         "quickLinks": "Quick Links"
       },
       "stages": {
         "script": {
-          "title": "Script Preview",
+          "title": "Production Management",
           "description": "Import, analyze, and calibrate scripts for later asset and shot breakdown."
         },
         "references": {
@@ -448,8 +448,8 @@
           "description": "Confirm production references for characters, locations, props, audio, and brand assets."
         },
         "production": {
-          "title": "Content Production",
-          "description": "Manage storyboards, shot generation, and content iteration."
+          "title": "Production",
+          "description": "Own one complete production from script, preview, references, assets, content, to final video."
         },
         "delivery": {
           "title": "Delivery",
@@ -466,7 +466,7 @@
         "awaitingApproval": "Awaiting approval"
       },
       "emptyFocus": {
-        "scriptPreview": "Start with script preview",
+        "scriptPreview": "Start with production management",
         "scriptPreviewMeta": "Generate structure and asset gaps",
         "assets": "Check asset prep",
         "assetsMeta": "Lock production references"
@@ -483,13 +483,25 @@
       "settingFallback": "Setting #{{id}}",
       "unlinkedSetting": "Unlinked setting",
       "pagination": "{{total}} assets · {{page}}/{{pageCount}}",
+      "library": {
+        "title": "Asset Library Overview",
+        "subtitle": "Review the project's saved assets, setting links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
+        "openGeneration": "Asset Generation",
+        "emptyHint": "Uploaded assets will appear here as the project asset overview.",
+        "metrics": {
+          "assets": "Total assets",
+          "settings": "Settings",
+          "media": "Previewable media",
+          "linked": "Linked settings"
+        }
+      },
       "v2": {
-        "title": "Asset Prep",
+        "title": "Asset Generation",
         "subtitle": "Track the reference images, videos, audio, and brand assets still needed for production.",
         "searchPlaceholder": "Search gaps, segments, or asset cues...",
         "noSelection": "Select an asset gap",
-        "emptyRequirements": "No matching asset gaps",
-        "emptyRequirementsHint": "Adjust filters or generate new asset gaps from script preview.",
+        "emptyAssetSlots": "No matching asset slots",
+        "emptyAssetSlotsHint": "Adjust filters or generate new asset gaps from production management.",
         "candidateCount": "{{count}} candidates",
         "status": {
           "missing": "Missing",
@@ -538,7 +550,7 @@
           "context": "Project Context"
         },
         "readiness": {
-          "requirementConfirmed": "Gap confirmed or handled",
+          "slotConfirmed": "Slot confirmed or handled",
           "hasCandidate": "Candidate available for review",
           "lockedOrWaived": "Locked or explicitly waived"
         },
@@ -671,23 +683,23 @@
       "tasks": "Tasks",
       "management": "Management",
       "preview": {
-        "title": "Preview Production Status",
+        "title": "Production Management Status",
         "ready": "Confirmed",
         "pending": "Pending",
         "missing": "No draft found",
-        "readySummary": "The preview is confirmed and can move on to production tasks.",
-        "pendingSummary": "This project has a preview draft, but it is not ready for production yet.",
-        "missingSummary": "There is no usable preview draft yet. Confirm one in Script Preview first.",
+        "readySummary": "Production management is confirmed and can move on to task assignment and review.",
+        "pendingSummary": "This project has a production management draft, but it is not ready for production yet.",
+        "missingSummary": "There is no usable production management draft yet. Confirm one in Production Management first.",
         "readyTitle": "Ready for content production",
         "notReadyTitle": "Not in a production-ready state yet",
         "savedAt": "Saved at: {{value}}",
         "confirmedAt": "Confirmed at: {{value}}",
         "unknown": "N/A",
-        "foundDraft": "Latest preview draft",
-        "noDraft": "The latest saved draft will appear here after Script Preview is used.",
+        "foundDraft": "Latest production management draft",
+        "noDraft": "The latest saved draft will appear here after Production Management is used.",
         "enterProduction": "Enter Content Production",
-        "goPreview": "Go to Script Preview",
-        "viewPreview": "View Script Preview"
+        "goPreview": "Go to Production Management",
+        "viewPreview": "View Production Management"
       }
     },
     "canvases": {
@@ -2122,16 +2134,32 @@
   "header": {
     "titles": {
       "projects": "Projects",
-      "projectHome": "Project Home",
-      "creation": "Workbench",
+      "projectHome": "Home",
+      "projectPlan": "Prep Overview",
+      "creation": "Home",
+      "workbenchScript": "Understanding Review",
+      "workbenchPreview": "Preview Decisions",
+      "workbenchCreative": "Reference Review",
+      "workbenchAssets": "Asset Generation",
+      "workbenchProduction": "Production Decisions",
+      "workbenchDelivery": "Delivery Gate",
+      "workbenchReferenceRelations": "Relation Correction",
+      "assetProductionWorkbench": "Asset Production Workbench",
+      "contentProductionWorkbench": "Content Production Workbench",
       "scripts": "Script Management",
       "settings": "Setting Management",
-      "assets": "Asset Prep",
+      "assets": "Asset Library",
       "episodes": "Episode Management",
-      "scriptPreview": "Script Preview",
-      "referenceRelations": "Reference Relations",
-      "collaboration": "Collaboration Progress",
-      "scenes": "Scene Management",
+      "scriptPreview": "Production Management",
+      "previewProgress": "Production Management Progress",
+      "creativeReferences": "Reference Library",
+      "referenceRelations": "Relation Overview",
+      "production": "Content Production",
+      "finalVideos": "Final Video Library",
+      "collaboration": "Tasks",
+      "delivery": "Delivery",
+      "v2Entities": "V2 Entities",
+      "scenes": "Situation Library",
       "storyboards": "Storyboard Management",
       "shots": "Shot Management",
       "canvases": "Canvas",
@@ -2154,16 +2182,21 @@
   "sidebar": {
     "sections": {
       "project": "Project",
+      "contentArea": "Content Area",
       "progress": "Progress",
       "tools": "Tools",
       "files": "Files",
       "manage": "Manage",
-      "workspace": "Workspace",
+      "workspace": "Workbench",
       "contentLibrary": "Content Library",
-      "legacyManage": "Legacy Manage"
+      "legacyManage": "Legacy Manage",
+      "entityManage": "Entity Management"
+    },
+    "groups": {
+      "scriptPreviewWorkbench": "Production Management"
     },
     "items": {
-      "scripts": "Scripts",
+      "scripts": "Script Library",
       "settings": "Settings",
       "assets": "Assets",
       "episodes": "Episodes",
@@ -2185,17 +2218,42 @@
       "myAgents": "My Agents",
       "agentDebug": "Agent Debug",
       "production": "Production Hub",
-      "creation": "Workbench",
+      "creation": "Triage Desk",
       "collaboration": "Collaboration",
-      "projectHome": "Project Home",
-      "projectPlan": "Project Plan",
-      "scriptPreview": "Script Preview",
+      "projectHome": "Home",
+      "projectProduction": "Production",
+      "contentAreaProduction": "Production",
+      "script": "Script",
+      "scriptSections": "Script Sections",
+      "situations": "Situations",
+      "references": "References",
+      "relations": "Relations",
+      "content": "Content",
+      "projectPlan": "Prep Overview",
+      "scriptPreview": "Production Management",
+      "previewProgress": "Production Management Progress",
       "v2Entities": "V2 Entities",
-      "creativeReferences": "Creative References",
+      "entityManagement": "Entity Management",
+      "creativeReferences": "Reference Library",
       "referenceRelations": "Reference Relations",
-      "assetPreparation": "Asset Prep",
-      "contentProduction": "Content Production",
-      "productionTasks": "Production Tasks",
+      "relationOverview": "Relation Overview",
+      "assetPreparation": "Asset Library",
+      "contentProduction": "Production",
+      "situationLibrary": "Situation Library",
+      "finalVideoLibrary": "Final Video Library",
+      "assetProductionWorkbench": "Asset Production Workbench",
+      "contentProductionWorkbench": "Content Production Workbench",
+      "workbenchScript": "Understanding Review",
+      "workbenchPreview": "Preview Decisions",
+      "workbenchCreative": "Reference Review",
+      "workbenchAssets": "Asset Generation",
+      "workbenchProduction": "Production Decisions",
+      "workbenchDelivery": "Delivery Gate",
+      "workbenchReferenceRelations": "Relation Correction",
+      "workbenchProjectPreview": "Project Preview",
+      "workbenchAssetPreparation": "Asset Preparation",
+      "workbenchContentGeneration": "Content Generation",
+      "productionTasks": "Tasks",
       "delivery": "Delivery",
       "user": "User Profile",
       "admin": "Admin",
