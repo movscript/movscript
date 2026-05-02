@@ -16,9 +16,9 @@ func analysisRequest(draftID string, texts ...string) AnalyzeRequest {
 	}
 	for i, text := range texts {
 		order := i + 1
-		segmentID := fmt.Sprintf("section-%03d", order)
+		segmentID := fmt.Sprintf("segment-%03d", order)
 		question := fmt.Sprintf("第 %d 段的情绪转折是否需要用户确认？", order)
-		req.Sections = append(req.Sections, SegmentResult{
+		req.Segments = append(req.Segments, SegmentResult{
 			ClientID:        segmentID,
 			Order:           order,
 			Title:           text,
@@ -201,8 +201,8 @@ func TestServiceAnalyzeStoresProvidedSuggestions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
-	if len(resp.Sections) != 2 {
-		t.Fatalf("sections len = %d, want 2", len(resp.Sections))
+	if len(resp.Segments) != 2 {
+		t.Fatalf("segments len = %d, want 2", len(resp.Segments))
 	}
 	if len(resp.Suggestions) != 2 {
 		t.Fatalf("suggestions len = %d, want 2", len(resp.Suggestions))

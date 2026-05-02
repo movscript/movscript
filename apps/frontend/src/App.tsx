@@ -36,6 +36,7 @@ import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import ScenesPage from './pages/scenes/ScenesPage'
+import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
 import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
@@ -170,7 +171,8 @@ export default function App() {
                       {/* 工作模块 */}
                       <Route path="/scripts" element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
                       <Route path="/segments" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
-                      <Route path="/scenes" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
+                      <Route path="/scene-moments" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
+                      <Route path="/scenes" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
                       <Route path="/contents" element={<ProjectGuard><ContentsPage /></ProjectGuard>} />
                       <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
                       <Route path="/project-preview" element={<ProjectGuard><ProjectPreviewPage /></ProjectGuard>} />

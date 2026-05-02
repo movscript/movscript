@@ -237,8 +237,8 @@ export default function ProjectPlanPage() {
     const structureProgress = storyboardRows.length > 0
       ? Math.round((readyStoryboardRows.length / storyboardRows.length) * 100)
       : 0
-    const proposalProgress = analysis?.sections?.length
-      ? Math.min(100, Math.round((analysis.sections.length / 6) * 100))
+    const proposalProgress = analysis?.segments?.length
+      ? Math.min(100, Math.round((analysis.segments.length / 6) * 100))
       : storyboardRows.length > 0 ? 50 : 0
     const previewProgress = timeline.length > 0
       ? confirmedPreview ? 100 : 70
@@ -265,7 +265,7 @@ export default function ProjectPlanPage() {
         href: '/project-preview',
         icon: Presentation,
         status: trackStatus(proposalProgress),
-        metric: `${analysis?.sections?.length ?? 0} 个理解段落`,
+        metric: `${analysis?.segments?.length ?? 0} 个片段`,
         progress: proposalProgress,
       },
       {
@@ -300,7 +300,7 @@ export default function ProjectPlanPage() {
       },
     ]
   }, [
-    analysis?.sections?.length,
+    analysis?.segments?.length,
     assetGaps.length,
     confirmedPreview,
     draft?.script_version?.title,

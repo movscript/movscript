@@ -68,7 +68,7 @@ export type GetLatestProjectPreviewDraftResponse = {
 export type AnalyzeProjectPreviewResponse = {
   draft_id: string
   generated_at: string
-  sections: Array<{
+  segments: Array<{
     client_id: string
     order: number
     title: string
@@ -94,7 +94,7 @@ export type AnalyzeProjectPreviewResponse = {
 
 export type ProjectPreviewAnalysisCandidates = {
   generated_at: string
-  sections: AnalyzeProjectPreviewResponse['sections']
+  segments: AnalyzeProjectPreviewResponse['segments']
   confirm_questions: string[]
   storyboard_suggestions: AnalyzeProjectPreviewResponse['storyboard_suggestions']
   status: string
@@ -147,7 +147,7 @@ export type ProjectPreviewCandidateData = {
 type AnalyzeProjectPreviewPayload = Pick<ProjectPreviewDraftPayload, 'source_text' | 'storyboard_rows'> & {
   draft_id: string
   generated_at?: string
-  sections?: AnalyzeProjectPreviewResponse['sections']
+  segments?: AnalyzeProjectPreviewResponse['segments']
   confirm_questions?: string[]
   storyboard_suggestions?: AnalyzeProjectPreviewResponse['storyboard_suggestions']
   status?: string
@@ -198,7 +198,7 @@ export async function generateProjectPreview(
 function buildAnalysisCandidatePayload(
   payload: AnalyzeProjectPreviewPayload,
 ) {
-  if ((payload.sections?.length ?? 0) > 0 || (payload.storyboard_suggestions?.length ?? 0) > 0) {
+  if ((payload.segments?.length ?? 0) > 0 || (payload.storyboard_suggestions?.length ?? 0) > 0) {
     return {
       ...payload,
       generated_at: payload.generated_at || new Date().toISOString(),
@@ -215,16 +215,16 @@ function buildAnalysisCandidatePayload(
     }
   }
 
-  const sections: AnalyzeProjectPreviewResponse['sections'] = []
+  const segments: AnalyzeProjectPreviewResponse['segments'] = []
   const storyboardSuggestions: AnalyzeProjectPreviewResponse['storyboard_suggestions'] = []
   const confirmQuestions: string[] = []
 
   sourceLines.forEach((line, index) => {
     const order = index + 1
-    const segmentId = `section-${String(order).padStart(3, '0')}`
+    const segmentId = `segment-${String(order).padStart(3, '0')}`
     const title = summarizeTitle(line, order)
     const question = `第 ${order} 段的情绪转折是否需要用户确认？`
-    sections.push({
+    segments.push({
       client_id: segmentId,
       order,
       title,
@@ -250,7 +250,7 @@ function buildAnalysisCandidatePayload(
   return {
     ...payload,
     generated_at: new Date().toISOString(),
-    sections,
+    segments,
     confirm_questions: confirmQuestions,
     storyboard_suggestions: storyboardSuggestions,
     status: 'succeeded',

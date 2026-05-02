@@ -401,7 +401,7 @@ func normalizeSourceType(value string) string {
 
 func validOwnerType(value string) bool {
 	switch value {
-	case "script", "script_version", "segment", "sceneMoment", "content_unit", "keyframe", "preview_timeline",
+	case "script", "script_version", "segment", "scene_moment", "content_unit", "keyframe", "preview_timeline",
 		"creative_reference", "creative_reference_state", "asset_slot",
 		"delivery_version", "asset", "asset_view", "canvas":
 		return true
@@ -493,7 +493,7 @@ func (h *ResourceBindingHandler) projectIDForOwner(ownerType string, ownerID uin
 			return 0, err
 		}
 		return item.ProjectID, nil
-	case "sceneMoment":
+	case "scene_moment":
 		var item model.SceneMoment
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return 0, err

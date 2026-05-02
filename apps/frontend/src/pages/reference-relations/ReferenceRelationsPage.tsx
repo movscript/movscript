@@ -103,8 +103,8 @@ const relationNodeTypes = {
   relationReferenceCard: RelationReferenceCardNode,
 }
 
-const ownerTypes = ['segment', 'sceneMoment', 'content_unit', 'keyframe']
-const scopeTypes = ['', 'project', 'script', 'segment', 'sceneMoment', 'content_unit']
+const ownerTypes = ['segment', 'scene_moment', 'content_unit', 'keyframe']
+const scopeTypes = ['', 'project', 'script', 'segment', 'scene_moment', 'content_unit']
 const sources = ['manual', 'ai', 'import']
 const statuses = ['draft', 'confirmed', 'corrected', 'ignored']
 const usageRoles = ['protagonist', 'supporting', 'location', 'prop', 'style', 'brand', 'rule']

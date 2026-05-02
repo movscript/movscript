@@ -62,7 +62,7 @@ type SaveStatus = 'dirty' | 'saving' | 'saved' | 'failed'
 type LoadStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
 type AnalysisStatus = 'idle' | 'running' | 'succeeded' | 'failed'
 type PreviewPhase = 'source' | 'understanding' | 'preview_decision' | 'ready'
-type SegmentCandidate = ProjectPreviewAnalysisCandidates['sections'][number]
+type SegmentCandidate = ProjectPreviewAnalysisCandidates['segments'][number]
 type StoryboardSuggestionCandidate = ProjectPreviewAnalysisCandidates['storyboard_suggestions'][number]
 type KeyframeCandidate = ProjectPreviewCandidateData['keyframe_candidates'][number]
 type PreviewTimelineCandidate = ProjectPreviewCandidateData['preview_timeline'][number]
@@ -139,7 +139,7 @@ export default function ProjectPreviewPage() {
     () => selectedScriptId ? scriptVersions.filter((version) => version.script_id === selectedScriptId) : [],
     [scriptVersions, selectedScriptId],
   )
-  const segments = analysisCandidates?.sections ?? []
+  const segments = analysisCandidates?.segments ?? []
   const storyboardSuggestions = analysisCandidates?.storyboard_suggestions ?? []
   const keyframeCandidates = previewCandidates?.keyframe_candidates ?? []
   const previewTimeline = previewCandidates?.preview_timeline ?? []
@@ -161,9 +161,9 @@ export default function ProjectPreviewPage() {
     () => buildInvolvedCreativeReferences({
       references: projectCreativeReferences,
       usages: creativeReferenceUsages,
-      segmentIds: segments.map((section) => section.client_id),
+      segmentIds: segments.map((segment) => segment.client_id),
       sceneMomentIds: sceneMomentCandidates.map((sceneMoment) => sceneMoment.id),
-      fallbackSignals: [...segments.map((section) => section.summary), ...sceneMomentCandidates.map((sceneMoment) => sceneMoment.description)],
+      fallbackSignals: [...segments.map((segment) => segment.summary), ...sceneMomentCandidates.map((sceneMoment) => sceneMoment.description)],
     }),
     [creativeReferenceUsages, projectCreativeReferences, segments, sceneMomentCandidates],
   )
@@ -325,13 +325,13 @@ export default function ProjectPreviewPage() {
 	    onSuccess: (response) => {
 	      setAnalysisCandidates({
 	        generated_at: response.generated_at,
-	        sections: response.sections,
+          segments: response.segments,
 	        confirm_questions: response.confirm_questions,
 	        storyboard_suggestions: response.storyboard_suggestions,
 	        status: response.status,
 	      })
 	      setAnalysisStatus('succeeded')
-	      setAnalysisMessage(`已生成 ${response.sections.length} 个片段；AI 候选可在对比弹窗中处理`)
+      setAnalysisMessage(`已生成 ${response.segments.length} 个片段；AI 候选可在对比弹窗中处理`)
 	    },
 	    onError: (error) => {
 	      setAnalysisStatus('failed')
@@ -611,7 +611,7 @@ export default function ProjectPreviewPage() {
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">把来源文本拆成可绑定资料、素材和内容单元的制作对象。</p>
                     </div>
-                    <Badge variant="outline">{segments.length} 节 / {sceneMomentCandidates.length} 情节</Badge>
+                    <Badge variant="outline">{segments.length} 片段 / {sceneMomentCandidates.length} 情节</Badge>
                   </div>
                   <div className="space-y-3 p-4">
                     {segments.length === 0 ? (
@@ -619,10 +619,10 @@ export default function ProjectPreviewPage() {
                         title="暂无片段"
                         text={latestDraftId ? '点击解析理解生成当前片段。' : '先保存编排草稿，再解析理解。'}
                       />
-                    ) : segments.map((section) => {
-                      const sceneMoment = sceneMomentCandidates.find((item) => item.sourceSegmentId === section.client_id)
+                    ) : segments.map((segment) => {
+                      const sceneMoment = sceneMomentCandidates.find((item) => item.sourceSegmentId === segment.client_id)
                       return (
-                        <ProductionObjectRow key={section.client_id} section={section} sceneMoment={sceneMoment} />
+                        <ProductionObjectRow key={segment.client_id} segment={segment} sceneMoment={sceneMoment} />
                       )
                     })}
                   </div>
@@ -801,15 +801,15 @@ function derivePreviewPhase({
   return hasDraft ? 'source' : 'source'
 }
 
-function buildSceneMomentCandidates(sections: SegmentCandidate[], suggestions: StoryboardSuggestionCandidate[]): SceneMomentCandidate[] {
-  return sections.map((section) => {
-    const suggestion = suggestions.find((item) => item.source_segment_id === section.client_id)
-    const source = suggestion?.body || section.summary
+function buildSceneMomentCandidates(segments: SegmentCandidate[], suggestions: StoryboardSuggestionCandidate[]): SceneMomentCandidate[] {
+  return segments.map((segment) => {
+    const suggestion = suggestions.find((item) => item.source_segment_id === segment.client_id)
+    const source = suggestion?.body || segment.summary
     return {
-      id: `sceneMoment-${section.client_id}`,
-      sourceSegmentId: section.client_id,
-      order: section.order,
-      title: section.title,
+      id: `sceneMoment-${segment.client_id}`,
+      sourceSegmentId: segment.client_id,
+      order: segment.order,
+      title: segment.title,
       description: source,
       timeText: inferTimeText(source),
       locationText: inferLocationText(source),
@@ -840,7 +840,7 @@ function buildInvolvedCreativeReferences({
     const ownerId = String(usage.owner_id ?? '')
     return (
       (ownerType === 'segment' && segmentIdSet.has(ownerId)) ||
-      (ownerType === 'sceneMoment' && sceneMomentIdSet.has(ownerId))
+      (ownerType === 'scene_moment' && sceneMomentIdSet.has(ownerId))
     )
   })
   const usageCountByReference = new Map<number, number>()
@@ -1015,18 +1015,18 @@ function EmptyObjectState({ title, text }: { title: string; text: string }) {
   )
 }
 
-function SegmentCard({ section }: { section: SegmentCandidate }) {
+function SegmentCard({ segment }: { segment: SegmentCandidate }) {
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">第 {section.order} 节 · {section.title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{section.source_range || '来源位置待确认'}</p>
+          <p className="text-sm font-semibold text-foreground">片段 {segment.order} · {segment.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{segment.source_range || '来源位置待确认'}</p>
         </div>
-        <Badge variant={section.confidence >= 0.8 ? 'success' : 'warning'}>{Math.round(section.confidence * 100)}%</Badge>
+        <Badge variant={segment.confidence >= 0.8 ? 'success' : 'warning'}>{Math.round(segment.confidence * 100)}%</Badge>
       </div>
-      <p className="mt-2 text-sm leading-6 text-foreground">{section.summary}</p>
-      <p className="mt-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs leading-5 text-muted-foreground">{section.confirm_question}</p>
+      <p className="mt-2 text-sm leading-6 text-foreground">{segment.summary}</p>
+      <p className="mt-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs leading-5 text-muted-foreground">{segment.confirm_question}</p>
     </div>
   )
 }
@@ -1051,18 +1051,18 @@ function SceneMomentCard({ sceneMoment }: { sceneMoment: SceneMomentCandidate })
   )
 }
 
-function ProductionObjectRow({ section, sceneMoment }: { section: SegmentCandidate; sceneMoment?: SceneMomentCandidate }) {
+function ProductionObjectRow({ segment, sceneMoment }: { segment: SegmentCandidate; sceneMoment?: SceneMomentCandidate }) {
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">片段 {section.order}</Badge>
-            <p className="text-sm font-semibold text-foreground">{section.title}</p>
+            <Badge variant="outline">片段 {segment.order}</Badge>
+            <p className="text-sm font-semibold text-foreground">{segment.title}</p>
           </div>
-          <p className="mt-2 text-sm leading-6 text-foreground">{section.summary}</p>
+          <p className="mt-2 text-sm leading-6 text-foreground">{segment.summary}</p>
         </div>
-        <Badge variant={section.confidence >= 0.8 ? 'success' : 'warning'}>{Math.round(section.confidence * 100)}%</Badge>
+        <Badge variant={segment.confidence >= 0.8 ? 'success' : 'warning'}>{Math.round(segment.confidence * 100)}%</Badge>
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="rounded-md border border-border bg-card px-3 py-2">

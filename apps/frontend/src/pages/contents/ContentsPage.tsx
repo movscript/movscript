@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -23,22 +24,23 @@ import {
   Play,
   RefreshCcw,
   Route,
-  Search,
   ShieldCheck,
   Sparkles,
   Wand2,
 } from 'lucide-react'
 
 import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
+import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
+import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import { Badge, Button, Input, Progress } from '@movscript/ui'
+import { Badge, Button, Progress } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'locked'
 
 type ContentUnitRecord = V2EntityRecord & {
   segment_id?: number
-  sceneMoment_id?: number
+  scene_moment_id?: number
   title?: string
   kind?: string
   order?: number
@@ -67,7 +69,7 @@ type SegmentRecord = V2EntityRecord & {
 }
 
 type StoryboardLineRecord = V2EntityRecord & {
-  sceneMoment_id?: number
+  scene_moment_id?: number
   segment_id?: number
   title?: string
   description?: string
@@ -76,7 +78,7 @@ type StoryboardLineRecord = V2EntityRecord & {
 }
 
 type KeyframeRecord = V2EntityRecord & {
-  sceneMoment_id?: number
+  scene_moment_id?: number
   content_unit_id?: number
   title?: string
   description?: string
@@ -148,13 +150,22 @@ const kindLabels: Record<string, string> = {
 
 const kindOptions = ['all', 'shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']
 
+function normalizeStatusFilter(value: string): StatusFilter {
+  return ['ready', 'attention', 'locked'].includes(value) ? value as StatusFilter : 'all'
+}
+
 export default function ContentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [kindFilter, setKindFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [query, setQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = readNumberParam(searchParams, 'content_unit_id') ?? readNumberParam(searchParams, 'selected')
+  const segmentFilterId = readNumberParam(searchParams, 'segment_id')
+  const sceneMomentFilterId = readNumberParam(searchParams, 'scene_moment_id')
+  const referenceFilterId = readNumberParam(searchParams, 'reference_id')
+  const assetSlotFilterId = readNumberParam(searchParams, 'asset_slot_id')
+  const kindFilter = readStringParam(searchParams, 'kind', 'all')
+  const statusFilter = normalizeStatusFilter(readStringParam(searchParams, 'status'))
+  const query = readStringParam(searchParams, 'q')
 
   const contentUnitsQuery = useQuery({
     queryKey: ['v2-content-positioning', projectId, 'content-units'],
@@ -211,20 +222,20 @@ export default function ContentsPage() {
   const sectionById = useMemo(() => new Map(sections.map((item) => [item.ID, item])), [sections])
 
   const unitViewModels = useMemo(() => contentUnits.map((unit) => {
-    const sceneMoment = unit.sceneMoment_id ? sceneMomentById.get(unit.sceneMoment_id) : undefined
+    const sceneMoment = unit.scene_moment_id ? sceneMomentById.get(unit.scene_moment_id) : undefined
     const section = unit.segment_id ? sectionById.get(unit.segment_id) : undefined
     const unitUsages = usages.filter((item) => item.owner_type === 'content_unit' && item.owner_id === unit.ID)
-    const inheritedUsages = sceneMoment ? usages.filter((item) => item.owner_type === 'sceneMoment' && item.owner_id === sceneMoment.ID) : []
+    const inheritedUsages = sceneMoment ? usages.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedUsages = dedupeUsages([...unitUsages, ...inheritedUsages])
     const relatedReferences = relatedUsages
       .map((usage) => usage.creative_reference_id ? referencesById.get(usage.creative_reference_id) : undefined)
       .filter(Boolean) as CreativeReferenceRecord[]
     const unitAssetSlots = assetSlots.filter((item) => item.owner_type === 'content_unit' && item.owner_id === unit.ID)
-    const inheritedAssetSlots = sceneMoment ? assetSlots.filter((item) => item.owner_type === 'sceneMoment' && item.owner_id === sceneMoment.ID) : []
+    const inheritedAssetSlots = sceneMoment ? assetSlots.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedAssetSlots = [...unitAssetSlots, ...inheritedAssetSlots]
-    const relatedKeyframes = keyframes.filter((item) => item.content_unit_id === unit.ID || (unit.sceneMoment_id && item.sceneMoment_id === unit.sceneMoment_id))
+    const relatedKeyframes = keyframes.filter((item) => item.content_unit_id === unit.ID || (unit.scene_moment_id && item.scene_moment_id === unit.scene_moment_id))
     const relatedStoryboardLines = storyboardLines.filter((item) => (
-      (unit.sceneMoment_id && item.sceneMoment_id === unit.sceneMoment_id) ||
+      (unit.scene_moment_id && item.scene_moment_id === unit.scene_moment_id) ||
       (unit.segment_id && item.segment_id === unit.segment_id)
     ))
     const missingAssets = relatedAssetSlots.filter((item) => ['missing', 'blocked'].includes(String(item.status ?? '')))
@@ -249,6 +260,10 @@ export default function ContentsPage() {
     return unitViewModels.filter((item) => {
       const status = String(item.unit.status ?? 'draft')
       const matchesKind = kindFilter === 'all' || item.unit.kind === kindFilter
+      const matchesSegment = !segmentFilterId || item.unit.segment_id === segmentFilterId || item.section?.ID === segmentFilterId
+      const matchesSceneMoment = !sceneMomentFilterId || item.unit.scene_moment_id === sceneMomentFilterId
+      const matchesReference = !referenceFilterId || item.references.some((reference) => reference.ID === referenceFilterId)
+      const matchesAssetSlot = !assetSlotFilterId || item.assetSlots.some((slot) => slot.ID === assetSlotFilterId)
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'ready' && item.readiness >= 70 && item.missingAssets.length === 0) ||
@@ -264,9 +279,9 @@ export default function ContentsPage() {
         item.references.map((ref) => ref.name).join(' '),
         item.assetSlots.map((slot) => slot.name).join(' '),
       ].filter(Boolean).join(' ').toLowerCase()
-      return matchesKind && matchesStatus && (!q || haystack.includes(q))
+      return matchesKind && matchesSegment && matchesSceneMoment && matchesReference && matchesAssetSlot && matchesStatus && (!q || haystack.includes(q))
     })
-  }, [kindFilter, query, statusFilter, unitViewModels])
+  }, [assetSlotFilterId, kindFilter, query, referenceFilterId, sceneMomentFilterId, segmentFilterId, statusFilter, unitViewModels])
 
   const selected = useMemo(() => {
     if (selectedId) {
@@ -294,6 +309,10 @@ export default function ContentsPage() {
     referencesQuery.refetch()
     usagesQuery.refetch()
     assetSlotsQuery.refetch()
+  }
+
+  function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
+    setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
   }
 
   return (
@@ -366,7 +385,7 @@ export default function ContentsPage() {
                     <button
                       key={kind}
                       type="button"
-                      onClick={() => setKindFilter(kind)}
+                      onClick={() => setFilter({ kind })}
                       className={cn(
                         'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition-colors',
                         active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -388,23 +407,48 @@ export default function ContentsPage() {
                   <p className="text-sm font-semibold text-foreground">内容单元清单</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">每一项都是可被生成工作台执行、复核和锁定的生产颗粒。</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative w-64">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                    <Input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="搜索标题、提示词、资料或素材"
-                      className="h-8 pl-8 text-xs"
-                    />
-                  </div>
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="ms-input h-8 w-28 text-xs">
-                    <option value="all">全部</option>
-                    <option value="ready">可生成</option>
-                    <option value="attention">待补齐</option>
-                    <option value="locked">已锁定</option>
-                  </select>
-                </div>
+              </div>
+
+              <div className="border-b border-border p-4">
+                <ContentFilterBar
+                  query={query}
+                  onQueryChange={(value) => setFilter({ q: value })}
+                  queryPlaceholder="搜索标题、提示词、资料或素材"
+                  filters={[
+                    {
+                      id: 'status',
+                      label: '状态',
+                      value: statusFilter,
+                      onChange: (value) => setFilter({ status: value }),
+                      options: [
+                        { value: 'all', label: '全部', count: unitViewModels.length },
+                        { value: 'ready', label: '可生成', count: readyCount },
+                        { value: 'attention', label: '待补齐', count: attentionCount },
+                        { value: 'locked', label: '已锁定', count: lockedCount },
+                      ],
+                    },
+                    {
+                      id: 'kind',
+                      label: '类型',
+                      value: kindFilter,
+                      onChange: (value) => setFilter({ kind: value }),
+                      options: kindOptions.map((kind) => ({
+                        value: kind,
+                        label: kind === 'all' ? '全部类型' : kindLabel(kind),
+                        count: kind === 'all' ? unitViewModels.length : unitViewModels.filter((item) => item.unit.kind === kind).length,
+                      })),
+                    },
+                  ]}
+                  chips={[
+                    segmentFilterId ? { id: 'segment', label: `片段 #${segmentFilterId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
+                    sceneMomentFilterId ? { id: 'scene', label: `情节 #${sceneMomentFilterId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
+                    selectedId ? { id: 'content', label: `内容 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
+                    referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
+                    assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
+                  ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
+                  resultCount={filteredUnits.length}
+                  totalCount={unitViewModels.length}
+                />
               </div>
 
               {isLoading ? (
@@ -418,7 +462,7 @@ export default function ContentsPage() {
                       key={item.unit.ID}
                       item={item}
                       selected={selected?.unit.ID === item.unit.ID}
-                      onSelect={() => setSelectedId(item.unit.ID)}
+                      onSelect={() => setFilter({ content_unit_id: item.unit.ID, segment_id: item.unit.segment_id ?? null, scene_moment_id: item.unit.scene_moment_id ?? null })}
                     />
                   ))}
                 </div>
@@ -434,10 +478,10 @@ export default function ContentsPage() {
                 <span className="text-xs text-muted-foreground">展示所选内容单元的上游来源和下游落点</span>
               </div>
               <div className="grid grid-cols-5 gap-3 p-4">
-                <PipelineTile icon={Route} label="情节上下文" value={selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定'} detail={selected?.sceneMoment?.description || selected?.sceneMoment?.action_text || '需要绑定情节'} />
+                <PipelineTile icon={Route} label="情节上下文" value={selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定'} detail={selected?.sceneMoment?.description || selected?.sceneMoment?.action_text || '需要绑定情节'} to={selected?.sceneMoment ? `/scene-moments${makeContentFilterSearch({ scene_moment_id: selected.sceneMoment.ID })}` : undefined} />
                 <PipelineTile icon={Clapperboard} label="分镜行" value={selected?.storyboardLines.length ?? 0} detail="内容单元的叙事来源" />
-                <PipelineTile icon={Sparkles} label="创作资料" value={selected?.references.length ?? 0} detail="连续性和约束" />
-                <PipelineTile icon={PackageCheck} label="素材位" value={selected?.assetSlots.length ?? 0} detail={`${selected?.missingAssets.length ?? 0} 个待补齐`} />
+                <PipelineTile icon={Sparkles} label="创作资料" value={selected?.references.length ?? 0} detail="连续性和约束" to={selected?.references[0] ? `/creative-references${makeContentFilterSearch({ reference_id: selected.references[0].ID })}` : undefined} />
+                <PipelineTile icon={PackageCheck} label="素材位" value={selected?.assetSlots.length ?? 0} detail={`${selected?.missingAssets.length ?? 0} 个待补齐`} to={selected ? `/assets${makeContentFilterSearch({ content_unit_id: selected.unit.ID })}` : undefined} />
                 <PipelineTile icon={Play} label="执行入口" value={selected ? `${selected.readiness}%` : '-'} detail="进入生成工作台" />
               </div>
             </section>
@@ -636,9 +680,9 @@ function GateRow({ icon: Icon, title, detail }: { icon: LucideIcon; title: strin
   )
 }
 
-function PipelineTile({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string | number; detail: string }) {
-  return (
-    <div className="relative rounded-md border border-border bg-background p-3">
+function PipelineTile({ icon: Icon, label, value, detail, to }: { icon: LucideIcon; label: string; value: string | number; detail: string; to?: string }) {
+  const content = (
+    <>
       <ArrowRight className="absolute -right-5 top-1/2 hidden -translate-y-1/2 text-muted-foreground last:hidden md:block" size={16} />
       <div className="flex items-center gap-2">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -650,6 +694,20 @@ function PipelineTile({ icon: Icon, label, value, detail }: { icon: LucideIcon; 
         </div>
       </div>
       <p className="mt-3 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+    </>
+  )
+
+  if (to) {
+    return (
+      <Link to={to} className="relative rounded-md border border-border bg-background p-3 transition-colors hover:border-primary/40">
+        {content}
+      </Link>
+    )
+  }
+
+  return (
+    <div className="relative rounded-md border border-border bg-background p-3">
+      {content}
     </div>
   )
 }

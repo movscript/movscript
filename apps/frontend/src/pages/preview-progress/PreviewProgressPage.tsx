@@ -43,7 +43,7 @@ interface PreviewProgressRecord {
   savedAt: string
   summary: string
   stats: {
-    sections: number
+    segments: number
     storyboardRows: number
     keyframes: number
     timelineItems: number
@@ -203,7 +203,7 @@ export default function PreviewProgressPage() {
                     </div>
                   </div>
                   <div className="mt-5 grid gap-3 md:grid-cols-4">
-                    <StatCard icon={Layers} label="片段" value={selectedRecord.stats.sections} />
+                    <StatCard icon={Layers} label="片段" value={selectedRecord.stats.segments} />
                     <StatCard icon={Route} label="时间线" value={selectedRecord.stats.timelineItems} />
                     <StatCard icon={Sparkles} label="关键帧" value={`${selectedRecord.stats.acceptedKeyframes}/${selectedRecord.stats.keyframes}`} />
                     <StatCard icon={PackageCheck} label="素材缺口" value={selectedRecord.stats.assetGaps} />
@@ -258,7 +258,7 @@ export default function PreviewProgressPage() {
               <div className="space-y-2 p-4">
                 {selectedRecord ? (
                   <>
-                    <GateItem label="结构已解析" done={selectedRecord.stats.sections > 0} />
+                    <GateItem label="结构已解析" done={selectedRecord.stats.segments > 0} />
                     <GateItem label="预演时间线" done={selectedRecord.stats.timelineItems > 0} />
                     <GateItem label="关键帧已确认" done={selectedRecord.stats.acceptedKeyframes > 0 || selectedRecord.stats.keyframes === 0} />
                     <GateItem label="素材缺口可控" done={selectedRecord.stats.assetGaps === 0 || selectedRecord.stats.resolvedAssetGaps > 0} />
@@ -312,7 +312,7 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
   const draft = response.draft
   const analysis = draft.analysis_candidates
   const preview = draft.preview_candidates
-  const sections = analysis?.sections.length ?? 0
+  const segments = analysis?.segments.length ?? 0
   const storyboardRows = draft.storyboard_rows.length
   const keyframes = preview?.keyframe_candidates.length ?? 0
   const timelineItems = preview?.preview_timeline.length || draft.preview_timeline.length
@@ -341,16 +341,16 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
     {
       id: 'analysis',
       title: '结构解析',
-      detail: sections > 0 ? `已生成 ${sections} 个片段和 ${analysis?.storyboard_suggestions.length ?? 0} 条分镜建议。` : '等待解析片段、情节和分镜建议。',
-      status: sections > 0 ? 'done' : 'active',
-      progress: sections > 0 ? 100 : 35,
+      detail: segments > 0 ? `已生成 ${segments} 个片段和 ${analysis?.storyboard_suggestions.length ?? 0} 条分镜建议。` : '等待解析片段、情节和分镜建议。',
+      status: segments > 0 ? 'done' : 'active',
+      progress: segments > 0 ? 100 : 35,
     },
     {
       id: 'preview',
       title: '预演候选生成',
       detail: timelineItems > 0 ? `已生成 ${timelineItems} 个时间线片段和 ${keyframes} 个关键帧候选。` : '等待生成可播放的预演时间线。',
-      status: timelineItems > 0 ? 'done' : sections > 0 ? 'active' : 'waiting',
-      progress: timelineItems > 0 ? 100 : sections > 0 ? 55 : 0,
+      status: timelineItems > 0 ? 'done' : segments > 0 ? 'active' : 'waiting',
+      progress: timelineItems > 0 ? 100 : segments > 0 ? 55 : 0,
     },
     {
       id: 'review',
@@ -369,7 +369,7 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
   ]
 
   const progress = Math.round(steps.reduce((sum, step) => sum + step.progress, 0) / steps.length)
-  const nextActions = response.next_actions.length > 0 ? response.next_actions : deriveNextActions({ sections, timelineItems, keyframes, acceptedKeyframes, assetGaps, resolvedAssetGaps, confirmed })
+  const nextActions = response.next_actions.length > 0 ? response.next_actions : deriveNextActions({ segments, timelineItems, keyframes, acceptedKeyframes, assetGaps, resolvedAssetGaps, confirmed })
 
   return {
     id: response.draft_id,
@@ -382,7 +382,7 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
     savedAt: response.saved_at,
     summary: confirmed ? '这条预演已经确认，可作为后续内容生产和交付门禁的来源。' : '这条预演仍处在确认流程中，需要继续处理结构、候选、素材缺口或最终确认。',
     stats: {
-      sections,
+      segments,
       storyboardRows,
       keyframes,
       timelineItems,
@@ -397,7 +397,7 @@ function mapDraftToRecord(response: SaveProjectPreviewDraftResponse): PreviewPro
 }
 
 function deriveNextActions(input: {
-  sections: number
+  segments: number
   timelineItems: number
   keyframes: number
   acceptedKeyframes: number
@@ -406,7 +406,7 @@ function deriveNextActions(input: {
   confirmed: boolean
 }) {
   if (input.confirmed) return ['进入内容生产，基于已确认预演拆分生产任务。']
-  if (input.sections === 0) return ['返回制作编排，先解析剧本结构。']
+  if (input.segments === 0) return ['返回制作编排，先解析剧本结构。']
   if (input.timelineItems === 0) return ['生成预演时间线和关键帧候选。']
   if (input.keyframes > 0 && input.acceptedKeyframes === 0) return ['在项目预演工作台确认关键帧候选。']
   if (input.assetGaps > 0 && input.resolvedAssetGaps === 0) return ['补齐或接受高优先素材缺口。']

@@ -90,31 +90,31 @@ type DraftPayloadResponse struct {
 }
 
 type AnalyzeRequest struct {
-	DraftID          string                    `json:"draft_id"`
-	SourceText       string                    `json:"source_text"`
-	StoryboardRows   []StoryboardRow           `json:"storyboard_rows"`
-	GeneratedAt      string                    `json:"generated_at"`
-	Sections         []SegmentResult `json:"sections"`
-	ConfirmQuestions []string                  `json:"confirm_questions"`
-	Suggestions      []StoryboardSuggestion    `json:"storyboard_suggestions"`
-	Status           string                    `json:"status"`
+	DraftID          string                 `json:"draft_id"`
+	SourceText       string                 `json:"source_text"`
+	StoryboardRows   []StoryboardRow        `json:"storyboard_rows"`
+	GeneratedAt      string                 `json:"generated_at"`
+	Segments         []SegmentResult        `json:"segments"`
+	ConfirmQuestions []string               `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
+	Status           string                 `json:"status"`
 }
 
 type AnalyzeResponse struct {
-	DraftID          string                    `json:"draft_id"`
-	GeneratedAt      string                    `json:"generated_at"`
-	Sections         []SegmentResult `json:"sections"`
-	ConfirmQuestions []string                  `json:"confirm_questions"`
-	Suggestions      []StoryboardSuggestion    `json:"storyboard_suggestions"`
-	Status           string                    `json:"status"`
+	DraftID          string                 `json:"draft_id"`
+	GeneratedAt      string                 `json:"generated_at"`
+	Segments         []SegmentResult        `json:"segments"`
+	ConfirmQuestions []string               `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
+	Status           string                 `json:"status"`
 }
 
 type AnalysisCandidates struct {
-	GeneratedAt      string                    `json:"generated_at"`
-	Sections         []SegmentResult `json:"sections"`
-	ConfirmQuestions []string                  `json:"confirm_questions"`
-	Suggestions      []StoryboardSuggestion    `json:"storyboard_suggestions"`
-	Status           string                    `json:"status"`
+	GeneratedAt      string                 `json:"generated_at"`
+	Segments         []SegmentResult        `json:"segments"`
+	ConfirmQuestions []string               `json:"confirm_questions"`
+	Suggestions      []StoryboardSuggestion `json:"storyboard_suggestions"`
+	Status           string                 `json:"status"`
 }
 
 type SegmentResult struct {
@@ -381,20 +381,20 @@ func (s *Service) AnalyzeWithContext(ctx context.Context, projectID uint, req An
 	if req.DraftID == "" {
 		return AnalyzeResponse{}, fmt.Errorf("draft id is required")
 	}
-	if len(req.Sections) == 0 && len(req.Suggestions) == 0 {
+	if len(req.Segments) == 0 && len(req.Suggestions) == 0 {
 		return AnalyzeResponse{}, fmt.Errorf("analysis candidates are required")
 	}
 
-	sections := normalizeAnalysisSections(req.Sections)
+	segments := normalizeAnalysisSegments(req.Segments)
 	suggestions := normalizeStoryboardSuggestions(req.Suggestions)
-	questions := normalizeConfirmQuestions(req.ConfirmQuestions, sections)
+	questions := normalizeConfirmQuestions(req.ConfirmQuestions, segments)
 	generatedAt := fallback(req.GeneratedAt, s.now().Format(time.RFC3339))
 	status := fallback(req.Status, "succeeded")
 
 	resp := AnalyzeResponse{
 		DraftID:          req.DraftID,
 		GeneratedAt:      generatedAt,
-		Sections:         sections,
+		Segments:         segments,
 		ConfirmQuestions: questions,
 		Suggestions:      suggestions,
 		Status:           status,
@@ -698,7 +698,7 @@ func (s *Service) saveAnalysisCandidates(ctx context.Context, projectID uint, re
 	return s.updateDraftSnapshot(ctx, projectID, resp.DraftID, func(draft *DraftPayloadResponse) {
 		draft.AnalysisCandidates = &AnalysisCandidates{
 			GeneratedAt:      resp.GeneratedAt,
-			Sections:         resp.Sections,
+			Segments:         resp.Segments,
 			ConfirmQuestions: resp.ConfirmQuestions,
 			Suggestions:      resp.Suggestions,
 			Status:           resp.Status,
@@ -835,26 +835,26 @@ func normalizeRows(rows []StoryboardRow) []StoryboardRow {
 	return out
 }
 
-func normalizeAnalysisSections(sections []SegmentResult) []SegmentResult {
-	out := make([]SegmentResult, 0, len(sections))
-	for i, section := range sections {
+func normalizeAnalysisSegments(segments []SegmentResult) []SegmentResult {
+	out := make([]SegmentResult, 0, len(segments))
+	for i, segment := range segments {
 		order := i + 1
-		if section.Order > 0 {
-			order = section.Order
+		if segment.Order > 0 {
+			order = segment.Order
 		}
-		section.ClientID = strings.TrimSpace(section.ClientID)
-		section.Order = order
-		section.Title = strings.TrimSpace(section.Title)
-		section.Summary = strings.TrimSpace(section.Summary)
-		section.SourceRange = strings.TrimSpace(section.SourceRange)
-		section.ConfirmQuestion = strings.TrimSpace(section.ConfirmQuestion)
-		out = append(out, section)
+		segment.ClientID = strings.TrimSpace(segment.ClientID)
+		segment.Order = order
+		segment.Title = strings.TrimSpace(segment.Title)
+		segment.Summary = strings.TrimSpace(segment.Summary)
+		segment.SourceRange = strings.TrimSpace(segment.SourceRange)
+		segment.ConfirmQuestion = strings.TrimSpace(segment.ConfirmQuestion)
+		out = append(out, segment)
 	}
 	return out
 }
 
-func normalizeConfirmQuestions(questions []string, sections []SegmentResult) []string {
-	out := make([]string, 0, len(questions)+len(sections))
+func normalizeConfirmQuestions(questions []string, segments []SegmentResult) []string {
+	out := make([]string, 0, len(questions)+len(segments))
 	seen := map[string]bool{}
 	for _, question := range questions {
 		question = strings.TrimSpace(question)
@@ -864,8 +864,8 @@ func normalizeConfirmQuestions(questions []string, sections []SegmentResult) []s
 		seen[question] = true
 		out = append(out, question)
 	}
-	for _, section := range sections {
-		question := strings.TrimSpace(section.ConfirmQuestion)
+	for _, segment := range segments {
+		question := strings.TrimSpace(segment.ConfirmQuestion)
 		if question == "" || seen[question] {
 			continue
 		}

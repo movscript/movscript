@@ -52,7 +52,7 @@ test('production runtime executes GenerateKeyframeCandidates from storyboard row
   assert.equal(run.warnings.includes('V2 fallback disabled'), true)
 })
 
-test('production runtime executes ExtractSceneMoments from production segments', async () => {
+test('production runtime executes ExtractSceneMoments from segments', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
@@ -62,7 +62,7 @@ test('production runtime executes ExtractSceneMoments from production segments',
     inputContext: {
       segments: [
         {
-          client_id: 'section-1',
+          client_id: 'segment-1',
           order: 1,
           title: '夜晚仓库对峙',
           summary: '主角在仓库里发现交易线索，并与对手短暂对峙。',
@@ -77,9 +77,9 @@ test('production runtime executes ExtractSceneMoments from production segments',
   assert.equal(run.actionType, 'ExtractSceneMoments')
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 1)
-  assert.equal(run.candidates[0].type, 'sceneMoment')
+  assert.equal(run.candidates[0].type, 'scene_moment')
   assert.equal(run.candidates[0].status, 'candidate')
-  assert.equal(run.candidates[0].payload.client_id, 'sceneMoment-1')
+  assert.equal(run.candidates[0].payload.client_id, 'scene-moment-1')
   assert.equal(run.candidates[0].payload.order, 1)
   assert.equal(run.candidates[0].payload.title, '夜晚仓库对峙')
   assert.equal(run.candidates[0].payload.summary, '主角在仓库里发现交易线索，并与对手短暂对峙。')
@@ -90,7 +90,7 @@ test('production runtime executes ExtractSceneMoments from production segments',
   assert.equal(runtime.getCandidate(run.candidates[0].id)?.id, run.candidates[0].id)
 })
 
-test('production runtime extracts sceneMoments from storyboard rows or source text fallback', async () => {
+test('production runtime extracts SceneMoments from storyboard rows or source text fallback', async () => {
   const runtime = new ProductionRuntime()
 
   const storyboardRun = await runtime.createAction({
@@ -119,14 +119,14 @@ test('production runtime extracts sceneMoments from storyboard rows or source te
 
   assert.equal(storyboardRun.status, 'waiting_approval')
   assert.equal(storyboardRun.candidates.length, 1)
-  assert.equal(storyboardRun.candidates[0].type, 'sceneMoment')
+  assert.equal(storyboardRun.candidates[0].type, 'scene_moment')
   assert.equal(storyboardRun.candidates[0].payload.title, '雨中告别')
   assert.equal(storyboardRun.candidates[0].payload.location, '车站外')
   assert.equal(storyboardRun.candidates[0].payload.time_of_day, '清晨')
   assert.deepEqual(storyboardRun.candidates[0].payload.characters, ['主角', '对手'])
   assert.equal(sourceTextRun.status, 'waiting_approval')
   assert.equal(sourceTextRun.candidates.length, 2)
-  assert.equal(sourceTextRun.candidates[0].type, 'sceneMoment')
+  assert.equal(sourceTextRun.candidates[0].type, 'scene_moment')
   assert.equal(sourceTextRun.candidates[0].payload.title, '第一场')
   assert.equal(sourceTextRun.candidates[0].payload.confirm_question, '是否采用这个情节候选？')
 })
@@ -145,7 +145,7 @@ test('production runtime fails ExtractSceneMoments without usable input', async 
   assert.equal(run.candidates.length, 0)
 })
 
-test('production runtime sceneMoment apply preview maps to V2 data operation but remains gated', async () => {
+test('production runtime scene moment apply preview maps to V2 data operation but remains gated', async () => {
   const runtime = new ProductionRuntime()
   const run = await runtime.createAction({
     actionType: 'ExtractSceneMoments',
@@ -153,7 +153,7 @@ test('production runtime sceneMoment apply preview maps to V2 data operation but
     inputContext: {
       segments: [
         {
-          client_id: 'section-1',
+          client_id: 'segment-1',
           title: '夜晚仓库对峙',
           summary: '主角在仓库里发现交易线索，并与对手短暂对峙。',
         },
@@ -176,7 +176,7 @@ test('production runtime sceneMoment apply preview maps to V2 data operation but
   assert.equal(acceptedPreview.requiredContext.includes('targetObject'), true)
 })
 
-test('production runtime executes GenerateStoryboardScript from production segments and sceneMoments', async () => {
+test('production runtime executes GenerateStoryboardScript from Segments and SceneMoments', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
@@ -187,22 +187,22 @@ test('production runtime executes GenerateStoryboardScript from production segme
       duration_target: 20,
       segments: [
         {
-          client_id: 'section-1',
+          client_id: 'segment-1',
           order: 1,
           title: '夜晚仓库对峙',
           summary: '主角在仓库里发现交易线索，并与对手短暂对峙。',
         },
         {
-          client_id: 'section-2',
+          client_id: 'segment-2',
           order: 2,
           title: '天台追问',
           summary: '主角追上对手，逼问真正的交货地点。',
         },
       ],
-      sceneMoments: [
+      scene_moments: [
         {
-          client_id: 'sceneMoment-1',
-          source_segment_id: 'section-1',
+          client_id: 'scene-moment-1',
+          source_segment_id: 'segment-1',
           order: 1,
           title: '仓库交易',
           summary: '仓库里藏着关键证据。',
@@ -210,8 +210,8 @@ test('production runtime executes GenerateStoryboardScript from production segme
           time_of_day: '夜晚',
         },
         {
-          client_id: 'sceneMoment-2',
-          source_segment_id: 'section-2',
+          client_id: 'scene-moment-2',
+          source_segment_id: 'segment-2',
           order: 2,
           title: '天台逼问',
           summary: '主角在天台逼问对手。',
@@ -228,8 +228,8 @@ test('production runtime executes GenerateStoryboardScript from production segme
   assert.equal(run.candidates[0].type, 'storyboard_script')
   assert.equal(run.candidates[0].status, 'candidate')
   assert.equal(run.candidates[0].payload.client_id, 'storyboard-script-1')
-  assert.equal(run.candidates[0].payload.source_segment_id, 'section-1')
-  assert.equal(run.candidates[0].payload.sceneMoment_id, 'sceneMoment-1')
+  assert.equal(run.candidates[0].payload.source_segment_id, 'segment-1')
+  assert.equal(run.candidates[0].payload.scene_moment_id, 'scene-moment-1')
   assert.equal(run.candidates[0].payload.duration_seconds, 10)
   assert.equal(run.candidates[0].payload.status, '待确认')
   assert.equal(run.candidates[0].payload.adoption_intent, 'append_storyboard_row')
@@ -237,7 +237,7 @@ test('production runtime executes GenerateStoryboardScript from production segme
   assert.equal(run.candidates[0].payload.confirm_question, '是否采用这个分镜脚本候选？')
 })
 
-test('production runtime executes GenerateStoryboardScript from production segments only', async () => {
+test('production runtime executes GenerateStoryboardScript from segments only', async () => {
   const runtime = new ProductionRuntime()
 
   const run = await runtime.createAction({
@@ -246,7 +246,7 @@ test('production runtime executes GenerateStoryboardScript from production segme
     inputContext: {
       segments: [
         {
-          id: 'section-a',
+          id: 'segment-a',
           order: 1,
           title: '开场',
           summary: '主角进入车站大厅寻找线索。',
@@ -259,7 +259,7 @@ test('production runtime executes GenerateStoryboardScript from production segme
   assert.equal(run.status, 'waiting_approval')
   assert.equal(run.candidates.length, 1)
   assert.equal(run.candidates[0].type, 'storyboard_script')
-  assert.equal(run.candidates[0].payload.source_segment_id, 'section-a')
+  assert.equal(run.candidates[0].payload.source_segment_id, 'segment-a')
   assert.equal(run.candidates[0].payload.title, '开场')
   assert.equal(run.candidates[0].payload.body, '主角进入车站大厅寻找线索。')
   assert.equal(run.candidates[0].payload.duration_seconds, 7)
@@ -275,7 +275,7 @@ test('production runtime uses existing storyboard rows as source context without
     inputContext: {
       segments: [
         {
-          client_id: 'section-1',
+          client_id: 'segment-1',
           order: 1,
           title: '雨中告别',
           summary: '两人在车站外告别，雨水打湿海报。',
@@ -285,7 +285,7 @@ test('production runtime uses existing storyboard rows as source context without
         {
           client_id: 'row-existing-1',
           order: 1,
-          source_segment_id: 'section-1',
+          source_segment_id: 'segment-1',
           title: '旧分镜行',
           body: '旧版本分镜内容。',
           status: '已确认',
@@ -329,7 +329,7 @@ test('production runtime storyboard script apply preview maps to V2 data operati
     inputContext: {
       segments: [
         {
-          client_id: 'section-1',
+          client_id: 'segment-1',
           title: '夜晚仓库对峙',
           summary: '主角在仓库里发现交易线索，并与对手短暂对峙。',
         },
@@ -395,7 +395,7 @@ test('production runtime persists rejected candidate lifecycle across runtime re
 
   const rejected = runtime.rejectCandidate({
     candidateId: run.candidates[0].id,
-    reason: 'section split is too coarse',
+    reason: 'segment split is too coarse',
     actor: 'reviewer',
   })
   const rebuilt = new ProductionRuntime({ store: new FileProductionStore(filePath) })
@@ -403,7 +403,7 @@ test('production runtime persists rejected candidate lifecycle across runtime re
   const restoredRun = rebuilt.getRun(run.id)
 
   assert.equal(restoredCandidate?.status, 'rejected')
-  assert.equal(restoredCandidate?.statusReason, 'section split is too coarse')
+  assert.equal(restoredCandidate?.statusReason, 'segment split is too coarse')
   assert.equal(restoredCandidate?.lifecycle?.at(-1)?.type, 'rejected')
   assert.equal(restoredRun?.candidates[0].status, 'rejected')
 })
@@ -472,7 +472,7 @@ test('production runtime apply preview blocks accepted candidates before V2 appl
 
   const accepted = runtime.acceptCandidate({
     candidateId: run.candidates[0].id,
-    reason: 'section looks correct',
+    reason: 'segment looks correct',
   })
   const preview = runtime.previewCandidateApply(accepted.id)
 

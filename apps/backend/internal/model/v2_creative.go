@@ -24,13 +24,13 @@ type CreativeReference struct {
 
 // CreativeReferenceState stores a scoped temporary expression of a creative
 // reference. It should exist only when the reference changes across script,
-// section, sceneMoment, content unit, or time period.
+// section, scene_moment, content unit, or time period.
 type CreativeReferenceState struct {
 	gorm.Model
 	ProjectID           uint               `gorm:"not null;index" json:"project_id"`
 	CreativeReferenceID uint               `gorm:"not null;index" json:"creative_reference_id"`
 	CreativeReference   *CreativeReference `gorm:"foreignKey:CreativeReferenceID" json:"creative_reference,omitempty"`
-	ScopeType           string             `gorm:"not null;index" json:"scope_type"` // script|segment|sceneMoment|content_unit|time_period
+	ScopeType           string             `gorm:"not null;index" json:"scope_type"` // script|segment|scene_moment|content_unit|time_period
 	ScopeID             *uint              `gorm:"index" json:"scope_id,omitempty"`
 	Name                string             `gorm:"not null" json:"name"`
 	Description         string             `gorm:"type:text" json:"description"`
@@ -48,7 +48,7 @@ type CreativeReferenceState struct {
 type CreativeReferenceUsage struct {
 	gorm.Model
 	ProjectID                uint                    `gorm:"not null;index" json:"project_id"`
-	OwnerType                string                  `gorm:"not null;index:idx_creative_usage_owner" json:"owner_type"` // segment|sceneMoment|content_unit|keyframe
+	OwnerType                string                  `gorm:"not null;index:idx_creative_usage_owner" json:"owner_type"` // segment|scene_moment|content_unit|keyframe
 	OwnerID                  uint                    `gorm:"not null;index:idx_creative_usage_owner" json:"owner_id"`
 	CreativeReferenceID      uint                    `gorm:"not null;index" json:"creative_reference_id"`
 	CreativeReference        *CreativeReference      `gorm:"foreignKey:CreativeReferenceID" json:"creative_reference,omitempty"`
@@ -69,7 +69,7 @@ type CreativeRelationship struct {
 	SourceCreativeReference   *CreativeReference `gorm:"foreignKey:SourceCreativeReferenceID" json:"source_creative_reference,omitempty"`
 	TargetCreativeReferenceID uint               `gorm:"not null;index" json:"target_creative_reference_id"`
 	TargetCreativeReference   *CreativeReference `gorm:"foreignKey:TargetCreativeReferenceID" json:"target_creative_reference,omitempty"`
-	ScopeType                 string             `gorm:"index" json:"scope_type"` // project|script|segment|sceneMoment|content_unit
+	ScopeType                 string             `gorm:"index" json:"scope_type"` // project|script|segment|scene_moment|content_unit
 	ScopeID                   *uint              `gorm:"index" json:"scope_id,omitempty"`
 	Category                  string             `gorm:"not null;default:'relationship';index" json:"category"`
 	Type                      string             `json:"type"`

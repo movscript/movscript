@@ -23,7 +23,7 @@ type ScriptVersion struct {
 
 // Segment is the first V2 semantic cut of a script version. It is not a
 // scene synonym; it can represent a scene, montage, product beat, narration,
-// title card, transition, or any other meaningful production segment.
+// title card, transition, or any other meaningful segment.
 type Segment struct {
 	gorm.Model
 	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
@@ -47,23 +47,23 @@ type Segment struct {
 // locations, characters, and shots.
 type SceneMoment struct {
 	gorm.Model
-	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
-	SegmentID *uint          `gorm:"index" json:"segment_id,omitempty"`
-	Segment   *Segment `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
-	Order           int            `gorm:"not null;default:0;index" json:"order"`
-	Title           string         `json:"title"`
-	Description     string         `gorm:"type:text" json:"description"`
-	TimeText        string         `json:"time_text"`
-	LocationText    string         `json:"location_text"`
-	ConditionText   string         `gorm:"type:text" json:"condition_text"`
-	ActionText      string         `gorm:"type:text" json:"action_text"`
-	Mood            string         `json:"mood"`
-	Status          string         `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|ignored
-	MetadataJSON    string         `gorm:"type:text" json:"metadata_json"`
+	ProjectID     uint     `gorm:"not null;index" json:"project_id"`
+	SegmentID     *uint    `gorm:"index" json:"segment_id,omitempty"`
+	Segment       *Segment `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
+	Order         int      `gorm:"not null;default:0;index" json:"order"`
+	Title         string   `json:"title"`
+	Description   string   `gorm:"type:text" json:"description"`
+	TimeText      string   `json:"time_text"`
+	LocationText  string   `json:"location_text"`
+	ConditionText string   `gorm:"type:text" json:"condition_text"`
+	ActionText    string   `gorm:"type:text" json:"action_text"`
+	Mood          string   `json:"mood"`
+	Status        string   `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|ignored
+	MetadataJSON  string   `gorm:"type:text" json:"metadata_json"`
 }
 
 // StoryboardScript is the structured written plan that bridges confirmed
-// sceneMoments and content units.
+// SceneMoments and content units.
 type StoryboardScript struct {
 	gorm.Model
 	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
@@ -101,10 +101,10 @@ type StoryboardLine struct {
 	StoryboardScript    *StoryboardScript  `gorm:"foreignKey:StoryboardScriptID" json:"storyboard_script,omitempty"`
 	StoryboardVersionID *uint              `gorm:"index" json:"storyboard_version_id,omitempty"`
 	StoryboardVersion   *StoryboardVersion `gorm:"foreignKey:StoryboardVersionID" json:"storyboard_version,omitempty"`
-	SegmentID     *uint              `gorm:"index" json:"segment_id,omitempty"`
-	Segment       *Segment     `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
-	SceneMomentID         *uint              `gorm:"index" json:"sceneMoment_id,omitempty"`
-	SceneMoment           *SceneMoment         `gorm:"foreignKey:SceneMomentID" json:"sceneMoment,omitempty"`
+	SegmentID           *uint              `gorm:"index" json:"segment_id,omitempty"`
+	Segment             *Segment           `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
+	SceneMomentID       *uint              `gorm:"index" json:"scene_moment_id,omitempty"`
+	SceneMoment         *SceneMoment       `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
 	Order               int                `gorm:"not null;default:0;index" json:"order"`
 	Kind                string             `gorm:"not null;default:'beat';index" json:"kind"` // beat|shot|caption|narration|transition|note
 	Title               string             `json:"title"`
@@ -120,28 +120,28 @@ type StoryboardLine struct {
 // one kind of content unit.
 type ContentUnit struct {
 	gorm.Model
-	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
-	SegmentID *uint          `gorm:"index" json:"segment_id,omitempty"`
-	Segment   *Segment `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
-	SceneMomentID     *uint          `gorm:"index" json:"sceneMoment_id,omitempty"`
-	SceneMoment       *SceneMoment     `gorm:"foreignKey:SceneMomentID" json:"sceneMoment,omitempty"`
-	Kind            string         `gorm:"not null;default:'shot';index" json:"kind"` // shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat
-	Order           int            `gorm:"not null;default:0;index" json:"order"`
-	Title           string         `json:"title"`
-	Description     string         `gorm:"type:text" json:"description"`
-	Prompt          string         `gorm:"type:text" json:"prompt"`
-	DurationSec     float64        `json:"duration_sec"`
-	Status          string         `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|in_production|locked
-	MetadataJSON    string         `gorm:"type:text" json:"metadata_json"`
+	ProjectID     uint         `gorm:"not null;index" json:"project_id"`
+	SegmentID     *uint        `gorm:"index" json:"segment_id,omitempty"`
+	Segment       *Segment     `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
+	SceneMomentID *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
+	SceneMoment   *SceneMoment `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
+	Kind          string       `gorm:"not null;default:'shot';index" json:"kind"` // shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat
+	Order         int          `gorm:"not null;default:0;index" json:"order"`
+	Title         string       `json:"title"`
+	Description   string       `gorm:"type:text" json:"description"`
+	Prompt        string       `gorm:"type:text" json:"prompt"`
+	DurationSec   float64      `json:"duration_sec"`
+	Status        string       `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|in_production|locked
+	MetadataJSON  string       `gorm:"type:text" json:"metadata_json"`
 }
 
-// Keyframe is a visual anchor for a sceneMoment or content unit. In early V2 it
+// Keyframe is a visual anchor for a scene moment or content unit. In early V2 it
 // can power the whole preview timeline before final video segments exist.
 type Keyframe struct {
 	gorm.Model
 	ProjectID     uint         `gorm:"not null;index" json:"project_id"`
-	SceneMomentID   *uint        `gorm:"index" json:"sceneMoment_id,omitempty"`
-	SceneMoment     *SceneMoment   `gorm:"foreignKey:SceneMomentID" json:"sceneMoment,omitempty"`
+	SceneMomentID *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
+	SceneMoment   *SceneMoment `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
 	ContentUnitID *uint        `gorm:"index" json:"content_unit_id,omitempty"`
 	ContentUnit   *ContentUnit `gorm:"foreignKey:ContentUnitID" json:"content_unit,omitempty"`
 	ResourceID    *uint        `gorm:"index" json:"resource_id,omitempty"`
@@ -172,8 +172,8 @@ type PreviewTimelineItem struct {
 	ProjectID         uint             `gorm:"not null;index" json:"project_id"`
 	PreviewTimelineID uint             `gorm:"not null;index" json:"preview_timeline_id"`
 	PreviewTimeline   *PreviewTimeline `gorm:"foreignKey:PreviewTimelineID" json:"preview_timeline,omitempty"`
-	SegmentID   *uint            `gorm:"index" json:"segment_id,omitempty"`
-	SceneMomentID       *uint            `gorm:"index" json:"sceneMoment_id,omitempty"`
+	SegmentID         *uint            `gorm:"index" json:"segment_id,omitempty"`
+	SceneMomentID     *uint            `gorm:"index" json:"scene_moment_id,omitempty"`
 	ContentUnitID     *uint            `gorm:"index" json:"content_unit_id,omitempty"`
 	KeyframeID        *uint            `gorm:"index" json:"keyframe_id,omitempty"`
 	Kind              string           `gorm:"not null;default:'keyframe';index" json:"kind"` // keyframe|content_unit|gap|note

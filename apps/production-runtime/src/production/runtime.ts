@@ -372,7 +372,7 @@ function resolveV2DataOperation(candidate: ProductionCandidate): string | undefi
   switch (candidate.type) {
     case 'segment':
       return 'UpsertSegmentCandidates'
-    case 'sceneMoment':
+    case 'scene_moment':
       return 'UpsertSceneMomentCandidates'
     case 'storyboard_script':
       return 'UpsertStoryboardSuggestions'

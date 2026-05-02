@@ -122,7 +122,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       select('status', '状态', ['draft', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 script_version_id。'),
-    cfg('sceneMoments', 'sceneMoments', '情节', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
+    cfg('sceneMoments', 'scene-moments', '情节', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
       num('segment_id', 'Segment ID'),
       text('title', '标题', true),
       num('order', '顺序'),
@@ -157,7 +157,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       num('storyboard_script_id', 'StoryboardScript ID', true),
       num('storyboard_version_id', 'StoryboardVersion ID'),
       num('segment_id', 'Segment ID'),
-      num('sceneMoment_id', 'SceneMoment ID'),
+      num('scene_moment_id', 'SceneMoment ID'),
       num('order', '顺序'),
       select('kind', '类型', ['beat', 'shot', 'caption', 'narration', 'transition', 'note']),
       text('title', '标题'),
@@ -170,7 +170,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
     ], '创建时需要填写 storyboard_script_id。'),
     cfg('contentUnits', 'content-units', '内容单元', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
       num('segment_id', 'Segment ID'),
-      num('sceneMoment_id', 'SceneMoment ID'),
+      num('scene_moment_id', 'SceneMoment ID'),
       text('title', '标题', true),
       select('kind', '类型', ['shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']),
       num('order', '顺序'),
@@ -181,7 +181,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('keyframes', 'keyframes', '关键帧', '情节或内容单元的视觉锚点，用于驱动预演时间线。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
-      num('sceneMoment_id', 'SceneMoment ID'),
+      num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
       num('resource_id', 'Resource ID'),
       num('canvas_id', 'Canvas ID'),
@@ -214,7 +214,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
     ]),
     cfg('creativeReferenceStates', 'creative-reference-states', '资料状态', '创作资料在特定片段、情节或内容单元中的临时状态。', 'text-fuchsia-600', ['name', 'scope_type', 'status', 'emotion'], [
       num('creative_reference_id', 'CreativeReference ID', true),
-      select('scope_type', '作用范围', ['script', 'segment', 'sceneMoment', 'storyboard_line', 'content_unit', 'time_period'], true),
+      select('scope_type', '作用范围', ['script', 'segment', 'scene_moment', 'storyboard_line', 'content_unit', 'time_period'], true),
       num('scope_id', 'Scope ID'),
       text('name', '名称', true),
       area('description', '描述'),
@@ -227,7 +227,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 creative_reference_id。'),
     cfg('creativeReferenceUsages', 'creative-reference-usages', '资料使用', '记录结构对象使用哪一个创作资料及其状态。', 'text-fuchsia-600', ['owner_type', 'owner_id', 'role', 'status'], [
-      select('owner_type', '归属类型', ['segment', 'sceneMoment', 'storyboard_line', 'content_unit', 'keyframe'], true),
+      select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe'], true),
       num('owner_id', 'Owner ID', true),
       num('creative_reference_id', 'CreativeReference ID', true),
       num('creative_reference_state_id', 'CreativeReferenceState ID'),
@@ -241,7 +241,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
     cfg('creativeRelationships', 'creative-relationships', '资料关系', '创作资料之间的关系、约束、引用和冲突。', 'text-fuchsia-600', ['label', 'category', 'type', 'status'], [
       num('source_creative_reference_id', 'SourceCreativeReference ID', true),
       num('target_creative_reference_id', 'TargetCreativeReference ID', true),
-      select('scope_type', '作用范围', ['project', 'script', 'segment', 'sceneMoment', 'storyboard_line', 'content_unit']),
+      select('scope_type', '作用范围', ['project', 'script', 'segment', 'scene_moment', 'storyboard_line', 'content_unit']),
       num('scope_id', 'Scope ID'),
       select('category', '分类', ['relationship', 'continuity', 'conflict', 'constraint']),
       text('type', '类型'),
@@ -253,7 +253,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
     cfg('assetSlots', 'asset-slots', '素材位', '正式生产前需要补齐、候选或锁定的素材缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
-      select('owner_type', '归属类型', ['segment', 'sceneMoment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
+      select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
       num('owner_id', 'Owner ID'),
       num('creative_reference_id', 'CreativeReference ID'),
       num('creative_reference_state_id', 'CreativeReferenceState ID'),
@@ -277,10 +277,10 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('note', '备注'),
     ], '创建时需要填写 asset_slot_id 和 asset_id。'),
     cfg('candidateDecisions', 'candidate-decisions', '候选决策', '记录候选的采纳、拒绝、修改、延后或回滚决策。', 'text-amber-600', ['candidate_type', 'decision', 'status', 'source'], [
-      select('candidate_type', '候选类型', ['segment', 'sceneMoment', 'storyboard_line', 'keyframe', 'asset_slot_candidate', 'preview_timeline'], true),
+      select('candidate_type', '候选类型', ['segment', 'scene_moment', 'storyboard_line', 'keyframe', 'asset_slot_candidate', 'preview_timeline'], true),
       num('candidate_id', 'Candidate ID'),
       text('candidate_client_id', 'Candidate Client ID'),
-      select('target_type', '目标类型', ['segment', 'sceneMoment', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'preview_timeline', 'delivery_version']),
+      select('target_type', '目标类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'preview_timeline', 'delivery_version']),
       num('target_id', 'Target ID'),
       select('decision', '决策', ['accept', 'reject', 'revise', 'defer', 'rollback'], true),
       select('status', '状态', ['recorded', 'applied', 'superseded', 'failed']),
@@ -292,7 +292,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '可用 candidate_id 关联已落库候选，也可用 candidate_client_id 记录草稿或 runtime 候选。'),
     cfg('reviewEvents', 'review-events', '评审事件', '记录 V2 对象、候选和输出的评审事件流。', 'text-orange-600', ['subject_type', 'event_type', 'from_status', 'to_status'], [
-      select('subject_type', '对象类型', ['segment', 'sceneMoment', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'asset_slot_candidate', 'candidate_decision', 'work_item', 'delivery_version', 'canvas_output'], true),
+      select('subject_type', '对象类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'asset_slot_candidate', 'candidate_decision', 'work_item', 'delivery_version', 'canvas_output'], true),
       num('subject_id', 'Subject ID'),
       text('subject_client_id', 'Subject Client ID'),
       select('event_type', '事件类型', ['submitted', 'commented', 'approved', 'changes_requested', 'rejected', 'resolved', 'reopened', 'applied', 'rolled_back'], true),
@@ -305,7 +305,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录草稿或 runtime 对象。'),
     cfg('workItems', 'work-items', '制作任务', '执行、分配、审核和返工状态，不作为内容事实源。', 'text-orange-600', ['title', 'target_type', 'kind', 'status'], [
-      select('target_type', '目标类型', ['segment', 'sceneMoment', 'storyboard_line', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'asset', 'keyframe', 'delivery_version'], true),
+      select('target_type', '目标类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'asset', 'keyframe', 'delivery_version'], true),
       num('target_id', 'Target ID', true),
       text('title', '标题', true),
       select('kind', '任务类型', ['human', 'ai', 'hybrid', 'review', 'fix']),
@@ -353,7 +353,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       num('canvas_run_id', 'CanvasRun ID'),
       text('canvas_node_id', 'Canvas Node ID'),
       text('port_id', 'Port ID', true),
-      select('owner_type', '归属类型', ['script_version', 'segment', 'sceneMoment', 'storyboard_script', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'delivery_version'], true),
+      select('owner_type', '归属类型', ['script_version', 'segment', 'scene_moment', 'storyboard_script', 'storyboard_line', 'content_unit', 'keyframe', 'asset_slot', 'delivery_version'], true),
       num('owner_id', 'Owner ID', true),
       select('output_type', '输出类型', ['resource', 'field', 'candidate', 'note']),
       num('resource_id', 'Resource ID'),
@@ -405,7 +405,7 @@ function timelineFields(ownerKey: string, ownerLabel: string): V2EntityField[] {
     num('asset_id', 'Asset ID'),
     num('resource_id', 'Resource ID'),
     num('segment_id', 'Segment ID'),
-    num('sceneMoment_id', 'SceneMoment ID'),
+    num('scene_moment_id', 'SceneMoment ID'),
     num('keyframe_id', 'Keyframe ID'),
     select('kind', '类型', ['keyframe', 'content_unit', 'video', 'image', 'audio', 'caption', 'gap', 'note']),
     num('order', '顺序'),

@@ -669,7 +669,7 @@ function buildAreas(input: {
       count: input.sceneMomentCount,
       progress: input.previewConfirmed ? 82 : 48,
       status: input.previewConfirmed ? 'active' : 'waiting',
-      href: '/scenes',
+      href: '/scene-moments',
     },
     {
       key: 'references',
@@ -810,7 +810,7 @@ const fallbackProductions: ProductionRecord[] = [
     stats: { structures: 5, sceneMoments: 3, references: 8, assets: 11, contents: 5, finals: 2 },
     areas: [
       { key: 'structure', title: '制作结构', description: '结构已锁定', icon: GitBranch, count: 5, progress: 100, status: 'done', href: '/v2-entities' },
-      { key: 'sceneMoments', title: '情节', description: '情节已确认', icon: Route, count: 3, progress: 100, status: 'done', href: '/scenes' },
+      { key: 'sceneMoments', title: '情节', description: '情节已确认', icon: Route, count: 3, progress: 100, status: 'done', href: '/scene-moments' },
       { key: 'references', title: '创作资料', description: '资料已锁定', icon: Sparkles, count: 8, progress: 100, status: 'done', href: '/creative-references' },
       { key: 'assets', title: '素材需求', description: '素材已采用', icon: PackageCheck, count: 11, progress: 100, status: 'done', href: '/assets' },
       { key: 'content', title: '内容', description: '内容已锁定', icon: Film, count: 5, progress: 100, status: 'done', href: '/workbench/production' },

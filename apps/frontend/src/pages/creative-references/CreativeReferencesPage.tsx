@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowRight,
@@ -12,7 +13,6 @@ import {
   Image,
   Layers3,
   Plus,
-  Search,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react'
@@ -28,7 +28,8 @@ import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge } from '@movscript/ui'
 import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
+import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
+import { readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 
 type ReferenceKind = CreativeReferenceCardKind
 type ReferenceStatus = Extract<CreativeReferenceCardStatus, 'locked' | 'review' | 'missing'>
@@ -164,26 +165,43 @@ const sceneMomentRows = [
   { title: '手机屏幕推近', source: 'ContentUnit CU-02', refs: ['手机转账提醒', '冷雨低照度'], status: '待确认' },
 ]
 
+function normalizeReferenceKind(value: string): 'all' | ReferenceKind {
+  return referenceKinds.includes(value as 'all' | ReferenceKind) ? value as 'all' | ReferenceKind : 'all'
+}
+
+function normalizeReferenceStatus(value: string): 'all' | ReferenceStatus {
+  return ['locked', 'review', 'missing'].includes(value) ? value as ReferenceStatus : 'all'
+}
+
 export default function CreativeReferencesPage() {
   const project = useProjectStore((s) => s.current)
-  const [kind, setKind] = useState<'all' | ReferenceKind>('all')
-  const [selectedId, setSelectedId] = useState(references[0].id)
-  const [query, setQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const kind = normalizeReferenceKind(readStringParam(searchParams, 'kind', 'all'))
+  const status = normalizeReferenceStatus(readStringParam(searchParams, 'status', 'all'))
+  const referenceFilterId = readStringParam(searchParams, 'reference_id')
+  const selectedId = readStringParam(searchParams, 'selected', referenceFilterId || references[0].id)
+  const query = readStringParam(searchParams, 'q')
 
   const filteredReferences = useMemo(() => {
     const q = query.trim().toLowerCase()
     return references.filter((reference) => {
+      const matchesSelected = !referenceFilterId || reference.id === referenceFilterId || String(reference.id).replace('ref-', '') === referenceFilterId
       const matchesKind = kind === 'all' || reference.kind === kind
+      const matchesStatus = status === 'all' || reference.status === status
       const matchesQuery = !q || [reference.title, reference.subtitle, reference.summary, ...reference.visualNotes, ...reference.facts].some((item) => item.toLowerCase().includes(q))
-      return matchesKind && matchesQuery
+      return matchesSelected && matchesKind && matchesStatus && matchesQuery
     })
-  }, [kind, query])
+  }, [kind, query, referenceFilterId, status])
 
   const selected = references.find((reference) => reference.id === selectedId) ?? filteredReferences[0] ?? references[0]
   const lockedCount = references.filter((reference) => reference.status === 'locked').length
   const reviewCount = references.filter((reference) => reference.status === 'review').length
   const missingCount = references.filter((reference) => reference.status === 'missing').length
   const averageCoverage = Math.round(references.reduce((sum, reference) => sum + reference.coverage, 0) / references.length)
+
+  function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
+    setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
+  }
 
   return (
     <div className="h-full overflow-auto bg-background">
@@ -235,7 +253,7 @@ export default function CreativeReferencesPage() {
                     <button
                       key={item}
                       type="button"
-                      onClick={() => setKind(item)}
+                      onClick={() => setFilter({ kind: item })}
                       className={cn(
                         'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',
                         active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -275,15 +293,42 @@ export default function CreativeReferencesPage() {
                   <p className="text-sm font-semibold text-foreground">资料清单</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">以资料卡为中心管理事实、视觉状态、引用情节和资产覆盖。</p>
                 </div>
-                <div className="relative w-64">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                  <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="搜索资料、标签或事实"
-                    className="h-8 pl-8 text-xs"
-                  />
-                </div>
+              </div>
+
+              <div className="border-b border-border p-4">
+                <ContentFilterBar
+                  query={query}
+                  onQueryChange={(value) => setFilter({ q: value })}
+                  queryPlaceholder="搜索资料、标签或事实"
+                  filters={[
+                    {
+                      id: 'kind',
+                      label: '类型',
+                      value: kind,
+                      onChange: (value) => setFilter({ kind: value }),
+                      options: referenceKinds.map((item) => ({
+                        value: item,
+                        label: item === 'all' ? '全部资料' : creativeReferenceKindMeta[item].label,
+                        count: item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length,
+                      })),
+                    },
+                    {
+                      id: 'status',
+                      label: '状态',
+                      value: status,
+                      onChange: (value) => setFilter({ status: value }),
+                      options: [
+                        { value: 'all', label: '全部状态', count: references.length },
+                        { value: 'locked', label: '已锁定', count: lockedCount },
+                        { value: 'review', label: '待确认', count: reviewCount },
+                        { value: 'missing', label: '缺资料', count: missingCount },
+                      ],
+                    },
+                  ]}
+                  chips={referenceFilterId ? [{ id: 'reference', label: `资料 ${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) }] : []}
+                  resultCount={filteredReferences.length}
+                  totalCount={references.length}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3 p-4">
@@ -292,7 +337,7 @@ export default function CreativeReferencesPage() {
                     key={reference.id}
                     reference={reference}
                     selected={selected.id === reference.id}
-                    onSelect={() => setSelectedId(reference.id)}
+                    onSelect={() => setFilter({ selected: reference.id })}
                   />
                 ))}
               </div>

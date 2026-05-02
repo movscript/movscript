@@ -54,7 +54,7 @@ type ProjectPreviewItemStatus = 'ready' | 'review' | 'blocked'
 type ProjectPreviewTimelineItem = NonNullable<ProjectPreviewCandidateData['preview_timeline']>[number]
 type ProjectPreviewKeyframe = NonNullable<ProjectPreviewCandidateData['keyframe_candidates']>[number]
 type ProjectPreviewAssetGap = NonNullable<ProjectPreviewCandidateData['asset_gaps']>[number]
-type ProjectPreviewSection = NonNullable<ProjectPreviewAnalysisCandidates['sections']>[number]
+type ProjectPreviewSegment = NonNullable<ProjectPreviewAnalysisCandidates['segments']>[number]
 type ProjectPreviewTimelineLike = ProjectPreviewTimelineItem | (ProjectPreviewTimelineInput & {
   storyboard_row_client_id?: string
   keyframe_candidate_client_id?: string
@@ -101,9 +101,9 @@ interface CategoryScenario {
 const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   script: {
     queue: [
-      { id: 's3', title: '旧伞纸条滑落', subtitle: '第 3 节 · 建议拆成两个情节', status: 'review', priority: 'high', progress: 62 },
-      { id: 's2', title: '巷口对峙', subtitle: '第 2 节 · 人物动机待确认', status: 'review', priority: 'medium', progress: 74 },
-      { id: 's4', title: '顾言停步', subtitle: '第 4 节 · 低置信表达', status: 'blocked', priority: 'medium', progress: 35 },
+      { id: 's3', title: '旧伞纸条滑落', subtitle: '片段 3 · 建议拆成两个情节', status: 'review', priority: 'high', progress: 62 },
+      { id: 's2', title: '巷口对峙', subtitle: '片段 2 · 人物动机待确认', status: 'review', priority: 'medium', progress: 74 },
+      { id: 's4', title: '顾言停步', subtitle: '片段 4 · 低置信表达', status: 'blocked', priority: 'medium', progress: 35 },
     ],
     evidenceTitle: '剧本证据',
     evidence: [
@@ -438,7 +438,7 @@ function ProjectPreviewWorkspace() {
   const draft = draftResponse?.draft
   const analysis = draft?.analysis_candidates ?? null
   const preview = draft?.preview_candidates ?? null
-  const sections = analysis?.sections ?? []
+  const segments = analysis?.segments ?? []
   const timeline = useMemo(
     () => normalizeProjectPreviewTimeline(preview?.preview_timeline ?? draft?.preview_timeline ?? []),
     [draft?.preview_timeline, preview?.preview_timeline],
@@ -459,7 +459,7 @@ function ProjectPreviewWorkspace() {
     const blockingGaps = assetGaps.filter((item) => item.status !== 'resolved' && item.status !== 'rejected').length
     const confirmed = draft?.preview_status === 'ready_for_production' || Boolean(draft?.confirmed_at)
     const readinessItems = [
-      sections.length > 0,
+      segments.length > 0,
       storyboardRows.length > 0,
       timeline.length > 0,
       keyframes.length === 0 || acceptedKeyframes > 0,
@@ -473,7 +473,7 @@ function ProjectPreviewWorkspace() {
       confirmed,
       readiness: Math.round((readinessItems.filter(Boolean).length / readinessItems.length) * 100),
     }
-  }, [assetGaps, draft?.confirmed_at, draft?.preview_status, keyframes, sections.length, storyboardRows.length, timeline.length])
+  }, [assetGaps, draft?.confirmed_at, draft?.preview_status, keyframes, segments.length, storyboardRows.length, timeline.length])
 
   const generatePreviewMutation = useMutation({
     mutationFn: () => {
@@ -532,7 +532,7 @@ function ProjectPreviewWorkspace() {
   })
 
   const steps = buildProjectPreviewSteps({
-    sections,
+    segments,
     storyboardRows: storyboardRows.length,
     timeline,
     keyframes,
@@ -619,7 +619,7 @@ function ProjectPreviewWorkspace() {
             <div className="space-y-4">
               <ProjectPreviewStage
                 activeStep={activeStep}
-                sections={sections}
+                segments={segments}
                 timeline={timeline}
                 keyframes={keyframes}
                 assetGaps={assetGaps}
@@ -638,9 +638,9 @@ function ProjectPreviewWorkspace() {
           <Card className="rounded-lg border-border bg-card p-4">
             <h2 className="text-sm font-semibold text-foreground">预演资料状态</h2>
             <div className="mt-4 grid gap-3">
-              <PreviewMetric icon={FileText} label="片段" value={sections.length} status={sections.length > 0 ? 'ready' : 'blocked'} />
-              <PreviewMetric icon={Target} label="情节" value={sections.length} status={sections.length > 0 ? 'ready' : 'review'} />
-              <PreviewMetric icon={Database} label="资料" value={Math.max(1, sections.length)} status={sections.length > 0 ? 'review' : 'blocked'} />
+              <PreviewMetric icon={FileText} label="片段" value={segments.length} status={segments.length > 0 ? 'ready' : 'blocked'} />
+              <PreviewMetric icon={Target} label="情节" value={segments.length} status={segments.length > 0 ? 'ready' : 'review'} />
+              <PreviewMetric icon={Database} label="资料" value={Math.max(1, segments.length)} status={segments.length > 0 ? 'review' : 'blocked'} />
               <PreviewMetric icon={PackageCheck} label="素材缺口" value={assetGaps.length} status={stats.blockingGaps > 0 ? 'blocked' : 'ready'} />
               <PreviewMetric icon={Video} label="内容单元" value={storyboardRows.length} status={storyboardRows.length > 0 ? 'ready' : 'blocked'} />
             </div>
@@ -693,7 +693,7 @@ function ProjectPreviewWorkspace() {
 
 function ProjectPreviewStage({
   activeStep,
-  sections,
+  segments,
   timeline,
   keyframes,
   assetGaps,
@@ -705,7 +705,7 @@ function ProjectPreviewStage({
   onResolveGap,
 }: {
   activeStep: ProjectPreviewStepKey
-  sections: ProjectPreviewSection[]
+  segments: ProjectPreviewSegment[]
   timeline: ProjectPreviewTimelineItem[]
   keyframes: ProjectPreviewKeyframe[]
   assetGaps: ProjectPreviewAssetGap[]
@@ -721,17 +721,17 @@ function ProjectPreviewStage({
       <>
         <StageHeader icon={ListChecks} title="预演清单" text="确认内容区制作编排是否已经提供预演所需的片段、情节、内容单元和来源证据。" />
         <div className="grid gap-4 lg:grid-cols-2">
-          {sections.length === 0 ? (
+          {segments.length === 0 ? (
             <EmptyWorkbenchState title="暂无片段" text="需要先在内容区解析理解并确认片段。" />
-          ) : sections.map((section) => (
-            <Card key={section.client_id} className="rounded-lg border-border bg-card p-4">
+          ) : segments.map((segment) => (
+            <Card key={segment.client_id} className="rounded-lg border-border bg-card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Badge variant="outline">片段 {section.order}</Badge>
-                  <h3 className="mt-2 text-sm font-semibold text-foreground">{section.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{section.summary}</p>
+                  <Badge variant="outline">片段 {segment.order}</Badge>
+                  <h3 className="mt-2 text-sm font-semibold text-foreground">{segment.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{segment.summary}</p>
                 </div>
-                <Badge variant={section.confidence >= 0.8 ? 'success' : 'warning'}>{Math.round(section.confidence * 100)}%</Badge>
+                <Badge variant={segment.confidence >= 0.8 ? 'success' : 'warning'}>{Math.round(segment.confidence * 100)}%</Badge>
               </div>
             </Card>
           ))}
@@ -851,7 +851,7 @@ function ProjectPreviewStage({
       <StageHeader icon={CheckCircle2} title="确认项目预演" text="确认前需要没有阻塞素材，且时间线和关键帧已经足够支撑后续生产。" />
       <Card className="rounded-lg border-border bg-card p-4">
         <div className="grid gap-3 md:grid-cols-2">
-          <GateRow label="片段已覆盖" done={sections.length > 0} />
+          <GateRow label="片段已覆盖" done={segments.length > 0} />
           <GateRow label="内容单元已形成" done={storyboardRows > 0} />
           <GateRow label="时间线可播放" done={timeline.length > 0} />
           <GateRow label="关键帧已确认" done={keyframes.length === 0 || keyframes.some((item) => item.decision_status === 'accepted')} />
@@ -878,14 +878,14 @@ function normalizeProjectPreviewTimeline(items: ProjectPreviewTimelineLike[]): P
 }
 
 function buildProjectPreviewSteps({
-  sections,
+  segments,
   storyboardRows,
   timeline,
   keyframes,
   assetGaps,
   confirmed,
 }: {
-  sections: ProjectPreviewSection[]
+  segments: ProjectPreviewSegment[]
   storyboardRows: number
   timeline: ProjectPreviewTimelineItem[]
   keyframes: ProjectPreviewKeyframe[]
@@ -898,8 +898,8 @@ function buildProjectPreviewSteps({
     {
       key: 'inventory' as const,
       title: '确认预演清单',
-      detail: `${sections.length} 个片段，${storyboardRows} 个内容单元`,
-      status: sections.length > 0 && storyboardRows > 0 ? 'ready' as const : 'blocked' as const,
+      detail: `${segments.length} 个片段，${storyboardRows} 个内容单元`,
+      status: segments.length > 0 && storyboardRows > 0 ? 'ready' as const : 'blocked' as const,
     },
     {
       key: 'ai_fill' as const,

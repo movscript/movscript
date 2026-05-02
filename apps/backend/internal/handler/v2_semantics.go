@@ -186,18 +186,18 @@ func (h *V2SemanticHandler) CreateSceneMoment(c *gin.Context) {
 		return
 	}
 	item := model.SceneMoment{
-		ProjectID:       projectID,
-		SegmentID: req.SegmentID,
-		Order:           req.Order,
-		Title:           req.Title,
-		Description:     req.Description,
-		TimeText:        req.TimeText,
-		LocationText:    req.LocationText,
-		ConditionText:   req.ConditionText,
-		ActionText:      req.ActionText,
-		Mood:            req.Mood,
-		Status:          fallbackString(req.Status, "draft"),
-		MetadataJSON:    req.MetadataJSON,
+		ProjectID:     projectID,
+		SegmentID:     req.SegmentID,
+		Order:         req.Order,
+		Title:         req.Title,
+		Description:   req.Description,
+		TimeText:      req.TimeText,
+		LocationText:  req.LocationText,
+		ConditionText: req.ConditionText,
+		ActionText:    req.ActionText,
+		Mood:          req.Mood,
+		Status:        fallbackString(req.Status, "draft"),
+		MetadataJSON:  req.MetadataJSON,
 	}
 	h.createItem(c, &item)
 }
@@ -216,17 +216,17 @@ func (h *V2SemanticHandler) PatchSceneMoment(c *gin.Context) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"segment_id": req.SegmentID,
-		"order":             req.Order,
-		"title":             req.Title,
-		"description":       req.Description,
-		"time_text":         req.TimeText,
-		"location_text":     req.LocationText,
-		"condition_text":    req.ConditionText,
-		"action_text":       req.ActionText,
-		"mood":              req.Mood,
-		"status":            req.Status,
-		"metadata_json":     req.MetadataJSON,
+		"segment_id":     req.SegmentID,
+		"order":          req.Order,
+		"title":          req.Title,
+		"description":    req.Description,
+		"time_text":      req.TimeText,
+		"location_text":  req.LocationText,
+		"condition_text": req.ConditionText,
+		"action_text":    req.ActionText,
+		"mood":           req.Mood,
+		"status":         req.Status,
+		"metadata_json":  req.MetadataJSON,
 	}))
 }
 
@@ -383,15 +383,15 @@ func (h *V2SemanticHandler) CreateStoryboardLine(c *gin.Context) {
 	if !h.ownerInProject(c, "storyboard_script", req.StoryboardScriptID) ||
 		!h.optionalOwnerInProject(c, "storyboard_version", req.StoryboardVersionID) ||
 		!h.optionalOwnerInProject(c, "segment", req.SegmentID) ||
-		!h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
+		!h.optionalOwnerInProject(c, "scene_moment", req.SceneMomentID) {
 		return
 	}
 	item := model.StoryboardLine{
 		ProjectID:           projectID,
 		StoryboardScriptID:  req.StoryboardScriptID,
 		StoryboardVersionID: req.StoryboardVersionID,
-		SegmentID:     req.SegmentID,
-		SceneMomentID:         req.SceneMomentID,
+		SegmentID:           req.SegmentID,
+		SceneMomentID:       req.SceneMomentID,
 		Order:               req.Order,
 		Kind:                fallbackString(req.Kind, "beat"),
 		Title:               req.Title,
@@ -418,14 +418,14 @@ func (h *V2SemanticHandler) PatchStoryboardLine(c *gin.Context) {
 	if !h.ownerInProject(c, "storyboard_script", req.StoryboardScriptID) ||
 		!h.optionalOwnerInProject(c, "storyboard_version", req.StoryboardVersionID) ||
 		!h.optionalOwnerInProject(c, "segment", req.SegmentID) ||
-		!h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
+		!h.optionalOwnerInProject(c, "scene_moment", req.SceneMomentID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
 		"storyboard_script_id":  req.StoryboardScriptID,
 		"storyboard_version_id": req.StoryboardVersionID,
-		"segment_id":     req.SegmentID,
-		"sceneMoment_id":          req.SceneMomentID,
+		"segment_id":            req.SegmentID,
+		"scene_moment_id":       req.SceneMomentID,
 		"order":                 req.Order,
 		"kind":                  req.Kind,
 		"title":                 req.Title,
@@ -444,10 +444,10 @@ func (h *V2SemanticHandler) ListContentUnits(c *gin.Context) {
 	if segmentID := parseID(c.Query("segment_id")); segmentID > 0 {
 		q = q.Where("segment_id = ?", segmentID)
 	}
-	if sceneMomentID := parseID(c.Query("sceneMoment_id")); sceneMomentID > 0 {
-		q = q.Where("sceneMoment_id = ?", sceneMomentID)
+	if sceneMomentID := parseID(c.Query("scene_moment_id")); sceneMomentID > 0 {
+		q = q.Where("scene_moment_id = ?", sceneMomentID)
 	}
-	if err := q.Order(`segment_id, sceneMoment_id, "order", id`).Find(&items).Error; err != nil {
+	if err := q.Order(`segment_id, scene_moment_id, "order", id`).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -461,21 +461,21 @@ func (h *V2SemanticHandler) CreateContentUnit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) || !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
+	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) || !h.optionalOwnerInProject(c, "scene_moment", req.SceneMomentID) {
 		return
 	}
 	item := model.ContentUnit{
-		ProjectID:       projectID,
-		SegmentID: req.SegmentID,
-		SceneMomentID:     req.SceneMomentID,
-		Kind:            fallbackString(req.Kind, "shot"),
-		Order:           req.Order,
-		Title:           req.Title,
-		Description:     req.Description,
-		Prompt:          req.Prompt,
-		DurationSec:     req.DurationSec,
-		Status:          fallbackString(req.Status, "draft"),
-		MetadataJSON:    req.MetadataJSON,
+		ProjectID:     projectID,
+		SegmentID:     req.SegmentID,
+		SceneMomentID: req.SceneMomentID,
+		Kind:          fallbackString(req.Kind, "shot"),
+		Order:         req.Order,
+		Title:         req.Title,
+		Description:   req.Description,
+		Prompt:        req.Prompt,
+		DurationSec:   req.DurationSec,
+		Status:        fallbackString(req.Status, "draft"),
+		MetadataJSON:  req.MetadataJSON,
 	}
 	h.createItem(c, &item)
 }
@@ -490,33 +490,33 @@ func (h *V2SemanticHandler) PatchContentUnit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) || !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) {
+	if !h.optionalOwnerInProject(c, "segment", req.SegmentID) || !h.optionalOwnerInProject(c, "scene_moment", req.SceneMomentID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"segment_id": req.SegmentID,
-		"sceneMoment_id":      req.SceneMomentID,
-		"kind":              req.Kind,
-		"order":             req.Order,
-		"title":             req.Title,
-		"description":       req.Description,
-		"prompt":            req.Prompt,
-		"duration_sec":      req.DurationSec,
-		"status":            req.Status,
-		"metadata_json":     req.MetadataJSON,
+		"segment_id":      req.SegmentID,
+		"scene_moment_id": req.SceneMomentID,
+		"kind":            req.Kind,
+		"order":           req.Order,
+		"title":           req.Title,
+		"description":     req.Description,
+		"prompt":          req.Prompt,
+		"duration_sec":    req.DurationSec,
+		"status":          req.Status,
+		"metadata_json":   req.MetadataJSON,
 	}))
 }
 
 func (h *V2SemanticHandler) ListKeyframes(c *gin.Context) {
 	var items []model.Keyframe
 	q := h.db.Preload("Resource").Where("project_id = ?", parseID(c.Param("id")))
-	if sceneMomentID := parseID(c.Query("sceneMoment_id")); sceneMomentID > 0 {
-		q = q.Where("sceneMoment_id = ?", sceneMomentID)
+	if sceneMomentID := parseID(c.Query("scene_moment_id")); sceneMomentID > 0 {
+		q = q.Where("scene_moment_id = ?", sceneMomentID)
 	}
 	if contentUnitID := parseID(c.Query("content_unit_id")); contentUnitID > 0 {
 		q = q.Where("content_unit_id = ?", contentUnitID)
 	}
-	if err := q.Order(`content_unit_id, sceneMoment_id, "order", id`).Find(&items).Error; err != nil {
+	if err := q.Order(`content_unit_id, scene_moment_id, "order", id`).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -531,12 +531,12 @@ func (h *V2SemanticHandler) CreateKeyframe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
+	if !h.optionalOwnerInProject(c, "scene_moment", req.SceneMomentID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
 		return
 	}
 	item := model.Keyframe{
 		ProjectID:     projectID,
-		SceneMomentID:   req.SceneMomentID,
+		SceneMomentID: req.SceneMomentID,
 		ContentUnitID: req.ContentUnitID,
 		ResourceID:    req.ResourceID,
 		CanvasID:      req.CanvasID,
@@ -560,11 +560,11 @@ func (h *V2SemanticHandler) PatchKeyframe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "sceneMoment", req.SceneMomentID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
+	if !h.optionalOwnerInProject(c, "scene_moment", req.SceneMomentID) || !h.optionalOwnerInProject(c, "content_unit", req.ContentUnitID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"sceneMoment_id":    req.SceneMomentID,
+		"scene_moment_id": req.SceneMomentID,
 		"content_unit_id": req.ContentUnitID,
 		"resource_id":     req.ResourceID,
 		"canvas_id":       req.CanvasID,
@@ -672,8 +672,8 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
 	item := model.PreviewTimelineItem{
 		ProjectID:         projectID,
 		PreviewTimelineID: req.PreviewTimelineID,
-		SegmentID:   req.SegmentID,
-		SceneMomentID:       req.SceneMomentID,
+		SegmentID:         req.SegmentID,
+		SceneMomentID:     req.SceneMomentID,
 		ContentUnitID:     req.ContentUnitID,
 		KeyframeID:        req.KeyframeID,
 		Kind:              fallbackString(req.Kind, "keyframe"),
@@ -702,8 +702,8 @@ func (h *V2SemanticHandler) PatchPreviewTimelineItemFlat(c *gin.Context) {
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
 		"preview_timeline_id": req.PreviewTimelineID,
-		"segment_id":   req.SegmentID,
-		"sceneMoment_id":        req.SceneMomentID,
+		"segment_id":          req.SegmentID,
+		"scene_moment_id":     req.SceneMomentID,
 		"content_unit_id":     req.ContentUnitID,
 		"keyframe_id":         req.KeyframeID,
 		"kind":                req.Kind,
@@ -730,8 +730,8 @@ func (h *V2SemanticHandler) CreatePreviewTimelineItem(c *gin.Context) {
 	item := model.PreviewTimelineItem{
 		ProjectID:         projectID,
 		PreviewTimelineID: timelineID,
-		SegmentID:   req.SegmentID,
-		SceneMomentID:       req.SceneMomentID,
+		SegmentID:         req.SegmentID,
+		SceneMomentID:     req.SceneMomentID,
 		ContentUnitID:     req.ContentUnitID,
 		KeyframeID:        req.KeyframeID,
 		Kind:              fallbackString(req.Kind, "keyframe"),
@@ -761,17 +761,17 @@ func (h *V2SemanticHandler) PatchPreviewTimelineItem(c *gin.Context) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"segment_id": req.SegmentID,
-		"sceneMoment_id":      req.SceneMomentID,
-		"content_unit_id":   req.ContentUnitID,
-		"keyframe_id":       req.KeyframeID,
-		"kind":              req.Kind,
-		"order":             req.Order,
-		"start_sec":         req.StartSec,
-		"duration_sec":      req.DurationSec,
-		"label":             req.Label,
-		"status":            req.Status,
-		"metadata_json":     req.MetadataJSON,
+		"segment_id":      req.SegmentID,
+		"scene_moment_id": req.SceneMomentID,
+		"content_unit_id": req.ContentUnitID,
+		"keyframe_id":     req.KeyframeID,
+		"kind":            req.Kind,
+		"order":           req.Order,
+		"start_sec":       req.StartSec,
+		"duration_sec":    req.DurationSec,
+		"label":           req.Label,
+		"status":          req.Status,
+		"metadata_json":   req.MetadataJSON,
 	}))
 }
 
@@ -1899,7 +1899,7 @@ func (h *V2SemanticHandler) ensureV2OwnerInProject(projectID uint, ownerType str
 			return err
 		}
 		ownerProjectID = item.ProjectID
-	case "sceneMoment":
+	case "scene_moment":
 		var item model.SceneMoment
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
 			return err
@@ -2151,17 +2151,17 @@ type segmentPatchInput struct {
 }
 
 type sceneMomentInput struct {
-	SegmentID *uint  `json:"segment_id"`
-	Order           int    `json:"order"`
-	Title           string `json:"title"`
-	Description     string `json:"description"`
-	TimeText        string `json:"time_text"`
-	LocationText    string `json:"location_text"`
-	ConditionText   string `json:"condition_text"`
-	ActionText      string `json:"action_text"`
-	Mood            string `json:"mood"`
-	Status          string `json:"status"`
-	MetadataJSON    string `json:"metadata_json"`
+	SegmentID     *uint  `json:"segment_id"`
+	Order         int    `json:"order"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	TimeText      string `json:"time_text"`
+	LocationText  string `json:"location_text"`
+	ConditionText string `json:"condition_text"`
+	ActionText    string `json:"action_text"`
+	Mood          string `json:"mood"`
+	Status        string `json:"status"`
+	MetadataJSON  string `json:"metadata_json"`
 }
 
 type sceneMomentPatchInput = sceneMomentInput
@@ -2198,8 +2198,8 @@ type storyboardVersionPatchInput struct {
 type storyboardLineInput struct {
 	StoryboardScriptID  uint    `json:"storyboard_script_id" binding:"required"`
 	StoryboardVersionID *uint   `json:"storyboard_version_id"`
-	SegmentID     *uint   `json:"segment_id"`
-	SceneMomentID         *uint   `json:"sceneMoment_id"`
+	SegmentID           *uint   `json:"segment_id"`
+	SceneMomentID       *uint   `json:"scene_moment_id"`
 	Order               int     `json:"order"`
 	Kind                string  `json:"kind"`
 	Title               string  `json:"title"`
@@ -2212,22 +2212,22 @@ type storyboardLineInput struct {
 }
 
 type contentUnitInput struct {
-	SegmentID *uint   `json:"segment_id"`
-	SceneMomentID     *uint   `json:"sceneMoment_id"`
-	Kind            string  `json:"kind"`
-	Order           int     `json:"order"`
-	Title           string  `json:"title"`
-	Description     string  `json:"description"`
-	Prompt          string  `json:"prompt"`
-	DurationSec     float64 `json:"duration_sec"`
-	Status          string  `json:"status"`
-	MetadataJSON    string  `json:"metadata_json"`
+	SegmentID     *uint   `json:"segment_id"`
+	SceneMomentID *uint   `json:"scene_moment_id"`
+	Kind          string  `json:"kind"`
+	Order         int     `json:"order"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Prompt        string  `json:"prompt"`
+	DurationSec   float64 `json:"duration_sec"`
+	Status        string  `json:"status"`
+	MetadataJSON  string  `json:"metadata_json"`
 }
 
 type contentUnitPatchInput = contentUnitInput
 
 type keyframeInput struct {
-	SceneMomentID   *uint  `json:"sceneMoment_id"`
+	SceneMomentID *uint  `json:"scene_moment_id"`
 	ContentUnitID *uint  `json:"content_unit_id"`
 	ResourceID    *uint  `json:"resource_id"`
 	CanvasID      *uint  `json:"canvas_id"`
@@ -2250,8 +2250,8 @@ type previewTimelineInput struct {
 
 type previewTimelineItemInput struct {
 	PreviewTimelineID uint    `json:"preview_timeline_id"`
-	SegmentID   *uint   `json:"segment_id"`
-	SceneMomentID       *uint   `json:"sceneMoment_id"`
+	SegmentID         *uint   `json:"segment_id"`
+	SceneMomentID     *uint   `json:"scene_moment_id"`
 	ContentUnitID     *uint   `json:"content_unit_id"`
 	KeyframeID        *uint   `json:"keyframe_id"`
 	Kind              string  `json:"kind"`

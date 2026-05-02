@@ -211,7 +211,7 @@ export function Sidebar() {
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.contentArea')} collapsed={collapsed}>
               <NavItem to="/segments" icon={Film} label={t('sidebar.items.segments')} collapsed={collapsed} />
-              <NavItem to="/scenes" icon={Film} label={t('sidebar.items.sceneMoments')} collapsed={collapsed} />
+              <NavItem to="/scene-moments" icon={Film} label={t('sidebar.items.sceneMoments')} collapsed={collapsed} />
               <NavItem to="/creative-references" icon={Sparkles} label={t('sidebar.items.references')} collapsed={collapsed} />
               <NavItem to="/assets" icon={PackageCheck} label={t('sidebar.items.assets')} collapsed={collapsed} />
               <NavItem to="/reference-relations" icon={GitBranch} label={t('sidebar.items.relations')} collapsed={collapsed} />
