@@ -1,17 +1,16 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
-  ArrowRight,
   BookOpenText,
   CheckCircle2,
   ChevronRight,
   Clapperboard,
   Database,
   Eye,
-  Film,
-  Image,
   Layers3,
+  Pencil,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -19,11 +18,16 @@ import {
 
 import {
   CreativeReferenceCard,
+  accentForCreativeReferenceKind,
   creativeReferenceKindMeta,
   creativeReferenceStatusMeta,
+  normalizeCreativeReferenceKind,
+  normalizeCreativeReferenceStatus,
   type CreativeReferenceCardKind,
   type CreativeReferenceCardStatus,
 } from '@/components/creative/CreativeReferenceCard'
+import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
+import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge } from '@movscript/ui'
@@ -32,10 +36,10 @@ import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 
 type ReferenceKind = CreativeReferenceCardKind
-type ReferenceStatus = Extract<CreativeReferenceCardStatus, 'locked' | 'review' | 'missing'>
+type ReferenceStatus = CreativeReferenceCardStatus
 
 interface CreativeReference {
-  id: string
+  id: string | number
   kind: ReferenceKind
   title: string
   subtitle: string
@@ -52,7 +56,23 @@ interface CreativeReference {
   accent: string
 }
 
-const references: CreativeReference[] = [
+type CreativeReferenceRecord = V2EntityRecord & {
+  kind?: string
+  name?: string
+  alias?: string
+  description?: string
+  content?: string
+  importance?: string
+  status?: string
+  profile_json?: string
+  tags_json?: string
+}
+
+type CreativeReferenceUsageRecord = V2EntityRecord & {
+  creative_reference_id?: number
+}
+
+const FALLBACK_REFERENCES: CreativeReference[] = [
   {
     id: 'ref-linxia',
     kind: 'person',
@@ -170,37 +190,77 @@ function normalizeReferenceKind(value: string): 'all' | ReferenceKind {
 }
 
 function normalizeReferenceStatus(value: string): 'all' | ReferenceStatus {
-  return ['locked', 'review', 'missing'].includes(value) ? value as ReferenceStatus : 'all'
+  return value in creativeReferenceStatusMeta ? value as ReferenceStatus : 'all'
 }
 
 export default function CreativeReferencesPage() {
   const project = useProjectStore((s) => s.current)
+  const projectId = project?.ID
+  const referenceConfig = v2EntityConfig('creativeReferences')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
   const kind = normalizeReferenceKind(readStringParam(searchParams, 'kind', 'all'))
   const status = normalizeReferenceStatus(readStringParam(searchParams, 'status', 'all'))
   const referenceFilterId = readStringParam(searchParams, 'reference_id')
-  const selectedId = readStringParam(searchParams, 'selected', referenceFilterId || references[0].id)
+  const selectedId = readStringParam(searchParams, 'selected')
   const query = readStringParam(searchParams, 'q')
+
+  const referencesQuery = useQuery({
+    queryKey: ['v2-creative-references-page', projectId, 'creative-references'],
+    queryFn: () => listV2Entities(projectId!, referenceConfig) as Promise<CreativeReferenceRecord[]>,
+    enabled: !!projectId,
+  })
+  const usagesQuery = useQuery({
+    queryKey: ['v2-creative-references-page', projectId, 'creative-reference-usages'],
+    queryFn: () => listV2Entities(projectId!, v2EntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const rawReferences = referencesQuery.data ?? []
+  const usageCounts = useMemo(() => {
+    const counts = new Map<number, number>()
+    for (const usage of usagesQuery.data ?? []) {
+      if (usage.creative_reference_id) counts.set(usage.creative_reference_id, (counts.get(usage.creative_reference_id) ?? 0) + 1)
+    }
+    return counts
+  }, [usagesQuery.data])
+  const references = useMemo(() => {
+    if (!projectId) return FALLBACK_REFERENCES
+    return rawReferences.map((reference) => toReferenceViewModel(reference, usageCounts))
+  }, [projectId, rawReferences, usageCounts])
 
   const filteredReferences = useMemo(() => {
     const q = query.trim().toLowerCase()
     return references.filter((reference) => {
-      const matchesSelected = !referenceFilterId || reference.id === referenceFilterId || String(reference.id).replace('ref-', '') === referenceFilterId
+      const matchesSelected = !referenceFilterId || String(reference.id) === referenceFilterId || String(reference.id).replace('ref-', '') === referenceFilterId
       const matchesKind = kind === 'all' || reference.kind === kind
       const matchesStatus = status === 'all' || reference.status === status
       const matchesQuery = !q || [reference.title, reference.subtitle, reference.summary, ...reference.visualNotes, ...reference.facts].some((item) => item.toLowerCase().includes(q))
       return matchesSelected && matchesKind && matchesStatus && matchesQuery
     })
-  }, [kind, query, referenceFilterId, status])
+  }, [kind, query, referenceFilterId, references, status])
 
-  const selected = references.find((reference) => reference.id === selectedId) ?? filteredReferences[0] ?? references[0]
+  const selected = references.find((reference) => String(reference.id) === selectedId) ?? filteredReferences[0] ?? references[0] ?? null
+  const selectedRecord = selected ? rawReferences.find((reference) => reference.ID === Number(selected.id)) : null
   const lockedCount = references.filter((reference) => reference.status === 'locked').length
   const reviewCount = references.filter((reference) => reference.status === 'review').length
   const missingCount = references.filter((reference) => reference.status === 'missing').length
-  const averageCoverage = Math.round(references.reduce((sum, reference) => sum + reference.coverage, 0) / references.length)
+  const averageCoverage = references.length ? Math.round(references.reduce((sum, reference) => sum + reference.coverage, 0) / references.length) : 0
 
   function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
     setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
+  }
+
+  function startCreateReference() {
+    setDialogMode('create')
+    setDialogOpen(true)
+  }
+
+  function startEditReference() {
+    if (!selectedRecord) return
+    setDialogMode('edit')
+    setDialogOpen(true)
   }
 
   return (
@@ -224,7 +284,11 @@ export default function CreativeReferencesPage() {
               <Eye size={15} />
               查看引用图谱
             </Button>
-            <Button className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={startEditReference} disabled={!selectedRecord}>
+              <Pencil size={15} />
+              编辑资料
+            </Button>
+            <Button className="gap-2" onClick={startCreateReference}>
               <Plus size={15} />
               新建资料
             </Button>
@@ -278,12 +342,6 @@ export default function CreativeReferencesPage() {
               <CheckRow label="道具特写" value="1/3" />
               <CheckRow label="风格负面约束" value="已配置" ok />
             </Panel>
-
-            <Panel title="进入下游" icon={ArrowRight}>
-              <FlowStep icon={Film} label="制作预演" detail="情节引用资料" />
-              <FlowStep icon={Image} label="资产准备" detail="补充视觉状态" />
-              <FlowStep icon={Clapperboard} label="内容生产" detail="继承连续性约束" />
-            </Panel>
           </aside>
 
           <main className="min-w-0 space-y-4">
@@ -336,10 +394,13 @@ export default function CreativeReferencesPage() {
                   <ReferenceCard
                     key={reference.id}
                     reference={reference}
-                    selected={selected.id === reference.id}
+                    selected={selected?.id === reference.id}
                     onSelect={() => setFilter({ selected: reference.id })}
                   />
                 ))}
+                {filteredReferences.length === 0 && (
+                  <p className="col-span-2 rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无资料，点击“新建资料”创建。</p>
+                )}
               </div>
             </div>
 
@@ -375,8 +436,8 @@ export default function CreativeReferencesPage() {
           </main>
 
           <aside className="space-y-4">
-            <ReferenceDetail reference={selected} />
-            <Panel title="资料缺口" icon={AlertTriangle}>
+            {selected ? <ReferenceDetail reference={selected} /> : null}
+            <Panel title="素材缺口" icon={AlertTriangle}>
               <GapItem title="旧伞特写" detail="缺少伞骨夹层和纸条边角的清晰图。" severity="high" />
               <GapItem title="林夏侧脸" detail="雨夜受伤状态需要补一个可复用侧脸。" severity="medium" />
               <GapItem title="手机 UI" detail="转账提醒文字层级需要最终确认。" severity="medium" />
@@ -384,8 +445,80 @@ export default function CreativeReferencesPage() {
           </aside>
         </section>
       </div>
+      <V2EntityCrudDialog
+        open={dialogOpen}
+        mode={dialogMode}
+        projectId={projectId}
+        config={referenceConfig}
+        record={dialogMode === 'edit' ? selectedRecord : null}
+        defaults={{ kind: 'person', importance: 'supporting', status: 'draft' }}
+        queryKey={['v2-creative-references-page', projectId]}
+        onOpenChange={setDialogOpen}
+        onSaved={(record) => setFilter({ selected: record.ID, reference_id: null })}
+        onDeleted={() => setFilter({ selected: null, reference_id: null })}
+      />
     </div>
   )
+}
+
+function toReferenceViewModel(reference: CreativeReferenceRecord, usageCounts: Map<number, number>): CreativeReference {
+  const kind = normalizeCreativeReferenceKind(reference.kind)
+  const status = normalizeCreativeReferenceStatus(reference.status)
+  const tags = parseStringList(reference.tags_json)
+  const contentFacts = String(reference.content ?? '')
+    .split(/\n|；|;/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+  const profileNotes = parseProfileNotes(reference.profile_json)
+  const coverageParts = [
+    Boolean(reference.description || reference.content),
+    tags.length > 0 || profileNotes.length > 0,
+    status === 'confirmed' || status === 'locked',
+    (usageCounts.get(reference.ID) ?? 0) > 0,
+  ].filter(Boolean).length
+
+  return {
+    id: reference.ID,
+    kind,
+    title: reference.name || `资料 #${reference.ID}`,
+    subtitle: [creativeReferenceKindMeta[kind].label, reference.alias, reference.importance].filter(Boolean).join(' / '),
+    status,
+    version: `#${reference.ID}`,
+    owner: '项目资料',
+    usage: usageCounts.get(reference.ID) ?? 0,
+    coverage: Math.max(20, Math.round((coverageParts / 4) * 100)),
+    summary: reference.description || reference.content || '暂无资料摘要',
+    visualNotes: profileNotes.length > 0 ? profileNotes : tags.slice(0, 6),
+    facts: contentFacts.length > 0 ? contentFacts : tags.slice(0, 5),
+    linkedSceneMoments: [],
+    assets: [],
+    accent: accentForCreativeReferenceKind(kind),
+  }
+}
+
+function parseStringList(value?: string): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean)
+  } catch {
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function parseProfileNotes(value?: string): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return Object.entries(parsed)
+      .slice(0, 6)
+      .map(([key, item]) => `${key}: ${String(item)}`)
+      .filter(Boolean)
+  } catch {
+    return []
+  }
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: typeof Database; label: string; value: string | number; detail: string; tone: string }) {
@@ -496,19 +629,6 @@ function CheckRow({ label, value, ok = false }: { label: string; value: string; 
       {ok ? <CheckCircle2 size={14} className="text-emerald-600" /> : <AlertTriangle size={14} className="text-amber-600" />}
       <span className="min-w-0 flex-1 text-xs text-foreground">{label}</span>
       <span className="text-xs text-muted-foreground">{value}</span>
-    </div>
-  )
-}
-
-function FlowStep({ icon: Icon, label, detail }: { icon: typeof Film; label: string; detail: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2">
-      <Icon size={14} className="text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-foreground">{label}</p>
-        <p className="truncate text-[11px] text-muted-foreground">{detail}</p>
-      </div>
-      <ArrowRight size={13} className="text-muted-foreground" />
     </div>
   )
 }

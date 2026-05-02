@@ -13,7 +13,6 @@ type Project struct {
 	TotalEpisodes int             `json:"total_episodes"` // target episode count
 	Members       []ProjectMember `gorm:"foreignKey:ProjectID" json:"members,omitempty"`
 	Scripts       []Script        `gorm:"foreignKey:ProjectID" json:"scripts,omitempty"`
-	Assets        []Asset         `gorm:"foreignKey:ProjectID" json:"assets,omitempty"`
 }
 
 type ProjectMember struct {

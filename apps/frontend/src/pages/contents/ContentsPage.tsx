@@ -1,15 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
-  ArrowRight,
   Boxes,
   CheckCircle2,
   ChevronRight,
-  Clapperboard,
   Clock3,
   Database,
   Eye,
@@ -17,11 +15,12 @@ import {
   Film,
   GitBranch,
   Image,
-  Layers3,
   ListFilter,
   LockKeyhole,
   PackageCheck,
   Play,
+  Pencil,
+  Plus,
   RefreshCcw,
   Route,
   ShieldCheck,
@@ -30,8 +29,9 @@ import {
 } from 'lucide-react'
 
 import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
+import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
-import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -157,6 +157,9 @@ function normalizeStatusFilter(value: string): StatusFilter {
 export default function ContentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const contentUnitConfig = v2EntityConfig('contentUnits')
+  const [contentDialogOpen, setContentDialogOpen] = useState(false)
+  const [contentDialogMode, setContentDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = readNumberParam(searchParams, 'content_unit_id') ?? readNumberParam(searchParams, 'selected')
   const segmentFilterId = readNumberParam(searchParams, 'segment_id')
@@ -315,6 +318,17 @@ export default function ContentsPage() {
     setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
   }
 
+  function startCreateContentUnit() {
+    setContentDialogMode('create')
+    setContentDialogOpen(true)
+  }
+
+  function startEditContentUnit() {
+    if (!selected) return
+    setContentDialogMode('edit')
+    setContentDialogOpen(true)
+  }
+
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="min-w-[1180px] space-y-5 p-5">
@@ -332,6 +346,14 @@ export default function ContentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={startEditContentUnit} disabled={!selected}>
+              <Pencil size={15} />
+              编辑内容
+            </Button>
+            <Button className="gap-2" onClick={startCreateContentUnit}>
+              <Plus size={15} />
+              新建内容
+            </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
               <RefreshCcw size={15} />
               刷新
@@ -468,23 +490,6 @@ export default function ContentsPage() {
                 </div>
               )}
             </section>
-
-            <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Layers3 size={15} className="text-primary" />
-                  <p className="text-sm font-semibold text-foreground">情节到生成</p>
-                </div>
-                <span className="text-xs text-muted-foreground">展示所选内容单元的上游来源和下游落点</span>
-              </div>
-              <div className="grid grid-cols-5 gap-3 p-4">
-                <PipelineTile icon={Route} label="情节上下文" value={selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定'} detail={selected?.sceneMoment?.description || selected?.sceneMoment?.action_text || '需要绑定情节'} to={selected?.sceneMoment ? `/scene-moments${makeContentFilterSearch({ scene_moment_id: selected.sceneMoment.ID })}` : undefined} />
-                <PipelineTile icon={Clapperboard} label="分镜行" value={selected?.storyboardLines.length ?? 0} detail="内容单元的叙事来源" />
-                <PipelineTile icon={Sparkles} label="创作资料" value={selected?.references.length ?? 0} detail="连续性和约束" to={selected?.references[0] ? `/creative-references${makeContentFilterSearch({ reference_id: selected.references[0].ID })}` : undefined} />
-                <PipelineTile icon={PackageCheck} label="素材位" value={selected?.assetSlots.length ?? 0} detail={`${selected?.missingAssets.length ?? 0} 个待补齐`} to={selected ? `/assets${makeContentFilterSearch({ content_unit_id: selected.unit.ID })}` : undefined} />
-                <PipelineTile icon={Play} label="执行入口" value={selected ? `${selected.readiness}%` : '-'} detail="进入生成工作台" />
-              </div>
-            </section>
           </main>
 
           <aside className="space-y-4">
@@ -525,6 +530,24 @@ export default function ContentsPage() {
           </aside>
         </section>
       </div>
+      <V2EntityCrudDialog
+        open={contentDialogOpen}
+        mode={contentDialogMode}
+        projectId={projectId}
+        config={contentUnitConfig}
+        record={contentDialogMode === 'edit' ? selected?.unit : null}
+        defaults={{
+          segment_id: selected?.unit.segment_id ?? segmentFilterId ?? null,
+          scene_moment_id: selected?.unit.scene_moment_id ?? sceneMomentFilterId ?? null,
+          order: unitViewModels.length + 1,
+          kind: 'shot',
+          status: 'draft',
+        }}
+        queryKey={['v2-content-positioning', projectId]}
+        onOpenChange={setContentDialogOpen}
+        onSaved={(record) => setFilter({ content_unit_id: record.ID, scene_moment_id: record.scene_moment_id as number | undefined, segment_id: record.segment_id as number | undefined })}
+        onDeleted={() => setFilter({ content_unit_id: null })}
+      />
     </div>
   )
 }

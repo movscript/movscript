@@ -40,7 +40,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	aiService := ai.NewAIService(db, registry)
 	projects := handler.NewProjectHandler(db)
 	scripts := handler.NewScriptHandler(db)
-	assets := handler.NewAssetHandler(db, store)
 	artifactRefs := handler.NewArtifactRefHandler(db)
 	settings := handler.NewSettingHandler(db)
 	users := handler.NewUserHandler(db)
@@ -114,7 +113,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.GET("/resources/:id/file", resources.ServeFile)
 			protected.PUT("/resources/:id", resources.Update)
 			protected.DELETE("/resources/:id", resources.Delete)
-			protected.POST("/resources/:id/to-asset", resources.AddToAsset)
 			protected.PATCH("/resource-bindings/:id", resourceBindings.Patch)
 			protected.DELETE("/resource-bindings/:id", resourceBindings.Delete)
 
@@ -282,6 +280,10 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.DELETE("/projects/:id/v2/storyboard-lines/:storyboardLineId", func(c *gin.Context) {
 				v2Semantics.DeleteV2Item(c, &model.StoryboardLine{}, c.Param("storyboardLineId"))
 			})
+			protected.GET("/projects/:id/v2/productions", v2Semantics.ListProductions)
+			protected.POST("/projects/:id/v2/productions", v2Semantics.CreateProduction)
+			protected.PATCH("/projects/:id/v2/productions/:productionId", v2Semantics.PatchProduction)
+			protected.DELETE("/projects/:id/v2/productions/:productionId", func(c *gin.Context) { v2Semantics.DeleteV2Item(c, &model.Production{}, c.Param("productionId")) })
 			protected.GET("/projects/:id/v2/content-units", v2Semantics.ListContentUnits)
 			protected.POST("/projects/:id/v2/content-units", v2Semantics.CreateContentUnit)
 			protected.PATCH("/projects/:id/v2/content-units/:contentUnitId", v2Semantics.PatchContentUnit)
@@ -378,19 +380,6 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.POST("/projects/:id/v2/canvas-outputs", v2Semantics.CreateCanvasOutput)
 			protected.PATCH("/projects/:id/v2/canvas-outputs/:outputId", v2Semantics.PatchCanvasOutput)
 			protected.DELETE("/projects/:id/v2/canvas-outputs/:outputId", func(c *gin.Context) { v2Semantics.DeleteV2Item(c, &model.CanvasOutput{}, c.Param("outputId")) })
-
-			// assets nested under project
-			protected.GET("/projects/:id/assets", assets.List)
-			protected.POST("/projects/:id/assets", assets.Create)
-			protected.POST("/projects/:id/assets/upload", assets.Upload)
-			protected.GET("/projects/:id/assets/:assetId", assets.Get)
-			protected.PUT("/projects/:id/assets/:assetId", assets.Update)
-			protected.PATCH("/projects/:id/assets/:assetId", assets.Patch)
-			protected.DELETE("/projects/:id/assets/:assetId", assets.Delete)
-			// asset views
-			protected.POST("/projects/:id/assets/:assetId/views", assets.AddView)
-			protected.POST("/projects/:id/assets/:assetId/views/upload", assets.UploadView)
-			protected.DELETE("/projects/:id/assets/:assetId/views/:viewId", assets.DeleteView)
 
 			// settings (update/delete by setting id)
 			protected.PUT("/settings/:id", settings.Update)

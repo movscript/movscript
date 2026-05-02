@@ -121,7 +121,7 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 		projectID, input.ResourceID, input.OwnerType, input.OwnerID, input.Role, input.Slot, input.Version,
 	).First(&existing).Error
 	if duplicate == nil {
-		h.backfillAssetResource(existing)
+		h.backfillAssetSlotResource(existing)
 		h.db.Preload("Resource").First(&existing, existing.ID)
 		populateBindingResourceURLs(c, []model.ResourceBinding{existing})
 		c.JSON(http.StatusOK, existing)
@@ -162,7 +162,7 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 	if binding.IsPrimary {
 		h.clearOtherPrimaryBindings(binding)
 	}
-	h.backfillAssetResource(binding)
+	h.backfillAssetSlotResource(binding)
 	h.db.Preload("Resource").First(&binding, binding.ID)
 	populateBindingResourceURLs(c, []model.ResourceBinding{binding})
 	c.JSON(http.StatusCreated, binding)
@@ -190,35 +190,35 @@ func (h *ResourceBindingHandler) createBinding(binding model.ResourceBinding) er
 	if binding.IsPrimary {
 		h.clearOtherPrimaryBindings(binding)
 	}
-	h.backfillAssetResource(binding)
+	h.backfillAssetSlotResource(binding)
 	return nil
 }
 
-func (h *ResourceBindingHandler) backfillAssetResource(binding model.ResourceBinding) {
-	if binding.OwnerType != "asset" || binding.ResourceID == 0 {
+func (h *ResourceBindingHandler) backfillAssetSlotResource(binding model.ResourceBinding) {
+	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
 		return
 	}
-	h.db.Model(&model.Asset{}).
+	h.db.Model(&model.AssetSlot{}).
 		Where("id = ? AND resource_id IS NULL", binding.OwnerID).
 		Update("resource_id", binding.ResourceID)
 }
 
-func (h *ResourceBindingHandler) clearAssetResourceIfDeleted(binding model.ResourceBinding) {
-	if binding.OwnerType != "asset" || binding.ResourceID == 0 {
+func (h *ResourceBindingHandler) clearAssetSlotResourceIfDeleted(binding model.ResourceBinding) {
+	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
 		return
 	}
 	var replacement model.ResourceBinding
 	err := h.db.
-		Where("owner_type = ? AND owner_id = ? AND resource_id <> ?", "asset", binding.OwnerID, binding.ResourceID).
+		Where("owner_type = ? AND owner_id = ? AND resource_id <> ?", "asset_slot", binding.OwnerID, binding.ResourceID).
 		Order("is_primary desc, sort_order, created_at").
 		First(&replacement).Error
 	if err == nil {
-		h.db.Model(&model.Asset{}).
+		h.db.Model(&model.AssetSlot{}).
 			Where("id = ? AND resource_id = ?", binding.OwnerID, binding.ResourceID).
 			Update("resource_id", replacement.ResourceID)
 		return
 	}
-	h.db.Model(&model.Asset{}).
+	h.db.Model(&model.AssetSlot{}).
 		Where("id = ? AND resource_id = ?", binding.OwnerID, binding.ResourceID).
 		Update("resource_id", nil)
 }
@@ -318,7 +318,7 @@ func (h *ResourceBindingHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
-	h.clearAssetResourceIfDeleted(binding)
+	h.clearAssetSlotResourceIfDeleted(binding)
 	c.Status(http.StatusNoContent)
 }
 
@@ -403,7 +403,7 @@ func validOwnerType(value string) bool {
 	switch value {
 	case "script", "script_version", "segment", "scene_moment", "content_unit", "keyframe", "preview_timeline",
 		"creative_reference", "creative_reference_state", "asset_slot",
-		"delivery_version", "asset", "asset_view", "canvas":
+		"delivery_version", "canvas":
 		return true
 	default:
 		return false
@@ -541,22 +541,6 @@ func (h *ResourceBindingHandler) projectIDForOwner(ownerType string, ownerID uin
 			return 0, err
 		}
 		return item.ProjectID, nil
-	case "asset":
-		var item model.Asset
-		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		return item.ProjectID, nil
-	case "asset_view":
-		var item model.AssetView
-		if err := h.db.Select("id, asset_id").First(&item, ownerID).Error; err != nil {
-			return 0, err
-		}
-		var asset model.Asset
-		if err := h.db.Select("id, project_id").First(&asset, item.AssetID).Error; err != nil {
-			return 0, err
-		}
-		return asset.ProjectID, nil
 	case "canvas":
 		var item model.Canvas
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {

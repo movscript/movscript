@@ -27,9 +27,9 @@ type ScriptVersion struct {
 type Segment struct {
 	gorm.Model
 	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
-	ScriptID        uint           `gorm:"not null;index" json:"script_id"`
+	ScriptID        *uint          `gorm:"index" json:"script_id,omitempty"`
 	Script          *Script        `gorm:"foreignKey:ScriptID" json:"script,omitempty"`
-	ScriptVersionID uint           `gorm:"not null;index" json:"script_version_id"`
+	ScriptVersionID *uint          `gorm:"index" json:"script_version_id,omitempty"`
 	ScriptVersion   *ScriptVersion `gorm:"foreignKey:ScriptVersionID" json:"script_version,omitempty"`
 	ParentSegmentID *uint          `gorm:"index" json:"parent_segment_id,omitempty"`
 	Kind            string         `gorm:"not null;default:'section';index" json:"kind"` // scene|montage|narration|product_showcase|title_card|transition|section
@@ -121,6 +121,8 @@ type StoryboardLine struct {
 type ContentUnit struct {
 	gorm.Model
 	ProjectID     uint         `gorm:"not null;index" json:"project_id"`
+	ProductionID  *uint        `gorm:"index" json:"production_id,omitempty"`
+	Production    *Production  `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
 	SegmentID     *uint        `gorm:"index" json:"segment_id,omitempty"`
 	Segment       *Segment     `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
 	SceneMomentID *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
@@ -140,6 +142,8 @@ type ContentUnit struct {
 type Keyframe struct {
 	gorm.Model
 	ProjectID     uint         `gorm:"not null;index" json:"project_id"`
+	ProductionID  *uint        `gorm:"index" json:"production_id,omitempty"`
+	Production    *Production  `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
 	SceneMomentID *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
 	SceneMoment   *SceneMoment `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
 	ContentUnitID *uint        `gorm:"index" json:"content_unit_id,omitempty"`
@@ -158,6 +162,8 @@ type Keyframe struct {
 type PreviewTimeline struct {
 	gorm.Model
 	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
+	ProductionID    *uint          `gorm:"index" json:"production_id,omitempty"`
+	Production      *Production    `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
 	ScriptVersionID *uint          `gorm:"index" json:"script_version_id,omitempty"`
 	ScriptVersion   *ScriptVersion `gorm:"foreignKey:ScriptVersionID" json:"script_version,omitempty"`
 	Name            string         `gorm:"not null" json:"name"`

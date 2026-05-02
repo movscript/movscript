@@ -42,8 +42,8 @@ func (h *ArtifactRefHandler) ListByProject(c *gin.Context) {
 	if kindFilter == "" || kindFilter == "script_version" {
 		refs = append(refs, h.scriptVersionRefs(projectID)...)
 	}
-	if kindFilter == "" || kindFilter == "asset" {
-		refs = append(refs, h.assetRefs(c, projectID)...)
+	if kindFilter == "" || kindFilter == "asset_slot" {
+		refs = append(refs, h.assetSlotRefs(c, projectID)...)
 	}
 	if kindFilter == "" || kindFilter == "content_unit" {
 		refs = append(refs, h.contentUnitRefs(projectID)...)
@@ -81,36 +81,29 @@ func (h *ArtifactRefHandler) scriptVersionRefs(projectID uint) []ArtifactRef {
 	return refs
 }
 
-func (h *ArtifactRefHandler) assetRefs(c *gin.Context, projectID uint) []ArtifactRef {
-	var assets []model.Asset
-	h.db.Preload("Resource").Preload("Views").Where("project_id = ?", projectID).Order("updated_at desc").Find(&assets)
-	refs := make([]ArtifactRef, 0, len(assets))
-	for _, asset := range assets {
-		resource := asset.Resource
+func (h *ArtifactRefHandler) assetSlotRefs(c *gin.Context, projectID uint) []ArtifactRef {
+	var slots []model.AssetSlot
+	h.db.Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&slots)
+	refs := make([]ArtifactRef, 0, len(slots))
+	for _, slot := range slots {
+		id := slot.ID
+		resource := slot.Resource
 		if resource != nil {
 			resource.URL = resourceURL(c, resource.ID)
 		}
 		if resource == nil {
-			resource = h.firstBoundResource(c, projectID, "asset", asset.ID, "thumbnail", "final")
-		}
-		if resource == nil {
-			for _, view := range asset.Views {
-				resource = h.firstBoundResource(c, projectID, "asset_view", view.ID, "thumbnail", "final", "reference")
-				if resource != nil {
-					break
-				}
-			}
+			resource = h.firstBoundResource(c, projectID, "asset_slot", slot.ID, "thumbnail", "final", "reference")
 		}
 		refs = append(refs, ArtifactRef{
-			Kind:          "asset",
-			ID:            asset.ID,
-			Title:         fallbackTitle(asset.Name, "未命名素材"),
-			Subtitle:      asset.Type,
-			Status:        asset.ReviewStatus,
-			EntityContext: ArtifactEntityContext{},
+			Kind:          "asset_slot",
+			ID:            slot.ID,
+			Title:         fallbackTitle(slot.Name, "未命名素材位"),
+			Subtitle:      slot.Kind,
+			Status:        slot.Status,
+			EntityContext: ArtifactEntityContext{AssetSlotID: &id},
 			Resource:      resource,
-			CreatedAt:     asset.CreatedAt.Format(timeFormatRFC3339),
-			UpdatedAt:     asset.UpdatedAt.Format(timeFormatRFC3339),
+			CreatedAt:     slot.CreatedAt.Format(timeFormatRFC3339),
+			UpdatedAt:     slot.UpdatedAt.Format(timeFormatRFC3339),
 		})
 	}
 	return refs

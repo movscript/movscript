@@ -42,9 +42,9 @@ func TestNormalizeEntityPortValuesCanonicalizesAliases(t *testing.T) {
 }
 
 func TestEntitySchemasExposeVersionAndLayoutMetadata(t *testing.T) {
-	schema, ok := EntitySchemaForKind("storyboard")
+	schema, ok := EntitySchemaForKind("asset_slot")
 	if !ok {
-		t.Fatal("expected storyboard schema")
+		t.Fatal("expected asset_slot schema")
 	}
 	if schema.SchemaVersion != EntitySchemaVersion {
 		t.Fatalf("expected schema version %d, got %d", EntitySchemaVersion, schema.SchemaVersion)
@@ -52,12 +52,12 @@ func TestEntitySchemasExposeVersionAndLayoutMetadata(t *testing.T) {
 	if schema.Layout.Variant == "" {
 		t.Fatal("expected schema layout metadata")
 	}
-	field, ok := EntityFieldForPort("storyboard", "shots")
+	field, ok := EntityFieldForPort("asset_slot", "image")
 	if !ok {
-		t.Fatal("expected storyboard shots related-list field")
+		t.Fatal("expected asset_slot image field")
 	}
-	if !field.Readonly || field.Control != "related_entity_list" || field.Layout.NestedKind != "shot" {
-		t.Fatalf("expected readonly related shots field, got %#v", field)
+	if field.Workflow.MaxCount != 1 || field.Control != "resource_picker" {
+		t.Fatalf("expected single primary image field, got %#v", field)
 	}
 	if schema.Projection != "workflow" || schema.Compatibility.CurrentVersion != EntitySchemaVersion {
 		t.Fatalf("expected workflow projection compatibility metadata, got %#v", schema.Compatibility)
@@ -102,9 +102,9 @@ func TestEntitySchemaMigrationReportIncludesActions(t *testing.T) {
 }
 
 func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
-	semantic, ok := EntitySemanticSchemaForKind("asset")
+	semantic, ok := EntitySemanticSchemaForKind("asset_slot")
 	if !ok {
-		t.Fatal("expected asset semantic schema")
+		t.Fatal("expected asset_slot semantic schema")
 	}
 	if semantic.SchemaVersion != EntitySemanticSchemaVersion {
 		t.Fatalf("expected semantic schema version %d, got %d", EntitySemanticSchemaVersion, semantic.SchemaVersion)
@@ -119,7 +119,7 @@ func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
 		}
 	}
 	if semanticImage.ID == "" {
-		t.Fatal("expected asset image semantic field")
+		t.Fatal("expected asset_slot image semantic field")
 	}
 	if !semanticImage.IO.Readable || !semanticImage.IO.Writable {
 		t.Fatalf("expected semantic io to describe field capability, got %#v", semanticImage.IO)
@@ -131,9 +131,9 @@ func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
 		t.Fatalf("expected image workflow port projection, got %q", EntityWorkflowPortID(semanticImage))
 	}
 
-	workflow, ok := EntitySchemaForKind("asset")
+	workflow, ok := EntitySchemaForKind("asset_slot")
 	if !ok {
-		t.Fatal("expected asset workflow schema")
+		t.Fatal("expected asset_slot workflow schema")
 	}
 	var workflowImage EntitySchemaField
 	for _, section := range workflow.Sections {
@@ -148,7 +148,7 @@ func TestEntityWorkflowSchemaIsProjectedFromSemanticSchema(t *testing.T) {
 	}
 }
 
-func TestSemanticSchemaDistinguishesResourceGalleryAndComputedFields(t *testing.T) {
+func TestSemanticSchemaDistinguishesResourceGalleryAndPrimaryMediaFields(t *testing.T) {
 	script, ok := EntitySemanticSchemaForKind("script")
 	if !ok {
 		t.Fatal("expected script semantic schema")
@@ -165,26 +165,26 @@ func TestSemanticSchemaDistinguishesResourceGalleryAndComputedFields(t *testing.
 		t.Fatalf("expected multi-resource result gallery, got %#v", result)
 	}
 
-	episode, ok := EntitySemanticSchemaForKind("episode")
+	slot, ok := EntitySemanticSchemaForKind("asset_slot")
 	if !ok {
-		t.Fatal("expected episode semantic schema")
+		t.Fatal("expected asset_slot semantic schema")
 	}
-	var scriptBody EntitySemanticField
-	for _, section := range episode.Sections {
+	var image EntitySemanticField
+	for _, section := range slot.Sections {
 		for _, field := range section.Fields {
-			if field.ID == "script" {
-				scriptBody = field
+			if field.ID == "image" {
+				image = field
 			}
 		}
 	}
-	if scriptBody.Control != "computed" || !scriptBody.Readonly || scriptBody.IO.Writable || scriptBody.Storage != nil {
-		t.Fatalf("expected episode script to be a computed detail field, got %#v", scriptBody)
+	if image.Control != "resource_picker" || image.Binding == nil || image.Binding.Multiple {
+		t.Fatalf("expected asset_slot image to be a single resource picker, got %#v", image)
 	}
 }
 
 func TestValidateEntityPortValuesRejectsReadonlyPort(t *testing.T) {
-	err := validateEntityPortValues("episode", map[string]EntityPortValue{
-		"script": {Type: "text", Text: "read-only script body"},
+	err := validateEntityPortValues("script", map[string]EntityPortValue{
+		"background": {Type: "text", Text: "read-only background"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "not writable") {
 		t.Fatalf("expected readonly port error, got %v", err)
@@ -210,16 +210,16 @@ func TestScriptCharacterArchivePortsAreReadonlyDeprecated(t *testing.T) {
 }
 
 func TestValidateEntityPortValuesRejectsTypeMismatch(t *testing.T) {
-	err := validateEntityPortValues("shot", map[string]EntityPortValue{
-		"video": {Type: "text", Text: "not a resource"},
+	err := validateEntityPortValues("asset_slot", map[string]EntityPortValue{
+		"image": {Type: "text", Text: "not a resource"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "expects video") {
+	if err == nil || !strings.Contains(err.Error(), "expects image") {
 		t.Fatalf("expected type mismatch error, got %v", err)
 	}
 }
 
 func TestValidateEntityPortValuesRejectsMaxCount(t *testing.T) {
-	err := validateEntityPortValues("asset", map[string]EntityPortValue{
+	err := validateEntityPortValues("asset_slot", map[string]EntityPortValue{
 		"image": {Type: "image", ResourceIDs: []uint{1, 2}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "allows at most 1 values") {
@@ -228,28 +228,15 @@ func TestValidateEntityPortValuesRejectsMaxCount(t *testing.T) {
 }
 
 func TestValidateEntityReadPortsRejectsUnknownPort(t *testing.T) {
-	err := ValidateEntityReadPorts("shot", []string{"prompt", "missing"})
+	err := ValidateEntityReadPorts("asset_slot", []string{"prompt", "missing"})
 	if err == nil || !strings.Contains(err.Error(), `unknown port "prompt"`) {
 		t.Fatalf("expected unknown read port error, got %v", err)
 	}
 }
 
-func TestEpisodeScriptPortIsComputedReadOnly(t *testing.T) {
-	field, ok := EntityFieldForPort("episode", "script")
-	if !ok {
-		t.Fatal("expected episode script port")
-	}
-	if !field.Workflow.Readable || field.Workflow.Writable {
-		t.Fatalf("expected computed script port to be read-only, got %#v", field.Workflow)
-	}
-	if field.Storage != nil {
-		t.Fatalf("episode script should not map to an episodes table column: %#v", field.Storage)
-	}
-}
-
 func TestBuildEntityWriteAuditsCapturesPortContext(t *testing.T) {
 	audits := buildEntityWriteAudits(
-		"storyboard",
+		"asset_slot",
 		9,
 		map[string]EntityPortValue{
 			"description": {Type: "text", Text: "new description"},
@@ -274,7 +261,7 @@ func TestBuildEntityWriteAuditsCapturesPortContext(t *testing.T) {
 		if audit.CanvasID != 1 || audit.CanvasRunID != 2 || audit.CanvasNodeID != "node-a" || audit.UserID != 3 {
 			t.Fatalf("audit context was not preserved: %#v", audit)
 		}
-		if audit.EntityKind != "storyboard" || audit.EntityID != 9 {
+		if audit.EntityKind != "asset_slot" || audit.EntityID != 9 {
 			t.Fatalf("entity context was not preserved: %#v", audit)
 		}
 		byPort[audit.PortID] = audit

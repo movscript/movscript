@@ -390,8 +390,8 @@ export default function CollaborationPage() {
   }
 
   return (
-    <div className="h-full min-w-[1180px] overflow-auto bg-background">
-      <div className="space-y-4 p-5">
+    <div className="h-full min-w-0 overflow-auto bg-background">
+      <div className="min-w-[1180px] space-y-4 p-6">
         <header className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

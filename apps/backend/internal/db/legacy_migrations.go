@@ -12,29 +12,41 @@ func runLegacyCleanupAndBackfill(db *gorm.DB) error {
 	statements := []string{
 		"DROP TABLE IF EXISTS task_comments",
 		"DROP TABLE IF EXISTS tasks",
+		"ALTER TABLE scripts DROP COLUMN IF EXISTS resource_ids",
+	}
 
+	for _, statement := range statements {
+		if err := execSQL(db, statement); err != nil {
+			return err
+		}
+	}
+
+	legacyStatements := []struct {
+		tables    []string
+		statement string
+	}{
 		// Convert legacy 0 values to NULL now that FK columns are nullable.
-		"UPDATE storyboards SET scene_id = NULL WHERE scene_id = 0",
-		"UPDATE storyboards SET episode_id = NULL WHERE episode_id = 0",
-		"UPDATE shots SET storyboard_id = NULL WHERE storyboard_id = 0",
+		{[]string{"storyboards"}, "UPDATE storyboards SET scene_id = NULL WHERE scene_id = 0"},
+		{[]string{"storyboards"}, "UPDATE storyboards SET episode_id = NULL WHERE episode_id = 0"},
+		{[]string{"shots"}, "UPDATE shots SET storyboard_id = NULL WHERE storyboard_id = 0"},
 
 		// Backfill episode.project_id from linked script.
-		`
+		{[]string{"episodes", "scripts"}, `
 			UPDATE episodes SET project_id = s.project_id
 			FROM scripts s
 			WHERE episodes.script_id = s.id AND (episodes.project_id = 0 OR episodes.project_id IS NULL)
-		`,
+		`},
 
 		// Canonical relation: episode scripts point to their Episode via scripts.episode_id.
-		`
+		{[]string{"episodes", "scripts"}, `
 			UPDATE scripts s
 			SET episode_id = e.id
 			FROM episodes e
 			WHERE e.script_id = s.id
 				AND s.script_type = 'episode'
 				AND (s.episode_id IS NULL OR s.episode_id = 0)
-		`,
-		`
+		`},
+		{[]string{"episodes", "scripts"}, `
 			UPDATE episodes e
 			SET script_id = s.id
 			FROM (
@@ -45,38 +57,44 @@ func runLegacyCleanupAndBackfill(db *gorm.DB) error {
 			) s
 			WHERE e.id = s.episode_id
 				AND (e.script_id IS NULL OR e.script_id = 0)
-		`,
+		`},
 
 		// Content entities no longer store RawResource IDs directly.
-		"ALTER TABLE scripts DROP COLUMN IF EXISTS resource_ids",
-		"ALTER TABLE episodes DROP COLUMN IF EXISTS resource_ids",
-		"ALTER TABLE scenes DROP COLUMN IF EXISTS resource_ids",
-		"ALTER TABLE storyboards DROP COLUMN IF EXISTS resource_ids",
-		"ALTER TABLE shots DROP COLUMN IF EXISTS ref_resource_ids",
-		"ALTER TABLE shots DROP COLUMN IF EXISTS generated_res_id",
-		"ALTER TABLE final_videos DROP COLUMN IF EXISTS resource_id",
-		"ALTER TABLE assets DROP COLUMN IF EXISTS reference_ids",
-		"ALTER TABLE asset_views DROP COLUMN IF EXISTS resource_id",
+		{[]string{"assets"}, "ALTER TABLE assets DROP COLUMN IF EXISTS reference_ids"},
+		{[]string{"asset_views"}, "ALTER TABLE asset_views DROP COLUMN IF EXISTS resource_id"},
+		{[]string{"episodes"}, "ALTER TABLE episodes DROP COLUMN IF EXISTS resource_ids"},
+		{[]string{"scenes"}, "ALTER TABLE scenes DROP COLUMN IF EXISTS resource_ids"},
+		{[]string{"storyboards"}, "ALTER TABLE storyboards DROP COLUMN IF EXISTS resource_ids"},
+		{[]string{"shots"}, "ALTER TABLE shots DROP COLUMN IF EXISTS ref_resource_ids"},
+		{[]string{"shots"}, "ALTER TABLE shots DROP COLUMN IF EXISTS generated_res_id"},
+		{[]string{"final_videos"}, "ALTER TABLE final_videos DROP COLUMN IF EXISTS resource_id"},
 
 		// Backfill storyboard.project_id from linked scene.
-		`
+		{[]string{"storyboards", "scenes"}, `
 			UPDATE storyboards sb
 			SET project_id = sc.project_id
 			FROM scenes sc
 			WHERE sb.scene_id = sc.id AND (sb.project_id = 0 OR sb.project_id IS NULL)
-		`,
+		`},
 
 		// Backfill shot.project_id from linked storyboard.
-		`
+		{[]string{"shots", "storyboards"}, `
 			UPDATE shots sh
 			SET project_id = sb.project_id
 			FROM storyboards sb
 			WHERE sh.storyboard_id = sb.id AND (sh.project_id = 0 OR sh.project_id IS NULL)
-		`,
+		`},
 	}
 
-	for _, statement := range statements {
-		if err := execSQL(db, statement); err != nil {
+	for _, item := range legacyStatements {
+		ok, err := tablesExist(db, item.tables...)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if err := execSQL(db, item.statement); err != nil {
 			return err
 		}
 	}
@@ -88,6 +106,15 @@ func runLegacyCleanupAndBackfill(db *gorm.DB) error {
 		return err
 	}
 	return nil
+}
+
+func tablesExist(db *gorm.DB, names ...string) (bool, error) {
+	for _, name := range names {
+		if !db.Migrator().HasTable(name) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func relaxLegacyUserColumns(db *gorm.DB) error {
@@ -103,10 +130,21 @@ func relaxLegacyUserColumns(db *gorm.DB) error {
 }
 
 func migrateShotCameraParams(db *gorm.DB) error {
-	migrator := db.Migrator()
+	if ok, err := tablesExist(db, "shots"); err != nil || !ok {
+		return err
+	}
 	for _, col := range []string{"camera_angle", "camera_movement", "depth_of_field", "lighting", "duration"} {
-		if migrator.HasColumn(&model.Shot{}, col) {
-			if err := migrator.DropColumn(&model.Shot{}, col); err != nil {
+		var exists bool
+		if err := db.Raw(`
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = 'shots' AND column_name = ?
+			)
+		`, col).Scan(&exists).Error; err != nil {
+			return err
+		}
+		if exists {
+			if err := execSQL(db, "ALTER TABLE shots DROP COLUMN IF EXISTS "+col); err != nil {
 				return fmt.Errorf("drop shots.%s: %w", col, err)
 			}
 		}

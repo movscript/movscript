@@ -1,10 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
-  ArrowRight,
   Boxes,
   CheckCircle2,
   ChevronRight,
@@ -12,11 +11,12 @@ import {
   Database,
   Eye,
   Film,
-  GitBranch,
   Image,
   Layers3,
   MapPin,
   PackageCheck,
+  Pencil,
+  Plus,
   RefreshCcw,
   Route,
   ShieldCheck,
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 
 import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
+import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -115,6 +116,9 @@ const statusLabels: Record<string, string> = {
 export default function SceneMomentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const sceneMomentConfig = v2EntityConfig('sceneMoments')
+  const [momentDialogOpen, setMomentDialogOpen] = useState(false)
+  const [momentDialogMode, setMomentDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
   const segmentFilterId = readNumberParam(searchParams, 'segment_id')
   const selectedMomentId = readNumberParam(searchParams, 'scene_moment_id')
@@ -269,6 +273,17 @@ export default function SceneMomentsPage() {
     assetSlotsQuery.refetch()
   }
 
+  function startCreateMoment() {
+    setMomentDialogMode('create')
+    setMomentDialogOpen(true)
+  }
+
+  function startEditMoment() {
+    if (!selected) return
+    setMomentDialogMode('edit')
+    setMomentDialogOpen(true)
+  }
+
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="min-w-[1240px] space-y-5 p-5">
@@ -288,6 +303,14 @@ export default function SceneMomentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={startEditMoment} disabled={!selected}>
+              <Pencil size={15} />
+              编辑情节
+            </Button>
+            <Button className="gap-2" onClick={startCreateMoment}>
+              <Plus size={15} />
+              新建情节
+            </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
               <RefreshCcw size={15} />
               刷新
@@ -376,14 +399,6 @@ export default function SceneMomentsPage() {
                 )}
               </div>
             </Panel>
-
-            <Panel title="结构关系" icon={ArrowRight}>
-              <FlowStep icon={Layers3} label="片段" detail="情节所属的制作容器" />
-              <FlowStep icon={Film} label="情节" detail="时间、地点、条件、动作、情绪" active />
-              <FlowStep icon={Sparkles} label="资料" detail="人物、地点、道具、风格约束" />
-              <FlowStep icon={PackageCheck} label="素材" detail="由资料和内容共同消耗" />
-              <FlowStep icon={Boxes} label="内容" detail="自然产出到生成任务" />
-            </Panel>
           </aside>
 
           <main className="min-w-0 space-y-4">
@@ -404,23 +419,6 @@ export default function SceneMomentsPage() {
                   onSelect={(record) => setFilter({ reference_id: record.ID })}
                 />
               </Panel>
-            </section>
-
-            <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <GitBranch size={15} className="text-primary" />
-                  <p className="text-sm font-semibold text-foreground">情节到下游</p>
-                </div>
-                <span className="text-xs text-muted-foreground">展示情节如何连接片段、资料、素材和内容</span>
-              </div>
-              <div className="grid grid-cols-5 gap-3 p-4">
-                <PipelineTile icon={Layers3} label="所属片段" value={selected?.segment ? titleOf(selected.segment) : '未绑定'} detail={selected?.segment?.summary || selected?.segment?.content || '需要绑定片段'} />
-                <PipelineTile icon={Sparkles} label="资料" value={selected?.references.length ?? 0} detail="情节直接使用，内容继承" />
-                <PipelineTile icon={PackageCheck} label="素材" value={selected?.assetSlots.length ?? 0} detail={`${selected?.assetSlots.filter(isAssetGap).length ?? 0} 个缺口`} />
-                <PipelineTile icon={Boxes} label="内容" value={selected?.contentUnits.length ?? 0} detail={`估算 ${formatDuration(selected?.totalDuration)}`} />
-                <PipelineTile icon={Image} label="关键帧" value={selected?.keyframes.length ?? 0} detail="视觉锚点和预演输入" />
-              </div>
             </section>
           </main>
 
@@ -453,6 +451,18 @@ export default function SceneMomentsPage() {
           </aside>
         </section>
       </div>
+      <V2EntityCrudDialog
+        open={momentDialogOpen}
+        mode={momentDialogMode}
+        projectId={projectId}
+        config={sceneMomentConfig}
+        record={momentDialogMode === 'edit' ? selected?.moment : null}
+        defaults={{ segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, order: momentWorkspaces.length + 1, status: 'draft' }}
+        queryKey={['v2-scene-moment-page', projectId]}
+        onOpenChange={setMomentDialogOpen}
+        onSaved={(record) => setFilter({ scene_moment_id: record.ID, segment_id: record.segment_id as number | undefined })}
+        onDeleted={() => setFilter({ scene_moment_id: null, content_unit_id: null })}
+      />
     </div>
   )
 }
@@ -617,33 +627,6 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIco
       </div>
       <div className="p-3">{children}</div>
     </section>
-  )
-}
-
-function PipelineTile({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string | number; detail: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <div className="flex items-center gap-2">
-        <Icon size={14} className="text-muted-foreground" />
-        <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
-      </div>
-      <p className="mt-2 truncate text-sm font-semibold text-foreground">{value}</p>
-      <p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-    </div>
-  )
-}
-
-function FlowStep({ icon: Icon, label, detail, active = false }: { icon: LucideIcon; label: string; detail: string; active?: boolean }) {
-  return (
-    <div className="flex gap-2">
-      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', active ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
-        <Icon size={15} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{detail}</p>
-      </div>
-    </div>
   )
 }
 

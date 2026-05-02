@@ -171,7 +171,61 @@ func RegisteredMigrations() []Migration {
 			Name:    "remove_v1_production_entities",
 			Up:      migrateRemoveV1ProductionEntities,
 		},
+		{
+			Version: "000026",
+			Name:    "content_zone_v2_tables",
+			Up:      migrateContentZoneV2Tables,
+		},
+		{
+			Version: "000027",
+			Name:    "remove_legacy_asset_entities",
+			Up:      migrateRemoveLegacyAssetEntities,
+		},
+		{
+			Version: "000028",
+			Name:    "optional_segment_script_reference",
+			Up:      migrateOptionalSegmentScriptReference,
+		},
 	}
+}
+
+func migrateContentZoneV2Tables(db *gorm.DB) error {
+	if err := migrateRemoveV1ProductionEntities(db); err != nil {
+		return err
+	}
+	return db.AutoMigrate(
+		&model.ScriptVersion{},
+		&model.Segment{},
+		&model.SceneMoment{},
+		&model.Production{},
+		&model.StoryboardScript{},
+		&model.StoryboardVersion{},
+		&model.StoryboardLine{},
+		&model.ContentUnit{},
+		&model.Keyframe{},
+		&model.PreviewTimeline{},
+		&model.PreviewTimelineItem{},
+		&model.CreativeReference{},
+		&model.CreativeReferenceState{},
+		&model.CreativeReferenceUsage{},
+		&model.CreativeRelationship{},
+		&model.AssetSlot{},
+		&model.AssetSlotCandidate{},
+		&model.WorkItem{},
+		&model.DeliveryVersion{},
+	)
+}
+
+func migrateOptionalSegmentScriptReference(db *gorm.DB) error {
+	for _, stmt := range []string{
+		`ALTER TABLE IF EXISTS segments ALTER COLUMN script_id DROP NOT NULL`,
+		`ALTER TABLE IF EXISTS segments ALTER COLUMN script_version_id DROP NOT NULL`,
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return db.AutoMigrate(&model.Segment{})
 }
 
 func migrateRemoveV1ProductionEntities(db *gorm.DB) error {
@@ -190,6 +244,92 @@ func migrateRemoveV1ProductionEntities(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+func migrateRemoveLegacyAssetEntities(db *gorm.DB) error {
+	for _, stmt := range []string{
+		`ALTER TABLE asset_slots ADD COLUMN IF NOT EXISTS resource_id bigint`,
+		`ALTER TABLE asset_slots ADD COLUMN IF NOT EXISTS locked_asset_slot_id bigint`,
+		`ALTER TABLE asset_slots ADD COLUMN IF NOT EXISTS locked_asset_id bigint`,
+		`ALTER TABLE asset_slot_candidates ADD COLUMN IF NOT EXISTS candidate_asset_slot_id bigint`,
+		`ALTER TABLE asset_slot_candidates ADD COLUMN IF NOT EXISTS asset_id bigint`,
+		`ALTER TABLE delivery_timeline_items ADD COLUMN IF NOT EXISTS asset_slot_id bigint`,
+		`ALTER TABLE delivery_timeline_items ADD COLUMN IF NOT EXISTS asset_id bigint`,
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+
+	if ok, err := tablesExist(db, "assets"); err != nil {
+		return err
+	} else if ok {
+		if err := db.Exec(`
+			INSERT INTO asset_slots (
+				created_at, updated_at, deleted_at, project_id, kind, name, description,
+				slot_key, prompt_hint, status, priority, resource_id, metadata_json
+			)
+			SELECT
+				a.created_at,
+				a.updated_at,
+				a.deleted_at,
+				a.project_id,
+				COALESCE(NULLIF(a.type, ''), 'reference'),
+				COALESCE(NULLIF(a.name, ''), 'Legacy asset #' || a.id::text),
+				COALESCE(a.description, ''),
+				'legacy_asset:' || a.id::text,
+				COALESCE(a.prompt, ''),
+				CASE WHEN a.review_status = 'approved' THEN 'locked' ELSE 'candidate' END,
+				'normal',
+				a.resource_id,
+				jsonb_build_object(
+					'legacy_asset_id', a.id,
+					'variant_type', a.variant_type,
+					'variant_name', a.variant_name,
+					'setting_id', a.setting_id,
+					'style_profile', a.style_profile
+				)::text
+			FROM assets a
+			WHERE NOT EXISTS (
+				SELECT 1 FROM asset_slots s
+				WHERE s.project_id = a.project_id AND s.slot_key = 'legacy_asset:' || a.id::text
+			)
+		`).Error; err != nil {
+			return err
+		}
+	}
+
+	for _, stmt := range []string{
+		`UPDATE asset_slots target
+		 SET locked_asset_slot_id = source.id
+		 FROM asset_slots source
+		 WHERE target.locked_asset_id IS NOT NULL
+		   AND source.project_id = target.project_id
+		   AND source.slot_key = 'legacy_asset:' || target.locked_asset_id::text`,
+		`UPDATE asset_slot_candidates candidate
+		 SET candidate_asset_slot_id = source.id
+		 FROM asset_slots source
+		 WHERE candidate.asset_id IS NOT NULL
+		   AND source.project_id = candidate.project_id
+		   AND source.slot_key = 'legacy_asset:' || candidate.asset_id::text`,
+		`UPDATE delivery_timeline_items item
+		 SET asset_slot_id = source.id
+		 FROM asset_slots source
+		 WHERE item.asset_id IS NOT NULL
+		   AND source.project_id = item.project_id
+		   AND source.slot_key = 'legacy_asset:' || item.asset_id::text`,
+		`ALTER TABLE asset_slots DROP COLUMN IF EXISTS locked_asset_id`,
+		`ALTER TABLE asset_slot_candidates DROP COLUMN IF EXISTS asset_id`,
+		`ALTER TABLE delivery_timeline_items DROP COLUMN IF EXISTS asset_id`,
+		`DELETE FROM resource_bindings WHERE owner_type IN ('asset', 'asset_view')`,
+		`DROP TABLE IF EXISTS asset_views CASCADE`,
+		`DROP TABLE IF EXISTS assets CASCADE`,
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return db.AutoMigrate(&model.AssetSlot{}, &model.AssetSlotCandidate{}, &model.DeliveryTimelineItem{})
 }
 
 func migrateV2SemanticSkeleton(db *gorm.DB) error {
@@ -289,11 +429,11 @@ func migrateStructuredScriptFields(db *gorm.DB) error {
 }
 
 func migrateRemoveFinalVideoStatusAndOrder(db *gorm.DB) error {
-	for _, column := range []string{"status", "order"} {
-		if !db.Migrator().HasColumn(&model.FinalVideo{}, column) {
-			continue
-		}
-		if err := db.Migrator().DropColumn(&model.FinalVideo{}, column); err != nil {
+	if ok, err := tablesExist(db, "final_videos"); err != nil || !ok {
+		return err
+	}
+	for _, column := range []string{"status", `"order"`} {
+		if err := db.Exec("ALTER TABLE final_videos DROP COLUMN IF EXISTS " + column).Error; err != nil {
 			return err
 		}
 	}
@@ -301,14 +441,11 @@ func migrateRemoveFinalVideoStatusAndOrder(db *gorm.DB) error {
 }
 
 func migrateStoryboardSettingAndRemoveStatus(db *gorm.DB) error {
-	if err := db.AutoMigrate(&model.Storyboard{}); err != nil {
+	if ok, err := tablesExist(db, "storyboards"); err != nil || !ok {
 		return err
 	}
 	for _, column := range []string{"status", "camera_angle", "camera_movement", "depth_of_field"} {
-		if !db.Migrator().HasColumn(&model.Storyboard{}, column) {
-			continue
-		}
-		if err := db.Migrator().DropColumn(&model.Storyboard{}, column); err != nil {
+		if err := db.Exec("ALTER TABLE storyboards DROP COLUMN IF EXISTS " + column).Error; err != nil {
 			return err
 		}
 	}
@@ -331,13 +468,7 @@ func migrateRemoveEpisodeSceneDefinitionFields(db *gorm.DB) error {
 }
 
 func migrateEpisodeSceneReferenceTables(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&model.Episode{},
-		&model.Scene{},
-		&model.EpisodeSettingRef{},
-		&model.SceneSettingRef{},
-		&model.Storyboard{},
-	)
+	return nil
 }
 
 func migrateSettingRelationshipCategory(db *gorm.DB) error {
@@ -408,7 +539,7 @@ func migrateRenameAgentChatFeature(db *gorm.DB) error {
 }
 
 func migrateAssetDirectResource(db *gorm.DB) error {
-	if err := db.AutoMigrate(&model.Asset{}); err != nil {
+	if ok, err := tablesExist(db, "assets", "asset_views", "resource_bindings"); err != nil || !ok {
 		return err
 	}
 	return db.Exec(`
@@ -557,6 +688,7 @@ func allModels() []any {
 		&model.ScriptVersion{},
 		&model.Segment{},
 		&model.SceneMoment{},
+		&model.Production{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.PreviewTimeline{},
@@ -579,8 +711,6 @@ func allModels() []any {
 		&model.Setting{},
 		&model.ScriptSettingRef{},
 		&model.SettingRelationship{},
-		&model.Asset{},
-		&model.AssetView{},
 		&model.AICredential{},
 		&model.AIModelConfig{},
 		&model.UserQuota{},

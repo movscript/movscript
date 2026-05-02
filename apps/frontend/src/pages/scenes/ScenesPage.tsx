@@ -1,15 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
-  ArrowRight,
   BookOpenText,
   Boxes,
   CheckCircle2,
   ChevronRight,
-  Clapperboard,
   Clock3,
   Database,
   Eye,
@@ -20,13 +18,15 @@ import {
   Layers3,
   MapPin,
   PackageCheck,
+  Pencil,
+  Plus,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
-  Wand2,
 } from 'lucide-react'
 
 import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
+import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -36,6 +36,8 @@ import { Badge, Button, Progress as ProgressBar } from '@movscript/ui'
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
 type SegmentRecord = V2EntityRecord & {
+  script_id?: number
+  script_version_id?: number
   title?: string
   kind?: string
   summary?: string
@@ -167,6 +169,9 @@ function formatDuration(value?: number) {
 export default function ScenesPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const segmentConfig = v2EntityConfig('segments')
+  const [segmentDialogOpen, setSegmentDialogOpen] = useState(false)
+  const [segmentDialogMode, setSegmentDialogMode] = useState<'create' | 'edit'>('create')
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedSegmentId = readNumberParam(searchParams, 'segment_id')
   const selectedSceneMomentId = readNumberParam(searchParams, 'scene_moment_id')
@@ -364,6 +369,17 @@ export default function ScenesPage() {
     })
   }
 
+  function startCreateSegment() {
+    setSegmentDialogMode('create')
+    setSegmentDialogOpen(true)
+  }
+
+  function startEditSegment() {
+    if (!selectedSegment) return
+    setSegmentDialogMode('edit')
+    setSegmentDialogOpen(true)
+  }
+
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="min-w-[1240px] space-y-5 p-5">
@@ -383,6 +399,14 @@ export default function ScenesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={startEditSegment} disabled={!selectedSegment}>
+              <Pencil size={15} />
+              编辑片段
+            </Button>
+            <Button className="gap-2" onClick={startCreateSegment}>
+              <Plus size={15} />
+              新建片段
+            </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
               <RefreshCcw size={15} />
               刷新
@@ -390,10 +414,6 @@ export default function ScenesPage() {
             <Button variant="outline" className="gap-2">
               <GitBranch size={15} />
               查看关系
-            </Button>
-            <Button className="gap-2">
-              <Sparkles size={15} />
-              从剧本拆片段
             </Button>
           </div>
         </header>
@@ -405,10 +425,28 @@ export default function ScenesPage() {
           <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
         </section>
 
-        <section className="grid grid-cols-[310px_minmax(0,1fr)_370px] gap-4">
+        <section className="grid grid-cols-[250px_minmax(0,1fr)_350px] gap-4">
           <aside className="space-y-4">
-            <Panel title="片段列表" icon={Layers3}>
-              <div className="space-y-3">
+            <Panel title="片段状态" icon={Layers3}>
+              <div className="space-y-2">
+                <CheckRow ok={readyCount > 0} label="可推进片段" detail={`${readyCount} 个片段准备度较高`} />
+                <CheckRow ok={attentionCount === 0} label="待处理片段" detail={attentionCount > 0 ? `${attentionCount} 个片段需要补内容或素材` : '当前没有待处理片段'} />
+                <CheckRow ok={segmentWorkspaces.some((item) => !item.segment.script_version_id)} label="支持独立片段" detail="片段可不绑定剧本版本，后续按需补引用" />
+              </div>
+            </Panel>
+          </aside>
+
+          <main className="min-w-0 space-y-4">
+            <section className="rounded-lg border border-border bg-card">
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">片段清单</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">以卡片方式管理项目片段；片段可独立创建，也可选填剧本版本作为来源引用。</p>
+                </div>
+                <Badge variant="outline" className="text-[10px]">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>
+              </div>
+
+              <div className="border-b border-border p-4">
                 <ContentFilterBar
                   query={query}
                   onQueryChange={(value) => setFilter({ q: value })}
@@ -435,47 +473,43 @@ export default function ScenesPage() {
                   resultCount={visibleSegments.length}
                   totalCount={segmentWorkspaces.length}
                 />
-                <div className="max-h-[700px] space-y-2 overflow-auto pr-1">
-                  {isLoading ? (
-                    <EmptyState title="正在加载片段" detail="读取片段和关联对象" compact />
-                  ) : visibleSegments.length === 0 ? (
-                    <EmptyState title="暂无片段" detail="可先从剧本版本拆分片段" compact />
-                  ) : (
-                    visibleSegments.map((item) => (
-                      <SegmentButton
-                        key={item.segment.ID}
-                        item={item}
-                        selected={selectedSegment?.segment.ID === item.segment.ID}
-                        onClick={() => selectSegment(item.segment.ID)}
-                      />
-                    ))
-                  )}
-                </div>
               </div>
-            </Panel>
 
-            <Panel title="片段结构" icon={ArrowRight}>
-              <FlowStep icon={BookOpenText} label="片段" detail="项目里的内容容器" active />
-              <FlowStep icon={Film} label="情节" detail="片段下的多个事件上下文" />
-              <FlowStep icon={Boxes} label="内容设计" detail="情节继续拆成内容单元" />
-              <FlowStep icon={PackageCheck} label="资料与素材" detail="引用项目资料和素材输入" />
-            </Panel>
-          </aside>
+              <div className="grid grid-cols-2 gap-3 p-4">
+                {isLoading ? (
+                  <div className="col-span-2">
+                    <EmptyState title="正在加载片段" detail="读取片段和关联对象" compact />
+                  </div>
+                ) : visibleSegments.length === 0 ? (
+                  <div className="col-span-2">
+                    <EmptyState title="暂无片段" detail="可以直接新建片段，剧本版本只是可选来源引用" compact />
+                  </div>
+                ) : (
+                  visibleSegments.map((item) => (
+                    <SegmentButton
+                      key={item.segment.ID}
+                      item={item}
+                      selected={selectedSegment?.segment.ID === item.segment.ID}
+                      onClick={() => selectSegment(item.segment.ID)}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
 
-          <main className="min-w-0 space-y-4">
             <SegmentHero item={selectedSegment} />
 
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">情节与内容设计</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">左侧选择片段后，在这里查看它持有的多个情节，以及每个情节关联的内容设计。</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">选择片段后，在这里查看它持有的多个情节，以及每个情节关联的内容设计。</p>
                 </div>
                 <Badge variant="outline" className="text-[10px]">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情节 / ${selectedSegment.contentUnits.length} 内容` : '-'}</Badge>
               </div>
 
               {!selectedSegment ? (
-                <EmptyState title="未选择片段" detail="从左侧选择一个片段查看内容设计" />
+                <EmptyState title="未选择片段" detail="从片段清单选择一个片段查看内容设计" />
               ) : (
                 <div className="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-4 p-4">
                   <div className="space-y-3">
@@ -517,23 +551,6 @@ export default function ScenesPage() {
                 </div>
               )}
             </section>
-
-            <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Wand2 size={15} className="text-primary" />
-                  <p className="text-sm font-semibold text-foreground">片段到生产</p>
-                </div>
-                <span className="text-xs text-muted-foreground">展示当前片段如何进入分镜、关键帧和素材准备</span>
-              </div>
-              <div className="grid grid-cols-5 gap-3 p-4">
-                <PipelineTile icon={BookOpenText} label="片段概要" value={selectedSegment ? statusLabel(selectedSegment.segment.status) : '-'} detail={selectedSegment?.segment.summary || selectedSegment?.segment.content || '需要片段内容'} />
-                <PipelineTile icon={Film} label="情节" value={selectedSegment?.sceneMoments.length ?? 0} detail="时间、地点、条件、动作、情绪" />
-                <PipelineTile icon={Clapperboard} label="分镜行" value={selectedSegment?.storyboardLines.length ?? 0} detail="可转成内容单元" />
-                <PipelineTile icon={Sparkles} label="资料引用" value={selectedSegment?.references.length ?? 0} detail="人物、地点、道具、风格等约束" />
-                <PipelineTile icon={PackageCheck} label="素材位" value={selectedSegment?.assetSlots.length ?? 0} detail={`${selectedSegment?.assetSlots.filter(isAssetGap).length ?? 0} 个缺口`} />
-              </div>
-            </section>
           </main>
 
           <aside className="space-y-4">
@@ -549,6 +566,18 @@ export default function ScenesPage() {
           </aside>
         </section>
       </div>
+      <V2EntityCrudDialog
+        open={segmentDialogOpen}
+        mode={segmentDialogMode}
+        projectId={projectId}
+        config={segmentConfig}
+        record={segmentDialogMode === 'edit' ? selectedSegment?.segment : null}
+        defaults={{ order: segmentWorkspaces.length + 1, status: 'draft', kind: 'section' }}
+        queryKey={['v2-segment-workspace', projectId]}
+        onOpenChange={setSegmentDialogOpen}
+        onSaved={(record) => setFilter({ segment_id: record.ID })}
+        onDeleted={() => setFilter({ segment_id: null, scene_moment_id: null, content_unit_id: null })}
+      />
     </div>
   )
 }
@@ -887,33 +916,6 @@ function RelatedRow({ record }: { record: RelatedRecord }) {
       <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
         {record.kind ? <span>{record.kind}</span> : null}
         {record.duration_sec ? <span>{formatDuration(record.duration_sec)}</span> : null}
-      </div>
-    </div>
-  )
-}
-
-function PipelineTile({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: string | number; detail: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <div className="flex items-center gap-2">
-        <Icon size={14} className="text-muted-foreground" />
-        <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
-      </div>
-      <p className="mt-2 truncate text-sm font-semibold text-foreground">{value}</p>
-      <p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-    </div>
-  )
-}
-
-function FlowStep({ icon: Icon, label, detail, active = false }: { icon: LucideIcon; label: string; detail: string; active?: boolean }) {
-  return (
-    <div className="flex gap-2">
-      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', active ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
-        <Icon size={15} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{detail}</p>
       </div>
     </div>
   )

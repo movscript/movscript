@@ -142,23 +142,6 @@ func (s *EntityIOService) readComputedPorts(ctx context.Context, kind string, id
 			return fmt.Errorf("script not found")
 		}
 		addComputedText("characters", firstNonEmpty(item.CharacterProfiles, item.Characters))
-	case "episode":
-		var item model.Episode
-		if err := s.db.WithContext(ctx).Select("script_id").First(&item, id).Error; err != nil {
-			return fmt.Errorf("episode not found")
-		}
-		if item.ScriptID != nil {
-			var script model.Script
-			if err := s.db.WithContext(ctx).Select("content").First(&script, *item.ScriptID).Error; err == nil {
-				addComputedText("script", script.Content)
-			}
-		}
-	case "storyboard":
-		var item model.Storyboard
-		if err := s.db.WithContext(ctx).Select("description", "actions", "dialogue", "atmosphere").First(&item, id).Error; err != nil {
-			return fmt.Errorf("storyboard not found")
-		}
-		addComputedText("prompt", strings.TrimSpace(strings.Join([]string{item.Description, item.Actions, item.Dialogue, item.Atmosphere}, "\n")))
 	}
 	return nil
 }
@@ -326,30 +309,15 @@ func entityTableName(kind string) (string, bool) {
 		return "scripts", true
 	case "setting":
 		return "settings", true
-	case "asset":
-		return "assets", true
-	case "episode":
-		return "episodes", true
-	case "scene":
-		return "scenes", true
-	case "storyboard":
-		return "storyboards", true
-	case "shot":
-		return "shots", true
-	case "final_video":
-		return "final_videos", true
+	case "asset_slot":
+		return "asset_slots", true
 	default:
 		return "", false
 	}
 }
 
 func entityLabel(kind string) string {
-	switch kind {
-	case "final_video":
-		return "final video"
-	default:
-		return strings.ReplaceAll(kind, "_", " ")
-	}
+	return strings.ReplaceAll(kind, "_", " ")
 }
 
 func storedColumnText(value any) string {

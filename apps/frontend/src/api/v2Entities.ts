@@ -4,6 +4,7 @@ export type V2EntityKind =
   | 'scriptVersions'
   | 'segments'
   | 'sceneMoments'
+  | 'productions'
   | 'storyboardScripts'
   | 'storyboardVersions'
   | 'storyboardLines'
@@ -111,8 +112,8 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('summary', '摘要'),
       select('status', '状态', ['draft', 'active', 'archived']),
     ], '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。'),
-    cfg('segments', 'segments', '片段', '从剧本版本切出的语义段落，不等同于传统场景。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
-      num('script_version_id', 'ScriptVersion ID', true, true),
+    cfg('segments', 'segments', '片段', '项目里的内容片段，可手动创建，也可选填剧本版本作为来源引用。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
+      num('script_version_id', 'ScriptVersion ID', false, false, '可选：仅在需要追溯来源剧本版本时填写'),
       text('title', '标题', true),
       select('kind', '类型', ['section', 'scene', 'montage', 'narration', 'product_showcase', 'title_card', 'transition']),
       num('order', '顺序'),
@@ -121,7 +122,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       text('source_range', '原文范围'),
       select('status', '状态', ['draft', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
-    ], '创建时需要填写 script_version_id。'),
+    ]),
     cfg('sceneMoments', 'scene-moments', '情节', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
       num('segment_id', 'Segment ID'),
       text('title', '标题', true),
@@ -133,6 +134,17 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('action_text', '动作'),
       text('mood', '情绪'),
       select('status', '状态', ['draft', 'confirmed', 'ignored']),
+      area('metadata_json', '元数据 JSON'),
+    ]),
+    cfg('productions', 'productions', '制作', '一次完整制作主体，可从剧本、brief、预演创建，也可以直接裸创建。', 'text-orange-600', ['name', 'source_type', 'status', 'description'], [
+      text('name', '制作名称', true),
+      area('description', '制作说明'),
+      select('source_type', '来源类型', ['direct', 'script', 'brief', 'preview', 'import']),
+      select('status', '状态', ['planning', 'previewing', 'materializing', 'producing', 'reviewing', 'delivered', 'archived']),
+      text('owner_label', '负责人'),
+      num('progress', '进度'),
+      num('script_version_id', 'ScriptVersion ID'),
+      num('preview_timeline_id', 'PreviewTimeline ID'),
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情节到内容单元之间的正式 V2 对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
@@ -169,18 +181,20 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 storyboard_script_id。'),
     cfg('contentUnits', 'content-units', '内容单元', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
-      num('segment_id', 'Segment ID'),
-      num('scene_moment_id', 'SceneMoment ID'),
+      num('production_id', 'Production ID'),
+      num('segment_id', '所属片段 ID'),
+      num('scene_moment_id', '所属情节 ID'),
       text('title', '标题', true),
       select('kind', '类型', ['shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']),
       num('order', '顺序'),
       num('duration_sec', '时长秒'),
-      area('description', '描述'),
+      area('description', '要做什么'),
       area('prompt', '生成提示'),
       select('status', '状态', ['draft', 'confirmed', 'in_production', 'locked']),
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('keyframes', 'keyframes', '关键帧', '情节或内容单元的视觉锚点，用于驱动预演时间线。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
+      num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
       num('resource_id', 'Resource ID'),
@@ -193,6 +207,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('previewTimelines', 'preview-timelines', '预演时间线', '按内容单元排列的可播放预演版本。', 'text-emerald-600', ['name', 'status', 'duration_sec', 'is_primary'], [
+      num('production_id', 'Production ID'),
       num('script_version_id', 'ScriptVersion ID'),
       text('name', '名称', true),
       num('duration_sec', '总时长秒'),
@@ -253,17 +268,18 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
     cfg('assetSlots', 'asset-slots', '素材位', '正式生产前需要补齐、候选或锁定的素材缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
+      num('production_id', 'Production ID'),
       select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
-      num('owner_id', 'Owner ID'),
-      num('creative_reference_id', 'CreativeReference ID'),
-      num('creative_reference_state_id', 'CreativeReferenceState ID'),
+      num('owner_id', '归属对象 ID'),
+      num('creative_reference_id', '创作资料 ID'),
+      num('creative_reference_state_id', '资料状态 ID'),
       select('kind', '素材类型', ['image', 'video', 'audio', 'text', 'brand_pack', 'reference']),
-      text('name', '名称', true),
+      text('name', '需要什么素材', true),
       text('slot_key', '素材位键'),
-      area('description', '描述'),
+      area('description', '用途说明'),
       area('prompt_hint', '生成提示'),
       select('priority', '优先级', ['low', 'normal', 'high', 'critical']),
-      num('locked_asset_id', 'LockedAsset ID'),
+      num('locked_asset_id', '已锁定素材 ID'),
       select('status', '状态', ['missing', 'candidate', 'locked', 'waived']),
       area('metadata_json', '元数据 JSON'),
     ]),
@@ -305,6 +321,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录草稿或 runtime 对象。'),
     cfg('workItems', 'work-items', '制作任务', '执行、分配、审核和返工状态，不作为内容事实源。', 'text-orange-600', ['title', 'target_type', 'kind', 'status'], [
+      num('production_id', 'Production ID'),
       select('target_type', '目标类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'asset', 'keyframe', 'delivery_version'], true),
       num('target_id', 'Target ID', true),
       text('title', '标题', true),
@@ -330,6 +347,7 @@ function v2CoreEntityConfigs(): V2EntityConfig[] {
       select('dependency_type', '依赖类型', ['blocks', 'requires', 'relates_to']),
     ], '创建时需要填写 work_item_id 和 depends_on_work_item_id。'),
     cfg('deliveryVersions', 'delivery-versions', '交付版本', '成片检查、审核和导出版本记录。', 'text-lime-600', ['name', 'status', 'duration_sec', 'is_primary'], [
+      num('production_id', 'Production ID'),
       num('preview_timeline_id', 'PreviewTimeline ID'),
       text('name', '名称', true),
       area('description', '描述'),

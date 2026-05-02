@@ -180,7 +180,7 @@ export default function App() {
                       <Route path="/production-preview" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/preview-progress" element={<ProjectGuard><PreviewProgressPage /></ProjectGuard>} />
                       <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
-                      <Route path="/collaboration" element={<ProjectGuard><Padded><CollaborationPage /></Padded></ProjectGuard>} />
+                      <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
                       <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
                       <Route path="/project-home" element={<ProjectGuard><ProjectHomeV2Page /></ProjectGuard>} />
                       <Route path="/project-plan" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />

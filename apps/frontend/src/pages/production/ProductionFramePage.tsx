@@ -26,11 +26,8 @@ import {
   Wand2,
 } from 'lucide-react'
 
-import {
-  getLatestProjectPreviewDraft,
-  type GetLatestProjectPreviewDraftResponse,
-  type ProjectPreviewStoryboardRow,
-} from '@/api/projectPreview'
+import { listV2Entities, v2EntityConfig, type V2EntityRecord } from '@/api/v2Entities'
+import { V2EntityCrudDialog } from '@/components/shared/V2EntityCrudDialog'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -61,6 +58,7 @@ interface ProductionUnit {
 }
 
 interface ProductionRecord {
+  dbId: number
   id: string
   name: string
   status: ProductionStatus
@@ -90,6 +88,26 @@ interface ProductionRecord {
   nextActions: string[]
 }
 
+type ProductionBackendRecord = V2EntityRecord & {
+  script_version_id?: number
+  preview_timeline_id?: number
+  name?: string
+  description?: string
+  status?: string
+  source_type?: string
+  owner_label?: string
+  progress?: number
+}
+
+type ProductionData = {
+  productions: ProductionBackendRecord[]
+  contentUnits: V2EntityRecord[]
+  assetSlots: V2EntityRecord[]
+  keyframes: V2EntityRecord[]
+  previewTimelines: V2EntityRecord[]
+  deliveryVersions: V2EntityRecord[]
+}
+
 const statusMeta: Record<ProductionStatus, { label: string; badge: string; dot: string }> = {
   planning: { label: '筹备中', badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', dot: 'bg-slate-500' },
   previewing: { label: '预演中', badge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500' },
@@ -110,15 +128,17 @@ export default function ProductionFramePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const [selectedId, setSelectedId] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
 
-  const { data: latestProjectPreviewDraft } = useQuery<GetLatestProjectPreviewDraftResponse>({
-    queryKey: ['production-frame-latest-preview', projectId],
-    queryFn: () => getLatestProjectPreviewDraft(projectId!),
+  const productionQueryKey = ['production-frame-v2', projectId] as const
+  const { data: productionData } = useQuery<ProductionData>({
+    queryKey: productionQueryKey,
+    queryFn: () => loadProductionData(projectId!),
     enabled: !!projectId,
     refetchInterval: 60_000,
   })
 
-  const productions = useMemo(() => buildProductionRecords(latestProjectPreviewDraft), [latestProjectPreviewDraft])
+  const productions = useMemo(() => buildProductionRecords(productionData), [productionData])
   const selected = productions.find((item) => item.id === selectedId) ?? productions[0]
 
   useEffect(() => {
@@ -164,11 +184,15 @@ export default function ProductionFramePage() {
                   制作编排
                 </Link>
               </Button>
-              <Button className="gap-2" asChild>
+              <Button variant="outline" className="gap-2" asChild>
                 <Link to="/project-preview">
                   <Plus size={15} />
                   从剧本创建制作
                 </Link>
+              </Button>
+              <Button className="gap-2" onClick={() => setCreateOpen(true)}>
+                <Plus size={15} />
+                直接创建制作
               </Button>
             </div>
           </div>
@@ -200,27 +224,27 @@ export default function ProductionFramePage() {
                       <ShieldCheck size={16} className="text-muted-foreground" />
                       <h2 className="text-sm font-semibold text-foreground">当前制作预演进度</h2>
                     </div>
-                    <p className="mt-2 truncate text-sm font-medium text-foreground">{selected.name}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected.source}</p>
+                    <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从制作编排生成制作后开始统计'}</p>
                   </div>
-                  <Badge variant={selected.blockers.length > 0 ? 'warning' : 'success'}>
-                    {selected.blockers.length > 0 ? '有阻塞' : '可推进'}
+                  <Badge variant={!selected || selected.blockers.length > 0 ? 'warning' : 'success'}>
+                    {!selected ? '未创建' : selected.blockers.length > 0 ? '有阻塞' : '可推进'}
                   </Badge>
                 </div>
                 <div className="mt-4 flex items-end gap-3">
-                  <p className="text-3xl font-semibold tabular-nums text-foreground">{selected.progress}%</p>
+                  <p className="text-3xl font-semibold tabular-nums text-foreground">{selected?.progress ?? 0}%</p>
                   <div className="min-w-0 flex-1 pb-2">
-                    <Progress value={selected.progress} className="h-2" />
+                    <Progress value={selected?.progress ?? 0} className="h-2" />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-md border border-border bg-background p-2">
                     <p className="text-muted-foreground">预演</p>
-                    <p className="mt-1 font-medium text-foreground">{unitMeta[selected.preview.status].label}</p>
+                    <p className="mt-1 font-medium text-foreground">{selected ? unitMeta[selected.preview.status].label : '待处理'}</p>
                   </div>
                   <div className="rounded-md border border-border bg-background p-2">
                     <p className="text-muted-foreground">成片</p>
-                    <p className="mt-1 font-medium text-foreground">{selected.stats.finals} 版</p>
+                    <p className="mt-1 font-medium text-foreground">{selected?.stats.finals ?? 0} 版</p>
                   </div>
                 </div>
               </div>
@@ -235,18 +259,27 @@ export default function ProductionFramePage() {
                 <Badge variant="outline">{productions.length}</Badge>
               </div>
               <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
-                {productions.map((production) => (
+                {productions.length > 0 ? productions.map((production) => (
                   <ProductionListCard
                     key={production.id}
                     production={production}
                     active={production.id === selected.id}
                     onSelect={() => setSelectedId(production.id)}
                   />
-                ))}
+                )) : (
+                  <div className="col-span-full rounded-md border border-dashed border-border bg-background p-8 text-center">
+                    <p className="text-sm font-medium text-foreground">暂无制作</p>
+                    <p className="mt-1 text-xs text-muted-foreground">可以直接裸创建制作，也可以先完成制作编排后再从剧本创建。</p>
+                    <Button className="mt-4 gap-2" onClick={() => setCreateOpen(true)}>
+                      <Plus size={15} />
+                      直接创建制作
+                    </Button>
+                  </div>
+                )}
               </div>
             </section>
 
-            <main className="min-w-0">
+            {selected ? <main className="min-w-0">
               <div className="space-y-4">
               <section className="rounded-lg border border-border bg-card p-5">
                 <div className="flex items-start justify-between gap-4">
@@ -375,9 +408,9 @@ export default function ProductionFramePage() {
                 </div>
               </section>
               </div>
-            </main>
+            </main> : null}
 
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_220px]">
+            {selected ? <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_220px]">
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -451,10 +484,21 @@ export default function ProductionFramePage() {
                 </Link>
               </Button>
             </div>
-            </section>
+            </section> : null}
           </div>
         </div>
       </div>
+      <V2EntityCrudDialog
+        open={createOpen}
+        mode="create"
+        projectId={projectId}
+        config={v2EntityConfig('productions')}
+        defaults={{ source_type: 'direct', status: 'planning', owner_label: '导演组', progress: 0 }}
+        queryKey={productionQueryKey}
+        title="直接创建制作"
+        onOpenChange={setCreateOpen}
+        onSaved={(record) => setSelectedId(`PRD-${record.ID}`)}
+      />
     </div>
   )
 }

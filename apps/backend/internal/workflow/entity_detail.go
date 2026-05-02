@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/movscript/movscript/internal/model"
@@ -173,126 +172,7 @@ func (s *EntityIOService) readRelatedDetailValues(ctx context.Context, kind stri
 }
 
 func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string, id uint, field EntitySemanticField) ([]map[string]any, error) {
-	switch kind + "." + field.ID {
-	case "episode.scenes":
-		var links []model.EpisodeScene
-		if err := s.db.WithContext(ctx).Where("episode_id = ?", id).Order(`"order"`).Find(&links).Error; err != nil {
-			return nil, err
-		}
-		sceneIDs := make([]uint, 0, len(links))
-		orderByID := map[uint]int{}
-		for _, link := range links {
-			sceneIDs = append(sceneIDs, link.SceneID)
-			orderByID[link.SceneID] = link.Order
-		}
-		var scenes []model.Scene
-		if len(sceneIDs) > 0 {
-			if err := s.db.WithContext(ctx).Where("id IN ?", sceneIDs).Find(&scenes).Error; err != nil {
-				return nil, err
-			}
-		}
-		items := make([]map[string]any, 0, len(scenes))
-		for _, scene := range scenes {
-			items = append(items, compactScene(scene, orderByID[scene.ID]))
-		}
-		sort.SliceStable(items, func(i, j int) bool { return intValue(items[i]["order"]) < intValue(items[j]["order"]) })
-		return items, nil
-	case "episode.storyboards":
-		var boards []model.Storyboard
-		if err := s.db.WithContext(ctx).Where("episode_id = ?", id).Order(`"order"`).Preload("Shots").Find(&boards).Error; err != nil {
-			return nil, err
-		}
-		return compactStoryboards(boards), nil
-	case "episode.settings":
-		var episode model.Episode
-		if err := s.db.WithContext(ctx).Preload("Settings").First(&episode, id).Error; err != nil {
-			return nil, err
-		}
-		return compactSettings(episode.Settings), nil
-	case "episode.scripts":
-		var episode model.Episode
-		if err := s.db.WithContext(ctx).Preload("Script").First(&episode, id).Error; err != nil {
-			return nil, err
-		}
-		if episode.Script == nil {
-			return []map[string]any{}, nil
-		}
-		return compactScripts([]model.Script{*episode.Script}), nil
-	case "scene.storyboards":
-		var boards []model.Storyboard
-		if err := s.db.WithContext(ctx).Where("scene_id = ?", id).Order(`"order"`).Preload("Shots").Find(&boards).Error; err != nil {
-			return nil, err
-		}
-		return compactStoryboards(boards), nil
-	case "scene.settings":
-		var scene model.Scene
-		if err := s.db.WithContext(ctx).Preload("Settings").First(&scene, id).Error; err != nil {
-			return nil, err
-		}
-		return compactSettings(scene.Settings), nil
-	case "scene.scripts":
-		var scene model.Scene
-		if err := s.db.WithContext(ctx).Preload("Script").First(&scene, id).Error; err != nil {
-			return nil, err
-		}
-		if scene.Script == nil {
-			return []map[string]any{}, nil
-		}
-		return compactScripts([]model.Script{*scene.Script}), nil
-	case "scene.shots":
-		var boardIDs []uint
-		if err := s.db.WithContext(ctx).Model(&model.Storyboard{}).Where("scene_id = ?", id).Pluck("id", &boardIDs).Error; err != nil {
-			return nil, err
-		}
-		var shots []model.Shot
-		if len(boardIDs) > 0 {
-			if err := s.db.WithContext(ctx).Where("storyboard_id IN ?", boardIDs).Order(`storyboard_id, "order"`).Find(&shots).Error; err != nil {
-				return nil, err
-			}
-		}
-		return compactShots(shots), nil
-	case "scene.final_videos":
-		var videos []model.FinalVideo
-		if err := s.db.WithContext(ctx).Where("scene_id = ?", id).Order("id").Find(&videos).Error; err != nil {
-			return nil, err
-		}
-		return compactFinalVideos(videos), nil
-	case "storyboard.shots":
-		var shots []model.Shot
-		if err := s.db.WithContext(ctx).Where("storyboard_id = ?", id).Order(`"order"`).Find(&shots).Error; err != nil {
-			return nil, err
-		}
-		return compactShots(shots), nil
-	default:
-		return []map[string]any{}, nil
-	}
-}
-
-func compactScene(scene model.Scene, order int) map[string]any {
-	return map[string]any{
-		"ID":     scene.ID,
-		"kind":   "scene",
-		"order":  order,
-		"number": scene.Number,
-		"title":  scene.Title,
-		"status": scene.ReviewStatus,
-	}
-}
-
-func compactStoryboards(boards []model.Storyboard) []map[string]any {
-	items := make([]map[string]any, 0, len(boards))
-	for _, board := range boards {
-		items = append(items, map[string]any{
-			"ID":          board.ID,
-			"kind":        "storyboard",
-			"order":       board.Order,
-			"title":       board.Title,
-			"description": board.Description,
-			"setting_id":  board.SettingID,
-			"shots_count": len(board.Shots),
-		})
-	}
-	return items
+	return []map[string]any{}, nil
 }
 
 func compactSettings(settings []model.Setting) []map[string]any {
@@ -323,46 +203,4 @@ func compactScripts(scripts []model.Script) []map[string]any {
 		})
 	}
 	return items
-}
-
-func compactFinalVideos(videos []model.FinalVideo) []map[string]any {
-	items := make([]map[string]any, 0, len(videos))
-	for _, video := range videos {
-		items = append(items, map[string]any{
-			"ID":          video.ID,
-			"kind":        "final_video",
-			"title":       video.Title,
-			"description": video.Description,
-		})
-	}
-	return items
-}
-
-func compactShots(shots []model.Shot) []map[string]any {
-	items := make([]map[string]any, 0, len(shots))
-	for _, shot := range shots {
-		items = append(items, map[string]any{
-			"ID":            shot.ID,
-			"kind":          "shot",
-			"storyboard_id": shot.StoryboardID,
-			"order":         shot.Order,
-			"description":   firstNonEmpty(shot.FinalDescription, shot.Description),
-			"status":        shot.Status,
-			"is_approved":   shot.IsApproved,
-		})
-	}
-	return items
-}
-
-func intValue(value any) int {
-	switch v := value.(type) {
-	case int:
-		return v
-	case uint:
-		return int(v)
-	case float64:
-		return int(v)
-	default:
-		return 0
-	}
 }
