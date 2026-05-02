@@ -147,13 +147,9 @@ function entityPreviewFieldLabel(
   field: EntityWorkflowSchemaField,
   t: (key: string, options?: Record<string, unknown>) => string,
 ) {
-  if (kind === 'episode') {
-    if (field.id === 'title') return t('forms.episodeTitle', { defaultValue: 'Episode title' })
-    if (field.id === 'number') return t('details.episodeNumber', { defaultValue: 'Episode Number' })
-  }
-  if (kind === 'scene') {
-    if (field.id === 'title') return t('forms.sceneTitle', { defaultValue: 'Scene title' })
-    if (field.id === 'number') return t('details.sceneNumber', { defaultValue: 'Scene Number' })
+  if (kind === 'asset_slot') {
+    if (field.id === 'name') return t('details.assetSlotName', { defaultValue: 'Asset slot name' })
+    if (field.id === 'prompt_hint') return t('details.promptHint', { defaultValue: 'Prompt hint' })
   }
   return field.labelKey ? t(field.labelKey, { defaultValue: entityFieldFallbackLabel(field) }) : entityFieldFallbackLabel(field)
 }

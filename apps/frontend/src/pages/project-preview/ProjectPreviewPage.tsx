@@ -228,7 +228,7 @@ export default function ProjectPreviewPage() {
 	        setConfirmedAt(draft.confirmed_at ?? '')
 	        setAnalysisStatus(draft.analysis_candidates ? 'succeeded' : 'idle')
 	        setAnalysisMessage(draft.analysis_candidates ? `已恢复解析结果 · ${formatDateTime(draft.analysis_candidates.generated_at)}` : '保存草稿后可解析片段和情节')
-	        setPreviewMessage(draft.preview_status === 'ready_for_production' ? '制作编排已确认，可进入内容生产' : draft.preview_candidates ? '已恢复项目预演候选' : '完成结构确认后可生成项目预演')
+	        setPreviewMessage(draft.preview_status === 'ready_for_production' ? '制作编排已确认，可继续内容制作' : draft.preview_candidates ? '已恢复项目预演候选' : '完成结构确认后可生成项目预演')
 	        setSaveStatus('saved')
 	        setSaveMessage(`已恢复 ${draft.script_version.title || '最近保存草稿'}`)
         setLoadStatus('succeeded')
@@ -452,7 +452,7 @@ export default function ProjectPreviewPage() {
 	      setPreviewCandidates(response.draft.preview_candidates ?? previewCandidates)
 	      setPreviewStatus(response.draft.preview_status ?? 'ready_for_production')
 	      setConfirmedAt(response.draft.confirmed_at ?? '')
-	      setPreviewMessage('制作编排已确认，可进入内容生产')
+	      setPreviewMessage('制作编排已确认，可继续内容制作')
 	    },
 	    onError: (error) => setPreviewMessage(`确认制作编排失败：${error instanceof Error ? error.message : translateApiError((error as any)?.response?.data)}`),
 	  })
@@ -917,7 +917,7 @@ function SaveStatusBadge({ status }: { status: SaveStatus }) {
 
 function PreviewStatusBadge({ status }: { status: string }) {
   const config = status === 'ready_for_production'
-    ? { label: '可进入生产', variant: 'success' as const, icon: CheckCircle2 }
+    ? { label: '已确认', variant: 'success' as const, icon: CheckCircle2 }
     : status === 'confirmed'
       ? { label: '已确认', variant: 'success' as const, icon: CheckCircle2 }
       : status === 'playable'
@@ -937,7 +937,7 @@ function PreviewPhaseRail({ phase }: { phase: PreviewPhase }) {
     { key: 'source', label: '来源版本', detail: '剧本文本和版本快照' },
     { key: 'understanding', label: '理解确认', detail: '片段、情节和分镜结构' },
     { key: 'preview_decision', label: '项目预演', detail: '时间线、关键帧、素材缺口' },
-    { key: 'ready', label: '进入生产', detail: '制作编排已确认' },
+    { key: 'ready', label: '确认完成', detail: '制作编排已确认' },
   ]
   const activeIndex = steps.findIndex((step) => step.key === phase)
   return (

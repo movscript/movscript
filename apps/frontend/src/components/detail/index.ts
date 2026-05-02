@@ -1,6 +1,1 @@
 export { ScriptDetail } from './ScriptDetail'
-export { AssetDetail } from './AssetDetail'
-export { EpisodeDetail } from './EpisodeDetail'
-export { SceneDetail } from './SceneDetail'
-export { StoryboardDetail } from './StoryboardDetail'
-export { ShotDetail } from './ShotDetail'

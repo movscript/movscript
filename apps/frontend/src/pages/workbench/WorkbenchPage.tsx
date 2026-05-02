@@ -524,7 +524,7 @@ function ProjectPreviewWorkspace() {
     },
     onMutate: () => setMessage('正在确认当前项目预演'),
     onSuccess: () => {
-      setMessage('项目预演已确认，可以进入后续内容生产')
+      setMessage('项目预演已确认，可以继续后续内容制作')
       refetch()
       setActiveStep('confirm')
     },
@@ -551,7 +551,7 @@ function ProjectPreviewWorkspace() {
             <span>工作台</span>
             <ArrowRight size={13} />
             <span>项目预演</span>
-            <Badge variant="outline">预演与门禁</Badge>
+            <Badge variant="outline">预演与确认</Badge>
           </div>
           <h1 className="mt-2 text-xl font-semibold text-foreground">项目预演</h1>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -927,7 +927,7 @@ function buildProjectPreviewSteps({
     },
     {
       key: 'confirm' as const,
-      title: '确认进入生产',
+      title: '确认预演结果',
       detail: confirmed ? '项目预演已确认' : '等待最终确认',
       status: confirmed ? 'ready' as const : 'review' as const,
     },

@@ -156,7 +156,7 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     href: '/workbench/production-plan',
     icon: Clapperboard,
     purpose: '把制作编排变成可检查、可播放、可确认的项目预演。',
-    decision: '补齐关键帧和素材缺口，确认时间线是否可以进入生产。',
+    decision: '补齐关键帧和素材缺口，确认时间线是否可继续用于内容制作。',
     output: '项目预演、关键帧候选和生产缺口清单。',
   },
   {

@@ -14,9 +14,10 @@ import (
 )
 
 type Migration struct {
-	Version string
-	Name    string
-	Up      func(*gorm.DB) error
+	Version         string
+	Name            string
+	Up              func(*gorm.DB) error
+	LegacyChecksums []string
 }
 
 type AppliedMigration struct {
@@ -120,6 +121,9 @@ func RegisteredMigrations() []Migration {
 			Version: "000018",
 			Name:    "semantic_entity_skeleton",
 			Up:      migrateSemanticEntitySkeleton,
+			LegacyChecksums: []string{
+				"c8cf48991d28eab2da69743bca6348df3c4dddb81368d2a4ff0048281e67df82",
+			},
 		},
 		{
 			Version: "000019",
@@ -146,6 +150,9 @@ func RegisteredMigrations() []Migration {
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&model.CreativeReferenceUsage{}, &model.CreativeRelationship{})
 			},
+			LegacyChecksums: []string{
+				"d3633f399fcb16a4b5318d23800797a6fda1813426c20d09f60269952911e63c",
+			},
 		},
 		{
 			Version: "000023",
@@ -158,12 +165,18 @@ func RegisteredMigrations() []Migration {
 					&model.CanvasOutput{},
 				)
 			},
+			LegacyChecksums: []string{
+				"850375387445ecc43677ef9793df70fe5846c2531d169374fb03d17b3260f496",
+			},
 		},
 		{
 			Version: "000024",
 			Name:    "semantic_candidate_decision_review_event",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&model.CandidateDecision{}, &model.ReviewEvent{})
+			},
+			LegacyChecksums: []string{
+				"04dc0c917ad899d93d8b043f3b004de5d63e1197f4c424627a7a890dda3d2256",
 			},
 		},
 		{
@@ -175,6 +188,9 @@ func RegisteredMigrations() []Migration {
 			Version: "000026",
 			Name:    "content_zone_semantic_tables",
 			Up:      migrateContentZoneSemanticTables,
+			LegacyChecksums: []string{
+				"5d7f2fc3d9a572b8527617c0b4aaa8f58d0b7d3bce07674908dc327395ff7a46",
+			},
 		},
 		{
 			Version: "000027",
@@ -577,7 +593,14 @@ func RunMigrations(db *gorm.DB) error {
 		checksum := migrationChecksum(migration)
 		if existing, ok := applied[migration.Version]; ok {
 			if existing.Checksum != checksum {
-				return fmt.Errorf("migration %s checksum mismatch: applied %s, current %s", migration.Version, existing.Checksum, checksum)
+				if !migrationAcceptsChecksum(migration, existing.Checksum) {
+					return fmt.Errorf("migration %s checksum mismatch: applied %s, current %s", migration.Version, existing.Checksum, checksum)
+				}
+				if err := db.Model(&AppliedMigration{}).
+					Where("version = ?", migration.Version).
+					Updates(map[string]any{"name": migration.Name, "checksum": checksum}).Error; err != nil {
+					return fmt.Errorf("update migration %s checksum: %w", migration.Version, err)
+				}
 			}
 			continue
 		}
@@ -643,7 +666,9 @@ func PendingMigrations(db *gorm.DB) ([]Migration, error) {
 		checksum := migrationChecksum(migration)
 		if existing, ok := applied[migration.Version]; ok {
 			if existing.Checksum != checksum {
-				return nil, fmt.Errorf("migration %s checksum mismatch: applied %s, current %s", migration.Version, existing.Checksum, checksum)
+				if !migrationAcceptsChecksum(migration, existing.Checksum) {
+					return nil, fmt.Errorf("migration %s checksum mismatch: applied %s, current %s", migration.Version, existing.Checksum, checksum)
+				}
 			}
 			continue
 		}
@@ -676,6 +701,15 @@ func schemaMigrationsTableExists(db *gorm.DB) (bool, error) {
 func migrationChecksum(migration Migration) string {
 	sum := sha256.Sum256([]byte(migration.Version + "\n" + migration.Name))
 	return hex.EncodeToString(sum[:])
+}
+
+func migrationAcceptsChecksum(migration Migration, checksum string) bool {
+	for _, legacy := range migration.LegacyChecksums {
+		if checksum == legacy {
+			return true
+		}
+	}
+	return false
 }
 
 func allModels() []any {
