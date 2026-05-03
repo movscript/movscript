@@ -6,7 +6,7 @@ import { Toaster } from './components/ui/Toaster'
 import { useProjectStore } from './store/projectStore'
 import { useUserStore } from './store/userStore'
 import ProjectsPage from './pages/projects/ProjectsPage'
-import AssetsPage from './pages/assets/AssetsPage'
+import AssetSlotsPage from './pages/asset-slots/AssetSlotsPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
 import AuthPage from './pages/AuthPage'
 import CanvasListPage from './pages/canvas/CanvasListPage'
@@ -24,9 +24,10 @@ import DeliveryPage from './pages/delivery/DeliveryPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
 import ContentsPage from './pages/contents/ContentsPage'
 import ProjectPreviewPage from './pages/project-preview/ProjectPreviewPage'
-import PreviewProgressPage from './pages/preview-progress/PreviewProgressPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
+import { DebugPage } from './pages/admin/DebugPage'
+import { UIPreviewPage } from './pages/admin/UIPreviewPage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
@@ -35,7 +36,7 @@ import ProjectHomePage from './pages/project-home/ProjectHomePage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import AgentDebugPage from './pages/agent/AgentDebugPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
-import ScenesPage from './pages/scenes/ScenesPage'
+import SegmentsPage from './pages/segments/SegmentsPage'
 import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
 import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import i18n from './i18n'
@@ -155,7 +156,7 @@ export default function App() {
                       {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
                       <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
                       <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
-                      <Route path="/assets" element={<ProjectGuard><AssetsPage /></ProjectGuard>} />
+                      <Route path="/asset-slots" element={<ProjectGuard><AssetSlotsPage /></ProjectGuard>} />
 
                       {/* 工具模块 */}
                       <Route path="/canvases" element={<Padded><CanvasListPage /></Padded>} />
@@ -170,15 +171,14 @@ export default function App() {
 
                       {/* 工作模块 */}
                       <Route path="/scripts" element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
-                      <Route path="/segments" element={<ProjectGuard><ScenesPage /></ProjectGuard>} />
+                      <Route path="/segments" element={<ProjectGuard><SegmentsPage /></ProjectGuard>} />
                       <Route path="/scene-moments" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
-                      <Route path="/scenes" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
                       <Route path="/contents" element={<ProjectGuard><ContentsPage /></ProjectGuard>} />
                       <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
                       <Route path="/project-preview" element={<ProjectGuard><ProjectPreviewPage /></ProjectGuard>} />
                       <Route path="/production-management" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/production-preview" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
-                      <Route path="/preview-progress" element={<ProjectGuard><PreviewProgressPage /></ProjectGuard>} />
+                      <Route path="/preview-progress" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                       <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
                       <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
@@ -211,6 +211,8 @@ export default function App() {
 
                       {/* 管理后台 — super_admin only */}
                       <Route path="/admin" element={<AdminGuard><Padded><AdminPage /></Padded></AdminGuard>} />
+                      <Route path="/admin/debug" element={<AdminGuard><Padded><DebugPage /></Padded></AdminGuard>} />
+                      <Route path="/admin/ui-preview" element={<AdminGuard><Padded><UIPreviewPage /></Padded></AdminGuard>} />
                       <Route path="/admin/ai-config" element={<Navigate to="/admin" replace />} />
                     </Routes>
                   </RouteErrorBoundary>

@@ -5,9 +5,9 @@ import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from './agentManifest.
 test('normalizes a valid agent manifest v1', () => {
   const manifest = normalizeAgentManifest({
     schema: 'movscript.agent.v1',
-    id: 'studio.shot-planner',
+    id: 'studio.content-unit-planner',
     version: '1.2.3',
-    name: 'Shot Planner',
+    name: 'Content Unit Planner',
     permissions: ['project.read', 'draft.write', 'project.read'],
     tools: [
       { name: 'movscript.search_entities', mode: 'allow', approval: 'never' },
@@ -19,7 +19,7 @@ test('normalizes a valid agent manifest v1', () => {
 
   assert.equal(manifest.schema, 'movscript.agent.current')
   assert.equal(manifest.sourceSchema, 'movscript.agent.v1')
-  assert.equal(manifest.id, 'studio.shot-planner')
+  assert.equal(manifest.id, 'studio.content-unit-planner')
   assert.deepEqual(manifest.permissions, ['project.read', 'draft.write'])
   assert.equal(manifest.tools.length, 2)
   assert.equal(manifest.tools[1].approval, 'always')

@@ -53,6 +53,16 @@
   stroke: hsl(var(--muted-foreground) / 0.5);
 }
 
+.canvas-flow .react-flow__edges,
+.canvas-flow .react-flow__connectionline,
+.canvas-flow .react-flow__edgelabel-renderer {
+  z-index: 20;
+}
+
+.canvas-flow .react-flow__nodes {
+  z-index: 10;
+}
+
 .canvas-flow .react-flow__edge.selected .react-flow__edge-path,
 .canvas-flow .react-flow__edge:focus .react-flow__edge-path {
   stroke: hsl(var(--foreground));
@@ -84,6 +94,64 @@
 
 .canvas-flow .react-flow__controls-button:hover {
   background: hsl(var(--muted));
+}
+
+.content-workspace-shell {
+  container-type: inline-size;
+}
+
+.content-workspace-core {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.content-workspace-header header {
+  align-items: center;
+}
+
+.content-workspace-header h1 {
+  margin-top: 4px;
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.content-workspace-header p {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.content-workspace-header button,
+.content-workspace-header a {
+  min-height: 32px;
+}
+
+.content-workspace-overview .rounded-lg,
+.content-workspace-overview .rounded-md {
+  padding: 10px 12px;
+}
+
+.content-workspace-overview .text-2xl {
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.content-workspace-overview .h-10 {
+  height: 32px;
+}
+
+.content-workspace-overview .w-10 {
+  width: 32px;
+}
+
+.content-workspace-column > section:only-child,
+.content-workspace-column > div:only-child {
+  min-height: 100%;
+}
+
+@container (min-width: 1160px) {
+  .content-workspace-core {
+    grid-template-columns: var(--content-workspace-columns);
+  }
 }
 
 .ai-agent-panel-shell {

@@ -195,6 +195,11 @@
   "entities": {
     "scripts": "Scripts",
     "settings": "Settings",
+    "segments": "Segments",
+    "assetSlots": "Asset Slots",
+    "storyboardLines": "Storyboard Lines",
+    "contentUnits": "Content Units",
+    "keyframes": "Keyframes",
     "assets": "Assets",
     "episodes": "Episodes",
     "scenes": "Scenes",
@@ -728,6 +733,7 @@
       "newProject": "New Project",
       "enter": "Enter",
       "members": "Members",
+      "contentUnitProgress": "Content Unit Progress",
       "storyboardProgress": "Storyboard Progress",
       "approvedCount": "{{approved}}/{{total}} approved",
       "status": {
@@ -1040,7 +1046,7 @@
       },
       "suggestions": {
         "planProject": "Plan the next step for this project",
-        "createShot": "Create a shot plan from assets",
+        "createContentUnit": "Create a content-unit plan from asset slots",
         "reviewAssets": "Review asset gaps and risks",
         "buildWorkflow": "Break this into an executable workflow"
       }
@@ -1149,6 +1155,8 @@
     "entityTypes": {
       "script": "Script",
       "setting": "Setting",
+      "assetSlot": "Asset Slot",
+      "contentUnit": "Content Unit",
       "asset": "Asset",
       "episode": "Episode",
       "scene": "Scene",
@@ -2148,10 +2156,13 @@
       "contentProductionWorkbench": "Content Production Workbench",
       "scripts": "Script Management",
       "settings": "Setting Management",
+      "assetSlots": "Asset Slots",
       "assets": "Assets",
+      "segments": "Segments",
+      "sceneMoments": "Plot Beats",
+      "contentUnits": "Content Units",
       "episodes": "Episode Management",
       "projectPreview": "Project Preview",
-      "previewProgress": "Preview Progress",
       "creativeReferences": "Reference Library",
       "referenceRelations": "Relation Overview",
       "production": "Content Production",
@@ -2171,6 +2182,8 @@
       "agentSettings": "Agent Settings",
       "user": "User Profile",
       "admin": "Admin",
+      "adminDebug": "Admin Debug",
+      "adminUiPreview": "UI Preview",
       "default": "Movscript"
     },
     "theme": {
@@ -2190,7 +2203,8 @@
       "workspace": "Workbench",
       "contentLibrary": "Content Library",
       "legacyManage": "Legacy Manage",
-      "entityManage": "Entity Management"
+      "entityManage": "Entity Management",
+      "unused": "Unused"
     },
     "groups": {
       "projectPreviewWorkbench": "Project Preview"
@@ -2198,6 +2212,7 @@
     "items": {
       "scripts": "Script Library",
       "settings": "Settings",
+      "assetSlots": "Asset Slots",
       "assets": "Assets",
       "episodes": "Episodes",
       "scenes": "Scenes",
@@ -2226,12 +2241,12 @@
       "script": "Script",
       "segments": "Segments",
       "sceneMoments": "Plot Beats",
-      "references": "References",
-      "relations": "Relations",
+      "references": "Creative References",
+      "relations": "Reference Relations",
       "content": "Content",
+      "contentUnits": "Content Units",
       "projectPlan": "Prep Overview",
       "projectPreview": "Project Preview",
-      "previewProgress": "Preview Progress",
       "semanticEntities": "Semantic Entities",
       "entityManagement": "Entity Management",
       "creativeReferences": "Reference Library",
@@ -2257,6 +2272,8 @@
       "delivery": "Delivery",
       "user": "User Profile",
       "admin": "Admin",
+      "adminDebug": "Admin Debug",
+      "adminUiPreview": "UI Preview",
       "projectRequired": "Select a project first"
     },
     "roles": {

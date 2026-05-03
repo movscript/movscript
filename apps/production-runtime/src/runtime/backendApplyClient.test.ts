@@ -5,19 +5,21 @@ import type { ApplyDraftReview } from './draftApply.js'
 
 test('buildPatchRequest maps supported entity and field to backend PATCH payload', () => {
   const request = buildPatchRequest(review({
-    entityType: 'shot',
+    projectId: 42,
+    entityType: 'content_unit',
     entityId: 7,
     field: 'description',
-    proposedValue: 'New shot description',
+    proposedValue: 'New content-unit description',
   }))
 
-  assert.equal(request.path, '/shots/7')
-  assert.deepEqual(request.payload, { description: 'New shot description' })
+  assert.equal(request.path, '/projects/42/entities/content-units/7')
+  assert.deepEqual(request.payload, { description: 'New content-unit description' })
 })
 
 test('buildPatchRequest rejects unsupported fields', () => {
   assert.throws(() => buildPatchRequest(review({
-    entityType: 'shot',
+    projectId: 42,
+    entityType: 'content_unit',
     entityId: 7,
     field: 'project_id',
     proposedValue: 1,
@@ -26,7 +28,7 @@ test('buildPatchRequest rejects unsupported fields', () => {
 
 test('buildPatchRequest rejects unsupported entity types', () => {
   assert.throws(() => buildPatchRequest(review({
-    entityType: 'asset',
+    entityType: 'legacy_entity',
     entityId: 7,
     field: 'description',
     proposedValue: 'Updated',
@@ -34,6 +36,7 @@ test('buildPatchRequest rejects unsupported entity types', () => {
 })
 
 function review(input: {
+  projectId?: number | string
   entityType: string
   entityId: number | string
   field: string
@@ -44,6 +47,7 @@ function review(input: {
     draftTitle: 'Draft',
     draftKind: 'note',
     target: {
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       entityType: input.entityType,
       entityId: input.entityId,
       field: input.field,

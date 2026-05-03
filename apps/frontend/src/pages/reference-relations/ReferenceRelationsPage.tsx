@@ -455,7 +455,9 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <GitBranch size={14} />
               <span>{project?.name ?? '当前项目'}</span>
-              <span>/</span>
+              <ArrowRight size={13} />
+              <span>内容区</span>
+              <ArrowRight size={13} />
               <span>引用关系</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">引用关系工作台</h1>

@@ -120,21 +120,35 @@ type StoryboardLine struct {
 // one kind of content unit.
 type ContentUnit struct {
 	gorm.Model
-	ProjectID     uint         `gorm:"not null;index" json:"project_id"`
-	ProductionID  *uint        `gorm:"index" json:"production_id,omitempty"`
-	Production    *Production  `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
-	SegmentID     *uint        `gorm:"index" json:"segment_id,omitempty"`
-	Segment       *Segment     `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
-	SceneMomentID *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
-	SceneMoment   *SceneMoment `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
-	Kind          string       `gorm:"not null;default:'shot';index" json:"kind"` // shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat
-	Order         int          `gorm:"not null;default:0;index" json:"order"`
-	Title         string       `json:"title"`
-	Description   string       `gorm:"type:text" json:"description"`
-	Prompt        string       `gorm:"type:text" json:"prompt"`
-	DurationSec   float64      `json:"duration_sec"`
-	Status        string       `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|in_production|locked
-	MetadataJSON  string       `gorm:"type:text" json:"metadata_json"`
+	ProjectID        uint         `gorm:"not null;index" json:"project_id"`
+	ProductionID     *uint        `gorm:"index" json:"production_id,omitempty"`
+	Production       *Production  `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
+	SegmentID        *uint        `gorm:"index" json:"segment_id,omitempty"`
+	Segment          *Segment     `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
+	SceneMomentID    *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
+	SceneMoment      *SceneMoment `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
+	Kind             string       `gorm:"not null;default:'shot';index" json:"kind"` // shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat
+	Order            int          `gorm:"not null;default:0;index" json:"order"`
+	Title            string       `json:"title"`
+	Description      string       `gorm:"type:text" json:"description"`
+	Prompt           string       `gorm:"type:text" json:"prompt"`
+	DurationSec      float64      `json:"duration_sec"`
+	ShotSize         string       `json:"shot_size"`
+	CameraAngle      string       `json:"camera_angle"`
+	CameraHeight     string       `json:"camera_height"`
+	CameraMotion     string       `json:"camera_motion"`
+	MotionIntensity  string       `json:"motion_intensity"`
+	CameraSpeed      string       `json:"camera_speed"`
+	Lens             string       `json:"lens"`
+	FocalLength      string       `json:"focal_length"`
+	FocusSubject     string       `json:"focus_subject"`
+	CompositionStart string       `gorm:"type:text" json:"composition_start"`
+	CompositionEnd   string       `gorm:"type:text" json:"composition_end"`
+	Stabilization    string       `json:"stabilization"`
+	CameraParamsJSON string       `gorm:"type:text" json:"camera_params_json"`
+	CameraNotes      string       `gorm:"type:text" json:"camera_notes"`
+	Status           string       `gorm:"not null;default:'draft';index" json:"status"` // draft|candidate|confirmed|in_production|locked
+	MetadataJSON     string       `gorm:"type:text" json:"metadata_json"`
 }
 
 // Keyframe is a visual anchor for a scene moment or content unit. In early semantic model it

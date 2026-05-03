@@ -20,13 +20,14 @@ const titleKeys: Record<string, string> = {
   '/workbench/delivery': 'header.titles.workbenchDelivery',
   '/workbench/reference-relations': 'header.titles.workbenchReferenceRelations',
   '/scripts': 'header.titles.scripts',
-  '/scenes': 'header.titles.scenes',
+  '/segments': 'header.titles.segments',
+  '/scene-moments': 'header.titles.sceneMoments',
+  '/contents': 'header.titles.contentUnits',
   '/final-videos': 'header.titles.finalVideos',
-  '/assets': 'header.titles.assets',
+  '/asset-slots': 'header.titles.assetSlots',
   '/production-management': 'header.titles.projectPreview',
   '/production-preview': 'header.titles.projectPreview',
   '/project-preview': 'header.titles.projectPreview',
-  '/preview-progress': 'header.titles.previewProgress',
   '/creative-references': 'header.titles.creativeReferences',
   '/reference-relations': 'header.titles.referenceRelations',
   '/production': 'header.titles.production',
@@ -38,7 +39,9 @@ const titleKeys: Record<string, string> = {
   '/collaboration': 'header.titles.collaboration',
   '/delivery': 'header.titles.delivery',
   '/user': 'header.titles.user',
-  '/admin': 'header.titles.admin'
+  '/admin': 'header.titles.admin',
+  '/admin/debug': 'header.titles.adminDebug',
+  '/admin/ui-preview': 'header.titles.adminUiPreview'
 }
 
 export function Header() {

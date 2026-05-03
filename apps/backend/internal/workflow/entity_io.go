@@ -46,20 +46,31 @@ func NewEntityIOService(db *gorm.DB) *EntityIOService {
 }
 
 func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (map[string]EntityPortValue, error) {
+	return s.ReadPortsByIDs(ctx, kind, id, nil)
+}
+
+func (s *EntityIOService) ReadPortsByIDs(ctx context.Context, kind string, id uint, portIDs []string) (map[string]EntityPortValue, error) {
 	schema, ok := EntitySchemaForKind(kind)
 	if !ok {
 		return nil, fmt.Errorf("unsupported entity type %q", kind)
 	}
-	values := map[string]EntityPortValue{}
-
-	if err := s.readStoredPorts(ctx, schema, id, values); err != nil {
+	selection, err := resolveEntityPortSelection(kind, portIDs)
+	if err != nil {
 		return nil, err
 	}
-	if err := s.readComputedPorts(ctx, kind, id, values); err != nil {
+	values := map[string]EntityPortValue{}
+
+	if err := s.readStoredPorts(ctx, schema, id, values, selection); err != nil {
+		return nil, err
+	}
+	if err := s.readComputedPorts(ctx, kind, id, values, selection); err != nil {
 		return nil, err
 	}
 
 	addBinding := func(portID string) {
+		if !entityPortSelected(selection, portID) {
+			return
+		}
 		field, ok := EntityFieldForPort(kind, portID)
 		if !ok || !field.Workflow.Readable || field.Binding == nil {
 			return
@@ -83,7 +94,7 @@ func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (
 	return values, nil
 }
 
-func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySchema, id uint, values map[string]EntityPortValue) error {
+func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySchema, id uint, values map[string]EntityPortValue, selection map[string]struct{}) error {
 	table, ok := entityTableName(schema.Kind)
 	if !ok {
 		return fmt.Errorf("unsupported entity type %q", schema.Kind)
@@ -94,6 +105,9 @@ func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySche
 	for _, section := range schema.Sections {
 		for _, field := range section.Fields {
 			if !field.Workflow.Readable || field.Storage == nil || strings.TrimSpace(field.Storage.Column) == "" {
+				continue
+			}
+			if !entityPortSelected(selection, field.Workflow.PortID) {
 				continue
 			}
 			column := strings.TrimSpace(field.Storage.Column)
@@ -127,8 +141,11 @@ func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySche
 	return nil
 }
 
-func (s *EntityIOService) readComputedPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue) error {
+func (s *EntityIOService) readComputedPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue, selection map[string]struct{}) error {
 	addComputedText := func(portID string, text string) {
+		if !entityPortSelected(selection, portID) {
+			return
+		}
 		field, ok := EntityFieldForPort(kind, portID)
 		if !ok || !field.Workflow.Readable || strings.TrimSpace(text) == "" {
 			return
@@ -176,9 +193,21 @@ func (s *EntityIOService) WritePorts(ctx context.Context, kind string, id uint, 
 		if err := txSvc.writeEntityFields(ctx, kind, id, values); err != nil {
 			return err
 		}
+		if kind == "asset_slot" {
+			bindingIDs, err := txSvc.writeAssetSlotCandidates(ctx, id, values["candidates"], projectID, sourceType, meta)
+			if err != nil {
+				return err
+			}
+			if len(bindingIDs) > 0 {
+				result.BindingIDs = append(result.BindingIDs, bindingIDs...)
+			}
+		}
 
 		bindingIDsByPort := map[string][]uint{}
 		for portID, value := range values {
+			if kind == "asset_slot" && portID == "candidates" {
+				continue
+			}
 			field, ok := EntityFieldForPort(kind, portID)
 			if !ok || field.Binding == nil {
 				continue
@@ -207,7 +236,7 @@ func (s *EntityIOService) WritePorts(ctx context.Context, kind string, id uint, 
 				if meta.CanvasID != 0 {
 					binding.SourceID = &meta.CanvasID
 				}
-				if err := tx.WithContext(ctx).Create(&binding).Error; err != nil {
+				if err := txSvc.createEntityResourceBinding(ctx, &binding); err != nil {
 					return err
 				}
 				result.BindingIDs = append(result.BindingIDs, binding.ID)
@@ -311,6 +340,8 @@ func entityTableName(kind string) (string, bool) {
 		return "settings", true
 	case "asset_slot":
 		return "asset_slots", true
+	case "content_unit":
+		return "content_units", true
 	default:
 		return "", false
 	}
@@ -401,6 +432,39 @@ func ValidateEntityReadPorts(kind string, portIDs []string) error {
 	return nil
 }
 
+func resolveEntityPortSelection(kind string, portIDs []string) (map[string]struct{}, error) {
+	if len(portIDs) == 0 {
+		return nil, nil
+	}
+	selection := map[string]struct{}{}
+	for _, portID := range portIDs {
+		portID = strings.TrimSpace(portID)
+		if portID == "" {
+			continue
+		}
+		field, ok := EntityFieldForPort(kind, portID)
+		if !ok {
+			return nil, fmt.Errorf("unknown port %q for entity type %q", portID, kind)
+		}
+		if !field.Workflow.Readable {
+			return nil, fmt.Errorf("port %q is not readable", portID)
+		}
+		selection[field.Workflow.PortID] = struct{}{}
+	}
+	if len(selection) == 0 {
+		return nil, nil
+	}
+	return selection, nil
+}
+
+func entityPortSelected(selection map[string]struct{}, portID string) bool {
+	if len(selection) == 0 {
+		return true
+	}
+	_, ok := selection[portID]
+	return ok
+}
+
 func validateEntityPortValues(kind string, values map[string]EntityPortValue) error {
 	normalized, err := NormalizeEntityPortValues(kind, values)
 	if err != nil {
@@ -446,7 +510,7 @@ func validateEntityPortType(field EntitySchemaField, value EntityPortValue) erro
 	if valueType == "" {
 		valueType = field.ValueType
 	}
-	if valueType != field.ValueType && !(field.ValueType == "resource" && isMediaPortType(valueType)) {
+	if valueType != field.ValueType && !((field.ValueType == "resource" && isMediaPortType(valueType)) || (valueType == "resource" && isMediaPortType(field.ValueType))) {
 		return fmt.Errorf("port %q expects %s, got %s", field.Workflow.PortID, field.ValueType, valueType)
 	}
 	switch field.ValueType {
@@ -466,7 +530,7 @@ func validateEntityPortType(field EntitySchemaField, value EntityPortValue) erro
 
 func isMediaPortType(valueType string) bool {
 	switch valueType {
-	case "image", "video", "audio":
+	case "image", "video", "audio", "text":
 		return true
 	default:
 		return false
@@ -504,11 +568,119 @@ func (s *EntityIOService) writeEntityFields(ctx context.Context, kind string, id
 	return s.db.WithContext(ctx).Table(table).Where("id = ?", id).Updates(updates).Error
 }
 
+func (s *EntityIOService) createEntityResourceBinding(ctx context.Context, binding *model.ResourceBinding) error {
+	if err := s.db.WithContext(ctx).Create(binding).Error; err != nil {
+		return err
+	}
+	if binding.IsPrimary {
+		s.db.WithContext(ctx).Model(&model.ResourceBinding{}).
+			Where("project_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND id <> ?",
+				binding.ProjectID, binding.OwnerType, binding.OwnerID, binding.Role, binding.Slot, binding.ID).
+			Update("is_primary", false)
+	}
+	if binding.OwnerType == "asset_slot" && binding.ResourceID != 0 && binding.Role != "candidate" {
+		s.db.WithContext(ctx).Model(&model.AssetSlot{}).
+			Where("id = ? AND resource_id IS NULL", binding.OwnerID).
+			Update("resource_id", binding.ResourceID)
+	}
+	return nil
+}
+
+func (s *EntityIOService) writeAssetSlotCandidates(ctx context.Context, slotID uint, value EntityPortValue, projectID uint, sourceType string, meta EntityWriteMeta) ([]uint, error) {
+	if len(value.ResourceIDs) == 0 {
+		return nil, nil
+	}
+	var slot model.AssetSlot
+	if err := s.db.WithContext(ctx).First(&slot, slotID).Error; err != nil {
+		return nil, fmt.Errorf("asset_slot not found")
+	}
+	bindingIDs := []uint{}
+	for _, resourceID := range value.ResourceIDs {
+		if resourceID == 0 {
+			continue
+		}
+		var existingCandidate model.AssetSlotCandidate
+		err := s.db.WithContext(ctx).
+			Joins("JOIN asset_slots candidate_slots ON candidate_slots.id = asset_slot_candidates.candidate_asset_slot_id").
+			Where("asset_slot_candidates.asset_slot_id = ? AND candidate_slots.resource_id = ?", slotID, resourceID).
+			First(&existingCandidate).Error
+		if err == nil {
+			continue
+		}
+		if err != nil && err != gorm.ErrRecordNotFound {
+			return bindingIDs, err
+		}
+		candidateSlot := model.AssetSlot{
+			ProjectID:                projectID,
+			ProductionID:             slot.ProductionID,
+			CreativeReferenceID:      slot.CreativeReferenceID,
+			CreativeReferenceStateID: slot.CreativeReferenceStateID,
+			OwnerType:                "asset_slot",
+			OwnerID:                  &slotID,
+			Kind:                     slot.Kind,
+			Name:                     candidateSlotName(slot, resourceID),
+			Description:              slot.Description,
+			SlotKey:                  slot.SlotKey,
+			PromptHint:               slot.PromptHint,
+			Status:                   "candidate",
+			Priority:                 slot.Priority,
+			ResourceID:               &resourceID,
+			MetadataJSON:             fmt.Sprintf(`{"source":"asset_slot_candidates","candidate_for_slot_id":%d}`, slotID),
+		}
+		if err := s.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
+			return bindingIDs, err
+		}
+		candidate := model.AssetSlotCandidate{
+			ProjectID:            projectID,
+			AssetSlotID:          slotID,
+			CandidateAssetSlotID: candidateSlot.ID,
+			SourceType:           sourceType,
+			Status:               "candidate",
+			Note:                 "由素材槽候选集输入创建",
+		}
+		if meta.CanvasID != 0 {
+			candidate.SourceID = &meta.CanvasID
+		}
+		if err := s.db.WithContext(ctx).Create(&candidate).Error; err != nil {
+			return bindingIDs, err
+		}
+		binding := model.ResourceBinding{
+			ProjectID:    projectID,
+			ResourceID:   resourceID,
+			OwnerType:    "asset_slot",
+			OwnerID:      candidateSlot.ID,
+			Role:         "candidate",
+			Slot:         "candidates",
+			IsPrimary:    true,
+			Status:       "selected",
+			SourceType:   sourceType,
+			CreatedByID:  uintPtrOrNil(meta.UserID),
+			MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d,"asset_slot_id":%d}`, meta.NodeID, meta.RunID, slotID),
+		}
+		if meta.CanvasID != 0 {
+			binding.SourceID = &meta.CanvasID
+		}
+		if err := s.createEntityResourceBinding(ctx, &binding); err != nil {
+			return bindingIDs, err
+		}
+		bindingIDs = append(bindingIDs, binding.ID)
+	}
+	return bindingIDs, nil
+}
+
+func candidateSlotName(slot model.AssetSlot, resourceID uint) string {
+	base := strings.TrimSpace(slot.Name)
+	if base == "" {
+		base = fmt.Sprintf("素材位 #%d", slot.ID)
+	}
+	return fmt.Sprintf("%s · 候选资源 #%d", base, resourceID)
+}
+
 func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[string]any {
 	updates := map[string]any{}
 	for portID, value := range values {
 		text := strings.TrimSpace(entityPortValueText(value))
-		if text == "" {
+		if text == "" && len(value.ResourceIDs) == 0 {
 			continue
 		}
 		field, ok := EntityFieldForPort(kind, portID)
@@ -517,6 +689,8 @@ func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[stri
 		}
 		if field.ValueType == "number" && value.Number != nil {
 			updates[field.Storage.Column] = *value.Number
+		} else if field.ValueType == "number" && len(value.ResourceIDs) > 0 {
+			updates[field.Storage.Column] = value.ResourceIDs[0]
 		} else {
 			updates[field.Storage.Column] = text
 		}

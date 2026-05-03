@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -21,13 +21,14 @@ import {
   Users,
 } from 'lucide-react'
 
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import type { ProjectMember, User } from '@/types'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@movscript/ui'
 
 const ROLE_LABELS: Record<string, string> = {
   owner: '负责人',
@@ -37,15 +38,74 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: '观察者',
 }
 
-type TaskStatus = 'todo' | 'in_progress' | 'submitted' | 'changes_requested' | 'approved'
+type TaskStatus = 'todo' | 'in_progress' | 'submitted' | 'changes_requested' | 'approved' | 'blocked' | 'cancelled'
 type TaskPriority = 'high' | 'medium' | 'low'
 type TaskView = 'all' | 'mine' | 'review'
+type WorkItemStatus = 'todo' | 'running' | 'blocked' | 'review' | 'done' | 'cancelled'
+type WorkItemKind = 'human' | 'ai' | 'hybrid' | 'review' | 'fix'
+type UserTaskType = 'execution' | 'generation' | 'hybrid' | 'review' | 'fix' | 'decision' | 'coordination'
+type WorkTargetType = 'project' | 'production' | 'segment' | 'scene_moment' | 'content_unit' | 'asset_slot' | 'keyframe' | 'delivery_version'
+type WorkItemResultType = 'none' | 'status_change' | 'lock_asset_candidate' | 'accept_keyframe' | 'approve_delivery_version'
+type TaskPurpose = 'general' | 'review_output' | 'choose_asset_candidate' | 'confirm_content_unit' | 'accept_keyframe' | 'approve_delivery'
+
+interface WorkItem {
+  ID: number
+  project_id: number
+  production_id?: number
+  target_type: string
+  target_id: number
+  kind: WorkItemKind | string
+  title: string
+  description: string
+  status: WorkItemStatus | string
+  priority: string
+  assignee_id?: number
+  assignee?: User
+  source_job_id?: number
+  source_canvas_id?: number
+  result_type?: WorkItemResultType | string
+  result_json?: string
+  apply_status?: 'not_applicable' | 'pending' | 'applied' | 'failed' | string
+  applied_at?: string
+  apply_error?: string
+  metadata_json?: string
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+interface WorkItemMetadata {
+  task_type?: UserTaskType
+  target_label?: string
+  due?: string
+  deliverable?: string
+  review_note?: string
+  submitted_at?: string
+  approved_at?: string
+  reviewer_name?: string
+}
+
+type WorkReviewStatus = 'pending' | 'approved' | 'changes_requested' | 'rejected'
+
+interface WorkReview {
+  ID: number
+  project_id: number
+  work_item_id: number
+  reviewer_id?: number
+  reviewer?: User
+  status: WorkReviewStatus | string
+  comment: string
+  metadata_json?: string
+  CreatedAt: string
+  UpdatedAt: string
+}
 
 interface ProjectTask {
   id: string
+  workItemID: number
   title: string
   description: string
   target: string
+  taskType: UserTaskType
   assigneeId: number
   assigneeName: string
   reviewerName: string
@@ -56,79 +116,57 @@ interface ProjectTask {
   approvedAt?: string
   deliverable?: string
   reviewNote?: string
+  sourceJobID?: number
+  sourceCanvasID?: number
+  resultType: WorkItemResultType | string
+  resultJSON: string
+  applyStatus: string
+  appliedAt?: string
+  applyError?: string
+  raw: WorkItem
+  metadata: WorkItemMetadata
 }
 
-const seededTasks: ProjectTask[] = [
-  {
-    id: 'TASK-1042',
-    title: '补齐雨夜巷口关键帧参考',
-    description: '根据已确认的角色资料生成 3 张关键帧候选，突出巷口空间、伞面遮挡和人物对峙距离。',
-    target: 'S01 雨夜巷口对峙',
-    assigneeId: 2,
-    assigneeName: '张三',
-    reviewerName: '项目负责人',
-    priority: 'high',
-    status: 'submitted',
-    due: '今天 18:00',
-    submittedAt: '今天 16:20',
-    deliverable: '已提交 3 张候选图和提示词说明',
-    reviewNote: '待负责人确认是否可作为后续视频生成锚点。',
-  },
-  {
-    id: 'TASK-1043',
-    title: '旧伞纸条特写素材整理',
-    description: '上传或整理旧伞、湿纸条和字迹可读性的参考素材，标记推荐版本。',
-    target: 'S02 旧伞纸条特写',
-    assigneeId: 3,
-    assigneeName: '李四',
-    reviewerName: '项目负责人',
-    priority: 'high',
-    status: 'changes_requested',
-    due: '明天 12:00',
-    deliverable: '候选图 2 张',
-    reviewNote: '纸条文字仍然不够清楚，需要补一张更近的特写。',
-  },
-  {
-    id: 'TASK-1044',
-    title: '雨声与脚步声音效草案',
-    description: '整理 2 条音效方案，区分环境雨声、远处车流和脚步声层次。',
-    target: 'S01 雨夜巷口对峙',
-    assigneeId: 4,
-    assigneeName: '王五',
-    reviewerName: '项目负责人',
-    priority: 'medium',
-    status: 'in_progress',
-    due: '明天 20:00',
-    deliverable: '制作中',
-  },
-  {
-    id: 'TASK-1045',
-    title: '天台对白镜头返工说明',
-    description: '把负责人反馈整理成可执行返工清单，明确视线、停顿和对白节奏。',
-    target: 'S04 天台反转对白',
-    assigneeId: 2,
-    assigneeName: '张三',
-    reviewerName: '项目负责人',
-    priority: 'medium',
-    status: 'todo',
-    due: '周五 19:00',
-  },
-  {
-    id: 'TASK-1046',
-    title: '第一集视频候选验收',
-    description: '检查已生成视频片段是否满足画面连续性、剧情信息和交付规格。',
-    target: 'EP01 成片候选',
-    assigneeId: 1,
-    assigneeName: '项目负责人',
-    reviewerName: '项目负责人',
-    priority: 'low',
-    status: 'approved',
-    due: '昨天 17:00',
-    submittedAt: '昨天 15:10',
-    approvedAt: '昨天 16:30',
-    deliverable: '验收记录已归档',
-  },
-]
+interface WorkTargetOption {
+  key: string
+  type: WorkTargetType
+  id: number
+  label: string
+  productionId?: number
+  status?: string
+  subtitle?: string
+}
+
+interface MemberOption {
+  id: number
+  name: string
+  role: string
+}
+
+interface TaskCreateDraft {
+  title: string
+  description: string
+  taskType: UserTaskType
+  target: WorkTargetOption
+  assignee: MemberOption
+  due: string
+  priority: TaskPriority
+  resultType: WorkItemResultType
+  resultJSON: string
+}
+
+const seededTasks: ProjectTask[] = []
+
+const targetTypeLabels: Record<WorkTargetType, string> = {
+  project: '项目',
+  production: '制作',
+  segment: '片段',
+  scene_moment: '情节',
+  content_unit: '内容单元',
+  asset_slot: '素材位',
+  keyframe: '关键帧',
+  delivery_version: '交付版本',
+}
 
 const statusMeta: Record<TaskStatus, { label: string; className: string; icon: typeof ClipboardList }> = {
   todo: {
@@ -151,17 +189,110 @@ const statusMeta: Record<TaskStatus, { label: string; className: string; icon: t
     className: 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300',
     icon: RefreshCcw,
   },
+  blocked: {
+    label: '被阻塞',
+    className: 'border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-300',
+    icon: AlertTriangle,
+  },
   approved: {
     label: '已完成',
     className: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
     icon: CheckCircle2,
   },
+  cancelled: {
+    label: '已取消',
+    className: 'border-muted bg-muted/45 text-muted-foreground',
+    icon: Trash2,
+  },
+}
+
+const taskTypeMeta: Record<UserTaskType, { label: string; kind: WorkItemKind; description: string }> = {
+  execution: { label: '执行任务', kind: 'human', description: '人工完成明确交付物' },
+  generation: { label: 'AI 生成任务', kind: 'ai', description: '创建或跟进 AI 生成结果' },
+  hybrid: { label: '人机协作任务', kind: 'hybrid', description: '人工准备输入，AI 产出候选' },
+  review: { label: '审核任务', kind: 'review', description: '确认产出是否可用' },
+  fix: { label: '返工任务', kind: 'fix', description: '根据反馈修改已有产出' },
+  decision: { label: '选择任务', kind: 'review', description: '从多个候选中做选择' },
+  coordination: { label: '协调任务', kind: 'human', description: '处理阻塞、依赖或外部确认' },
 }
 
 const priorityMeta: Record<TaskPriority, { label: string; className: string }> = {
   high: { label: '高', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
   medium: { label: '中', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   low: { label: '低', className: 'bg-muted text-muted-foreground' },
+}
+
+const reviewStatusMeta: Record<WorkReviewStatus, { label: string; className: string }> = {
+  pending: { label: '待审核', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  approved: { label: '通过', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
+  changes_requested: { label: '要求修改', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+  rejected: { label: '拒绝', className: 'bg-muted text-muted-foreground' },
+}
+
+const resultTypeMeta: Record<WorkItemResultType, { label: string; description: string }> = {
+  none: { label: '只完成任务', description: '不改变生产实体' },
+  status_change: { label: '更新目标状态', description: '通过审核后更新目标对象状态' },
+  lock_asset_candidate: { label: '锁定素材候选', description: '把素材位锁定到指定候选' },
+  accept_keyframe: { label: '接受关键帧', description: '将关键帧标记为 accepted' },
+  approve_delivery_version: { label: '批准交付版本', description: '将交付版本标记为 approved' },
+}
+
+const taskPurposeMeta: Record<TaskPurpose, {
+  label: string
+  description: string
+  taskType: UserTaskType
+  resultType: WorkItemResultType
+  targetTypes?: WorkTargetType[]
+  defaultStatus?: string
+  defaultTitle: string
+}> = {
+  general: {
+    label: '让成员处理一件事',
+    description: '只跟踪执行和审核，不自动改变实体',
+    taskType: 'execution',
+    resultType: 'none',
+    defaultTitle: '处理制作事项',
+  },
+  review_output: {
+    label: '审核一个产出',
+    description: '成员提交说明，负责人确认是否完成',
+    taskType: 'review',
+    resultType: 'none',
+    defaultTitle: '审核制作产出',
+  },
+  choose_asset_candidate: {
+    label: '从候选中选择采用项',
+    description: '通过后锁定素材位到指定候选',
+    taskType: 'decision',
+    resultType: 'lock_asset_candidate',
+    targetTypes: ['asset_slot'],
+    defaultTitle: '选择素材候选',
+  },
+  confirm_content_unit: {
+    label: '确认内容单元',
+    description: '通过后将内容单元标记为 confirmed',
+    taskType: 'review',
+    resultType: 'status_change',
+    targetTypes: ['content_unit'],
+    defaultStatus: 'confirmed',
+    defaultTitle: '确认内容单元',
+  },
+  accept_keyframe: {
+    label: '接受关键帧',
+    description: '通过后将关键帧状态变为 accepted',
+    taskType: 'review',
+    resultType: 'accept_keyframe',
+    targetTypes: ['keyframe'],
+    defaultTitle: '接受关键帧',
+  },
+  approve_delivery: {
+    label: '批准交付版本',
+    description: '通过后将交付版本状态变为 approved',
+    taskType: 'review',
+    resultType: 'approve_delivery_version',
+    targetTypes: ['delivery_version'],
+    defaultTitle: '批准交付版本',
+  },
 }
 
 const workflow = [
@@ -177,7 +308,7 @@ function memberDisplayName(member: ProjectMember) {
 
 function buildMemberOptions(members: ProjectMember[], currentUser: User | null) {
   if (members.length > 0) {
-    return members.map((member) => ({
+    return members.map((member): MemberOption => ({
       id: member.user_id,
       name: memberDisplayName(member),
       role: ROLE_LABELS[member.role] ?? member.role,
@@ -186,9 +317,215 @@ function buildMemberOptions(members: ProjectMember[], currentUser: User | null) 
   return currentUser ? [{ id: currentUser.ID, name: currentUser.username, role: '负责人' }] : []
 }
 
+function parseWorkItemMetadata(raw?: string): WorkItemMetadata {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function normalizeTaskPriority(priority?: string): TaskPriority {
+  if (priority === 'high' || priority === 'medium' || priority === 'low') return priority
+  if (priority === 'urgent') return 'high'
+  if (priority === 'normal') return 'medium'
+  return 'medium'
+}
+
+function workStatusToTaskStatus(status: string, metadata: WorkItemMetadata): TaskStatus {
+  if (status === 'running') return 'in_progress'
+  if (status === 'review') return 'submitted'
+  if (status === 'done') return 'approved'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'cancelled') return 'cancelled'
+  if (metadata.review_note && metadata.review_note.includes('要求修改')) return 'changes_requested'
+  return 'todo'
+}
+
+function taskStatusToWorkStatus(status: TaskStatus): WorkItemStatus {
+  if (status === 'in_progress') return 'running'
+  if (status === 'submitted') return 'review'
+  if (status === 'approved') return 'done'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'cancelled') return 'cancelled'
+  return 'todo'
+}
+
+function inferTaskType(item: WorkItem, metadata: WorkItemMetadata): UserTaskType {
+  if (metadata.task_type && taskTypeMeta[metadata.task_type]) return metadata.task_type
+  if (item.kind === 'ai') return 'generation'
+  if (item.kind === 'hybrid') return 'hybrid'
+  if (item.kind === 'review') return 'review'
+  if (item.kind === 'fix') return 'fix'
+  if (item.status === 'blocked') return 'coordination'
+  return 'execution'
+}
+
+function workItemToProjectTask(item: WorkItem, reviewerName: string): ProjectTask {
+  const metadata = parseWorkItemMetadata(item.metadata_json)
+  const assignee = item.assignee
+  const taskType = inferTaskType(item, metadata)
+  return {
+    id: `TASK-${item.ID}`,
+    workItemID: item.ID,
+    title: item.title,
+    description: item.description || taskTypeMeta[taskType].description,
+    target: metadata.target_label || `${item.target_type} #${item.target_id}`,
+    taskType,
+    assigneeId: item.assignee_id ?? 0,
+    assigneeName: assignee?.username || (item.assignee_id ? `成员 ${item.assignee_id}` : '未分配'),
+    reviewerName: metadata.reviewer_name || reviewerName,
+    priority: normalizeTaskPriority(item.priority),
+    status: workStatusToTaskStatus(item.status, metadata),
+    due: metadata.due || '未设置',
+    submittedAt: metadata.submitted_at,
+    approvedAt: metadata.approved_at,
+    deliverable: metadata.deliverable,
+    reviewNote: metadata.review_note,
+    sourceJobID: item.source_job_id,
+    sourceCanvasID: item.source_canvas_id,
+    resultType: item.result_type || 'none',
+    resultJSON: item.result_json || '',
+    applyStatus: item.apply_status || 'not_applicable',
+    appliedAt: item.applied_at,
+    applyError: item.apply_error,
+    raw: item,
+    metadata,
+  }
+}
+
+function buildWorkItemPayload(task: ProjectTask, patch: Partial<ProjectTask> = {}) {
+  const next = { ...task, ...patch }
+  const metadata: WorkItemMetadata = {
+    ...task.metadata,
+    ...(patch.metadata ?? {}),
+    task_type: next.taskType,
+    target_label: next.target,
+    due: next.due,
+    deliverable: next.deliverable,
+    review_note: next.reviewNote,
+    submitted_at: next.submittedAt,
+    approved_at: next.approvedAt,
+    reviewer_name: next.reviewerName,
+  }
+  return {
+    production_id: next.raw.production_id,
+    target_type: next.raw.target_type || 'project',
+    target_id: next.raw.target_id,
+    kind: taskTypeMeta[next.taskType].kind,
+    title: next.title,
+    description: next.description,
+    status: taskStatusToWorkStatus(next.status),
+    priority: next.priority === 'high' ? 'high' : next.priority === 'low' ? 'low' : 'normal',
+    assignee_id: next.assigneeId || undefined,
+    source_job_id: next.sourceJobID ?? next.raw.source_job_id,
+    source_canvas_id: next.sourceCanvasID ?? next.raw.source_canvas_id,
+    result_type: next.resultType || next.raw.result_type || 'none',
+    result_json: next.resultJSON ?? next.raw.result_json ?? '',
+    metadata_json: JSON.stringify(metadata),
+  }
+}
+
+function reviewStatusLabel(status: string) {
+  return reviewStatusMeta[status as WorkReviewStatus]?.label ?? status
+}
+
+function reviewStatusClassName(status: string) {
+  return reviewStatusMeta[status as WorkReviewStatus]?.className ?? 'bg-muted text-muted-foreground'
+}
+
+function applyStatusLabel(status: string) {
+  if (status === 'applied') return '已应用'
+  if (status === 'pending') return '待应用'
+  if (status === 'failed') return '应用失败'
+  return '无需应用'
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return '暂无'
+  const time = new Date(value)
+  if (Number.isNaN(time.getTime())) return value
+  return time.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function optionalPositiveID(value: string) {
+  const n = Number(value.trim())
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined
+}
+
 function taskMatchesUser(task: ProjectTask, user: User | null) {
   if (!user) return false
   return task.assigneeId === user.ID || task.assigneeName === user.username
+}
+
+function titleOfRecord(record: SemanticEntityRecord, fallback: string) {
+  return String(record.title ?? record.name ?? record.label ?? `${fallback} #${record.ID}`)
+}
+
+function numericField(record: SemanticEntityRecord, key: string) {
+  const value = record[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function stringField(record: SemanticEntityRecord, key: string) {
+  const value = record[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function targetOption(type: WorkTargetType, record: SemanticEntityRecord, fallback: string): WorkTargetOption {
+  const status = stringField(record, 'status')
+  const slotKey = stringField(record, 'slot_key')
+  const kind = stringField(record, 'kind')
+  return {
+    key: `${type}:${record.ID}`,
+    type,
+    id: record.ID,
+    label: `${targetTypeLabels[type]} · ${titleOfRecord(record, fallback)}`,
+    productionId: type === 'production' ? record.ID : numericField(record, 'production_id'),
+    status,
+    subtitle: [kind, slotKey, status].filter(Boolean).join(' · '),
+  }
+}
+
+function purposeTargetOptions(purpose: TaskPurpose, options: WorkTargetOption[]) {
+  const allowed = taskPurposeMeta[purpose].targetTypes
+  if (!allowed) return options
+  return options.filter((option) => allowed.includes(option.type))
+}
+
+function defaultResultJSON(purpose: TaskPurpose) {
+  const meta = taskPurposeMeta[purpose]
+  if (meta.resultType === 'status_change') {
+    return JSON.stringify({ status: meta.defaultStatus ?? 'confirmed' })
+  }
+  return ''
+}
+
+function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
+  if (resultType === 'none') return '通过后只完成任务，不自动改变实体。'
+  if (resultType === 'status_change') {
+    try {
+      const parsed = JSON.parse(resultJSON) as { status?: string }
+      return `通过后目标状态会变为 ${parsed.status || '指定状态'}。`
+    } catch {
+      return '通过后目标状态会按所选状态更新。'
+    }
+  }
+  if (resultType === 'lock_asset_candidate') return '通过后系统会锁定素材位到指定候选。'
+  if (resultType === 'accept_keyframe') return '通过后关键帧状态会变为 accepted。'
+  if (resultType === 'approve_delivery_version') return '通过后交付版本状态会变为 approved。'
+  return '通过后应用任务结果。'
+}
+
+function firstOptionKey(options: WorkTargetOption[]) {
+  return options[0]?.key ?? ''
 }
 
 function StatusPill({ status }: { status: TaskStatus }) {
@@ -205,6 +542,262 @@ function StatusPill({ status }: { status: TaskStatus }) {
 function PriorityPill({ priority }: { priority: TaskPriority }) {
   const meta = priorityMeta[priority]
   return <span className={cn('rounded-md px-2 py-1 text-xs font-medium', meta.className)}>{meta.label}优先级</span>
+}
+
+function TaskCreateDialog({
+  open,
+  onOpenChange,
+  projectName,
+  memberOptions,
+  targetOptions,
+  onSubmit,
+  isSubmitting,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  projectName: string
+  memberOptions: MemberOption[]
+  targetOptions: WorkTargetOption[]
+  onSubmit: (draft: TaskCreateDraft) => void
+  isSubmitting: boolean
+}) {
+  const [purpose, setPurpose] = useState<TaskPurpose>('general')
+  const [title, setTitle] = useState(taskPurposeMeta.general.defaultTitle)
+  const [description, setDescription] = useState('')
+  const [targetKey, setTargetKey] = useState(firstOptionKey(targetOptions))
+  const [assigneeId, setAssigneeId] = useState(memberOptions[0]?.id ? String(memberOptions[0].id) : '')
+  const [due, setDue] = useState('明天 18:00')
+  const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [targetStatus, setTargetStatus] = useState('confirmed')
+  const [candidateID, setCandidateID] = useState('')
+
+  const availableTargets = useMemo(() => purposeTargetOptions(purpose, targetOptions), [purpose, targetOptions])
+  const selectedTarget = availableTargets.find((target) => target.key === targetKey) ?? availableTargets[0]
+  const selectedAssignee = memberOptions.find((member) => String(member.id) === assigneeId) ?? memberOptions[0]
+  const purposeMeta = taskPurposeMeta[purpose]
+  const resultType = purposeMeta.resultType
+  const resultJSON = resultType === 'status_change'
+    ? JSON.stringify({ status: targetStatus.trim() || purposeMeta.defaultStatus || 'confirmed' })
+    : resultType === 'lock_asset_candidate' && candidateID.trim()
+      ? JSON.stringify({ asset_slot_candidate_id: Number(candidateID.trim()) })
+      : defaultResultJSON(purpose)
+  const canSubmit = !!selectedTarget && !!selectedAssignee && title.trim() && (resultType !== 'lock_asset_candidate' || optionalPositiveID(candidateID))
+
+  useEffect(() => {
+    const options = purposeTargetOptions(purpose, targetOptions)
+    if (!options.some((option) => option.key === targetKey)) {
+      setTargetKey(firstOptionKey(options))
+    }
+    const meta = taskPurposeMeta[purpose]
+    setTitle((current) => current.trim() ? current : meta.defaultTitle)
+    setTargetStatus(meta.defaultStatus ?? 'confirmed')
+    if (meta.resultType !== 'lock_asset_candidate') setCandidateID('')
+  }, [purpose, targetKey, targetOptions])
+
+  useEffect(() => {
+    if (!assigneeId && memberOptions[0]) {
+      setAssigneeId(String(memberOptions[0].id))
+    }
+  }, [assigneeId, memberOptions])
+
+  useEffect(() => {
+    if (!targetKey && targetOptions[0]) {
+      setTargetKey(targetOptions[0].key)
+    }
+  }, [targetKey, targetOptions])
+
+  function submit() {
+    if (!selectedTarget || !selectedAssignee || !canSubmit) return
+    const fallbackDescription = `${taskPurposeMeta[purpose].label}，面向${selectedTarget.label}，成员完成后提交审核。`
+    onSubmit({
+      title: title.trim(),
+      description: description.trim() || fallbackDescription,
+      taskType: purposeMeta.taskType,
+      target: selectedTarget,
+      assignee: selectedAssignee,
+      due,
+      priority,
+      resultType,
+      resultJSON,
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[88vh] w-[min(920px,calc(100vw-32px))] overflow-auto p-0">
+        <DialogHeader className="border-b border-border px-5 py-4">
+          <DialogTitle>新建任务</DialogTitle>
+          <DialogDescription>
+            选择任务目的和关联对象，系统会自动生成完成后的实体动作。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 p-5">
+          <section>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <ClipboardList size={14} />
+              <span>任务目的</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(taskPurposeMeta).map(([key, meta]) => {
+                const active = purpose === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPurpose(key as TaskPurpose)}
+                    className={cn(
+                      'min-h-[86px] rounded-md border p-3 text-left transition-colors',
+                      active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/40'
+                    )}
+                  >
+                    <p className="text-sm font-semibold text-foreground">{meta.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{meta.description}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="grid grid-cols-[minmax(0,1fr)_280px] gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">关联对象</label>
+                <select
+                  value={selectedTarget?.key ?? ''}
+                  onChange={(event) => setTargetKey(event.target.value)}
+                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                >
+                  {availableTargets.map((target) => (
+                    <option key={target.key} value={target.key}>{target.label}</option>
+                  ))}
+                </select>
+                {availableTargets.length === 0 && (
+                  <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">当前任务目的没有可用对象。</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">执行成员</label>
+                  <select
+                    value={selectedAssignee ? String(selectedAssignee.id) : ''}
+                    onChange={(event) => setAssigneeId(event.target.value)}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                  >
+                    {memberOptions.map((member) => (
+                      <option key={member.id} value={member.id}>{member.name} · {member.role}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">截止时间</label>
+                  <select
+                    value={due}
+                    onChange={(event) => setDue(event.target.value)}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="今天 18:00">今天 18:00</option>
+                    <option value="明天 18:00">明天 18:00</option>
+                    <option value="本周五 18:00">本周五 18:00</option>
+                    <option value="未设置">未设置</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[minmax(0,1fr)_150px] gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">任务标题</label>
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">优先级</label>
+                  <select
+                    value={priority}
+                    onChange={(event) => setPriority(event.target.value as TaskPriority)}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="high">高</option>
+                    <option value="medium">中</option>
+                    <option value="low">低</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">任务说明</label>
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="可补充交付要求、审核重点或上下文"
+                  className="min-h-[82px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+
+              {resultType === 'status_change' && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">通过后目标状态</label>
+                  <select
+                    value={targetStatus}
+                    onChange={(event) => setTargetStatus(event.target.value)}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="confirmed">confirmed</option>
+                    <option value="locked">locked</option>
+                    <option value="accepted">accepted</option>
+                    <option value="approved">approved</option>
+                  </select>
+                </div>
+              )}
+
+              {resultType === 'lock_asset_candidate' && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">候选 ID</label>
+                  <input
+                    value={candidateID}
+                    onChange={(event) => setCandidateID(event.target.value)}
+                    inputMode="numeric"
+                    placeholder="输入 asset_slot_candidate_id"
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+              )}
+            </div>
+
+            <aside className="space-y-3 rounded-md border border-border bg-background p-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">对象摘要</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{selectedTarget?.label ?? '未选择对象'}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{selectedTarget?.subtitle || projectName}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <Info label="任务类型" value={taskTypeMeta[purposeMeta.taskType].label} />
+                <Info label="完成动作" value={resultTypeMeta[resultType].label} />
+                <Info label="执行成员" value={selectedAssignee?.name ?? '未选择'} />
+                <Info label="截止时间" value={due} />
+              </div>
+              <div className="rounded-md border border-border bg-card p-3">
+                <p className="text-xs font-medium text-muted-foreground">发布摘要</p>
+                <p className="mt-2 text-sm leading-6 text-foreground">
+                  将任务“{title.trim() || purposeMeta.defaultTitle}”分配给{selectedAssignee?.name ?? '成员'}。
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{resultSummary(resultType, resultJSON)}</p>
+              </div>
+            </aside>
+          </section>
+        </div>
+
+        <DialogFooter className="border-t border-border px-5 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>取消</Button>
+          <Button onClick={submit} disabled={!canSubmit || isSubmitting} loading={isSubmitting}>发布任务</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function ManagementTab({
@@ -312,13 +905,15 @@ export default function CollaborationPage() {
   const project = useProjectStore((state) => state.current)
   const currentUser = useUserStore((state) => state.currentUser)
   const projectId = project?.ID
-  const [tasks, setTasks] = useState<ProjectTask[]>(seededTasks)
   const [selectedTaskId, setSelectedTaskId] = useState(seededTasks[0]?.id ?? '')
   const [view, setView] = useState<TaskView>('all')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
-  const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newTaskAssignee, setNewTaskAssignee] = useState('')
-  const [newTaskDue, setNewTaskDue] = useState('明天 18:00')
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false)
+  const [submitDeliverable, setSubmitDeliverable] = useState('')
+  const [submitJobId, setSubmitJobId] = useState('')
+  const [submitCanvasId, setSubmitCanvasId] = useState('')
+  const [reviewComment, setReviewComment] = useState('')
+  const qc = useQueryClient()
 
   const { data: projectDetail } = useQuery({
     queryKey: ['project', projectId],
@@ -332,9 +927,119 @@ export default function CollaborationPage() {
   })
 
   const members: ProjectMember[] = projectDetail?.members ?? []
-  const { canManageMembers } = usePermissions(members)
+  const { canManageMembers, isDirector } = usePermissions(members)
+  const canManageWorkItems = canManageMembers || isDirector
   const memberOptions = useMemo(() => buildMemberOptions(members, currentUser), [members, currentUser])
   const reviewerName = members.find((member) => member.role === 'owner')?.user?.username ?? currentUser?.username ?? '项目负责人'
+
+  const { data: workItems = [], isLoading: loadingTasks } = useQuery<WorkItem[]>({
+    queryKey: ['work-items', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/entities/work-items`).then((response) => response.data),
+    enabled: !!projectId,
+  })
+
+  const { data: workReviews = [] } = useQuery<WorkReview[]>({
+    queryKey: ['work-reviews', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/entities/work-reviews`).then((response) => response.data),
+    enabled: !!projectId,
+  })
+
+  const { data: productions = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'productions'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const { data: segments = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'segments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('segments')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const { data: contentUnits = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'content-units'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const { data: assetSlots = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'asset-slots'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const { data: keyframes = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'keyframes'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('keyframes')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const { data: deliveryVersions = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'delivery-versions'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('deliveryVersions')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
+  const workTargetOptions = useMemo<WorkTargetOption[]>(() => {
+    if (!projectId) return []
+    return [
+      { key: `project:${projectId}`, type: 'project', id: projectId, label: `项目 · ${project?.name ?? '当前项目'}` },
+      ...productions.map((record) => targetOption('production', record, '制作')),
+      ...segments.map((record) => targetOption('segment', record, '片段')),
+      ...contentUnits.map((record) => targetOption('content_unit', record, '内容单元')),
+      ...assetSlots.map((record) => targetOption('asset_slot', record, '素材位')),
+      ...keyframes.map((record) => targetOption('keyframe', record, '关键帧')),
+      ...deliveryVersions.map((record) => targetOption('delivery_version', record, '交付版本')),
+    ]
+  }, [assetSlots, contentUnits, deliveryVersions, keyframes, productions, project?.name, projectId, segments])
+
+  const tasks = useMemo(
+    () => workItems.map((item) => workItemToProjectTask(item, reviewerName)),
+    [reviewerName, workItems]
+  )
+
+  const createWorkItem = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      api.post(`/projects/${projectId}/entities/work-items`, payload).then((response) => response.data as WorkItem),
+    onSuccess: (item) => {
+      void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
+      setSelectedTaskId(`TASK-${item.ID}`)
+      setView('all')
+      setStatusFilter('all')
+      setTaskDialogOpen(false)
+    },
+  })
+
+  const patchWorkItem = useMutation({
+    mutationFn: async ({
+      task,
+      patch,
+      review,
+    }: {
+      task: ProjectTask
+      patch: Partial<ProjectTask>
+      review?: { status: WorkReviewStatus; comment: string }
+    }) => {
+      const updated = await api.patch(
+        `/projects/${projectId}/entities/work-items/${task.workItemID}`,
+        buildWorkItemPayload(task, patch)
+      ).then((response) => response.data)
+      if (review) {
+        await api.post(`/projects/${projectId}/entities/work-reviews`, {
+          work_item_id: task.workItemID,
+          reviewer_id: currentUser?.ID,
+          status: review.status,
+          comment: review.comment,
+          metadata_json: JSON.stringify({ source: 'collaboration_page' }),
+        })
+      }
+      return updated
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
+      void qc.invalidateQueries({ queryKey: ['work-reviews', projectId] })
+    },
+  })
 
   const metrics = useMemo(() => {
     const mine = tasks.filter((task) => taskMatchesUser(task, currentUser)).length
@@ -363,30 +1068,72 @@ export default function CollaborationPage() {
     return visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? tasks[0]
   }, [selectedTaskId, tasks, visibleTasks])
 
-  function updateTask(taskId: string, patch: Partial<ProjectTask>) {
-    setTasks((items) => items.map((task) => task.id === taskId ? { ...task, ...patch } : task))
+  const selectedTaskReviews = useMemo(() => {
+    if (!selectedTask) return []
+    return workReviews
+      .filter((review) => review.work_item_id === selectedTask.workItemID)
+      .sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
+  }, [selectedTask, workReviews])
+
+  useEffect(() => {
+    setSubmitDeliverable(selectedTask?.deliverable && selectedTask.deliverable !== '处理中' ? selectedTask.deliverable : '')
+    setSubmitJobId(selectedTask?.sourceJobID ? String(selectedTask.sourceJobID) : '')
+    setSubmitCanvasId(selectedTask?.sourceCanvasID ? String(selectedTask.sourceCanvasID) : '')
+    setReviewComment('')
+  }, [selectedTask?.workItemID])
+
+  function updateTask(task: ProjectTask, patch: Partial<ProjectTask>, review?: { status: WorkReviewStatus; comment: string }) {
+    patchWorkItem.mutate({ task, patch, review })
   }
 
-  function createTask() {
-    const assignee = memberOptions.find((member) => String(member.id) === newTaskAssignee) ?? memberOptions[0]
-    if (!newTaskTitle.trim() || !assignee) return
-    const task: ProjectTask = {
-      id: `TASK-${1100 + tasks.length}`,
-      title: newTaskTitle.trim(),
-      description: '由负责人新建并分配给项目成员，成员完成后提交审核。',
-      target: project?.name ?? '当前项目',
-      assigneeId: assignee.id,
-      assigneeName: assignee.name,
-      reviewerName,
-      priority: 'medium',
-      status: 'todo',
-      due: newTaskDue.trim() || '未设置',
+  function submitTaskForReview(task: ProjectTask) {
+    const deliverable = submitDeliverable.trim() || task.deliverable || '已提交执行结果，等待负责人审核。'
+    updateTask(task, {
+      status: 'submitted',
+      submittedAt: new Date().toISOString(),
+      deliverable,
+      reviewNote: '等待负责人审核。',
+      sourceJobID: optionalPositiveID(submitJobId),
+      sourceCanvasID: optionalPositiveID(submitCanvasId),
+    })
+  }
+
+  function reviewTask(task: ProjectTask, status: Extract<WorkReviewStatus, 'approved' | 'changes_requested'>) {
+    const fallback = status === 'approved' ? '负责人已通过，任务完成。' : '负责人要求修改后重新提交。'
+    const comment = reviewComment.trim() || fallback
+    updateTask(task, {
+      status: status === 'approved' ? 'approved' : 'changes_requested',
+      approvedAt: status === 'approved' ? new Date().toISOString() : task.approvedAt,
+      reviewNote: comment,
+    }, {
+      status,
+      comment,
+    })
+    setReviewComment('')
+  }
+
+  function createTask(draft: TaskCreateDraft) {
+    if (!projectId) return
+    const metadata: WorkItemMetadata = {
+      task_type: draft.taskType,
+      target_label: draft.target.label,
+      due: draft.due.trim() || '未设置',
+      reviewer_name: reviewerName,
     }
-    setTasks((items) => [task, ...items])
-    setSelectedTaskId(task.id)
-    setView('all')
-    setStatusFilter('all')
-    setNewTaskTitle('')
+    createWorkItem.mutate({
+      production_id: draft.target.productionId,
+      target_type: draft.target.type,
+      target_id: draft.target.id,
+      kind: taskTypeMeta[draft.taskType].kind,
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      status: draft.taskType === 'coordination' ? 'blocked' : 'todo',
+      priority: draft.priority === 'high' ? 'high' : draft.priority === 'low' ? 'low' : 'normal',
+      assignee_id: draft.assignee.id,
+      result_type: draft.resultType,
+      result_json: draft.resultType === 'none' ? '' : draft.resultJSON.trim(),
+      metadata_json: JSON.stringify(metadata),
+    })
   }
 
   return (
@@ -409,12 +1156,22 @@ export default function CollaborationPage() {
               <UserCheck size={15} />
               我的任务
             </Button>
-            <Button className="gap-2" onClick={createTask}>
+            <Button className="gap-2" onClick={() => setTaskDialogOpen(true)} disabled={!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0}>
               <Plus size={15} />
-              分配任务
+              新建任务
             </Button>
           </div>
         </header>
+
+        <TaskCreateDialog
+          open={taskDialogOpen}
+          onOpenChange={setTaskDialogOpen}
+          projectName={project?.name ?? '当前项目'}
+          memberOptions={memberOptions}
+          targetOptions={workTargetOptions}
+          onSubmit={createTask}
+          isSubmitting={createWorkItem.isPending}
+        />
 
         <section className="grid grid-cols-4 gap-3">
           {workflow.map((step, index) => {
@@ -464,34 +1221,15 @@ export default function CollaborationPage() {
             <section className="rounded-lg border border-border bg-card p-3">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium">
                 <Plus size={15} />
-                <span>快速分配</span>
+                <span>任务发布</span>
               </div>
-              <div className="space-y-2">
-                <input
-                  value={newTaskTitle}
-                  onChange={(event) => setNewTaskTitle(event.target.value)}
-                  placeholder="任务标题"
-                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                />
-                <select
-                  value={newTaskAssignee}
-                  onChange={(event) => setNewTaskAssignee(event.target.value)}
-                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                >
-                  <option value="">选择执行成员</option>
-                  {memberOptions.map((member) => (
-                    <option key={member.id} value={member.id}>{member.name} · {member.role}</option>
-                  ))}
-                </select>
-                <input
-                  value={newTaskDue}
-                  onChange={(event) => setNewTaskDue(event.target.value)}
-                  placeholder="截止时间"
-                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                />
-                <Button className="w-full gap-2" onClick={createTask} disabled={!newTaskTitle.trim() || memberOptions.length === 0}>
+              <div className="space-y-3 rounded-md border border-border bg-background p-3">
+                <p className="text-xs leading-5 text-muted-foreground">
+                  选择任务目的、关联对象和完成动作后发布。系统会自动生成底层任务结果，不需要手写 JSON。
+                </p>
+                <Button className="w-full gap-2" onClick={() => setTaskDialogOpen(true)} disabled={!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0}>
                   <UserCheck size={15} />
-                  分配给成员
+                  新建任务
                 </Button>
               </div>
             </section>
@@ -557,6 +1295,7 @@ export default function CollaborationPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusPill status={task.status} />
                           <PriorityPill priority={task.priority} />
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{taskTypeMeta[task.taskType].label}</span>
                           <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
                         </div>
                         <p className="mt-2 truncate text-sm font-semibold">{task.title}</p>
@@ -572,7 +1311,16 @@ export default function CollaborationPage() {
                   </button>
                 )
               })}
-              {visibleTasks.length === 0 && (
+              {loadingTasks && (
+                <div className="grid min-h-[260px] place-items-center rounded-lg border border-dashed border-border text-center">
+                  <div>
+                    <Clock3 size={24} className="mx-auto text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium">正在加载任务</p>
+                    <p className="mt-1 text-xs text-muted-foreground">从项目 WorkItem 列表读取分配记录。</p>
+                  </div>
+                </div>
+              )}
+              {!loadingTasks && visibleTasks.length === 0 && (
                 <div className="grid min-h-[260px] place-items-center rounded-lg border border-dashed border-border text-center">
                   <div>
                     <ClipboardList size={24} className="mx-auto text-muted-foreground" />
@@ -590,7 +1338,7 @@ export default function CollaborationPage() {
                 <ClipboardCheck size={16} />
                 <span>任务详情</span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">任务完成只代表执行事项通过，不直接改变内容采用或交付状态。</p>
+              <p className="mt-1 text-xs text-muted-foreground">任务可声明完成后的实体变更；负责人通过时由后端应用并记录事件。</p>
             </div>
 
             {selectedTask && (
@@ -606,6 +1354,7 @@ export default function CollaborationPage() {
 
                 <DetailBlock title="分配信息" icon={UserCheck}>
                   <div className="grid grid-cols-2 gap-2 text-xs">
+                    <Info label="任务类型" value={taskTypeMeta[selectedTask.taskType].label} />
                     <Info label="执行成员" value={selectedTask.assigneeName} />
                     <Info label="审核人" value={selectedTask.reviewerName} />
                     <Info label="截止时间" value={selectedTask.due} />
@@ -617,19 +1366,97 @@ export default function CollaborationPage() {
                   <p className="text-sm leading-relaxed text-muted-foreground">{selectedTask.description}</p>
                 </DetailBlock>
 
-                <DetailBlock title="提交内容" icon={FileCheck2}>
-                  <div className="rounded-md border border-border bg-background p-3">
-                    <p className="text-sm text-foreground">{selectedTask.deliverable ?? '成员尚未提交交付物。'}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <span>提交时间：{selectedTask.submittedAt ?? '暂无'}</span>
-                      <span>通过时间：{selectedTask.approvedAt ?? '暂无'}</span>
+                <DetailBlock title="完成动作" icon={ClipboardCheck}>
+                  <div className="space-y-2 rounded-md border border-border bg-background p-3 text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Info label="动作" value={resultTypeMeta[(selectedTask.resultType as WorkItemResultType) || 'none']?.label ?? selectedTask.resultType} />
+                      <Info label="应用状态" value={applyStatusLabel(selectedTask.applyStatus)} />
                     </div>
+                    {selectedTask.resultJSON && (
+                      <pre className="max-h-28 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px] text-muted-foreground">{selectedTask.resultJSON}</pre>
+                    )}
+                    {selectedTask.applyError && <p className="text-rose-600 dark:text-rose-300">{selectedTask.applyError}</p>}
+                    {selectedTask.appliedAt && <p className="text-muted-foreground">应用时间：{formatDateTime(selectedTask.appliedAt)}</p>}
+                  </div>
+                </DetailBlock>
+
+                <DetailBlock title="提交内容" icon={FileCheck2}>
+                  <div className="space-y-2">
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <p className="text-sm text-foreground">{selectedTask.deliverable ?? '成员尚未提交交付物。'}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                        <span>提交时间：{formatDateTime(selectedTask.submittedAt)}</span>
+                        <span>通过时间：{formatDateTime(selectedTask.approvedAt)}</span>
+                      </div>
+                      {(selectedTask.sourceJobID || selectedTask.sourceCanvasID) && (
+                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                          {selectedTask.sourceJobID && <span className="rounded bg-muted px-2 py-1">Job #{selectedTask.sourceJobID}</span>}
+                          {selectedTask.sourceCanvasID && <span className="rounded bg-muted px-2 py-1">Canvas #{selectedTask.sourceCanvasID}</span>}
+                        </div>
+                      )}
+                    </div>
+                    {selectedTask.status !== 'approved' && (
+                      <div className="space-y-2 rounded-md border border-border bg-background p-3">
+                        <textarea
+                          value={submitDeliverable}
+                          onChange={(event) => setSubmitDeliverable(event.target.value)}
+                          placeholder="填写交付说明，例如已上传的资源、生成结果、处理范围或待审核重点"
+                          className="min-h-[76px] w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            value={submitJobId}
+                            onChange={(event) => setSubmitJobId(event.target.value)}
+                            placeholder="关联 Job ID"
+                            inputMode="numeric"
+                            className="h-8 rounded-md border border-border bg-card px-2 text-xs outline-none focus:border-primary"
+                          />
+                          <input
+                            value={submitCanvasId}
+                            onChange={(event) => setSubmitCanvasId(event.target.value)}
+                            placeholder="关联 Canvas ID"
+                            inputMode="numeric"
+                            className="h-8 rounded-md border border-border bg-card px-2 text-xs outline-none focus:border-primary"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </DetailBlock>
 
                 <DetailBlock title="审核意见" icon={MessageSquareText}>
-                  <div className="rounded-md border border-border bg-background p-3 text-sm leading-relaxed text-muted-foreground">
-                    {selectedTask.reviewNote ?? '暂无审核意见。'}
+                  <div className="space-y-2">
+                    <div className="rounded-md border border-border bg-background p-3 text-sm leading-relaxed text-muted-foreground">
+                      {selectedTask.reviewNote ?? '暂无审核意见。'}
+                    </div>
+                    {selectedTaskReviews.length > 0 && (
+                      <div className="space-y-2">
+                        {selectedTaskReviews.map((review) => (
+                          <div key={review.ID} className="rounded-md border border-border bg-background p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={cn('rounded px-2 py-0.5 text-[10px] font-medium', reviewStatusClassName(review.status))}>
+                                {reviewStatusLabel(review.status)}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">{formatDateTime(review.CreatedAt)}</span>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                              {review.comment || '无文字意见'}
+                            </p>
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              审核人：{review.reviewer?.username || (review.reviewer_id ? `成员 ${review.reviewer_id}` : selectedTask.reviewerName)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedTask.status === 'submitted' && canManageWorkItems && (
+                      <textarea
+                        value={reviewComment}
+                        onChange={(event) => setReviewComment(event.target.value)}
+                        placeholder="填写审核意见，会同步写入任务审核记录"
+                        className="min-h-[76px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    )}
                   </div>
                 </DetailBlock>
 
@@ -637,21 +1464,16 @@ export default function CollaborationPage() {
                   <Button
                     variant="outline"
                     className="justify-start gap-2"
-                    onClick={() => updateTask(selectedTask.id, { status: 'in_progress', deliverable: '处理中' })}
-                    disabled={selectedTask.status === 'approved'}
+                    onClick={() => updateTask(selectedTask, { status: 'in_progress', deliverable: '处理中' })}
+                    disabled={selectedTask.status === 'approved' || patchWorkItem.isPending}
                   >
                     <Clock3 size={15} />
                     标记进行中
                   </Button>
                   <Button
                     className="justify-start gap-2"
-                    onClick={() => updateTask(selectedTask.id, {
-                      status: 'submitted',
-                      submittedAt: '刚刚',
-                      deliverable: selectedTask.deliverable === '处理中' || !selectedTask.deliverable ? '已提交执行结果，等待负责人审核。' : selectedTask.deliverable,
-                      reviewNote: '等待负责人审核。',
-                    })}
-                    disabled={selectedTask.status === 'submitted' || selectedTask.status === 'approved'}
+                    onClick={() => submitTaskForReview(selectedTask)}
+                    disabled={selectedTask.status === 'submitted' || selectedTask.status === 'approved' || patchWorkItem.isPending}
                   >
                     <Send size={15} />
                     提交审核
@@ -659,11 +1481,8 @@ export default function CollaborationPage() {
                   <Button
                     variant="outline"
                     className="justify-start gap-2"
-                    onClick={() => updateTask(selectedTask.id, {
-                      status: 'changes_requested',
-                      reviewNote: '负责人要求修改后重新提交。',
-                    })}
-                    disabled={selectedTask.status !== 'submitted' || !canManageMembers}
+                    onClick={() => reviewTask(selectedTask, 'changes_requested')}
+                    disabled={selectedTask.status !== 'submitted' || !canManageWorkItems || patchWorkItem.isPending}
                   >
                     <RefreshCcw size={15} />
                     要求修改
@@ -671,19 +1490,15 @@ export default function CollaborationPage() {
                   <Button
                     variant="outline"
                     className="justify-start gap-2"
-                    onClick={() => updateTask(selectedTask.id, {
-                      status: 'approved',
-                      approvedAt: '刚刚',
-                      reviewNote: '负责人已通过，任务完成。',
-                    })}
-                    disabled={selectedTask.status !== 'submitted' || !canManageMembers}
+                    onClick={() => reviewTask(selectedTask, 'approved')}
+                    disabled={selectedTask.status !== 'submitted' || !canManageWorkItems || patchWorkItem.isPending}
                   >
                     <CheckCircle2 size={15} />
                     通过完成
                   </Button>
                 </div>
 
-                {!canManageMembers && selectedTask.status === 'submitted' && (
+                {!canManageWorkItems && selectedTask.status === 'submitted' && (
                   <div className="flex gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
                     <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                     <span>只有项目负责人或具备成员管理权限的用户可以通过任务或要求修改。</span>

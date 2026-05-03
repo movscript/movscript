@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
@@ -59,10 +60,33 @@ func (h *WorkflowSchemaHandler) GetEntitySemanticValues(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("invalid entity id"))
 		return
 	}
-	values, err := workflow.NewEntityIOService(h.db).ReadDetailValues(c.Request.Context(), c.Param("kind"), uint(id64))
+	fieldIDs := parseCSVQuery(c.Query("fields"))
+	svc := workflow.NewEntityIOService(h.db)
+	if len(fieldIDs) > 0 {
+		values, err := svc.ReadDetailValuesByFields(c.Request.Context(), c.Param("kind"), uint(id64), fieldIDs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+			return
+		}
+		c.JSON(http.StatusOK, values)
+		return
+	}
+	values, err := svc.ReadDetailValues(c.Request.Context(), c.Param("kind"), uint(id64))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, values)
+}
+
+func parseCSVQuery(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }

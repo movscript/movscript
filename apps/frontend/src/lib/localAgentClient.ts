@@ -458,7 +458,15 @@ export interface ProductionRun {
 
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
-export type AgentDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note'
+export type AgentDraftKind =
+  | 'script'
+  | 'setting'
+  | 'asset_slot'
+  | 'storyboard_line'
+  | 'content_unit'
+  | 'prompt'
+  | 'note'
+  | 'pipeline'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentMemory {

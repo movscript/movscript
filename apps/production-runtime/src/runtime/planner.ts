@@ -118,7 +118,7 @@ export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPla
     tasks.push({
       id: makeLocalId('task'),
       title: '读取项目结构',
-      description: '读取剧本、设定、分集、场景、分镜、镜头和管线节点的结构摘要。',
+      description: '读取剧本、设定、语义生产实体、素材位和管线节点的结构摘要。',
       agentRole: 'researcher',
       status: 'pending',
       toolCalls: structureCalls,
@@ -131,7 +131,7 @@ export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPla
     tasks.push({
       id: makeLocalId('task'),
       title: readCalls.some((call) => call.name === 'movscript.read_entity') ? '读取指定项目实体' : '检索项目内容',
-      description: '调用项目工具获取和请求相关的剧本、分镜、镜头、素材或任务信息。',
+      description: '调用项目工具获取和请求相关的剧本、语义生产实体、素材位或任务信息。',
       agentRole: 'researcher',
       status: 'pending',
       toolCalls: readCalls,
@@ -199,7 +199,7 @@ export function formatMemoryBlock(memories: AgentMemory[], limit = 12): string {
 }
 
 function wantsProjectLookup(message: string): boolean {
-  return /查|找|搜索|检索|读取|查看|列出|有哪些|项目内容|剧本|设定|角色|资产|场景|分镜|镜头|任务|search|find|lookup|read|list|show|project|script|setting|asset|scene|storyboard|shot|task/i.test(message)
+  return /查|找|搜索|检索|读取|查看|列出|有哪些|项目内容|剧本|设定|角色|资产|素材位|资产位|场景|情节|分镜|镜头|内容单元|关键帧|任务|search|find|lookup|read|list|show|project|script|setting|asset|asset_slot|segment|scene|scene_moment|storyboard|storyboard_line|content_unit|shot|keyframe|task/i.test(message)
 }
 
 function wantsDraft(message: string): boolean {
@@ -211,7 +211,7 @@ function wantsDraftList(message: string): boolean {
 }
 
 function wantsProjectStructure(message: string): boolean {
-  return /当前项目|项目进度|进度|还差|缺口|规划|下一步|分集|episode|场景|scene|分镜|storyboard|镜头|shot|管线|pipeline|project status|project progress|gap|missing/i.test(message)
+  return /当前项目|项目进度|进度|还差|缺口|规划|下一步|段落|情节|场景|分镜|镜头|内容单元|素材位|资产位|管线|segment|scene|scene_moment|storyboard|storyboard_line|content_unit|shot|asset_slot|pipeline|project status|project progress|gap|missing/i.test(message)
 }
 
 function inferApplyDraftCall(message: string): ToolCall | undefined {
@@ -253,7 +253,7 @@ function wantsPlanning(message: string): boolean {
 }
 
 function inferReadTarget(message: string): { entityType: string; entityId: number } | undefined {
-  const match = message.match(/(script|setting|asset|episode|scene|storyboard|shot|task|剧本|设定|资产|集|场景|分镜|镜头|任务)\s*#?\s*(\d+)/i)
+  const match = message.match(/(script|setting|asset_slot|asset-slot|asset|segment|episode|scene_moment|scene-moment|scene|storyboard_line|storyboard-line|storyboard_script|storyboard-script|storyboard|content_unit|content-unit|shot|keyframe|task|剧本|设定|素材位|资产位|资产|段落|集|情节|场景|分镜行|分镜脚本|分镜|内容单元|镜头|关键帧|任务)\s*#?\s*(\d+)/i)
   if (!match) return undefined
   return {
     entityType: normalizeEntityType(match[1]),
@@ -262,31 +262,47 @@ function inferReadTarget(message: string): { entityType: string; entityId: numbe
 }
 
 function normalizeEntityType(value: string): string {
-  const lower = value.toLowerCase()
+  const lower = value.toLowerCase().replace(/-/g, '_')
   const map: Record<string, string> = {
     script: 'script',
     setting: 'setting',
-    asset: 'asset',
-    episode: 'episode',
-    scene: 'scene',
-    storyboard: 'storyboard',
-    shot: 'shot',
+    asset: 'asset_slot',
+    asset_slot: 'asset_slot',
+    episode: 'segment',
+    segment: 'segment',
+    scene: 'scene_moment',
+    scene_moment: 'scene_moment',
+    storyboard: 'storyboard_line',
+    storyboard_script: 'storyboard_script',
+    storyboard_line: 'storyboard_line',
+    shot: 'content_unit',
+    content_unit: 'content_unit',
+    keyframe: 'keyframe',
     task: 'task',
     '剧本': 'script',
     '设定': 'setting',
-    '资产': 'asset',
-    '集': 'episode',
-    '场景': 'scene',
-    '分镜': 'storyboard',
-    '镜头': 'shot',
+    '资产': 'asset_slot',
+    '素材位': 'asset_slot',
+    '资产位': 'asset_slot',
+    '集': 'segment',
+    '段落': 'segment',
+    '场景': 'scene_moment',
+    '情节': 'scene_moment',
+    '分镜': 'storyboard_line',
+    '分镜行': 'storyboard_line',
+    '分镜脚本': 'storyboard_script',
+    '镜头': 'content_unit',
+    '内容单元': 'content_unit',
+    '关键帧': 'keyframe',
     '任务': 'task',
   }
   return map[lower] ?? 'script'
 }
 
 function inferDraftKind(message: string): string {
-  if (/镜头|shot/i.test(message)) return 'shot'
-  if (/分镜|storyboard/i.test(message)) return 'storyboard'
+  if (/素材位|资产位|asset[_ -]?slot|asset/i.test(message)) return 'asset_slot'
+  if (/镜头|内容单元|shot|content[_ -]?unit/i.test(message)) return 'content_unit'
+  if (/分镜|storyboard/i.test(message)) return 'storyboard_line'
   if (/任务|task/i.test(message)) return 'task'
   if (/提示词|prompt/i.test(message)) return 'prompt'
   if (/设定|setting|角色/.test(message)) return 'setting'

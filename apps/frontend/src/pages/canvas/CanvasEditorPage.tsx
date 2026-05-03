@@ -19,11 +19,13 @@ import {
   SelectionMode,
   ConnectionMode,
   MarkerType,
+  type FinalConnectionState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
-import type { Asset, Canvas, CanvasEntityKind, CanvasEntityWriteAudit, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, EntityWorkflowSchema, NodeType, PaginatedResponse, RawResource } from '@/types'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import type { Canvas, CanvasEntityKind, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, EntityWorkflowSchema, NodeType, PaginatedResponse, RawResource, ResourceBinding } from '@/types'
 import {
 	TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
 	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode, EntityCardNode,
@@ -32,6 +34,7 @@ import { ContextMenu } from './components/ContextMenu'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { NodePanel, deriveCanvasReferencePorts } from './components/NodePanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
+import { SemanticEntityThumbCard } from '@/components/entity/SemanticEntityThumbCard'
 import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
 import { toast } from '@/store/toastStore'
 import {
@@ -68,14 +71,12 @@ import {
   Video,
   Music,
   File,
-  Package,
   Puzzle,
   History,
   ListFilter,
   Clock3,
   CheckCircle2,
   XCircle,
-  ClipboardList,
   Download,
   Trash2,
 } from 'lucide-react'
@@ -105,9 +106,10 @@ const nodeTypes = {
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
 const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card', 'approval'])
 const MEDIA_NODE_TYPES = new Set<string>(['text', 'image', 'video', 'audio'])
+const FINAL_OUTPUT_NODE_ID = 'final-output'
 
 export interface CanvasPushTarget {
-  kind: 'asset' | 'storyboard' | 'scene' | 'final_video'
+  kind: 'asset_slot'
   id: number
   label: string
 }
@@ -127,6 +129,31 @@ function createNodeData(type: NodeType, t: (key: string) => string): Partial<Can
   const meta = CANVAS_NODE_META[type]
   const data = { ...(meta?.defaultData ?? { source: 'upload', label: NODE_LABELS[type] }) }
   return { ...data, label: meta ? t(meta.defaultLabelKey) : t(`canvas.nodeLabels.${type}`) }
+}
+
+function createFinalOutputNode(t: (key: string, options?: any) => string): Node {
+  return {
+    id: FINAL_OUTPUT_NODE_ID,
+    type: 'output',
+    position: { x: 560, y: 120 },
+    data: {
+      ...createNodeData('output', t),
+      label: t('canvas.editor.finalOutput', { defaultValue: '最终输出' }),
+      paramName: 'final_output',
+      paramType: 'resource',
+      lockedFinalOutput: true,
+    } as any,
+    style: { width: 220 },
+  }
+}
+
+function isFinalOutputNode(node: Node) {
+  return node.id === FINAL_OUTPUT_NODE_ID || Boolean((node.data as any)?.lockedFinalOutput)
+}
+
+function ensureFinalOutputNode(nodes: Node[], t: (key: string, options?: any) => string) {
+  if (nodes.some(isFinalOutputNode) || nodes.some((node) => node.type === 'output')) return nodes
+  return [...nodes, createFinalOutputNode(t)]
 }
 
 function defaultHandleForType(type: string | undefined, side: 'source' | 'target') {
@@ -221,6 +248,15 @@ function portForHandle(node: Node | undefined, side: 'source' | 'target', handle
   if (ports.length === 0) return undefined
   const portId = fromUiHandleId(handle)
   return ports.find((port) => port.id === portId) ?? ports[0]
+}
+
+function semanticValueNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim())
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
 }
 
 function arePortTypesCompatible(sourceType?: string, targetType?: string) {
@@ -473,23 +509,98 @@ export function createCanvasEntityNodeData({
   label,
   title,
   schema,
+  assetSlotKind,
 }: {
   entityType: CanvasEntityKind
   entityId: number
   label: string
   title: string
   schema?: EntityWorkflowSchema
+  assetSlotKind?: string
 }): Partial<CanvasNodeData> & { label: string } {
-  const ports = portsForEntitySchema(schema)
+  const ports = portsForCanvasEntityKind(entityType, schema, assetSlotKind)
   return {
     source: 'manual',
     label,
     entityKind: entityType,
     entityId,
     entityTitle: title,
+    assetSlotKind,
     inputPorts: ports?.inputs,
     outputPorts: ports?.outputs,
     textContent: label,
+  }
+}
+
+function assetSlotCandidatePortType(kind?: string): CanvasPortDef['type'] {
+  const normalized = String(kind ?? '').toLowerCase()
+  if (normalized === 'image' || normalized === 'video' || normalized === 'audio' || normalized === 'text') return normalized
+  return 'resource'
+}
+
+function defaultPortsForDomainEntity(kind: CanvasEntityKind, assetSlotKind?: string): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
+  const port = (id: string, type: CanvasPortDef['type'], label: string): CanvasPortDef => ({ id, type, label })
+  if (kind === 'segment') {
+    return {
+      inputs: [port('source', 'text', '来源文本')],
+      outputs: [port('scene_moments', 'json', '情节'), port('content_units', 'json', '内容单元'), port('asset_slots', 'json', '素材')],
+    }
+  }
+  if (kind === 'scene_moment') {
+    return {
+      inputs: [port('segment_id', 'number', '所属片段'), port('references', 'json', '创作资料'), port('asset_slots', 'json', '素材')],
+      outputs: [port('context', 'text', '生成上下文'), port('content_units', 'json', '内容单元'), port('asset_slots', 'json', '素材需求')],
+    }
+  }
+  if (kind === 'creative_reference') {
+    return {
+      inputs: [port('usage_context', 'text', '使用上下文'), port('reference', 'resource', '参考素材')],
+      outputs: [port('profile', 'text', '资料设定'), port('asset_slots', 'json', '素材'), port('relationships', 'json', '资料关系')],
+    }
+  }
+  if (kind === 'asset_slot') {
+    const candidateType = assetSlotCandidatePortType(assetSlotKind)
+    return {
+      inputs: [
+        { ...port('candidates', candidateType, '候选集'), maxCount: 12 },
+        port('candidate_item', candidateType, '单个候选'),
+      ],
+      outputs: [
+        port('reference', 'resource', '参考图'),
+        port('prompt_hint', 'text', '参考说明'),
+        port('creative_reference_id', 'number', '所属资料'),
+      ],
+    }
+  }
+  if (kind === 'content_unit') {
+    return {
+      inputs: [port('scene_moment_id', 'number', '情节'), port('asset_slots', 'json', '素材'), port('prompt', 'text', '提示')],
+      outputs: [port('result', 'resource', '关键帧/视频'), port('video', 'video', '成片'), port('metadata_json', 'json', '生产数据')],
+    }
+  }
+  return {
+    inputs: [port('input', 'resource', '输入')],
+    outputs: [port('result', 'resource', '输出')],
+  }
+}
+
+function portsForCanvasEntityKind(kind: CanvasEntityKind, schema?: EntityWorkflowSchema, assetSlotKind?: string) {
+  if (kind === 'asset_slot') return defaultPortsForDomainEntity(kind, assetSlotKind)
+  return portsForEntitySchema(schema) ?? defaultPortsForDomainEntity(kind)
+}
+
+function normalizeCanvasEntityNodeData(data: CanvasNodeData, context?: { canvasRef?: { ref_type?: string; ref_id?: number }; assetSlotKindById?: Map<number, string> }): CanvasNodeData {
+  if (data.entityKind !== 'asset_slot') return data
+  const slotKind = (data.entityId ? context?.assetSlotKindById?.get(data.entityId) : undefined)
+    ?? data.assetSlotKind
+    ?? (context?.canvasRef?.ref_type === 'asset_slot' && context.canvasRef.ref_id === data.entityId && data.entityId ? context.assetSlotKindById?.get(data.entityId) : undefined)
+    ?? 'resource'
+  const ports = portsForCanvasEntityKind('asset_slot', undefined, slotKind)
+  return {
+    ...data,
+    assetSlotKind: slotKind,
+    inputPorts: ports.inputs,
+    outputPorts: ports.outputs,
   }
 }
 
@@ -522,119 +633,356 @@ function ResourceThumb({ resource }: { resource: RawResource }) {
 
 function CanvasResourceShelf({
   projectId,
+  canvasId,
+  dependencyBindings = [],
   variant = 'floating',
 }: {
   projectId?: number
-  variant?: 'floating' | 'panel'
+  canvasId?: number | string
+  dependencyBindings?: ResourceBinding[]
+  variant?: 'floating' | 'panel' | 'side'
 }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'resources' | 'assets'>('resources')
+  const [tab, setTab] = useState<'resources' | 'segments' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'>('resources')
+  const [search, setSearch] = useState('')
   const isPanel = variant === 'panel'
+  const isSide = variant === 'side'
+  const segmentConfig = semanticEntityConfig('segments')
+  const sceneMomentConfig = semanticEntityConfig('sceneMoments')
+  const creativeReferenceConfig = semanticEntityConfig('creativeReferences')
+  const assetSlotConfig = semanticEntityConfig('assetSlots')
+  const contentUnitConfig = semanticEntityConfig('contentUnits')
   const { data: resourcePage } = useQuery<PaginatedResponse<RawResource>>({
     queryKey: ['canvas-resource-shelf', 'resources'],
-    queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((r) => r.data),
-  })
-  const { data: assetPage } = useQuery<PaginatedResponse<Asset>>({
-    queryKey: ['canvas-resource-shelf', 'assets', projectId],
-    queryFn: () => api.get(`/projects/${projectId}/assets`, { params: { page: 1, page_size: 18 } }).then((r) => r.data),
-    enabled: !!projectId,
+    queryFn: () => api.get('/resources', { params: { page: 1, page_size: 48, type: 'image,video,audio,text,file' } }).then((r) => r.data),
   })
   const resources = resourcePage?.items ?? []
-  const assets = assetPage?.items ?? []
+  const { data: segments = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-resource-shelf', 'segments', projectId],
+    queryFn: () => listSemanticEntities(projectId!, segmentConfig) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: sceneMoments = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-resource-shelf', 'scene-moments', projectId],
+    queryFn: () => listSemanticEntities(projectId!, sceneMomentConfig) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: creativeReferences = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-resource-shelf', 'creative-references', projectId],
+    queryFn: () => listSemanticEntities(projectId!, creativeReferenceConfig) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: assetSlots = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-resource-shelf', 'asset-slots', projectId],
+    queryFn: () => listSemanticEntities(projectId!, assetSlotConfig) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: contentUnits = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-resource-shelf', 'content-units', projectId],
+    queryFn: () => listSemanticEntities(projectId!, contentUnitConfig) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+  const semanticTabs: Array<{
+    id: 'segments' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
+    label: string
+    items: SemanticEntityRecord[]
+    titleKey: string
+    bodyKeys: string[]
+    badge: string
+    entityKind?: CanvasEntityKind
+  }> = [
+    { id: 'segments' as const, label: '片段', items: segments, titleKey: 'title', bodyKeys: ['summary', 'description', 'raw_source'], badge: 'segment', entityKind: 'segment' },
+    { id: 'sceneMoments' as const, label: '情节', items: sceneMoments, titleKey: 'title', bodyKeys: ['description', 'action_text', 'condition_text'], badge: 'moment', entityKind: 'scene_moment' },
+    { id: 'creativeReferences' as const, label: '创作资料', items: creativeReferences, titleKey: 'name', bodyKeys: ['description', 'content', 'profile_json'], badge: 'reference', entityKind: 'creative_reference' },
+    { id: 'assetSlots' as const, label: '素材', items: assetSlots, titleKey: 'name', bodyKeys: ['description', 'prompt_hint', 'slot_key'], badge: 'asset', entityKind: 'asset_slot' },
+    { id: 'contentUnits' as const, label: '内容单元', items: contentUnits, titleKey: 'title', bodyKeys: ['description', 'prompt'], badge: 'unit', entityKind: 'content_unit' },
+  ]
+  const activeSemanticTab = tab === 'resources' ? undefined : semanticTabs.find((item) => item.id === tab) ?? semanticTabs[0]
+  const semanticItems = activeSemanticTab ? activeSemanticTab.items.filter((item) => semanticRecordMatchesSearch(item, search, activeSemanticTab.titleKey, activeSemanticTab.bodyKeys)) : []
+  const resourceItems = resources.filter((resource) => resourceMatchesSearch(resource, search))
+  const tabs = [
+    { id: 'resources' as const, label: '资源库', count: resources.length },
+    ...semanticTabs.map((item) => ({ id: item.id, label: item.label, count: item.items.length })),
+  ]
+  const activeTabLabel = tab === 'resources' ? '资源库' : activeSemanticTab?.label ?? '实体'
+  const activeFilteredCount = tab === 'resources' ? resourceItems.length : semanticItems.length
 
-  function dragResource(e: React.DragEvent, resource: RawResource) {
-    e.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
-    e.dataTransfer.effectAllowed = 'copy'
+  function dragResource(event: React.DragEvent, resource: RawResource) {
+    event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
+    event.dataTransfer.effectAllowed = 'copy'
   }
 
   return (
     <div className={cn(
-      isPanel
+      isPanel || isSide
         ? 'flex h-full flex-col overflow-hidden bg-background'
         : 'pointer-events-auto absolute bottom-4 left-4 right-24 z-10 overflow-hidden rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur'
     )}>
-      <div className="flex h-9 items-center gap-2 border-b border-border px-3">
-        <HardDrive size={14} className="text-muted-foreground" />
-        <span className="text-xs font-semibold text-foreground">{t('canvas.editor.resourceShelf.title')}</span>
-        <div className="ml-2 flex overflow-hidden rounded-md border border-border text-[11px]">
-          <button
-            onClick={() => setTab('resources')}
-            className={cn('px-2 py-1 transition-colors', tab === 'resources' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50')}
-          >
-            {t('shared.resourcePanel.resourceLibrary')}
-          </button>
-          <button
-            onClick={() => setTab('assets')}
-            className={cn('border-l border-border px-2 py-1 transition-colors', tab === 'assets' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50')}
-          >
-            {t('shared.resourcePanel.assetLibrary')}
-          </button>
-        </div>
-        <span className="ml-auto text-[11px] text-muted-foreground">{t('canvas.editor.resourceShelf.dragHint')}</span>
-      </div>
       <div className={cn(
-        'flex gap-2 overflow-x-auto p-2',
-        isPanel ? 'min-h-0 flex-1' : 'h-24'
+        isSide ? 'shrink-0 space-y-2 border-b border-border px-3 py-3' : 'flex h-11 shrink-0 items-center gap-2 border-b border-border px-3'
       )}>
-        {tab === 'resources' && resources.map((resource) => (
-          <button
-            key={resource.ID}
-            draggable
-            onDragStart={(e) => dragResource(e, resource)}
-            className="flex w-36 shrink-0 cursor-grab items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left transition-colors hover:border-foreground/25 active:cursor-grabbing"
-            title={resource.name}
-          >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-              <ResourceThumb resource={resource} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-foreground">{resource.name}</span>
-              <span className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-                {resource.type === 'image' ? <ImageIcon size={10} /> : resource.type === 'video' ? <Video size={10} /> : resource.type === 'audio' ? <Music size={10} /> : <File size={10} />}
-                {resource.type}
-              </span>
-            </span>
-          </button>
-        ))}
-        {tab === 'resources' && resources.length === 0 && (
-          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">{t('shared.resourcePanel.noResources')}</div>
+        {!isPanel && !isSide && (
+          <>
+            <HardDrive size={14} className="text-muted-foreground" />
+            <span className="shrink-0 text-xs font-semibold text-foreground">{t('canvas.editor.resourceShelf.title')}</span>
+          </>
         )}
-        {tab === 'assets' && assets.map((asset) => {
-          const views = asset.views?.filter((view) => view.resource) ?? []
-          const first = views[0]?.resource
-          return (
-            <div key={asset.ID} className="flex w-44 shrink-0 flex-col gap-1 rounded-md border border-border bg-card p-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                  {first ? <ResourceThumb resource={first} /> : <Package size={13} className="text-muted-foreground" />}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{asset.name}</span>
-              </div>
-              <div className="flex gap-1 overflow-x-auto">
-                {views.length === 0 && <span className="text-[10px] text-muted-foreground">{t('canvas.editor.resourceShelf.noAssetViews')}</span>}
-                {views.map((view) => view.resource && (
-                  <button
-                    key={view.ID}
-                    draggable
-                    onDragStart={(e) => dragResource(e, view.resource!)}
-                    className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center overflow-hidden rounded border border-border bg-muted active:cursor-grabbing"
-                    title={view.label || view.resource.name}
-                  >
-                    <ResourceThumb resource={view.resource} />
-                  </button>
+        <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={cn(
+                'flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors',
+                tab === item.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+              )}
+            >
+              <span className="truncate">{item.label}</span>
+              <span className={cn(
+                'shrink-0 rounded px-1 tabular-nums text-[10px]',
+                tab === item.id ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground',
+              )}>
+                {item.count}
+              </span>
+            </button>
+          ))}
+        </nav>
+        <div className={cn('relative', isSide ? 'w-full' : 'min-w-[180px] max-w-[340px] flex-[0_1_340px]')}>
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-7 pl-7 text-xs"
+            placeholder={tab === 'resources' ? '搜索资源：名称、类型、ID' : `搜索${activeTabLabel}：标题、摘要、状态、ID`}
+          />
+        </div>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {search.trim() ? `${activeFilteredCount} 个结果` : t('canvas.editor.resourceShelf.dragHint')}
+        </span>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-auto p-3">
+          {tab === 'resources' ? (
+            resourceItems.length > 0 ? (
+              <div className={cn(isSide ? 'grid grid-cols-1 gap-2' : 'grid auto-rows-[150px] grid-cols-[repeat(auto-fill,236px)] gap-3')}>
+                {resourceItems.map((resource) => (
+                  <ResourceShelfCard
+                    key={resource.ID}
+                    resource={resource}
+                    selected={dependencyBindings.some((binding) => binding.resource_id === resource.ID)}
+                    compact={isSide}
+                    onDragStart={(event) => dragResource(event, resource)}
+                  />
                 ))}
               </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                {t('shared.resourcePanel.noResources')}
+              </div>
+            )
+          ) : activeSemanticTab && semanticItems.length > 0 ? (
+            <div className={cn(isSide ? 'grid grid-cols-1 gap-2' : 'grid auto-rows-[150px] grid-cols-[repeat(auto-fill,236px)] gap-3')}>
+              {semanticItems.map((item) => (
+                <SemanticShelfCard
+                  key={item.ID}
+                  record={item}
+                  titleKey={activeSemanticTab.titleKey}
+                  bodyKeys={activeSemanticTab.bodyKeys}
+                  badge={activeSemanticTab.badge}
+                  entityKind={activeSemanticTab.entityKind}
+                  compact={isSide}
+                />
+              ))}
             </div>
-          )
-        })}
-        {tab === 'assets' && (!projectId || assets.length === 0) && (
-          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
-            {projectId ? t('shared.resourcePanel.noAssets') : t('canvas.editor.resourceShelf.noProject')}
-          </div>
-        )}
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+              {projectId ? t('shared.resourcePanel.noResources') : t('canvas.editor.resourceShelf.noProject')}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
+}
+
+function canvasEntityKindForShelf(entityKind: CanvasEntityKind | undefined, record: SemanticEntityRecord): CanvasEntityKind | undefined {
+  if (entityKind === 'segment') return 'segment'
+  if (entityKind === 'scene_moment') return 'scene_moment'
+  if (entityKind === 'creative_reference') return 'creative_reference'
+  if (entityKind === 'asset_slot') return 'asset_slot'
+  if (entityKind === 'content_unit') return 'content_unit'
+  if ((record as any).slot_key || (record as any).prompt_hint) return 'asset_slot'
+  return undefined
+}
+
+function semanticDragPayload(record: SemanticEntityRecord, title: string, body: string, entityKind?: CanvasEntityKind) {
+  const kind = canvasEntityKindForShelf(entityKind, record)
+  if (kind) {
+    return {
+      mime: 'application/entity-node',
+      data: {
+        kind,
+        id: record.ID,
+        label: title,
+        title,
+        assetSlotKind: kind === 'asset_slot' ? String((record as any).kind ?? '') : undefined,
+      },
+    }
+  }
+  return {
+    mime: 'application/canvas-semantic-text',
+    data: {
+      title,
+      text: body || title,
+      kind: entityKind || (record as any).kind || 'semantic',
+      id: record.ID,
+    },
+  }
+}
+
+function handleSemanticCardDragStart(event: React.DragEvent, record: SemanticEntityRecord, title: string, body: string, entityKind?: CanvasEntityKind) {
+  const payload = semanticDragPayload(record, title, body, entityKind)
+  event.dataTransfer.setData(payload.mime, JSON.stringify(payload.data))
+  event.dataTransfer.effectAllowed = 'copy'
+}
+
+function createSemanticTextNodeData(payload: { title?: string; text?: string; kind?: string; id?: number }, t: (key: string) => string): Partial<CanvasNodeData> & { label: string } {
+  const label = payload.title || t('canvas.nodeLabels.text')
+  return {
+    ...createNodeData('text', t),
+    label,
+    textContent: payload.text || label,
+    source: 'manual',
+    inputPorts: [],
+    outputPorts: [{ id: 'text', type: 'text', label }],
+  }
+}
+
+function ResourceShelfCard({
+  resource,
+  selected,
+  compact = false,
+  onDragStart,
+}: {
+  resource: RawResource
+  selected?: boolean
+  compact?: boolean
+  onDragStart: (event: React.DragEvent) => void
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      className={cn(
+        'group flex shrink-0 cursor-grab flex-col overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md active:cursor-grabbing',
+        compact ? 'h-[132px] w-full' : 'h-[150px] w-[236px]',
+        selected ? 'border-emerald-500/60 ring-1 ring-emerald-500/30' : 'border-border',
+      )}
+      title={resource.name}
+    >
+      <div className="flex min-h-0 flex-1 gap-3 p-3">
+        <div className={cn(
+          'flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground',
+          compact ? 'h-16 w-16' : 'h-[82px] w-[82px]'
+        )}>
+          <div className="h-full w-full">
+            <ResourceThumb resource={resource} />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Badge variant="outline" className="shrink-0 text-[10px] leading-none">{resource.type}</Badge>
+            {selected ? <span className="truncate text-[10px] leading-none text-emerald-600">已作为依赖</span> : null}
+          </div>
+          <p className="mt-2 line-clamp-2 min-h-9 text-sm font-semibold leading-[18px] text-foreground">{resource.name}</p>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+            {resource.mime_type || resource.type}
+          </p>
+        </div>
+      </div>
+      <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-t border-border bg-muted/25 px-3 text-[10px] text-muted-foreground">
+        <span className="truncate">#{resource.ID}</span>
+        <span className="truncate">{selected ? '可直接拖入画布' : formatBytes(resource.size)}</span>
+      </div>
+    </div>
+  )
+}
+
+function SemanticShelfCard({
+  record,
+  titleKey,
+  bodyKeys,
+  badge,
+  entityKind,
+  compact = false,
+}: {
+  record: SemanticEntityRecord
+  titleKey: string
+  bodyKeys: string[]
+  badge: string
+  entityKind?: CanvasEntityKind
+  compact?: boolean
+}) {
+  const title = String((record as any)[titleKey] || `#${record.ID}`)
+  const body = semanticRecordText(record, bodyKeys)
+  const kind = canvasEntityKindForShelf(entityKind, record) ?? 'segment'
+  const status = (record as any).status ? String((record as any).status) : undefined
+  return (
+    <SemanticEntityThumbCard
+      draggable
+      kind={kind}
+      title={title}
+      description={body}
+      status={status}
+      meta={semanticShelfMeta(record, badge)}
+      className={compact ? 'w-full' : undefined}
+      onDragStart={(event) => handleSemanticCardDragStart(event, record, title, body, entityKind)}
+    />
+  )
+}
+
+function semanticShelfMeta(record: SemanticEntityRecord, badge: string) {
+  return [
+    `#${record.ID}`,
+    (record as any).kind || badge,
+    (record as any).priority ? `P${(record as any).priority}` : null,
+    (record as any).duration_sec ? `${(record as any).duration_sec}s` : null,
+  ].filter(Boolean) as string[]
+}
+
+function semanticRecordText(record: SemanticEntityRecord, keys: string[]) {
+  for (const key of keys) {
+    const value = (record as any)[key]
+    if (value !== undefined && value !== null && String(value).trim()) return String(value)
+  }
+  return ''
+}
+
+function semanticRecordMatchesSearch(record: SemanticEntityRecord, query: string, titleKey: string, bodyKeys: string[]) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [record.ID, (record as any)[titleKey], semanticRecordText(record, bodyKeys), (record as any).status, (record as any).kind]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .includes(q)
+}
+
+function resourceMatchesSearch(resource: RawResource, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [resource.ID, resource.name, resource.type, resource.mime_type]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .includes(q)
+}
+
+function formatBytes(value: number | undefined) {
+  if (!value) return '-'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 function formatRunTime(value: string | undefined, language: string) {
@@ -653,28 +1001,6 @@ function formatRunDuration(run: CanvasRun) {
   const seconds = Math.max(0, Math.round((end - new Date(run.started_at).getTime()) / 1000))
   if (seconds < 60) return `${seconds}s`
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-}
-
-function auditValueSummary(raw?: string) {
-  if (!raw) return '-'
-  try {
-    const value = JSON.parse(raw) as {
-      type?: string
-      text?: string
-      json?: unknown
-      number?: number
-      boolean?: boolean
-      resource_ids?: number[]
-    }
-    if (Array.isArray(value.resource_ids) && value.resource_ids.length > 0) return value.resource_ids.map((id) => `#${id}`).join(', ')
-    if (value.text !== undefined) return value.text
-    if (value.number !== undefined) return String(value.number)
-    if (value.boolean !== undefined) return value.boolean ? 'true' : 'false'
-    if (value.json !== undefined) return JSON.stringify(value.json)
-    return value.type ?? '-'
-  } catch {
-    return raw
-  }
 }
 
 function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
@@ -712,6 +1038,7 @@ function WorkflowRunHistory({
   activeRunId,
   isLoading,
   embedded = false,
+  compact = false,
   onStatusFilterChange,
   onPageChange,
   onSelectRun,
@@ -724,6 +1051,7 @@ function WorkflowRunHistory({
   activeRunId: number | null
   isLoading: boolean
   embedded?: boolean
+  compact?: boolean
   onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
   onPageChange: (page: number) => void
   onSelectRun: (runId: number) => void
@@ -733,44 +1061,69 @@ function WorkflowRunHistory({
     <section className={cn(
       embedded ? 'flex h-full flex-col bg-background' : 'h-52 shrink-0 border-t border-border bg-background'
     )}>
-      <div className="flex h-11 items-center gap-3 border-b border-border px-4">
-        <History size={15} className="text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
-          <p className="text-[10px] text-muted-foreground">{t('canvas.editor.history.description')}</p>
+      {compact ? (
+        <div className="shrink-0 border-b border-border px-3 py-3">
+          <div className="flex items-center gap-2">
+            <History size={15} className="text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
+              <p className="text-[10px] text-muted-foreground">{t('canvas.editor.history.runsCount', { count: total })}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
+              className="h-7 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none"
+            >
+              <option value="all">{t('canvas.editor.history.allStatuses')}</option>
+              <option value="running">{t('canvas.runStatus.running')}</option>
+              <option value="pending">{t('canvas.runStatus.pending')}</option>
+              <option value="done">{t('canvas.runStatus.done')}</option>
+              <option value="failed">{t('canvas.runStatus.failed')}</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
+              <ChevronLeft size={12} />
+            </Button>
+            <span className="w-10 text-center text-[11px] text-muted-foreground">{page}/{pageCount}</span>
+            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
+              <ChevronRight size={12} />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ListFilter size={13} className="text-muted-foreground" />
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
-            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none"
-          >
-            <option value="all">{t('canvas.editor.history.allStatuses')}</option>
-            <option value="running">{t('canvas.runStatus.running')}</option>
-            <option value="pending">{t('canvas.runStatus.pending')}</option>
-            <option value="done">{t('canvas.runStatus.done')}</option>
-            <option value="failed">{t('canvas.runStatus.failed')}</option>
-          </select>
-          <span className="hidden text-[11px] text-muted-foreground sm:inline">{t('canvas.editor.history.runsCount', { count: total })}</span>
-          <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
-            <ChevronLeft size={12} />
-          </Button>
-          <span className="w-12 text-center text-[11px] text-muted-foreground">{page}/{pageCount}</span>
-          <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
-            <ChevronRight size={12} />
-          </Button>
+      ) : (
+        <div className="flex h-11 items-center gap-3 border-b border-border px-4">
+          <History size={15} className="text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
+            <p className="text-[10px] text-muted-foreground">{t('canvas.editor.history.description')}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <ListFilter size={13} className="text-muted-foreground" />
+            <select
+              value={statusFilter}
+              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
+              className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none"
+            >
+              <option value="all">{t('canvas.editor.history.allStatuses')}</option>
+              <option value="running">{t('canvas.runStatus.running')}</option>
+              <option value="pending">{t('canvas.runStatus.pending')}</option>
+              <option value="done">{t('canvas.runStatus.done')}</option>
+              <option value="failed">{t('canvas.runStatus.failed')}</option>
+            </select>
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">{t('canvas.editor.history.runsCount', { count: total })}</span>
+            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
+              <ChevronLeft size={12} />
+            </Button>
+            <span className="w-12 text-center text-[11px] text-muted-foreground">{page}/{pageCount}</span>
+            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
+              <ChevronRight size={12} />
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className={cn(embedded ? 'min-h-0 flex-1 overflow-auto' : 'h-[calc(100%-2.75rem)] overflow-auto')}>
-        <div className="grid grid-cols-[96px_104px_112px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
-          <span>{t('canvas.editor.history.run')}</span>
-          <span>{t('canvas.editor.history.status')}</span>
-          <span>{t('canvas.editor.history.duration')}</span>
-          <span>{t('canvas.editor.history.snapshot')}</span>
-          <span className="text-right">{t('canvas.editor.history.startedAt')}</span>
-        </div>
         {isLoading && (
           <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
             <Loader2 size={14} className="mr-2 animate-spin" />
@@ -780,112 +1133,81 @@ function WorkflowRunHistory({
         {!isLoading && runs.length === 0 && (
           <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">{t('canvas.editor.history.empty')}</div>
         )}
-        {!isLoading && runs.map((run) => (
-          <button
-            key={run.ID}
-            onClick={() => onSelectRun(run.ID)}
-            className={cn(
-              'grid w-full grid-cols-[96px_104px_112px_1fr_120px] items-center border-b border-border px-4 py-2 text-left text-xs transition-colors hover:bg-muted/40',
-              activeRunId === run.ID && 'bg-primary/5'
-            )}
-          >
-            <span className="font-medium text-foreground">#{run.ID}</span>
-            <RunStatusBadge status={run.status} />
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <Clock3 size={11} />
-              {formatRunDuration(run)}
-            </span>
-            <span className="min-w-0 truncate text-muted-foreground" title={run.error || undefined}>
-              {t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}
-              {run.snapshot_hash && <span className="ml-2 font-mono text-[10px] text-muted-foreground/70">{run.snapshot_hash.slice(0, 8)}</span>}
-              {run.error && <span className="ml-2 text-destructive">{run.error}</span>}
-            </span>
-            <span className="text-right text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
-          </button>
-        ))}
+        {!isLoading && runs.length > 0 && (
+          compact ? (
+            <div className="space-y-2 p-3">
+              {runs.map((run) => (
+                <button
+                  key={run.ID}
+                  onClick={() => onSelectRun(run.ID)}
+                  className={cn(
+                    'w-full rounded-lg border border-border bg-card p-3 text-left text-xs transition-colors hover:border-foreground/25 hover:bg-muted/20',
+                    activeRunId === run.ID && 'border-primary/50 bg-primary/5'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">#{run.ID}</span>
+                    <RunStatusBadge status={run.status} />
+                    <span className="ml-auto text-[10px] text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <Clock3 size={11} />
+                    <span>{formatRunDuration(run)}</span>
+                    <span className="h-1 w-1 rounded-full bg-border" />
+                    <span>{t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}</span>
+                  </div>
+                  {(run.snapshot_hash || run.error) && (
+                    <p className={cn('mt-1 truncate text-[10px]', run.error ? 'text-destructive' : 'font-mono text-muted-foreground/70')} title={run.error || undefined}>
+                      {run.error || run.snapshot_hash?.slice(0, 12)}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-[96px_104px_112px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+                <span>{t('canvas.editor.history.run')}</span>
+                <span>{t('canvas.editor.history.status')}</span>
+                <span>{t('canvas.editor.history.duration')}</span>
+                <span>{t('canvas.editor.history.snapshot')}</span>
+                <span className="text-right">{t('canvas.editor.history.startedAt')}</span>
+              </div>
+              {runs.map((run) => (
+                <button
+                  key={run.ID}
+                  onClick={() => onSelectRun(run.ID)}
+                  className={cn(
+                    'grid w-full grid-cols-[96px_104px_112px_1fr_120px] items-center border-b border-border px-4 py-2 text-left text-xs transition-colors hover:bg-muted/40',
+                    activeRunId === run.ID && 'bg-primary/5'
+                  )}
+                >
+                  <span className="font-medium text-foreground">#{run.ID}</span>
+                  <RunStatusBadge status={run.status} />
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Clock3 size={11} />
+                    {formatRunDuration(run)}
+                  </span>
+                  <span className="min-w-0 truncate text-muted-foreground" title={run.error || undefined}>
+                    {t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}
+                    {run.snapshot_hash && <span className="ml-2 font-mono text-[10px] text-muted-foreground/70">{run.snapshot_hash.slice(0, 8)}</span>}
+                    {run.error && <span className="ml-2 text-destructive">{run.error}</span>}
+                  </span>
+                  <span className="text-right text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
+                </button>
+              ))}
+            </>
+          )
+        )}
       </div>
     </section>
   )
 }
 
-function EntityWriteAuditPanel({
-  audits,
-  total,
-  page,
-  pageCount,
-  isLoading,
-  onPageChange,
-}: {
-  audits: CanvasEntityWriteAudit[]
-  total: number
-  page: number
-  pageCount: number
-  isLoading: boolean
-  onPageChange: (page: number) => void
-}) {
-  const { t, i18n } = useTranslation()
-  return (
-    <section className="flex h-full flex-col bg-background">
-      <div className="flex h-11 items-center gap-3 border-b border-border px-4">
-        <ClipboardList size={15} className="text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-foreground">{t('canvas.editor.audit.title', { defaultValue: 'Entity Write Audit' })}</p>
-          <p className="text-[10px] text-muted-foreground">{t('canvas.editor.audit.description', { defaultValue: 'Entity field writes created by canvas runs.' })}</p>
-        </div>
-        <span className="hidden text-[11px] text-muted-foreground sm:inline">{t('canvas.editor.audit.recordsCount', { count: total, defaultValue: `${total} records` })}</span>
-        <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
-          <ChevronLeft size={12} />
-        </Button>
-        <span className="w-12 text-center text-[11px] text-muted-foreground">{page}/{pageCount}</span>
-        <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
-          <ChevronRight size={12} />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="grid grid-cols-[120px_120px_96px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 text-[11px] font-medium text-muted-foreground">
-          <span>{t('canvas.editor.audit.entity', { defaultValue: 'Entity' })}</span>
-          <span>{t('canvas.editor.audit.node', { defaultValue: 'Node' })}</span>
-          <span>{t('canvas.editor.audit.port', { defaultValue: 'Port' })}</span>
-          <span>{t('canvas.editor.audit.change', { defaultValue: 'Change' })}</span>
-          <span className="text-right">{t('canvas.editor.history.startedAt', { defaultValue: 'Started' })}</span>
-        </div>
-        {isLoading && (
-          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
-            <Loader2 size={14} className="mr-2 animate-spin" />
-            {t('canvas.editor.audit.loading', { defaultValue: 'Loading audit records' })}
-          </div>
-        )}
-        {!isLoading && audits.length === 0 && (
-          <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">{t('canvas.editor.audit.empty', { defaultValue: 'No entity write records yet' })}</div>
-        )}
-        {!isLoading && audits.map((audit) => (
-          <div key={audit.ID} className="grid grid-cols-[120px_120px_96px_1fr_120px] items-center border-b border-border px-4 py-2 text-xs">
-            <span className="truncate font-medium text-foreground">
-              {t(`canvas.entityTypes.${audit.entity_kind}`, { defaultValue: audit.entity_kind })} #{audit.entity_id}
-            </span>
-            <span className="truncate font-mono text-[11px] text-muted-foreground">
-              {audit.canvas_node_id || '-'}
-              {audit.canvas_run_id ? <span className="ml-1 text-muted-foreground/70">#{audit.canvas_run_id}</span> : null}
-            </span>
-            <span className="truncate font-mono text-[11px] text-muted-foreground">{audit.port_id}</span>
-            <span className="min-w-0 truncate text-muted-foreground">
-              <span className="text-muted-foreground/70">{auditValueSummary(audit.old_value_json)}</span>
-              <span className="mx-1">→</span>
-              <span className="text-foreground">{auditValueSummary(audit.new_value_json)}</span>
-              {audit.resource_binding_ids && audit.resource_binding_ids !== 'null' && audit.resource_binding_ids !== '[]' && (
-                <span className="ml-2 font-mono text-[10px] text-muted-foreground/70">{audit.resource_binding_ids}</span>
-              )}
-            </span>
-            <span className="text-right text-muted-foreground">{formatRunTime(audit.CreatedAt, i18n.language)}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function WorkflowBottomPanel({
+function WorkflowSidePanel({
   projectId,
+  canvasId,
+  dependencyBindings,
   activeTab,
   runs,
   total,
@@ -894,19 +1216,15 @@ function WorkflowBottomPanel({
   statusFilter,
   activeRunId,
   isLoading,
-  audits,
-  auditTotal,
-  auditPage,
-  auditPageCount,
-  auditsLoading,
   onTabChange,
   onStatusFilterChange,
   onPageChange,
   onSelectRun,
-  onAuditPageChange,
 }: {
   projectId?: number
-  activeTab: 'resources' | 'history' | 'audit'
+  canvasId?: number | string
+  dependencyBindings: ResourceBinding[]
+  activeTab: 'resources' | 'history'
   runs: CanvasRun[]
   total: number
   page: number
@@ -914,58 +1232,94 @@ function WorkflowBottomPanel({
   statusFilter: 'all' | CanvasRun['status']
   activeRunId: number | null
   isLoading: boolean
-  audits: CanvasEntityWriteAudit[]
-  auditTotal: number
-  auditPage: number
-  auditPageCount: number
-  auditsLoading: boolean
-  onTabChange: (tab: 'resources' | 'history' | 'audit') => void
+  onTabChange: (tab: 'resources' | 'history') => void
   onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
   onPageChange: (page: number) => void
   onSelectRun: (runId: number) => void
-  onAuditPageChange: (page: number) => void
 }) {
   const { t } = useTranslation()
+  const [collapsed, setCollapsed] = useState(false)
+  const [width, setWidth] = useState(360)
+  function startResize(event: React.PointerEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = width
+    function onMove(moveEvent: PointerEvent) {
+      const next = Math.min(520, Math.max(300, startWidth + startX - moveEvent.clientX))
+      setWidth(next)
+    }
+    function onUp() {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+  if (collapsed) {
+    return (
+      <aside className="flex h-full w-12 shrink-0 flex-col items-center gap-2 border-l border-border bg-background py-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setCollapsed(false)}
+          title={t('canvas.editor.resourceShelf.title')}
+        >
+          <HardDrive size={15} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => {
+            onTabChange('history')
+            setCollapsed(false)
+          }}
+          title={t('canvas.editor.history.title')}
+        >
+          <History size={15} />
+        </Button>
+      </aside>
+    )
+  }
   return (
-    <section className="h-52 shrink-0 border-t border-border bg-background">
-      <div className="flex h-10 items-center gap-2 border-b border-border px-4">
-        <div className="flex overflow-hidden rounded-md border border-border text-xs">
+    <aside className="relative flex h-full shrink-0 flex-col border-l border-border bg-background" style={{ width }}>
+      <button
+        type="button"
+        className="absolute inset-y-0 left-0 z-10 flex w-2 cursor-ew-resize items-center justify-center text-muted-foreground hover:bg-muted/50"
+        onPointerDown={startResize}
+        title={t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' })}
+      >
+        <span className="h-10 w-0.5 rounded-full bg-border" />
+      </button>
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border pl-4 pr-3">
+        <div className="flex min-w-0 flex-1 overflow-hidden rounded-md border border-border text-xs">
           <button
             onClick={() => onTabChange('resources')}
-            className={cn('flex items-center gap-1.5 px-3 py-1.5 transition-colors', activeTab === 'resources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+            className={cn('flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-1.5 transition-colors', activeTab === 'resources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
           >
             <HardDrive size={12} />
-            {t('canvas.editor.resourceShelf.title')}
+            <span className="truncate">{t('canvas.editor.resourceShelf.title')}</span>
           </button>
           <button
             onClick={() => onTabChange('history')}
-            className={cn('flex items-center gap-1.5 border-l border-border px-3 py-1.5 transition-colors', activeTab === 'history' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+            className={cn('flex min-w-0 flex-1 items-center justify-center gap-1.5 border-l border-border px-2 py-1.5 transition-colors', activeTab === 'history' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
           >
             <History size={12} />
-            {t('canvas.editor.history.title')}
-          </button>
-          <button
-            onClick={() => onTabChange('audit')}
-            className={cn('flex items-center gap-1.5 border-l border-border px-3 py-1.5 transition-colors', activeTab === 'audit' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
-          >
-            <ClipboardList size={12} />
-            {t('canvas.editor.audit.title', { defaultValue: 'Entity Write Audit' })}
+            <span className="truncate">{t('canvas.editor.history.title')}</span>
           </button>
         </div>
-        <span className="ml-auto text-[11px] text-muted-foreground">
-          {activeTab === 'resources'
-            ? t('canvas.editor.resourceShelf.dragHint')
-            : activeTab === 'history'
-              ? t('canvas.editor.history.runsCount', { count: total })
-              : t('canvas.editor.audit.recordsCount', { count: auditTotal, defaultValue: `${auditTotal} records` })}
-        </span>
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setCollapsed(true)}>
+          <ChevronRight size={14} />
+        </Button>
       </div>
-      <div className="h-[calc(100%-2.5rem)] overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === 'resources' ? (
-          <CanvasResourceShelf projectId={projectId} variant="panel" />
-        ) : activeTab === 'history' ? (
+          <CanvasResourceShelf projectId={projectId} canvasId={canvasId} dependencyBindings={dependencyBindings} variant="side" />
+        ) : (
           <WorkflowRunHistory
             embedded
+            compact
             runs={runs}
             total={total}
             page={page}
@@ -977,18 +1331,9 @@ function WorkflowBottomPanel({
             onPageChange={onPageChange}
             onSelectRun={onSelectRun}
           />
-        ) : (
-          <EntityWriteAuditPanel
-            audits={audits}
-            total={auditTotal}
-            page={auditPage}
-            pageCount={auditPageCount}
-            isLoading={auditsLoading}
-            onPageChange={onAuditPageChange}
-          />
         )}
       </div>
-    </section>
+    </aside>
   )
 }
 
@@ -1249,19 +1594,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const [nodeRunValues, setNodeRunValues] = useState<Record<string, string>>({})
   const [activeRunId, setActiveRunId] = useState<number | null>(null)
   const [runHistoryPage, setRunHistoryPage] = useState(1)
-  const [auditPage, setAuditPage] = useState(1)
   const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
-  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history' | 'audit'>('resources')
+  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
   const [runResultDialogRunId, setRunResultDialogRunId] = useState<number | null>(null)
   const [removingRunResultResourceId, setRemovingRunResultResourceId] = useState<number | undefined>()
   const [clientPlugins, setClientPlugins] = useState<ClientPluginManifest[]>([])
+  const [pendingDependencyConfirm, setPendingDependencyConfirm] = useState<{ resource: RawResource } | null>(null)
 
   const fitViewCalledRef = useRef(false)
   const finalizedRunInvalidatedRef = useRef<number | null>(null)
   const pendingResultRunIdsRef = useRef<Set<number>>(new Set())
   const canvasPaneRef = useRef<HTMLDivElement>(null)
   const runHistoryPageSize = 8
-  const auditPageSize = 8
 
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
@@ -1269,11 +1613,44 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     queryFn: () => api.get(`/canvases/${id}`).then((r) => r.data),
     enabled: !!id
   })
+  const { data: referencedAssetSlots = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-referenced-asset-slots', canvas?.project_id],
+    queryFn: () => listSemanticEntities(canvas!.project_id!, semanticEntityConfig('assetSlots')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!canvas?.project_id,
+  })
+  const { data: referencedCreativeReferences = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['canvas-referenced-creative-references', canvas?.project_id],
+    queryFn: () => listSemanticEntities(canvas!.project_id!, semanticEntityConfig('creativeReferences')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!canvas?.project_id,
+  })
 
   const { data: entitySchemas = [] } = useQuery<EntityWorkflowSchema[]>({
     queryKey: ['workflow-entity-schemas'],
     queryFn: () => api.get('/workflow/entity-schemas').then((r) => r.data),
   })
+  const { data: canvasDependencyBindings = [] } = useQuery<ResourceBinding[]>({
+    queryKey: ['canvas-dependencies', canvas?.project_id, id],
+    queryFn: () => api.get(`/projects/${canvas!.project_id}/resource-bindings`, {
+      params: {
+        owner_type: 'canvas',
+        owner_id: id,
+      },
+    }).then((r) => r.data),
+    enabled: !!canvas?.project_id && !!id,
+  })
+  const canvasDependencyResourceIds = useMemo(
+    () => new Set(canvasDependencyBindings.map((binding) => binding.resource_id)),
+    [canvasDependencyBindings]
+  )
+  const assetSlotKindById = useMemo(() => {
+    const map = new Map<number, string>()
+    referencedAssetSlots.forEach((slot) => {
+      map.set(slot.ID, String((slot as any).kind ?? ''))
+    })
+    return map
+  }, [referencedAssetSlots])
+  const assetSlotById = useMemo(() => new Map(referencedAssetSlots.map((slot) => [slot.ID, slot])), [referencedAssetSlots])
+  const creativeReferenceById = useMemo(() => new Map(referencedCreativeReferences.map((reference) => [reference.ID, reference])), [referencedCreativeReferences])
   const entitySchemaByKind = useMemo(() => new Map(entitySchemas.map((schema) => [schema.kind, schema])), [entitySchemas])
   const referencedWorkflowCanvasIds = useMemo(() => {
     const ids = new Set<number>()
@@ -1319,22 +1696,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
   const activeRun = workflowRuns.find((run) => run.ID === activeRunId) ?? workflowRuns[0]
 
-  const { data: auditPageData, isLoading: auditsLoading } = useQuery<PaginatedResponse<CanvasEntityWriteAudit>>({
-    queryKey: ['canvas-entity-write-audits', id, auditPage],
-    queryFn: () => api.get('/canvas-entity-write-audits', {
-      params: {
-        canvas_id: id,
-        page: auditPage,
-        page_size: auditPageSize,
-      },
-    }).then((r) => r.data),
-    enabled: !!id,
-    refetchInterval: workflowRuns.some((run) => run.status === 'running' || run.status === 'pending') ? 3000 : false,
-  })
-  const entityWriteAudits = auditPageData?.items ?? []
-  const auditTotal = auditPageData?.total ?? 0
-  const auditPageCount = Math.max(1, Math.ceil(auditTotal / auditPageSize))
-
   useEffect(() => {
     loadClientPlugins()
       .then(setClientPlugins)
@@ -1367,6 +1728,30 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     },
     onSettled: () => {
       setRemovingRunResultResourceId(undefined)
+    },
+  })
+
+  const createCanvasDependency = useMutation({
+    mutationFn: (resource: RawResource) => {
+      if (!canvas?.project_id) throw new Error(t('canvas.editor.resourceShelf.noProject', { defaultValue: 'No project is attached to this canvas.' }))
+      return api.post(`/projects/${canvas.project_id}/resource-bindings`, {
+        resource_id: resource.ID,
+        owner_type: 'canvas',
+        owner_id: Number(id),
+        role: 'reference',
+        source_type: 'manual',
+        status: 'selected',
+        metadata_json: JSON.stringify({ created_from: 'canvas_drop' }),
+      }).then((r) => r.data as ResourceBinding)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['canvas-dependencies', canvas?.project_id, id] })
+      qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'project-bindings', canvas?.project_id] })
+      toast.success(t('canvas.editor.resourceShelf.dependencyCreated', { defaultValue: '已添加为上游依赖' }))
+      setPendingDependencyConfirm(null)
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.resourceShelf.dependencyCreateFailed', { defaultValue: '添加依赖关系失败' }))
     },
   })
 
@@ -1430,11 +1815,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const loadedNodes: Node[] = (canvas.nodes ?? []).map((n) => {
       const data: CanvasNodeData = n.data ? JSON.parse(n.data) : { source: 'upload' }
       const { _parentId, _style, ...cleanData } = data as any
+      const normalizedData = normalizeCanvasEntityNodeData(cleanData as CanvasNodeData, { canvasRef: { ref_type: canvas.ref_type, ref_id: canvas.ref_id }, assetSlotKindById })
       const node: Node = {
         id: n.node_id,
         type: n.type,
         position: { x: n.pos_x, y: n.pos_y },
-        data: { ...cleanData, label: n.label },
+        data: { ...normalizedData, label: n.label },
         ...(n.type === 'group'
           ? { zIndex: -1, style: _style ?? { width: 320, height: 240 } }
           : { style: { width: (_style?.width ?? 200) } }),
@@ -1453,14 +1839,17 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       sourceHandle: toUiHandleId(e.source_handle ?? defaultHandleForNode(loadedNodeById.get(e.source), 'source'), 'source'),
       targetHandle: toUiHandleId(e.target_handle ?? defaultHandleForNode(loadedNodeById.get(e.target), 'target'), 'target'),
     })))
-    setNodes([...groupNodes, ...childNodes])
+    const nextNodes = (canvas.canvas_type ?? 'inspiration') === 'workflow'
+      ? ensureFinalOutputNode([...groupNodes, ...childNodes], t)
+      : [...groupNodes, ...childNodes]
+    setNodes(nextNodes)
     setEdges(loadedEdges)
 
-    if (!fitViewCalledRef.current && loadedNodes.length > 0) {
+    if (!fitViewCalledRef.current && nextNodes.length > 0) {
       fitViewCalledRef.current = true
       setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80)
     }
-  }, [canvas])
+  }, [canvas, t])
 
   // Poll running nodes
   useEffect(() => {
@@ -1499,9 +1888,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   // Save
   const save = useMutation({
     mutationFn: () => {
+      const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
       const payload = {
         name: canvasName,
-        nodes: nodes.map((n) => {
+        nodes: nodesToSave.map((n) => {
           const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
           return {
             node_id: n.id,
@@ -1543,7 +1933,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       setRunHistoryPage(1)
       setWorkflowPanelTab('history')
       qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
-      qc.invalidateQueries({ queryKey: ['canvas-entity-write-audits', id] })
       setNodes((prev) => prev.map((n) => {
         const d = n.data as unknown as CanvasNodeData
         if (d.source === 'ai' || n.type === 'output' || n.type === 'resource_sink') return { ...n, data: { ...d, status: 'pending', error: undefined } }
@@ -1731,50 +2120,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   async function handlePushResource(target: CanvasPushTarget, resourceId: number) {
     if (!canvas?.project_id) return
     try {
-      if (target.kind === 'storyboard') {
-        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
+      if (target.kind === 'asset_slot') {
+        await api.patch(`/projects/${canvas.project_id}/entities/asset-slots/${target.id}`, {
           resource_id: resourceId,
-          owner_type: 'storyboard',
-          owner_id: target.id,
-          role: 'reference',
-          source_type: 'canvas',
+          status: 'locked',
         })
-        qc.invalidateQueries({ queryKey: ['storyboards-project', canvas.project_id] })
-      } else if (target.kind === 'scene') {
         await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
           resource_id: resourceId,
-          owner_type: 'scene',
-          owner_id: target.id,
-          role: 'reference',
-          source_type: 'canvas',
-        })
-        qc.invalidateQueries({ queryKey: ['scenes', canvas.project_id] })
-      } else if (target.kind === 'asset') {
-        const view = await api.post(`/projects/${canvas.project_id}/assets/${target.id}/views`, {
-          view_type: 'custom',
-          label: t('canvas.generatedByCanvas'),
-        }).then((r) => r.data)
-        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
-          resource_id: resourceId,
-          owner_type: 'asset_view',
-          owner_id: view.ID,
-          role: 'final',
-          source_type: 'canvas',
-          is_primary: true,
-          status: 'selected',
-        })
-        qc.invalidateQueries({ queryKey: ['assets', canvas.project_id] })
-      } else if (target.kind === 'final_video') {
-        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
-          resource_id: resourceId,
-          owner_type: 'final_video',
+          owner_type: 'asset_slot',
           owner_id: target.id,
           role: 'final',
           source_type: 'canvas',
           is_primary: true,
           status: 'selected',
         })
-        qc.invalidateQueries({ queryKey: ['final-videos', canvas.project_id] })
+        qc.invalidateQueries({ queryKey: ['v2-asset-slots-page', canvas.project_id] })
+        qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'asset-slots', canvas.project_id] })
       }
     } catch {
       // Keep node execution state intact; users can retry pushing from the node.
@@ -1823,6 +2184,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     }
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, setNodes, t])
+
+  const maybeConfirmCanvasDependency = useCallback((resource: RawResource) => {
+    if (!canvas?.project_id) return
+    if (canvasDependencyResourceIds.has(resource.ID)) return
+    setPendingDependencyConfirm({ resource })
+  }, [canvas?.project_id, canvasDependencyResourceIds])
 
   const addWorkflowReferenceNodeAt = useCallback(async (workflowCanvas: Canvas, clientPosition: { x: number; y: number }) => {
     if (String(workflowCanvas.ID) === id) {
@@ -1895,7 +2262,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
   // Delete selected nodes and their connected edges (also removes children of deleted groups)
   const deleteSelectedNodes = useCallback(() => {
-    const directSelected = new Set(nodes.filter(n => n.selected).map(n => n.id))
+    const directSelected = new Set(nodes.filter(n => n.selected && !isFinalOutputNode(n)).map(n => n.id))
     if (directSelected.size === 0) return
     // Also collect children of any selected group nodes
     const toDelete = new Set(directSelected)
@@ -1979,10 +2346,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
   // Track multi-selection
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
-    onNodesChange(changes)
+    const protectedIds = new Set(nodes.filter(isFinalOutputNode).map((node) => node.id))
+    const filteredChanges = changes.filter((change) => change.type !== 'remove' || !protectedIds.has(change.id))
+    onNodesChange(filteredChanges)
     setSelectedNodeIds((prev) => {
       const next = new Set(prev)
-      changes.forEach((c) => {
+      filteredChanges.forEach((c) => {
         if (c.type === 'select') {
           if (c.selected) next.add(c.id)
           else next.delete(c.id)
@@ -1990,7 +2359,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       })
       return [...next]
     })
-  }, [onNodesChange])
+  }, [nodes, onNodesChange])
 
   // Update node data
   const updateNodeData = useCallback((nodeId: string, patch: Partial<CanvasNodeData & { label: string }>) => {
@@ -2004,14 +2373,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     if (entitySchemas.length === 0) return
     setNodes((prev) => prev.map((node) => {
       if (node.type !== 'entity_card') return node
-      const data = node.data as unknown as CanvasNodeData
+      const data = normalizeCanvasEntityNodeData(node.data as unknown as CanvasNodeData, { canvasRef: { ref_type: canvas?.ref_type, ref_id: canvas?.ref_id }, assetSlotKindById })
       if (!data.entityKind) return node
       const schema = entitySchemaByKind.get(data.entityKind)
-      const ports = portsForEntitySchema(schema)
-      if (!ports) return node
-      const currentSig = JSON.stringify({ inputs: data.inputPorts ?? [], outputs: data.outputPorts ?? [] })
-      const nextSig = JSON.stringify(ports)
-      if (currentSig === nextSig) return node
+      const ports = portsForCanvasEntityKind(data.entityKind, schema, data.assetSlotKind)
+      const nodeData = node.data as unknown as Partial<CanvasNodeData>
+      const currentSig = JSON.stringify({ inputs: nodeData.inputPorts ?? [], outputs: nodeData.outputPorts ?? [], assetSlotKind: nodeData.assetSlotKind })
+      const normalizedSig = JSON.stringify({ inputs: ports.inputs, outputs: ports.outputs, assetSlotKind: data.assetSlotKind })
+      if (currentSig === normalizedSig) return node
       return {
         ...node,
         data: {
@@ -2021,7 +2390,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         },
       }
     }))
-  }, [entitySchemaByKind, entitySchemas.length, setNodes])
+  }, [assetSlotKindById, canvas?.ref_id, canvas?.ref_type, entitySchemaByKind, entitySchemas.length, setNodes])
 
   useEffect(() => {
     if (referencedWorkflowCanvasById.size === 0) return
@@ -2101,6 +2470,65 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       : addEdge(nextEdge, eds))
   }, [edges, nodes, setEdges, t])
 
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
+    if (connectionState.toNode || !connectionState.fromNode || !connectionState.fromHandle) return
+    const sourceNode = nodes.find((node) => node.id === connectionState.fromNode?.id)
+    if (!sourceNode || sourceNode.type !== 'entity_card') return
+    const sourceData = sourceNode.data as Partial<CanvasNodeData>
+    const sourcePortId = fromUiHandleId(connectionState.fromHandle.id)
+    if (sourceData.entityKind !== 'asset_slot' || sourcePortId !== 'creative_reference_id') return
+    const assetSlotId = sourceData.entityId
+    const assetSlot = assetSlotId ? assetSlotById.get(assetSlotId) : undefined
+    const creativeReferenceId = semanticValueNumber(assetSlot?.creative_reference_id)
+    if (!creativeReferenceId) {
+      toast.error('无法创建所属资料卡片', '当前素材位没有绑定创作资料。')
+      return
+    }
+    const existingNode = nodes.find((node) => {
+      const data = node.data as Partial<CanvasNodeData>
+      return node.type === 'entity_card' && data.entityKind === 'creative_reference' && data.entityId === creativeReferenceId
+    })
+    const pointer = 'changedTouches' in event
+      ? event.changedTouches[0]
+      : event
+    const position = screenToFlowPosition({ x: pointer.clientX, y: pointer.clientY })
+    const targetNodeId = existingNode?.id ?? genId()
+    if (!existingNode) {
+      const reference = creativeReferenceById.get(creativeReferenceId)
+      const title = String((reference as any)?.name || (reference as any)?.title || `创作资料 #${creativeReferenceId}`)
+      const schema = entitySchemaByKind.get('creative_reference')
+      const newNode: Node = {
+        id: targetNodeId,
+        type: 'entity_card',
+        position,
+        data: createCanvasEntityNodeData({
+          entityType: 'creative_reference',
+          entityId: creativeReferenceId,
+          label: title,
+          title,
+          schema,
+        }),
+        style: { width: 260 },
+      }
+      setNodes((prev) => [...prev, newNode])
+    }
+    const nextEdge: Edge = {
+      id: makeEdgeId({
+        source: sourceNode.id,
+        sourceHandle: toUiHandleId('creative_reference_id', 'source'),
+        target: targetNodeId,
+        targetHandle: toUiHandleId('usage_context', 'target'),
+      }),
+      source: sourceNode.id,
+      sourceHandle: toUiHandleId('creative_reference_id', 'source'),
+      target: targetNodeId,
+      targetHandle: toUiHandleId('usage_context', 'target'),
+    }
+    setEdges((eds) => eds.some((edge) => edgeConnectionKey(edge) === edgeConnectionKey(nextEdge))
+      ? eds
+      : addEdge(nextEdge, eds))
+  }, [assetSlotById, creativeReferenceById, entitySchemaByKind, nodes, screenToFlowPosition, setEdges, setNodes])
+
   const onNodeClick = useCallback((_: React.MouseEvent, _node: Node) => {
     // Selection is handled by ReactFlow.
   }, [])
@@ -2130,6 +2558,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       try {
         const resource = JSON.parse(resourcePayload) as RawResource
         addResourceNodeAt(resource, { x: e.clientX, y: e.clientY })
+        maybeConfirmCanvasDependency(resource)
       } catch {
         // Ignore malformed drag data from outside the app.
       }
@@ -2156,17 +2585,30 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       }
       return
     }
+    const semanticTextPayload = e.dataTransfer.getData('application/canvas-semantic-text')
+    if (semanticTextPayload) {
+      try {
+        const payload = JSON.parse(semanticTextPayload) as { title?: string; text?: string; kind?: string; id?: number }
+        const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        setNodes((prev) => [...prev, {
+          id: genId(),
+          type: 'text',
+          position,
+          data: createSemanticTextNodeData(payload, t),
+          style: { width: 240 },
+        }])
+      } catch {
+        // Ignore malformed drag data from outside the app.
+      }
+      return
+    }
     const entityPayload = e.dataTransfer.getData('application/entity-node')
     if (entityPayload) {
       try {
-        const entity = JSON.parse(entityPayload) as { kind: CanvasEntityKind; id: number; label: string; title?: string }
-        const supportedKinds: CanvasEntityKind[] = ['script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot', 'final_video']
+        const entity = JSON.parse(entityPayload) as { kind: CanvasEntityKind; id: number; label: string; title?: string; assetSlotKind?: string }
+        const supportedKinds: CanvasEntityKind[] = ['segment', 'scene_moment', 'creative_reference', 'asset_slot', 'content_unit']
         if (!supportedKinds.includes(entity.kind)) return
         const schema = entitySchemaByKind.get(entity.kind)
-        if (!schema) {
-          toast.error(t('canvas.editor.entitySchemaUnavailable', { defaultValue: 'Entity schema unavailable' }))
-          return
-        }
         const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
         setNodes((prev) => [...prev, {
           id: genId(),
@@ -2178,6 +2620,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
             label: entity.label,
             title: entity.title || entity.kind,
             schema,
+            assetSlotKind: entity.assetSlotKind,
           }),
           style: { width: 260 },
         }])
@@ -2189,10 +2632,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, entitySchemaByKind, screenToFlowPosition, setNodes])
+  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, entitySchemaByKind, maybeConfirmCanvasDependency, screenToFlowPosition, setNodes, t])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/canvas-workflow') || e.dataTransfer.types.includes('application/entity-node')) {
+    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/canvas-workflow') || e.dataTransfer.types.includes('application/entity-node') || e.dataTransfer.types.includes('application/canvas-semantic-text')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -2512,7 +2955,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 overflow-hidden">
           <div
             ref={canvasPaneRef}
             className={cn(
@@ -2530,6 +2973,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               onNodesChange={handleNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onConnectEnd={onConnectEnd}
               onNodeClick={onNodeClick}
               onNodeContextMenu={onNodeContextMenu}
               onSelectionContextMenu={onSelectionContextMenu}
@@ -2585,8 +3029,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
 
           </div>
 
-          <WorkflowBottomPanel
+          <WorkflowSidePanel
             projectId={canvas?.project_id}
+            canvasId={id}
+            dependencyBindings={canvasDependencyBindings}
             activeTab={workflowPanelTab}
             runs={workflowRuns}
             total={workflowRunTotal}
@@ -2595,16 +3041,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
             statusFilter={runStatusFilter}
             activeRunId={activeRunId}
             isLoading={workflowRunsLoading}
-            audits={entityWriteAudits}
-            auditTotal={auditTotal}
-            auditPage={auditPage}
-            auditPageCount={auditPageCount}
-            auditsLoading={auditsLoading}
             onTabChange={setWorkflowPanelTab}
             onStatusFilterChange={setRunStatusFilter}
             onPageChange={setRunHistoryPage}
             onSelectRun={setActiveRunId}
-            onAuditPageChange={setAuditPage}
           />
         </div>
 
@@ -2685,6 +3125,46 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
           onRemoveResource={(resourceId) => removeRunResultResource.mutateAsync(resourceId).then(() => undefined)}
           onClose={() => setRunResultDialogRunId(null)}
         />
+      )}
+
+      {pendingDependencyConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-background p-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                <ResourceThumb resource={pendingDependencyConfirm.resource} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold text-foreground">
+                  {t('canvas.editor.resourceShelf.confirmDependencyTitle', { defaultValue: '添加上游依赖？' })}
+                </h2>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t('canvas.editor.resourceShelf.confirmDependencyDescription', {
+                    name: pendingDependencyConfirm.resource.name,
+                    defaultValue: `资源「${pendingDependencyConfirm.resource.name}」还不是当前画布的依赖，是否建立依赖关系？`,
+                  })}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <Button
+                className="flex-1"
+                disabled={createCanvasDependency.isPending}
+                onClick={() => createCanvasDependency.mutate(pendingDependencyConfirm.resource)}
+              >
+                {createCanvasDependency.isPending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                {t('canvas.editor.resourceShelf.confirmAddDependency', { defaultValue: '添加依赖' })}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={createCanvasDependency.isPending}
+                onClick={() => setPendingDependencyConfirm(null)}
+              >
+                {t('canvas.editor.resourceShelf.skipDependency', { defaultValue: '暂不添加' })}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Context menu */}

@@ -202,6 +202,23 @@ func RegisteredMigrations() []Migration {
 			Name:    "optional_segment_script_reference",
 			Up:      migrateOptionalSegmentScriptReference,
 		},
+		{
+			Version: "000029",
+			Name:    "semantic_production_scope_columns",
+			Up:      migrateSemanticProductionScopeColumns,
+		},
+		{
+			Version: "000030",
+			Name:    "content_unit_camera_fields",
+			Up:      migrateContentUnitCameraFields,
+		},
+		{
+			Version: "000031",
+			Name:    "work_item_apply_result",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.WorkItem{}, &model.CandidateDecision{}, &model.ReviewEvent{})
+			},
+		},
 	}
 }
 
@@ -242,6 +259,21 @@ func migrateOptionalSegmentScriptReference(db *gorm.DB) error {
 		}
 	}
 	return db.AutoMigrate(&model.Segment{})
+}
+
+func migrateSemanticProductionScopeColumns(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&model.ContentUnit{},
+		&model.Keyframe{},
+		&model.PreviewTimeline{},
+		&model.AssetSlot{},
+		&model.WorkItem{},
+		&model.DeliveryVersion{},
+	)
+}
+
+func migrateContentUnitCameraFields(db *gorm.DB) error {
+	return db.AutoMigrate(&model.ContentUnit{})
 }
 
 func migrateRemoveV1ProductionEntities(db *gorm.DB) error {

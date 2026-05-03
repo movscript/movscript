@@ -5,18 +5,12 @@ import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
   Boxes,
-  CheckCircle2,
   ChevronRight,
-  Clock3,
   Database,
-  Eye,
   Film,
   GitBranch,
-  Image,
   Layers3,
-  MapPin,
   PackageCheck,
-  Pencil,
   Plus,
   RefreshCcw,
   Route,
@@ -25,7 +19,8 @@ import {
 } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
+import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
+import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -118,8 +113,7 @@ export default function SceneMomentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const sceneMomentConfig = semanticEntityConfig('sceneMoments')
-  const [momentDialogOpen, setMomentDialogOpen] = useState(false)
-  const [momentDialogMode, setMomentDialogMode] = useState<'create' | 'edit'>('create')
+  const [creatingMoment, setCreatingMoment] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const segmentFilterId = readNumberParam(searchParams, 'segment_id')
   const selectedMomentId = readNumberParam(searchParams, 'scene_moment_id')
@@ -275,20 +269,14 @@ export default function SceneMomentsPage() {
   }
 
   function startCreateMoment() {
-    setMomentDialogMode('create')
-    setMomentDialogOpen(true)
-  }
-
-  function startEditMoment() {
-    if (!selected) return
-    setMomentDialogMode('edit')
-    setMomentDialogOpen(true)
+    setCreatingMoment(true)
   }
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="min-w-[1240px] space-y-5 p-5">
-        <header className="flex items-start justify-between gap-4">
+    <>
+      <ContentWorkspaceLayout
+        header={(
+          <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Database size={14} />
@@ -304,10 +292,6 @@ export default function SceneMomentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={startEditMoment} disabled={!selected}>
-              <Pencil size={15} />
-              编辑情节
-            </Button>
             <Button className="gap-2" onClick={startCreateMoment}>
               <Plus size={15} />
               新建情节
@@ -329,16 +313,18 @@ export default function SceneMomentsPage() {
               </Link>
             </Button>
           </div>
-        </header>
-
-        <section className="grid grid-cols-4 gap-3">
+          </header>
+        )}
+        overview={(
+          <section className="grid grid-cols-4 gap-3">
           <MetricCard icon={Film} label="情节" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="text-teal-600" />
           <MetricCard icon={Layers3} label="所属片段" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情节通过片段进入制作结构" tone="text-cyan-600" />
           <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="text-emerald-600" />
           <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
-        </section>
-
-        <ContentFilterBar
+          </section>
+        )}
+        filters={(
+          <ContentFilterBar
           query={query}
           onQueryChange={(value) => setFilter({ q: value })}
           queryPlaceholder="搜索情节、片段、资料、素材或内容"
@@ -378,10 +364,9 @@ export default function SceneMomentsPage() {
           ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
           resultCount={filteredMoments.length}
           totalCount={momentWorkspaces.length}
-        />
-
-        <section className="grid grid-cols-[360px_minmax(0,1fr)_350px] gap-4">
-          <aside className="space-y-4">
+          />
+        )}
+        list={(
             <Panel title="情节列表" icon={Route}>
               <div className="max-h-[760px] space-y-2 overflow-auto pr-1">
                 {isLoading ? (
@@ -400,71 +385,86 @@ export default function SceneMomentsPage() {
                 )}
               </div>
             </Panel>
-          </aside>
-
-          <main className="min-w-0 space-y-4">
-            <MomentHero item={selected} />
-
-            <section className="grid grid-cols-2 gap-4">
-              <Panel title="内容产出" icon={Boxes}>
-                <RelatedList
-                  records={selected?.contentUnits ?? []}
-                  empty="当前情节暂无内容单元"
-                  onSelect={(record) => setFilter({ content_unit_id: record.ID })}
-                />
-              </Panel>
-              <Panel title="资料使用" icon={Sparkles}>
-                <RelatedList
-                  records={selected?.references ?? []}
-                  empty="当前情节暂无资料使用"
-                  onSelect={(record) => setFilter({ reference_id: record.ID })}
-                />
-              </Panel>
-            </section>
-          </main>
-
-          <aside className="space-y-4">
-            <MomentDetail item={selected} />
-            <Panel title="素材需求" icon={PackageCheck}>
+        )}
+        preview={(
+          <Panel title="内容设计" icon={Boxes}>
+            <RelatedList
+              records={selected?.contentUnits ?? []}
+              empty="当前情节暂无内容单元"
+              onSelect={(record) => setFilter({ content_unit_id: record.ID })}
+            />
+          </Panel>
+        )}
+        detail={(
+          <>
+            <SemanticEntityInlineEditor
+              projectId={projectId}
+              config={sceneMomentConfig}
+              record={creatingMoment ? null : selected?.moment}
+              defaults={creatingMoment ? { segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, order: momentWorkspaces.length + 1, status: 'draft' } : undefined}
+              queryKey={['semantic-scene-moment-page', projectId]}
+              title={creatingMoment ? '新建情节' : '卡片内编辑情节'}
+              description="直接维护情节标题、时空、条件、动作和情绪；引用关系不在这里重写。"
+              hero={{
+                icon: <Film size={19} />,
+                eyebrow: selected?.segment ? titleOf(selected.segment) : '未绑定片段',
+                title: creatingMoment ? '新建情节' : selected ? titleOf(selected.moment) : '新建情节',
+                subtitle: creatingMoment ? '项目情节' : selected ? `情节 #${selected.moment.ID}` : '项目情节',
+                summary: creatingMoment ? '补充时间、地点、条件、动作和情绪后，情节就可以承接内容单元与素材需求。' : selected?.moment.description || selected?.moment.action_text || '暂无情节描述。',
+                accentClassName: 'from-teal-500/15 via-cyan-500/10 to-emerald-500/10',
+                status: <StatusBadge status={creatingMoment ? 'draft' : selected?.moment.status ?? 'draft'} />,
+                stats: selected && !creatingMoment ? [
+                  { label: '时间', value: selected.moment.time_text || '未设定' },
+                  { label: '地点', value: selected.moment.location_text || '未设定' },
+                  { label: '内容单元', value: selected.contentUnits.length },
+                  { label: '准备度', value: `${selected.readiness}%` },
+                ] : [
+                  { label: '默认状态', value: '草稿' },
+                  { label: '所属片段', value: selected?.segment ? titleOf(selected.segment) : '未绑定' },
+                  { label: '顺序', value: momentWorkspaces.length + 1 },
+                  { label: '准备度', value: '0%' },
+                ],
+              }}
+              onSaved={(record) => {
+                setCreatingMoment(false)
+                setFilter({ scene_moment_id: record.ID, segment_id: record.segment_id as number | undefined })
+              }}
+              onDeleted={() => {
+                setCreatingMoment(false)
+                setFilter({ scene_moment_id: null })
+              }}
+            />
+          </>
+        )}
+        upstream={<div />}
+        downstream={<div />}
+        bottom={(
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Panel title="涉及到的创作资料" icon={Sparkles}>
+              <RelatedList
+                records={selected?.references ?? []}
+                empty="当前情节暂无资料使用"
+                onSelect={(record) => setFilter({ reference_id: record.ID })}
+              />
+            </Panel>
+            <Panel title="所需要的素材" icon={PackageCheck}>
               <RelatedList
                 records={selected?.assetSlots ?? []}
                 empty="当前情节暂无素材需求"
                 onSelect={(record) => setFilter({ asset_slot_id: record.ID })}
               />
             </Panel>
-            <Panel title="分镜与关键帧" icon={Image}>
-              <RelatedList records={[...(selected?.storyboardLines ?? []), ...(selected?.keyframes ?? [])]} empty="当前情节暂无分镜或关键帧" />
+            <Panel title="需要产出的内容单元" icon={Boxes}>
+              <RelatedList
+                records={selected?.contentUnits ?? []}
+                empty="当前情节暂无内容单元"
+                onSelect={(record) => setFilter({ content_unit_id: record.ID })}
+              />
             </Panel>
-            <section className="rounded-lg border border-border bg-card p-3">
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <Link to={`/segments${selected ? makeContentFilterSearch({ segment_id: selected.moment.segment_id ?? null, scene_moment_id: selected.moment.ID }) : ''}`}>
-                    片段页
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <Link to={`/assets${selected ? makeContentFilterSearch({ scene_moment_id: selected.moment.ID }) : ''}`}>
-                    素材页
-                  </Link>
-                </Button>
-              </div>
-            </section>
-          </aside>
-        </section>
-      </div>
-      <SemanticEntityCrudDialog
-        open={momentDialogOpen}
-        mode={momentDialogMode}
-        projectId={projectId}
-        config={sceneMomentConfig}
-        record={momentDialogMode === 'edit' ? selected?.moment : null}
-        defaults={{ segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, order: momentWorkspaces.length + 1, status: 'draft' }}
-        queryKey={['semantic-scene-moment-page', projectId]}
-        onOpenChange={setMomentDialogOpen}
-        onSaved={(record) => setFilter({ scene_moment_id: record.ID, segment_id: record.segment_id as number | undefined })}
-        onDeleted={() => setFilter({ scene_moment_id: null, content_unit_id: null })}
+          </div>
+        )}
       />
-    </div>
+    </>
   )
 }
 
@@ -496,76 +496,6 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
         <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">{item.readiness}%</span>
       </div>
     </button>
-  )
-}
-
-function MomentHero({ item }: { item: MomentWorkspace | null }) {
-  if (!item) {
-    return (
-      <section className="rounded-lg border border-border bg-card">
-        <EmptyState title="未选择情节" detail="从左侧选择一个情节查看上下游关系" />
-      </section>
-    )
-  }
-
-  return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="border-b border-border bg-gradient-to-br from-teal-500/15 via-cyan-500/10 to-emerald-500/10 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Film size={14} />
-              <span>{item.segment ? titleOf(item.segment) : '未绑定片段'}</span>
-              <ChevronRight size={12} />
-              <span>情节 #{item.moment.ID}</span>
-            </div>
-            <h2 className="mt-2 text-xl font-semibold text-foreground">{titleOf(item.moment)}</h2>
-            <p className="mt-3 max-w-4xl text-sm leading-6 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情节描述。'}</p>
-          </div>
-          <div className="shrink-0 text-right">
-            <StatusBadge status={item.moment.status ?? 'draft'} />
-            <p className="mt-3 text-3xl font-semibold tabular-nums text-foreground">{item.readiness}%</p>
-            <p className="text-xs text-muted-foreground">情节准备度</p>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-4 gap-3 p-4">
-        <HeroStat icon={Clock3} label="时间" value={item.moment.time_text || '未设定'} />
-        <HeroStat icon={MapPin} label="地点" value={item.moment.location_text || '未设定'} />
-        <HeroStat icon={Route} label="动作" value={item.moment.action_text || '未设定'} />
-        <HeroStat icon={Boxes} label="内容" value={`${item.contentUnits.length} 个 / ${formatDuration(item.totalDuration)}`} />
-      </div>
-    </section>
-  )
-}
-
-function MomentDetail({ item }: { item: MomentWorkspace | null }) {
-  if (!item) {
-    return (
-      <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择情节" detail="暂无详情" compact />
-      </section>
-    )
-  }
-
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Eye size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">情节详情</p>
-        </div>
-        <StatusBadge status={item.moment.status ?? 'draft'} />
-      </div>
-      <div className="space-y-3 p-3">
-        <CheckRow ok={Boolean(item.moment.segment_id)} label="已归属片段" detail={item.segment ? titleOf(item.segment) : '需要选择所属片段'} />
-        <CheckRow ok={Boolean(item.moment.time_text || item.moment.location_text)} label="有时空上下文" detail={[item.moment.time_text, item.moment.location_text].filter(Boolean).join(' / ') || '缺少时间或地点'} />
-        <CheckRow ok={Boolean(item.moment.action_text || item.moment.description)} label="有动作描述" detail={item.moment.action_text || item.moment.description || '缺少动作或描述'} />
-        <CheckRow ok={item.references.length > 0} label="有资料约束" detail={`${item.references.length} 个资料`} />
-        <InfoBlock label="条件" value={item.moment.condition_text || '暂无条件'} />
-        <InfoBlock label="情绪" value={item.moment.mood || '暂无情绪'} />
-      </div>
-    </section>
   )
 }
 
@@ -636,39 +566,6 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
     <div className="rounded-md border border-border bg-background px-2.5 py-2">
       <p className="text-[10px] text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-xs font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function HeroStat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon size={14} />
-        <span>{label}</span>
-      </div>
-      <p className="mt-2 truncate text-sm font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
-  return (
-    <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
-      {ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />}
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-      </div>
-    </div>
-  )
-}
-
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{value}</p>
     </div>
   )
 }

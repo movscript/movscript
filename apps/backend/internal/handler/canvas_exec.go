@@ -692,6 +692,7 @@ func (h *CanvasHandler) persistWorkflowOutputsToResources(ctx context.Context, u
 		}
 		outputs[key] = value
 		h.bindWorkflowOutputResource(cv, runID, user.ID, key, value)
+		h.attachWorkflowOutputTargets(cv, runID, user.ID, key, value)
 	}
 	return nil
 }
@@ -754,6 +755,139 @@ func (h *CanvasHandler) bindWorkflowOutputResource(cv model.Canvas, runID uint, 
 		CreatedByID:  &userID,
 	}
 	_ = NewResourceBindingHandler(h.db).createBinding(binding)
+}
+
+func (h *CanvasHandler) attachWorkflowOutputTargets(cv model.Canvas, runID uint, userID uint, key string, value canvasPortValue) {
+	if h == nil || h.db == nil || cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
+		return
+	}
+	var targets []model.CanvasOutput
+	if err := h.db.
+		Where("project_id = ? AND canvas_id = ? AND port_id = ? AND output_type = ? AND status IN ?", *cv.ProjectID, cv.ID, key, "candidate", []string{"pending", "attached"}).
+		Find(&targets).Error; err != nil {
+		return
+	}
+	if len(targets) == 0 && key == "value" {
+		_ = h.db.
+			Where("project_id = ? AND canvas_id = ? AND canvas_node_id = ? AND output_type = ? AND status IN ?", *cv.ProjectID, cv.ID, "final-output", "candidate", []string{"pending", "attached"}).
+			Find(&targets).Error
+	}
+	if len(targets) == 0 && key == "final_output" {
+		_ = h.db.
+			Where("project_id = ? AND canvas_id = ? AND canvas_node_id = ? AND output_type = ? AND status IN ?", *cv.ProjectID, cv.ID, "final-output", "candidate", []string{"pending", "attached"}).
+			Find(&targets).Error
+	}
+	if len(targets) == 0 {
+		return
+	}
+	for _, target := range targets {
+		if target.OwnerType != "asset_slot" || target.OwnerID == 0 {
+			continue
+		}
+		h.attachAssetSlotCandidateOutput(cv, runID, userID, target, value)
+	}
+}
+
+func (h *CanvasHandler) attachAssetSlotCandidateOutput(cv model.Canvas, runID uint, userID uint, target model.CanvasOutput, value canvasPortValue) {
+	if cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
+		return
+	}
+	var sourceSlot model.AssetSlot
+	if err := h.db.First(&sourceSlot, target.OwnerID).Error; err != nil || sourceSlot.ProjectID != *cv.ProjectID {
+		return
+	}
+	name := strings.TrimSpace(sourceSlot.Name)
+	if name == "" {
+		name = fmt.Sprintf("素材位 #%d", sourceSlot.ID)
+	}
+	var candidateSlot model.AssetSlot
+	err := h.db.
+		Where("project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", *cv.ProjectID, "asset_slot", sourceSlot.ID, *value.ResourceID).
+		Order("id asc").
+		First(&candidateSlot).Error
+	if err != nil {
+		candidateSlot = model.AssetSlot{
+			ProjectID:                *cv.ProjectID,
+			ProductionID:             sourceSlot.ProductionID,
+			CreativeReferenceID:      sourceSlot.CreativeReferenceID,
+			CreativeReferenceStateID: sourceSlot.CreativeReferenceStateID,
+			OwnerType:                "asset_slot",
+			OwnerID:                  &sourceSlot.ID,
+			Kind:                     firstNonEmptyString(sourceSlot.Kind, value.Type, "image"),
+			Name:                     name + " · 生成候选",
+			Description:              firstNonEmptyString(sourceSlot.Description, sourceSlot.PromptHint),
+			SlotKey:                  sourceSlot.SlotKey,
+			PromptHint:               sourceSlot.PromptHint,
+			Status:                   "candidate",
+			Priority:                 firstNonEmptyString(sourceSlot.Priority, "normal"),
+			ResourceID:               value.ResourceID,
+			MetadataJSON:             canvasOutputMetadataJSON(cv.ID, runID, target, value),
+		}
+		if err := h.db.Create(&candidateSlot).Error; err != nil {
+			return
+		}
+	}
+	sourceID := runID
+	var existingBinding model.ResourceBinding
+	if err := h.db.
+		Where("project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?", *cv.ProjectID, *value.ResourceID, "asset_slot", candidateSlot.ID, "output", target.PortID, 1).
+		First(&existingBinding).Error; err != nil {
+		_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+			ProjectID:    *cv.ProjectID,
+			ResourceID:   *value.ResourceID,
+			OwnerType:    "asset_slot",
+			OwnerID:      candidateSlot.ID,
+			Role:         "output",
+			Slot:         target.PortID,
+			Status:       "selected",
+			SourceType:   "canvas",
+			SourceID:     &sourceID,
+			IsPrimary:    true,
+			MetadataJSON: canvasOutputMetadataJSON(cv.ID, runID, target, value),
+			CreatedByID:  &userID,
+		})
+	}
+	var existing model.AssetSlotCandidate
+	err = h.db.
+		Where("project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", *cv.ProjectID, sourceSlot.ID, candidateSlot.ID).
+		First(&existing).Error
+	if err != nil {
+		existing = model.AssetSlotCandidate{
+			ProjectID:            *cv.ProjectID,
+			AssetSlotID:          sourceSlot.ID,
+			CandidateAssetSlotID: candidateSlot.ID,
+			SourceType:           "canvas",
+			SourceID:             &runID,
+			Status:               "candidate",
+			Note:                 "由素材生成画布写回",
+		}
+		_ = h.db.Create(&existing).Error
+	} else {
+		updates := map[string]any{"source_type": "canvas", "source_id": runID}
+		if existing.Status == "" || existing.Status == "pending" {
+			updates["status"] = "candidate"
+		}
+		_ = h.db.Model(&existing).Updates(updates).Error
+	}
+	raw, _ := json.Marshal(value)
+	runIDPtr := runID
+	_ = h.db.Model(&model.CanvasOutput{}).Where("id = ?", target.ID).Updates(map[string]any{
+		"canvas_run_id": runIDPtr,
+		"resource_id":   *value.ResourceID,
+		"value_json":    string(raw),
+		"status":        "attached",
+	}).Error
+}
+
+func canvasOutputMetadataJSON(canvasID uint, runID uint, target model.CanvasOutput, value canvasPortValue) string {
+	raw, _ := json.Marshal(map[string]any{
+		"canvas_id":        canvasID,
+		"canvas_run_id":    runID,
+		"canvas_output_id": target.ID,
+		"source_port":      target.PortID,
+		"value_type":       value.Type,
+	})
+	return string(raw)
 }
 
 func buildCanvasExecutionPlan(cv model.Canvas) (canvasExecutionPlan, error) {
@@ -2250,6 +2384,9 @@ func (h *CanvasHandler) completeEntityWriteTask(ctx context.Context, task *model
 		updates["resource_id"] = *result.PrimaryResourceID
 	}
 	h.db.Model(task).Updates(updates)
+	if result.PrimaryResourceID != nil {
+		h.attachGeneratedAssetSlotCandidate(cv, runID, user.ID, kind, entityID, *result.PrimaryResourceID)
+	}
 	nd.Status = "done"
 	nd.ResourceID = result.PrimaryResourceID
 	nd.TaskID = &task.ID
@@ -2264,6 +2401,70 @@ func (h *CanvasHandler) completeEntityWriteTask(ctx context.Context, task *model
 	}
 	h.updateTaskOutputValues(task, outputs)
 	return outputs
+}
+
+func (h *CanvasHandler) attachGeneratedAssetSlotCandidate(cv model.Canvas, runID uint, userID uint, kind string, entityID uint, resourceID uint) {
+	if h == nil || h.db == nil || cv.ProjectID == nil || kind != "asset_slot" || entityID == 0 || resourceID == 0 {
+		return
+	}
+	var candidateSlot model.AssetSlot
+	if err := h.db.First(&candidateSlot, entityID).Error; err != nil || candidateSlot.ProjectID != *cv.ProjectID {
+		return
+	}
+	if candidateSlot.ResourceID == nil {
+		_ = h.db.Model(&candidateSlot).Update("resource_id", resourceID).Error
+	}
+	if candidateSlot.Status == "" || candidateSlot.Status == "missing" {
+		_ = h.db.Model(&candidateSlot).Update("status", "candidate").Error
+	}
+	if candidateSlot.OwnerType != "asset_slot" || candidateSlot.OwnerID == nil || *candidateSlot.OwnerID == 0 {
+		return
+	}
+	var sourceSlot model.AssetSlot
+	if err := h.db.First(&sourceSlot, *candidateSlot.OwnerID).Error; err != nil || sourceSlot.ProjectID != *cv.ProjectID {
+		return
+	}
+	sourceID := runID
+	var existing model.AssetSlotCandidate
+	err := h.db.
+		Where("project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", *cv.ProjectID, sourceSlot.ID, candidateSlot.ID).
+		First(&existing).Error
+	if err != nil {
+		_ = h.db.Create(&model.AssetSlotCandidate{
+			ProjectID:            *cv.ProjectID,
+			AssetSlotID:          sourceSlot.ID,
+			CandidateAssetSlotID: candidateSlot.ID,
+			SourceType:           "canvas",
+			SourceID:             &sourceID,
+			Status:               "candidate",
+			Note:                 "由素材灵感画布写回",
+		}).Error
+	} else {
+		updates := map[string]any{"source_type": "canvas", "source_id": runID}
+		if existing.Status == "" || existing.Status == "pending" {
+			updates["status"] = "candidate"
+		}
+		_ = h.db.Model(&existing).Updates(updates).Error
+	}
+	var existingBinding model.ResourceBinding
+	if err := h.db.
+		Where("project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?", *cv.ProjectID, resourceID, "asset_slot", candidateSlot.ID, "output", "result", 1).
+		First(&existingBinding).Error; err != nil {
+		_ = NewResourceBindingHandler(h.db).createBinding(model.ResourceBinding{
+			ProjectID:    *cv.ProjectID,
+			ResourceID:   resourceID,
+			OwnerType:    "asset_slot",
+			OwnerID:      candidateSlot.ID,
+			Role:         "output",
+			Slot:         "result",
+			Status:       "selected",
+			SourceType:   "canvas",
+			SourceID:     &sourceID,
+			IsPrimary:    true,
+			MetadataJSON: fmt.Sprintf(`{"canvas_id":%d,"canvas_run_id":%d,"canvas_node_id":%q}`, cv.ID, runID, "asset-slot-target"),
+			CreatedByID:  &userID,
+		})
+	}
 }
 
 func (h *CanvasHandler) entityPortValuesFromCanvasInputs(ctx context.Context, kind string, portInputs canvasPortInputMap) map[string]workflow.EntityPortValue {

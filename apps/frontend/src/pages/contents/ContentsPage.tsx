@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
@@ -9,17 +9,16 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Captions,
   Database,
   Eye,
-  FileText,
+  FileAudio,
   Film,
   GitBranch,
   Image,
-  ListFilter,
   LockKeyhole,
   PackageCheck,
   Play,
-  Pencil,
   Plus,
   RefreshCcw,
   Route,
@@ -29,11 +28,14 @@ import {
 } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
+import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
+import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
+import type { Canvas } from '@/types'
 import { Badge, Button, Progress } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'locked'
@@ -47,6 +49,20 @@ type ContentUnitRecord = SemanticEntityRecord & {
   duration_sec?: number
   description?: string
   prompt?: string
+  shot_size?: string
+  camera_angle?: string
+  camera_height?: string
+  camera_motion?: string
+  motion_intensity?: string
+  camera_speed?: string
+  lens?: string
+  focal_length?: string
+  focus_subject?: string
+  composition_start?: string
+  composition_end?: string
+  stabilization?: string
+  camera_params_json?: string
+  camera_notes?: string
   status?: string
 }
 
@@ -110,9 +126,35 @@ type AssetSlotRecord = SemanticEntityRecord & {
   kind?: string
   name?: string
   description?: string
+  slot_key?: string
   prompt_hint?: string
   priority?: string
+  resource_id?: number
+  locked_asset_slot_id?: number
   status?: string
+}
+
+type AssetSlotCandidateRecord = SemanticEntityRecord & {
+  asset_slot_id?: number
+  candidate_asset_slot_id?: number
+  score?: number
+  status?: string
+  note?: string
+}
+
+type ContentTargetKind = 'keyframe' | 'visual' | 'voice' | 'subtitle'
+
+interface ContentTargetViewModel {
+  kind: ContentTargetKind
+  label: string
+  description: string
+  icon: LucideIcon
+  slots: AssetSlotRecord[]
+  keyframes: KeyframeRecord[]
+  candidateCount: number
+  lockedCount: number
+  missingCount: number
+  status: 'ready' | 'candidate' | 'missing'
 }
 
 interface ContentUnitViewModel {
@@ -124,6 +166,7 @@ interface ContentUnitViewModel {
   assetSlots: AssetSlotRecord[]
   keyframes: KeyframeRecord[]
   storyboardLines: StoryboardLineRecord[]
+  targets: ContentTargetViewModel[]
   missingAssets: AssetSlotRecord[]
   readiness: number
 }
@@ -150,6 +193,37 @@ const kindLabels: Record<string, string> = {
 
 const kindOptions = ['all', 'shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']
 
+const contentTargetMeta: Record<ContentTargetKind, { label: string; description: string; icon: LucideIcon; slotKeys: string[]; assetKinds: string[] }> = {
+  keyframe: {
+    label: '关键帧',
+    description: '构图、状态和视觉锚点',
+    icon: Image,
+    slotKeys: ['keyframe', 'frame', 'anchor'],
+    assetKinds: [],
+  },
+  visual: {
+    label: '画面',
+    description: '图片、视频或最终画面候选',
+    icon: Film,
+    slotKeys: ['visual', 'picture', 'image', 'video', 'shot', 'screen'],
+    assetKinds: ['image', 'video'],
+  },
+  voice: {
+    label: '语音',
+    description: '配音、旁白和声音候选',
+    icon: FileAudio,
+    slotKeys: ['voice', 'audio', 'voiceover', 'narration', 'sound'],
+    assetKinds: ['audio'],
+  },
+  subtitle: {
+    label: '字幕',
+    description: '字幕、口播文本和屏幕文案',
+    icon: Captions,
+    slotKeys: ['subtitle', 'caption', 'text', 'copy'],
+    assetKinds: ['text'],
+  },
+}
+
 function normalizeStatusFilter(value: string): StatusFilter {
   return ['ready', 'attention', 'locked'].includes(value) ? value as StatusFilter : 'all'
 }
@@ -157,9 +231,9 @@ function normalizeStatusFilter(value: string): StatusFilter {
 export default function ContentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const navigate = useNavigate()
   const contentUnitConfig = semanticEntityConfig('contentUnits')
-  const [contentDialogOpen, setContentDialogOpen] = useState(false)
-  const [contentDialogMode, setContentDialogMode] = useState<'create' | 'edit'>('create')
+  const [creatingContentUnit, setCreatingContentUnit] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = readNumberParam(searchParams, 'content_unit_id') ?? readNumberParam(searchParams, 'selected')
   const segmentFilterId = readNumberParam(searchParams, 'segment_id')
@@ -169,6 +243,21 @@ export default function ContentsPage() {
   const kindFilter = readStringParam(searchParams, 'kind', 'all')
   const statusFilter = normalizeStatusFilter(readStringParam(searchParams, 'status'))
   const query = readStringParam(searchParams, 'q')
+
+  const openCanvasMutation = useMutation({
+    mutationFn: (item: ContentUnitViewModel) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return api.post('/canvases', {
+        name: `${item.unit.title || `内容单元 #${item.unit.ID}`} · 内容生成`,
+        project_id: projectId,
+        canvas_type: 'workflow',
+        stage: 'generation',
+        ref_type: 'content_unit',
+        ref_id: item.unit.ID,
+      }).then((r) => r.data as Canvas)
+    },
+    onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
+  })
 
   const contentUnitsQuery = useQuery({
     queryKey: ['semantic-content-positioning', projectId, 'content-units'],
@@ -210,6 +299,11 @@ export default function ContentsPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<AssetSlotRecord[]>,
     enabled: !!projectId,
   })
+  const assetSlotCandidatesQuery = useQuery({
+    queryKey: ['semantic-content-positioning', projectId, 'asset-slot-candidates'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlotCandidates')) as Promise<AssetSlotCandidateRecord[]>,
+    enabled: !!projectId,
+  })
 
   const contentUnits = useMemo(() => (contentUnitsQuery.data ?? []).slice().sort(compareByOrder), [contentUnitsQuery.data])
   const sceneMoments = sceneMomentsQuery.data ?? []
@@ -219,10 +313,21 @@ export default function ContentsPage() {
   const references = referencesQuery.data ?? []
   const usages = usagesQuery.data ?? []
   const assetSlots = assetSlotsQuery.data ?? []
+  const assetSlotCandidates = assetSlotCandidatesQuery.data ?? []
 
   const referencesById = useMemo(() => new Map(references.map((item) => [item.ID, item])), [references])
   const sceneMomentById = useMemo(() => new Map(sceneMoments.map((item) => [item.ID, item])), [sceneMoments])
   const sectionById = useMemo(() => new Map(sections.map((item) => [item.ID, item])), [sections])
+  const assetCandidatesBySlotId = useMemo(() => {
+    const map = new Map<number, AssetSlotCandidateRecord[]>()
+    assetSlotCandidates.forEach((candidate) => {
+      if (!candidate.asset_slot_id) return
+      const current = map.get(candidate.asset_slot_id) ?? []
+      current.push(candidate)
+      map.set(candidate.asset_slot_id, current)
+    })
+    return map
+  }, [assetSlotCandidates])
 
   const unitViewModels = useMemo(() => contentUnits.map((unit) => {
     const sceneMoment = unit.scene_moment_id ? sceneMomentById.get(unit.scene_moment_id) : undefined
@@ -241,6 +346,7 @@ export default function ContentsPage() {
       (unit.scene_moment_id && item.scene_moment_id === unit.scene_moment_id) ||
       (unit.segment_id && item.segment_id === unit.segment_id)
     ))
+    const targets = buildContentTargets(relatedAssetSlots, relatedKeyframes, assetCandidatesBySlotId)
     const missingAssets = relatedAssetSlots.filter((item) => ['missing', 'blocked'].includes(String(item.status ?? '')))
     const readiness = calculateReadiness({ unit, sceneMoment, references: relatedReferences, assetSlots: relatedAssetSlots, keyframes: relatedKeyframes })
 
@@ -253,10 +359,11 @@ export default function ContentsPage() {
       assetSlots: relatedAssetSlots,
       keyframes: relatedKeyframes,
       storyboardLines: relatedStoryboardLines,
+      targets,
       missingAssets,
       readiness,
     }
-  }), [assetSlots, contentUnits, keyframes, referencesById, sectionById, sceneMomentById, storyboardLines, usages])
+  }), [assetCandidatesBySlotId, assetSlots, contentUnits, keyframes, referencesById, sectionById, sceneMomentById, storyboardLines, usages])
 
   const filteredUnits = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -281,6 +388,7 @@ export default function ContentsPage() {
         item.sceneMoment?.action_text,
         item.references.map((ref) => ref.name).join(' '),
         item.assetSlots.map((slot) => slot.name).join(' '),
+        cameraSummary(item.unit),
       ].filter(Boolean).join(' ').toLowerCase()
       return matchesKind && matchesSegment && matchesSceneMoment && matchesReference && matchesAssetSlot && matchesStatus && (!q || haystack.includes(q))
     })
@@ -297,11 +405,12 @@ export default function ContentsPage() {
   const readyCount = unitViewModels.filter((item) => item.readiness >= 70 && item.missingAssets.length === 0).length
   const lockedCount = unitViewModels.filter((item) => item.unit.status === 'locked').length
   const attentionCount = unitViewModels.filter((item) => item.readiness < 70 || item.missingAssets.length > 0).length
+  const contentTargetCount = unitViewModels.reduce((sum, item) => sum + item.targets.filter((target) => target.status !== 'missing').length, 0)
   const averageReadiness = unitViewModels.length
     ? Math.round(unitViewModels.reduce((sum, item) => sum + item.readiness, 0) / unitViewModels.length)
     : 0
   const isLoading = contentUnitsQuery.isLoading || sceneMomentsQuery.isLoading
-  const isFetching = contentUnitsQuery.isFetching || sceneMomentsQuery.isFetching || sectionsQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
+  const isFetching = contentUnitsQuery.isFetching || sceneMomentsQuery.isFetching || sectionsQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching || assetSlotCandidatesQuery.isFetching
 
   function refreshAll() {
     contentUnitsQuery.refetch()
@@ -312,6 +421,7 @@ export default function ContentsPage() {
     referencesQuery.refetch()
     usagesQuery.refetch()
     assetSlotsQuery.refetch()
+    assetSlotCandidatesQuery.refetch()
   }
 
   function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
@@ -319,37 +429,29 @@ export default function ContentsPage() {
   }
 
   function startCreateContentUnit() {
-    setContentDialogMode('create')
-    setContentDialogOpen(true)
-  }
-
-  function startEditContentUnit() {
-    if (!selected) return
-    setContentDialogMode('edit')
-    setContentDialogOpen(true)
+    setCreatingContentUnit(true)
   }
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="min-w-[1180px] space-y-5 p-5">
-        <header className="flex items-start justify-between gap-4">
+    <>
+      <ContentWorkspaceLayout
+        header={(
+          <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>内容生产</span>
+              <span>内容区</span>
+              <ChevronRight size={13} />
+              <span>内容单元</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">内容单元</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              内容单元是最小可生成单位：它从情节继承时间、地点、动作和情绪，绑定创作资料、素材位与关键帧，形成一次可执行的生成合同。
+              内容单元是内容槽：从候选中确定最终目标，并同时收拢关键帧、画面、语音和字幕。
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={startEditContentUnit} disabled={!selected}>
-              <Pencil size={15} />
-              编辑内容
-            </Button>
             <Button className="gap-2" onClick={startCreateContentUnit}>
               <Plus size={15} />
               新建内容
@@ -371,59 +473,59 @@ export default function ContentsPage() {
               </Link>
             </Button>
           </div>
-        </header>
-
-        <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Boxes} label="内容单元" value={unitViewModels.length} detail="最小可生成颗粒" tone="text-indigo-600" />
+          </header>
+        )}
+        overview={(
+          <section className="grid grid-cols-4 gap-3">
+          <MetricCard icon={Boxes} label="内容槽" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="text-indigo-600" />
           <MetricCard icon={ShieldCheck} label="可生成" value={readyCount} detail="情节、资料和素材输入已满足" tone="text-emerald-600" />
-          <MetricCard icon={AlertTriangle} label="待补齐" value={attentionCount} detail="缺上下文、提示词或素材位" tone="text-amber-600" />
+          <MetricCard icon={Play} label="候选目标" value={contentTargetCount} detail="关键帧、画面、语音和字幕" tone="text-sky-600" />
           <MetricCard icon={LockKeyhole} label="已锁定" value={lockedCount} detail={`${averageReadiness}% 平均生成准备度`} tone="text-violet-600" />
-        </section>
-
-        <section className="grid grid-cols-[260px_minmax(0,1fr)_360px] gap-4">
-          <aside className="space-y-4">
-            <Panel title="内容定位" icon={Route}>
-              <div className="space-y-3">
-                <PositionStep icon={Route} label="情节" detail="定义发生条件和上下文" />
-                <PositionStep icon={Boxes} label="内容单元" detail="收敛为一次可生成任务" active />
-                <PositionStep icon={Play} label="候选内容" detail="生成、返工、选片" />
-                <PositionStep icon={Film} label="成片时间线" detail="锁定后进入交付" />
-              </div>
-            </Panel>
-
-            <Panel title="生成合同" icon={FileText}>
-              <GateRow icon={Route} title="上下文" detail="情节提供时间、地点、条件、动作" />
-              <GateRow icon={Sparkles} title="创作资料" detail="人物、地点、道具、产品、风格连续性" />
-              <GateRow icon={PackageCheck} title="素材位" detail="需要输入或锁定的图像、视频、音频、参考" />
-              <GateRow icon={Image} title="视觉锚点" detail="关键帧或参考帧稳定构图和状态" />
-            </Panel>
-
-            <Panel title="类型筛选" icon={ListFilter}>
-              <div className="space-y-1">
-                {kindOptions.map((kind) => {
-                  const active = kindFilter === kind
-                  const count = kind === 'all' ? unitViewModels.length : unitViewModels.filter((item) => item.unit.kind === kind).length
-                  return (
-                    <button
-                      key={kind}
-                      type="button"
-                      onClick={() => setFilter({ kind })}
-                      className={cn(
-                        'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition-colors',
-                        active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                      )}
-                    >
-                      <span className="truncate">{kind === 'all' ? '全部类型' : kindLabel(kind)}</span>
-                      <span className={cn('text-[11px]', active ? 'text-background/65' : 'text-muted-foreground')}>{count}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </Panel>
-          </aside>
-
-          <main className="min-w-0 space-y-4">
-            <section className="rounded-lg border border-border bg-card">
+          </section>
+        )}
+        filters={(
+          <ContentFilterBar
+            query={query}
+            onQueryChange={(value) => setFilter({ q: value })}
+            queryPlaceholder="搜索标题、提示词、资料或素材"
+            filters={[
+              {
+                id: 'status',
+                label: '状态',
+                value: statusFilter,
+                onChange: (value) => setFilter({ status: value }),
+                options: [
+                  { value: 'all', label: '全部', count: unitViewModels.length },
+                  { value: 'ready', label: '可生成', count: readyCount },
+                  { value: 'attention', label: '待补齐', count: attentionCount },
+                  { value: 'locked', label: '已锁定', count: lockedCount },
+                ],
+              },
+              {
+                id: 'kind',
+                label: '类型',
+                value: kindFilter,
+                onChange: (value) => setFilter({ kind: value }),
+                options: kindOptions.map((kind) => ({
+                  value: kind,
+                  label: kind === 'all' ? '全部类型' : kindLabel(kind),
+                  count: kind === 'all' ? unitViewModels.length : unitViewModels.filter((item) => item.unit.kind === kind).length,
+                })),
+              },
+            ]}
+            chips={[
+              segmentFilterId ? { id: 'segment', label: `片段 #${segmentFilterId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
+              sceneMomentFilterId ? { id: 'scene', label: `情节 #${sceneMomentFilterId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
+              selectedId ? { id: 'content', label: `内容 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
+              referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
+              assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
+            ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
+            resultCount={filteredUnits.length}
+            totalCount={unitViewModels.length}
+          />
+        )}
+        list={(
+          <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">内容单元清单</p>
@@ -431,54 +533,13 @@ export default function ContentsPage() {
                 </div>
               </div>
 
-              <div className="border-b border-border p-4">
-                <ContentFilterBar
-                  query={query}
-                  onQueryChange={(value) => setFilter({ q: value })}
-                  queryPlaceholder="搜索标题、提示词、资料或素材"
-                  filters={[
-                    {
-                      id: 'status',
-                      label: '状态',
-                      value: statusFilter,
-                      onChange: (value) => setFilter({ status: value }),
-                      options: [
-                        { value: 'all', label: '全部', count: unitViewModels.length },
-                        { value: 'ready', label: '可生成', count: readyCount },
-                        { value: 'attention', label: '待补齐', count: attentionCount },
-                        { value: 'locked', label: '已锁定', count: lockedCount },
-                      ],
-                    },
-                    {
-                      id: 'kind',
-                      label: '类型',
-                      value: kindFilter,
-                      onChange: (value) => setFilter({ kind: value }),
-                      options: kindOptions.map((kind) => ({
-                        value: kind,
-                        label: kind === 'all' ? '全部类型' : kindLabel(kind),
-                        count: kind === 'all' ? unitViewModels.length : unitViewModels.filter((item) => item.unit.kind === kind).length,
-                      })),
-                    },
-                  ]}
-                  chips={[
-                    segmentFilterId ? { id: 'segment', label: `片段 #${segmentFilterId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
-                    sceneMomentFilterId ? { id: 'scene', label: `情节 #${sceneMomentFilterId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
-                    selectedId ? { id: 'content', label: `内容 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
-                    referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
-                    assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
-                  ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
-                  resultCount={filteredUnits.length}
-                  totalCount={unitViewModels.length}
-                />
-              </div>
-
-              {isLoading ? (
-                <EmptyState title="正在加载内容单元" detail="读取内容、情节和生成输入关系" />
-              ) : filteredUnits.length === 0 ? (
-                <EmptyState title="暂无内容单元" detail="可先在制作预演确认分镜，再生成内容单元骨架" />
-              ) : (
-                <div className="grid grid-cols-2 gap-3 p-4">
+              <div className="max-h-[760px] overflow-auto">
+                {isLoading ? (
+                  <EmptyState title="正在加载内容单元" detail="读取内容、情节和生成输入关系" />
+                ) : filteredUnits.length === 0 ? (
+                  <EmptyState title="暂无内容单元" detail="可先在制作预演确认分镜，再生成内容单元骨架" />
+                ) : (
+                <div className="grid grid-cols-1 gap-3 p-4">
                   {filteredUnits.map((item) => (
                     <ContentUnitCard
                       key={item.unit.ID}
@@ -488,12 +549,61 @@ export default function ContentsPage() {
                     />
                   ))}
                 </div>
-              )}
-            </section>
-          </main>
-
-          <aside className="space-y-4">
-            <ContentUnitDetail item={selected} />
+                )}
+              </div>
+          </section>
+        )}
+        detail={(
+          <>
+            <SemanticEntityInlineEditor
+              projectId={projectId}
+              config={contentUnitConfig}
+              record={creatingContentUnit ? null : selected?.unit}
+              defaults={creatingContentUnit ? {
+                segment_id: selected?.unit.segment_id ?? segmentFilterId ?? null,
+                scene_moment_id: selected?.unit.scene_moment_id ?? sceneMomentFilterId ?? null,
+                order: unitViewModels.length + 1,
+                kind: 'shot',
+                status: 'draft',
+              } : undefined}
+              queryKey={['semantic-content-positioning', projectId]}
+              title={creatingContentUnit ? '新建内容单元' : '卡片内编辑内容单元'}
+              description="直接维护内容槽、生成提示、时长和状态。"
+              hero={{
+                icon: <Boxes size={19} />,
+                eyebrow: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定情节',
+                title: creatingContentUnit ? '新建内容单元' : selected ? titleOf(selected.unit) : '新建内容单元',
+                subtitle: creatingContentUnit ? '内容槽' : selected ? `${kindLabel(selected.unit.kind)} · 内容 #${selected.unit.ID}` : '内容槽',
+                summary: creatingContentUnit ? '创建后可继续补充生成提示、运镜参数，并收拢关键帧、画面、语音和字幕候选。' : selected?.unit.description || selected?.unit.prompt || '暂无内容描述或生成提示词。',
+                accentClassName: 'from-indigo-500/15 via-sky-500/10 to-cyan-500/10',
+                status: <StatusBadge status={creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft'} />,
+                stats: selected && !creatingContentUnit ? [
+                  { label: '类型', value: kindLabel(selected.unit.kind) },
+                  { label: '时长', value: formatDuration(selected.unit.duration_sec) },
+                  { label: '候选目标', value: `${selected.targets.filter((target) => target.status !== 'missing').length}/4` },
+                  { label: '准备度', value: `${selected.readiness}%` },
+                ] : [
+                  { label: '默认类型', value: '镜头' },
+                  { label: '所属情节', value: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定' },
+                  { label: '顺序', value: unitViewModels.length + 1 },
+                  { label: '准备度', value: '0%' },
+                ],
+              }}
+              onSaved={(record) => {
+                setCreatingContentUnit(false)
+                setFilter({ content_unit_id: record.ID, scene_moment_id: record.scene_moment_id as number | undefined, segment_id: record.segment_id as number | undefined })
+              }}
+              onDeleted={() => {
+                setCreatingContentUnit(false)
+                setFilter({ content_unit_id: null, selected: null })
+              }}
+            />
+            <ContentUnitDetail item={selected} onOpenCanvas={() => selected && openCanvasMutation.mutate(selected)} openingCanvas={openCanvasMutation.isPending} />
+            <ContentTargetPanel targets={selected?.targets ?? []} />
+          </>
+        )}
+        preview={(
+          <>
             <RelatedPanel
               title="创作资料"
               icon={Sparkles}
@@ -527,28 +637,66 @@ export default function ContentsPage() {
                 status: item.status,
               })) ?? []}
             />
-          </aside>
-        </section>
-      </div>
-      <SemanticEntityCrudDialog
-        open={contentDialogOpen}
-        mode={contentDialogMode}
-        projectId={projectId}
-        config={contentUnitConfig}
-        record={contentDialogMode === 'edit' ? selected?.unit : null}
-        defaults={{
-          segment_id: selected?.unit.segment_id ?? segmentFilterId ?? null,
-          scene_moment_id: selected?.unit.scene_moment_id ?? sceneMomentFilterId ?? null,
-          order: unitViewModels.length + 1,
-          kind: 'shot',
-          status: 'draft',
-        }}
-        queryKey={['semantic-content-positioning', projectId]}
-        onOpenChange={setContentDialogOpen}
-        onSaved={(record) => setFilter({ content_unit_id: record.ID, scene_moment_id: record.scene_moment_id as number | undefined, segment_id: record.segment_id as number | undefined })}
-        onDeleted={() => setFilter({ content_unit_id: null })}
+          </>
+        )}
+        upstream={<div />}
+        downstream={<div />}
+        bottom={(
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
+            <RelatedPanel
+              title="涉及到的片段"
+              icon={Route}
+              empty="当前内容单元暂无片段引用"
+              records={selected?.section ? [{
+                id: selected.section.ID,
+                title: titleOf(selected.section),
+                subtitle: selected.section.summary || selected.section.content || '片段上下文',
+                status: selected.section.status,
+              }] : []}
+            />
+            <RelatedPanel
+              title="涉及的情节"
+              icon={Film}
+              empty="当前内容单元暂无情节引用"
+              records={selected?.sceneMoment ? [{
+                id: selected.sceneMoment.ID,
+                title: titleOf(selected.sceneMoment),
+                subtitle: selected.sceneMoment.description || selected.sceneMoment.action_text || '情节上下文',
+                status: selected.sceneMoment.status,
+              }] : []}
+            />
+            <RelatedPanel
+              title="涉及的创作资料"
+              icon={Sparkles}
+              empty="当前内容单元暂无资料引用"
+              records={selected?.references.map((item) => ({
+                id: item.ID,
+                title: item.name || titleOf(item),
+                subtitle: `${item.kind ?? 'reference'} · ${statusLabel(item.status)}`,
+                status: item.status,
+              })) ?? []}
+            />
+            <RelatedPanel
+              title="涉及的素材"
+              icon={PackageCheck}
+              empty="当前内容单元暂无素材需求"
+              records={selected?.assetSlots.map((item) => ({
+                id: item.ID,
+                title: item.name || titleOf(item),
+                subtitle: `${item.kind ?? 'asset'} · ${item.prompt_hint || item.description || '等待补充生成输入'}`,
+                status: item.status,
+              })) ?? []}
+            />
+            <RelatedPanel
+              title="被引用的成片"
+              icon={Play}
+              empty="当前内容单元暂无成片引用"
+              records={[]}
+            />
+          </div>
+        )}
       />
-    </div>
+    </>
   )
 }
 
@@ -585,14 +733,18 @@ function ContentUnitCard({
       </div>
       <div className="p-3">
         <p className="line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{item.unit.description || item.unit.prompt || '暂无内容描述或生成提示词'}</p>
+        {cameraSummary(item.unit) ? (
+          <p className="mt-2 line-clamp-1 text-[11px] text-muted-foreground">{cameraSummary(item.unit)}</p>
+        ) : null}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <InfoChip icon={Route} label={sceneMomentTitle} />
           <InfoChip icon={Clock3} label={item.sceneMoment?.time_text || item.sceneMoment?.location_text || '情节待补'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Badge variant="outline" className="text-[10px]">资料 {item.references.length}</Badge>
-          <Badge variant="outline" className="text-[10px]">素材 {item.assetSlots.length}</Badge>
-          <Badge variant="outline" className="text-[10px]">关键帧 {item.keyframes.length}</Badge>
+          <Badge variant="outline" className="text-[10px]">素材槽 {item.assetSlots.length}</Badge>
+          <Badge variant="outline" className="text-[10px]">目标 {item.targets.filter((target) => target.status !== 'missing').length}/4</Badge>
+          <Badge variant="outline" className="text-[10px]">候选 {candidateTotal(item.targets)}</Badge>
           {item.missingAssets.length > 0 ? <Badge variant="warning" className="text-[10px]">缺口 {item.missingAssets.length}</Badge> : null}
         </div>
         <div className="mt-3 flex items-center gap-2">
@@ -604,7 +756,15 @@ function ContentUnitCard({
   )
 }
 
-function ContentUnitDetail({ item }: { item: ContentUnitViewModel | null }) {
+function ContentUnitDetail({
+  item,
+  onOpenCanvas,
+  openingCanvas,
+}: {
+  item: ContentUnitViewModel | null
+  onOpenCanvas: () => void
+  openingCanvas: boolean
+}) {
   if (!item) {
     return (
       <section className="rounded-lg border border-border bg-card p-4">
@@ -620,7 +780,13 @@ function ContentUnitDetail({ item }: { item: ContentUnitViewModel | null }) {
           <span className="flex h-10 w-10 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
             <Eye size={19} />
           </span>
-          <StatusBadge status={item.unit.status ?? 'draft'} />
+          <div className="flex shrink-0 items-center gap-2">
+            <StatusBadge status={item.unit.status ?? 'draft'} />
+            <Button size="sm" loading={openingCanvas} disabled={openingCanvas} onClick={onOpenCanvas}>
+              <Wand2 size={13} />
+              去生成
+            </Button>
+          </div>
         </div>
         <h2 className="mt-3 text-lg font-semibold text-foreground">{titleOf(item.unit)}</h2>
         <p className="mt-1 text-xs text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)}</p>
@@ -636,12 +802,23 @@ function ContentUnitDetail({ item }: { item: ContentUnitViewModel | null }) {
         <CheckRow ok={Boolean(item.sceneMoment)} label="已绑定情节" detail={item.sceneMoment ? titleOf(item.sceneMoment) : '缺少时间、地点、动作上下文'} />
         <CheckRow ok={Boolean(item.unit.prompt || item.unit.description)} label="有生成意图" detail={item.unit.prompt || item.unit.description || '需要补充描述或提示词'} />
         <CheckRow ok={item.references.length > 0} label="有创作资料" detail={`${item.references.length} 个资料约束`} />
-        <CheckRow ok={item.missingAssets.length === 0} label="素材缺口可控" detail={item.missingAssets.length ? `${item.missingAssets.length} 个素材位待补齐` : `${item.assetSlots.length} 个素材位可用或未要求`} />
+        <CheckRow ok={item.missingAssets.length === 0} label="素材槽可收敛" detail={item.missingAssets.length ? `${item.missingAssets.length} 个素材槽待补齐` : `${item.assetSlots.length} 个素材槽可用或未要求`} />
+        <CheckRow ok={item.targets.some((target) => target.status !== 'missing')} label="有候选目标" detail={targetSummary(item.targets)} />
         <InfoBlock label="情节" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情节描述'} />
         <InfoBlock label="生成提示" value={item.unit.prompt || item.unit.description || '暂无提示词'} />
+        <InfoBlock label="运镜设计" value={cameraSummary(item.unit) || '暂无运镜参数'} />
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="分镜行" value={item.storyboardLines.length} />
-          <MiniStat label="关键帧" value={item.keyframes.length} />
+          <MiniStat label="景别" value={cameraOptionLabel('shot_size', item.unit.shot_size)} />
+          <MiniStat label="机位" value={cameraOptionLabel('camera_angle', item.unit.camera_angle)} />
+          <MiniStat label="运镜" value={cameraOptionLabel('camera_motion', item.unit.camera_motion)} />
+          <MiniStat label="速度" value={cameraOptionLabel('camera_speed', item.unit.camera_speed)} />
+        </div>
+        <InfoBlock label="起始构图" value={item.unit.composition_start || '-'} />
+        <InfoBlock label="结束构图" value={item.unit.composition_end || '-'} />
+        <InfoBlock label="运镜备注" value={item.unit.camera_notes || '-'} />
+        <div className="grid grid-cols-2 gap-2">
+          <MiniStat label="候选目标" value={`${item.targets.filter((target) => target.status !== 'missing').length}/4`} />
+          <MiniStat label="候选总数" value={candidateTotal(item.targets)} />
         </div>
       </div>
     </section>
@@ -661,44 +838,6 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
         </span>
       </div>
       <p className="mt-2 truncate text-xs text-muted-foreground">{detail}</p>
-    </div>
-  )
-}
-
-function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Icon size={14} className="text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-      </div>
-      <div className="p-3">{children}</div>
-    </section>
-  )
-}
-
-function PositionStep({ icon: Icon, label, detail, active = false }: { icon: LucideIcon; label: string; detail: string; active?: boolean }) {
-  return (
-    <div className="flex gap-2">
-      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', active ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
-        <Icon size={15} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{detail}</p>
-      </div>
-    </div>
-  )
-}
-
-function GateRow({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
-  return (
-    <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
-      <Icon size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-foreground">{title}</p>
-        <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-      </div>
     </div>
   )
 }
@@ -727,6 +866,46 @@ function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; ic
             </div>
           ))
         )}
+      </div>
+    </section>
+  )
+}
+
+function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) {
+  return (
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Play size={14} className="text-muted-foreground" />
+          <p className="text-sm font-semibold text-foreground">候选目标</p>
+        </div>
+        <Badge variant="outline" className="text-[10px]">{targets.filter((target) => target.status !== 'missing').length}/4</Badge>
+      </div>
+      <div className="space-y-2 p-3">
+        {targets.map((target) => {
+          const Icon = target.icon
+          return (
+            <div key={target.kind} className="rounded-md border border-border bg-background p-2.5">
+              <div className="flex items-start gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <Icon size={15} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate text-sm font-medium text-foreground">{target.label}</p>
+                    <StatusBadge status={target.status === 'ready' ? 'locked' : target.status} compact />
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{target.description}</p>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    <MiniStat label="槽" value={target.slots.length + target.keyframes.length} />
+                    <MiniStat label="候选" value={target.candidateCount} />
+                    <MiniStat label="锁定" value={target.lockedCount} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </section>
   )
@@ -808,6 +987,154 @@ function calculateReadiness(input: {
   if (input.assetSlots.length === 0 || missingAssets === 0) score += 20
   else score += Math.max(0, 20 - missingAssets * 8)
   return Math.max(0, Math.min(100, score))
+}
+
+function buildContentTargets(
+  slots: AssetSlotRecord[],
+  keyframes: KeyframeRecord[],
+  candidatesBySlotId: Map<number, AssetSlotCandidateRecord[]>,
+): ContentTargetViewModel[] {
+  return (Object.keys(contentTargetMeta) as ContentTargetKind[]).map((kind) => {
+    const meta = contentTargetMeta[kind]
+    const targetSlots = slots.filter((slot) => matchesContentTarget(slot, kind))
+    const targetKeyframes = kind === 'keyframe' ? keyframes : []
+    const candidateCount = targetSlots.reduce((sum, slot) => {
+      const candidates = candidatesBySlotId.get(slot.ID) ?? []
+      return sum + candidates.filter((candidate) => candidate.status !== 'rejected').length
+    }, targetKeyframes.filter((keyframe) => ['candidate', 'generated'].includes(String(keyframe.status ?? ''))).length)
+    const lockedCount = targetSlots.filter((slot) => (
+      ['locked', 'waived'].includes(String(slot.status ?? '')) ||
+      Boolean(slot.resource_id || slot.locked_asset_slot_id)
+    )).length + targetKeyframes.filter((keyframe) => ['accepted', 'attached'].includes(String(keyframe.status ?? '')) || Boolean(keyframe.resource_id)).length
+    const missingCount = targetSlots.filter((slot) => ['missing', 'blocked'].includes(String(slot.status ?? ''))).length
+    const hasAny = targetSlots.length > 0 || targetKeyframes.length > 0
+    const status: ContentTargetViewModel['status'] = lockedCount > 0
+      ? 'ready'
+      : candidateCount > 0 || hasAny
+        ? 'candidate'
+        : 'missing'
+
+    return {
+      kind,
+      label: meta.label,
+      description: describeTargetState(meta.description, targetSlots.length + targetKeyframes.length, candidateCount, lockedCount, missingCount),
+      icon: meta.icon,
+      slots: targetSlots,
+      keyframes: targetKeyframes,
+      candidateCount,
+      lockedCount,
+      missingCount,
+      status,
+    }
+  })
+}
+
+function matchesContentTarget(slot: AssetSlotRecord, kind: ContentTargetKind) {
+  const meta = contentTargetMeta[kind]
+  const haystack = [
+    slot.kind,
+    slot.name,
+    slot.description,
+    slot.prompt_hint,
+    String(slot.slot_key ?? ''),
+  ].filter(Boolean).join(' ').toLowerCase()
+  if (meta.assetKinds.includes(String(slot.kind ?? '').toLowerCase())) return true
+  return meta.slotKeys.some((key) => haystack.includes(key))
+}
+
+function describeTargetState(base: string, slotCount: number, candidateCount: number, lockedCount: number, missingCount: number) {
+  if (lockedCount > 0) return `${base} · ${lockedCount} 个已锁定`
+  if (candidateCount > 0) return `${base} · ${candidateCount} 个候选`
+  if (slotCount > 0 || missingCount > 0) return `${base} · 等待候选`
+  return `${base} · 尚未建槽`
+}
+
+function candidateTotal(targets: ContentTargetViewModel[]) {
+  return targets.reduce((sum, target) => sum + target.candidateCount, 0)
+}
+
+function targetSummary(targets: ContentTargetViewModel[]) {
+  const active = targets.filter((target) => target.status !== 'missing').map((target) => target.label)
+  return active.length ? active.join('、') : '需要建立关键帧、画面、语音或字幕目标'
+}
+
+const cameraLabels: Record<string, Record<string, string>> = {
+  shot_size: {
+    extreme_wide: '大远景',
+    wide: '远景',
+    full: '全景',
+    medium: '中景',
+    medium_close: '中近景',
+    close_up: '近景',
+    extreme_close_up: '特写',
+    detail: '细节',
+  },
+  camera_angle: {
+    eye_level: '平视',
+    high_angle: '俯拍',
+    low_angle: '仰拍',
+    top_down: '顶拍',
+    dutch_angle: '倾斜角',
+    over_shoulder: '过肩',
+    pov: '主观视角',
+  },
+  camera_height: {
+    ground: '贴地',
+    low: '低机位',
+    eye: '视平线',
+    high: '高机位',
+    overhead: '俯视高位',
+  },
+  camera_motion: {
+    static: '固定镜头',
+    pan: '摇镜',
+    tilt: '俯仰',
+    dolly_in: '推进',
+    dolly_out: '拉远',
+    truck_left: '左移',
+    truck_right: '右移',
+    tracking: '跟拍',
+    orbit: '环绕',
+    crane: '升降',
+    handheld: '手持',
+    zoom: '变焦',
+  },
+  motion_intensity: {
+    subtle: '轻微',
+    moderate: '适中',
+    strong: '强烈',
+    dynamic: '高动态',
+  },
+  camera_speed: {
+    slow: '慢',
+    normal: '正常',
+    fast: '快',
+    ramp: '变速',
+  },
+  stabilization: {
+    locked: '锁定稳定',
+    smooth: '平滑稳定',
+    handheld: '手持抖动',
+    intentional_shake: '刻意晃动',
+  },
+}
+
+function cameraOptionLabel(kind: keyof typeof cameraLabels, value?: string) {
+  if (!value) return '-'
+  return cameraLabels[kind]?.[value] ?? value
+}
+
+function cameraSummary(unit: ContentUnitRecord) {
+  return [
+    cameraOptionLabel('shot_size', unit.shot_size),
+    cameraOptionLabel('camera_angle', unit.camera_angle),
+    cameraOptionLabel('camera_motion', unit.camera_motion),
+    cameraOptionLabel('motion_intensity', unit.motion_intensity),
+    cameraOptionLabel('camera_speed', unit.camera_speed),
+    unit.lens,
+    unit.focal_length,
+    unit.focus_subject ? `焦点 ${unit.focus_subject}` : '',
+  ].filter((value) => value && value !== '-').join(' · ')
 }
 
 function dedupeUsages(usages: CreativeReferenceUsageRecord[]) {

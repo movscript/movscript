@@ -219,11 +219,44 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				textField("kind", "shared.type", "Kind", "input", true),
 				textField("status", "details.productionStatus", "Status", "input", true),
 				textField("priority", "details.priority", "Priority", "input", true),
+				numberField("creative_reference_id", "details.references", "Creative Reference", true),
+				numberField("creative_reference_state_id", "details.references", "Creative Reference State", true),
 				numberField("resource_id", "details.attachments", "Resource", true),
 				numberField("locked_asset_slot_id", "details.lockedAsset", "Locked Asset Slot", true),
 				textField("description", "shared.description", "Description", "textarea", true),
 				textField("slot_key", "details.slot", "Slot", "input", true),
 				textField("prompt_hint", "details.prompt", "Prompt Hint", "textarea", true),
+				candidateResourceField("candidates", "details.assetCandidates", "Candidates"),
+				jsonField("metadata_json", "details.contentManagement", "Metadata", true),
+			})},
+		},
+		{
+			Kind: "content_unit", LabelKey: "canvas.entityTypes.contentUnit", FallbackLabel: "Content Unit",
+			Sections: []EntitySemanticSection{section("content_unit", "canvas.entityTypes.contentUnit", "Content Unit", []EntitySemanticField{
+				resourceField("result", "details.attachments", "Result", "result", "output", false),
+				textField("title", "shared.title", "Title", "input", true),
+				textField("kind", "shared.type", "Kind", "input", true),
+				textField("status", "details.productionStatus", "Status", "input", true),
+				numberField("segment_id", "entities.segments", "Segment", true),
+				numberField("scene_moment_id", "entities.sceneMoments", "Scene Moment", true),
+				numberField("order", "details.order", "Order", true),
+				numberField("duration_sec", "details.duration", "Duration", true),
+				textField("description", "shared.description", "Description", "textarea", true),
+				textField("prompt", "details.prompt", "Prompt", "textarea", true),
+				textField("shot_size", "details.shotSize", "Shot Size", "input", true),
+				textField("camera_angle", "details.cameraAngle", "Camera Angle", "input", true),
+				textField("camera_height", "details.cameraHeight", "Camera Height", "input", true),
+				textField("camera_motion", "details.cameraMotion", "Camera Motion", "textarea", true),
+				textField("motion_intensity", "details.motionIntensity", "Motion Intensity", "input", true),
+				textField("camera_speed", "details.cameraSpeed", "Camera Speed", "input", true),
+				textField("lens", "details.lens", "Lens", "input", true),
+				textField("focal_length", "details.focalLength", "Focal Length", "input", true),
+				textField("focus_subject", "details.focusSubject", "Focus Subject", "input", true),
+				textField("composition_start", "details.compositionStart", "Start Composition", "textarea", true),
+				textField("composition_end", "details.compositionEnd", "End Composition", "textarea", true),
+				textField("stabilization", "details.stabilization", "Stabilization", "input", true),
+				jsonField("camera_params_json", "details.cameraParams", "Camera Params", true),
+				textField("camera_notes", "details.cameraNotes", "Camera Notes", "textarea", true),
 				jsonField("metadata_json", "details.contentManagement", "Metadata", true),
 			})},
 		},
@@ -300,8 +333,6 @@ func schemaMigrations(kind string) []EntityMigration {
 				Description: "Script core settings are readonly legacy data; write canonical settings to Setting records bound to the script.",
 			},
 		}
-	case "shot":
-		return nil
 	default:
 		return nil
 	}
@@ -514,6 +545,19 @@ func relatedListField(id string, labelKey string, fallback string, nestedKind st
 		Readonly: true,
 		Layout:   EntityFieldLayout{Width: "full", NestedKind: nestedKind, Relation: "children"},
 		IO:       FieldIO{Readable: true, Writable: false},
+	}
+}
+
+func candidateResourceField(id string, labelKey string, fallback string) EntitySemanticField {
+	return EntitySemanticField{
+		ID: id, LabelKey: labelKey, FallbackLabel: fallback, ValueType: "resource", Control: "related_entity_list",
+		Layout: EntityFieldLayout{Width: "full", NestedKind: "asset_slot", Relation: "children"},
+		IO:     FieldIO{Readable: true, Writable: true, MaxCount: 12},
+		Binding: &FieldBindingMap{
+			Role:     "candidate",
+			Slot:     id,
+			Multiple: true,
+		},
 	}
 }
 

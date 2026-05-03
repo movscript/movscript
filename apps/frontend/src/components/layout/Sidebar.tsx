@@ -4,31 +4,64 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Boxes,
+  AppWindow,
+  Archive,
+  Atom,
+  Badge,
+  Blocks,
+  BookOpenText,
+  Bot,
+  BrainCircuit,
   Bug,
+  Cable,
   ChevronDown,
   ChevronRight,
-  ClipboardList,
-  FileText,
-  Film,
+  CirclePlay,
+  CircleUserRound,
+  Clapperboard,
+  Component,
+  Eye,
+  Factory,
+  FileVideo,
+  FlaskConical,
+  FolderArchive,
   FolderOpen,
-  GitBranch,
-  ImagePlus,
-  LayoutTemplate,
-  LayoutDashboard,
+  Gem,
+  GitFork,
+  Hammer,
+  Home,
+  Images,
+  Layers3,
+  Lightbulb,
+  ListChecks,
+  ListTodo,
   LogOut,
-  MessageSquare,
+  Milestone,
+  MonitorCog,
   Move,
-  PackageCheck,
+  Network,
+  PackageSearch,
   PanelLeftClose,
   PanelLeftOpen,
   Palette,
+  Plug,
   Puzzle,
+  Radar,
+  Route,
   Scissors,
-  ShieldAlert,
+  ScanSearch,
+  ScrollText,
+  Send,
+  Shapes,
+  ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
-  Video,
-  Wand2,
+  Terminal,
+  Telescope,
+  ToyBrick,
+  Truck,
+  WandSparkles,
+  Wrench,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -39,6 +72,24 @@ import { Button } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
 
 const SIDEBAR_COLLAPSED_KEY = 'movscript-sidebar-collapsed'
+const PLUGIN_NAV_ICONS: LucideIcon[] = [
+  Puzzle,
+  Plug,
+  Cable,
+  Component,
+  Wrench,
+  Bot,
+  Atom,
+  Badge,
+  FlaskConical,
+  Gem,
+  Hammer,
+  Radar,
+  ScanSearch,
+  Terminal,
+  Telescope,
+  ToyBrick,
+]
 
 function NavItem({
   to,
@@ -197,11 +248,11 @@ export function Sidebar() {
 
           {current && (
             <>
-              <NavItem to="/project-home" icon={LayoutDashboard} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
-              <NavItem to="/scripts" icon={FileText} label={t('sidebar.items.script')} collapsed={collapsed} />
-              <NavItem to="/production" icon={Boxes} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
-              <NavItem to="/collaboration" icon={ClipboardList} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
-              <NavItem to="/delivery" icon={Video} label={t('sidebar.items.delivery')} collapsed={collapsed} />
+              <NavItem to="/project-home" icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to="/scripts" icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
+              <NavItem to="/production" icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
+              <NavItem to="/collaboration" icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
+              <NavItem to="/delivery" icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} />
             </>
           )}
         </Section>
@@ -210,20 +261,20 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.contentArea')} collapsed={collapsed}>
-              <NavItem to="/segments" icon={Film} label={t('sidebar.items.segments')} collapsed={collapsed} />
-              <NavItem to="/scene-moments" icon={Film} label={t('sidebar.items.sceneMoments')} collapsed={collapsed} />
+              <NavItem to="/segments" icon={Clapperboard} label={t('sidebar.items.segments')} collapsed={collapsed} />
+              <NavItem to="/scene-moments" icon={Milestone} label={t('sidebar.items.sceneMoments')} collapsed={collapsed} />
               <NavItem to="/creative-references" icon={Sparkles} label={t('sidebar.items.references')} collapsed={collapsed} />
-              <NavItem to="/assets" icon={PackageCheck} label={t('sidebar.items.assets')} collapsed={collapsed} />
-              <NavItem to="/reference-relations" icon={GitBranch} label={t('sidebar.items.relations')} collapsed={collapsed} />
-              <NavItem to="/contents" icon={Boxes} label={t('sidebar.items.content')} collapsed={collapsed} />
-              <NavItem to="/final-videos" icon={Video} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />
+              <NavItem to="/asset-slots" icon={PackageSearch} label={t('sidebar.items.assetSlots')} collapsed={collapsed} />
+              <NavItem to="/reference-relations" icon={Network} label={t('sidebar.items.relations')} collapsed={collapsed} />
+              <NavItem to="/contents" icon={Layers3} label={t('sidebar.items.contentUnits')} collapsed={collapsed} />
+              <NavItem to="/final-videos" icon={FileVideo} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />
             </Section>
 
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              <NavItem to="/workbench/production-plan" icon={Film} label={t('sidebar.items.workbenchProjectPreview')} collapsed={collapsed} />
-              <NavItem to="/workbench/assets" icon={PackageCheck} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
-              <NavItem to="/workbench/production" icon={Wand2} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
+              <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProjectPreview')} collapsed={collapsed} />
+              <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
+              <NavItem to="/workbench/production" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
             </Section>
           </>
         )}
@@ -232,27 +283,57 @@ export function Sidebar() {
 
         {/* Tools */}
         <Section title={t('sidebar.sections.tools')} collapsed={collapsed}>
-          <NavItem to="/canvases" icon={LayoutTemplate} label={t('sidebar.items.canvas')} collapsed={collapsed} />
-          <NavItem to="/tools/ref-image-gen" icon={ImagePlus} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
-          <NavItem to="/tools/ref-video-gen" icon={Video} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
+          <NavItem to="/canvases" icon={AppWindow} label={t('sidebar.items.canvas')} collapsed={collapsed} />
+          <NavItem to="/tools/ref-image-gen" icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
+          <NavItem to="/tools/ref-video-gen" icon={CirclePlay} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
           <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
-          <NavItem to="/tools/multi-angle" icon={Boxes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
+          <NavItem to="/tools/multi-angle" icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
           <NavItem to="/tools/video-edit" icon={Scissors} label={t('sidebar.items.videoEdit')} collapsed={collapsed} />
-          <NavItem to="/tools/brainstorm" icon={MessageSquare} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
-          {installedPlugins.map((plugin) => (
-            <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={Puzzle} label={plugin.name} collapsed={collapsed} />
+          <NavItem to="/tools/brainstorm" icon={BrainCircuit} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
+          {installedPlugins.map((plugin, index) => (
+            <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />
           ))}
+        </Section>
+
+        <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
+
+        {/* Files */}
+        <Section title={t('sidebar.sections.files')} collapsed={collapsed}>
+          <NavItem to="/resources" icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} />
+          <NavItem to="/jobs" icon={ListTodo} label={t('sidebar.items.jobs')} collapsed={collapsed} />
         </Section>
 
         <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
 
         {/* Manage */}
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
-          <NavItem to="/plugins" icon={Puzzle} label={t('sidebar.items.plugins')} collapsed={collapsed} />
+          <NavItem to="/plugins" icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
           <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
           {currentUser?.system_role === 'super_admin' && (
-            <NavItem to="/admin" icon={ShieldAlert} label={t('sidebar.items.admin')} collapsed={collapsed} />
+            <NavItem to="/admin" icon={ShieldCheck} label={t('sidebar.items.admin')} collapsed={collapsed} />
+          )}
+        </Section>
+
+        <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
+
+        {/* Unused routes kept visible for audit */}
+        <Section title={t('sidebar.sections.unused')} defaultOpen={false} collapsed={collapsed}>
+          {current && (
+            <>
+              <NavItem to="/project-preview" icon={Eye} label={t('sidebar.items.projectPreview')} collapsed={collapsed} />
+              <NavItem to="/workbench/script" icon={BookOpenText} label={t('sidebar.items.workbenchScript')} collapsed={collapsed} />
+              <NavItem to="/workbench/creative" icon={Lightbulb} label={t('sidebar.items.workbenchCreative')} collapsed={collapsed} />
+              <NavItem to="/workbench/delivery" icon={Send} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
+              <NavItem to="/workbench/reference-relations" icon={GitFork} label={t('sidebar.items.workbenchReferenceRelations')} collapsed={collapsed} />
+            </>
+          )}
+          <NavItem to="/user" icon={CircleUserRound} label={t('sidebar.items.user')} collapsed={collapsed} />
+          {currentUser?.system_role === 'super_admin' && (
+            <>
+              <NavItem to="/admin/debug" icon={MonitorCog} label={t('sidebar.items.adminDebug')} collapsed={collapsed} />
+              <NavItem to="/admin/ui-preview" icon={SlidersHorizontal} label={t('sidebar.items.adminUiPreview')} collapsed={collapsed} />
+            </>
           )}
         </Section>
 

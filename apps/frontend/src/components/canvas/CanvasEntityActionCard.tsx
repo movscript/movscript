@@ -93,9 +93,6 @@ export function CanvasEntityActionCard({
         className,
       )}
     >
-      <PortDot side="left" tone="neutral" label="entity in" className="top-[38px]" />
-      <PortDot side="right" tone="source" label="entity out" className="top-[38px]" />
-
       <header className={cn('border-b px-3 py-2.5', cfg.accentSoft)}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
@@ -309,6 +306,7 @@ function PortDot({
   handleType?: 'target' | 'source'
   renderPortHandle?: CanvasEntityPortHandleRenderer
 }) {
+  if (!handleId || !handleType || !renderPortHandle) return null
   return (
     <span
       title={label}
@@ -324,7 +322,7 @@ function PortDot({
       )}
       aria-hidden="true"
     >
-      {handleId && handleType && renderPortHandle?.({ id: handleId, type: handleType, side, label })}
+      {renderPortHandle({ id: handleId, type: handleType, side, label })}
     </span>
   )
 }

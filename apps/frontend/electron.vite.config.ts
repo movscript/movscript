@@ -33,6 +33,9 @@ export default defineConfig({
   renderer: {
     plugins: [react()],
     root: '.',
+    optimizeDeps: {
+      force: true,
+    },
     build: {
       rollupOptions: {
         input: resolve('index.html')

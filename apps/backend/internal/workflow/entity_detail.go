@@ -82,11 +82,19 @@ func EntitySchemaMigrationReportForKind(kind string) (EntitySchemaMigrationRepor
 }
 
 func (s *EntityIOService) ReadDetailValues(ctx context.Context, kind string, id uint) (EntitySemanticValues, error) {
+	return s.ReadDetailValuesByFields(ctx, kind, id, nil)
+}
+
+func (s *EntityIOService) ReadDetailValuesByFields(ctx context.Context, kind string, id uint, fieldIDs []string) (EntitySemanticValues, error) {
 	schema, ok := EntitySemanticSchemaForKind(kind)
 	if !ok {
 		return EntitySemanticValues{}, fmt.Errorf("unsupported entity type %q", kind)
 	}
-	portValues, err := s.ReadPorts(ctx, kind, id)
+	selection, err := resolveEntityPortSelection(kind, fieldIDs)
+	if err != nil {
+		return EntitySemanticValues{}, err
+	}
+	portValues, err := s.ReadPortsByIDs(ctx, kind, id, fieldIDs)
 	if err != nil {
 		return EntitySemanticValues{}, err
 	}
@@ -99,7 +107,7 @@ func (s *EntityIOService) ReadDetailValues(ctx context.Context, kind string, id 
 			}
 		}
 	}
-	related, err := s.readRelatedDetailValues(ctx, kind, id, schema)
+	related, err := s.readRelatedDetailValues(ctx, kind, id, schema, selection)
 	if err != nil {
 		return EntitySemanticValues{}, err
 	}
@@ -148,12 +156,15 @@ func detailNativeValue(field EntitySemanticField, value EntityPortValue) any {
 	return nil
 }
 
-func (s *EntityIOService) readRelatedDetailValues(ctx context.Context, kind string, id uint, schema EntitySemanticSchema) (map[string]any, error) {
+func (s *EntityIOService) readRelatedDetailValues(ctx context.Context, kind string, id uint, schema EntitySemanticSchema, selection map[string]struct{}) (map[string]any, error) {
 	result := map[string]any{}
 	relatedFields := []EntitySemanticField{}
 	for _, section := range schema.Sections {
 		for _, field := range section.Fields {
 			if field.Control == "related_entity_list" {
+				if !entityPortSelected(selection, EntityWorkflowPortID(field)) {
+					continue
+				}
 				relatedFields = append(relatedFields, field)
 			}
 		}
@@ -172,7 +183,58 @@ func (s *EntityIOService) readRelatedDetailValues(ctx context.Context, kind stri
 }
 
 func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string, id uint, field EntitySemanticField) ([]map[string]any, error) {
+	if kind == "asset_slot" && field.ID == "candidates" {
+		var candidates []model.AssetSlotCandidate
+		if err := s.db.WithContext(ctx).
+			Preload("CandidateAssetSlot.Resource").
+			Where("asset_slot_id = ?", id).
+			Order("status desc, score desc, id desc").
+			Find(&candidates).Error; err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(candidates))
+		for _, candidate := range candidates {
+			item := map[string]any{
+				"ID":                      candidate.ID,
+				"candidate_asset_slot_id": candidate.CandidateAssetSlotID,
+				"source_type":             candidate.SourceType,
+				"score":                   candidate.Score,
+				"status":                  candidate.Status,
+				"note":                    candidate.Note,
+			}
+			if candidate.CandidateAssetSlot != nil {
+				item["candidate_asset_slot"] = compactAssetSlot(*candidate.CandidateAssetSlot)
+			}
+			items = append(items, item)
+		}
+		return items, nil
+	}
 	return []map[string]any{}, nil
+}
+
+func compactAssetSlot(slot model.AssetSlot) map[string]any {
+	item := map[string]any{
+		"ID":          slot.ID,
+		"kind":        slot.Kind,
+		"name":        slot.Name,
+		"description": slot.Description,
+		"status":      slot.Status,
+		"resource_id": slot.ResourceID,
+	}
+	if slot.Resource != nil {
+		resourceURL := ""
+		if slot.Resource.ID != 0 {
+			resourceURL = fmt.Sprintf("/api/v1/resources/%d/file", slot.Resource.ID)
+		}
+		item["resource"] = map[string]any{
+			"ID":        slot.Resource.ID,
+			"type":      slot.Resource.Type,
+			"name":      slot.Resource.Name,
+			"url":       resourceURL,
+			"mime_type": slot.Resource.MimeType,
+		}
+	}
+	return item
 }
 
 func compactSettings(settings []model.Setting) []map[string]any {

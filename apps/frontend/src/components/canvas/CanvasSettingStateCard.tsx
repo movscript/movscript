@@ -69,9 +69,6 @@ export function CanvasSettingStateCard({
         className,
       )}
     >
-      <PortDot side="left" tone="target" label="state context in" className="top-[38px]" />
-      <PortDot side="right" tone="source" label="state expression out" className="top-[38px]" />
-
       <header className="border-b border-border bg-amber-500/10 px-3 py-2.5">
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
@@ -130,8 +127,6 @@ export function CanvasSettingStateCard({
         </div>
 
         <div className="relative rounded-md border border-border bg-muted/20 px-2 py-1.5">
-          <PortDot side="left" tone="target" label="context" compact />
-          <PortDot side="right" tone="source" label="prompt context" compact />
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
             <Link2 size={11} />
             <span className="min-w-0 flex-1 truncate">作为生成上下文注入到镜头、分镜、素材变体</span>
@@ -159,7 +154,6 @@ function BindingRow({ binding }: { binding: SettingStateBinding }) {
   const Icon = binding.state === 'ready' ? CheckCircle2 : AlertTriangle
   return (
     <div className="relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-1.5 text-[10px]">
-      <PortDot side="left" tone={binding.state === 'missing' ? 'neutral' : 'target'} label="asset in" compact />
       <Icon size={11} className={cn(
         'shrink-0',
         binding.state === 'ready' && 'text-emerald-600',
@@ -168,7 +162,6 @@ function BindingRow({ binding }: { binding: SettingStateBinding }) {
       )} />
       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{binding.label}</span>
       <span className="max-w-[70px] truncate text-muted-foreground">{binding.summary}</span>
-      <PortDot side="right" tone={binding.state === 'ready' ? 'source' : 'muted'} label="asset out" compact />
     </div>
   )
 }

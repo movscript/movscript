@@ -5,6 +5,7 @@ export type ApplyDraftMode = 'preview' | 'apply'
 
 export interface ApplyDraftInput {
   draftId?: unknown
+  projectId?: unknown
   target?: unknown
   targetEntityType?: unknown
   targetEntityId?: unknown
@@ -116,6 +117,7 @@ function buildReview(draft: AgentDraft, input: ApplyDraftInput): ApplyDraftRevie
 function inferTarget(draft: AgentDraft, input: ApplyDraftInput): AgentDraftTarget {
   return {
     ...(draft.target ?? {}),
+    ...(typeof input.projectId === 'number' || typeof input.projectId === 'string' ? { projectId: input.projectId } : {}),
     ...(typeof input.targetEntityType === 'string' && input.targetEntityType.trim() ? { entityType: input.targetEntityType.trim() } : {}),
     ...(typeof input.targetEntityId === 'number' || typeof input.targetEntityId === 'string' ? { entityId: input.targetEntityId } : {}),
     ...(typeof input.targetField === 'string' && input.targetField.trim() ? { field: input.targetField.trim() } : {}),
@@ -127,6 +129,7 @@ function normalizeTarget(value: unknown): AgentDraftTarget | undefined {
   const target: AgentDraftTarget = {
     ...(typeof value.entityType === 'string' && value.entityType.trim() ? { entityType: value.entityType.trim() } : {}),
     ...(typeof value.entityId === 'number' || typeof value.entityId === 'string' ? { entityId: value.entityId } : {}),
+    ...(typeof value.projectId === 'number' || typeof value.projectId === 'string' ? { projectId: value.projectId } : {}),
     ...(typeof value.field === 'string' && value.field.trim() ? { field: value.field.trim() } : {}),
   }
   return Object.keys(target).length > 0 ? target : undefined

@@ -71,6 +71,20 @@ export interface ContentUnit {
   kind: string
   order: number
   duration_sec: number
+  shot_size?: string
+  camera_angle?: string
+  camera_height?: string
+  camera_motion?: string
+  motion_intensity?: string
+  camera_speed?: string
+  lens?: string
+  focal_length?: string
+  focus_subject?: string
+  composition_start?: string
+  composition_end?: string
+  stabilization?: string
+  camera_params_json?: string
+  camera_notes?: string
   status: string
 }
 

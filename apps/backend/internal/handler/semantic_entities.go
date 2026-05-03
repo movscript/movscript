@@ -1,14 +1,17 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/workflow"
 	"gorm.io/gorm"
 )
 
@@ -561,18 +564,32 @@ func (h *SemanticEntityHandler) CreateContentUnit(c *gin.Context) {
 		return
 	}
 	item := model.ContentUnit{
-		ProjectID:     projectID,
-		ProductionID:  req.ProductionID,
-		SegmentID:     req.SegmentID,
-		SceneMomentID: req.SceneMomentID,
-		Kind:          fallbackString(req.Kind, "shot"),
-		Order:         req.Order,
-		Title:         req.Title,
-		Description:   req.Description,
-		Prompt:        req.Prompt,
-		DurationSec:   req.DurationSec,
-		Status:        fallbackString(req.Status, "draft"),
-		MetadataJSON:  req.MetadataJSON,
+		ProjectID:        projectID,
+		ProductionID:     req.ProductionID,
+		SegmentID:        req.SegmentID,
+		SceneMomentID:    req.SceneMomentID,
+		Kind:             fallbackString(req.Kind, "shot"),
+		Order:            req.Order,
+		Title:            req.Title,
+		Description:      req.Description,
+		Prompt:           req.Prompt,
+		DurationSec:      req.DurationSec,
+		ShotSize:         req.ShotSize,
+		CameraAngle:      req.CameraAngle,
+		CameraHeight:     req.CameraHeight,
+		CameraMotion:     req.CameraMotion,
+		MotionIntensity:  req.MotionIntensity,
+		CameraSpeed:      req.CameraSpeed,
+		Lens:             req.Lens,
+		FocalLength:      req.FocalLength,
+		FocusSubject:     req.FocusSubject,
+		CompositionStart: req.CompositionStart,
+		CompositionEnd:   req.CompositionEnd,
+		Stabilization:    req.Stabilization,
+		CameraParamsJSON: req.CameraParamsJSON,
+		CameraNotes:      req.CameraNotes,
+		Status:           fallbackString(req.Status, "draft"),
+		MetadataJSON:     req.MetadataJSON,
 	}
 	h.createItem(c, &item)
 }
@@ -594,17 +611,31 @@ func (h *SemanticEntityHandler) PatchContentUnit(c *gin.Context) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"production_id":   req.ProductionID,
-		"segment_id":      req.SegmentID,
-		"scene_moment_id": req.SceneMomentID,
-		"kind":            req.Kind,
-		"order":           req.Order,
-		"title":           req.Title,
-		"description":     req.Description,
-		"prompt":          req.Prompt,
-		"duration_sec":    req.DurationSec,
-		"status":          req.Status,
-		"metadata_json":   req.MetadataJSON,
+		"production_id":      req.ProductionID,
+		"segment_id":         req.SegmentID,
+		"scene_moment_id":    req.SceneMomentID,
+		"kind":               req.Kind,
+		"order":              req.Order,
+		"title":              req.Title,
+		"description":        req.Description,
+		"prompt":             req.Prompt,
+		"duration_sec":       req.DurationSec,
+		"shot_size":          req.ShotSize,
+		"camera_angle":       req.CameraAngle,
+		"camera_height":      req.CameraHeight,
+		"camera_motion":      req.CameraMotion,
+		"motion_intensity":   req.MotionIntensity,
+		"camera_speed":       req.CameraSpeed,
+		"lens":               req.Lens,
+		"focal_length":       req.FocalLength,
+		"focus_subject":      req.FocusSubject,
+		"composition_start":  req.CompositionStart,
+		"composition_end":    req.CompositionEnd,
+		"stabilization":      req.Stabilization,
+		"camera_params_json": req.CameraParamsJSON,
+		"camera_notes":       req.CameraNotes,
+		"status":             req.Status,
+		"metadata_json":      req.MetadataJSON,
 	}))
 }
 
@@ -1201,11 +1232,14 @@ func (h *SemanticEntityHandler) ListAssetSlots(c *gin.Context) {
 	}
 	if ownerType := strings.TrimSpace(c.Query("owner_type")); ownerType != "" {
 		q = q.Where("owner_type = ?", ownerType)
+	} else if !truthyQuery(c.Query("include_internal")) {
+		q = q.Where("owner_type <> ? OR owner_type IS NULL OR owner_type = ''", "asset_slot")
 	}
 	if err := q.Order("status, priority desc, id desc").Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
+	populateAssetSlotResourceURLs(c, items)
 	c.JSON(http.StatusOK, items)
 }
 
@@ -1244,12 +1278,13 @@ func (h *SemanticEntityHandler) PatchAssetSlot(c *gin.Context) {
 	if !h.loadProjectItem(c, &item, c.Param("slotId")) {
 		return
 	}
-	var req assetSlotInput
+	var req assetSlotPatchInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "production", req.ProductionID) {
+	if !h.optionalOwnerInProject(c, "production", req.ProductionID) ||
+		!h.optionalOwnerInProject(c, "asset_slot", req.LockedAssetSlotID) {
 		return
 	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
@@ -1284,6 +1319,7 @@ func (h *SemanticEntityHandler) ListAssetSlotCandidates(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
+	populateAssetSlotCandidateResourceURLs(c, items)
 	c.JSON(http.StatusOK, items)
 }
 
@@ -1294,7 +1330,41 @@ func (h *SemanticEntityHandler) CreateAssetSlotCandidate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.ownerInProject(c, "asset_slot", req.AssetSlotID) || !h.ownerInProject(c, "asset_slot", req.CandidateAssetSlotID) {
+	if !h.ownerInProject(c, "asset_slot", req.AssetSlotID) {
+		return
+	}
+	if req.ResourceID != nil && *req.ResourceID > 0 {
+		userID := uint(0)
+		if id := currentUserID(c); id != nil {
+			userID = *id
+		}
+		result, err := workflow.NewEntityIOService(h.db).AttachAssetSlotCandidate(c.Request.Context(), workflow.AttachAssetSlotCandidateInput{
+			ProjectID:   projectID,
+			AssetSlotID: req.AssetSlotID,
+			ResourceID:  *req.ResourceID,
+			SourceType:  fallbackString(req.SourceType, "manual"),
+			SourceID:    req.SourceID,
+			UserID:      userID,
+			Score:       req.Score,
+			Note:        fallbackString(req.Note, "由素材库加入"),
+			Slot:        "candidate",
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+			return
+		}
+		item := result.Candidate
+		if err := h.db.Preload("CandidateAssetSlot.Resource").First(&item, item.ID).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+			return
+		}
+		single := []model.AssetSlotCandidate{item}
+		populateAssetSlotCandidateResourceURLs(c, single)
+		item = single[0]
+		c.JSON(http.StatusCreated, item)
+		return
+	}
+	if !h.ownerInProject(c, "asset_slot", req.CandidateAssetSlotID) {
 		return
 	}
 	item := model.AssetSlotCandidate{
@@ -1498,8 +1568,12 @@ func (h *SemanticEntityHandler) PatchReviewEvent(c *gin.Context) {
 }
 
 func (h *SemanticEntityHandler) ListWorkItems(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	if _, _, ok := h.projectRole(c, projectID); !ok {
+		return
+	}
 	var items []model.WorkItem
-	q := h.db.Preload("Assignee").Where("project_id = ?", parseID(c.Param("id")))
+	q := h.db.Preload("Assignee").Where("project_id = ?", projectID)
 	if productionID := parseID(c.Query("production_id")); productionID > 0 {
 		q = q.Where("production_id = ?", productionID)
 	}
@@ -1517,16 +1591,25 @@ func (h *SemanticEntityHandler) ListWorkItems(c *gin.Context) {
 }
 
 func (h *SemanticEntityHandler) CreateWorkItem(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以分配任务"))
+		return
+	}
 	var req workItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "production", req.ProductionID) {
+	if !h.validateWorkItemInput(c, projectID, req) {
 		return
 	}
 	item := model.WorkItem{
-		ProjectID:      parseID(c.Param("id")),
+		ProjectID:      projectID,
 		ProductionID:   req.ProductionID,
 		TargetType:     req.TargetType,
 		TargetID:       req.TargetID,
@@ -1538,14 +1621,29 @@ func (h *SemanticEntityHandler) CreateWorkItem(c *gin.Context) {
 		AssigneeID:     req.AssigneeID,
 		SourceJobID:    req.SourceJobID,
 		SourceCanvasID: req.SourceCanvasID,
+		ResultType:     fallbackString(req.ResultType, "none"),
+		ResultJSON:     req.ResultJSON,
+		ApplyStatus:    initialWorkItemApplyStatus(req.ResultType),
+		AppliedAt:      req.AppliedAt,
+		ApplyError:     req.ApplyError,
 		MetadataJSON:   req.MetadataJSON,
 	}
 	h.createItem(c, &item)
 }
 
 func (h *SemanticEntityHandler) PatchWorkItem(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
 	var item model.WorkItem
 	if !h.loadProjectItem(c, &item, c.Param("workItemId")) {
+		return
+	}
+	role, userID, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	isManager := isWorkItemManagerRole(role)
+	if !isManager && (item.AssigneeID == nil || *item.AssigneeID != userID) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只能推进分配给自己的任务"))
 		return
 	}
 	var req workItemInput
@@ -1553,10 +1651,26 @@ func (h *SemanticEntityHandler) PatchWorkItem(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if !h.optionalOwnerInProject(c, "production", req.ProductionID) {
+	if !h.validateWorkItemInput(c, projectID, req) {
 		return
 	}
-	h.patchItem(c, &item, compactUpdates(map[string]any{
+	if !isManager {
+		if !workItemInputKeepsAssignment(item, req) {
+			c.JSON(http.StatusForbidden, apierr.InvalidInput("执行人只能更新状态、交付说明和关联产出"))
+			return
+		}
+		switch fallbackString(req.Status, item.Status) {
+		case "running", "review":
+		default:
+			c.JSON(http.StatusForbidden, apierr.InvalidInput("执行人只能将任务推进到进行中或待审核"))
+			return
+		}
+	}
+	if !isManager && (req.Status == "done" || req.Status == "cancelled") {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以完成或取消任务"))
+		return
+	}
+	updates := compactUpdates(map[string]any{
 		"production_id":    req.ProductionID,
 		"target_type":      req.TargetType,
 		"target_id":        req.TargetID,
@@ -1569,12 +1683,41 @@ func (h *SemanticEntityHandler) PatchWorkItem(c *gin.Context) {
 		"source_job_id":    req.SourceJobID,
 		"source_canvas_id": req.SourceCanvasID,
 		"metadata_json":    req.MetadataJSON,
-	}))
+	})
+	if strings.TrimSpace(req.ResultType) != "" || strings.TrimSpace(req.ResultJSON) != "" {
+		updates["result_type"] = fallbackString(req.ResultType, item.ResultType)
+		updates["result_json"] = req.ResultJSON
+		updates["apply_status"] = applyStatusForWorkItemPatch(item, req)
+		updates["applied_at"] = req.AppliedAt
+		updates["apply_error"] = req.ApplyError
+	}
+	if fallbackString(req.Status, item.Status) == "done" {
+		h.completeWorkItem(c, &item, updates)
+		return
+	}
+	h.patchItem(c, &item, updates)
+}
+
+func (h *SemanticEntityHandler) DeleteWorkItem(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以删除任务"))
+		return
+	}
+	h.DeleteSemanticItem(c, &model.WorkItem{}, c.Param("workItemId"))
 }
 
 func (h *SemanticEntityHandler) ListWorkReviews(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	if _, _, ok := h.projectRole(c, projectID); !ok {
+		return
+	}
 	var items []model.WorkReview
-	q := h.db.Preload("Reviewer").Where("project_id = ?", parseID(c.Param("id")))
+	q := h.db.Preload("Reviewer").Where("project_id = ?", projectID)
 	if workItemID := parseID(c.Query("work_item_id")); workItemID > 0 {
 		q = q.Where("work_item_id = ?", workItemID)
 	}
@@ -1590,12 +1733,25 @@ func (h *SemanticEntityHandler) ListWorkReviews(c *gin.Context) {
 
 func (h *SemanticEntityHandler) CreateWorkReview(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
+	role, userID, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以审核任务"))
+		return
+	}
 	var req workReviewInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
 	if !h.ownerInProject(c, "work_item", req.WorkItemID) {
+		return
+	}
+	if req.ReviewerID == nil {
+		req.ReviewerID = &userID
+	} else if !h.userInProject(c, projectID, *req.ReviewerID) {
 		return
 	}
 	item := model.WorkReview{
@@ -1610,6 +1766,15 @@ func (h *SemanticEntityHandler) CreateWorkReview(c *gin.Context) {
 }
 
 func (h *SemanticEntityHandler) PatchWorkReview(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以修改审核记录"))
+		return
+	}
 	var item model.WorkReview
 	if !h.loadProjectItem(c, &item, c.Param("reviewId")) {
 		return
@@ -1622,6 +1787,9 @@ func (h *SemanticEntityHandler) PatchWorkReview(c *gin.Context) {
 	if !h.ownerInProject(c, "work_item", req.WorkItemID) {
 		return
 	}
+	if req.ReviewerID != nil && !h.userInProject(c, projectID, *req.ReviewerID) {
+		return
+	}
 	h.patchItem(c, &item, compactUpdates(map[string]any{
 		"work_item_id":  req.WorkItemID,
 		"reviewer_id":   req.ReviewerID,
@@ -1631,9 +1799,26 @@ func (h *SemanticEntityHandler) PatchWorkReview(c *gin.Context) {
 	}))
 }
 
+func (h *SemanticEntityHandler) DeleteWorkReview(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以删除审核记录"))
+		return
+	}
+	h.DeleteSemanticItem(c, &model.WorkReview{}, c.Param("reviewId"))
+}
+
 func (h *SemanticEntityHandler) ListWorkDependencies(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	if _, _, ok := h.projectRole(c, projectID); !ok {
+		return
+	}
 	var items []model.WorkDependency
-	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
+	q := h.db.Where("project_id = ?", projectID)
 	if workItemID := parseID(c.Query("work_item_id")); workItemID > 0 {
 		q = q.Where("work_item_id = ?", workItemID)
 	}
@@ -1646,6 +1831,14 @@ func (h *SemanticEntityHandler) ListWorkDependencies(c *gin.Context) {
 
 func (h *SemanticEntityHandler) CreateWorkDependency(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以维护任务依赖"))
+		return
+	}
 	var req workDependencyInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
@@ -1664,6 +1857,15 @@ func (h *SemanticEntityHandler) CreateWorkDependency(c *gin.Context) {
 }
 
 func (h *SemanticEntityHandler) PatchWorkDependency(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以维护任务依赖"))
+		return
+	}
 	var item model.WorkDependency
 	if !h.loadProjectItem(c, &item, c.Param("dependencyId")) {
 		return
@@ -1681,6 +1883,19 @@ func (h *SemanticEntityHandler) PatchWorkDependency(c *gin.Context) {
 		"depends_on_work_item_id": req.DependsOnWorkItemID,
 		"dependency_type":         req.DependencyType,
 	}))
+}
+
+func (h *SemanticEntityHandler) DeleteWorkDependency(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	role, _, ok := h.projectRole(c, projectID)
+	if !ok {
+		return
+	}
+	if !isWorkItemManagerRole(role) {
+		c.JSON(http.StatusForbidden, apierr.InvalidInput("只有项目负责人或导演可以删除任务依赖"))
+		return
+	}
+	h.DeleteSemanticItem(c, &model.WorkDependency{}, c.Param("dependencyId"))
 }
 
 func (h *SemanticEntityHandler) ListDeliveryVersions(c *gin.Context) {
@@ -2012,6 +2227,172 @@ func (h *SemanticEntityHandler) loadProjectItem(c *gin.Context, item any, id str
 	return true
 }
 
+func (h *SemanticEntityHandler) completeWorkItem(c *gin.Context, item *model.WorkItem, updates map[string]any) {
+	projectID := parseID(c.Param("id"))
+	actorID := currentUserID(c)
+	now := time.Now().UTC().Format(time.RFC3339)
+	var applyErr error
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		next := *item
+		applyWorkItemUpdates(&next, updates)
+		next.ResultType = fallbackString(next.ResultType, "none")
+		if next.ResultType == "none" {
+			updates["apply_status"] = "not_applicable"
+			updates["applied_at"] = ""
+			updates["apply_error"] = ""
+		} else {
+			updates["apply_status"] = "pending"
+			updates["apply_error"] = ""
+		}
+		if err := tx.Model(item).Updates(updates).Error; err != nil {
+			return err
+		}
+		if next.ResultType != "none" {
+			applyErr = h.applyWorkItemResult(tx, projectID, next, actorID, now)
+			if applyErr != nil {
+				return applyErr
+			}
+			if err := tx.Model(item).Updates(map[string]any{
+				"apply_status": "applied",
+				"applied_at":   now,
+				"apply_error":  "",
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if applyErr != nil {
+			_ = h.db.Model(item).Updates(map[string]any{
+				"apply_status": "failed",
+				"apply_error":  applyErr.Error(),
+			}).Error
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput(applyErr.Error()))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	h.db.Preload("Assignee").First(item, item.ID)
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *SemanticEntityHandler) applyWorkItemResult(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
+	switch fallbackString(item.ResultType, "none") {
+	case "status_change":
+		return h.applyWorkItemStatusChange(tx, projectID, item, actorID, appliedAt)
+	case "lock_asset_candidate":
+		return h.applyWorkItemAssetCandidate(tx, projectID, item, actorID, appliedAt)
+	case "accept_keyframe":
+		return h.applyWorkItemTargetStatus(tx, projectID, item, "keyframe", "accepted", actorID, appliedAt)
+	case "approve_delivery_version":
+		return h.applyWorkItemTargetStatus(tx, projectID, item, "delivery_version", "approved", actorID, appliedAt)
+	default:
+		return nil
+	}
+}
+
+func (h *SemanticEntityHandler) applyWorkItemStatusChange(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
+	payload, err := decodeWorkItemResultJSON(item.ResultJSON)
+	if err != nil {
+		return err
+	}
+	status := fallbackString(payload.Status, payload.TargetStatus)
+	if status == "" {
+		return errors.New("status_change 需要在 result_json.status 中声明目标状态")
+	}
+	return h.applyWorkItemTargetStatus(tx, projectID, item, item.TargetType, status, actorID, appliedAt)
+}
+
+func (h *SemanticEntityHandler) applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
+	if item.TargetType != "asset_slot" {
+		return errors.New("lock_asset_candidate 只能应用到 asset_slot 任务")
+	}
+	payload, err := decodeWorkItemResultJSON(item.ResultJSON)
+	if err != nil {
+		return err
+	}
+	if payload.AssetSlotCandidateID == 0 {
+		return errors.New("lock_asset_candidate 需要 result_json.asset_slot_candidate_id")
+	}
+	var candidate model.AssetSlotCandidate
+	if err := tx.Preload("CandidateAssetSlot").Where("project_id = ?", projectID).First(&candidate, payload.AssetSlotCandidateID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("素材候选不存在")
+		}
+		return err
+	}
+	if candidate.AssetSlotID != item.TargetID {
+		return errors.New("素材候选不属于当前任务目标素材位")
+	}
+	if candidate.CandidateAssetSlot == nil {
+		return errors.New("素材候选缺少候选素材位")
+	}
+	if err := tx.Model(&model.AssetSlot{}).
+		Where("project_id = ? AND id = ?", projectID, item.TargetID).
+		Updates(map[string]any{
+			"status":               "locked",
+			"locked_asset_slot_id": candidate.CandidateAssetSlotID,
+			"resource_id":          candidate.CandidateAssetSlot.ResourceID,
+		}).Error; err != nil {
+		return err
+	}
+	if err := tx.Model(&model.AssetSlotCandidate{}).
+		Where("project_id = ? AND asset_slot_id = ? AND id <> ?", projectID, item.TargetID, candidate.ID).
+		Update("status", "rejected").Error; err != nil {
+		return err
+	}
+	if err := tx.Model(&candidate).Update("status", "selected").Error; err != nil {
+		return err
+	}
+	targetID := item.TargetID
+	candidateID := candidate.ID
+	if err := tx.Create(&model.CandidateDecision{
+		ProjectID:     projectID,
+		CandidateType: "asset_slot_candidate",
+		CandidateID:   &candidateID,
+		TargetType:    "asset_slot",
+		TargetID:      &targetID,
+		Decision:      "accept",
+		Status:        "applied",
+		Source:        "manual",
+		DecidedByID:   actorID,
+		AppliedAt:     appliedAt,
+		MetadataJSON:  workItemApplyMetadata(item.ID),
+	}).Error; err != nil {
+		return err
+	}
+	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
+}
+
+func (h *SemanticEntityHandler) applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem, targetType string, status string, actorID *uint, appliedAt string) error {
+	if item.TargetType != targetType {
+		return errors.New("任务结果类型与目标类型不匹配")
+	}
+	switch targetType {
+	case "content_unit":
+		if err := tx.Model(&model.ContentUnit{}).Where("project_id = ? AND id = ?", projectID, item.TargetID).Update("status", status).Error; err != nil {
+			return err
+		}
+	case "keyframe":
+		if err := tx.Model(&model.Keyframe{}).Where("project_id = ? AND id = ?", projectID, item.TargetID).Update("status", status).Error; err != nil {
+			return err
+		}
+	case "asset_slot":
+		if err := tx.Model(&model.AssetSlot{}).Where("project_id = ? AND id = ?", projectID, item.TargetID).Update("status", status).Error; err != nil {
+			return err
+		}
+	case "delivery_version":
+		if err := tx.Model(&model.DeliveryVersion{}).Where("project_id = ? AND id = ?", projectID, item.TargetID).Update("status", status).Error; err != nil {
+			return err
+		}
+	default:
+		return errors.New("该目标类型暂不支持由任务结果更新状态")
+	}
+	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
+}
+
 func (h *SemanticEntityHandler) ownerInProject(c *gin.Context, ownerType string, ownerID uint) bool {
 	if ownerID == 0 {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner id is required"))
@@ -2042,9 +2423,209 @@ func (h *SemanticEntityHandler) optionalScopedOwnerInProject(c *gin.Context, own
 	return h.ownerInProject(c, ownerType, *ownerID)
 }
 
+func (h *SemanticEntityHandler) projectRole(c *gin.Context, projectID uint) (string, uint, bool) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, apierr.InvalidInput("未登录"))
+		return "", 0, false
+	}
+	if projectID == 0 {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("project id is required"))
+		return "", 0, false
+	}
+	if user.SystemRole == "super_admin" {
+		var project model.Project
+		if err := h.db.Select("id").First(&project, projectID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+				return "", 0, false
+			}
+			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+			return "", 0, false
+		}
+		return "super_admin", user.ID, true
+	}
+
+	var project model.Project
+	if err := h.db.Select("id, owner_id").First(&project, projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			return "", 0, false
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return "", 0, false
+	}
+	if project.OwnerID == user.ID {
+		return "owner", user.ID, true
+	}
+	var member model.ProjectMember
+	if err := h.db.Where("project_id = ? AND user_id = ?", projectID, user.ID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, apierr.InvalidInput("不是项目成员"))
+			return "", 0, false
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return "", 0, false
+	}
+	return member.Role, user.ID, true
+}
+
+func isWorkItemManagerRole(role string) bool {
+	switch role {
+	case "super_admin", "owner", "director":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *SemanticEntityHandler) userInProject(c *gin.Context, projectID, userID uint) bool {
+	if userID == 0 {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("user id is required"))
+		return false
+	}
+	var count int64
+	h.db.Model(&model.Project{}).Where("id = ? AND owner_id = ?", projectID, userID).Count(&count)
+	if count > 0 {
+		return true
+	}
+	h.db.Model(&model.ProjectMember{}).Where("project_id = ? AND user_id = ?", projectID, userID).Count(&count)
+	if count == 0 {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("执行成员不属于当前项目"))
+		return false
+	}
+	return true
+}
+
+func (h *SemanticEntityHandler) validateWorkItemInput(c *gin.Context, projectID uint, req workItemInput) bool {
+	if strings.TrimSpace(req.Title) == "" {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("任务标题不能为空"))
+		return false
+	}
+	if !validWorkItemKind(fallbackString(req.Kind, "human")) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("任务类型无效"))
+		return false
+	}
+	if !validWorkItemStatus(fallbackString(req.Status, "todo")) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("任务状态无效"))
+		return false
+	}
+	if !validWorkItemPriority(fallbackString(req.Priority, "normal")) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("任务优先级无效"))
+		return false
+	}
+	if !validWorkItemResultType(fallbackString(req.ResultType, "none")) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("任务结果类型无效"))
+		return false
+	}
+	if strings.TrimSpace(req.ResultJSON) != "" && !validJSONObject(req.ResultJSON) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("任务结果必须是 JSON 对象"))
+		return false
+	}
+	if !h.optionalOwnerInProject(c, "production", req.ProductionID) {
+		return false
+	}
+	if !h.ownerInProject(c, req.TargetType, req.TargetID) {
+		return false
+	}
+	if req.AssigneeID != nil && !h.userInProject(c, projectID, *req.AssigneeID) {
+		return false
+	}
+	if req.SourceJobID != nil && !h.jobInProject(c, projectID, *req.SourceJobID) {
+		return false
+	}
+	if req.SourceCanvasID != nil && !h.ownerInProject(c, "canvas", *req.SourceCanvasID) {
+		return false
+	}
+	return true
+}
+
+func workItemInputKeepsAssignment(item model.WorkItem, req workItemInput) bool {
+	if req.TargetType != item.TargetType || req.TargetID != item.TargetID {
+		return false
+	}
+	if req.Title != item.Title || req.Description != item.Description || req.Kind != item.Kind || req.Priority != item.Priority {
+		return false
+	}
+	if !sameUintPtr(req.ProductionID, item.ProductionID) || !sameUintPtr(req.AssigneeID, item.AssigneeID) {
+		return false
+	}
+	return true
+}
+
+func sameUintPtr(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func validWorkItemResultType(resultType string) bool {
+	switch resultType {
+	case "none", "status_change", "lock_asset_candidate", "accept_keyframe", "approve_delivery_version":
+		return true
+	default:
+		return false
+	}
+}
+
+func validWorkItemKind(kind string) bool {
+	switch kind {
+	case "human", "ai", "hybrid", "review", "fix":
+		return true
+	default:
+		return false
+	}
+}
+
+func validWorkItemStatus(status string) bool {
+	switch status {
+	case "todo", "running", "blocked", "review", "done", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func validWorkItemPriority(priority string) bool {
+	switch priority {
+	case "low", "normal", "high", "critical":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *SemanticEntityHandler) jobInProject(c *gin.Context, projectID, jobID uint) bool {
+	if jobID == 0 {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("source job id is required"))
+		return false
+	}
+	var job model.Job
+	if err := h.db.Select("id, project_id").First(&job, jobID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, apierr.NotFound("关联任务不存在"))
+			return false
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return false
+	}
+	if job.ProjectID == nil || *job.ProjectID != projectID {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("关联任务不属于当前项目"))
+		return false
+	}
+	return true
+}
+
 func (h *SemanticEntityHandler) ensureSemanticOwnerInProject(projectID uint, ownerType string, ownerID uint) error {
 	var ownerProjectID uint
 	switch ownerType {
+	case "project":
+		var item model.Project
+		if err := h.db.Select("id").First(&item, ownerID).Error; err != nil {
+			return err
+		}
+		ownerProjectID = item.ID
 	case "script_version":
 		var item model.ScriptVersion
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
@@ -2216,6 +2797,34 @@ func currentUserID(c *gin.Context) *uint {
 	return nil
 }
 
+func truthyQuery(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func populateAssetSlotResourceURLs(c *gin.Context, items []model.AssetSlot) {
+	for i := range items {
+		if items[i].Resource != nil {
+			items[i].Resource.URL = resourceURL(c, items[i].Resource.ID)
+		}
+		if items[i].LockedAssetSlot != nil && items[i].LockedAssetSlot.Resource != nil {
+			items[i].LockedAssetSlot.Resource.URL = resourceURL(c, items[i].LockedAssetSlot.Resource.ID)
+		}
+	}
+}
+
+func populateAssetSlotCandidateResourceURLs(c *gin.Context, items []model.AssetSlotCandidate) {
+	for i := range items {
+		if items[i].CandidateAssetSlot != nil && items[i].CandidateAssetSlot.Resource != nil {
+			items[i].CandidateAssetSlot.Resource.URL = resourceURL(c, items[i].CandidateAssetSlot.Resource.ID)
+		}
+	}
+}
+
 func fallbackString(value string, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -2251,6 +2860,129 @@ func compactUpdates(values map[string]any) map[string]any {
 		}
 	}
 	return updates
+}
+
+type workItemResultPayload struct {
+	Status               string `json:"status"`
+	TargetStatus         string `json:"target_status"`
+	AssetSlotCandidateID uint   `json:"asset_slot_candidate_id"`
+}
+
+func decodeWorkItemResultJSON(raw string) (workItemResultPayload, error) {
+	var payload workItemResultPayload
+	if strings.TrimSpace(raw) == "" {
+		return payload, errors.New("任务结果需要 result_json")
+	}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return payload, errors.New("任务结果 JSON 无效")
+	}
+	return payload, nil
+}
+
+func validJSONObject(raw string) bool {
+	var value map[string]any
+	return json.Unmarshal([]byte(raw), &value) == nil
+}
+
+func initialWorkItemApplyStatus(resultType string) string {
+	if fallbackString(resultType, "none") == "none" {
+		return "not_applicable"
+	}
+	return "pending"
+}
+
+func applyStatusForWorkItemPatch(item model.WorkItem, req workItemInput) string {
+	resultType := fallbackString(req.ResultType, item.ResultType)
+	if resultType == "none" {
+		return "not_applicable"
+	}
+	if resultType != item.ResultType || strings.TrimSpace(req.ResultJSON) != strings.TrimSpace(item.ResultJSON) {
+		return "pending"
+	}
+	if item.ApplyStatus == "" || item.ApplyStatus == "not_applicable" {
+		return "pending"
+	}
+	return item.ApplyStatus
+}
+
+func applyWorkItemUpdates(item *model.WorkItem, updates map[string]any) {
+	if value, ok := updates["production_id"].(*uint); ok {
+		item.ProductionID = value
+	}
+	if value, ok := updates["target_type"].(string); ok {
+		item.TargetType = value
+	}
+	if value, ok := updates["target_id"].(uint); ok {
+		item.TargetID = value
+	}
+	if value, ok := updates["kind"].(string); ok {
+		item.Kind = value
+	}
+	if value, ok := updates["title"].(string); ok {
+		item.Title = value
+	}
+	if value, ok := updates["description"].(string); ok {
+		item.Description = value
+	}
+	if value, ok := updates["status"].(string); ok {
+		item.Status = value
+	}
+	if value, ok := updates["priority"].(string); ok {
+		item.Priority = value
+	}
+	if value, ok := updates["assignee_id"].(*uint); ok {
+		item.AssigneeID = value
+	}
+	if value, ok := updates["source_job_id"].(*uint); ok {
+		item.SourceJobID = value
+	}
+	if value, ok := updates["source_canvas_id"].(*uint); ok {
+		item.SourceCanvasID = value
+	}
+	if value, ok := updates["result_type"].(string); ok {
+		item.ResultType = value
+	}
+	if value, ok := updates["result_json"].(string); ok {
+		item.ResultJSON = value
+	}
+	if value, ok := updates["apply_status"].(string); ok {
+		item.ApplyStatus = value
+	}
+	if value, ok := updates["applied_at"].(string); ok {
+		item.AppliedAt = value
+	}
+	if value, ok := updates["apply_error"].(string); ok {
+		item.ApplyError = value
+	}
+	if value, ok := updates["metadata_json"].(string); ok {
+		item.MetadataJSON = value
+	}
+}
+
+func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
+	subjectID := item.TargetID
+	metadata := workItemApplyMetadata(item.ID)
+	if appliedAt != "" {
+		data, _ := json.Marshal(map[string]any{"work_item_id": item.ID, "applied_at": appliedAt})
+		metadata = string(data)
+	}
+	return tx.Create(&model.ReviewEvent{
+		ProjectID:    projectID,
+		SubjectType:  item.TargetType,
+		SubjectID:    &subjectID,
+		EventType:    "applied",
+		FromStatus:   "",
+		ToStatus:     item.ResultType,
+		Comment:      "任务完成后应用结果",
+		Source:       "manual",
+		ActorID:      actorID,
+		MetadataJSON: metadata,
+	}).Error
+}
+
+func workItemApplyMetadata(workItemID uint) string {
+	data, _ := json.Marshal(map[string]any{"work_item_id": workItemID})
+	return string(data)
 }
 
 func populateKeyframeResourceURLs(c *gin.Context, items []model.Keyframe) {
@@ -2383,17 +3115,31 @@ type productionInput struct {
 }
 
 type contentUnitInput struct {
-	ProductionID  *uint   `json:"production_id"`
-	SegmentID     *uint   `json:"segment_id"`
-	SceneMomentID *uint   `json:"scene_moment_id"`
-	Kind          string  `json:"kind"`
-	Order         int     `json:"order"`
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	Prompt        string  `json:"prompt"`
-	DurationSec   float64 `json:"duration_sec"`
-	Status        string  `json:"status"`
-	MetadataJSON  string  `json:"metadata_json"`
+	ProductionID     *uint   `json:"production_id"`
+	SegmentID        *uint   `json:"segment_id"`
+	SceneMomentID    *uint   `json:"scene_moment_id"`
+	Kind             string  `json:"kind"`
+	Order            int     `json:"order"`
+	Title            string  `json:"title"`
+	Description      string  `json:"description"`
+	Prompt           string  `json:"prompt"`
+	DurationSec      float64 `json:"duration_sec"`
+	ShotSize         string  `json:"shot_size"`
+	CameraAngle      string  `json:"camera_angle"`
+	CameraHeight     string  `json:"camera_height"`
+	CameraMotion     string  `json:"camera_motion"`
+	MotionIntensity  string  `json:"motion_intensity"`
+	CameraSpeed      string  `json:"camera_speed"`
+	Lens             string  `json:"lens"`
+	FocalLength      string  `json:"focal_length"`
+	FocusSubject     string  `json:"focus_subject"`
+	CompositionStart string  `json:"composition_start"`
+	CompositionEnd   string  `json:"composition_end"`
+	Stabilization    string  `json:"stabilization"`
+	CameraParamsJSON string  `json:"camera_params_json"`
+	CameraNotes      string  `json:"camera_notes"`
+	Status           string  `json:"status"`
+	MetadataJSON     string  `json:"metadata_json"`
 }
 
 type contentUnitPatchInput = contentUnitInput
@@ -2513,9 +3259,28 @@ type assetSlotInput struct {
 	MetadataJSON             string `json:"metadata_json"`
 }
 
+type assetSlotPatchInput struct {
+	ProductionID             *uint  `json:"production_id"`
+	CreativeReferenceID      *uint  `json:"creative_reference_id"`
+	CreativeReferenceStateID *uint  `json:"creative_reference_state_id"`
+	OwnerType                string `json:"owner_type"`
+	OwnerID                  *uint  `json:"owner_id"`
+	Kind                     string `json:"kind"`
+	Name                     string `json:"name"`
+	Description              string `json:"description"`
+	SlotKey                  string `json:"slot_key"`
+	PromptHint               string `json:"prompt_hint"`
+	Status                   string `json:"status"`
+	Priority                 string `json:"priority"`
+	ResourceID               *uint  `json:"resource_id"`
+	LockedAssetSlotID        *uint  `json:"locked_asset_slot_id"`
+	MetadataJSON             string `json:"metadata_json"`
+}
+
 type assetSlotCandidateInput struct {
 	AssetSlotID          uint    `json:"asset_slot_id" binding:"required"`
-	CandidateAssetSlotID uint    `json:"candidate_asset_slot_id" binding:"required"`
+	CandidateAssetSlotID uint    `json:"candidate_asset_slot_id"`
+	ResourceID           *uint   `json:"resource_id"`
 	SourceType           string  `json:"source_type"`
 	SourceID             *uint   `json:"source_id"`
 	Score                float64 `json:"score"`
@@ -2565,6 +3330,10 @@ type workItemInput struct {
 	AssigneeID     *uint  `json:"assignee_id"`
 	SourceJobID    *uint  `json:"source_job_id"`
 	SourceCanvasID *uint  `json:"source_canvas_id"`
+	ResultType     string `json:"result_type"`
+	ResultJSON     string `json:"result_json"`
+	AppliedAt      string `json:"applied_at"`
+	ApplyError     string `json:"apply_error"`
 	MetadataJSON   string `json:"metadata_json"`
 }
 

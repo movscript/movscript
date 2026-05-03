@@ -39,21 +39,26 @@ const STATUS_BADGE_VARIANT: Record<ProjectStatus, 'secondary' | 'default' | 'out
   done:            'default',
 }
 
-interface StoryboardProgress {
+interface ContentUnitProgress {
   total: number
   draft: number
   prompt_ready: number
   generating: number
-  generated: number
   approved: number
 }
 
 interface ProjectProgress {
   scripts: number
-  episodes: number
-  assets: number
+  segments: number
+  asset_slots: number
   members: number
-  storyboards: StoryboardProgress
+  storyboard_lines: {
+    total: number
+  }
+  content_units: ContentUnitProgress
+  keyframes: {
+    accepted: number
+  }
 }
 
 function ProjectCard({
@@ -77,8 +82,8 @@ function ProjectCard({
   const statusLabelKey = STATUS_STEPS.find((s) => s.status === status)?.labelKey
   const statusIdx = STATUS_STEPS.findIndex((s) => s.status === status)
 
-  const sb = progress?.storyboards
-  const approvedPct = sb && sb.total > 0 ? Math.round((sb.approved / sb.total) * 100) : 0
+  const contentUnits = progress?.content_units
+  const approvedPct = contentUnits && contentUnits.total > 0 ? Math.round((contentUnits.approved / contentUnits.total) * 100) : 0
 
   return (
     <div className="bg-card border border-border shadow-sm rounded-xl overflow-hidden transition-all duration-200">
@@ -130,8 +135,8 @@ function ProjectCard({
           <div className="grid grid-cols-4 gap-2 text-center">
             {[
               { label: t('entities.scripts'), value: progress.scripts },
-              { label: t('entities.episodes'), value: progress.episodes },
-              { label: t('entities.assets'), value: progress.assets },
+              { label: t('entities.segments'), value: progress.segments },
+              { label: t('entities.assetSlots'), value: progress.asset_slots },
               { label: t('pages.projects.members'), value: progress.members },
             ].map((s) => (
               <div key={s.label}>
@@ -142,12 +147,12 @@ function ProjectCard({
           </div>
         )}
 
-        {/* Storyboard progress */}
-        {sb && sb.total > 0 && (
+        {/* Content unit progress */}
+        {contentUnits && contentUnits.total > 0 && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{t('pages.projects.storyboardProgress')}</span>
-              <span className="tabular-nums">{t('pages.projects.approvedCount', { approved: sb.approved, total: sb.total })}</span>
+              <span>{t('pages.projects.contentUnitProgress')}</span>
+              <span className="tabular-nums">{t('pages.projects.approvedCount', { approved: contentUnits.approved, total: contentUnits.total })}</span>
             </div>
             <Progress value={approvedPct} className="h-1.5" />
           </div>

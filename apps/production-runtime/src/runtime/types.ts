@@ -384,7 +384,7 @@ export interface AgentRuntimeOptions {
   toolRegistry?: import('./toolRegistry.js').ToolRegistry
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
-  modelPlanner?: import('./modelPlanner.js').AgentModelPlanner
+  modelPlanner?: import('./modelPlanner.js').AgentModelPlanner | false
 }
 
 export interface CreateThreadInput {

@@ -121,19 +121,8 @@ export interface McpTools {
   listScripts: (projectId: number) => Promise<unknown[]>
   getScript: (id: number) => Promise<unknown>
   updateScript: (id: number, data: Record<string, unknown>) => Promise<unknown>
-  listEpisodes: (scriptId: number) => Promise<unknown[]>
-  updateEpisode: (id: number, data: Record<string, unknown>) => Promise<unknown>
-  listScenes: (projectId: number) => Promise<unknown[]>
-  updateScene: (id: number, data: Record<string, unknown>) => Promise<unknown>
-  createScene: (projectId: number, data: Record<string, unknown>) => Promise<unknown>
-  listStoryboards: (sceneId: number) => Promise<unknown[]>
-  createStoryboard: (sceneId: number, data: Record<string, unknown>) => Promise<unknown>
-  updateStoryboard: (id: number, data: Record<string, unknown>) => Promise<unknown>
-  listShots: (storyboardId: number) => Promise<unknown[]>
-  createShot: (storyboardId: number, data: Record<string, unknown>) => Promise<unknown>
-  updateShot: (id: number, data: Record<string, unknown>) => Promise<unknown>
-  listAssets: (projectId: number) => Promise<unknown[]>
-  createAsset: (projectId: number, data: Record<string, unknown>) => Promise<unknown>
+  listAssetSlots: (projectId: number) => Promise<unknown[]>
+  createAssetSlot: (projectId: number, data: Record<string, unknown>) => Promise<unknown>
   search: (projectId: number, query: string) => Promise<unknown>
 }
 

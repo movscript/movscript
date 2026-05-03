@@ -15,7 +15,7 @@
     },
     {
       "name": "movscript.search_entities",
-      "description": "Search scripts, settings, assets, episodes, scenes, storyboards, and shots in the current or specified project. Use when the user names content without an exact entity ID.",
+      "description": "Search scripts, settings, semantic production entities, and asset slots in the current or specified project. Use when the user names content without an exact entity ID.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -28,7 +28,7 @@
     },
     {
       "name": "movscript.read_entity",
-      "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, setting, asset, episode, scene, storyboard, and shot.",
+      "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, setting, asset_slot, segment, scene_moment, storyboard_script, storyboard_line, content_unit, keyframe, preview_timeline, and delivery_version.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -41,7 +41,7 @@
     },
     {
       "name": "movscript.read_project_structure",
-      "description": "Read compact project structure across scripts, settings, episodes, scenes, storyboards, shots, and pipeline nodes.",
+      "description": "Read compact project structure across scripts, settings, semantic production entities, asset slots, and pipeline nodes.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -54,7 +54,7 @@
     },
     {
       "name": "movscript.create_draft",
-      "description": "Create a local draft artifact for proposed scripts, settings, storyboards, shots, prompts, or notes. This does not write formal project entities.",
+      "description": "Create a local draft artifact for proposed scripts, settings, storyboard scripts or lines, content units, prompts, asset slots, or notes. This does not write formal project entities.",
       "permission": "draft.write",
       "risk": "draft",
       "projectScoped": true,
@@ -80,7 +80,7 @@
     },
     {
       "name": "movscript.open_entity",
-      "description": "Navigate the MovScript UI to an entity page such as scripts, assets, scenes, storyboards, shots, or pipeline. Navigation only; no project data is changed.",
+      "description": "Navigate the MovScript UI to an entity page such as scripts, asset slots, scene moments, content units, productions, or pipeline. Navigation only; no project data is changed.",
       "permission": "ui.navigate",
       "risk": "ui",
       "projectScoped": false,

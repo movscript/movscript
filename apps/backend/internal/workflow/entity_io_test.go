@@ -26,6 +26,16 @@ func TestEntityFieldUpdatesUseSchemaStorageMapping(t *testing.T) {
 	}
 }
 
+func TestEntityFieldUpdatesUseResourceIDForNumberPort(t *testing.T) {
+	updates := entityFieldUpdates("asset_slot", map[string]EntityPortValue{
+		"resource_id": {Type: "number", ResourceIDs: []uint{42}},
+	})
+
+	if got := updates["resource_id"]; got != uint(42) {
+		t.Fatalf("expected resource_id update from resource port value, got %#v", got)
+	}
+}
+
 func TestNormalizeEntityPortValuesCanonicalizesAliases(t *testing.T) {
 	values, err := NormalizeEntityPortValues("script", map[string]EntityPortValue{
 		"core_settings": {Type: "json", JSON: map[string]any{"world": "near future"}},
@@ -231,6 +241,29 @@ func TestValidateEntityReadPortsRejectsUnknownPort(t *testing.T) {
 	err := ValidateEntityReadPorts("asset_slot", []string{"prompt", "missing"})
 	if err == nil || !strings.Contains(err.Error(), `unknown port "prompt"`) {
 		t.Fatalf("expected unknown read port error, got %v", err)
+	}
+}
+
+func TestResolveEntityPortSelectionCanonicalizesPorts(t *testing.T) {
+	selection, err := resolveEntityPortSelection("script", []string{"core_settings", "title"})
+	if err != nil {
+		t.Fatalf("expected selection to resolve, got %v", err)
+	}
+	if len(selection) != 2 {
+		t.Fatalf("expected two canonical ports, got %#v", selection)
+	}
+	if _, ok := selection["settings"]; !ok {
+		t.Fatalf("expected core_settings to resolve to settings, got %#v", selection)
+	}
+}
+
+func TestEntityTableNameSupportsContentUnit(t *testing.T) {
+	table, ok := entityTableName("content_unit")
+	if !ok {
+		t.Fatal("expected content_unit table name")
+	}
+	if table != "content_units" {
+		t.Fatalf("expected content_units table, got %q", table)
 	}
 }
 

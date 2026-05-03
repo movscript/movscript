@@ -15,11 +15,10 @@ import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
 import { CANVAS_NODE_META } from '../nodeCatalog'
 import { api } from '@/lib/api'
-import { buildEntityPreviewFields, ENTITY_KIND_META } from '@/components/entity/EntitySurface'
 import { CanvasToolActionCard } from '@/components/canvas/CanvasToolActionCard'
 import type { CanvasToolSlot, CanvasToolSlotState, CanvasToolSlotType } from '@/components/canvas/CanvasToolActionCard'
-import { CanvasEntityActionCard } from '@/components/canvas/CanvasEntityActionCard'
-import type { CanvasEntityBindingSlot, CanvasEntityRelation } from '@/components/canvas/CanvasEntityActionCard'
+import { CanvasDomainEntityCard } from '@/components/canvas/CanvasDomainEntityCard'
+import type { CanvasDomainEntityKind } from '@/components/canvas/CanvasDomainEntityCard'
 import { CanvasIOActionCard } from '@/components/canvas/CanvasIOActionCard'
 import type { CanvasIOState } from '@/components/canvas/CanvasIOActionCard'
 
@@ -52,6 +51,16 @@ const semanticInputHandleId = (portId: string) => `in:${portId}`
 const semanticOutputHandleId = (portId: string) => `out:${portId}`
 
 const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video', 'audio'])
+
+function semanticPreviewFields(kind?: CanvasDomainEntityKind) {
+  if (kind === 'asset_slot') {
+    return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'resource_id', 'locked_asset_slot_id', 'creative_reference_id']
+  }
+  if (kind === 'content_unit') {
+    return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt']
+  }
+  return []
+}
 
 function mediaNodeInputPorts(nodeType: string, data: CanvasNodeData): CanvasNodeData['inputPorts'] {
   if (!MEDIA_NODE_TYPES.has(nodeType)) return data.inputPorts
@@ -225,12 +234,17 @@ function CanvasCardPortHandle({
       position={side === 'left' ? Position.Left : Position.Right}
       title={label}
       style={{
-        ...(type === 'target' ? semanticTargetHandleStyle : semanticSourceHandleStyle),
-        left: side === 'left' ? -2 : undefined,
-        right: side === 'right' ? -2 : undefined,
-        width: 12,
-        height: 12,
-        opacity: 0,
+        width: '100%',
+        height: '100%',
+        borderRadius: '9999px',
+        border: 0,
+        background: 'transparent',
+        left: '50%',
+        right: undefined,
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 40,
+        pointerEvents: 'auto',
       }}
     />
   )
@@ -243,12 +257,6 @@ function portLabelText(port: CanvasPortDef, t: (key: string, options?: any) => s
 function slotTypeFromPortType(type?: string): CanvasToolSlotType {
   if (type === 'image' || type === 'video' || type === 'audio' || type === 'json' || type === 'entity' || type === 'prompt' || type === 'text') return type
   return 'text'
-}
-
-function bindingKindFromPortType(type?: string): CanvasEntityBindingSlot['kind'] {
-  if (type === 'video') return 'video'
-  if (type === 'image') return 'image'
-  return 'resource'
 }
 
 function slotStateFromStatus(status: CanvasNodeData['status'], hasValue?: boolean): CanvasToolSlotState {
@@ -298,56 +306,6 @@ function toolOutputSlots(nodeType: string, data: CanvasNodeData, t: (key: string
     state: slotStateFromStatus(data.status, !!data.resource),
     summary: data.resource?.name ?? (data.error && data.status === 'failed' ? data.error : undefined),
   }))
-}
-
-function entityBindingSlots(ports: CanvasPortDef[] | undefined, semanticValues: EntitySemanticValues | undefined, t: (key: string, options?: any) => string): CanvasEntityBindingSlot[] {
-  return (ports ?? []).slice(0, 3).map((port) => {
-    const value = semanticValues?.values?.[port.id]
-    const hasValue = value !== undefined && value !== null && String(value).trim() !== ''
-    return {
-      id: port.id,
-      inputPortId: port.id,
-      outputPortId: port.id,
-      label: portLabelText(port, t),
-      kind: bindingKindFromPortType(port.type),
-      state: hasValue ? 'bound' : 'empty',
-      resourceLabel: hasValue ? '已绑定' : undefined,
-    }
-  })
-}
-
-function entityRelationRows(ports: CanvasPortDef[] | undefined, t: (key: string, options?: any) => string): CanvasEntityRelation[] {
-  return (ports ?? []).slice(0, 2).map((port) => ({
-    id: port.id,
-    label: portLabelText(port, t),
-    targetLabel: port.type,
-    outputPortId: port.id,
-  }))
-}
-
-function createActionsForEntityKind(kind: keyof typeof ENTITY_KIND_META | undefined) {
-  if (kind === 'scene') {
-    return [
-      { id: 'storyboard', label: '分镜', icon: Layers3, outputPortId: 'result' },
-      { id: 'shot', label: '镜头', icon: Camera, outputPortId: 'result' },
-    ]
-  }
-  if (kind === 'storyboard') {
-    return [
-      { id: 'shot', label: '镜头', icon: Camera, outputPortId: 'result' },
-      { id: 'variant', label: '变体', icon: Sparkles, outputPortId: 'result' },
-    ]
-  }
-  if (kind === 'shot') {
-    return [
-      { id: 'final_video', label: '成片', icon: Video, outputPortId: 'result' },
-      { id: 'variant', label: '重做', icon: Sparkles, outputPortId: 'result' },
-    ]
-  }
-  return [
-    { id: 'asset', label: '素材', icon: ImagePlus, outputPortId: 'result' },
-    { id: 'variant', label: '变体', icon: Sparkles, outputPortId: 'result' },
-  ]
 }
 
 function pluginConfigItems(data: NodeDataWithHandlers) {
@@ -1156,49 +1114,46 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
   const kindLabel = kind ? t(`canvas.entityTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.entity_card')
   const inputPorts = data.inputPorts
   const outputPorts = data.outputPorts
-  const { data: schema } = useQuery<EntityWorkflowSchema>({
-    queryKey: ['workflow-entity-schema', kind],
-    queryFn: () => api.get(`/workflow/entity-schemas/${kind}`).then((r) => r.data),
-    enabled: !!kind,
-  })
+  const hasBackendEntityValues = kind === 'asset_slot' || kind === 'content_unit'
+  const previewFields = semanticPreviewFields(kind as CanvasDomainEntityKind | undefined)
   const { data: semanticValues } = useQuery<EntitySemanticValues>({
-    queryKey: ['entity-semantic-values', kind, data.entityId],
-    queryFn: () => api.get(`/entities/${kind}/${data.entityId}/semantic-values`).then((r) => r.data),
-    enabled: !!kind && !!data.entityId,
+    queryKey: ['entity-semantic-values', kind, data.entityId, previewFields.join(',')],
+    queryFn: () => api.get(`/entities/${kind}/${data.entityId}/semantic-values`, {
+      params: previewFields.length > 0 ? { fields: previewFields.join(',') } : undefined,
+    }).then((r) => r.data),
+    enabled: !!kind && !!data.entityId && hasBackendEntityValues,
   })
-  const fields = buildEntityPreviewFields({ schema, values: semanticValues?.values, t, limit: 3 })
   const resolvedKind = kind ?? 'script'
+  const domainKind: CanvasDomainEntityKind = resolvedKind === 'script' || resolvedKind === 'setting' ? 'segment' : resolvedKind
   const title = data.entityTitle || label
   const subtitle = [
     kindLabel,
     data.entityId ? `#${data.entityId}` : null,
-    fields[0]?.summary,
   ].filter(Boolean).join(' · ')
   const { resolvedInputs, resolvedOutputs } = resolvePorts({
     nodeType: 'entity_card',
     inputPorts,
     outputPorts,
   })
-  const visibleBindings = entityBindingSlots(inputPorts, semanticValues, t)
-  const visibleRelations = entityRelationRows(outputPorts, t)
 
   return (
     <div className="relative">
       <HiddenPortHandles
         inputs={resolvedInputs}
         outputs={resolvedOutputs}
-        visibleInputIds={visibleBindings.slice(0, 3).map((slot) => slot.inputPortId ?? slot.id)}
-        visibleOutputIds={visibleRelations.slice(0, 2).map((relation) => relation.outputPortId ?? relation.id)}
+        visibleInputIds={resolvedInputs.map((port) => port.id)}
+        visibleOutputIds={resolvedOutputs.map((port) => port.id)}
       />
-      <CanvasEntityActionCard
-        kind={resolvedKind}
+      <CanvasDomainEntityCard
+        kind={domainKind}
         title={title}
         subtitle={subtitle || data.textContent || t('canvas.entityCard.noPreview')}
         status={data.entityId ? '已绑定' : '未绑定'}
         selected={selected}
-        bindings={visibleBindings}
-        relations={visibleRelations}
-        createActions={createActionsForEntityKind(kind)}
+        semanticValues={semanticValues}
+        fallbackText={data.textContent}
+        inputPortIds={resolvedInputs.map((port) => port.id)}
+        outputPortIds={resolvedOutputs.map((port) => port.id)}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
     </div>

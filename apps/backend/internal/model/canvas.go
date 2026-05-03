@@ -15,7 +15,7 @@ type Canvas struct {
 	CanvasType   string       `gorm:"default:'inspiration'" json:"canvas_type"` // inspiration|workflow
 	ProjectID    *uint        `json:"project_id,omitempty"`
 	Stage        string       `json:"stage"`    // script_analysis|asset_prep|storyboard|generation|editing
-	RefType      string       `json:"ref_type"` // asset_view|storyboard|scene
+	RefType      string       `json:"ref_type"` // script|setting|asset_slot
 	RefID        *uint        `json:"ref_id,omitempty"`
 	Visibility   string       `gorm:"default:'private';index" json:"visibility"` // private|public
 	WorkflowKey  string       `gorm:"size:160;index" json:"workflow_key,omitempty"`

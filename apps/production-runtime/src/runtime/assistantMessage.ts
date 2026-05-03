@@ -62,7 +62,7 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   if (call.name === 'movscript.read_project_structure') {
     const counts = isRecord(parsed) && isRecord(parsed.counts) ? parsed.counts : undefined
     const summary = counts
-      ? `（scripts=${String(counts.scripts ?? 0)}, episodes=${String(counts.episodes ?? 0)}, scenes=${String(counts.scenes ?? 0)}, storyboards=${String(counts.storyboards ?? 0)}, shots=${String(counts.shots ?? 0)}）`
+      ? `（scripts=${String(counts.scripts ?? 0)}, settings=${String(counts.settings ?? 0)}, asset_slots=${String(counts.asset_slots ?? counts.assetSlots ?? 0)}, content_units=${String(counts.content_units ?? counts.contentUnits ?? 0)}）`
       : ''
     return `读取项目结构摘要${summary}。`
   }

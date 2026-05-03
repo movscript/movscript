@@ -3,7 +3,15 @@ import { join } from 'node:path'
 import type { JSONValue } from '../types.js'
 import { atomicWriteJSON, resolveAgentStatePath } from './fileStore.js'
 
-export type AgentDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline'
+export type AgentDraftKind =
+  | 'script'
+  | 'setting'
+  | 'asset_slot'
+  | 'storyboard_line'
+  | 'content_unit'
+  | 'prompt'
+  | 'note'
+  | 'pipeline'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentDraftSource {
@@ -202,8 +210,9 @@ export function resolveAgentDraftPath(statePath = resolveAgentStatePath()): stri
 export function normalizeDraftKind(value: unknown): AgentDraftKind {
   return value === 'script'
     || value === 'setting'
-    || value === 'storyboard'
-    || value === 'shot'
+    || value === 'asset_slot'
+    || value === 'storyboard_line'
+    || value === 'content_unit'
     || value === 'prompt'
     || value === 'note'
     || value === 'pipeline'

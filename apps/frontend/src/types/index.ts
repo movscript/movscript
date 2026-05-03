@@ -567,7 +567,7 @@ export interface Job {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'video_edit'
-export type CanvasEntityKind = 'script' | 'setting' | 'asset_slot'
+export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'setting' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
@@ -823,6 +823,7 @@ export interface CanvasNodeData {
   entityKind?: CanvasEntityKind
   entityId?: number
   entityTitle?: string
+  assetSlotKind?: string
   // injected at runtime by CanvasEditorPage (not persisted)
   canvasId?: string
   rfNodeId?: string

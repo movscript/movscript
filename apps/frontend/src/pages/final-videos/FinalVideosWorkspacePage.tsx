@@ -3,15 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Download,
   FileVideo,
   Film,
   ListChecks,
+  Pencil,
   Plus,
   RefreshCcw,
-  Search,
   Trash2,
+  X,
   Video,
   type LucideIcon,
 } from 'lucide-react'
@@ -34,8 +36,10 @@ import {
   type DeliveryVersion,
   type ExportRecord,
 } from '@/api/deliveryEntities'
+import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
+import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -68,6 +72,8 @@ export default function FinalVideosWorkspacePage() {
   const [search, setSearch] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
+  const [editingVersion, setEditingVersion] = useState(false)
+  const [editingItem, setEditingItem] = useState(false)
   const [resourceSearch, setResourceSearch] = useState('')
   const [resourceType, setResourceType] = useState<ResourceTypeFilter>('video')
   const [resourcePage, setResourcePage] = useState(1)
@@ -137,7 +143,16 @@ export default function FinalVideosWorkspacePage() {
 
   useEffect(() => {
     setSelectedItemId(timelineItems[0]?.ID ?? null)
+    setEditingItem(false)
   }, [selectedVersionId])
+
+  useEffect(() => {
+    setEditingVersion(false)
+  }, [selectedVersionId])
+
+  useEffect(() => {
+    setEditingItem(false)
+  }, [selectedItemId])
 
   const visibleVersions = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -171,6 +186,7 @@ export default function FinalVideosWorkspacePage() {
     onSuccess: (version) => {
       qc.invalidateQueries({ queryKey: versionKey })
       setSelectedVersionId(version.ID)
+      setEditingVersion(true)
     },
   })
 
@@ -196,6 +212,7 @@ export default function FinalVideosWorkspacePage() {
     onSuccess: (item) => {
       qc.invalidateQueries({ queryKey: itemsKey })
       setSelectedItemId(item.ID)
+      setEditingItem(true)
     },
   })
 
@@ -244,16 +261,74 @@ export default function FinalVideosWorkspacePage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-background text-foreground">
-      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-card">
-        <div className="border-b border-border p-4">
+    <ContentWorkspaceLayout
+      header={(
+        <header className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Film size={14} />
+              <span>{project?.name ?? '当前项目'}</span>
+              <ChevronRight size={13} />
+              <span>内容区</span>
+              <ChevronRight size={13} />
+              <span>成片</span>
+            </div>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal">成片库</h1>
+            <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
+              成片区维护交付版本、时间线片段、资源锁定、审核状态和导出记录。
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={refreshAll} loading={versionsQuery.isFetching || itemsQuery.isFetching}>
+              <RefreshCcw size={15} />
+              刷新
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => createVersion.mutate()} loading={createVersion.isPending}>
+              <Plus size={15} />
+              新建版本
+            </Button>
+            <Button className="gap-2" disabled={!selectedVersionId} onClick={() => createItem.mutate()} loading={createItem.isPending}>
+              <Plus size={15} />
+              添加片段
+            </Button>
+          </div>
+        </header>
+      )}
+      overview={(
+        <section className="grid grid-cols-4 gap-3">
+          <ReadinessCard icon={FileVideo} label="交付版本" value={versions.length} detail={`${versions.filter((item) => ['approved', 'exported'].includes(item.status)).length} 个可导出`} tone="text-indigo-600" />
+          <ReadinessCard icon={ListChecks} label="时间线片段" value={timelineItems.length} detail={`${formatDuration(sumDuration(timelineItems))} 总时长`} tone="text-sky-600" />
+          <ReadinessCard icon={AlertTriangle} label="缺失内容" value={versionReadiness.missingCount + versionReadiness.noResourceCount} detail="missing / needs_asset / 无资源" tone="text-amber-600" />
+          <ReadinessCard icon={Download} label="导出记录" value={exportRecords.length} detail={exportRecords[0]?.status ? exportStatusLabel(exportRecords[0].status) : '尚未导出'} tone="text-emerald-600" />
+        </section>
+      )}
+      filters={(
+        <ContentFilterBar
+          query={search}
+          onQueryChange={setSearch}
+          queryPlaceholder="搜索版本"
+          filters={[{
+            id: 'status',
+            label: '状态',
+            value: filter,
+            onChange: (value) => setFilter(value as VersionFilter),
+            options: (['all', 'draft', 'checking', 'approved', 'exported'] as const).map((item) => ({
+              value: item,
+              label: versionFilterLabel(item),
+              count: item === 'all' ? versions.length : versions.filter((version) => version.status === item).length,
+            })),
+          }]}
+          resultCount={visibleVersions.length}
+          totalCount={versions.length}
+        />
+      )}
+      list={(
+        <section className="rounded-lg border border-border bg-card">
+          <div className="border-b border-border p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Film size={14} />
-                <span>{project?.name ?? '当前项目'}</span>
-              </div>
-              <h1 className="mt-2 text-xl font-semibold tracking-normal">成片库</h1>
+              <h2 className="text-sm font-semibold tracking-normal">版本列表</h2>
+              <p className="mt-1 text-xs text-muted-foreground">搜索、筛选并选择要编辑的交付版本。</p>
             </div>
             <Button size="icon" className="h-8 w-8" onClick={() => createVersion.mutate()} loading={createVersion.isPending}>
               <Plus size={15} />
@@ -263,27 +338,9 @@ export default function FinalVideosWorkspacePage() {
             <SummaryTile label="版本" value={versions.length} />
             <SummaryTile label="可导出" value={versions.filter((item) => ['approved', 'exported'].includes(item.status)).length} />
           </div>
-          <div className="relative mt-3">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 pl-9" placeholder="搜索版本" />
-          </div>
-          <div className="mt-3 flex rounded-md border border-border bg-background p-0.5">
-            {(['all', 'draft', 'checking', 'approved', 'exported'] as const).map((item) => (
-              <button
-                key={item}
-                className={cn(
-                  'min-w-0 flex-1 rounded px-2 py-1.5 text-xs transition-colors',
-                  filter === item ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/70',
-                )}
-                onClick={() => setFilter(item)}
-              >
-                {versionFilterLabel(item)}
-              </button>
-            ))}
-          </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-3">
+        <div className="max-h-[700px] overflow-auto p-3">
           {versionsQuery.isLoading ? (
             <EmptyBlock icon={Clock3} title="正在加载" detail="读取交付版本" />
           ) : visibleVersions.length === 0 ? (
@@ -302,93 +359,50 @@ export default function FinalVideosWorkspacePage() {
             </div>
           )}
         </div>
-      </aside>
-
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-start justify-between gap-4 border-b border-border bg-background px-5 py-4">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <StatusPill status={selectedVersion?.status ?? 'draft'} />
-              {selectedVersion?.is_primary && <span className="rounded bg-primary/10 px-2 py-1 text-xs text-primary">主版本</span>}
-              {selectedVersion?.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">预演 #{selectedVersion.preview_timeline_id}</span>}
-            </div>
-            {selectedVersion ? (
-              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_160px]">
+      </section>
+      )}
+      detail={(
+        selectedVersion ? (
+          <>
+            <section className="rounded-lg border border-border bg-card">
+              <div className="border-b border-border p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <StatusPill status={selectedVersion.status ?? 'draft'} />
+                  {selectedVersion.is_primary && <span className="rounded bg-primary/10 px-2 py-1 text-xs text-primary">主版本</span>}
+                  {selectedVersion.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">预演 #{selectedVersion.preview_timeline_id}</span>}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold">版本详情</h2>
+                  <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditingVersion((value) => !value)} disabled={updateVersion.isPending}>
+                    {editingVersion ? <X size={14} /> : <Pencil size={14} />}
+                    {editingVersion ? '结束编辑' : '编辑'}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-3 p-4">
+                <Field label="版本名称">
                 <Input
                   value={selectedVersion.name}
+                  disabled={!editingVersion}
                   onChange={(event) => patchSelectedVersion({ name: event.target.value })}
                   className="h-10 text-base font-semibold"
                 />
+                </Field>
+                <Field label="状态">
                 <select
                   className="ms-input h-10"
                   value={selectedVersion.status}
+                  disabled={!editingVersion}
                   onChange={(event) => patchSelectedVersion({ status: event.target.value })}
                 >
                   {['draft', 'checking', 'approved', 'exported', 'archived'].map((status) => <option key={status} value={status}>{deliveryStatusLabel(status)}</option>)}
                 </select>
-              </div>
-            ) : (
-              <h2 className="text-lg font-semibold">还没有交付版本</h2>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={refreshAll} loading={versionsQuery.isFetching || itemsQuery.isFetching}>
-              <RefreshCcw size={15} />
-              刷新
-            </Button>
-            <Button className="gap-2" disabled={!selectedVersionId} onClick={() => createItem.mutate()} loading={createItem.isPending}>
-              <Plus size={15} />
-              添加片段
-            </Button>
-          </div>
-        </div>
-
-        {selectedVersion ? (
-          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] overflow-hidden">
-            <section className="min-w-0 overflow-auto p-5">
-              <div className="grid grid-cols-4 gap-3">
-                <ReadinessCard icon={ListChecks} label="时间线片段" value={timelineItems.length} detail={`${formatDuration(sumDuration(timelineItems))} 总时长`} tone="text-sky-600" />
-                <ReadinessCard icon={AlertTriangle} label="缺失内容" value={versionReadiness.missingCount + versionReadiness.noResourceCount} detail="missing / needs_asset / 无资源" tone="text-amber-600" />
-                <ReadinessCard icon={CheckCircle2} label="已锁定" value={versionReadiness.lockedCount} detail="locked / approved" tone="text-emerald-600" />
-                <ReadinessCard icon={Download} label="导出记录" value={exportRecords.length} detail={exportRecords[0]?.status ? exportStatusLabel(exportRecords[0].status) : '尚未导出'} tone="text-indigo-600" />
-              </div>
-
-              <div className="mt-5 rounded-lg border border-border bg-card">
-                <div className="flex items-center justify-between gap-3 border-b border-border p-4">
-                  <div>
-                    <h2 className="text-sm font-semibold">成片时间线</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">按 DeliveryTimelineItem 组织正式交付片段，不回写剧本结构。</p>
-                  </div>
-                  <StatusPill status={versionReadiness.ready ? 'approved' : 'checking'} label={versionReadiness.ready ? '可导出' : '待补齐'} />
-                </div>
-
-                <TimelineStrip items={timelineItems} selectedId={selectedItemId} onSelect={setSelectedItemId} />
-
-                <div className="divide-y divide-border">
-                  {itemsQuery.isLoading ? (
-                    <EmptyBlock icon={Clock3} title="正在加载" detail="读取成片时间线" />
-                  ) : timelineItems.length === 0 ? (
-                    <EmptyBlock icon={Video} title="暂无片段" detail="添加片段后，为每个内容单元锁定成片资源" />
-                  ) : (
-                    timelineItems.map((item) => (
-                      <TimelineRow
-                        key={item.ID}
-                        item={item}
-                        contentUnit={item.content_unit_id ? contentUnitById.get(item.content_unit_id) : undefined}
-                        selected={item.ID === selectedItemId}
-                        onClick={() => setSelectedItemId(item.ID)}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <Label className="mb-2 block text-xs font-medium text-muted-foreground">关联预演时间线</Label>
+                </Field>
+                <Field label="关联预演时间线">
                   <select
                     className="ms-input h-9 w-full"
                     value={selectedVersion.preview_timeline_id ?? ''}
+                    disabled={!editingVersion}
                     onChange={(event) => patchSelectedVersion({ preview_timeline_id: numberOrNull(event.target.value) })}
                   >
                     <option value="">未关联</option>
@@ -396,33 +410,64 @@ export default function FinalVideosWorkspacePage() {
                       <option key={timeline.ID} value={timeline.ID}>{timeline.name || `Preview #${timeline.ID}`}</option>
                     ))}
                   </select>
-                </div>
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <Label className="mb-2 block text-xs font-medium text-muted-foreground">版本说明</Label>
+                </Field>
+                <Field label="版本说明">
                   <Textarea
                     value={selectedVersion.description ?? ''}
+                    disabled={!editingVersion}
                     onChange={(event) => patchSelectedVersion({ description: event.target.value })}
                     className="min-h-20"
                     placeholder="记录交付范围、平台要求或审核口径"
                   />
-                </div>
+                </Field>
               </div>
             </section>
 
-            <aside className="min-w-0 overflow-auto border-l border-border bg-card">
+            <section className="rounded-lg border border-border bg-card">
               <div className="border-b border-border p-4">
-                <h2 className="text-sm font-semibold">片段检查</h2>
-                <p className="mt-1 text-xs text-muted-foreground">片段只维护交付态资源、审核状态和导出信息。</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold">片段详情</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">直接维护交付态资源、审核状态和时间信息。</p>
+                  </div>
+                  {selectedItem ? (
+                    <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditingItem((value) => !value)} disabled={updateItem.isPending}>
+                      {editingItem ? <X size={14} /> : <Pencil size={14} />}
+                      {editingItem ? '结束编辑' : '编辑'}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              {selectedItem ? (
-                <div className="space-y-4 p-4">
+              <div className="p-4">
+                {selectedItem ? (
                   <ItemEditor
                     item={selectedItem}
                     contentUnits={contentUnitsQuery.data ?? []}
+                    editing={editingItem}
                     onChange={patchSelectedItem}
                     onDelete={() => removeItem.mutate(selectedItem.ID)}
                     deleting={removeItem.isPending}
                   />
+                ) : (
+                  <EmptyBlock icon={Video} title="未选择片段" detail="从时间线选择一个片段进行编辑" />
+                )}
+              </div>
+            </section>
+          </>
+        ) : (
+          <section className="rounded-lg border border-border bg-card">
+            <EmptyBlock icon={FileVideo} title="暂无交付版本" detail="点击新建版本创建第一版成片库" />
+          </section>
+        )
+      )}
+      preview={(
+        selectedItem ? (
+          <section className="rounded-lg border border-border bg-card">
+            <div className="border-b border-border p-4">
+              <h2 className="text-sm font-semibold">成片预览</h2>
+              <p className="mt-1 text-xs text-muted-foreground">预览和锁定当前片段使用的资源。</p>
+            </div>
+            <div className="space-y-4 p-4">
                   <div>
                     <Label className="mb-2 block text-xs font-medium text-muted-foreground">成片资源</Label>
                     {selectedResource ? (
@@ -457,18 +502,47 @@ export default function FinalVideosWorkspacePage() {
                   </div>
                   <ExportPanel exportRecords={exportRecords} onCreate={() => createExport.mutate()} creating={createExport.isPending} />
                 </div>
-              ) : (
-                <EmptyBlock icon={Video} title="未选择片段" detail="从左侧时间线选择一个片段进行检查" />
-              )}
-            </aside>
-          </div>
+          </section>
         ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <EmptyBlock icon={FileVideo} title="暂无交付版本" detail="点击左侧加号创建第一版成片库" />
+          <section className="rounded-lg border border-border bg-card">
+            <EmptyBlock icon={Video} title="未选择片段" detail="从底部时间线选择一个片段查看预览" />
+          </section>
+        )
+      )}
+      upstream={<div />}
+      downstream={<div />}
+      bottom={(
+        <section className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between gap-3 border-b border-border p-4">
+            <div>
+              <h2 className="text-sm font-semibold">成片时间线</h2>
+              <p className="mt-1 text-xs text-muted-foreground">按 DeliveryTimelineItem 组织正式交付片段，不回写剧本结构。</p>
+            </div>
+            <StatusPill status={versionReadiness.ready ? 'approved' : 'checking'} label={versionReadiness.ready ? '可导出' : '待补齐'} />
           </div>
-        )}
-      </main>
-    </div>
+
+          <TimelineStrip items={timelineItems} selectedId={selectedItemId} onSelect={setSelectedItemId} />
+
+          <div className="divide-y divide-border">
+            {itemsQuery.isLoading ? (
+              <EmptyBlock icon={Clock3} title="正在加载" detail="读取成片时间线" />
+            ) : timelineItems.length === 0 ? (
+              <EmptyBlock icon={Video} title="暂无片段" detail="添加片段后，为每个内容单元锁定成片资源" />
+            ) : (
+              timelineItems.map((item) => (
+                <TimelineRow
+                  key={item.ID}
+                  item={item}
+                  contentUnit={item.content_unit_id ? contentUnitById.get(item.content_unit_id) : undefined}
+                  selected={item.ID === selectedItemId}
+                  onClick={() => setSelectedItemId(item.ID)}
+                />
+              ))
+            )}
+          </div>
+        </section>
+      )}
+    />
   )
 }
 
@@ -582,12 +656,14 @@ function TimelineRow({
 function ItemEditor({
   item,
   contentUnits,
+  editing,
   onChange,
   onDelete,
   deleting,
 }: {
   item: DeliveryTimelineItem
   contentUnits: ContentUnit[]
+  editing: boolean
   onChange: (payload: Partial<DeliveryTimelineItem>) => void
   onDelete: () => void
   deleting: boolean
@@ -596,37 +672,37 @@ function ItemEditor({
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <Field label="顺序">
-          <Input type="number" value={item.order ?? 0} onChange={(event) => onChange({ order: numberValue(event.target.value) })} />
+          <Input disabled={!editing} type="number" value={item.order ?? 0} onChange={(event) => onChange({ order: numberValue(event.target.value) })} />
         </Field>
         <Field label="类型">
-          <select className="ms-input h-9 w-full" value={item.kind} onChange={(event) => onChange({ kind: event.target.value })}>
+          <select disabled={!editing} className="ms-input h-9 w-full" value={item.kind} onChange={(event) => onChange({ kind: event.target.value })}>
             {['video', 'image', 'audio', 'caption', 'gap', 'note'].map((kind) => <option key={kind} value={kind}>{kind}</option>)}
           </select>
         </Field>
       </div>
       <Field label="标签">
-        <Input value={item.label ?? ''} onChange={(event) => onChange({ label: event.target.value })} />
+        <Input disabled={!editing} value={item.label ?? ''} onChange={(event) => onChange({ label: event.target.value })} />
       </Field>
       <Field label="内容单元">
-        <select className="ms-input h-9 w-full" value={item.content_unit_id ?? ''} onChange={(event) => onChange({ content_unit_id: numberOrNull(event.target.value) })}>
+        <select disabled={!editing} className="ms-input h-9 w-full" value={item.content_unit_id ?? ''} onChange={(event) => onChange({ content_unit_id: numberOrNull(event.target.value) })}>
           <option value="">未绑定</option>
           {contentUnits.map((unit) => <option key={unit.ID} value={unit.ID}>{unit.title || `ContentUnit #${unit.ID}`}</option>)}
         </select>
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="开始秒">
-          <Input type="number" value={item.start_sec ?? 0} onChange={(event) => onChange({ start_sec: numberValue(event.target.value) })} />
+          <Input disabled={!editing} type="number" value={item.start_sec ?? 0} onChange={(event) => onChange({ start_sec: numberValue(event.target.value) })} />
         </Field>
         <Field label="时长秒">
-          <Input type="number" value={item.duration_sec ?? 0} onChange={(event) => onChange({ duration_sec: numberValue(event.target.value) })} />
+          <Input disabled={!editing} type="number" value={item.duration_sec ?? 0} onChange={(event) => onChange({ duration_sec: numberValue(event.target.value) })} />
         </Field>
       </div>
       <Field label="状态">
-        <select className="ms-input h-9 w-full" value={item.status} onChange={(event) => onChange({ status: event.target.value })}>
+        <select disabled={!editing} className="ms-input h-9 w-full" value={item.status} onChange={(event) => onChange({ status: event.target.value })}>
           {['draft', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved'].map((status) => <option key={status} value={status}>{timelineStatusLabel(status)}</option>)}
         </select>
       </Field>
-      <Button variant="outline" className="w-full gap-2 text-destructive hover:text-destructive" onClick={onDelete} loading={deleting}>
+      <Button variant="outline" className="w-full gap-2 text-destructive hover:text-destructive" onClick={onDelete} loading={deleting} disabled={!editing}>
         <Trash2 size={14} />
         删除片段
       </Button>

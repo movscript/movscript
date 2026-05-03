@@ -23,7 +23,9 @@ function createWindow(): void {
   })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    void win.webContents.session.clearCache().finally(() => {
+      void win.loadURL(process.env['ELECTRON_RENDERER_URL']!)
+    })
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }

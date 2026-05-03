@@ -17,9 +17,15 @@ export interface BackendApplyResult {
 const PATCH_ROUTES: Record<string, string> = {
   script: '/scripts/:id',
   setting: '/settings/:id',
-  storyboard: '/storyboards/:id',
-  shot: '/shots/:id',
-  scene: '/scenes/:id',
+  asset_slot: '/projects/:projectId/entities/asset-slots/:id',
+  segment: '/projects/:projectId/entities/segments/:id',
+  scene_moment: '/projects/:projectId/entities/scene-moments/:id',
+  storyboard_script: '/projects/:projectId/entities/storyboard-scripts/:id',
+  storyboard_line: '/projects/:projectId/entities/storyboard-lines/:id',
+  content_unit: '/projects/:projectId/entities/content-units/:id',
+  keyframe: '/projects/:projectId/entities/keyframes/:id',
+  preview_timeline: '/projects/:projectId/entities/preview-timelines/:id',
+  delivery_version: '/projects/:projectId/entities/delivery-versions/:id',
 }
 
 const FIELD_ALLOWLIST: Record<string, Set<string>> = {
@@ -29,13 +35,15 @@ const FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'script_points',
   ]),
   setting: new Set(['type', 'name', 'alias', 'description', 'content', 'status', 'importance', 'tags', 'profile_json']),
-  storyboard: new Set([
-    'title', 'description', 'notes', 'characters', 'actions', 'dialogue', 'atmosphere', 'camera_angle',
-    'camera_movement', 'depth_of_field', 'lighting', 'duration', 'shot_size', 'angle', 'movement',
-    'focal_length', 'pacing', 'intent', 'status',
-  ]),
-  shot: new Set(['description', 'prompt', 'final_description', 'final_prompt', 'is_approved', 'status', 'order']),
-  scene: new Set(['number', 'title', 'location', 'time_of_day', 'notes']),
+  asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'resource_id', 'locked_asset_slot_id', 'status', 'metadata_json']),
+  segment: new Set(['title', 'kind', 'summary', 'content', 'source_range', 'status', 'metadata_json']),
+  scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),
+  storyboard_script: new Set(['name', 'description', 'is_primary', 'status', 'metadata_json']),
+  storyboard_line: new Set(['title', 'kind', 'description', 'dialogue', 'visual_intent', 'duration_sec', 'status', 'metadata_json']),
+  content_unit: new Set(['title', 'kind', 'description', 'prompt', 'duration_sec', 'status', 'metadata_json']),
+  keyframe: new Set(['title', 'description', 'prompt', 'resource_id', 'status', 'metadata_json']),
+  preview_timeline: new Set(['name', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
+  delivery_version: new Set(['name', 'description', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
 }
 
 export class BackendApplyClient {
@@ -88,11 +96,18 @@ export function buildPatchRequest(review: ApplyDraftReview): { path: string; pay
   if (entityId === undefined || entityId === null || String(entityId).trim() === '') {
     throw new Error('apply_draft requires target entity id')
   }
+  const route = PATCH_ROUTES[entityType]
+  const projectId = review.target.projectId
+  if (route.includes(':projectId') && (projectId === undefined || projectId === null || String(projectId).trim() === '')) {
+    throw new Error(`apply_draft requires projectId for target entity type: ${entityType}`)
+  }
   if (!field || !FIELD_ALLOWLIST[entityType].has(field)) {
     throw new Error(`apply_draft cannot write field ${field ?? 'unknown'} on ${entityType}`)
   }
   return {
-    path: PATCH_ROUTES[entityType].replace(':id', encodeURIComponent(String(entityId))),
+    path: route
+      .replace(':projectId', encodeURIComponent(String(projectId)))
+      .replace(':id', encodeURIComponent(String(entityId))),
     payload: {
       [field]: review.proposedValue,
     },

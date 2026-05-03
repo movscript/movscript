@@ -1334,7 +1334,7 @@ function MemoryPanel({
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note']
+const DRAFT_KINDS: AgentDraftKind[] = ['script', 'setting', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 
 function DraftPanel({
@@ -2129,7 +2129,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
               <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
                 {[
                   { icon: <ListChecks size={13} />, label: t('agents.chat.suggestions.planProject') },
-                  { icon: <Sparkles size={13} />, label: t('agents.chat.suggestions.createShot') },
+                  { icon: <Sparkles size={13} />, label: t('agents.chat.suggestions.createContentUnit') },
                   { icon: <Search size={13} />, label: t('agents.chat.suggestions.reviewAssets') },
                   { icon: <Workflow size={13} />, label: t('agents.chat.suggestions.buildWorkflow') },
                 ].map((item) => (

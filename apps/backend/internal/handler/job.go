@@ -485,6 +485,14 @@ func (h *JobHandler) List(c *gin.Context) {
 	}
 
 	q := h.db.Model(&model.Job{}).Where("user_id = ?", user.ID)
+	if projectID := c.Query("project_id"); projectID != "" {
+		id, err := strconv.ParseUint(projectID, 10, 64)
+		if err != nil || id == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project_id"})
+			return
+		}
+		q = q.Where("project_id = ?", uint(id))
+	}
 	if status := c.Query("status"); status != "" {
 		q = q.Where("status = ?", status)
 	}

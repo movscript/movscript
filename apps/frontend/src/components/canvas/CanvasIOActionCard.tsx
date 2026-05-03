@@ -119,13 +119,6 @@ export function CanvasIOActionCard({
         className,
       )}
     >
-      <PortDot
-        side={port.side}
-        tone={port.type === 'source' ? 'source' : 'target'}
-        label={port.label}
-        className="top-[38px]"
-      />
-
       <header className={cn('border-b px-3 py-2.5', toneMeta.accentSoft)}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
@@ -134,7 +127,7 @@ export function CanvasIOActionCard({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
               <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none', toneMeta.badgeClass)}>
-                {port.type === 'source' ? 'OUT' : 'IN'}
+                {port.type === 'source' ? 'INPUT' : 'OUTPUT'}
               </span>
               <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
               {status && (
@@ -286,6 +279,7 @@ function PortDot({
   handleType?: 'target' | 'source'
   renderPortHandle?: CanvasIOPortHandleRenderer
 }) {
+  if (!handleId || !handleType || !renderPortHandle) return null
   return (
     <span
       title={label}
@@ -301,7 +295,7 @@ function PortDot({
       )}
       aria-hidden="true"
     >
-      {handleId && handleType && renderPortHandle?.({ id: handleId, type: handleType, side, label })}
+      {renderPortHandle({ id: handleId, type: handleType, side, label })}
     </span>
   )
 }

@@ -248,23 +248,23 @@ func (h *ProjectHandler) Progress(c *gin.Context) {
 	h.db.Model(&model.Keyframe{}).Where("project_id = ? AND status IN ?", pid, []string{"attached", "accepted"}).Count(&acceptedKeyframeCount)
 
 	c.JSON(http.StatusOK, gin.H{
-		"scripts":        scriptVersionCount,
-		"episodes":       int64(0),
-		"total_episodes": int64(0),
-		"scenes":         segmentCount,
-		"assets":         assetSlotCount,
-		"members":        memberCount,
-		"storyboards": gin.H{
+		"scripts":     scriptVersionCount,
+		"segments":    segmentCount,
+		"asset_slots": assetSlotCount,
+		"members":     memberCount,
+		"storyboard_lines": gin.H{
 			"total": storyboardLineCount,
 		},
-		"shots": gin.H{
+		"content_units": gin.H{
 			"total":        contentUnitTotal,
 			"draft":        contentUnitMap["draft"],
 			"prompt_ready": contentUnitMap["confirmed"],
 			"generating":   contentUnitMap["in_production"],
-			"generated":    acceptedKeyframeCount,
 			"approved":     contentUnitMap["locked"],
 			"is_approved":  contentUnitMap["locked"],
+		},
+		"keyframes": gin.H{
+			"accepted": acceptedKeyframeCount,
 		},
 	})
 }

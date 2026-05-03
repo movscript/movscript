@@ -3,14 +3,14 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle,
-  BookOpenText,
+  Boxes,
   CheckCircle2,
   ChevronRight,
-  Clapperboard,
   Database,
   Eye,
+  Film,
   Layers3,
-  Pencil,
+  PackageCheck,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -27,7 +27,8 @@ import {
   type CreativeReferenceCardStatus,
 } from '@/components/creative/CreativeReferenceCard'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
+import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
+import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge } from '@movscript/ui'
@@ -69,7 +70,27 @@ type CreativeReferenceRecord = SemanticEntityRecord & {
 }
 
 type CreativeReferenceUsageRecord = SemanticEntityRecord & {
+  owner_type?: string
+  owner_id?: number
   creative_reference_id?: number
+}
+
+type RelatedRecord = SemanticEntityRecord & {
+  segment_id?: number
+  scene_moment_id?: number
+  owner_type?: string
+  owner_id?: number
+  creative_reference_id?: number
+  title?: string
+  name?: string
+  label?: string
+  summary?: string
+  description?: string
+  content?: string
+  prompt?: string
+  prompt_hint?: string
+  kind?: string
+  status?: string
 }
 
 const FALLBACK_REFERENCES: CreativeReference[] = [
@@ -179,12 +200,6 @@ const FALLBACK_REFERENCES: CreativeReference[] = [
 
 const referenceKinds: Array<'all' | ReferenceKind> = ['all', 'person', 'location', 'object', 'style', 'product']
 
-const sceneMomentRows = [
-  { title: '雨夜巷口对峙', source: 'Segment 03', refs: ['林夏', '顾言', '雨夜巷口', '冷雨低照度'], status: '可预演' },
-  { title: '旧伞纸条暴露', source: 'Segment 04', refs: ['林夏', '旧伞', '雨夜巷口'], status: '缺特写' },
-  { title: '手机屏幕推近', source: 'ContentUnit CU-02', refs: ['手机转账提醒', '冷雨低照度'], status: '待确认' },
-]
-
 function normalizeReferenceKind(value: string): 'all' | ReferenceKind {
   return referenceKinds.includes(value as 'all' | ReferenceKind) ? value as 'all' | ReferenceKind : 'all'
 }
@@ -197,8 +212,9 @@ export default function CreativeReferencesPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const referenceConfig = semanticEntityConfig('creativeReferences')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
+  const assetSlotConfig = semanticEntityConfig('assetSlots')
+  const [creatingReference, setCreatingReference] = useState(false)
+  const [creatingAssetSlot, setCreatingAssetSlot] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const kind = normalizeReferenceKind(readStringParam(searchParams, 'kind', 'all'))
   const status = normalizeReferenceStatus(readStringParam(searchParams, 'status', 'all'))
@@ -216,15 +232,40 @@ export default function CreativeReferencesPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferenceUsages')) as Promise<CreativeReferenceUsageRecord[]>,
     enabled: !!projectId,
   })
+  const segmentsQuery = useQuery({
+    queryKey: ['semantic-creative-references-page', projectId, 'segments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('segments')) as Promise<RelatedRecord[]>,
+    enabled: !!projectId,
+  })
+  const sceneMomentsQuery = useQuery({
+    queryKey: ['semantic-creative-references-page', projectId, 'scene-moments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<RelatedRecord[]>,
+    enabled: !!projectId,
+  })
+  const contentUnitsQuery = useQuery({
+    queryKey: ['semantic-creative-references-page', projectId, 'content-units'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
+    enabled: !!projectId,
+  })
+  const assetSlotsQuery = useQuery({
+    queryKey: ['semantic-creative-references-page', projectId, 'asset-slots'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
+    enabled: !!projectId,
+  })
 
   const rawReferences = referencesQuery.data ?? []
+  const usages = usagesQuery.data ?? []
+  const segments = segmentsQuery.data ?? []
+  const sceneMoments = sceneMomentsQuery.data ?? []
+  const contentUnits = contentUnitsQuery.data ?? []
+  const assetSlots = assetSlotsQuery.data ?? []
   const usageCounts = useMemo(() => {
     const counts = new Map<number, number>()
-    for (const usage of usagesQuery.data ?? []) {
+    for (const usage of usages) {
       if (usage.creative_reference_id) counts.set(usage.creative_reference_id, (counts.get(usage.creative_reference_id) ?? 0) + 1)
     }
     return counts
-  }, [usagesQuery.data])
+  }, [usages])
   const references = useMemo(() => {
     if (!projectId) return FALLBACK_REFERENCES
     return rawReferences.map((reference) => toReferenceViewModel(reference, usageCounts))
@@ -243,6 +284,40 @@ export default function CreativeReferencesPage() {
 
   const selected = references.find((reference) => String(reference.id) === selectedId) ?? filteredReferences[0] ?? references[0] ?? null
   const selectedRecord = selected ? rawReferences.find((reference) => reference.ID === Number(selected.id)) : null
+  const selectedReferenceId = selectedRecord?.ID ?? (selected && Number.isFinite(Number(selected.id)) ? Number(selected.id) : undefined)
+  const segmentById = useMemo(() => new Map(segments.map((item) => [item.ID, item])), [segments])
+  const sceneMomentById = useMemo(() => new Map(sceneMoments.map((item) => [item.ID, item])), [sceneMoments])
+  const contentUnitById = useMemo(() => new Map(contentUnits.map((item) => [item.ID, item])), [contentUnits])
+  const selectedUsages = useMemo(() => {
+    if (!selectedReferenceId) return []
+    return usages.filter((usage) => usage.creative_reference_id === selectedReferenceId)
+  }, [selectedReferenceId, usages])
+  const referencedSceneMoments = useMemo(() => dedupeRecords(selectedUsages
+    .filter((usage) => usage.owner_type === 'scene_moment' && usage.owner_id)
+    .map((usage) => sceneMomentById.get(usage.owner_id!))
+    .filter(Boolean) as RelatedRecord[]), [sceneMomentById, selectedUsages])
+  const referencedContentUnits = useMemo(() => dedupeRecords(selectedUsages
+    .filter((usage) => usage.owner_type === 'content_unit' && usage.owner_id)
+    .map((usage) => contentUnitById.get(usage.owner_id!))
+    .filter(Boolean) as RelatedRecord[]), [contentUnitById, selectedUsages])
+  const referencedSegments = useMemo(() => dedupeRecords([
+    ...selectedUsages
+      .filter((usage) => usage.owner_type === 'segment' && usage.owner_id)
+      .map((usage) => segmentById.get(usage.owner_id!)),
+    ...referencedSceneMoments.map((moment) => moment.segment_id ? segmentById.get(moment.segment_id) : undefined),
+    ...referencedContentUnits.map((unit) => unit.segment_id ? segmentById.get(unit.segment_id) : undefined),
+  ].filter(Boolean) as RelatedRecord[]), [referencedContentUnits, referencedSceneMoments, segmentById, selectedUsages])
+  const requiredAssets = useMemo(() => {
+    if (!selectedReferenceId) return []
+    const sceneIds = new Set(referencedSceneMoments.map((item) => item.ID))
+    const contentIds = new Set(referencedContentUnits.map((item) => item.ID))
+    return assetSlots.filter((slot) => (
+      slot.creative_reference_id === selectedReferenceId ||
+      Boolean(slot.owner_type === 'creative_reference' && slot.owner_id === selectedReferenceId) ||
+      Boolean(slot.owner_type === 'scene_moment' && slot.owner_id && sceneIds.has(slot.owner_id)) ||
+      Boolean(slot.owner_type === 'content_unit' && slot.owner_id && contentIds.has(slot.owner_id))
+    ))
+  }, [assetSlots, referencedContentUnits, referencedSceneMoments, selectedReferenceId])
   const lockedCount = references.filter((reference) => reference.status === 'locked').length
   const reviewCount = references.filter((reference) => reference.status === 'review').length
   const missingCount = references.filter((reference) => reference.status === 'missing').length
@@ -253,24 +328,26 @@ export default function CreativeReferencesPage() {
   }
 
   function startCreateReference() {
-    setDialogMode('create')
-    setDialogOpen(true)
+    setCreatingReference(true)
+    setCreatingAssetSlot(false)
   }
 
-  function startEditReference() {
-    if (!selectedRecord) return
-    setDialogMode('edit')
-    setDialogOpen(true)
+  function startCreateAssetSlot() {
+    if (!selectedReferenceId) return
+    setCreatingReference(false)
+    setCreatingAssetSlot(true)
   }
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="min-w-[1180px] p-5 space-y-5">
+    <ContentWorkspaceLayout
+      header={(
         <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
+              <ChevronRight size={13} />
+              <span>内容区</span>
               <ChevronRight size={13} />
               <span>创作资料</span>
             </div>
@@ -284,68 +361,59 @@ export default function CreativeReferencesPage() {
               <Eye size={15} />
               查看引用图谱
             </Button>
-            <Button variant="outline" className="gap-2" onClick={startEditReference} disabled={!selectedRecord}>
-              <Pencil size={15} />
-              编辑资料
-            </Button>
             <Button className="gap-2" onClick={startCreateReference}>
               <Plus size={15} />
               新建资料
             </Button>
           </div>
         </header>
-
+      )}
+      overview={(
         <section className="grid grid-cols-4 gap-3">
           <MetricCard icon={Database} label="资料总数" value={references.length} detail="覆盖人物、地点、道具、产品、风格" tone="text-sky-600" />
           <MetricCard icon={ShieldCheck} label="已锁定" value={lockedCount} detail="可直接进入预演和生成" tone="text-emerald-600" />
           <MetricCard icon={AlertTriangle} label="待处理" value={reviewCount + missingCount} detail={`${reviewCount} 个待确认 / ${missingCount} 个缺资料`} tone="text-amber-600" />
           <MetricCard icon={Layers3} label="平均完整度" value={`${averageCoverage}%`} detail="按事实、视觉、资产覆盖估算" tone="text-violet-600" />
         </section>
-
-        <section className="grid grid-cols-[250px_minmax(0,1fr)_330px] gap-4">
-          <aside className="space-y-4">
-            <Panel title="资料分类" icon={BookOpenText}>
-              <div className="space-y-1">
-                {referenceKinds.map((item) => {
-                  const active = kind === item
-                  const count = item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length
-                  const meta = item === 'all'
-                    ? { label: '全部资料', icon: Database, dot: 'bg-foreground', bg: 'bg-muted', text: 'text-foreground' }
-                    : creativeReferenceKindMeta[item]
-                  const Icon = meta.icon
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setFilter({ kind: item })}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',
-                        active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                      )}
-                    >
-                      <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', active ? 'bg-background/15' : meta.bg)}>
-                        <Icon size={14} className={active ? 'text-background' : meta.text} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{meta.label}</span>
-                        <span className={cn('block text-[11px]', active ? 'text-background/65' : 'text-muted-foreground')}>{count} 条</span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </Panel>
-
-            <Panel title="一致性检查" icon={CheckCircle2}>
-              <CheckRow label="人物状态" value="3/4" ok />
-              <CheckRow label="地点动线" value="2/2" ok />
-              <CheckRow label="道具特写" value="1/3" />
-              <CheckRow label="风格负面约束" value="已配置" ok />
-            </Panel>
-          </aside>
-
-          <main className="min-w-0 space-y-4">
-            <div className="rounded-lg border border-border bg-card">
+      )}
+      filters={(
+        <ContentFilterBar
+          query={query}
+          onQueryChange={(value) => setFilter({ q: value })}
+          queryPlaceholder="搜索资料、标签或事实"
+          filters={[
+            {
+              id: 'kind',
+              label: '类型',
+              value: kind,
+              onChange: (value) => setFilter({ kind: value }),
+              options: referenceKinds.map((item) => ({
+                value: item,
+                label: item === 'all' ? '全部资料' : creativeReferenceKindMeta[item].label,
+                count: item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length,
+              })),
+            },
+            {
+              id: 'status',
+              label: '状态',
+              value: status,
+              onChange: (value) => setFilter({ status: value }),
+              options: [
+                { value: 'all', label: '全部状态', count: references.length },
+                { value: 'locked', label: '已锁定', count: lockedCount },
+                { value: 'review', label: '待确认', count: reviewCount },
+                { value: 'missing', label: '缺资料', count: missingCount },
+              ],
+            },
+          ]}
+          chips={referenceFilterId ? [{ id: 'reference', label: `资料 ${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) }] : []}
+          resultCount={filteredReferences.length}
+          totalCount={references.length}
+        />
+      )}
+      list={(
+        <>
+          <div className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">资料清单</p>
@@ -353,43 +421,7 @@ export default function CreativeReferencesPage() {
                 </div>
               </div>
 
-              <div className="border-b border-border p-4">
-                <ContentFilterBar
-                  query={query}
-                  onQueryChange={(value) => setFilter({ q: value })}
-                  queryPlaceholder="搜索资料、标签或事实"
-                  filters={[
-                    {
-                      id: 'kind',
-                      label: '类型',
-                      value: kind,
-                      onChange: (value) => setFilter({ kind: value }),
-                      options: referenceKinds.map((item) => ({
-                        value: item,
-                        label: item === 'all' ? '全部资料' : creativeReferenceKindMeta[item].label,
-                        count: item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length,
-                      })),
-                    },
-                    {
-                      id: 'status',
-                      label: '状态',
-                      value: status,
-                      onChange: (value) => setFilter({ status: value }),
-                      options: [
-                        { value: 'all', label: '全部状态', count: references.length },
-                        { value: 'locked', label: '已锁定', count: lockedCount },
-                        { value: 'review', label: '待确认', count: reviewCount },
-                        { value: 'missing', label: '缺资料', count: missingCount },
-                      ],
-                    },
-                  ]}
-                  chips={referenceFilterId ? [{ id: 'reference', label: `资料 ${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) }] : []}
-                  resultCount={filteredReferences.length}
-                  totalCount={references.length}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 p-4">
+              <div className="grid max-h-[620px] grid-cols-1 gap-3 overflow-auto p-4">
                 {filteredReferences.map((reference) => (
                   <ReferenceCard
                     key={reference.id}
@@ -399,65 +431,98 @@ export default function CreativeReferencesPage() {
                   />
                 ))}
                 {filteredReferences.length === 0 && (
-                  <p className="col-span-2 rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无资料，点击“新建资料”创建。</p>
+                  <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无资料，点击“新建资料”创建。</p>
                 )}
               </div>
             </div>
-
-            <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={15} className="text-primary" />
-                  <p className="text-sm font-semibold text-foreground">情节引用</p>
-                </div>
-                <span className="text-xs text-muted-foreground">展示资料如何进入语义层</span>
-              </div>
-              <div className="divide-y divide-border/70">
-                {sceneMomentRows.map((row) => (
-                  <div key={row.title} className="grid grid-cols-[190px_150px_minmax(0,1fr)_80px] items-center gap-3 px-4 py-3">
-                    <div>
-                      <p className="truncate text-sm font-medium text-foreground">{row.title}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{row.source}</p>
-                    </div>
-                    <Badge variant="secondary" className="w-fit text-[10px]">{row.status}</Badge>
-                    <div className="flex min-w-0 flex-wrap gap-1">
-                      {row.refs.map((ref) => (
-                        <span key={ref} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">{ref}</span>
-                      ))}
-                    </div>
-                    <Button size="xs" variant="ghost" className="gap-1">
-                      查看
-                      <ChevronRight size={12} />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </main>
-
-          <aside className="space-y-4">
-            {selected ? <ReferenceDetail reference={selected} /> : null}
-            <Panel title="素材缺口" icon={AlertTriangle}>
-              <GapItem title="旧伞特写" detail="缺少伞骨夹层和纸条边角的清晰图。" severity="high" />
-              <GapItem title="林夏侧脸" detail="雨夜受伤状态需要补一个可复用侧脸。" severity="medium" />
-              <GapItem title="手机 UI" detail="转账提醒文字层级需要最终确认。" severity="medium" />
-            </Panel>
-          </aside>
-        </section>
-      </div>
-      <SemanticEntityCrudDialog
-        open={dialogOpen}
-        mode={dialogMode}
-        projectId={projectId}
-        config={referenceConfig}
-        record={dialogMode === 'edit' ? selectedRecord : null}
-        defaults={{ kind: 'person', importance: 'supporting', status: 'draft' }}
-        queryKey={['semantic-creative-references-page', projectId]}
-        onOpenChange={setDialogOpen}
-        onSaved={(record) => setFilter({ selected: record.ID, reference_id: null })}
-        onDeleted={() => setFilter({ selected: null, reference_id: null })}
-      />
-    </div>
+        </>
+      )}
+      detail={(
+        <>
+          <SemanticEntityInlineEditor
+            projectId={projectId}
+            config={creatingAssetSlot ? assetSlotConfig : referenceConfig}
+            record={creatingReference || creatingAssetSlot ? null : selectedRecord}
+            defaults={creatingAssetSlot
+              ? { creative_reference_id: selectedReferenceId ?? null, kind: 'image', priority: 'normal', status: 'missing' }
+              : creatingReference
+                ? { kind: 'person', importance: 'supporting', status: 'draft' }
+                : undefined}
+            queryKey={creatingAssetSlot ? ['semantic-creative-references-page', projectId, 'asset-slots'] : ['semantic-creative-references-page', projectId]}
+            title={creatingAssetSlot ? '新增素材需求' : creatingReference ? '新建创作资料' : '卡片内编辑创作资料'}
+            description={creatingAssetSlot ? '为当前资料创建素材位，资料绑定会自动带入。' : '直接维护资料名称、类型、描述、内容和状态。'}
+            hero={selected ? {
+              icon: (() => {
+                const Icon = creativeReferenceKindMeta[selected.kind].icon
+                return <Icon size={19} />
+              })(),
+              eyebrow: creatingAssetSlot ? '素材需求' : creativeReferenceKindMeta[selected.kind].label,
+              title: creatingAssetSlot ? `为 ${selected.title} 新增素材` : creatingReference ? '新建创作资料' : selected.title,
+              subtitle: creatingAssetSlot ? selected.subtitle || `资料 #${selected.id}` : creatingReference ? '项目资料' : selected.subtitle || `资料 #${selected.id}`,
+              summary: creatingAssetSlot ? '创建后会出现在该资料的“所需要的素材”中，并可继续补充候选或锁定资源。' : creatingReference ? '建立人物、地点、道具、产品或风格资料后，可以被情节、内容单元和素材位复用。' : selected.summary,
+              accentClassName: selected.accent,
+              status: <Badge variant="secondary" className={cn('text-[10px]', creativeReferenceStatusMeta[creatingReference ? 'draft' : selected.status].className)}>{creativeReferenceStatusMeta[creatingReference ? 'draft' : selected.status].label}</Badge>,
+              stats: creatingAssetSlot ? [
+                { label: '绑定资料', value: selected.title },
+                { label: '默认类型', value: '图片' },
+                { label: '默认状态', value: '缺口' },
+                { label: '已有素材', value: requiredAssets.length },
+              ] : creatingReference ? [
+                { label: '默认类型', value: '人物' },
+                { label: '重要度', value: 'supporting' },
+                { label: '引用', value: 0 },
+                { label: '完整度', value: '0%' },
+              ] : [
+                { label: '引用', value: selected.usage },
+                { label: '素材', value: requiredAssets.length },
+                { label: '事实', value: selected.facts.length },
+                { label: '完整度', value: `${selected.coverage}%` },
+              ],
+            } : undefined}
+            onSaved={(record) => {
+              if (creatingAssetSlot) {
+                setCreatingAssetSlot(false)
+                assetSlotsQuery.refetch()
+                return
+              }
+              setCreatingReference(false)
+              setFilter({ selected: record.ID, reference_id: null })
+            }}
+            onDeleted={() => {
+              setCreatingReference(false)
+              setCreatingAssetSlot(false)
+              setFilter({ selected: null, reference_id: null })
+            }}
+          />
+          <Panel title="一致性检查" icon={CheckCircle2}>
+            <CheckRow label="人物状态" value="3/4" ok />
+            <CheckRow label="地点动线" value="2/2" ok />
+            <CheckRow label="道具特写" value="1/3" />
+            <CheckRow label="风格负面约束" value="已配置" ok />
+          </Panel>
+        </>
+      )}
+      preview={(
+        selected ? (
+          <Panel title="事实与视觉要点" icon={Sparkles}>
+            <InfoList title="视觉要点" items={selected.visualNotes} />
+            <div className="mt-4">
+              <InfoList title="事实约束" items={selected.facts} />
+            </div>
+          </Panel>
+        ) : null
+      )}
+      upstream={<div />}
+      downstream={<div />}
+      bottom={(
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+          <RelatedPanel title="被引用的片段" icon={Layers3} records={referencedSegments} empty="当前资料暂无片段引用" />
+          <RelatedPanel title="被引用的情节" icon={Film} records={referencedSceneMoments} empty="当前资料暂无情节引用" />
+          <RelatedPanel title="所需要的素材" icon={PackageCheck} records={requiredAssets} empty="当前资料暂无素材需求" action={selectedReferenceId ? { label: '新增素材', onClick: startCreateAssetSlot } : undefined} />
+          <RelatedPanel title="被引用的内容单元" icon={Boxes} records={referencedContentUnits} empty="当前资料暂无内容单元引用" />
+        </div>
+      )}
+    />
   )
 }
 
@@ -538,66 +603,72 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: typeof D
   )
 }
 
-function Panel({ title, icon: Icon, children }: { title: string; icon: typeof Database; children: React.ReactNode }) {
+function Panel({ title, icon: Icon, children, action }: { title: string; icon: typeof Database; children: React.ReactNode; action?: { label: string; onClick: () => void } }) {
   return (
     <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Icon size={14} className="text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">{title}</p>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon size={14} className="shrink-0 text-muted-foreground" />
+          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+        </div>
+        {action ? (
+          <Button type="button" size="sm" variant="outline" className="h-7 shrink-0 gap-1.5 px-2 text-xs" onClick={action.onClick}>
+            <Plus size={13} />
+            {action.label}
+          </Button>
+        ) : null}
       </div>
       <div className="p-3">{children}</div>
     </section>
   )
 }
 
-function ReferenceCard({ reference, selected, onSelect }: { reference: CreativeReference; selected: boolean; onSelect: () => void }) {
+function RelatedPanel({ title, icon: Icon, records, empty, action }: { title: string; icon: typeof Database; records: RelatedRecord[]; empty: string; action?: { label: string; onClick: () => void } }) {
   return (
-    <CreativeReferenceCard reference={reference} selected={selected} onSelect={onSelect} />
+    <Panel title={title} icon={Icon} action={action}>
+      <RelatedList records={records} empty={empty} />
+    </Panel>
   )
 }
 
-function ReferenceDetail({ reference }: { reference: CreativeReference }) {
-  const meta = creativeReferenceKindMeta[reference.kind]
-  const status = creativeReferenceStatusMeta[reference.status]
-  const Icon = meta.icon
+function RelatedList({ records, empty }: { records: RelatedRecord[]; empty: string }) {
+  if (records.length === 0) {
+    return <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">{empty}</p>
+  }
+
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className={cn('border-b border-border bg-gradient-to-br p-4', reference.accent)}>
-        <div className="flex items-start justify-between gap-3">
-          <span className={cn('flex h-11 w-11 items-center justify-center rounded-md', meta.bg)}>
-            <Icon size={21} className={meta.text} />
-          </span>
-          <Badge variant="secondary" className={cn('text-[10px]', status.className)}>{status.label}</Badge>
-        </div>
-        <h2 className="mt-3 text-lg font-semibold text-foreground">{reference.title}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{reference.subtitle}</p>
-      </div>
-      <div className="space-y-4 p-4">
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">资料摘要</p>
-          <p className="mt-1 text-sm leading-relaxed text-foreground">{reference.summary}</p>
-        </div>
-        <InfoList title="视觉要点" items={reference.visualNotes} />
-        <InfoList title="事实约束" items={reference.facts} />
-        <div className="grid grid-cols-3 gap-2">
-          <MiniStat label="引用" value={reference.usage} />
-          <MiniStat label="资产" value={reference.assets.length} />
-          <MiniStat label="负责人" value={reference.owner} />
-        </div>
-        <div>
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">关联情节</p>
-          <div className="space-y-1.5">
-            {reference.linkedSceneMoments.map((item) => (
-              <div key={item} className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2">
-                <Clapperboard size={13} className="text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-xs text-foreground">{item}</span>
-                <ChevronRight size={12} className="text-muted-foreground" />
-              </div>
-            ))}
+    <div className="space-y-2">
+      {records.slice(0, 6).map((record) => (
+        <div key={record.ID} className="rounded-md border border-border bg-background px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-foreground">{titleOf(record)}</p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{record.summary || record.description || record.content || record.prompt || record.prompt_hint || record.kind || `ID ${record.ID}`}</p>
+            </div>
+            <Badge variant="secondary" className="shrink-0 text-[10px]">{record.status ?? '草稿'}</Badge>
           </div>
         </div>
-      </div>
-    </section>
+      ))}
+    </div>
+  )
+}
+
+function titleOf(record?: RelatedRecord | null) {
+  if (!record) return '未命名'
+  return record.title || record.name || record.label || `#${record.ID}`
+}
+
+function dedupeRecords<T extends { ID: number }>(records: T[]) {
+  const map = new Map<number, T>()
+  records.forEach((record) => {
+    if (!map.has(record.ID)) map.set(record.ID, record)
+  })
+  return [...map.values()]
+}
+
+function ReferenceCard({ reference, selected, onSelect }: { reference: CreativeReference; selected: boolean; onSelect: () => void }) {
+  return (
+    <CreativeReferenceCard reference={reference} selected={selected} onSelect={onSelect} />
   )
 }
 
@@ -614,35 +685,12 @@ function InfoList({ title, items }: { title: string; items: string[] }) {
   )
 }
 
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-2.5 py-2">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xs font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
 function CheckRow({ label, value, ok = false }: { label: string; value: string; ok?: boolean }) {
   return (
     <div className="flex items-center gap-2 py-1.5">
       {ok ? <CheckCircle2 size={14} className="text-emerald-600" /> : <AlertTriangle size={14} className="text-amber-600" />}
       <span className="min-w-0 flex-1 text-xs text-foreground">{label}</span>
       <span className="text-xs text-muted-foreground">{value}</span>
-    </div>
-  )
-}
-
-function GapItem({ title, detail, severity }: { title: string; detail: string; severity: 'high' | 'medium' }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-foreground">{title}</p>
-        <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', severity === 'high' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300')}>
-          {severity === 'high' ? '高' : '中'}
-        </span>
-      </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{detail}</p>
     </div>
   )
 }

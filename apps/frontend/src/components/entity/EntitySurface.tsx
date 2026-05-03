@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Database, FileText, Image } from 'lucide-react'
+import { Boxes, Clapperboard, Database, FileText, Film, Image } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CanvasEntityKind, EntityWorkflowSchema, EntityWorkflowSchemaField } from '@/types'
 import { cn } from '@/lib/utils'
@@ -17,8 +17,12 @@ export const ENTITY_KIND_META: Record<CanvasEntityKind, {
   activeColor: string
 }> = {
   script:      { labelKey: 'entities.scripts',      icon: FileText,     tone: 'sky',     accent: 'bg-sky-500',     accentSoft: 'bg-sky-500/10',     activeColor: 'text-sky-600' },
+  segment:     { labelKey: 'entities.segments',     icon: Film,         tone: 'blue',    accent: 'bg-cyan-500',    accentSoft: 'bg-cyan-500/10',    activeColor: 'text-cyan-600' },
+  scene_moment:{ labelKey: 'entities.sceneMoments', icon: Clapperboard,  tone: 'teal',    accent: 'bg-teal-500',    accentSoft: 'bg-teal-500/10',    activeColor: 'text-teal-600' },
+  creative_reference: { labelKey: 'entities.creativeReferences', icon: Database, tone: 'violet', accent: 'bg-violet-500', accentSoft: 'bg-violet-500/10', activeColor: 'text-violet-600' },
   setting:     { labelKey: 'entities.settings',     icon: Database,     tone: 'teal',    accent: 'bg-teal-500',    accentSoft: 'bg-teal-500/10',    activeColor: 'text-teal-600' },
   asset_slot:  { labelKey: 'entities.assetSlots',   icon: Image,        tone: 'amber',   accent: 'bg-amber-500',   accentSoft: 'bg-amber-500/10',   activeColor: 'text-amber-600' },
+  content_unit:{ labelKey: 'entities.contentUnits', icon: Boxes,        tone: 'indigo',  accent: 'bg-indigo-500',  accentSoft: 'bg-indigo-500/10',  activeColor: 'text-indigo-600' },
 }
 
 export const ENTITY_TONE_CLASS: Record<EntityTone, string> = {

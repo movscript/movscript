@@ -12,7 +12,7 @@ type ResourceBinding struct {
 	ResourceID uint         `gorm:"not null;index" json:"resource_id"`
 	Resource   *RawResource `gorm:"foreignKey:ResourceID" json:"resource,omitempty"`
 
-	OwnerType string `gorm:"not null;index:idx_resource_binding_project_owner" json:"owner_type"` // script|setting|episode|scene|storyboard|shot|final_video|asset|asset_view|canvas
+	OwnerType string `gorm:"not null;index:idx_resource_binding_project_owner" json:"owner_type"` // script|setting|asset_slot|semantic entities|canvas
 	OwnerID   uint   `gorm:"not null;index:idx_resource_binding_project_owner" json:"owner_id"`
 
 	Role         string `gorm:"not null;default:'attachment';index" json:"role"` // reference|input|output|draft|final|thumbnail|attachment|source|setting_doc

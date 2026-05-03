@@ -1,37 +1,48 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
   BookOpenText,
   Boxes,
-  CheckCircle2,
   ChevronRight,
   Clock3,
   Database,
-  Eye,
   Film,
-  FileText,
   GitBranch,
   Image,
-  Layers3,
   MapPin,
   PackageCheck,
   Pencil,
   Plus,
   RefreshCcw,
+  Save,
   ShieldCheck,
   Sparkles,
+  Trash2,
+  X,
 } from 'lucide-react'
 
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
+import {
+  createSemanticEntity,
+  deleteSemanticEntity,
+  listSemanticEntities,
+  semanticEntityConfig,
+  updateSemanticEntity,
+  type SemanticEntityConfig,
+  type SemanticEntityField,
+  type SemanticEntityPayload,
+  type SemanticEntityRecord,
+} from '@/api/semanticEntities'
+import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import { Badge, Button, Progress as ProgressBar } from '@movscript/ui'
+import { toast } from '@/store/toastStore'
+import { Badge, Button, Input, Label, Progress as ProgressBar, Textarea } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
@@ -166,12 +177,11 @@ function formatDuration(value?: number) {
   return `${value}s`
 }
 
-export default function ScenesPage() {
+export default function SegmentsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const segmentConfig = semanticEntityConfig('segments')
-  const [segmentDialogOpen, setSegmentDialogOpen] = useState(false)
-  const [segmentDialogMode, setSegmentDialogMode] = useState<'create' | 'edit'>('create')
+  const [creatingSegment, setCreatingSegment] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedSegmentId = readNumberParam(searchParams, 'segment_id')
   const selectedSceneMomentId = readNumberParam(searchParams, 'scene_moment_id')
@@ -327,11 +337,6 @@ export default function ScenesPage() {
     return selectedSegment.contentUnits[0] ?? null
   }, [selectedContentUnitId, selectedSceneMoment, selectedSegment])
 
-  const selectedSceneMomentKey = selectedSceneMoment?.ID
-  const selectedMomentStoryboardLines = selectedSegment?.storyboardLines.filter((item) => item.scene_moment_id === selectedSceneMomentKey) ?? []
-  const selectedMomentContentUnits = selectedSegment?.contentUnits.filter((item) => item.scene_moment_id === selectedSceneMomentKey) ?? []
-  const selectedMomentKeyframes = selectedSegment?.keyframes.filter((item) => item.scene_moment_id === selectedSceneMomentKey) ?? []
-  const selectedMomentAssetSlots = selectedSegment?.assetSlots.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === selectedSceneMomentKey) ?? []
   const readyCount = segmentWorkspaces.filter((item) => item.readiness >= 70 && item.assetSlots.every((slot) => !isAssetGap(slot))).length
   const attentionCount = segmentWorkspaces.filter((item) => item.readiness < 70 || item.assetSlots.some(isAssetGap)).length
   const averageReadiness = segmentWorkspaces.length
@@ -370,20 +375,14 @@ export default function ScenesPage() {
   }
 
   function startCreateSegment() {
-    setSegmentDialogMode('create')
-    setSegmentDialogOpen(true)
-  }
-
-  function startEditSegment() {
-    if (!selectedSegment) return
-    setSegmentDialogMode('edit')
-    setSegmentDialogOpen(true)
+    setCreatingSegment(true)
   }
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="min-w-[1240px] space-y-5 p-5">
-        <header className="flex items-start justify-between gap-4">
+    <>
+      <ContentWorkspaceLayout
+        header={(
+          <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Database size={14} />
@@ -399,10 +398,6 @@ export default function ScenesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={startEditSegment} disabled={!selectedSegment}>
-              <Pencil size={15} />
-              编辑片段
-            </Button>
             <Button className="gap-2" onClick={startCreateSegment}>
               <Plus size={15} />
               新建片段
@@ -416,27 +411,45 @@ export default function ScenesPage() {
               查看关系
             </Button>
           </div>
-        </header>
-
-        <section className="grid grid-cols-4 gap-3">
+          </header>
+        )}
+        overview={(
+          <section className="grid grid-cols-4 gap-3">
           <MetricCard icon={BookOpenText} label="片段" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="text-cyan-600" />
           <MetricCard icon={Film} label="情节" value={sceneMoments.length} detail="片段内部的叙事上下文" tone="text-teal-600" />
           <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="text-emerald-600" />
           <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
-        </section>
-
-        <section className="grid grid-cols-[250px_minmax(0,1fr)_350px] gap-4">
-          <aside className="space-y-4">
-            <Panel title="片段状态" icon={Layers3}>
-              <div className="space-y-2">
-                <CheckRow ok={readyCount > 0} label="可推进片段" detail={`${readyCount} 个片段准备度较高`} />
-                <CheckRow ok={attentionCount === 0} label="待处理片段" detail={attentionCount > 0 ? `${attentionCount} 个片段需要补内容或素材` : '当前没有待处理片段'} />
-                <CheckRow ok={segmentWorkspaces.some((item) => !item.segment.script_version_id)} label="支持独立片段" detail="片段可不绑定剧本版本，后续按需补引用" />
-              </div>
-            </Panel>
-          </aside>
-
-          <main className="min-w-0 space-y-4">
+          </section>
+        )}
+        filters={(
+          <ContentFilterBar
+            query={query}
+            onQueryChange={(value) => setFilter({ q: value })}
+            queryPlaceholder="搜索片段、情节、内容或素材"
+            filters={[{
+              id: 'status',
+              label: '状态',
+              value: statusFilter,
+              onChange: (value) => setFilter({ status: value }),
+              options: [
+                { value: 'all', label: '全部片段', count: segmentWorkspaces.length },
+                { value: 'ready', label: '可推进', count: readyCount },
+                { value: 'attention', label: '待处理', count: attentionCount },
+                { value: 'confirmed', label: '已确认', count: segmentWorkspaces.filter((item) => item.segment.status === 'confirmed').length },
+              ],
+            }]}
+            chips={[
+              selectedSegmentId ? { id: 'segment', label: `片段 #${selectedSegmentId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
+              selectedSceneMomentId ? { id: 'scene', label: `情节 #${selectedSceneMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
+              selectedContentUnitId ? { id: 'content', label: `内容 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
+              referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
+              assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
+            ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
+            resultCount={visibleSegments.length}
+            totalCount={segmentWorkspaces.length}
+          />
+        )}
+        list={(
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
@@ -446,42 +459,13 @@ export default function ScenesPage() {
                 <Badge variant="outline" className="text-[10px]">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>
               </div>
 
-              <div className="border-b border-border p-4">
-                <ContentFilterBar
-                  query={query}
-                  onQueryChange={(value) => setFilter({ q: value })}
-                  queryPlaceholder="搜索片段、情节、内容或素材"
-                  filters={[{
-                    id: 'status',
-                    label: '状态',
-                    value: statusFilter,
-                    onChange: (value) => setFilter({ status: value }),
-                    options: [
-                      { value: 'all', label: '全部片段', count: segmentWorkspaces.length },
-                      { value: 'ready', label: '可推进', count: readyCount },
-                      { value: 'attention', label: '待处理', count: attentionCount },
-                      { value: 'confirmed', label: '已确认', count: segmentWorkspaces.filter((item) => item.segment.status === 'confirmed').length },
-                    ],
-                  }]}
-                  chips={[
-                    selectedSegmentId ? { id: 'segment', label: `片段 #${selectedSegmentId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
-                    selectedSceneMomentId ? { id: 'scene', label: `情节 #${selectedSceneMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
-                    selectedContentUnitId ? { id: 'content', label: `内容 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
-                    referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
-                    assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
-                  ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
-                  resultCount={visibleSegments.length}
-                  totalCount={segmentWorkspaces.length}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 p-4">
+              <div className="grid grid-cols-1 gap-3 p-4">
                 {isLoading ? (
-                  <div className="col-span-2">
+                  <div>
                     <EmptyState title="正在加载片段" detail="读取片段和关联对象" compact />
                   </div>
                 ) : visibleSegments.length === 0 ? (
-                  <div className="col-span-2">
+                  <div>
                     <EmptyState title="暂无片段" detail="可以直接新建片段，剧本版本只是可选来源引用" compact />
                   </div>
                 ) : (
@@ -496,9 +480,9 @@ export default function ScenesPage() {
                 )}
               </div>
             </section>
-
-            <SegmentHero item={selectedSegment} />
-
+        )}
+        preview={(
+          <>
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
@@ -551,34 +535,42 @@ export default function ScenesPage() {
                 </div>
               )}
             </section>
-          </main>
-
-          <aside className="space-y-4">
-            <SegmentDetail item={selectedSegment} />
+          </>
+        )}
+        detail={(
+          <>
+            <SegmentDetailCard
+              projectId={projectId}
+              config={segmentConfig}
+              item={creatingSegment ? null : selectedSegment}
+              defaults={creatingSegment ? { order: segmentWorkspaces.length + 1, status: 'draft', kind: 'section' } : undefined}
+              queryKey={['semantic-segment-workspace', projectId]}
+              onSaved={(record) => {
+                setCreatingSegment(false)
+                setFilter({ segment_id: record.ID })
+              }}
+              onDeleted={() => {
+                setCreatingSegment(false)
+                setFilter({ segment_id: null, scene_moment_id: null, content_unit_id: null })
+              }}
+            />
             <SceneMomentDetail sceneMoment={selectedSceneMoment} segment={selectedSegment?.segment ?? null} />
             <ContentUnitDetail contentUnit={selectedContentUnit} sceneMoment={selectedSceneMoment} />
-            <RelatedPanel title="资料引用" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前片段暂无资料引用" />
-            <RelatedPanel title="素材需求" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前片段暂无素材位" />
-            <RelatedPanel title="关键帧" icon={Image} records={selectedMomentKeyframes} empty="当前情节暂无关键帧" />
-            <RelatedPanel title="情节素材" icon={PackageCheck} records={selectedMomentAssetSlots} empty="当前情节暂无素材位" />
-            <RelatedPanel title="情节分镜" icon={FileText} records={selectedMomentStoryboardLines} empty="当前情节暂无分镜行" />
-            <RelatedPanel title="情节内容" icon={Boxes} records={selectedMomentContentUnits} empty="当前情节暂无内容单元" />
-          </aside>
-        </section>
-      </div>
-      <SemanticEntityCrudDialog
-        open={segmentDialogOpen}
-        mode={segmentDialogMode}
-        projectId={projectId}
-        config={segmentConfig}
-        record={segmentDialogMode === 'edit' ? selectedSegment?.segment : null}
-        defaults={{ order: segmentWorkspaces.length + 1, status: 'draft', kind: 'section' }}
-        queryKey={['semantic-segment-workspace', projectId]}
-        onOpenChange={setSegmentDialogOpen}
-        onSaved={(record) => setFilter({ segment_id: record.ID })}
-        onDeleted={() => setFilter({ segment_id: null, scene_moment_id: null, content_unit_id: null })}
+          </>
+        )}
+        upstream={<div />}
+        downstream={<div />}
+        bottom={(
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
+            <RelatedPanel title="拥有的情节" icon={Film} records={selectedSegment?.sceneMoments ?? []} empty="当前片段暂无情节" />
+            <RelatedPanel title="涉及到的创作资料" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前片段暂无创作资料引用" />
+            <RelatedPanel title="所需要的素材" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前片段暂无素材需求" />
+            <RelatedPanel title="需要产出的内容单元" icon={Boxes} records={selectedSegment?.contentUnits ?? []} empty="当前片段暂无内容单元" />
+            <RelatedPanel title="最终的成片" icon={Image} records={[]} empty="当前片段暂无成片引用" />
+          </div>
+        )}
       />
-    </div>
+    </>
   )
 }
 
@@ -620,18 +612,107 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
   )
 }
 
-function SegmentHero({ item }: { item: SegmentWorkspace | null }) {
-  if (!item) {
+type SegmentFormState = Record<string, string | boolean>
+
+function SegmentDetailCard({
+  projectId,
+  config,
+  item,
+  defaults,
+  queryKey,
+  onSaved,
+  onDeleted,
+}: {
+  projectId?: number
+  config: SemanticEntityConfig
+  item: SegmentWorkspace | null
+  defaults?: Partial<SemanticEntityPayload>
+  queryKey?: readonly unknown[]
+  onSaved?: (record: SegmentRecord) => void
+  onDeleted?: (record: SegmentRecord) => void
+}) {
+  const queryClient = useQueryClient()
+  const fields = useMemo(() => config.fields.filter((field) => !field.createOnly), [config.fields])
+  const record: SegmentRecord | null = item?.segment ?? null
+  const [form, setForm] = useState<SegmentFormState>(() => buildSegmentInitialForm(fields, record, defaults))
+  const [isEditing, setIsEditing] = useState(Boolean(defaults || !record))
+
+  useEffect(() => {
+    setForm(buildSegmentInitialForm(fields, record, defaults))
+    setIsEditing(Boolean(defaults || !record))
+  }, [defaults, fields, record])
+
+  const missingRequiredFields = useMemo(() => fields.filter((field) => field.required && !isSegmentFieldFilled(form[field.key], field.type)), [fields, form])
+  const canSave = Boolean(projectId) && missingRequiredFields.length === 0 && (isEditing || !record)
+  const primaryFields = fields.filter((field) => ['title', 'kind', 'status', 'summary', 'content'].includes(field.key))
+  const advancedFields = fields.filter((field) => !primaryFields.includes(field))
+  const compactEditFields = ['kind', 'order', 'source_range', 'script_version_id']
+  const fieldByKey = useMemo(() => new Map(fields.map((field) => [field.key, field])), [fields])
+  const formId = `segment-detail-${record?.ID ?? 'new'}`
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: SemanticEntityPayload) => {
+      if (!projectId) throw new Error('missing project id')
+      return record
+        ? updateSemanticEntity(projectId, config, record.ID, payload)
+        : createSemanticEntity(projectId, config, payload)
+    },
+    onSuccess: (saved) => {
+      if (queryKey) queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: [config.kind, projectId] })
+      toast.success('片段已保存')
+      setIsEditing(false)
+      onSaved?.(saved as SegmentRecord)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId || !record) throw new Error('missing record')
+      return deleteSemanticEntity(projectId, config, record.ID)
+    },
+    onSuccess: () => {
+      if (queryKey) queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: [config.kind, projectId] })
+      toast.success('片段已删除')
+      if (record) onDeleted?.(record)
+    },
+  })
+
+  function updateField(key: string, value: string | boolean) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!projectId || !canSave) return
+    saveMutation.mutate(buildSegmentPayload(fields, form))
+  }
+
+  function removeRecord() {
+    if (!projectId || !record) return
+    if (!window.confirm('确定删除这个片段吗？')) return
+    deleteMutation.mutate()
+  }
+
+  if (!record && !defaults) {
     return (
       <section className="rounded-lg border border-border bg-card">
-        <EmptyState title="未选择片段" detail="从左侧片段列表选择一个内容容器" />
+        <EmptyState title="未选择片段" detail="从左侧片段列表选择一个内容容器，或新建片段后直接编辑详情" />
       </section>
     )
   }
 
+  const title = isEditing ? String(form.title ?? '') : record ? titleOf(record as SegmentRecord) : '新建片段'
+  const kind = isEditing ? String(form.kind ?? '') : String(record?.kind ?? '')
+  const status = isEditing ? String(form.status ?? 'draft') : String(record?.status ?? 'draft')
+  const summary = isEditing ? String(form.summary ?? '') : String(record?.summary || record?.content || '')
+  const isNew = !record
+
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="border-b border-border bg-gradient-to-br from-cyan-500/15 via-teal-500/10 to-indigo-500/10 p-5">
+      <form id={formId} onSubmit={submit}>
+        <div className="border-b border-border bg-gradient-to-br from-cyan-500/15 via-teal-500/10 to-indigo-500/10 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -639,26 +720,142 @@ function SegmentHero({ item }: { item: SegmentWorkspace | null }) {
                 <BookOpenText size={19} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{sectionKinds[String(item.segment.kind ?? '')] ?? item.segment.kind ?? '片段'} · {item.segment.source_range || '项目片段'}</p>
-                <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{titleOf(item.segment)}</h2>
+                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '片段')} · {record?.source_range || (isNew ? '新建片段' : '项目片段')}</p>
+                {isEditing && fieldByKey.get('title') ? (
+                  <SegmentInlineField
+                    field={fieldByKey.get('title')!}
+                    value={form.title}
+                    invalid={missingRequiredFields.some((field) => field.key === 'title')}
+                    onChange={(value) => updateField('title', value)}
+                    surface="plain"
+                    inputClassName="mt-1 h-10 bg-background/90 text-base font-semibold"
+                  />
+                ) : (
+                  <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{title}</h2>
+                )}
               </div>
             </div>
-            <p className="mt-4 max-w-4xl text-sm leading-6 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无片段摘要。'}</p>
+            <div className="mt-4 max-w-4xl">
+              {isEditing && fieldByKey.get('summary') ? (
+                <SegmentInlineField
+                  field={fieldByKey.get('summary')!}
+                  value={form.summary}
+                  onChange={(value) => updateField('summary', value)}
+                  textareaRows={3}
+                  label="摘要"
+                />
+              ) : (
+                <p className="text-sm leading-6 text-muted-foreground">{summary || '暂无片段摘要。'}</p>
+              )}
+            </div>
           </div>
-          <div className="shrink-0 text-right">
-            <StatusBadge status={item.segment.status ?? 'draft'} />
-            <p className="mt-3 text-3xl font-semibold tabular-nums text-foreground">{item.readiness}%</p>
-            <p className="text-xs text-muted-foreground">片段准备度</p>
+          <div className="flex shrink-0 flex-col items-end gap-2 text-right">
+            {isEditing && fieldByKey.get('status') ? (
+              <SegmentInlineField
+                field={fieldByKey.get('status')!}
+                value={form.status}
+                onChange={(value) => updateField('status', value)}
+                hideLabel
+                compact
+                surface="plain"
+              />
+            ) : (
+              <StatusBadge status={status} />
+            )}
+            {record && !isEditing ? (
+              <div className="flex items-center gap-2">
+                <Button type="button" size="sm" variant="outline" className="gap-2 bg-background/80" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
+                  <Pencil size={14} />
+                  编辑
+                </Button>
+                <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
+                  <Trash2 size={14} />
+                  删除
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {record ? (
+                  <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
+                    <Trash2 size={14} />
+                    删除
+                  </Button>
+                ) : null}
+                {record ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 bg-background/80"
+                    disabled={saveMutation.isPending || deleteMutation.isPending}
+                    onClick={() => {
+                      setForm(buildSegmentInitialForm(fields, record, defaults))
+                      setIsEditing(false)
+                    }}
+                  >
+                    <X size={14} />
+                    取消
+                  </Button>
+                ) : null}
+                <Button type="submit" size="sm" className="gap-2" loading={saveMutation.isPending} disabled={!canSave || deleteMutation.isPending}>
+                  <Save size={14} />
+                  保存
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-      </div>
-      <div className="grid grid-cols-5 gap-3 p-4">
-        <HeroStat icon={Film} label="情节" value={item.sceneMoments.length} />
-        <HeroStat icon={Boxes} label="内容设计" value={item.contentUnits.length} />
-        <HeroStat icon={Sparkles} label="资料引用" value={item.references.length} />
-        <HeroStat icon={PackageCheck} label="素材缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'text-amber-600' : 'text-emerald-600'} />
-        <HeroStat icon={Clock3} label="估算时长" value={formatDuration(item.totalDuration)} />
-      </div>
+        {isEditing ? (
+          <div className="mt-4 rounded-lg border border-white/50 bg-background/70 p-3 shadow-sm backdrop-blur">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-foreground">核心信息</p>
+              <p className="text-[11px] text-muted-foreground">用于列表、筛选和来源追溯</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {compactEditFields.map((key) => fieldByKey.get(key) ? (
+                <SegmentInlineField key={key} field={fieldByKey.get(key)!} value={form[key]} onChange={(value) => updateField(key, value)} />
+              ) : null)}
+            </div>
+          </div>
+        ) : null}
+        </div>
+        {item ? (
+          <div className="grid grid-cols-5 gap-3 p-4">
+            <HeroStat icon={Film} label="情节" value={item.sceneMoments.length} />
+            <HeroStat icon={Boxes} label="内容设计" value={item.contentUnits.length} />
+            <HeroStat icon={Sparkles} label="资料引用" value={item.references.length} />
+            <HeroStat icon={PackageCheck} label="素材缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'text-amber-600' : 'text-emerald-600'} />
+            <HeroStat icon={Clock3} label="估算时长" value={formatDuration(item.totalDuration)} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3 p-4">
+            <HeroStat icon={BookOpenText} label="类型" value={sectionKinds[kind] ?? (kind || '片段')} />
+            <HeroStat icon={ShieldCheck} label="状态" value={statusLabel(status)} />
+            <HeroStat icon={Clock3} label="顺序" value={String(form.order || '-')} />
+          </div>
+        )}
+        {isEditing ? (
+          <div className="space-y-4 border-t border-border p-4">
+            {fieldByKey.get('content') ? (
+              <SegmentEditSection title="片段正文" description="保留完整片段内容，摘要只承担快速扫描。">
+                <SegmentInlineField field={fieldByKey.get('content')!} value={form.content} onChange={(value) => updateField('content', value)} textareaRows={7} />
+              </SegmentEditSection>
+            ) : null}
+            {advancedFields.filter((field) => !compactEditFields.includes(field.key)).length > 0 ? (
+              <details className="overflow-hidden rounded-lg border border-border bg-muted/20">
+                <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-foreground">高级字段</summary>
+                <div className="grid gap-3 border-t border-border bg-card/60 p-3">
+                  {advancedFields.filter((field) => !compactEditFields.includes(field.key)).map((field) => (
+                    <SegmentInlineField key={field.key} field={field} value={form[field.key]} onChange={(value) => updateField(field.key, value)} textareaRows={field.key.endsWith('_json') ? 6 : 3} />
+                  ))}
+                </div>
+              </details>
+            ) : null}
+          </div>
+        ) : record ? (
+          <SegmentReadOnlyDetails fields={fields} record={record} />
+        ) : null}
+      </form>
     </section>
   )
 }
@@ -747,52 +944,9 @@ function ContentUnitRow({
   )
 }
 
-function SegmentDetail({ item }: { item: SegmentWorkspace | null }) {
-  if (!item) {
-    return (
-      <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择片段" detail="选择片段后查看容器状态" compact />
-      </section>
-    )
-  }
-
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="border-b border-border bg-gradient-to-br from-cyan-500/15 to-teal-500/10 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-            <Eye size={19} />
-          </span>
-          <StatusBadge status={item.segment.status ?? 'draft'} />
-        </div>
-        <h2 className="mt-3 text-lg font-semibold text-foreground">{titleOf(item.segment)}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{sectionKinds[String(item.segment.kind ?? '')] ?? item.segment.kind ?? '片段'} · {formatDuration(item.totalDuration)}</p>
-      </div>
-      <div className="space-y-4 p-4">
-        <div>
-          <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">片段准备度</span>
-            <span className="font-medium tabular-nums text-foreground">{item.readiness}%</span>
-          </div>
-          <ProgressBar value={item.readiness} className="h-2" />
-        </div>
-        <CheckRow ok={Boolean(item.segment.summary || item.segment.content)} label="片段内容明确" detail={item.segment.summary || item.segment.content || '需要片段摘要或原文内容'} />
-        <CheckRow ok={item.sceneMoments.length > 0} label="持有情节" detail={`${item.sceneMoments.length} 个情节`} />
-        <CheckRow ok={item.contentUnits.length > 0} label="已有内容设计" detail={`${item.contentUnits.length} 个内容单元`} />
-        <CheckRow ok={item.references.length > 0} label="已引用资料" detail={`${item.references.length} 个创作资料`} />
-        <CheckRow ok={!item.assetSlots.some(isAssetGap)} label="素材缺口可控" detail={item.assetSlots.some(isAssetGap) ? `${item.assetSlots.filter(isAssetGap).length} 个缺口待补齐` : `${item.assetSlots.length} 个素材位`} />
-      </div>
-    </section>
-  )
-}
-
 function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentRecord | null; segment: SegmentRecord | null }) {
   if (!sceneMoment) {
-    return (
-      <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择情节" detail="从中间情节列表选择一个对象" compact />
-      </section>
-    )
+    return null
   }
 
   return (
@@ -824,11 +978,7 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
 
 function ContentUnitDetail({ contentUnit, sceneMoment }: { contentUnit: RelatedRecord | null; sceneMoment: SceneMomentRecord | null }) {
   if (!contentUnit) {
-    return (
-      <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择内容" detail="从内容设计列表选择一个对象" compact />
-      </section>
-    )
+    return null
   }
 
   return (
@@ -847,8 +997,163 @@ function ContentUnitDetail({ contentUnit, sceneMoment }: { contentUnit: RelatedR
         </div>
         <InfoBlock label="所属情节" value={sceneMoment ? titleOf(sceneMoment) : '未绑定情节'} />
         <InfoBlock label="生成提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
+        <InfoBlock label="运镜" value={compactJoin([
+          contentUnit.shot_size,
+          contentUnit.camera_angle,
+          contentUnit.camera_motion,
+          contentUnit.motion_intensity,
+          contentUnit.camera_speed,
+          contentUnit.lens,
+          contentUnit.focal_length,
+          contentUnit.focus_subject,
+        ]) || '暂无运镜参数'} />
       </div>
     </section>
+  )
+}
+
+function SegmentReadOnlyDetails({ fields, record }: { fields: SemanticEntityField[]; record: SegmentRecord }) {
+  const visibleFields = fields.filter((field) => {
+    if (field.key === 'title' || field.key === 'summary') return false
+    return true
+  })
+  const contentField = visibleFields.find((field) => field.key === 'content')
+  const compactFields = visibleFields.filter((field) => field.key !== 'content')
+
+  return (
+    <div className="space-y-4 border-t border-border p-4">
+      {contentField ? (
+        <SegmentPreviewSection title="片段正文">
+          <SegmentPreviewValue field={contentField} value={record[contentField.key]} prominent />
+        </SegmentPreviewSection>
+      ) : null}
+      {compactFields.length > 0 ? (
+        <SegmentPreviewSection title="全部字段">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {compactFields.map((field) => (
+              <SegmentPreviewValue key={field.key} field={field} value={record[field.key]} />
+            ))}
+          </div>
+        </SegmentPreviewSection>
+      ) : null}
+    </div>
+  )
+}
+
+function SegmentPreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-border bg-background/70 p-3">
+      <p className="mb-3 text-xs font-semibold text-foreground">{title}</p>
+      {children}
+    </section>
+  )
+}
+
+function SegmentPreviewValue({ field, value, prominent = false }: { field: SemanticEntityField; value: unknown; prominent?: boolean }) {
+  const displayValue = segmentDisplayValue(field, value)
+  return (
+    <div className={cn(
+      'rounded-md border border-border/70 bg-card px-3 py-2.5',
+      prominent && 'bg-card/80',
+    )}>
+      <p className="text-[11px] font-medium text-muted-foreground">{field.label}</p>
+      <p className={cn(
+        'mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground',
+        field.key.endsWith('_json') && 'max-h-44 overflow-auto rounded bg-background p-2 font-mono text-xs',
+      )}>
+        {displayValue}
+      </p>
+    </div>
+  )
+}
+
+function SegmentEditSection({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-border bg-background/70 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold text-foreground">{title}</p>
+        {description ? <p className="text-[11px] text-muted-foreground">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function SegmentInlineField({
+  field,
+  value,
+  invalid = false,
+  hideLabel = false,
+  compact = false,
+  surface = 'card',
+  label,
+  textareaRows,
+  inputClassName,
+  onChange,
+}: {
+  field: SemanticEntityField
+  value: string | boolean
+  invalid?: boolean
+  hideLabel?: boolean
+  compact?: boolean
+  surface?: 'card' | 'plain'
+  label?: string
+  textareaRows?: number
+  inputClassName?: string
+  onChange: (value: string | boolean) => void
+}) {
+  const id = `segment-detail-field-${field.key}`
+  const controlClassName = cn('border-border/70 bg-background/90 shadow-none', compact && 'h-8 text-xs', inputClassName)
+  const options = segmentFieldOptions(field)
+
+  return (
+    <div className={cn('min-w-0', surface === 'card' && 'rounded-md border border-border/70 bg-card p-3')}>
+      {!hideLabel ? <Label htmlFor={id} required={field.required} className="mb-1.5 block text-xs font-medium text-muted-foreground">{label ?? field.label}</Label> : null}
+      {field.type === 'textarea' ? (
+        <Textarea
+          id={id}
+          required={field.required}
+          aria-invalid={invalid || undefined}
+          value={String(value ?? '')}
+          rows={textareaRows ?? (field.key.endsWith('_json') ? 5 : 4)}
+          placeholder={field.placeholder}
+          className={cn(controlClassName, field.key.endsWith('_json') && 'font-mono text-xs')}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : field.type === 'select' ? (
+        <select
+          id={id}
+          required={field.required}
+          aria-invalid={invalid || undefined}
+          value={String(value ?? '')}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn('w-full rounded-md border px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring', compact ? 'h-8 text-xs' : 'h-9', controlClassName)}
+        >
+          <option value="">未设置</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      ) : field.type === 'boolean' ? (
+        <label className={cn('flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-3 text-sm text-foreground', compact ? 'h-8 text-xs' : 'h-9')}>
+          <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+          启用
+        </label>
+      ) : (
+        <Input
+          id={id}
+          required={field.required}
+          aria-invalid={invalid || undefined}
+          type={field.type === 'number' ? 'number' : 'text'}
+          step={field.type === 'number' ? 'any' : undefined}
+          value={String(value ?? '')}
+          placeholder={field.placeholder}
+          className={controlClassName}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+      {field.helper ? <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p> : null}
+    </div>
   )
 }
 
@@ -881,7 +1186,7 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIco
   )
 }
 
-function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: RelatedRecord[]; empty: string }) {
+function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<RelatedRecord | SceneMomentRecord | SegmentRecord>; empty: string }) {
   return (
     <section className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
@@ -902,20 +1207,21 @@ function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; ic
   )
 }
 
-function RelatedRow({ record }: { record: RelatedRecord }) {
-  const detail = record.description || record.content || record.visual_intent || record.prompt || record.prompt_hint || record.kind || `ID ${record.ID}`
+function RelatedRow({ record }: { record: RelatedRecord | SceneMomentRecord | SegmentRecord }) {
+  const item = record as RelatedRecord & SceneMomentRecord & SegmentRecord
+  const detail = item.description || item.content || item.visual_intent || item.prompt || item.prompt_hint || item.kind || `ID ${item.ID}`
   return (
     <div className="rounded-md border border-border bg-background px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-foreground">{titleOf(record)}</p>
+          <p className="truncate text-xs font-medium text-foreground">{titleOf(item)}</p>
           <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
         </div>
-        <StatusBadge status={record.status ?? record.priority ?? 'draft'} />
+        <StatusBadge status={item.status ?? item.priority ?? 'draft'} />
       </div>
       <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        {record.kind ? <span>{record.kind}</span> : null}
-        {record.duration_sec ? <span>{formatDuration(record.duration_sec)}</span> : null}
+        {item.kind ? <span>{item.kind}</span> : null}
+        {item.duration_sec ? <span>{formatDuration(item.duration_sec)}</span> : null}
       </div>
     </div>
   )
@@ -950,18 +1256,6 @@ function SectionTitle({ icon: Icon, title, count }: { icon: LucideIcon; title: s
         <p className="text-sm font-semibold text-foreground">{title}</p>
       </div>
       <Badge variant="outline" className="text-[10px]">{count}</Badge>
-    </div>
-  )
-}
-
-function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
-  return (
-    <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
-      {ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />}
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-      </div>
     </div>
   )
 }
@@ -1031,4 +1325,65 @@ function isAssetGap(record: RelatedRecord) {
 
 function statusLabel(status?: string) {
   return statusLabels[String(status ?? '')] ?? status ?? '未知'
+}
+
+function compactJoin(values: unknown[]) {
+  return values.map((value) => String(value ?? '').trim()).filter(Boolean).join(' · ')
+}
+
+function buildSegmentInitialForm(fields: SemanticEntityConfig['fields'], record?: SegmentRecord | null, defaults?: Partial<SemanticEntityPayload>): SegmentFormState {
+  const source = record ?? defaults ?? {}
+  return Object.fromEntries(fields.map((field) => {
+    const raw = source[field.key] ?? segmentDefaultValueForField(field.type)
+    return [field.key, field.type === 'boolean' ? Boolean(raw) : String(raw ?? '')]
+  }))
+}
+
+function buildSegmentPayload(fields: SemanticEntityConfig['fields'], form: SegmentFormState): SemanticEntityPayload {
+  const payload: SemanticEntityPayload = {}
+  for (const field of fields) {
+    const value = form[field.key]
+    if (field.type === 'boolean') {
+      payload[field.key] = Boolean(value)
+      continue
+    }
+    if (field.type === 'number') {
+      const raw = String(value ?? '').trim()
+      payload[field.key] = raw === '' ? null : Number(raw)
+      continue
+    }
+    payload[field.key] = String(value ?? '').trim()
+  }
+  return payload
+}
+
+function segmentDefaultValueForField(type: SemanticEntityConfig['fields'][number]['type']) {
+  if (type === 'boolean') return false
+  return ''
+}
+
+function isSegmentFieldFilled(value: string | boolean, type: SemanticEntityConfig['fields'][number]['type']) {
+  if (type === 'boolean') return Boolean(value)
+  return String(value ?? '').trim().length > 0
+}
+
+function segmentDisplayValue(field: SemanticEntityField, value: unknown) {
+  if (field.type === 'boolean') return value ? '是' : '否'
+  const raw = String(value ?? '').trim()
+  if (!raw) return '未设置'
+  if (field.key === 'status') return statusLabel(raw)
+  if (field.key === 'kind') return sectionKinds[raw] ?? raw
+  const option = segmentFieldOptions(field).find((item) => item.value === raw)
+  return option?.label ?? raw
+}
+
+function segmentFieldOptions(field: SemanticEntityField) {
+  const options = field.options ?? []
+  if (field.key === 'status') {
+    return options.map((option) => ({ ...option, label: statusLabel(option.value) }))
+  }
+  if (field.key === 'kind') {
+    return options.map((option) => ({ ...option, label: sectionKinds[option.value] ?? option.label }))
+  }
+  return options
 }

@@ -144,7 +144,7 @@ export class AgentRuntime {
     this.toolRegistry = options.toolRegistry ?? DEFAULT_TOOL_REGISTRY
     this.pluginCatalogInfo = options.pluginCatalogInfo
     this.pluginWarnings = options.pluginWarnings ?? []
-    this.modelPlanner = options.modelPlanner ?? createDefaultModelPlanner()
+    this.modelPlanner = options.modelPlanner === false ? undefined : options.modelPlanner ?? createDefaultModelPlanner()
   }
 
   async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {

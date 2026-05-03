@@ -115,9 +115,6 @@ export function CanvasToolActionCard({
         className,
       )}
     >
-      <PortDot side="left" tone="target" label="tool inputs" className="top-[38px]" />
-      <PortDot side="right" tone="source" label="tool output" className="top-[38px]" />
-
       <header className={cn('border-b px-3 py-2.5', toneMeta.accentSoft)}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
@@ -388,6 +385,7 @@ function PortDot({
   handleType?: 'target' | 'source'
   renderPortHandle?: CanvasToolPortHandleRenderer
 }) {
+  if (!handleId || !handleType || !renderPortHandle) return null
   return (
     <span
       title={label}
@@ -403,7 +401,7 @@ function PortDot({
       )}
       aria-hidden="true"
     >
-      {handleId && handleType && renderPortHandle?.({ id: handleId, type: handleType, side, label })}
+      {renderPortHandle({ id: handleId, type: handleType, side, label })}
     </span>
   )
 }

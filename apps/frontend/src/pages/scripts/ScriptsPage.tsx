@@ -323,18 +323,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 />
               </section>
             </div>
-          ) : (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border bg-card">
-              <div className="text-center">
-                <FileText size={34} className="mx-auto text-muted-foreground/50" />
-                <p className="mt-3 text-sm font-medium text-foreground">{t('pages.scripts.empty')}</p>
-                <Button className="mt-3 gap-2" onClick={() => setShowCreate(true)}>
-                  <Plus size={15} />
-                  新建剧本
-                </Button>
-              </div>
-            </div>
-          )}
+          ) : null}
         </main>
         </div>
       </div>

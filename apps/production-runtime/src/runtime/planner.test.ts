@@ -13,16 +13,16 @@ test('planner turns lookup text into search call without project policy', () => 
 })
 
 test('planner infers read target and draft candidate calls', () => {
-  const calls = planToolCalls('读取 shot #12，并帮我写一个镜头草稿')
+  const calls = planToolCalls('读取 content_unit #12，并帮我写一个镜头草稿')
 
   assert.equal(calls.length, 3)
   assert.equal(calls[0].name, 'movscript.read_project_structure')
   assert.deepEqual(calls[1], {
     name: 'movscript.read_entity',
-    args: { entityType: 'shot', entityId: 12 },
+    args: { entityType: 'content_unit', entityId: 12 },
   })
   assert.equal(calls[2].name, 'movscript.create_draft')
-  assert.equal(calls[2].args?.kind, 'shot')
+  assert.equal(calls[2].args?.kind, 'content_unit')
 })
 
 test('planner builds structured plan tasks for research and draft work', () => {

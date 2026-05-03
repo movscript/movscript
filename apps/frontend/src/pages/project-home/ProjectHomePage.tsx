@@ -1,42 +1,72 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
+  Boxes,
   CheckCircle2,
-  CircleAlert,
-  Clock3,
+  ChevronRight,
+  Clapperboard,
+  Database,
   FileText,
+  Film,
+  GitBranch,
   LayoutDashboard,
   ListChecks,
   PackageCheck,
+  Route,
+  ShieldCheck,
   Sparkles,
   Video,
+  Wand2,
 } from 'lucide-react'
 import { Badge, Button, Card, Progress } from '@movscript/ui'
 
-import { getLatestProjectPreviewDraft, type GetLatestProjectPreviewDraftResponse } from '@/api/projectPreview'
-import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityKind, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { useProjectStore } from '@/store/projectStore'
-import { projectSurfaces, workbenchSurfaces, type StageKey } from '@/pages/project-workspace/structure'
+import { workbenchSurfaces } from '@/pages/project-workspace/structure'
 
-type StageState = 'ready' | 'active' | 'blocked'
-type SemanticRecord = Record<string, unknown> & {
-  ID: number
-  title?: string
-  name?: string
+type LaneState = 'ready' | 'active' | 'blocked' | 'empty'
+
+type HomeRecord = SemanticEntityRecord & {
   description?: string
-  status?: string
+  summary?: string
   priority?: string
+  progress?: number
 }
 
-interface SurfaceMetric {
-  key: StageKey
-  count: number
+interface ProjectHomeData {
+  scriptVersions: HomeRecord[]
+  segments: HomeRecord[]
+  sceneMoments: HomeRecord[]
+  productions: HomeRecord[]
+  storyboardScripts: HomeRecord[]
+  storyboardLines: HomeRecord[]
+  previewTimelines: HomeRecord[]
+  creativeReferences: HomeRecord[]
+  creativeReferenceUsages: HomeRecord[]
+  creativeRelationships: HomeRecord[]
+  assetSlots: HomeRecord[]
+  assetSlotCandidates: HomeRecord[]
+  contentUnits: HomeRecord[]
+  keyframes: HomeRecord[]
+  deliveryVersions: HomeRecord[]
+  workItems: HomeRecord[]
+}
+
+interface WorkLane {
+  key: string
+  title: string
+  description: string
+  primaryLabel: string
+  primaryValue: number
+  secondary: string
   progress: number
-  state: StageState
-  note: string
+  state: LaneState
+  href: string
+  workbenchHref: string
+  icon: LucideIcon
 }
 
 interface FocusItem {
@@ -48,13 +78,42 @@ interface FocusItem {
   detail: string
 }
 
+const emptyHomeData: ProjectHomeData = {
+  scriptVersions: [],
+  segments: [],
+  sceneMoments: [],
+  productions: [],
+  storyboardScripts: [],
+  storyboardLines: [],
+  previewTimelines: [],
+  creativeReferences: [],
+  creativeReferenceUsages: [],
+  creativeRelationships: [],
+  assetSlots: [],
+  assetSlotCandidates: [],
+  contentUnits: [],
+  keyframes: [],
+  deliveryVersions: [],
+  workItems: [],
+}
+
+const contentSurfaceLinks = [
+  { title: '片段', detail: '剧本结构和章节', href: '/segments', icon: Film },
+  { title: '情节', detail: '时间、地点、条件和动作', href: '/scene-moments', icon: Clapperboard },
+  { title: '创作资料', detail: '人物、地点、道具和规则', href: '/creative-references', icon: Sparkles },
+  { title: '素材位', detail: '缺口、候选和锁定资产', href: '/asset-slots', icon: PackageCheck },
+  { title: '关系网络', detail: '资料关系和一致性约束', href: '/reference-relations', icon: GitBranch },
+  { title: '内容单元', detail: '预演与生产的最小颗粒', href: '/contents', icon: Boxes },
+  { title: '成片版本', detail: '最终版本和导出记录', href: '/final-videos', icon: Video },
+]
+
 function percentage(value: number, total: number) {
   if (total <= 0) return 0
   return Math.max(0, Math.min(100, Math.round((value / total) * 100)))
 }
 
 function formatDate(value?: string) {
-  if (!value) return '-'
+  if (!value) return '未记录'
   try {
     return new Intl.DateTimeFormat('zh-CN', {
       month: '2-digit',
@@ -63,25 +122,35 @@ function formatDate(value?: string) {
       minute: '2-digit',
     }).format(new Date(value))
   } catch {
-    return '-'
+    return '未记录'
   }
 }
 
-async function listSemanticRecords(projectId: number, path: string) {
-  const { data } = await api.get<SemanticRecord[] | { items?: SemanticRecord[] }>(`/projects/${projectId}/entities/${path}`)
-  return Array.isArray(data) ? data : data.items ?? []
+function numberOf(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
-function stateLabel(state: StageState) {
-  if (state === 'ready') return '可用'
-  if (state === 'active') return '进行中'
-  return '待补齐'
+function isStatus(record: HomeRecord, statuses: string[]) {
+  return statuses.includes(String(record.status ?? ''))
 }
 
-function stateVariant(state: StageState) {
+function statusCount(records: HomeRecord[], statuses: string[]) {
+  return records.filter((record) => isStatus(record, statuses)).length
+}
+
+function stateLabel(state: LaneState) {
+  if (state === 'ready') return '稳定'
+  if (state === 'active') return '推进中'
+  if (state === 'blocked') return '待处理'
+  return '未开始'
+}
+
+function stateVariant(state: LaneState) {
   if (state === 'ready') return 'success' as const
   if (state === 'active') return 'secondary' as const
-  return 'warning' as const
+  if (state === 'blocked') return 'warning' as const
+  return 'outline' as const
 }
 
 function priorityVariant(priority: FocusItem['priority']) {
@@ -96,73 +165,159 @@ function priorityLabel(priority: FocusItem['priority']) {
   return '低'
 }
 
-function MetricTile({
+function titleOf(record: HomeRecord, fallback: string) {
+  return String(record.title ?? record.name ?? record.label ?? fallback)
+}
+
+async function safeListSemanticEntities(projectId: number, kind: SemanticEntityKind): Promise<HomeRecord[]> {
+  try {
+    return await listSemanticEntities(projectId, semanticEntityConfig(kind)) as HomeRecord[]
+  } catch (error) {
+    console.warn(`Failed to load project home entity: ${kind}`, error)
+    return []
+  }
+}
+
+async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> {
+  const [
+    scriptVersions,
+    segments,
+    sceneMoments,
+    productions,
+    storyboardScripts,
+    storyboardLines,
+    previewTimelines,
+    creativeReferences,
+    creativeReferenceUsages,
+    creativeRelationships,
+    assetSlots,
+    assetSlotCandidates,
+    contentUnits,
+    keyframes,
+    deliveryVersions,
+    workItems,
+  ] = await Promise.all([
+    safeListSemanticEntities(projectId, 'scriptVersions'),
+    safeListSemanticEntities(projectId, 'segments'),
+    safeListSemanticEntities(projectId, 'sceneMoments'),
+    safeListSemanticEntities(projectId, 'productions'),
+    safeListSemanticEntities(projectId, 'storyboardScripts'),
+    safeListSemanticEntities(projectId, 'storyboardLines'),
+    safeListSemanticEntities(projectId, 'previewTimelines'),
+    safeListSemanticEntities(projectId, 'creativeReferences'),
+    safeListSemanticEntities(projectId, 'creativeReferenceUsages'),
+    safeListSemanticEntities(projectId, 'creativeRelationships'),
+    safeListSemanticEntities(projectId, 'assetSlots'),
+    safeListSemanticEntities(projectId, 'assetSlotCandidates'),
+    safeListSemanticEntities(projectId, 'contentUnits'),
+    safeListSemanticEntities(projectId, 'keyframes'),
+    safeListSemanticEntities(projectId, 'deliveryVersions'),
+    safeListSemanticEntities(projectId, 'workItems'),
+  ])
+
+  return {
+    scriptVersions,
+    segments,
+    sceneMoments,
+    productions,
+    storyboardScripts,
+    storyboardLines,
+    previewTimelines,
+    creativeReferences,
+    creativeReferenceUsages,
+    creativeRelationships,
+    assetSlots,
+    assetSlotCandidates,
+    contentUnits,
+    keyframes,
+    deliveryVersions,
+    workItems,
+  } as ProjectHomeData
+}
+
+function StatBlock({
   label,
   value,
-  hint,
+  detail,
   icon: Icon,
 }: {
   label: string
   value: string | number
-  hint: string
-  icon: typeof FileText
+  detail: string
+  icon: LucideIcon
 }) {
   return (
-    <Card className="rounded-lg border-border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border border-border bg-background px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">{label}</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
         </div>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon size={17} />
         </span>
       </div>
-    </Card>
+    </div>
   )
 }
 
-function SurfaceCard({ metric }: { metric: SurfaceMetric }) {
-  const surface = projectSurfaces.find((item) => item.key === metric.key)!
-  const workbench = workbenchSurfaces.find((item) => {
-    if (metric.key === 'script') return item.value === 'script'
-    if (metric.key === 'creative') return item.value === 'creative'
-    if (metric.key === 'relations') return item.value === 'reference-relations'
-    if (metric.key === 'assets') return item.value === 'assets'
-    if (metric.key === 'plan') return item.value === 'preview'
-    if (metric.key === 'production') return item.value === 'production'
-    if (metric.key === 'delivery') return item.value === 'delivery'
-    return false
-  })
-  const Icon = surface.icon
+function PipelineStep({ lane, last = false }: { lane: WorkLane; last?: boolean }) {
+  const Icon = lane.icon
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Link
+        to={lane.href}
+        className="group flex min-w-[136px] flex-1 items-center gap-2 rounded-md border border-border bg-background px-3 py-2 transition-colors hover:bg-muted/40"
+      >
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+          <Icon size={14} />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-foreground">{lane.title}</p>
+          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{lane.progress}%</p>
+        </div>
+      </Link>
+      {!last ? <ChevronRight size={14} className="hidden shrink-0 text-muted-foreground xl:block" /> : null}
+    </div>
+  )
+}
+
+function LaneCard({ lane }: { lane: WorkLane }) {
+  const Icon = lane.icon
 
   return (
-    <Card className="flex min-h-[214px] flex-col rounded-lg border-border bg-card p-4 shadow-sm">
+    <Card className="flex min-h-[236px] flex-col rounded-lg border-border bg-card p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon size={17} />
         </span>
-        <Badge variant={stateVariant(metric.state)}>{stateLabel(metric.state)}</Badge>
+        <Badge variant={stateVariant(lane.state)}>{stateLabel(lane.state)}</Badge>
       </div>
       <div className="mt-4 min-w-0 flex-1">
-        <h2 className="text-sm font-semibold text-foreground">{surface.title}</h2>
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{surface.purpose}</p>
-        <p className="mt-3 text-xs text-muted-foreground">{surface.owns}</p>
+        <h2 className="text-sm font-semibold text-foreground">{lane.title}</h2>
+        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{lane.description}</p>
+        <div className="mt-4 rounded-md bg-muted/40 px-3 py-2">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="truncate text-muted-foreground">{lane.primaryLabel}</span>
+            <span className="shrink-0 font-semibold tabular-nums text-foreground">{lane.primaryValue}</span>
+          </div>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{lane.secondary}</p>
+        </div>
       </div>
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="truncate text-muted-foreground">{metric.note}</span>
-          <span className="shrink-0 font-medium tabular-nums text-foreground">{metric.count}</span>
+          <span className="text-muted-foreground">准备度</span>
+          <span className="font-medium tabular-nums text-foreground">{lane.progress}%</span>
         </div>
-        <Progress value={metric.progress} className="h-1.5" />
+        <Progress value={lane.progress} className="h-1.5" />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button asChild variant="outline" size="sm">
-          <Link to={surface.href}>管理</Link>
+          <Link to={lane.href}>查看对象</Link>
         </Button>
-        <Button asChild size="sm" disabled={!workbench}>
-          <Link to={workbench?.href ?? surface.href}>处理</Link>
+        <Button asChild size="sm">
+          <Link to={lane.workbenchHref}>进入处理</Link>
         </Button>
       </div>
     </Card>
@@ -187,118 +342,240 @@ function FocusRow({ item }: { item: FocusItem }) {
   )
 }
 
+function SurfaceLink({
+  title,
+  detail,
+  href,
+  icon: Icon,
+}: {
+  title: string
+  detail: string
+  href: string
+  icon: LucideIcon
+}) {
+  return (
+    <Link
+      to={href}
+      className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2.5 transition-colors hover:bg-muted/40"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <Icon size={15} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{title}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{detail}</p>
+      </div>
+      <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+    </Link>
+  )
+}
+
 export default function ProjectHomePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
 
-  const { data: latestDraft } = useQuery<GetLatestProjectPreviewDraftResponse>({
-    queryKey: ['project-preview-draft', projectId],
-    queryFn: () => getLatestProjectPreviewDraft(projectId!),
-    enabled: !!projectId,
-  })
-  const { data: scriptVersions = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'script-versions'],
-    queryFn: () => listSemanticRecords(projectId!, 'script-versions'),
-    enabled: !!projectId,
-  })
-  const { data: creativeReferences = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'creative-references'],
-    queryFn: () => listSemanticRecords(projectId!, 'creative-references'),
-    enabled: !!projectId,
-  })
-  const { data: assetSlots = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'asset-slots'],
-    queryFn: () => listSemanticRecords(projectId!, 'asset-slots'),
-    enabled: !!projectId,
-  })
-  const { data: contentUnits = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'content-units'],
-    queryFn: () => listSemanticRecords(projectId!, 'content-units'),
-    enabled: !!projectId,
-  })
-  const { data: keyframes = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'keyframes'],
-    queryFn: () => listSemanticRecords(projectId!, 'keyframes'),
-    enabled: !!projectId,
-  })
-  const { data: deliveryVersions = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'delivery-versions'],
-    queryFn: () => listSemanticRecords(projectId!, 'delivery-versions'),
-    enabled: !!projectId,
-  })
-  const { data: workItems = [] } = useQuery({
-    queryKey: ['semantic', projectId, 'work-items'],
-    queryFn: () => listSemanticRecords(projectId!, 'work-items'),
+  const { data = emptyHomeData, isFetching } = useQuery({
+    queryKey: ['project-home', projectId],
+    queryFn: () => loadProjectHomeData(projectId!),
     enabled: !!projectId,
   })
 
-  const draft = latestDraft?.draft?.draft
-  const storyboardRows = draft?.storyboard_rows ?? []
-  const previewCandidates = draft?.preview_candidates
-  const scriptCount = Math.max(scriptVersions.length, draft?.source_text?.trim() ? 1 : 0)
-  const referenceCount = creativeReferences.length
-  const assetSlotCount = assetSlots.length || previewCandidates?.asset_gaps.length || 0
-  const missingAssetSlots = assetSlots.filter((slot) => String(slot.status ?? '') === 'missing').length
-  const lockedAssetSlots = assetSlots.filter((slot) => ['locked', 'accepted', 'resolved'].includes(String(slot.status ?? ''))).length
-  const contentUnitCount = contentUnits.length || storyboardRows.length
-  const confirmedContentUnits = contentUnits.filter((unit) => ['confirmed', 'in_production', 'locked'].includes(String(unit.status ?? ''))).length
-  const keyframeCount = keyframes.length || previewCandidates?.keyframe_candidates.length || 0
-  const acceptedKeyframes = keyframes.filter((frame) => ['accepted', 'attached'].includes(String(frame.status ?? ''))).length
-  const deliveryReady = deliveryVersions.filter((version) => ['approved', 'exported'].includes(String(version.status ?? ''))).length
+  const counts = useMemo(() => {
+    const confirmedScripts = statusCount(data.scriptVersions, ['active'])
+    const confirmedSegments = statusCount(data.segments, ['confirmed'])
+    const confirmedMoments = statusCount(data.sceneMoments, ['confirmed'])
+    const activeProductions = data.productions.filter((item) => !['delivered', 'archived'].includes(String(item.status ?? ''))).length
+    const deliveredProductions = statusCount(data.productions, ['delivered'])
+    const productionProgress = data.productions.length
+      ? Math.round(data.productions.reduce((sum, item) => sum + numberOf(item.progress), 0) / data.productions.length)
+      : 0
+    const confirmedReferences = statusCount(data.creativeReferences, ['confirmed', 'locked', 'merged'])
+    const confirmedRelationships = statusCount(data.creativeRelationships, ['confirmed', 'corrected'])
+    const missingAssets = statusCount(data.assetSlots, ['missing'])
+    const candidateAssets = statusCount(data.assetSlots, ['candidate']) + data.assetSlotCandidates.length
+    const lockedAssets = statusCount(data.assetSlots, ['locked', 'waived'])
+    const confirmedContents = statusCount(data.contentUnits, ['confirmed', 'in_production', 'locked'])
+    const lockedContents = statusCount(data.contentUnits, ['locked'])
+    const acceptedKeyframes = statusCount(data.keyframes, ['accepted', 'attached'])
+    const approvedDeliveries = statusCount(data.deliveryVersions, ['approved', 'exported'])
+    const blockedTasks = data.workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).length
 
-  const metrics = useMemo<SurfaceMetric[]>(() => {
-    const scriptProgress = scriptCount > 0 ? 100 : 0
-    const creativeProgress = referenceCount > 0 ? 100 : scriptCount > 0 ? 35 : 0
-    const relationProgress = referenceCount > 1 ? 60 : 0
-    const assetProgress = assetSlotCount > 0 ? percentage(lockedAssetSlots, assetSlotCount) : 0
-    const planProgress = contentUnitCount > 0 ? 100 : storyboardRows.length > 0 ? 70 : scriptCount > 0 ? 30 : 0
-    const productionProgress = contentUnitCount > 0 ? percentage(Math.max(confirmedContentUnits, acceptedKeyframes), contentUnitCount) : 0
-    const deliveryProgress = deliveryVersions.length > 0 ? percentage(deliveryReady, deliveryVersions.length) : 0
+    return {
+      confirmedScripts,
+      confirmedSegments,
+      confirmedMoments,
+      activeProductions,
+      deliveredProductions,
+      productionProgress,
+      confirmedReferences,
+      confirmedRelationships,
+      missingAssets,
+      candidateAssets,
+      lockedAssets,
+      confirmedContents,
+      lockedContents,
+      acceptedKeyframes,
+      approvedDeliveries,
+      blockedTasks,
+    }
+  }, [data])
+
+  const lanes = useMemo<WorkLane[]>(() => {
+    const scriptTotal = data.scriptVersions.length + data.segments.length + data.sceneMoments.length
+    const scriptDone = counts.confirmedScripts + counts.confirmedSegments + counts.confirmedMoments
+    const scriptProgress = scriptTotal > 0 ? percentage(scriptDone, scriptTotal) : 0
+
+    const planTotal = data.productions.length + data.storyboardScripts.length + data.storyboardLines.length + data.previewTimelines.length
+    const planDone = counts.deliveredProductions + statusCount(data.storyboardScripts, ['active', 'locked']) + statusCount(data.storyboardLines, ['confirmed']) + statusCount(data.previewTimelines, ['playable', 'confirmed'])
+    const planProgress = planTotal > 0 ? Math.max(counts.productionProgress, percentage(planDone, planTotal)) : 0
+
+    const constraintTotal = data.creativeReferences.length + data.creativeRelationships.length
+    const constraintDone = counts.confirmedReferences + counts.confirmedRelationships
+    const constraintProgress = constraintTotal > 0 ? percentage(constraintDone, constraintTotal) : scriptProgress > 0 ? 25 : 0
+
+    const assetProgress = data.assetSlots.length > 0 ? percentage(counts.lockedAssets, data.assetSlots.length) : 0
+    const contentTotal = data.contentUnits.length + data.keyframes.length
+    const contentDone = counts.confirmedContents + counts.acceptedKeyframes
+    const contentProgress = contentTotal > 0 ? percentage(contentDone, contentTotal) : planProgress > 0 ? 20 : 0
+    const deliveryProgress = data.deliveryVersions.length > 0 ? percentage(counts.approvedDeliveries, data.deliveryVersions.length) : 0
 
     return [
-      { key: 'script', count: scriptCount, progress: scriptProgress, state: scriptCount > 0 ? 'ready' : 'active', note: '剧本版本' },
-      { key: 'creative', count: referenceCount, progress: creativeProgress, state: referenceCount > 0 ? 'ready' : scriptCount > 0 ? 'active' : 'blocked', note: '资料卡' },
-      { key: 'relations', count: Math.max(0, referenceCount - 1), progress: relationProgress, state: relationProgress > 0 ? 'active' : referenceCount > 1 ? 'active' : 'blocked', note: '关系线索' },
-      { key: 'assets', count: assetSlotCount, progress: assetProgress, state: assetSlotCount > 0 && missingAssetSlots === 0 ? 'ready' : scriptCount > 0 ? 'active' : 'blocked', note: '素材位' },
-      { key: 'plan', count: contentUnitCount, progress: planProgress, state: contentUnitCount > 0 ? 'ready' : scriptCount > 0 ? 'active' : 'blocked', note: '分镜/片段' },
-      { key: 'production', count: keyframeCount, progress: productionProgress, state: productionProgress > 0 ? 'active' : assetProgress > 0 || planProgress > 0 ? 'active' : 'blocked', note: '关键帧/生产对象' },
-      { key: 'delivery', count: deliveryVersions.length, progress: deliveryProgress, state: deliveryReady > 0 ? 'ready' : productionProgress > 0 ? 'active' : 'blocked', note: '交付版本' },
+      {
+        key: 'script',
+        title: '剧本与情节',
+        description: '从剧本版本沉淀片段和情节，形成所有制作对象的叙事来源。',
+        primaryLabel: '剧本/片段/情节',
+        primaryValue: scriptTotal,
+        secondary: `${counts.confirmedSegments} 个片段已确认，${counts.confirmedMoments} 个情节已确认`,
+        progress: scriptProgress,
+        state: scriptTotal === 0 ? 'empty' : scriptProgress >= 70 ? 'ready' : 'active',
+        href: '/scripts',
+        workbenchHref: '/workbench/script',
+        icon: FileText,
+      },
+      {
+        key: 'production',
+        title: '制作编排',
+        description: '项目现在以“制作”为主轴，承载从剧本到成片的一次完整生产单元。',
+        primaryLabel: '制作/分镜/预演',
+        primaryValue: planTotal,
+        secondary: `${counts.activeProductions} 个制作进行中，${data.previewTimelines.length} 条预演时间线`,
+        progress: planProgress,
+        state: data.productions.length === 0 ? (scriptTotal > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
+        href: '/production',
+        workbenchHref: '/workbench/production-plan',
+        icon: Route,
+      },
+      {
+        key: 'constraints',
+        title: '创作约束',
+        description: '人物、地点、道具、风格与资料关系统一管理，避免下游生成解释分裂。',
+        primaryLabel: '资料/关系/引用',
+        primaryValue: constraintTotal + data.creativeReferenceUsages.length,
+        secondary: `${counts.confirmedReferences} 个资料已确认，${counts.confirmedRelationships} 条关系已确认`,
+        progress: constraintProgress,
+        state: constraintTotal === 0 ? (scriptTotal > 0 ? 'active' : 'empty') : constraintProgress >= 70 ? 'ready' : 'active',
+        href: '/creative-references',
+        workbenchHref: '/workbench/creative',
+        icon: ShieldCheck,
+      },
+      {
+        key: 'assets',
+        title: '素材输入',
+        description: '素材位负责表达缺口、候选和锁定素材，是关键帧和视频生产前的输入门槛。',
+        primaryLabel: '素材位',
+        primaryValue: data.assetSlots.length,
+        secondary: `${counts.missingAssets} 个缺口，${counts.candidateAssets} 个候选，${counts.lockedAssets} 个已锁定`,
+        progress: assetProgress,
+        state: counts.missingAssets > 0 ? 'blocked' : data.assetSlots.length === 0 ? (planProgress > 0 ? 'active' : 'empty') : assetProgress >= 70 ? 'ready' : 'active',
+        href: '/asset-slots',
+        workbenchHref: '/workbench/assets',
+        icon: PackageCheck,
+      },
+      {
+        key: 'content',
+        title: '内容生产',
+        description: '内容单元收拢关键帧、画面、语音和字幕，生产工作台只处理采用和返工决策。',
+        primaryLabel: '内容单元/关键帧',
+        primaryValue: contentTotal,
+        secondary: `${counts.confirmedContents} 个内容可生产，${counts.acceptedKeyframes} 个关键帧已采纳`,
+        progress: contentProgress,
+        state: contentTotal === 0 ? (planProgress > 0 ? 'active' : 'empty') : contentProgress >= 70 ? 'ready' : 'active',
+        href: '/contents',
+        workbenchHref: '/workbench/production',
+        icon: Wand2,
+      },
+      {
+        key: 'delivery',
+        title: '成片交付',
+        description: '交付版本、导出记录和检查状态从内容生产中分离出来，作为最终放行门禁。',
+        primaryLabel: '交付版本',
+        primaryValue: data.deliveryVersions.length,
+        secondary: `${counts.approvedDeliveries} 个版本已放行，${counts.lockedContents} 个内容已锁定`,
+        progress: deliveryProgress,
+        state: data.deliveryVersions.length === 0 ? (counts.lockedContents > 0 ? 'active' : 'empty') : deliveryProgress >= 70 ? 'ready' : 'active',
+        href: '/final-videos',
+        workbenchHref: '/workbench/delivery',
+        icon: Video,
+      },
     ]
-  }, [acceptedKeyframes, assetSlotCount, confirmedContentUnits, contentUnitCount, deliveryReady, deliveryVersions.length, keyframeCount, lockedAssetSlots, missingAssetSlots, referenceCount, scriptCount, storyboardRows.length])
+  }, [counts, data])
 
   const focusItems = useMemo<FocusItem[]>(() => {
     const items: FocusItem[] = []
 
-    if (!draft?.source_text?.trim() && scriptVersions.length === 0) {
+    if (data.scriptVersions.length === 0) {
       items.push({
-        key: 'source',
-        title: '导入或确认剧本来源',
+        key: 'script',
+        title: '建立或导入剧本版本',
         area: '理解确认工作台',
         href: '/workbench/script',
         priority: 'high',
-        detail: '没有剧本，后续资料、预演和生产都无法稳定推进',
+        detail: '没有剧本版本时，片段、情节、制作和素材都缺少来源',
       })
     }
 
-    for (const slot of assetSlots.filter((item) => String(item.status ?? '') === 'missing').slice(0, 3)) {
+    if (data.scriptVersions.length > 0 && data.productions.length === 0) {
       items.push({
-        key: `asset:${slot.ID}`,
-        title: String(slot.name ?? slot.title ?? `素材位 #${slot.ID}`),
-        area: '素材生成工作台',
-        href: '/workbench/assets',
-        priority: String(slot.priority ?? '') === 'high' || String(slot.priority ?? '') === 'critical' ? 'high' : 'medium',
-        detail: String(slot.description ?? '素材缺口会阻塞关键帧和视频生产'),
+        key: 'production',
+        title: '创建第一个制作',
+        area: '制作',
+        href: '/production',
+        priority: 'high',
+        detail: '当前架构以制作为主轴，需要先建立生产单元',
       })
     }
 
-    for (const workItem of workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).slice(0, 2)) {
+    for (const task of data.workItems.filter((item) => ['blocked', 'review'].includes(String(item.status ?? ''))).slice(0, 2)) {
       items.push({
-        key: `work:${workItem.ID}`,
-        title: String(workItem.title ?? workItem.name ?? `任务 #${workItem.ID}`),
+        key: `task:${task.ID}`,
+        title: titleOf(task, `任务 #${task.ID}`),
         area: '生产协作',
         href: '/collaboration',
-        priority: String(workItem.status ?? '') === 'blocked' ? 'high' : 'medium',
-        detail: String(workItem.description ?? itemStatusText(workItem.status)),
+        priority: String(task.status ?? '') === 'blocked' ? 'high' : 'medium',
+        detail: String(task.description ?? itemStatusText(task.status)),
+      })
+    }
+
+    for (const slot of data.assetSlots.filter((item) => String(item.status ?? '') === 'missing').slice(0, 3)) {
+      items.push({
+        key: `asset:${slot.ID}`,
+        title: titleOf(slot, `素材位 #${slot.ID}`),
+        area: '素材生成工作台',
+        href: '/workbench/assets',
+        priority: ['critical', 'high'].includes(String(slot.priority ?? '')) ? 'high' : 'medium',
+        detail: String(slot.description ?? '素材缺口会影响关键帧和视频生产'),
+      })
+    }
+
+    if (data.productions.length > 0 && data.contentUnits.length === 0) {
+      items.push({
+        key: 'content',
+        title: '生成或确认内容单元',
+        area: '内容单元',
+        href: '/contents',
+        priority: 'medium',
+        detail: '制作创建后，需要把预演拆成可执行的生产颗粒',
       })
     }
 
@@ -306,87 +583,121 @@ export default function ProjectHomePage() {
     return [
       {
         key: 'preview',
-        title: '检查预演和生产方案',
+        title: '检查制作预演',
         area: '项目预演工作台',
         href: '/workbench/production-plan',
         priority: 'low',
-        detail: '没有高优先级阻塞时，优先确认下一批可生产片段',
+        detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },
       {
         key: 'delivery',
-        title: '查看交付前检查项',
+        title: '查看交付门禁',
         area: '交付门禁工作台',
         href: '/workbench/delivery',
         priority: 'low',
-        detail: '提前发现声音、字幕、版权和完整性风险',
+        detail: '提前检查声音、字幕、版权和导出完整性',
       },
     ]
-  }, [assetSlots, draft?.source_text, scriptVersions.length, workItems])
+  }, [data])
 
-  const activeMetric = metrics.find((item) => item.state === 'active') ?? metrics.find((item) => item.state === 'blocked') ?? metrics[0]
-  const activeSurface = projectSurfaces.find((item) => item.key === activeMetric?.key) ?? projectSurfaces[0]
-  const readiness = metrics.length > 0 ? Math.round(metrics.reduce((sum, item) => sum + item.progress, 0) / metrics.length) : 0
-  const blockedCount = metrics.filter((item) => item.state === 'blocked').length
+  const readiness = lanes.length > 0 ? Math.round(lanes.reduce((sum, lane) => sum + lane.progress, 0) / lanes.length) : 0
+  const blockedCount = lanes.filter((lane) => lane.state === 'blocked').length + counts.blockedTasks
+  const nextLane = lanes.find((lane) => lane.state === 'blocked') ?? lanes.find((lane) => lane.state === 'active') ?? lanes[0]
+  const updatedAt = project?.UpdatedAt ?? [...Object.values(data).flat()].sort((a, b) => String(b.UpdatedAt ?? '').localeCompare(String(a.UpdatedAt ?? '')))[0]?.UpdatedAt
 
   return (
     <div className="h-full overflow-auto bg-background">
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 p-6">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5 p-5">
+        <header className="flex flex-col gap-4 border-b border-border pb-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <LayoutDashboard size={14} />
+              <span>{project?.name ?? '当前项目'}</span>
+              <ChevronRight size={13} />
+              <span>项目总览</span>
+              <Badge variant={blockedCount > 0 ? 'warning' : 'success'}>
+                {blockedCount > 0 ? `${blockedCount} 个事项待处理` : '可继续推进'}
+              </Badge>
+              {isFetching ? <Badge variant="outline">同步中</Badge> : null}
+            </div>
+            <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-foreground">{project?.name}</h1>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+              {project?.description || '总览只负责把当前项目的制作、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button asChild variant="outline" className="gap-2">
+              <Link to="/projects">
+                <Database size={15} />
+                切换项目
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="gap-2">
+              <Link to="/production">
+                <Boxes size={15} />
+                制作
+              </Link>
+            </Button>
+            <Button asChild className="gap-2">
+              <Link to={nextLane?.workbenchHref ?? '/workbench/production-plan'}>
+                进入下一步 <ArrowRight size={15} />
+              </Link>
+            </Button>
+          </div>
+        </header>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    <LayoutDashboard size={17} />
-                  </span>
-                  <Badge variant="outline">项目驾驶舱</Badge>
-                  <Badge variant={blockedCount > 0 ? 'warning' : 'success'}>
-                    {blockedCount > 0 ? `${blockedCount} 个阶段待补齐` : '阶段可推进'}
-                  </Badge>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={17} className="text-muted-foreground" />
+                  <h2 className="text-sm font-semibold text-foreground">项目生产状态</h2>
                 </div>
-                <h1 className="mt-4 truncate text-2xl font-semibold text-foreground">{project?.name}</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  {project?.description || '这里不处理具体生成动作，只用于看项目对象、阶段状态和下一步入口。具体判断和生产动作进入工作台完成。'}
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">按当前语义对象估算，不替代具体页面里的审核状态。</p>
               </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Button asChild variant="outline" className="gap-2">
-                  <Link to="/projects">切换项目</Link>
-                </Button>
-                <Button asChild className="gap-2">
-                  <Link to={activeSurface.href}>
-                    进入当前阶段 <ArrowRight size={15} />
-                  </Link>
-                </Button>
-              </div>
+              <Badge variant={readiness >= 70 ? 'success' : readiness > 0 ? 'secondary' : 'outline'}>{readiness}%</Badge>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricTile label="项目完整度" value={`${readiness}%`} hint="按阶段平均估算" icon={CheckCircle2} />
-              <MetricTile label="剧本/资料" value={`${scriptCount}/${referenceCount}`} hint="来源与创作约束" icon={Sparkles} />
-              <MetricTile label="素材/片段" value={`${assetSlotCount}/${contentUnitCount}`} hint="素材位与生产单元" icon={PackageCheck} />
-              <MetricTile label="生产/交付" value={`${acceptedKeyframes}/${deliveryReady}`} hint="已采纳关键帧与交付版本" icon={Video} />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatBlock label="制作" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
+              <StatBlock label="内容单元" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可生产`} icon={Wand2} />
+              <StatBlock label="素材位" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={PackageCheck} />
+              <StatBlock label="成片版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={Video} />
+            </div>
+
+            <div className="mt-5 grid gap-2 xl:grid-cols-6">
+              {lanes.map((lane, index) => (
+                <PipelineStep key={lane.key} lane={lane} last={index === lanes.length - 1} />
+              ))}
             </div>
           </Card>
 
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">现在应该看哪里</h2>
-                <p className="mt-1 text-xs text-muted-foreground">项目页负责定位，工作台负责处理。</p>
+                <h2 className="text-sm font-semibold text-foreground">下一步</h2>
+                <p className="mt-1 text-xs text-muted-foreground">按阻塞、任务和素材缺口排序。</p>
               </div>
-              <Badge variant={stateVariant(activeMetric?.state ?? 'active')}>{stateLabel(activeMetric?.state ?? 'active')}</Badge>
+              <Badge variant={stateVariant(nextLane?.state ?? 'empty')}>{stateLabel(nextLane?.state ?? 'empty')}</Badge>
             </div>
+
             <div className="mt-5 rounded-md border border-border bg-background p-4">
-              <p className="text-xs text-muted-foreground">当前阶段</p>
-              <p className="mt-1 text-base font-semibold text-foreground">{activeSurface.title}</p>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">{activeSurface.purpose}</p>
-              <Progress value={activeMetric?.progress ?? 0} className="mt-4 h-1.5" />
+              <p className="text-xs text-muted-foreground">当前建议入口</p>
+              <p className="mt-1 text-base font-semibold text-foreground">{nextLane?.title ?? '暂无建议'}</p>
+              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{nextLane?.description ?? '项目对象准备完成后会显示下一步入口。'}</p>
+              <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
+              <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
+                <Link to={nextLane?.workbenchHref ?? '/workbench/production-plan'}>
+                  处理下一步 <ArrowRight size={14} />
+                </Link>
+              </Button>
             </div>
+
             <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
               <div className="rounded-md bg-muted/40 p-3">
                 <p className="text-muted-foreground">更新时间</p>
-                <p className="mt-1 font-medium text-foreground">{formatDate(project?.UpdatedAt)}</p>
+                <p className="mt-1 font-medium text-foreground">{formatDate(updatedAt)}</p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <p className="text-muted-foreground">项目状态</p>
@@ -399,25 +710,26 @@ export default function ProjectHomePage() {
         <section>
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-foreground">项目分类</h2>
-              <p className="mt-1 text-sm text-muted-foreground">管理页面承载对象和状态，处理动作进入对应工作台。</p>
+              <h2 className="text-base font-semibold text-foreground">项目对象地图</h2>
+              <p className="mt-1 text-sm text-muted-foreground">当前项目按制作主轴组织，内容区管理对象，工作台处理决策。</p>
             </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {metrics.map((metric) => <SurfaceCard key={metric.key} metric={metric} />)}
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {lanes.map((lane) => <LaneCard key={lane.key} lane={lane} />)}
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-foreground">优先处理</h2>
-                <p className="mt-1 text-sm text-muted-foreground">只列会影响下一阶段推进的事项。</p>
+                <p className="mt-1 text-sm text-muted-foreground">只列会影响制作推进的事项。</p>
               </div>
               <Button asChild variant="outline" size="sm" className="gap-2">
                 <Link to="/collaboration">
-                  <ListChecks size={14} /> 任务
+                  <ListChecks size={14} />
+                  任务
                 </Link>
               </Button>
             </div>
@@ -427,28 +739,35 @@ export default function ProjectHomePage() {
           </Card>
 
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-foreground">工作台入口</h2>
-            <p className="mt-1 text-sm text-muted-foreground">每个入口只处理一种决策场景。</p>
+            <h2 className="text-base font-semibold text-foreground">内容区入口</h2>
+            <p className="mt-1 text-sm text-muted-foreground">对象管理页面负责事实源和状态归档。</p>
             <div className="mt-4 grid gap-2">
-              {workbenchSurfaces.map((item) => {
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.value}
-                    to={item.href}
-                    className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2.5 text-sm transition-colors hover:bg-muted/40"
-                  >
-                    <Icon size={15} className="shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">{item.title}</p>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.decision}</p>
-                    </div>
-                    <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-                  </Link>
-                )
-              })}
+              {contentSurfaceLinks.map((item) => <SurfaceLink key={item.href} {...item} />)}
             </div>
           </Card>
+        </section>
+
+        <section>
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">工作台入口</h2>
+              <p className="mt-1 text-sm text-muted-foreground">工作台面向确认、生成、采用、返工和交付门禁。</p>
+            </div>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {workbenchSurfaces.map((item) => {
+              const Icon = item.icon
+              return (
+                <SurfaceLink
+                  key={item.value}
+                  title={item.title}
+                  detail={item.decision}
+                  href={item.href}
+                  icon={Icon}
+                />
+              )
+            })}
+          </div>
         </section>
       </div>
     </div>

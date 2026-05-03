@@ -84,7 +84,7 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
   },
   {
     name: 'movscript.read_project_structure',
-    description: 'Read compact project structure for scripts, settings, episodes, scenes, storyboards, shots, and pipeline nodes.',
+    description: 'Read compact project structure for scripts, settings, semantic production entities, asset slots, and pipeline nodes.',
     permission: 'project.read',
     risk: 'read',
     projectScoped: true,

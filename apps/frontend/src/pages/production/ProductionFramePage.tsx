@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -121,6 +121,7 @@ const unitMeta: Record<UnitStatus, { label: string; badge: string; dot: string }
 
 export default function ProductionFramePage() {
   const project = useProjectStore((s) => s.current)
+  const navigate = useNavigate()
   const projectId = project?.ID
   const [selectedId, setSelectedId] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -163,16 +164,10 @@ export default function ProductionFramePage() {
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作</h1>
               <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载预演进度、制作结构、情节、创作资料、素材需求、内容和成片。
+                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载制作结构、情节、创作资料、素材需求、内容和成片。
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <Button variant="outline" className="gap-2" asChild>
-                <Link to="/preview-progress">
-                  <ListChecks size={15} />
-                  预演进度
-                </Link>
-              </Button>
               <Button variant="outline" className="gap-2" asChild>
                 <Link to="/project-preview">
                   <Route size={15} />
@@ -217,7 +212,7 @@ export default function ProductionFramePage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <ListChecks size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">当前制作预演进度</h2>
+                      <h2 className="text-sm font-semibold text-foreground">当前制作预演</h2>
                     </div>
                     <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从制作编排生成制作后开始统计'}</p>
@@ -327,24 +322,18 @@ export default function ProductionFramePage() {
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预演进度挂在制作下面，用于追踪结构、关键帧、素材和内容准备情况。
+                      预演挂在制作下面，用于追踪结构、关键帧、素材和内容准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">
                       <p>最近保存：{selected.preview.savedAt ? formatDateTime(selected.preview.savedAt) : '暂无'}</p>
                       <p>确认时间：{selected.preview.confirmedAt ? formatDateTime(selected.preview.confirmedAt) : '暂无'}</p>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="mt-4">
                       <Button variant="outline" size="sm" className="gap-2" asChild>
                         <Link to="/workbench/production-plan">
                           <Play size={14} />
                           项目预演
-                        </Link>
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-2" asChild>
-                        <Link to="/preview-progress">
-                          <ListChecks size={14} />
-                          进度
                         </Link>
                       </Button>
                     </div>
@@ -377,12 +366,17 @@ export default function ProductionFramePage() {
               </div>
               <div className="space-y-2 p-4">
                 {selected.nextActions.map((item, index) => (
-                  <div key={item} className="flex gap-3 rounded-md border border-border bg-background p-3">
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => navigate(productionNextActionHref(item, selected))}
+                    className="flex w-full gap-3 rounded-md border border-border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30"
+                  >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
                       {index + 1}
                     </span>
                     <p className="text-sm leading-5 text-foreground">{item}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>
@@ -412,7 +406,7 @@ export default function ProductionFramePage() {
 
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" className="gap-2" asChild>
-                <Link to="/assets">
+                <Link to="/asset-slots">
                   <PackageCheck size={15} />
                   素材
                 </Link>
@@ -681,7 +675,7 @@ function buildAreas(input: {
       count: input.assetCount,
       progress: input.blockedUnits > 0 ? 38 : input.assetCount > 0 ? 68 : 0,
       status: input.blockedUnits > 0 ? 'blocked' : input.assetCount > 0 ? 'active' : 'waiting',
-      href: '/assets',
+      href: '/asset-slots',
     },
     {
       key: 'content',
@@ -724,9 +718,21 @@ function mapContentUnitsToProductionUnits(rows: SemanticEntityRecord[], assetSlo
       duration,
       status,
       assets: slots.length > 0 ? `${slots.filter((slot) => slot.status === 'locked').length}/${slots.length} 已锁定` : '暂无素材位',
-      content: status === 'done' ? '已锁定' : status === 'active' ? '制作中' : status === 'blocked' ? '有阻塞' : '待生成',
+      content: cameraPlanSummary(row) || (status === 'done' ? '已锁定' : status === 'active' ? '制作中' : status === 'blocked' ? '有阻塞' : '待生成'),
     }
   })
+}
+
+function cameraPlanSummary(row: SemanticEntityRecord) {
+  return [
+    row.shot_size,
+    row.camera_angle,
+    row.camera_motion,
+    row.motion_intensity,
+    row.camera_speed,
+    row.lens,
+    row.focal_length,
+  ].map((value) => String(value ?? '').trim()).filter(Boolean).join(' · ')
 }
 
 function formatTime(seconds: number) {
@@ -776,6 +782,16 @@ function nextActionsForProduction(input: { blockedUnits: number; units: number; 
   if (input.blockedUnits > 0) return ['先补齐阻塞内容单元的素材需求。', '锁定关键创作资料和素材。', '再进入内容候选生成与选片。']
   if (input.deliveryVersions === 0) return ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
   return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']
+}
+
+function productionNextActionHref(action: string, production: ProductionRecord) {
+  const lower = action.toLowerCase()
+  if (action.includes('素材') || action.includes('资料')) return '/asset-slots'
+  if (action.includes('预演') || action.includes('时间线')) return '/workbench/production-plan'
+  if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return '/workbench/production'
+  if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return '/workbench/delivery'
+  if (lower.includes('archive') || action.includes('归档')) return '/final-videos'
+  return production.areas.find((area) => area.status === 'blocked')?.href ?? production.areas.find((area) => area.status === 'waiting' || area.status === 'active')?.href ?? '/workbench/production'
 }
 
 function formatShortDate(value: string) {

@@ -100,7 +100,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     key: 'assets',
     title: '素材准备',
     shortTitle: '素材',
-    href: '/assets',
+    href: '/asset-slots',
     icon: PackageCheck,
     purpose: '管理素材位、参考图、候选图和最终锁定素材。',
     owns: '素材缺口、素材候选、锁定版本、资源引用',

@@ -67,7 +67,7 @@ type AssetSlotCandidate struct {
 type CandidateDecision struct {
 	gorm.Model
 	ProjectID         uint   `gorm:"not null;index" json:"project_id"`
-	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // segment|scene_moment|storyboard_line|keyframe|asset_slot_candidate|preview_timeline
+	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // segment|scene_moment|storyboard_line|content_unit|keyframe|asset_slot_candidate|preview_timeline
 	CandidateID       *uint  `gorm:"index:idx_candidate_decision_candidate" json:"candidate_id,omitempty"`
 	CandidateClientID string `gorm:"index" json:"candidate_client_id"`
 	TargetType        string `gorm:"index:idx_candidate_decision_target" json:"target_type"` // optional fact/result object
@@ -101,8 +101,9 @@ type ReviewEvent struct {
 	MetadataJSON    string `gorm:"type:text" json:"metadata_json"`
 }
 
-// WorkItem is execution/assignment/review state. It is deliberately not a
-// content fact source: completing work does not mean an asset or video is used.
+// WorkItem is execution/assignment/review state. It remains separate from
+// content facts, but can carry a typed result that managers may apply when
+// completing the task.
 type WorkItem struct {
 	gorm.Model
 	ProjectID      uint        `gorm:"not null;index" json:"project_id"`
@@ -119,6 +120,11 @@ type WorkItem struct {
 	Assignee       *User       `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
 	SourceJobID    *uint       `gorm:"index" json:"source_job_id,omitempty"`
 	SourceCanvasID *uint       `gorm:"index" json:"source_canvas_id,omitempty"`
+	ResultType     string      `gorm:"index" json:"result_type"` // none|status_change|lock_asset_candidate|accept_keyframe|approve_delivery_version
+	ResultJSON     string      `gorm:"type:text" json:"result_json"`
+	ApplyStatus    string      `gorm:"not null;default:'not_applicable';index" json:"apply_status"` // not_applicable|pending|applied|failed
+	AppliedAt      string      `json:"applied_at"`
+	ApplyError     string      `gorm:"type:text" json:"apply_error"`
 	MetadataJSON   string      `gorm:"type:text" json:"metadata_json"`
 }
 

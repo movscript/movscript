@@ -62,9 +62,6 @@ export function CanvasCandidateGroupCard({
         className,
       )}
     >
-      <PortDot side="left" tone="target" label="analysis result in" className="top-[38px]" />
-      <PortDot side="right" tone="source" label="accepted entities out" className="top-[38px]" />
-
       <header className="border-b border-border bg-emerald-500/10 px-3 py-2.5">
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
@@ -135,7 +132,6 @@ function CandidateRow({ candidate }: { candidate: CandidateItem }) {
         candidate.decision === 'rejected' && 'border-border bg-muted/20 opacity-65',
       )}
     >
-      <PortDot side="right" tone={candidate.decision === 'selected' ? 'source' : 'muted'} label="candidate out" compact />
       <div className="flex items-start gap-2">
         <DecisionMark decision={candidate.decision} />
         <span className={cn('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded', cfg.accentSoft)}>

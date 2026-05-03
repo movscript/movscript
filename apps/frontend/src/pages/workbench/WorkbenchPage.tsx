@@ -1,20 +1,30 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
+  AlertTriangle,
   ArrowRight,
+  Boxes,
   CheckCircle2,
   ChevronRight,
+  CircleDot,
   Clock3,
+  ClipboardCheck,
   Database,
   FileText,
   Film,
+  GitBranch,
   Image,
+  Layers,
   ListChecks,
+  LockKeyhole,
   PackageCheck,
   Play,
   RefreshCw,
+  Settings2,
+  ShieldCheck,
   Sparkles,
+  SquareStack,
   Target,
   Timer,
   Upload,
@@ -24,10 +34,16 @@ import {
 } from 'lucide-react'
 
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
-import { AssetGenerationWorkspace } from '@/pages/assets/AssetsPage'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
+import type { Canvas, CanvasStage, Job } from '@/types'
 import { Badge, Button, Card, Progress } from '@movscript/ui'
+import {
+  listSemanticEntities,
+  semanticEntityConfig,
+  type SemanticEntityRecord,
+} from '@/api/semanticEntities'
 import {
   acceptAssetGap,
   acceptKeyframeCandidate,
@@ -418,6 +434,914 @@ function ActionRail({ actions, outputTitle, outputs }: { actions: string[]; outp
         </div>
       </section>
     </aside>
+  )
+}
+
+interface WorkbenchMetric {
+  label: string
+  value: string
+  detail: string
+  icon: typeof FileText
+  status: WorkStatus
+}
+
+interface WorkbenchGate {
+  label: string
+  detail: string
+  done: boolean
+  tone?: 'warning' | 'success'
+}
+
+interface WorkbenchLinkRow {
+  label: string
+  value: string
+  icon: typeof FileText
+}
+
+type WorkbenchRecord = SemanticEntityRecord & {
+  description?: string
+  content?: string
+  prompt?: string
+  prompt_hint?: string
+  visual_intent?: string
+  duration_sec?: number
+  production_id?: number
+  segment_id?: number
+  scene_moment_id?: number
+  content_unit_id?: number
+  owner_type?: string
+  owner_id?: number
+  creative_reference_id?: number
+  creative_reference_state_id?: number
+  kind?: string
+  name?: string
+  priority?: string
+  resource_id?: number
+  locked_asset_slot_id?: number
+  slot_key?: string
+  source_type?: string
+  source_id?: number
+  score?: number
+  note?: string
+  candidate_asset_slot_id?: number
+  asset_slot_id?: number
+  candidate_asset_slot?: WorkbenchRecord
+}
+
+interface AssetPrepData {
+  slots: WorkbenchRecord[]
+  candidates: WorkbenchRecord[]
+  contentUnits: WorkbenchRecord[]
+  segments: WorkbenchRecord[]
+  sceneMoments: WorkbenchRecord[]
+  creativeReferences: WorkbenchRecord[]
+  keyframes: WorkbenchRecord[]
+  jobs: Job[]
+}
+
+interface ProductionWorkbenchData {
+  contentUnits: WorkbenchRecord[]
+  assetSlots: WorkbenchRecord[]
+  keyframes: WorkbenchRecord[]
+  previewTimelineItems: WorkbenchRecord[]
+  deliveryVersions: WorkbenchRecord[]
+  jobs: Job[]
+}
+
+interface AssetPrepViewRow {
+  id: string
+  title: string
+  scope: string
+  status: WorkStatus
+  priority: Priority
+  need?: string
+  progress: number
+  slot: WorkbenchRecord
+  candidates: WorkbenchRecord[]
+  lockedSlot?: WorkbenchRecord
+}
+
+interface ContentGenerationViewRow {
+  id: string
+  title: string
+  scope: string
+  status: WorkStatus
+  priority: Priority
+  progress: number
+  unit: WorkbenchRecord
+  assetSlots: WorkbenchRecord[]
+  missingSlots: WorkbenchRecord[]
+  keyframes: WorkbenchRecord[]
+}
+
+async function loadAssetPrepData(projectId: number): Promise<AssetPrepData> {
+  const [slots, candidates, contentUnits, segments, sceneMoments, creativeReferences, keyframes, jobs] = await Promise.all([
+    listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
+    listSemanticEntities(projectId, semanticEntityConfig('assetSlotCandidates')),
+    listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
+    listSemanticEntities(projectId, semanticEntityConfig('segments')),
+    listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
+    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
+    loadWorkbenchJobs(projectId, ['image', 'image_edit']),
+  ])
+  return {
+    slots: slots as WorkbenchRecord[],
+    candidates: candidates as WorkbenchRecord[],
+    contentUnits: contentUnits as WorkbenchRecord[],
+    segments: segments as WorkbenchRecord[],
+    sceneMoments: sceneMoments as WorkbenchRecord[],
+    creativeReferences: creativeReferences as WorkbenchRecord[],
+    keyframes: keyframes as WorkbenchRecord[],
+    jobs,
+  }
+}
+
+async function loadProductionWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
+  const [contentUnits, assetSlots, keyframes, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+    listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
+    listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
+    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
+    listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
+    listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
+    loadWorkbenchJobs(projectId, ['video', 'video_i2v', 'video_v2v']),
+  ])
+  return {
+    contentUnits: contentUnits as WorkbenchRecord[],
+    assetSlots: assetSlots as WorkbenchRecord[],
+    keyframes: keyframes as WorkbenchRecord[],
+    previewTimelineItems: previewTimelineItems as WorkbenchRecord[],
+    deliveryVersions: deliveryVersions as WorkbenchRecord[],
+    jobs,
+  }
+}
+
+async function loadWorkbenchJobs(projectId: number, types: string[]) {
+  const batches = await Promise.all(types.map((type) => (
+    api.get<Job[]>('/jobs', {
+      params: {
+        project_id: projectId,
+        type,
+        exact_type: 1,
+        limit: 100,
+      },
+    }).then((r) => r.data)
+  )))
+  return batches.flat().sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
+}
+
+function buildAssetPrepRows(data?: AssetPrepData): AssetPrepViewRow[] {
+  if (!data) return []
+  const slotById = new Map(data.slots.map((slot) => [slot.ID, slot]))
+  const visibleSlots = data.slots.filter((slot) => slot.owner_type !== 'asset_slot')
+  return visibleSlots
+    .map((slot) => {
+      const candidates = data.candidates
+        .filter((candidate) => Number(candidate.asset_slot_id) === slot.ID)
+        .map((candidate) => ({
+          ...candidate,
+          candidate_asset_slot: candidate.candidate_asset_slot ?? (candidate.candidate_asset_slot_id ? slotById.get(Number(candidate.candidate_asset_slot_id)) : undefined),
+        }))
+      const lockedSlot = slot.locked_asset_slot_id ? slotById.get(Number(slot.locked_asset_slot_id)) : undefined
+      return {
+        id: String(slot.ID),
+        title: titleOfRecord(slot),
+        scope: assetSlotScopeLabel(slot, data),
+        status: assetSlotWorkStatus(slot, candidates),
+        priority: priorityFromRecord(slot.priority),
+        need: firstText(slot.description, slot.prompt_hint, slot.slot_key, slot.kind),
+        progress: assetSlotProgress(slot, candidates, lockedSlot),
+        slot,
+        candidates,
+        lockedSlot,
+      }
+    })
+    .sort((a, b) => workStatusRank(a.status) - workStatusRank(b.status) || priorityRank(b.priority) - priorityRank(a.priority) || b.slot.ID - a.slot.ID)
+}
+
+function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGenerationViewRow[] {
+  if (!data) return []
+  const visibleAssetSlots = data.assetSlots.filter((slot) => slot.owner_type !== 'asset_slot')
+  return data.contentUnits
+    .map((unit) => {
+      const keyframeIds = new Set(data.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).map((keyframe) => keyframe.ID))
+      const assetSlots = visibleAssetSlots.filter((slot) => (
+        (slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ||
+        (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
+      ))
+      const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+      const keyframes = data.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+      const status = contentUnitWorkStatus(unit, missingSlots)
+      const priority: Priority = missingSlots.length > 0 ? 'high' : status === 'running' ? 'medium' : 'low'
+      return {
+        id: String(unit.ID),
+        title: titleOfRecord(unit),
+        scope: contentUnitScopeLabel(unit, keyframes, missingSlots),
+        status,
+        priority,
+        progress: contentUnitProgress(unit, missingSlots, keyframes),
+        unit,
+        assetSlots,
+        missingSlots,
+        keyframes,
+      }
+    })
+    .sort((a, b) => workStatusRank(a.status) - workStatusRank(b.status) || priorityRank(b.priority) - priorityRank(a.priority) || numberOf(a.unit.order) - numberOf(b.unit.order))
+}
+
+function buildAssetMetrics(rows: AssetPrepViewRow[], data?: AssetPrepData): WorkbenchMetric[] {
+  const activeJobs = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
+  return [
+    { label: '素材缺口', value: String(rows.length), detail: '来自内容区素材位', icon: PackageCheck, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
+    { label: '候选素材', value: String(data?.candidates.length ?? 0), detail: 'asset-slot-candidates', icon: SquareStack, status: (data?.candidates.length ?? 0) > 0 ? 'review' : 'blocked' },
+    { label: '已锁定', value: String(rows.filter((row) => normalizeAssetSlotStatus(row.slot.status) === 'locked').length), detail: '可进入关键帧或内容生成', icon: LockKeyhole, status: 'ready' },
+    { label: '生成任务', value: String(activeJobs), detail: '当前项目图片任务', icon: RefreshCw, status: activeJobs > 0 ? 'running' : 'ready' },
+  ]
+}
+
+function buildProductionMetrics(rows: ContentGenerationViewRow[], data?: ProductionWorkbenchData): WorkbenchMetric[] {
+  const runningJobs = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
+  const succeededJobs = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
+  return [
+    { label: '内容单元', value: String(rows.length), detail: 'content-units', icon: Boxes, status: rows.length > 0 ? 'review' : 'blocked' },
+    { label: '可生成', value: String(rows.filter((row) => row.missingSlots.length === 0 && firstText(row.unit.prompt, row.unit.description)).length), detail: '素材和提示已具备', icon: CheckCircle2, status: 'ready' },
+    { label: '阻塞镜头', value: String(rows.filter((row) => row.status === 'blocked').length), detail: '存在 missing 素材位', icon: AlertTriangle, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
+    { label: '视频任务', value: String(runningJobs || succeededJobs), detail: runningJobs > 0 ? '有任务运行中' : '已完成任务', icon: Film, status: runningJobs > 0 ? 'running' : succeededJobs > 0 ? 'ready' : 'review' },
+  ]
+}
+
+function buildAssetContext(row: AssetPrepViewRow | null, data?: AssetPrepData): WorkbenchLinkRow[] {
+  if (!row) return []
+  const slot = row.slot
+  return [
+    { label: '素材位', value: `${assetKindLabel(slot.kind)} / ${assetPriorityLabel(slot.priority)} / ${assetStatusLabel(slot.status)}`, icon: PackageCheck },
+    { label: '归属上下文', value: assetSlotScopeLabel(slot, data), icon: GitBranch },
+    { label: '用途说明', value: firstText(slot.description, slot.prompt_hint, '未填写用途或提示'), icon: FileText },
+    { label: '锁定输出', value: row.lockedSlot ? titleOfRecord(row.lockedSlot) : slot.resource_id ? `资源 #${slot.resource_id}` : '尚未锁定素材', icon: LockKeyhole },
+  ]
+}
+
+function buildAssetStandards(row: AssetPrepViewRow | null): WorkbenchGate[] {
+  if (!row) return []
+  const slot = row.slot
+  const hasOwner = Boolean(slot.owner_type && slot.owner_id) || Boolean(slot.creative_reference_id)
+  const hasBrief = Boolean(firstText(slot.description, slot.prompt_hint))
+  const hasCandidate = row.candidates.length > 0 || Boolean(row.lockedSlot || slot.resource_id)
+  const isLocked = normalizeAssetSlotStatus(slot.status) === 'locked' || Boolean(row.lockedSlot || slot.resource_id)
+  return [
+    { label: '归属明确', detail: hasOwner ? '已绑定内容、情节或资料上下文' : '需要绑定 owner 或创作资料来源', done: hasOwner, tone: hasOwner ? 'success' : 'warning' },
+    { label: '用途/提示完整', detail: hasBrief ? '已有用途说明或生成提示' : '需要补充 description 或 prompt_hint', done: hasBrief, tone: hasBrief ? 'success' : 'warning' },
+    { label: '候选可比较', detail: hasCandidate ? `${row.candidates.length} 个候选 / ${row.lockedSlot || slot.resource_id ? '已有锁定引用' : '待锁定'}` : '需要上传、生成或关联候选素材', done: hasCandidate, tone: hasCandidate ? 'success' : 'warning' },
+    { label: '输出可写回', detail: isLocked ? '已具备资源或锁定素材位' : '采用前仍不能进入下游生成', done: isLocked, tone: isLocked ? 'success' : 'warning' },
+  ]
+}
+
+function buildAssetCandidateRows(row: AssetPrepViewRow | null) {
+  if (!row) return []
+  const candidateRows = row.candidates.map((candidate) => {
+    const candidateSlot = candidate.candidate_asset_slot
+    return {
+      name: candidateSlot ? titleOfRecord(candidateSlot) : `候选 #${candidate.ID}`,
+      source: [candidate.source_type || 'manual', candidate.source_id ? `#${candidate.source_id}` : null].filter(Boolean).join(' '),
+      fit: candidate.score ? `评分 ${candidate.score}` : firstText(candidateSlot?.description, candidateSlot?.prompt_hint, candidateSlot?.status, '未填写说明'),
+      issue: firstText(candidate.note, candidateSlot?.prompt_hint, candidate.status, '待人工复核'),
+      status: candidate.status === 'selected' ? 'ready' as WorkStatus : candidate.status === 'rejected' ? 'blocked' as WorkStatus : 'review' as WorkStatus,
+    }
+  })
+  if (candidateRows.length === 0 && row.lockedSlot) {
+    return [{
+      name: titleOfRecord(row.lockedSlot),
+      source: 'locked_asset_slot',
+      fit: firstText(row.lockedSlot.description, row.lockedSlot.prompt_hint, '已锁定素材'),
+      issue: '已作为当前素材位输出',
+      status: 'ready' as WorkStatus,
+    }]
+  }
+  return candidateRows
+}
+
+function buildProductionContext(row: ContentGenerationViewRow | null): WorkbenchLinkRow[] {
+  if (!row) return []
+  const unit = row.unit
+  return [
+    { label: '内容目标', value: firstText(unit.description, unit.prompt, titleOfRecord(unit)), icon: Target },
+    { label: '关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定关键帧', icon: Image },
+    { label: '素材输入', value: `${row.assetSlots.length} 个素材位，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
+    { label: '生成设置', value: `${unit.kind || '内容单元'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
+  ]
+}
+
+function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Job[]): WorkbenchGate[] {
+  if (!row) return []
+  const hasTarget = Boolean(firstText(row.unit.description, row.unit.prompt))
+  const assetsReady = row.missingSlots.length === 0
+  const hasKeyframe = row.keyframes.length > 0
+  const hasJob = jobs.length > 0 || row.unit.status === 'locked'
+  return [
+    { label: '内容目标明确', detail: hasTarget ? '已有 description 或 prompt' : '需要补充内容目标或生成提示', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
+    { label: '素材输入可用', detail: assetsReady ? '没有 missing 素材位' : `${row.missingSlots.length} 个素材缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
+    { label: '关键帧具备', detail: hasKeyframe ? `${row.keyframes.length} 个关键帧可用` : '建议先生成或绑定关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
+  ]
+}
+
+function buildProductionCandidateRows(jobs: Job[]) {
+  return jobs.slice(0, 6).map((job) => ({
+    name: `任务 #${job.ID} · ${job.job_type}`,
+    source: firstText(job.model_display, job.provider_name, job.model_identifier, `模型 #${job.model_config_id}`),
+    fit: job.output_resource_id ? `输出资源 #${job.output_resource_id}` : job.status === 'succeeded' ? '已完成' : job.status,
+    issue: firstText(job.error_msg, trimText(job.prompt, 36), job.feature_key, '无提示词'),
+    status: jobToWorkStatus(job),
+  }))
+}
+
+function firstText(...values: Array<unknown>) {
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (text) return text
+  }
+  return ''
+}
+
+function trimText(value: unknown, max = 42) {
+  const text = String(value ?? '').trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}...`
+}
+
+function titleOfRecord(record?: WorkbenchRecord | null) {
+  if (!record) return '未选择'
+  return firstText(record.title, record.name, record.label, record.slot_key, `${record.kind || '记录'} #${record.ID}`)
+}
+
+function numberOf(value: unknown) {
+  const next = Number(value)
+  return Number.isFinite(next) ? next : 0
+}
+
+function formatDuration(value?: number) {
+  const next = Number(value)
+  if (!Number.isFinite(next) || next <= 0) return '未设时长'
+  return `${Math.round(next)}s`
+}
+
+function normalizeAssetSlotStatus(status?: string) {
+  if (status === 'candidate' || status === 'locked' || status === 'waived') return status
+  return 'missing'
+}
+
+function assetSlotWorkStatus(slot: WorkbenchRecord, candidates: WorkbenchRecord[]): WorkStatus {
+  const status = normalizeAssetSlotStatus(slot.status)
+  if (status === 'locked' || status === 'waived') return 'ready'
+  if (status === 'candidate' || candidates.length > 0) return 'review'
+  return 'blocked'
+}
+
+function contentUnitWorkStatus(unit: WorkbenchRecord, missingSlots: WorkbenchRecord[]): WorkStatus {
+  if (missingSlots.length > 0) return 'blocked'
+  if (unit.status === 'in_production') return 'running'
+  if (unit.status === 'locked') return 'ready'
+  if (unit.status === 'confirmed') return 'ready'
+  return 'review'
+}
+
+function assetSlotProgress(slot: WorkbenchRecord, candidates: WorkbenchRecord[], lockedSlot?: WorkbenchRecord) {
+  if (normalizeAssetSlotStatus(slot.status) === 'locked' || lockedSlot || slot.resource_id) return 100
+  if (normalizeAssetSlotStatus(slot.status) === 'waived') return 100
+  if (candidates.length > 0) return 65
+  if (firstText(slot.description, slot.prompt_hint)) return 35
+  return 15
+}
+
+function contentUnitProgress(unit: WorkbenchRecord, missingSlots: WorkbenchRecord[], keyframes: WorkbenchRecord[]) {
+  let score = 20
+  if (firstText(unit.description, unit.prompt)) score += 25
+  if (missingSlots.length === 0) score += 25
+  if (keyframes.length > 0) score += 20
+  if (unit.status === 'locked') score += 10
+  return Math.min(100, score)
+}
+
+function priorityFromRecord(priority?: string): Priority {
+  if (priority === 'critical' || priority === 'high') return 'high'
+  if (priority === 'low') return 'low'
+  return 'medium'
+}
+
+function priorityRank(priority: Priority) {
+  if (priority === 'high') return 3
+  if (priority === 'medium') return 2
+  return 1
+}
+
+function workStatusRank(status: WorkStatus) {
+  if (status === 'blocked') return 0
+  if (status === 'review') return 1
+  if (status === 'running') return 2
+  return 3
+}
+
+function assetKindLabel(kind?: string) {
+  if (kind === 'video') return '视频'
+  if (kind === 'audio') return '音频'
+  if (kind === 'text') return '文本'
+  if (kind === 'brand_pack') return '品牌包'
+  if (kind === 'reference') return '参考'
+  if (kind === 'image') return '图片'
+  return firstText(kind, '素材')
+}
+
+function assetPriorityLabel(priority?: string) {
+  if (priority === 'critical') return '紧急'
+  if (priority === 'high') return '高优先级'
+  if (priority === 'low') return '低优先级'
+  return '普通优先级'
+}
+
+function assetStatusLabel(status?: string) {
+  const normalized = normalizeAssetSlotStatus(status)
+  if (normalized === 'locked') return '已锁定'
+  if (normalized === 'candidate') return '候选中'
+  if (normalized === 'waived') return '已豁免'
+  return '缺口'
+}
+
+function assetSlotScopeLabel(slot: WorkbenchRecord, data?: AssetPrepData) {
+  if (slot.owner_type === 'content_unit' && slot.owner_id) {
+    const unit = data?.contentUnits.find((item) => item.ID === Number(slot.owner_id))
+    return unit ? `内容单元 · ${titleOfRecord(unit)}` : `内容单元 #${slot.owner_id}`
+  }
+  if (slot.owner_type === 'scene_moment' && slot.owner_id) {
+    const moment = data?.sceneMoments.find((item) => item.ID === Number(slot.owner_id))
+    return moment ? `情节 · ${titleOfRecord(moment)}` : `情节 #${slot.owner_id}`
+  }
+  if (slot.owner_type === 'segment' && slot.owner_id) {
+    const segment = data?.segments.find((item) => item.ID === Number(slot.owner_id))
+    return segment ? `片段 · ${titleOfRecord(segment)}` : `片段 #${slot.owner_id}`
+  }
+  if (slot.creative_reference_id) {
+    const reference = data?.creativeReferences.find((item) => item.ID === Number(slot.creative_reference_id))
+    return reference ? `创作资料 · ${titleOfRecord(reference)}` : `创作资料 #${slot.creative_reference_id}`
+  }
+  if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
+  if (slot.production_id) return `制作 #${slot.production_id}`
+  return '项目素材位'
+}
+
+function contentUnitScopeLabel(unit: WorkbenchRecord, keyframes: WorkbenchRecord[], missingSlots: WorkbenchRecord[]) {
+  const parts = [
+    unit.kind || '内容单元',
+    formatDuration(unit.duration_sec),
+    keyframes.length > 0 ? `关键帧 ${keyframes.length}` : '无关键帧',
+    missingSlots.length > 0 ? `缺素材 ${missingSlots.length}` : '素材可用',
+  ]
+  return parts.join(' / ')
+}
+
+function jobToWorkStatus(job: Job): WorkStatus {
+  if (job.status === 'pending' || job.status === 'running') return 'running'
+  if (job.status === 'succeeded') return 'ready'
+  if (job.status === 'failed' || job.status === 'cancelled') return 'blocked'
+  return 'review'
+}
+
+function SpecializedWorkbenchHeader({
+  category,
+  kicker,
+  title,
+  description,
+  generationKind,
+}: {
+  category: WorkbenchCategory
+  kicker: string
+  title: string
+  description: string
+  generationKind?: CanvasWorkbenchKind
+}) {
+  const surface = getWorkbenchSurface(category)
+  const generation = useWorkbenchCanvasLauncher(generationKind)
+
+  return (
+    <header className="shrink-0 border-b border-border bg-background px-5 py-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <surface.icon size={18} />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Database size={14} />
+              <span>当前项目</span>
+              <ChevronRight size={13} />
+              <span>{kicker}</span>
+            </div>
+            <h1 className="mt-1 truncate text-lg font-semibold text-foreground">{title}</h1>
+            <p className="mt-1 max-w-4xl truncate text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm">
+            <RefreshCw size={14} />
+            刷新上下文
+          </Button>
+          {generationKind ? (
+            <Button size="sm" disabled={generation.disabled} loading={generation.loading} onClick={generation.open}>
+              <ArrowRight size={14} />
+              {generation.label}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function MetricStrip({ metrics }: { metrics: WorkbenchMetric[] }) {
+  return (
+    <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+      {metrics.map((metric) => {
+        const Icon = metric.icon
+        return (
+          <div key={metric.label} className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                <Icon size={15} />
+                <span className="truncate">{metric.label}</span>
+              </div>
+              <Badge variant={statusVariant(metric.status)}>{statusLabel(metric.status)}</Badge>
+            </div>
+            <p className="mt-3 text-2xl font-semibold text-foreground">{metric.value}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{metric.detail}</p>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function WorkbenchPanel({ title, icon: Icon, children, action }: { title: string; icon: typeof FileText; children: ReactNode; action?: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon size={16} className="shrink-0 text-muted-foreground" />
+          <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+        </div>
+        {action}
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  )
+}
+
+function SpecializedQueue({
+  items,
+  selectedId,
+  onSelect,
+}: {
+  items: Array<{ id: string; title: string; scope: string; status: WorkStatus; priority: Priority; progress: number; need?: string }>
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  return (
+    <WorkbenchPanel title="生产队列" icon={ListChecks} action={<Badge variant="secondary">{items.length}</Badge>}>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSelect(item.id)}
+            className={cn(
+              'w-full rounded-md border px-3 py-3 text-left transition-colors',
+              selectedId === item.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">{item.title}</span>
+              <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+            </div>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{item.scope}</p>
+            {item.need ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.need}</p> : null}
+            <div className="mt-3 flex items-center gap-2">
+              <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(item.priority)}</Badge>
+              <Progress value={item.progress} className="h-1.5" />
+            </div>
+          </button>
+        ))}
+      </div>
+    </WorkbenchPanel>
+  )
+}
+
+function ContextStack({ rows }: { rows: WorkbenchLinkRow[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {rows.map((row) => {
+        const Icon = row.icon
+        return (
+          <div key={row.label} className="rounded-md border border-border bg-background p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Icon size={14} />
+              <span>{row.label}</span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-foreground">{row.value}</p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.label} className="rounded-md border border-border bg-background px-3 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {row.done ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <CircleDot size={15} className="shrink-0 text-amber-600" />}
+              <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
+            </div>
+            <Badge variant={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'outline'}>{row.done ? '通过' : '待处理'}</Badge>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{row.detail}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CandidateComparison({
+  rows,
+  primaryLabel,
+  emptyText = '暂无候选',
+}: {
+  rows: Array<{ name: string; source: string; fit: string; issue: string; status: WorkStatus }>
+  primaryLabel: string
+  emptyText?: string
+}) {
+  if (rows.length === 0) {
+    return <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.name} className="grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{row.source}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{primaryLabel}</p>
+            <p className="mt-1 truncate text-sm text-foreground">{row.fit}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">待处理</p>
+            <p className="mt-1 truncate text-sm text-foreground">{row.issue}</p>
+          </div>
+          <Badge variant={statusVariant(row.status)} className="self-start">{statusLabel(row.status)}</Badge>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AssetPreparationWorkbench() {
+  const project = useProjectStore((s) => s.current)
+  const projectId = project?.ID
+  const navigate = useNavigate()
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['workbench', 'assets', projectId],
+    queryFn: () => loadAssetPrepData(projectId!),
+    enabled: !!projectId,
+  })
+  const rows = useMemo(() => buildAssetPrepRows(data), [data])
+  const [selectedId, setSelectedId] = useState('')
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      if (selectedId) setSelectedId('')
+      return
+    }
+    if (!selectedId || !rows.some((row) => row.id === selectedId)) {
+      setSelectedId(rows[0].id)
+    }
+  }, [rows, selectedId])
+
+  const selected = rows.find((item) => item.id === selectedId) ?? rows[0] ?? null
+  const metrics = buildAssetMetrics(rows, data)
+  const candidateRows = buildAssetCandidateRows(selected)
+  const standards = buildAssetStandards(selected)
+  const contextRows = buildAssetContext(selected, data)
+  const openAssetCanvas = useMutation({
+    mutationFn: async (row: AssetPrepViewRow) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return api.post('/canvases', {
+        name: `${titleOfRecord(row.slot)} · 素材准备画布`,
+        project_id: projectId,
+        canvas_type: 'inspiration',
+        stage: 'asset_prep',
+        ref_type: 'asset_slot',
+        ref_id: row.slot.ID,
+      }).then((r) => r.data as Canvas)
+    },
+    onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
+  })
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <SpecializedWorkbenchHeader
+        category="assets"
+        kicker="素材准备"
+        title="素材准备工作台"
+        description="从素材缺口出发，把剧本证据、资料约束、参考输入和验收标准放在同一个生产界面里。"
+      />
+      <main className="min-h-0 flex-1 overflow-auto p-5">
+        {!projectId ? (
+          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目上下文，无法拉取素材位、候选和生成任务。" />
+        ) : isLoading ? (
+          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载素材数据...</Card>
+        ) : isError ? (
+          <EmptyWorkbenchState title="素材数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。 " />
+        ) : (
+          <div className="space-y-5">
+            <MetricStrip metrics={metrics} />
+            <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+              <SpecializedQueue
+                items={rows.map((row) => ({
+                  id: row.id,
+                  title: row.title,
+                  scope: row.scope,
+                  status: row.status,
+                  priority: row.priority,
+                  progress: row.progress,
+                  need: row.need,
+                }))}
+                selectedId={selected?.id ?? ''}
+                onSelect={setSelectedId}
+              />
+              <div className="min-w-0 space-y-5">
+                <WorkbenchPanel title="当前素材上下文" icon={GitBranch}>
+                  {selected ? (
+                    <>
+                      <div className="mb-4 flex items-start justify-between gap-4 rounded-md border border-border bg-background p-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">正在准备</p>
+                          <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.title}</h2>
+                          <p className="mt-1 truncate text-sm text-muted-foreground">{selected.scope}</p>
+                        </div>
+                        <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
+                      </div>
+                      <ContextStack rows={contextRows} />
+                    </>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无素材位</p>
+                  )}
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="参考输入与候选素材" icon={SquareStack} action={<Badge variant="outline">{candidateRows.length} 个候选</Badge>}>
+                  <CandidateComparison rows={candidateRows} primaryLabel="可用性" emptyText="当前素材位还没有候选素材" />
+                </WorkbenchPanel>
+              </div>
+              <div className="min-w-0 space-y-5">
+                <WorkbenchPanel title="素材验收标准" icon={ShieldCheck}>
+                  <GateChecklist rows={standards} />
+                </WorkbenchPanel>
+                <WorkbenchPanel title="下一步动作" icon={ClipboardCheck}>
+                  <div className="space-y-2">
+                    {assetPrepNextActions(selected).map((action, index) => (
+                      <Button key={action.label} variant={action.primary ? 'primary' : 'outline'} className="w-full justify-start gap-2" onClick={() => action.run()} loading={action.loading}>
+                        {index === 2 ? <LockKeyhole size={15} /> : <ChevronRight size={15} />}
+                        {action.label}
+                      </Button>
+                    ))}
+                  </div>
+                </WorkbenchPanel>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  )
+
+  function assetPrepNextActions(row: AssetPrepViewRow | null) {
+    const slotId = row?.slot.ID
+    return [
+      { label: '上传参考图', run: () => navigate('/resources'), primary: false },
+      { label: '生成补充候选', run: () => row ? openAssetCanvas.mutate(row) : navigate('/asset-slots'), primary: !row?.candidates.length, loading: openAssetCanvas.isPending },
+      { label: '采用并锁定素材', run: () => navigate(slotId ? `/asset-slots?asset_slot_id=${slotId}` : '/asset-slots'), primary: Boolean(row?.candidates.length) && normalizeAssetSlotStatus(row?.slot.status) !== 'locked' },
+      { label: '写回资源库', run: () => navigate('/resources'), primary: false },
+    ]
+  }
+}
+
+function ContentGenerationWorkbench() {
+  const project = useProjectStore((s) => s.current)
+  const projectId = project?.ID
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['workbench', 'production', projectId],
+    queryFn: () => loadProductionWorkbenchData(projectId!),
+    enabled: !!projectId,
+  })
+  const rows = useMemo(() => buildContentGenerationRows(data), [data])
+  const [selectedId, setSelectedId] = useState('')
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      if (selectedId) setSelectedId('')
+      return
+    }
+    if (!selectedId || !rows.some((row) => row.id === selectedId)) {
+      setSelectedId(rows[0].id)
+    }
+  }, [rows, selectedId])
+
+  const selected = rows.find((item) => item.id === selectedId) ?? rows[0] ?? null
+  const metrics = buildProductionMetrics(rows, data)
+  const candidateRows = buildProductionCandidateRows(data?.jobs ?? [])
+  const standards = buildProductionStandards(selected, data?.jobs ?? [])
+  const contextRows = buildProductionContext(selected)
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <SpecializedWorkbenchHeader
+        category="production"
+        generationKind="production"
+        kicker="内容生成"
+        title="内容生成工作台"
+        description="围绕内容单元组织输入完整性、生成上下文、候选版本、返工意见和正式输出。"
+      />
+      <main className="min-h-0 flex-1 overflow-auto p-5">
+        {!projectId ? (
+          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目上下文，无法拉取内容单元、素材位和生成任务。" />
+        ) : isLoading ? (
+          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载内容生成数据...</Card>
+        ) : isError ? (
+          <EmptyWorkbenchState title="内容生成数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+        ) : (
+          <div className="space-y-5">
+            <MetricStrip metrics={metrics} />
+            <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+              <SpecializedQueue
+                items={rows.map((row) => ({
+                  id: row.id,
+                  title: row.title,
+                  scope: row.scope,
+                  status: row.status,
+                  priority: row.priority,
+                  progress: row.progress,
+                  need: row.missingSlots.length > 0 ? `${row.missingSlots.length} 个素材缺口` : firstText(row.unit.description, row.unit.prompt, '素材已齐备'),
+                }))}
+                selectedId={selected?.id ?? ''}
+                onSelect={setSelectedId}
+              />
+              <div className="min-w-0 space-y-5">
+                <WorkbenchPanel title="生成上下文" icon={Layers}>
+                  {selected ? (
+                    <>
+                      <div className="mb-4 grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto]">
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">当前内容单元</p>
+                          <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.title}</h2>
+                          <p className="mt-1 truncate text-sm text-muted-foreground">{selected.scope}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
+                          <Badge variant="outline">准备度 {selected.progress}%</Badge>
+                        </div>
+                      </div>
+                      <ContextStack rows={contextRows} />
+                    </>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无内容单元</p>
+                  )}
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="候选版本对比" icon={Play} action={<Badge variant="secondary">{candidateRows.length > 0 ? '最新任务' : '暂无任务'}</Badge>}>
+                  <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" />
+                </WorkbenchPanel>
+              </div>
+              <div className="min-w-0 space-y-5">
+                <WorkbenchPanel title="采用门禁" icon={ShieldCheck}>
+                  <GateChecklist rows={standards} />
+                </WorkbenchPanel>
+                <WorkbenchPanel title="生成与审核动作" icon={Settings2}>
+                  <div className="space-y-2">
+                    {['生成新版本', '采用版本 B', '请求返工', '创建人工任务'].map((action, index) => (
+                      <Button key={action} variant={index === 1 ? 'primary' : 'outline'} className="w-full justify-start gap-2">
+                        {index === 1 ? <CheckCircle2 size={15} /> : <ChevronRight size={15} />}
+                        {action}
+                      </Button>
+                    ))}
+                  </div>
+                </WorkbenchPanel>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   )
 }
 
@@ -1002,7 +1926,75 @@ function EmptyWorkbenchState({ title, text }: { title: string; text: string }) {
   )
 }
 
-function ScenarioWorkspace({ category }: { category: WorkbenchCategory }) {
+type CanvasWorkbenchKind = 'assets' | 'production'
+
+const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
+  title: string
+  stage: CanvasStage
+  description: string
+  canvasName: string
+  icon: typeof PackageCheck
+}> = {
+  assets: {
+    title: '素材准备工作台',
+    stage: 'asset_prep',
+    description: '复用现有画布工作流来组织素材缺口、参考输入、AI 生成、人工审核和资源写回。',
+    canvasName: '素材准备画布',
+    icon: PackageCheck,
+  },
+  production: {
+    title: '内容生成工作台',
+    stage: 'generation',
+    description: '复用现有画布工作流来串联内容单元、提示词、关键帧、视频候选、返工和正式输出。',
+    canvasName: '内容生成画布',
+    icon: Wand2,
+  },
+}
+
+function useWorkbenchCanvasLauncher(kind?: CanvasWorkbenchKind) {
+  const navigate = useNavigate()
+  const project = useProjectStore((s) => s.current)
+  const meta = kind ? canvasWorkbenchMeta[kind] : undefined
+  const canvasesQuery = useQuery<Canvas[]>({
+    queryKey: ['workbench-canvas', project?.ID, meta?.stage],
+    queryFn: () => api.get('/canvases', {
+      params: {
+        project_id: project?.ID,
+        stage: meta?.stage,
+        type: 'workflow',
+      },
+    }).then((r) => r.data),
+    enabled: !!project?.ID && !!meta,
+  })
+  const createCanvas = useMutation({
+    mutationFn: () => {
+      if (!project?.ID || !meta) throw new Error('请先选择项目')
+      return api.post('/canvases', {
+        name: meta.canvasName,
+        project_id: project.ID,
+        canvas_type: 'workflow',
+        stage: meta.stage,
+      }).then((r) => r.data as Canvas)
+    },
+    onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
+  })
+  const existingCanvas = canvasesQuery.data?.[0]
+  return {
+    disabled: !project?.ID || canvasesQuery.isLoading || createCanvas.isPending || !meta,
+    loading: canvasesQuery.isLoading || createCanvas.isPending,
+    label: createCanvas.isPending ? '创建中' : existingCanvas ? '去生成' : '创建并去生成',
+    open: () => {
+      if (!meta) return
+      if (existingCanvas) {
+        navigate(`/canvases/${existingCanvas.ID}`)
+        return
+      }
+      createCanvas.mutate()
+    },
+  }
+}
+
+function ScenarioWorkspace({ category, generationKind }: { category: WorkbenchCategory; generationKind?: CanvasWorkbenchKind }) {
   if (category === 'preview') return <ProjectPreviewWorkspace />
 
   const surface = getWorkbenchSurface(category)
@@ -1010,6 +2002,7 @@ function ScenarioWorkspace({ category }: { category: WorkbenchCategory }) {
   const [selectedId, setSelectedId] = useState(scenario.queue[0]?.id ?? '')
   const selected = scenario.queue.find((item) => item.id === selectedId) ?? scenario.queue[0]
   const evidenceIcon = category === 'production' ? Play : category === 'delivery' ? Film : category === 'creative' ? Users : category === 'assets' ? Upload : FileText
+  const generation = useWorkbenchCanvasLauncher(generationKind)
 
   useEffect(() => {
     setSelectedId(scenario.queue[0]?.id ?? '')
@@ -1032,7 +2025,14 @@ function ScenarioWorkspace({ category }: { category: WorkbenchCategory }) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="sm"><RefreshCw size={14} />刷新建议</Button>
-          <Button size="sm"><CheckCircle2 size={14} />确认当前决策</Button>
+          {generationKind ? (
+            <Button size="sm" disabled={generation.disabled} loading={generation.loading} onClick={generation.open}>
+              <ArrowRight size={14} />
+              {generation.label}
+            </Button>
+          ) : (
+            <Button size="sm"><CheckCircle2 size={14} />确认当前决策</Button>
+          )}
         </div>
       </header>
 
@@ -1088,7 +2088,8 @@ function ScenarioWorkspace({ category }: { category: WorkbenchCategory }) {
 }
 
 function CategoryContent({ category }: { category: WorkbenchCategory }) {
-  if (category === 'assets') return <AssetGenerationWorkspace />
+  if (category === 'assets') return <AssetPreparationWorkbench />
+  if (category === 'production') return <ContentGenerationWorkbench />
   if (category === 'reference-relations') return <ReferenceRelationsPage embedded initialView="graph" />
   return <ScenarioWorkspace category={category} />
 }

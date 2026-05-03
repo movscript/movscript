@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ElementType, ReactNode } from 'react'
-import { AlertTriangle, ArrowRight, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Boxes, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { CanvasCandidateGroupCard, type CanvasCandidateGroupCardProps } from '@/components/canvas/CanvasCandidateGroupCard'
@@ -54,6 +54,13 @@ type ScriptStructurePreviewItem = {
   description: string
 }
 
+type CanvasDomainCardPreviewItem = {
+  id: string
+  type: 'canvas-domain-cards'
+  name: string
+  description: string
+}
+
 type StructuredScriptItem = {
   id: string
   type: 'structured-script'
@@ -62,7 +69,7 @@ type StructuredScriptItem = {
   scriptKind: 'main' | 'scene'
 }
 
-type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | StructuredScriptItem | AgentPreviewItem
+type PreviewItem = EntityPreviewItem | StatePreviewItem | CandidatePreviewItem | ToolPreviewItem | ScriptStructurePreviewItem | CanvasDomainCardPreviewItem | StructuredScriptItem | AgentPreviewItem
 
 const ENTITY_PREVIEWS: EntityPreviewItem[] = [
   {
@@ -86,7 +93,7 @@ const ENTITY_PREVIEWS: EntityPreviewItem[] = [
         { id: 'r2', label: '出现于', targetLabel: '雨夜巷口' },
       ],
       createActions: [
-        { id: 'asset', label: '素材', icon: CopyPlus },
+        { id: 'asset_slot', label: '素材位', icon: CopyPlus },
         { id: 'shot', label: '镜头', icon: Camera },
       ],
       footer: <CardHint tone="green" text="默认只显示创作动作，高级字段放到右侧面板。" />,
@@ -113,19 +120,19 @@ const ENTITY_PREVIEWS: EntityPreviewItem[] = [
         { id: 'r2', label: '约束', targetLabel: '镜头生成' },
       ],
       createActions: [
-        { id: 'asset', label: '素材', icon: CopyPlus },
+        { id: 'asset_slot', label: '素材位', icon: CopyPlus },
         { id: 'variant', label: '变体', icon: Sparkles },
       ],
       footer: <CardHint tone="green" text="这类连线表示实体引用关系，不直接触发生成执行。" />,
     },
   },
   {
-    id: 'storyboard',
+    id: 'asset_slot',
     type: 'entity',
     name: '分镜',
     description: '分镜卡片重点呈现生成图、原始参考和下游镜头创建。',
     props: {
-      kind: 'storyboard',
+      kind: 'asset_slot',
       title: '雨夜巷口对峙',
       subtitle: '第 2 集 / 第 8 场 · 6 秒',
       status: '待生成',
@@ -144,12 +151,12 @@ const ENTITY_PREVIEWS: EntityPreviewItem[] = [
     },
   },
   {
-    id: 'scene',
+    id: 'asset_slot-2',
     type: 'entity',
     name: '分场',
     description: '分场更多承担上下文容器，卡片应该帮助快速创建分镜和关联设定。',
     props: {
-      kind: 'scene',
+      kind: 'setting',
       title: '08 雨夜巷口',
       subtitle: '外景 · 夜 · 情绪冲突',
       status: '草稿',
@@ -163,18 +170,18 @@ const ENTITY_PREVIEWS: EntityPreviewItem[] = [
         { id: 'r2', label: '包含', targetLabel: '顾言' },
       ],
       createActions: [
-        { id: 'storyboard', label: '分镜', icon: Layers },
+        { id: 'asset_slot', label: '素材位', icon: CopyPlus },
         { id: 'shot', label: '镜头', icon: Camera },
       ],
     },
   },
   {
-    id: 'shot',
+    id: 'asset_slot-3',
     type: 'entity',
     name: '镜头',
     description: '镜头卡片强调最终视频绑定和上游分镜关系。',
     props: {
-      kind: 'shot',
+      kind: 'asset_slot',
       title: 'S08-04 推近特写',
       subtitle: '由分镜生成 · 5 秒 · 竖屏',
       status: '已选片',
@@ -187,7 +194,7 @@ const ENTITY_PREVIEWS: EntityPreviewItem[] = [
         { id: 'r1', label: '来自', targetLabel: '雨夜巷口对峙', direction: 'incoming' },
       ],
       createActions: [
-        { id: 'final-video', label: '成片', icon: Film },
+        { id: 'asset_slot', label: '素材位', icon: CopyPlus },
         { id: 'variant', label: '重做', icon: Sparkles },
       ],
     },
@@ -307,7 +314,7 @@ const CANDIDATE_PREVIEWS: CandidatePreviewItem[] = [
       candidates: [
         {
           id: 'storyboard-1',
-          kind: 'storyboard',
+          kind: 'asset_slot',
           title: '巷口远景建立',
           summary: '雨夜、窄巷、林夏站在路灯边，建立空间和压抑氛围。',
           confidence: 0.91,
@@ -325,7 +332,7 @@ const CANDIDATE_PREVIEWS: CandidatePreviewItem[] = [
         },
         {
           id: 'storyboard-2',
-          kind: 'storyboard',
+          kind: 'asset_slot',
           title: '近景情绪压迫',
           summary: '镜头靠近林夏脸部，强调雨水、擦伤和压抑愤怒。',
           confidence: 0.88,
@@ -381,6 +388,15 @@ const SCRIPT_STRUCTURE_PREVIEWS: ScriptStructurePreviewItem[] = [
   },
 ]
 
+const CANVAS_DOMAIN_CARD_PREVIEWS: CanvasDomainCardPreviewItem[] = [
+  {
+    id: 'semantic-canvas-cards',
+    type: 'canvas-domain-cards',
+    name: '新版画布对象卡片',
+    description: '片段、情节、创作资料、素材和内容单元在画布里的新版卡片表现。',
+  },
+]
+
 const PREVIEW_GROUPS: Array<{
   id: string
   title: string
@@ -416,6 +432,12 @@ const PREVIEW_GROUPS: Array<{
     title: '剧本结构',
     description: 'Segment / SceneMoment / ContentUnit',
     items: SCRIPT_STRUCTURE_PREVIEWS,
+  },
+  {
+    id: 'domain-cards',
+    title: '新版对象卡片',
+    description: 'Segment / Moment / Reference / Asset / Unit',
+    items: CANVAS_DOMAIN_CARD_PREVIEWS,
   },
   {
     id: 'script-detail',
@@ -498,6 +520,8 @@ export function UIPreviewPage() {
                     ? <Layers size={15} className="text-muted-foreground" />
                   : selected.type === 'script-structure'
                     ? <ListChecks size={15} className="text-muted-foreground" />
+                  : selected.type === 'canvas-domain-cards'
+                    ? <Layers size={15} className="text-muted-foreground" />
                   : selected.type === 'structured-script'
                     ? <FileText size={15} className="text-muted-foreground" />
                   : selected.type === 'tool'
@@ -518,6 +542,8 @@ export function UIPreviewPage() {
                     ? <CandidatePreviewCanvas preview={selected} />
                   : selected.type === 'script-structure'
                     ? <ScriptStructureHierarchyPreviewCanvas />
+                  : selected.type === 'canvas-domain-cards'
+                    ? <CanvasDomainCardsPreviewCanvas />
                   : selected.type === 'structured-script'
                     ? <StructuredScriptDetailPreviewCanvas scriptKind={selected.scriptKind} />
                   : selected.type === 'tool'
@@ -560,6 +586,12 @@ export function UIPreviewPage() {
                 <SpecCard title="结构主干" text="片段、情节、内容单元是从文本到 AI 预演的主路径，负责叙事位置和生产颗粒度。" />
                 <SpecCard title="资料引用" text="人物、场景、产品、风格等作为创作资料被情节引用，不强行成为所有项目的固定结构层。" />
                 <SpecCard title="画布落点" text="每个情节或内容单元都可以打开自己的画布，执行关键帧、素材和视频生成动作。" />
+              </>
+            ) : selected.type === 'canvas-domain-cards' ? (
+              <>
+                <SpecCard title="五类对象" text="片段负责来源和边界，情节负责 AI 上下文，创作资料负责复用事实，素材负责可用输入，内容单元负责生产颗粒。" />
+                <SpecCard title="卡片密度" text="每张卡只保留画布上需要判断和连线的信息，完整字段继续放到详情面板。" />
+                <SpecCard title="关系清晰" text="虚线表达结构引用，实线表达素材/数据流，避免把生产执行和语义归属混在一起。" />
               </>
             ) : selected.type === 'structured-script' ? (
               selected.scriptKind === 'main' ? (
@@ -1432,10 +1464,410 @@ function AgentAssistantPreviewCanvas() {
   )
 }
 
+type CanvasDomainCardTone = 'cyan' | 'teal' | 'violet' | 'amber' | 'indigo'
+
+type CanvasDomainCardProps = {
+  kindLabel: string
+  title: string
+  subtitle: string
+  status: string
+  icon: ElementType
+  tone: CanvasDomainCardTone
+  selected?: boolean
+  metrics: Array<{ label: string; value: string; warning?: boolean }>
+  fields: Array<{ label: string; value: string }>
+  links: Array<{ label: string; value: string; tone?: 'default' | 'warning' | 'ready' }>
+  actions: Array<{ label: string; icon: ElementType }>
+}
+
+function CanvasDomainCardsPreviewCanvas() {
+  const segment: CanvasDomainCardProps = {
+    kindLabel: '片段',
+    title: 'S02-08 雨夜巷口',
+    subtitle: '剧情节 · 来自剧本 v12 L340-L392',
+    status: '已确认',
+    icon: Film,
+    tone: 'cyan',
+    selected: true,
+    metrics: [
+      { label: '情节', value: '2' },
+      { label: '内容', value: '5' },
+      { label: '时长', value: '01:12' },
+    ],
+    fields: [
+      { label: '叙事功能', value: '对峙与线索反转' },
+      { label: '来源范围', value: 'EP02 / Script L340-L392' },
+      { label: '处理状态', value: '可继续拆内容单元' },
+    ],
+    links: [
+      { label: '下游情节', value: '雨夜巷口对峙' },
+      { label: '素材缺口', value: '3 个', tone: 'warning' },
+    ],
+    actions: [
+      { label: '拆情节', icon: GitBranch },
+      { label: '开画布', icon: Layers },
+    ],
+  }
+
+  const moment: CanvasDomainCardProps = {
+    kindLabel: '情节',
+    title: '顾言追问旧伞来历',
+    subtitle: 'SceneMoment · 时间/地点/条件/动作上下文',
+    status: '可预演',
+    icon: Clapperboard,
+    tone: 'teal',
+    metrics: [
+      { label: '人物', value: '2' },
+      { label: '资料', value: '5' },
+      { label: '素材', value: '缺 1', warning: true },
+    ],
+    fields: [
+      { label: '时空', value: '深夜暴雨 / 老城区窄巷' },
+      { label: '动作', value: '顾言保持距离追问，林夏攥紧旧伞' },
+      { label: '情绪', value: '压抑、戒备、悲伤前兆' },
+    ],
+    links: [
+      { label: '所属片段', value: 'S02-08' },
+      { label: '生成上下文', value: '关键帧/视频', tone: 'ready' },
+    ],
+    actions: [
+      { label: '生成内容', icon: Sparkles },
+      { label: '补素材', icon: ImagePlus },
+    ],
+  }
+
+  const reference: CanvasDomainCardProps = {
+    kindLabel: '创作资料',
+    title: '旧伞',
+    subtitle: '道具 · 线索母体 · 被 4 个情节引用',
+    status: '关键资料',
+    icon: Database,
+    tone: 'violet',
+    metrics: [
+      { label: '引用', value: '4' },
+      { label: '状态', value: '2' },
+      { label: '素材', value: '2' },
+    ],
+    fields: [
+      { label: '设定要点', value: '伞骨夹层藏纸条，旧木柄有刻痕' },
+      { label: '连续性', value: '磨损程度和纸条位置必须锁定' },
+      { label: '使用状态', value: '雨夜湿润 / 纸条露出' },
+    ],
+    links: [
+      { label: '使用于', value: '情节 #8 / 内容 CU-03' },
+      { label: '关系', value: '林夏母亲线索' },
+    ],
+    actions: [
+      { label: '建素材', icon: CopyPlus },
+      { label: '状态', icon: ShieldCheck },
+    ],
+  }
+
+  const asset: CanvasDomainCardProps = {
+    kindLabel: '素材',
+    title: '旧伞纸条特写素材',
+    subtitle: 'AssetSlot · image · CU-03 输入',
+    status: '待锁定',
+    icon: ImagePlus,
+    tone: 'amber',
+    metrics: [
+      { label: '候选', value: '3' },
+      { label: '优先级', value: '高' },
+      { label: '阻塞', value: '是', warning: true },
+    ],
+    fields: [
+      { label: '需要什么', value: '湿伞骨夹层露出纸条的近景图' },
+      { label: '约束来源', value: '旧伞资料 + 雨夜情节' },
+      { label: '锁定策略', value: '选中一张作为内容单元输入' },
+    ],
+    links: [
+      { label: '服务内容', value: 'CU-03 纸条特写' },
+      { label: '候选素材', value: '3 张待选', tone: 'warning' },
+    ],
+    actions: [
+      { label: '生成', icon: Sparkles },
+      { label: '锁定', icon: CheckCircle2 },
+    ],
+  }
+
+  const content: CanvasDomainCardProps = {
+    kindLabel: '内容单元',
+    title: 'CU-03 旧伞纸条特写',
+    subtitle: 'ContentUnit · image/video · 3 秒',
+    status: '缺素材',
+    icon: Boxes,
+    tone: 'indigo',
+    metrics: [
+      { label: '时长', value: '3s' },
+      { label: '输出', value: '关键帧' },
+      { label: '素材', value: '缺 1', warning: true },
+    ],
+    fields: [
+      { label: '画面目标', value: '镜头压到伞骨，纸条字迹被雨水晕开' },
+      { label: '生产方式', value: '先关键帧，再视频延展' },
+      { label: '验收点', value: '纸条可读、伞面材质一致' },
+    ],
+    links: [
+      { label: '上游情节', value: '顾言追问旧伞来历' },
+      { label: '生产落点', value: '预演时间线 00:54', tone: 'ready' },
+    ],
+    actions: [
+      { label: '生成帧', icon: Sparkles },
+      { label: '成片', icon: Video },
+    ],
+  }
+
+  return (
+    <div className="relative h-[640px] w-[1120px]">
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1120 640" aria-hidden="true">
+        <defs>
+          <marker id="domain-structure-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" className="fill-slate-400" />
+          </marker>
+          <marker id="domain-reference-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" className="fill-violet-500" />
+          </marker>
+          <marker id="domain-asset-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" className="fill-primary" />
+          </marker>
+        </defs>
+
+        <DomainPath d="M282 106 C340 106 362 106 420 106" label="包含情节" labelX={332} labelY={88} tone="structure" />
+        <DomainPath d="M700 122 C752 122 762 84 820 84" label="引用资料" labelX={724} labelY={96} tone="reference" />
+        <DomainPath d="M700 236 C758 236 768 332 824 332" label="需要素材" labelX={728} labelY={294} tone="asset" />
+        <DomainPath d="M420 312 C360 312 340 420 282 420" label="产出内容单元" labelX={322} labelY={374} tone="structure" />
+        <DomainPath d="M560 404 C646 404 734 404 824 404" label="素材输入" labelX={666} labelY={386} tone="asset" />
+        <DomainPath d="M824 180 C746 180 654 414 560 414" label="资料约束" labelX={650} labelY={250} tone="reference" />
+      </svg>
+
+      <div className="absolute left-0 top-16">
+        <CanvasDomainCard {...segment} />
+      </div>
+      <div className="absolute left-[420px] top-16">
+        <CanvasDomainCard {...moment} />
+      </div>
+      <div className="absolute left-[820px] top-0">
+        <CanvasDomainCard {...reference} compact />
+      </div>
+      <div className="absolute left-[820px] top-[272px]">
+        <CanvasDomainCard {...asset} compact />
+      </div>
+      <div className="absolute left-[0px] top-[380px]">
+        <CanvasDomainCard {...content} />
+      </div>
+
+      <div className="absolute left-[420px] top-[486px] w-[280px] rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <Sparkles size={13} className="text-primary" />
+          <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">生成工具只接数据流</p>
+          <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">Tool</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 px-3 py-2">
+          <MiniPortSlot label="输入" value="内容单元 + 素材" tone="target" />
+          <MiniPortSlot label="输出" value="关键帧/视频" tone="source" />
+        </div>
+      </div>
+
+      <div className="absolute bottom-3 left-0 flex flex-wrap gap-3 rounded-lg border border-border bg-card/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm">
+        <LineLegend tone="neutral" label="结构线：片段、情节、内容单元的叙事归属" />
+        <LineLegend tone="violet" label="资料线：创作资料对情节和内容的约束" />
+        <LineLegend tone="primary" label="数据线：素材和生成结果的执行流" />
+      </div>
+    </div>
+  )
+}
+
+function CanvasDomainCard({
+  kindLabel,
+  title,
+  subtitle,
+  status,
+  icon: Icon,
+  tone,
+  selected,
+  metrics,
+  fields,
+  links,
+  actions,
+  compact,
+}: CanvasDomainCardProps & { compact?: boolean }) {
+  const visibleFields = compact ? fields.slice(0, 2) : fields
+  const visibleLinks = compact ? links.slice(0, 1) : links
+
+  return (
+    <div
+      className={cn(
+        'relative w-[280px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
+        selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
+      )}
+    >
+      <DomainPort side="left" tone="target" className="top-[40px]" />
+      <DomainPort side="right" tone="source" className="top-[40px]" />
+
+      <header className={cn('border-b px-3 py-2.5', domainToneSoftClass(tone))}>
+        <div className="flex items-start gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
+            <Icon size={15} className={domainToneTextClass(tone)} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">{kindLabel}</span>
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+            </div>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>
+          </div>
+          <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+            {status}
+          </span>
+        </div>
+      </header>
+
+      <div className="space-y-2 px-3 py-2.5">
+        <div className="grid grid-cols-3 gap-1.5">
+          {metrics.map((metric) => (
+            <div key={metric.label} className={cn(
+              'rounded-md border px-1.5 py-1',
+              metric.warning ? 'border-amber-500/30 bg-amber-500/10' : 'border-border bg-background',
+            )}>
+              <p className="truncate text-[9px] text-muted-foreground">{metric.label}</p>
+              <p className={cn('mt-0.5 truncate text-[11px] font-semibold text-foreground', metric.warning && 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          {visibleFields.map((field) => (
+            <div key={field.label} className="grid grid-cols-[62px_minmax(0,1fr)] gap-2 rounded-md border border-border bg-background px-2 py-1.5">
+              <span className="truncate text-[10px] text-muted-foreground">{field.label}</span>
+              <span className="truncate text-[11px] font-medium text-foreground">{field.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2">
+          <div className="space-y-1">
+            {visibleLinks.map((link) => (
+              <div key={link.label} className={cn(
+                'relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border px-1.5 text-[10px]',
+                link.tone === 'warning' ? 'border-amber-500/25 bg-amber-500/10' : link.tone === 'ready' ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-border bg-background',
+              )}>
+                <DomainPort side="left" tone="target" compact />
+                <span className="shrink-0 text-muted-foreground">{link.label}</span>
+                <ArrowRight size={10} className="shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground">{link.value}</span>
+                <DomainPort side="right" tone="source" compact />
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1">
+            {actions.slice(0, 2).map((action) => {
+              const ActionIcon = action.icon
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[10px] text-foreground hover:bg-muted/60"
+                >
+                  <ActionIcon size={11} className="shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-left">{action.label}</span>
+                  <DomainPort side="right" tone="source" compact />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DomainPath({
+  d,
+  label,
+  labelX,
+  labelY,
+  tone,
+}: {
+  d: string
+  label: string
+  labelX: number
+  labelY: number
+  tone: 'structure' | 'reference' | 'asset'
+}) {
+  const stroke = tone === 'reference' ? 'rgb(139 92 246)' : tone === 'asset' ? 'hsl(var(--primary))' : 'rgb(148 163 184)'
+  const marker = tone === 'reference' ? 'url(#domain-reference-arrow)' : tone === 'asset' ? 'url(#domain-asset-arrow)' : 'url(#domain-structure-arrow)'
+  return (
+    <>
+      <path
+        d={d}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={tone === 'asset' ? 2.5 : 2}
+        strokeDasharray={tone === 'asset' ? undefined : '6 5'}
+        markerEnd={marker}
+      />
+      <text x={labelX} y={labelY} className="fill-muted-foreground text-[10px]">{label}</text>
+    </>
+  )
+}
+
+function MiniPortSlot({ label, value, tone }: { label: string; value: string; tone: 'target' | 'source' }) {
+  return (
+    <div className="relative rounded-md border border-border bg-background px-2 py-2">
+      <DomainPort side={tone === 'target' ? 'left' : 'right'} tone={tone} compact />
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 truncate text-[11px] font-medium text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function DomainPort({
+  side,
+  tone,
+  compact,
+  className,
+}: {
+  side: 'left' | 'right'
+  tone: 'target' | 'source'
+  compact?: boolean
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
+        compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
+        side === 'left' ? '-left-1.5' : '-right-1.5',
+        tone === 'target' && 'border-sky-500 bg-sky-500/90',
+        tone === 'source' && 'border-primary bg-primary/90',
+        className,
+      )}
+      aria-hidden="true"
+    />
+  )
+}
+
+function domainToneSoftClass(tone: CanvasDomainCardTone) {
+  if (tone === 'cyan') return 'bg-cyan-500/10'
+  if (tone === 'teal') return 'bg-teal-500/10'
+  if (tone === 'violet') return 'bg-violet-500/10'
+  if (tone === 'amber') return 'bg-amber-500/10'
+  return 'bg-indigo-500/10'
+}
+
+function domainToneTextClass(tone: CanvasDomainCardTone) {
+  if (tone === 'cyan') return 'text-cyan-600'
+  if (tone === 'teal') return 'text-teal-600'
+  if (tone === 'violet') return 'text-violet-600'
+  if (tone === 'amber') return 'text-amber-600'
+  return 'text-indigo-600'
+}
+
 function StatePreviewCanvas({ preview }: { preview: StatePreviewItem }) {
   const baseSetting = ENTITY_PREVIEWS[0].props
   const stateAsset: CanvasEntityActionCardProps = {
-    kind: 'asset',
+    kind: 'asset_slot',
     title: '雨夜受伤状态素材',
     subtitle: '状态资产 · 服装/伤痕/情绪',
     status: '待补伤痕',
@@ -1528,7 +1960,7 @@ function CandidatePreviewCanvas({ preview }: { preview: CandidatePreviewItem }) 
   }
 
   const acceptedStoryboard: CanvasEntityActionCardProps = {
-    kind: 'storyboard',
+    kind: 'asset_slot',
     title: '巷口远景建立',
     subtitle: '由候选创建 · Scene 08',
     status: '新实体',
@@ -1541,7 +1973,7 @@ function CandidatePreviewCanvas({ preview }: { preview: CandidatePreviewItem }) 
       { id: 'source', label: '来自', targetLabel: '候选组', direction: 'incoming' },
     ],
     createActions: [
-      { id: 'shot', label: '镜头', icon: Camera },
+      { id: 'asset_slot', label: '素材位', icon: CopyPlus },
       { id: 'variant', label: '变体', icon: Sparkles },
     ],
   }
@@ -1560,7 +1992,7 @@ function CandidatePreviewCanvas({ preview }: { preview: CandidatePreviewItem }) 
       { id: 'scene', label: '出现于', targetLabel: '雨夜巷口', direction: 'incoming' },
     ],
     createActions: [
-      { id: 'asset', label: '素材', icon: CopyPlus },
+      { id: 'asset_slot', label: '素材位', icon: CopyPlus },
       { id: 'state', label: '状态', icon: Sparkles },
     ],
   }
@@ -1606,7 +2038,7 @@ function CandidatePreviewCanvas({ preview }: { preview: CandidatePreviewItem }) 
 function SettingAssetRelationCanvas({ preview }: { preview: EntityPreviewItem }) {
   const assetCards: CanvasEntityActionCardProps[] = [
     {
-      kind: 'asset',
+      kind: 'asset_slot',
       title: '林夏 主视觉',
       subtitle: '角色资产 · 正面半身',
       status: '已绑定',
@@ -1624,7 +2056,7 @@ function SettingAssetRelationCanvas({ preview }: { preview: EntityPreviewItem })
       ],
     },
     {
-      kind: 'asset',
+      kind: 'asset_slot',
       title: '林夏 雨夜服装',
       subtitle: '角色资产 · 服装状态',
       status: '草稿',
@@ -1642,7 +2074,7 @@ function SettingAssetRelationCanvas({ preview }: { preview: EntityPreviewItem })
       ],
     },
     {
-      kind: 'asset',
+      kind: 'asset_slot',
       title: '林夏 表情参考',
       subtitle: '角色资产 · 情绪组',
       status: '参考',
@@ -1656,7 +2088,7 @@ function SettingAssetRelationCanvas({ preview }: { preview: EntityPreviewItem })
       ],
       createActions: [
         { id: 'variant', label: '变体', icon: Sparkles },
-        { id: 'storyboard', label: '分镜', icon: Layers },
+        { id: 'asset_slot', label: '素材位', icon: CopyPlus },
       ],
     },
   ]
@@ -1752,7 +2184,7 @@ function BindingPath({ d, label, labelX, labelY }: { d: string; label: string; l
   )
 }
 
-function LineLegend({ tone, label }: { tone: 'teal' | 'primary' | 'amber' | 'emerald'; label: string }) {
+function LineLegend({ tone, label }: { tone: 'teal' | 'primary' | 'amber' | 'emerald' | 'neutral' | 'violet'; label: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className={cn(
@@ -1760,6 +2192,8 @@ function LineLegend({ tone, label }: { tone: 'teal' | 'primary' | 'amber' | 'eme
         tone === 'teal' && 'border-teal-500 border-dashed',
         tone === 'amber' && 'border-amber-500 border-dashed',
         tone === 'emerald' && 'border-emerald-500 border-dashed',
+        tone === 'neutral' && 'border-slate-400 border-dashed',
+        tone === 'violet' && 'border-violet-500 border-dashed',
         tone === 'primary' && 'border-primary',
       )} />
       <span>{label}</span>
