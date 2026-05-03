@@ -10,12 +10,13 @@ export function planAgentRun(message: string, memories: AgentMemory[] = []): Pla
   const toolCalls = planToolCalls(message, memories)
   const tasks = buildPlanTasks(message, toolCalls)
   const now = new Date().toISOString()
+  const intentText = stripInteractionCommand(message)
 
   return {
     toolCalls,
     plan: {
       id: makeLocalId('plan'),
-      objective: trimForTool(message, 180),
+      objective: trimForTool(intentText || message, 180),
       strategy: summarizeStrategy(tasks),
       tasks,
       createdAt: now,
@@ -26,14 +27,22 @@ export function planAgentRun(message: string, memories: AgentMemory[] = []): Pla
 
 export function planToolCalls(message: string, memories: AgentMemory[] = []): ToolCall[] {
   const calls: ToolCall[] = []
+  const planningCommand = parseInteractionCommand(message)
+  const intentText = stripInteractionCommand(message)
 
-  const applyDraft = inferApplyDraftCall(message)
+  if (planningCommand === 'inspect_context') {
+    return calls
+  }
+
+  const applyDraft = planningCommand === 'apply_draft'
+    ? inferApplyDraftCallFromCommand(intentText)
+    : inferApplyDraftCall(message)
   if (applyDraft) {
     calls.push(applyDraft)
     return calls
   }
 
-  if (wantsDraftList(message)) {
+  if (planningCommand === 'list_drafts' || wantsDraftList(message)) {
     calls.push({
       name: 'movscript.list_drafts',
       args: {
@@ -43,7 +52,60 @@ export function planToolCalls(message: string, memories: AgentMemory[] = []): To
     return calls
   }
 
-  if (wantsProjectStructure(message)) {
+  if (planningCommand === 'read_entity') {
+    const readTarget = inferReadTarget(intentText)
+    if (readTarget) {
+      calls.push({
+        name: 'movscript.read_entity',
+        args: {
+          entityType: readTarget.entityType,
+          entityId: readTarget.entityId,
+        },
+      })
+      return calls
+    }
+  }
+
+  if (planningCommand === 'draft') {
+    const memoryBlock = formatMemoryBlock(memories)
+    const draftPrompt = intentText || message
+    calls.push({
+      name: 'movscript.create_draft',
+      args: {
+        kind: inferDraftKind(draftPrompt),
+        title: inferDraftTitle(draftPrompt),
+        content: [
+          '这是 MovScript production runtime 第一阶段生成的本地草稿，不会写入项目实体，也不会触发生成任务。',
+          memoryBlock ? `\n[必须遵循的相关记忆]\n${memoryBlock}` : '',
+          '',
+          `用户请求：${message.trim()}`,
+        ].filter((line) => line !== '').join('\n'),
+      },
+    })
+    return calls
+  }
+
+  if (planningCommand === 'project_structure') {
+    calls.push({
+      name: 'movscript.read_project_structure',
+      args: {
+        limit: 50,
+      },
+    })
+    return calls
+  }
+
+  if (planningCommand === 'production_plan' || wantsProductionOrchestration(intentText)) {
+    calls.push({
+      name: 'movscript.read_project_structure',
+      args: {
+        limit: 50,
+      },
+    })
+    return calls
+  }
+
+  if (wantsProjectStructure(intentText)) {
     calls.push({
       name: 'movscript.read_project_structure',
       args: {
@@ -52,9 +114,9 @@ export function planToolCalls(message: string, memories: AgentMemory[] = []): To
     })
   }
 
-  if (wantsProjectLookup(message)) {
-    const readTarget = inferReadTarget(message)
-    if (readTarget) {
+  if (planningCommand === 'search' || wantsProjectLookup(intentText)) {
+    const readTarget = inferReadTarget(intentText)
+    if (planningCommand !== 'search' && readTarget) {
       calls.push({
         name: 'movscript.read_entity',
         args: {
@@ -66,20 +128,21 @@ export function planToolCalls(message: string, memories: AgentMemory[] = []): To
       calls.push({
         name: 'movscript.search_entities',
         args: {
-          query: trimForTool(message, 160),
+          query: trimForTool(intentText || message, 160),
           limit: 10,
         },
       })
     }
   }
 
-  if (wantsDraft(message)) {
+  if (wantsDraft(intentText)) {
     const memoryBlock = formatMemoryBlock(memories)
+    const draftPrompt = intentText || message
     calls.push({
       name: 'movscript.create_draft',
       args: {
-        kind: inferDraftKind(message),
-        title: inferDraftTitle(message),
+        kind: inferDraftKind(draftPrompt),
+        title: inferDraftTitle(draftPrompt),
         content: [
           '这是 MovScript production runtime 第一阶段生成的本地草稿，不会写入项目实体，也不会触发生成任务。',
           memoryBlock ? `\n[必须遵循的相关记忆]\n${memoryBlock}` : '',
@@ -96,16 +159,36 @@ export function planToolCalls(message: string, memories: AgentMemory[] = []): To
 export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPlanTask[] {
   const now = new Date().toISOString()
   const tasks: AgentPlanTask[] = []
+  const planningCommand = parseInteractionCommand(message)
+  const intentText = stripInteractionCommand(message)
   const structureCalls = toolCalls.filter((call) => call.name === 'movscript.read_project_structure')
   const readCalls = toolCalls.filter((call) => call.name === 'movscript.read_entity' || call.name === 'movscript.search_entities')
   const draftCalls = toolCalls.filter((call) => call.name === 'movscript.create_draft')
   const draftListCalls = toolCalls.filter((call) => call.name === 'movscript.list_drafts')
   const applyDraftCalls = toolCalls.filter((call) => call.name === 'movscript.apply_draft')
 
-  if (wantsPlanning(message) || toolCalls.length > 0) {
+  if (planningCommand === 'production_plan' || wantsProductionOrchestration(intentText)) {
+    return buildProductionOrchestrationTasks(now, structureCalls)
+  }
+
+  if (planningCommand === 'inspect_context') {
     tasks.push({
       id: makeLocalId('task'),
-      title: wantsPlanning(message) ? '拆解目标和执行顺序' : '确认执行路径',
+      title: '输出运行上下文',
+      description: '将当前 route、project、selection、resources、attachments 和 memories 作为文本 JSON 返回，供前端自行渲染。',
+      agentRole: 'coordinator',
+      status: 'pending',
+      toolCalls: [],
+      createdAt: now,
+      successCriteria: '助手消息是可解析 JSON，且不依赖专用 UI 组件表达。',
+    })
+    return tasks
+  }
+
+  if (wantsPlanning(intentText) || toolCalls.length > 0) {
+    tasks.push({
+      id: makeLocalId('task'),
+      title: wantsPlanning(intentText) ? '拆解目标和执行顺序' : '确认执行路径',
       description: '根据用户目标、当前项目上下文和可用记忆确定下一步。',
       agentRole: 'planner',
       status: 'pending',
@@ -190,6 +273,88 @@ export function buildPlanTasks(message: string, toolCalls: ToolCall[]): AgentPla
   return tasks
 }
 
+function buildProductionOrchestrationTasks(now: string, structureCalls: ToolCall[]): AgentPlanTask[] {
+  const tasks: AgentPlanTask[] = [
+    {
+      id: makeLocalId('task'),
+      title: '读取项目事实源',
+      description: '读取当前项目的剧本、设定、片段、情节、创作资料、素材位、内容单元、关键帧、预演时间线和管线节点，先确认已有事实和缺口。',
+      agentRole: 'planner',
+      status: 'pending',
+      toolCalls: structureCalls,
+      createdAt: now,
+      successCriteria: '得到足够的项目结构摘要，能判断哪些制作对象已存在、哪些对象需要生成或补齐。',
+    },
+    {
+      id: makeLocalId('task'),
+      title: '规划制作对象清单',
+      description: '把编排阶段拆成可审查的对象：片段、情节、创作资料、素材位、内容单元、关键帧候选和预演时间线，并标注来源、负责人、阻塞关系和验收口径。',
+      agentRole: 'planner',
+      status: 'pending',
+      toolCalls: [],
+      createdAt: now,
+      successCriteria: '输出完整对象清单，管理人员能看出每个对象为什么需要、由谁处理、完成后交付到哪里。',
+    },
+    {
+      id: makeLocalId('task'),
+      title: '分派工作人员生成素材',
+      description: '按对象类型安排 worker：资料整理、素材准备、内容单元草稿、关键帧候选、预演时间线；所有产物先进入候选或本地草稿，不直接覆盖正式项目数据。',
+      agentRole: 'coordinator',
+      status: 'pending',
+      toolCalls: [],
+      createdAt: now,
+      successCriteria: '形成工作人员任务队列，明确每个任务的输入、输出、依赖、是否需要 AI 生成和人工确认门禁。',
+    },
+    {
+      id: makeLocalId('task'),
+      title: '管理人员项目预演',
+      description: '素材准备完成后进入项目预演，汇总时间线、关键帧和素材缺口，允许 AI 先自动生成候选以快速暴露问题，再交由管理人员分析预演结果。',
+      agentRole: 'reviewer',
+      status: 'pending',
+      toolCalls: [],
+      createdAt: now,
+      successCriteria: '给出预演检查项：叙事连续性、素材可用性、内容单元覆盖率、关键帧一致性、风险和返工点。',
+    },
+    {
+      id: makeLocalId('task'),
+      title: '进入正式内容单元生成',
+      description: '只有当预演无阻塞并被确认后，才启动真实内容单元生成；否则把问题退回对应 worker 任务或素材缺口。',
+      agentRole: 'coordinator',
+      status: 'pending',
+      toolCalls: [],
+      createdAt: now,
+      successCriteria: '明确 ready_for_production 门禁和下一步生成策略，避免在素材或预演未确认时开始正式生成。',
+    },
+  ]
+
+  if (structureCalls.length === 0) {
+    tasks[0] = {
+      ...tasks[0],
+      status: 'skipped',
+      successCriteria: '当前没有可执行的项目结构读取工具；用前端提供的页面事实先生成规划草案。',
+    }
+  }
+
+  return tasks
+}
+
+function parseInteractionCommand(message: string): 'production_plan' | 'draft' | 'inspect_context' | 'project_structure' | 'list_drafts' | 'apply_draft' | 'search' | 'read_entity' | undefined {
+  const firstToken = message.trim().split(/\s+/, 1)[0]
+  if (firstToken === '/production_plan' || firstToken === '/project_plan') return 'production_plan'
+  if (firstToken === '/draft') return 'draft'
+  if (firstToken === '/inspect_context' || firstToken === '/context') return 'inspect_context'
+  if (firstToken === '/project_structure') return 'project_structure'
+  if (firstToken === '/list_drafts' || firstToken === '/drafts') return 'list_drafts'
+  if (firstToken === '/apply_draft') return 'apply_draft'
+  if (firstToken === '/search') return 'search'
+  if (firstToken === '/read_entity') return 'read_entity'
+  return undefined
+}
+
+function stripInteractionCommand(message: string): string {
+  return message.trim().replace(/^\/[a-zA-Z0-9_-]+\s*/, '').trim()
+}
+
 export function formatMemoryBlock(memories: AgentMemory[], limit = 12): string {
   return memories
     .filter((memory) => memory.content.trim().length > 0)
@@ -214,10 +379,29 @@ function wantsProjectStructure(message: string): boolean {
   return /当前项目|项目进度|进度|还差|缺口|规划|下一步|段落|情节|场景|分镜|镜头|内容单元|素材位|资产位|管线|segment|scene|scene_moment|storyboard|storyboard_line|content_unit|shot|asset_slot|pipeline|project status|project progress|gap|missing/i.test(message)
 }
 
+function wantsProductionOrchestration(message: string): boolean {
+  return /制作编排|编排阶段|项目预演|预演结果|工作人员|管理人员|素材准备|正式.*内容单元|内容单元.*生成|production orchestration|production plan|project preview|preview result|worker|manager/i.test(message)
+}
+
 function inferApplyDraftCall(message: string): ToolCall | undefined {
   if (!/(应用|采纳|接受|确认|保存|写入|apply|accept|save).*(草稿|draft)|草稿.*(应用|采纳|接受|确认|保存|写入|apply|accept|save)/i.test(message)) {
     return undefined
   }
+  const draftId = inferDraftId(message)
+  if (!draftId) return undefined
+  const target = inferApplyTarget(message)
+  return {
+    name: 'movscript.apply_draft',
+    args: {
+      draftId,
+      ...(target.entityType ? { targetEntityType: target.entityType } : {}),
+      ...(target.entityId !== undefined ? { targetEntityId: target.entityId } : {}),
+      ...(target.field ? { targetField: target.field } : {}),
+    },
+  }
+}
+
+function inferApplyDraftCallFromCommand(message: string): ToolCall | undefined {
   const draftId = inferDraftId(message)
   if (!draftId) return undefined
   const target = inferApplyTarget(message)

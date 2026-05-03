@@ -155,11 +155,10 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     select: (items) => items.filter((canvas) => canvas.canvas_type === 'workflow' && canvas.ID !== canvasId),
   })
 
-  const hasBackendEntitySchema = data.entityKind === 'asset_slot' || data.entityKind === 'content_unit'
   const { data: entitySchema } = useQuery<EntityWorkflowSchema>({
     queryKey: ['workflow-entity-schema', data.entityKind],
     queryFn: () => api.get(`/workflow/entity-schemas/${data.entityKind}`).then((r) => r.data),
-    enabled: nodeType === 'entity_card' && !!data.entityKind && hasBackendEntitySchema,
+    enabled: nodeType === 'entity_card' && !!data.entityKind,
   })
 
   const selectedReferencedCanvasId = nodeType === 'canvas' && data.referencedCanvasId ? data.referencedCanvasId : undefined

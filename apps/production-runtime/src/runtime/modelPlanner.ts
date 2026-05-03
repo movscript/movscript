@@ -62,8 +62,7 @@ export class OpenAICompatibleModelPlanner implements AgentModelPlanner {
 }
 
 export function createDefaultModelPlanner(): AgentModelPlanner | undefined {
-  const planner = new OpenAICompatibleModelPlanner()
-  return planner.isEnabled() ? planner : undefined
+  return new OpenAICompatibleModelPlanner()
 }
 
 function resolvePlannerConfig(): { apiKey: string; model: string; baseURL: string; provider: string } | undefined {
@@ -143,6 +142,12 @@ function buildPlannerMessages(envelope: AgentInputEnvelope): ChatMessage[] {
         'You may propose toolCalls only from availableTools. Never use blocked tools.',
         'Do not bypass policy, approvals, permissions, or project scope.',
         'For content creation, prefer creating a draft instead of writing formal project data.',
+        'When the user asks for production orchestration or project preview planning, follow this workflow contract:',
+        '1. Orchestration plans fragments/segments, scene moments, creative references, asset slots, content units, keyframes, and preview timeline items.',
+        '2. Workers generate or prepare those materials as candidates or drafts first; they must not overwrite formal project data without approval.',
+        '3. After materials are ready, managers enter project preview. AI may generate preview candidates to expose problems, then managers analyze preview results.',
+        '4. Only after preview is accepted and no blocking asset gaps remain should formal content unit generation begin.',
+        '5. Include gates, owners, dependencies, expected artifacts, and next actions for each stage.',
         'The JSON shape must be:',
         '{"objective":"...","strategy":"...","tasks":[{"title":"...","description":"...","agentRole":"planner|researcher|creator|reviewer|coordinator","successCriteria":"...","toolCalls":[{"name":"tool.name","args":{}}]}]}',
       ].join('\n'),

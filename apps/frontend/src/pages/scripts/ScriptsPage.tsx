@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { createScriptVersion, listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { createSemanticEntity, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import type { AssetSlot, Script, Setting } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import {
@@ -70,6 +70,7 @@ function settingAssetPreviews(settingId: number, slots: SettingAssetSlot[], limi
 function ScriptsSection({ projectId }: { projectId: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [draft, setDraft] = useState<Partial<Script>>({})
@@ -130,6 +131,26 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
+    },
+  })
+
+  const createProduction = useMutation({
+    mutationFn: async () => {
+      if (!selected || !activeVersion) throw new Error('请选择已有版本的剧本')
+      const record = await createSemanticEntity(projectId, semanticEntityConfig('productions'), {
+        name: `${selected.title} 制作`,
+        description: selected.summary || selected.description || `${selected.title} 的制作`,
+        source_type: 'script',
+        status: 'planning',
+        owner_label: '导演组',
+        progress: 0,
+        script_version_id: activeVersion.ID,
+      })
+      return record
+    },
+    onSuccess: (record) => {
+      qc.invalidateQueries({ queryKey: ['production-frame', projectId] })
+      navigate(`/production?productionId=${record.ID}&created=1`)
     },
   })
 
@@ -279,11 +300,13 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                       <ReadinessRow label="可创建制作" done={canCreateProduction} />
                     </div>
                     {canCreateProduction ? (
-                      <Button className="mt-4 w-full justify-center gap-2" asChild>
-                        <Link to={`/production?scriptId=${selected.ID}`}>
-                          <Clapperboard size={15} />
-                          创建制作项目
-                        </Link>
+                      <Button
+                        className="mt-4 w-full justify-center gap-2"
+                        loading={createProduction.isPending}
+                        onClick={() => createProduction.mutate()}
+                      >
+                        <Clapperboard size={15} />
+                        创建制作项目
                       </Button>
                     ) : (
                       <Button className="mt-4 w-full justify-center gap-2" disabled>

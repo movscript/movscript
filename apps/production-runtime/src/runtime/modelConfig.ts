@@ -53,6 +53,10 @@ export class RuntimeModelConfigStore {
     return fileConfig
   }
 
+  getFileConfig(): RuntimeModelConfig | undefined {
+    return this.readFileConfig()
+  }
+
   getPublicConfig(): RuntimeModelConfigPublic {
     const fileConfig = this.readFileConfig()
     const envConfig = resolveEnvConfig()
@@ -149,6 +153,11 @@ export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath(
 
 export function resolveRuntimeChatModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getEffectiveConfig()
+  return config?.apiKey && config.useForChat ? { ...config, apiKey: config.apiKey } : undefined
+}
+
+export function resolveRuntimeChatFileModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
+  const config = store.getFileConfig()
   return config?.apiKey && config.useForChat ? { ...config, apiKey: config.apiKey } : undefined
 }
 

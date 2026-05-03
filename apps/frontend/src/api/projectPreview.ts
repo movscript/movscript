@@ -7,6 +7,7 @@ export type ProjectPreviewStoryboardStatus = '待确认' | '需补素材' | '可
 
 export type ProjectPreviewDraftPayload = {
   source_text: string
+  production_id?: number | null
   script_version_id?: number | null
   script_version: {
     draft_id: string | null
@@ -40,6 +41,7 @@ export type ProjectPreviewTimelineInput = {
 
 export type SaveProjectPreviewDraftResponse = {
   draft_id: string
+  production_id?: number | null
   script_version_id?: number | null
   storyboard_revision_id: string
   preview_timeline_id: string
@@ -49,6 +51,7 @@ export type SaveProjectPreviewDraftResponse = {
   draft: {
     project_id: number
     source_text: string
+    production_id?: number | null
     script_version_id?: number | null
     script_version: ProjectPreviewDraftPayload['script_version']
     storyboard_rows: ProjectPreviewStoryboardRow[]
@@ -168,8 +171,10 @@ export async function saveProjectPreviewDraft(projectId: number, payload: Projec
   return res.data
 }
 
-export async function getLatestProjectPreviewDraft(projectId: number) {
-  const res = await api.get<GetLatestProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/draft`)
+export async function getLatestProjectPreviewDraft(projectId: number, options?: { productionId?: number | null }) {
+  const res = await api.get<GetLatestProjectPreviewDraftResponse>(`${projectPreviewPath(projectId)}/draft`, {
+    params: options?.productionId ? { production_id: options.productionId } : undefined,
+  })
   return res.data
 }
 

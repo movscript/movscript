@@ -78,7 +78,14 @@ func (s *EntityIOService) ReadPortsByIDs(ctx context.Context, kind string, id ui
 		var binding model.ResourceBinding
 		q := s.db.WithContext(ctx).
 			Where("owner_type = ? AND owner_id = ?", kind, id).
-			Where("slot = ? OR role = ?", field.Binding.Slot, field.Binding.Role)
+			Where("slot = ?", field.Binding.Slot)
+		if err := q.Order("is_primary desc, updated_at desc").First(&binding).Error; err == nil && binding.ResourceID != 0 {
+			values[portID] = EntityPortValue{Type: field.ValueType, ResourceIDs: []uint{binding.ResourceID}}
+			return
+		}
+		q = s.db.WithContext(ctx).
+			Where("owner_type = ? AND owner_id = ?", kind, id).
+			Where("role = ?", field.Binding.Role)
 		if err := q.Order("is_primary desc, updated_at desc").First(&binding).Error; err == nil && binding.ResourceID != 0 {
 			values[portID] = EntityPortValue{Type: field.ValueType, ResourceIDs: []uint{binding.ResourceID}}
 		}
@@ -338,6 +345,12 @@ func entityTableName(kind string) (string, bool) {
 		return "scripts", true
 	case "setting":
 		return "settings", true
+	case "segment":
+		return "segments", true
+	case "scene_moment":
+		return "scene_moments", true
+	case "creative_reference":
+		return "creative_references", true
 	case "asset_slot":
 		return "asset_slots", true
 	case "content_unit":

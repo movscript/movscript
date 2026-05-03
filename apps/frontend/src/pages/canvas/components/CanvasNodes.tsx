@@ -53,11 +53,20 @@ const semanticOutputHandleId = (portId: string) => `out:${portId}`
 const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video', 'audio'])
 
 function semanticPreviewFields(kind?: CanvasDomainEntityKind) {
+  if (kind === 'segment') {
+    return ['title', 'kind', 'order', 'summary', 'content', 'source_range', 'status']
+  }
+  if (kind === 'scene_moment') {
+    return ['title', 'segment_id', 'order', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status']
+  }
+  if (kind === 'creative_reference') {
+    return ['name', 'kind', 'alias', 'description', 'content', 'importance', 'status', 'profile_json', 'tags_json']
+  }
   if (kind === 'asset_slot') {
-    return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'resource_id', 'locked_asset_slot_id', 'creative_reference_id']
+    return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'resource_id', 'locked_asset_slot_id', 'creative_reference_id', 'image', 'video', 'audio', 'reference']
   }
   if (kind === 'content_unit') {
-    return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt']
+    return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt', 'result', 'image', 'video', 'audio']
   }
   return []
 }
@@ -1114,14 +1123,13 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
   const kindLabel = kind ? t(`canvas.entityTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.entity_card')
   const inputPorts = data.inputPorts
   const outputPorts = data.outputPorts
-  const hasBackendEntityValues = kind === 'asset_slot' || kind === 'content_unit'
   const previewFields = semanticPreviewFields(kind as CanvasDomainEntityKind | undefined)
   const { data: semanticValues } = useQuery<EntitySemanticValues>({
     queryKey: ['entity-semantic-values', kind, data.entityId, previewFields.join(',')],
     queryFn: () => api.get(`/entities/${kind}/${data.entityId}/semantic-values`, {
       params: previewFields.length > 0 ? { fields: previewFields.join(',') } : undefined,
     }).then((r) => r.data),
-    enabled: !!kind && !!data.entityId && hasBackendEntityValues,
+    enabled: !!kind && !!data.entityId && previewFields.length > 0,
   })
   const resolvedKind = kind ?? 'script'
   const domainKind: CanvasDomainEntityKind = resolvedKind === 'script' || resolvedKind === 'setting' ? 'segment' : resolvedKind

@@ -1,7 +1,7 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from './agentManifest.js'
-import { buildAssistantContent } from './assistantMessage.js'
+import { buildConfiguredAssistantContent } from './assistantMessage.js'
 import { extractAgentContext, parseToolResult } from './context.js'
 import { resolveAgentCapabilities } from './capabilityResolver.js'
 import { MemoryManager } from './memory/memoryManager.js'
@@ -743,7 +743,7 @@ export class AgentRuntime {
       const assistant = this.createMessage(
         thread.id,
         'assistant',
-        buildAssistantContent(lastUser.content, toolResults, warnings, memories),
+        await buildConfiguredAssistantContent(lastUser.content, toolResults, warnings, memories, run),
         run.id,
       )
       thread.messages.push(assistant)

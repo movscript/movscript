@@ -542,40 +542,47 @@ function defaultPortsForDomainEntity(kind: CanvasEntityKind, assetSlotKind?: str
   const port = (id: string, type: CanvasPortDef['type'], label: string): CanvasPortDef => ({ id, type, label })
   if (kind === 'segment') {
     return {
-      inputs: [port('source', 'text', '来源文本')],
-      outputs: [port('scene_moments', 'json', '情节'), port('content_units', 'json', '内容单元'), port('asset_slots', 'json', '素材')],
+      inputs: [],
+      outputs: [port('title', 'text', '标题'), port('summary', 'text', '摘要'), port('content', 'text', '原文'), port('source_range', 'text', '来源范围')],
     }
   }
   if (kind === 'scene_moment') {
     return {
-      inputs: [port('segment_id', 'number', '所属片段'), port('references', 'json', '创作资料'), port('asset_slots', 'json', '素材')],
-      outputs: [port('context', 'text', '生成上下文'), port('content_units', 'json', '内容单元'), port('asset_slots', 'json', '素材需求')],
+      inputs: [],
+      outputs: [port('description', 'text', '描述'), port('time_text', 'text', '时间'), port('location_text', 'text', '地点'), port('condition_text', 'text', '条件'), port('action_text', 'text', '动作'), port('mood', 'text', '情绪')],
     }
   }
   if (kind === 'creative_reference') {
     return {
-      inputs: [port('usage_context', 'text', '使用上下文'), port('reference', 'resource', '参考素材')],
-      outputs: [port('profile', 'text', '资料设定'), port('asset_slots', 'json', '素材'), port('relationships', 'json', '资料关系')],
+      inputs: [],
+      outputs: [port('name', 'text', '名称'), port('kind', 'text', '类型'), port('description', 'text', '描述'), port('content', 'text', '资料内容'), port('profile_json', 'json', '结构资料')],
     }
   }
   if (kind === 'asset_slot') {
     const candidateType = assetSlotCandidatePortType(assetSlotKind)
     return {
       inputs: [
-        { ...port('candidates', candidateType, '候选集'), maxCount: 12 },
-        port('candidate_item', candidateType, '单个候选'),
+        { ...port('candidates', candidateType, '候选素材'), maxCount: 12 },
+        port('image', 'image', '成品图片'),
+        port('video', 'video', '成品视频'),
+        port('audio', 'audio', '成品音频'),
+        port('reference', 'resource', '参考素材'),
       ],
       outputs: [
-        port('reference', 'resource', '参考图'),
-        port('prompt_hint', 'text', '参考说明'),
+        port('prompt_hint', 'text', '生产说明'),
+        port('reference', 'resource', '参考素材'),
+        port('candidates', candidateType, '候选素材'),
+        port('image', 'image', '成品图片'),
+        port('video', 'video', '成品视频'),
+        port('audio', 'audio', '成品音频'),
         port('creative_reference_id', 'number', '所属资料'),
       ],
     }
   }
   if (kind === 'content_unit') {
     return {
-      inputs: [port('scene_moment_id', 'number', '情节'), port('asset_slots', 'json', '素材'), port('prompt', 'text', '提示')],
-      outputs: [port('result', 'resource', '关键帧/视频'), port('video', 'video', '成片'), port('metadata_json', 'json', '生产数据')],
+      inputs: [port('result', 'resource', '生产结果'), port('image', 'image', '图片结果'), port('video', 'video', '视频结果'), port('audio', 'audio', '音频结果')],
+      outputs: [port('result', 'resource', '生产结果'), port('image', 'image', '图片结果'), port('video', 'video', '视频结果'), port('audio', 'audio', '音频结果')],
     }
   }
   return {
@@ -586,7 +593,24 @@ function defaultPortsForDomainEntity(kind: CanvasEntityKind, assetSlotKind?: str
 
 function portsForCanvasEntityKind(kind: CanvasEntityKind, schema?: EntityWorkflowSchema, assetSlotKind?: string) {
   if (kind === 'asset_slot') return defaultPortsForDomainEntity(kind, assetSlotKind)
-  return portsForEntitySchema(schema) ?? defaultPortsForDomainEntity(kind)
+  if (kind === 'content_unit') return productionPortsForEntitySchema(schema) ?? defaultPortsForDomainEntity(kind)
+  return readonlyPortsForEntitySchema(schema) ?? defaultPortsForDomainEntity(kind)
+}
+
+function readonlyPortsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } | undefined {
+  const ports = portsForEntitySchema(schema)
+  if (!ports) return undefined
+  return { inputs: [], outputs: ports.outputs }
+}
+
+function productionPortsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } | undefined {
+  const ports = portsForEntitySchema(schema)
+  if (!ports) return undefined
+  const writable = new Set(['result', 'image', 'video', 'audio'])
+  return {
+    inputs: ports.inputs.filter((port) => writable.has(port.id)),
+    outputs: ports.outputs,
+  }
 }
 
 function normalizeCanvasEntityNodeData(data: CanvasNodeData, context?: { canvasRef?: { ref_type?: string; ref_id?: number }; assetSlotKindById?: Map<number, string> }): CanvasNodeData {
@@ -2512,21 +2536,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       }
       setNodes((prev) => [...prev, newNode])
     }
-    const nextEdge: Edge = {
-      id: makeEdgeId({
-        source: sourceNode.id,
-        sourceHandle: toUiHandleId('creative_reference_id', 'source'),
-        target: targetNodeId,
-        targetHandle: toUiHandleId('usage_context', 'target'),
-      }),
-      source: sourceNode.id,
-      sourceHandle: toUiHandleId('creative_reference_id', 'source'),
-      target: targetNodeId,
-      targetHandle: toUiHandleId('usage_context', 'target'),
-    }
-    setEdges((eds) => eds.some((edge) => edgeConnectionKey(edge) === edgeConnectionKey(nextEdge))
-      ? eds
-      : addEdge(nextEdge, eds))
   }, [assetSlotById, creativeReferenceById, entitySchemaByKind, nodes, screenToFlowPosition, setEdges, setNodes])
 
   const onNodeClick = useCallback((_: React.MouseEvent, _node: Node) => {

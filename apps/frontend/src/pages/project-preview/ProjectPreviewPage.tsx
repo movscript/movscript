@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
   BookOpenCheck,
+  Bot,
   Boxes,
+  BrainCircuit,
   CheckCircle2,
   Clock3,
   Database,
   Layers,
   ListChecks,
+  Loader2,
   PackageCheck,
   Play,
   Plus,
-  Route,
   Save,
   ScrollText,
+  Send,
   Sparkles,
   Target,
   XCircle,
@@ -44,6 +47,7 @@ import {
   type CreativeReference,
   type CreativeReferenceUsage,
 } from '@/api/referenceRelations'
+import { createSemanticEntity, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityRecord } from '@/api/semanticEntities'
 import {
   CreativeReferenceCard,
   accentForCreativeReferenceKind,
@@ -53,6 +57,7 @@ import {
 } from '@/components/creative/CreativeReferenceCard'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
+import { localAgentClient, type AgentClientInput, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import type { Script } from '@/types'
@@ -62,6 +67,7 @@ type SaveStatus = 'dirty' | 'saving' | 'saved' | 'failed'
 type LoadStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
 type AnalysisStatus = 'idle' | 'running' | 'succeeded' | 'failed'
 type PreviewPhase = 'source' | 'understanding' | 'preview_decision' | 'ready'
+type PlanningStatus = 'idle' | 'running' | 'succeeded' | 'failed'
 type SegmentCandidate = ProjectPreviewAnalysisCandidates['segments'][number]
 type StoryboardSuggestionCandidate = ProjectPreviewAnalysisCandidates['storyboard_suggestions'][number]
 type KeyframeCandidate = ProjectPreviewCandidateData['keyframe_candidates'][number]
@@ -83,7 +89,10 @@ interface SceneMomentCandidate {
 
 export default function ProjectPreviewPage() {
   const project = useProjectStore((s) => s.current)
+  const qc = useQueryClient()
+  const [searchParams] = useSearchParams()
   const projectId = project?.ID
+  const productionId = positiveNumber(searchParams.get('productionId'))
   const [selectedScriptId, setSelectedScriptId] = useState<number | null>(null)
   const [selectedScriptVersionId, setSelectedScriptVersionId] = useState<number | null>(null)
   const [decisionDialogOpen, setDecisionDialogOpen] = useState(false)
@@ -101,6 +110,12 @@ export default function ProjectPreviewPage() {
   const [previewStatus, setPreviewStatus] = useState('draft')
   const [confirmedAt, setConfirmedAt] = useState('')
   const [previewMessage, setPreviewMessage] = useState('完成结构确认后可生成项目预演')
+  const [planningObjective, setPlanningObjective] = useState('')
+  const [planningStatus, setPlanningStatus] = useState<PlanningStatus>('idle')
+  const [planningMessage, setPlanningMessage] = useState('输入项目目标后，让 AI 把目标拆成制作规划和下一步动作')
+  const [planningThreadId, setPlanningThreadId] = useState<string | undefined>()
+  const [planningRun, setPlanningRun] = useState<AgentRun | null>(null)
+  const [planningResult, setPlanningResult] = useState('')
   const hasLocalEditsRef = useRef(false)
 
   const { data: scripts = [] } = useQuery<Script[]>({
@@ -127,8 +142,16 @@ export default function ProjectPreviewPage() {
     enabled: !!projectId,
   })
 
+  const { data: productions = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['project-preview', projectId, 'productions'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
   const selectedScript = scripts.find((script) => script.ID === selectedScriptId) ?? null
   const selectedScriptVersion = scriptVersions.find((version) => version.ID === selectedScriptVersionId) ?? null
+  const selectedProduction = productionId ? productions.find((production) => production.ID === productionId) ?? null : null
+  const scopedPreviewHref = productionId ? `/workbench/production-plan?productionId=${productionId}` : '/workbench/production-plan'
   const orderedScripts = useMemo(
     () => scripts
       .slice()
@@ -201,14 +224,28 @@ export default function ProjectPreviewPage() {
 
     let cancelled = false
     setLoadStatus('loading')
-    setLoadMessage('正在读取最近保存的剧本草稿')
+    setLoadMessage(productionId ? '正在读取当前制作的编排草稿' : '正在读取最近保存的剧本草稿')
 
-    getLatestProjectPreviewDraft(projectId)
+    getLatestProjectPreviewDraft(projectId, { productionId })
       .then((response) => {
         if (cancelled) return
         if (!response.found || !response.draft) {
+          setSelectedScriptVersionId(null)
+          setScriptInput('')
+          setLatestDraftId('')
+          setAnalysisCandidates(null)
+          setStoryboardRows([])
+          setPreviewCandidates(null)
+          setPreviewStatus('draft')
+          setConfirmedAt('')
+          setAnalysisStatus('idle')
+          setAnalysisMessage('保存草稿后可解析片段和情节')
+          setPreviewMessage('完成结构确认后可生成项目预演')
+          setSaveStatus('dirty')
+          setSaveMessage('请选择剧本版本后编辑正文')
+          hasLocalEditsRef.current = false
           setLoadStatus('succeeded')
-          setLoadMessage('未找到已保存草稿')
+          setLoadMessage(productionId ? '当前制作还没有已保存编排' : '未找到已保存草稿')
           return
         }
         if (hasLocalEditsRef.current) {
@@ -243,7 +280,18 @@ export default function ProjectPreviewPage() {
     return () => {
       cancelled = true
     }
-  }, [projectId])
+  }, [productionId, projectId])
+
+  useEffect(() => {
+    if (!productionId || latestDraftId || selectedScriptVersionId || hasLocalEditsRef.current) return
+    const scriptVersionId = Number(selectedProduction?.script_version_id ?? 0)
+    if (!scriptVersionId) return
+    const version = scriptVersions.find((item) => item.ID === scriptVersionId)
+    if (!version) return
+    applyScriptVersion(version)
+    setLoadStatus('succeeded')
+    setLoadMessage('已载入当前制作绑定的剧本版本')
+  }, [latestDraftId, productionId, scriptVersions, selectedProduction, selectedScriptVersionId])
 
   useEffect(() => {
     if (!projectId || selectedScriptId || scripts.length === 0) return
@@ -270,6 +318,7 @@ export default function ProjectPreviewPage() {
 
 	      const payload: ProjectPreviewDraftPayload = {
 	        source_text: scriptInput,
+	        production_id: productionId,
 	        script_version_id: selectedScriptVersionId,
         script_version: {
           draft_id: '',
@@ -448,10 +497,21 @@ export default function ProjectPreviewPage() {
 	      return confirmProjectPreview(projectId, { draft_id: latestDraftId })
 	    },
 	    onMutate: () => setPreviewMessage('正在确认制作编排'),
-	    onSuccess: (response) => {
+	    onSuccess: async (response) => {
 	      setPreviewCandidates(response.draft.preview_candidates ?? previewCandidates)
 	      setPreviewStatus(response.draft.preview_status ?? 'ready_for_production')
 	      setConfirmedAt(response.draft.confirmed_at ?? '')
+	      if (projectId && productionId) {
+	        await persistProductionPreviewTimeline({
+	          projectId,
+	          productionId,
+	          scriptVersionId: response.draft.script_version_id ?? selectedScriptVersionId,
+	          productionName: String(selectedProduction?.name ?? ''),
+	          timeline: response.draft.preview_candidates?.preview_timeline ?? previewCandidates?.preview_timeline ?? [],
+	        })
+	        qc.invalidateQueries({ queryKey: ['production-frame', projectId] })
+	        qc.invalidateQueries({ queryKey: ['project-preview', projectId, 'productions'] })
+	      }
 	      setPreviewMessage('制作编排已确认，可继续内容制作')
 	    },
 	    onError: (error) => setPreviewMessage(`确认制作编排失败：${error instanceof Error ? error.message : translateApiError((error as any)?.response?.data)}`),
@@ -498,6 +558,119 @@ export default function ProjectPreviewPage() {
     analyzeDraft.mutate()
   }
 
+  async function runPlanningAgent(objectiveOverride?: string) {
+    if (!projectId) {
+      setPlanningStatus('failed')
+      setPlanningMessage('请先选择项目')
+      return
+    }
+
+    const objective = (objectiveOverride ?? planningObjective).trim()
+    if (!objective) {
+      setPlanningStatus('failed')
+      setPlanningMessage('请先输入这次要达成的项目目标')
+      return
+    }
+
+    const context = buildPlanningAgentContext({
+      projectName: project?.name ?? '当前项目',
+      projectStatus: project?.status ?? '',
+      objective,
+      saveStatus,
+      previewStatus,
+      textStats,
+      segments,
+      sceneMomentCount: sceneMomentCandidates.length,
+      storyboardRows,
+      previewTimeline,
+      keyframeCandidates,
+      assetGaps,
+      involvedReferenceCount: involvedReferences.length,
+      productionPackReadiness,
+      confirmedAt,
+    })
+    const message = [
+      '/production_plan',
+      '',
+      '你是 MovScript 的制作编排规划助手。请基于当前项目状态，把用户目标拆成从目标到完整项目规划的协作方案。',
+      '',
+      context,
+      '',
+      '输出要求：',
+      '1. 先判断当前页面最阻塞的问题。',
+      '2. 把片段、情节、创作资料、素材、内容单元都规划出来。',
+      '3. 安排工作人员生成或准备这些素材，产物先作为候选或草稿。',
+      '4. 素材准备好后进入项目预演，管理人员分析预演结果，也可以先由 AI 自动生成候选预演。',
+      '5. 预演无阻塞后，再启动正式内容单元生成。',
+      '6. 只给建议和草案，不直接改项目数据。',
+      '7. 用中文，短句，便于用户逐项确认。',
+    ].join('\n')
+    const clientInput: AgentClientInput = {
+      message,
+      uiSnapshot: {
+        route: { pathname: '/project-preview' },
+        project: {
+          id: projectId,
+          name: project?.name,
+          status: project?.status,
+          description: project?.description,
+        },
+        selection: {
+          entityType: 'project-preview',
+          entityId: latestDraftId || projectId,
+          label: '制作编排',
+        },
+        labels: ['制作编排', '目标规划', '人机协作'],
+      },
+    }
+
+    setPlanningStatus('running')
+    setPlanningMessage('正在连接 AI 规划助手')
+    setPlanningRun(null)
+
+    try {
+      await localAgentClient.ensureRunning()
+      setPlanningMessage('AI 正在读取当前编排上下文并生成规划')
+      const result = await localAgentClient.runMessage({
+        threadId: planningThreadId,
+        message,
+        title: `制作编排规划 · ${project?.name ?? projectId}`,
+        projectId,
+        clientInput,
+      }, {
+        agentManifest: PRODUCTION_ORCHESTRATION_AGENT_MANIFEST,
+        timeoutMs: 60000,
+        pollMs: 600,
+        onRunUpdate: (run) => {
+          setPlanningRun(run)
+          if (run.status === 'requires_action') setPlanningMessage('AI 需要确认后才能继续执行')
+          if (run.status === 'in_progress') setPlanningMessage('AI 正在生成目标拆解和项目规划')
+        },
+      })
+      const assistant = result.thread.messages.find((item) => item.id === result.run.assistantMessageId)
+        ?? [...result.thread.messages].reverse().find((item) => item.role === 'assistant')
+      setPlanningThreadId(result.thread.id)
+      setPlanningRun(result.run)
+      setPlanningResult(assistant?.content || summarizeAgentRun(result.run))
+      setPlanningStatus(result.run.status === 'failed' ? 'failed' : 'succeeded')
+      setPlanningMessage(result.run.status === 'failed' ? `AI 规划失败：${result.run.error ?? 'unknown error'}` : 'AI 规划已生成，可按建议继续确认候选或补齐缺口')
+    } catch (error) {
+      setPlanningStatus('failed')
+      setPlanningMessage(`AI 规划助手暂不可用：${error instanceof Error ? error.message : String(error)}`)
+      setPlanningResult(buildPlanningFallback({
+        objective,
+        saveStatus,
+        previewStatus,
+        segments,
+        storyboardRows,
+        previewTimeline,
+        keyframeCandidates,
+        assetGaps,
+        productionPackReadiness,
+      }))
+    }
+  }
+
   return (
     <div className="h-full overflow-hidden bg-background">
       <div className="flex h-full min-w-[1180px] flex-col">
@@ -508,19 +681,16 @@ export default function ProjectPreviewPage() {
                 <Boxes size={14} />
                 <span>{project?.name ?? '当前项目'}</span>
                 <ArrowRight size={13} />
-                <span>内容区</span>
-                <ArrowRight size={13} />
-                <span>制作编排</span>
+	                <span>内容区</span>
+	                <ArrowRight size={13} />
+	                <span>{selectedProduction ? String(selectedProduction.name ?? `制作 #${productionId}`) : '制作编排'}</span>
                 <Badge variant="outline">内容事实源</Badge>
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作编排</h1>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                编辑片段、情节、资料、素材和内容单元的绑定关系；AI 生成只作为候选，采用前在对比弹窗中确认。
-              </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="outline" className="gap-2" asChild>
-                <Link to="/workbench/production-plan">
+	                <Link to={scopedPreviewHref}>
                   <Play size={15} />
                   项目预演
                 </Link>
@@ -545,183 +715,210 @@ export default function ProjectPreviewPage() {
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="space-y-4">
-            <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
-              <div className="space-y-4">
-                <section className="rounded-lg border border-border bg-card p-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Route size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">编排阶段</h2>
-                    </div>
-                    <SaveStatusBadge status={saveStatus} />
+          <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+            <aside className="space-y-4" aria-label="候选对比区">
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">候选对比区</h2>
                   </div>
-                  <PreviewPhaseRail phase={previewPhase} />
-                  <LoadStatusMessage status={loadStatus} message={loadMessage} />
-                  <AnalysisStatusMessage status={analysisStatus} message={analysisMessage} />
-                  <PreviewStatusMessage message={previewMessage} />
-                </section>
-
-                <section className="rounded-lg border border-border bg-card">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <ScrollText size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">来源剧本</h2>
-                    </div>
-                    <Badge variant="outline">{textStats.lines} 行</Badge>
+                  <Badge variant={decisionCount > 0 ? 'warning' : 'outline'}>{decisionCount}</Badge>
+                </div>
+                <div className="space-y-3 p-4">
+                  <Button
+                    className="w-full justify-center gap-2"
+                    loading={analyzeDraft.isPending}
+                    disabled={!latestDraftId || saveStatus !== 'saved'}
+                    onClick={handleAnalyzeAndCompare}
+                  >
+                    <ListChecks size={15} />
+                    {analysisCandidates || decisionCount > 0 ? '打开候选对比' : '解析候选'}
+                  </Button>
+                  <div className="grid gap-2">
+                    <CandidateSummary label="分镜" value={storyboardSuggestions.length} action="采纳/拒绝" />
+                    <CandidateSummary label="关键帧" value={keyframeCandidates.length} action="确认" />
+                    <CandidateSummary label="素材缺口" value={assetGaps.length} action="处理" />
                   </div>
-                  <div className="space-y-3 p-4">
-                    <div className="rounded-md border border-border bg-background p-3">
-                      <p className="text-xs text-muted-foreground">当前版本</p>
-                      <p className="mt-1 text-sm font-medium leading-5 text-foreground">{selectedScriptVersion ? scriptVersionLabel(selectedScriptVersion) : '未选择剧本版本'}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{selectedScript ? `${selectedScript.title} · ${scriptUnitLabel(selectedScript)}` : '等待载入来源'}</p>
-                    </div>
-                    <SourceMetric label="正文字符" value={textStats.chars} />
-                    <SourceMetric label="估算场次" value={textStats.estimatedScenes} />
-                    <SourceMetric label="保存状态" value={saveMessage} />
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-border bg-card p-4">
-                  <h2 className="text-sm font-semibold text-foreground">快捷添加</h2>
-                  <div className="mt-3 grid gap-2">
-                    {[
-                      ['片段', Layers],
-                      ['情节', Target],
-                      ['资料', Database],
-                      ['素材', PackageCheck],
-                      ['内容单元', Boxes],
-                    ].map(([label, Icon]) => (
-                      <button key={label as string} type="button" className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-muted/40">
-                        <span className="flex items-center gap-2"><Icon size={14} className="text-muted-foreground" />{label as string}</span>
-                        <Plus size={14} className="text-muted-foreground" />
-                      </button>
-                    ))}
-                  </div>
-                </section>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <section className="rounded-lg border border-border bg-card">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Layers size={16} className="text-muted-foreground" />
-                        <h2 className="text-sm font-semibold text-foreground">片段与情节编排</h2>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">把来源文本拆成可绑定资料、素材和内容单元的制作对象。</p>
-                    </div>
-                    <Badge variant="outline">{segments.length} 片段 / {sceneMomentCandidates.length} 情节</Badge>
-                  </div>
-                  <div className="space-y-3 p-4">
-                    {segments.length === 0 ? (
-                      <EmptyObjectState
-                        title="暂无片段"
-                        text={latestDraftId ? '点击解析理解生成当前片段。' : '先保存编排草稿，再解析理解。'}
-                      />
-                    ) : segments.map((segment) => {
-                      const sceneMoment = sceneMomentCandidates.find((item) => item.sourceSegmentId === segment.client_id)
-                      return (
-                        <ProductionObjectRow key={segment.client_id} segment={segment} sceneMoment={sceneMoment} />
-                      )
-                    })}
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-border bg-card">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Boxes size={16} className="text-muted-foreground" />
-                        <h2 className="text-sm font-semibold text-foreground">内容单元设定</h2>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">内容单元是预演和生产引用的最小颗粒，绑定片段、情节、资料和素材。</p>
-                    </div>
-                    <Badge variant={storyboardRows.length > 0 ? 'success' : 'secondary'}>{storyboardRows.length} 个候选</Badge>
-                  </div>
-                  <div className="grid gap-3 p-4 lg:grid-cols-2">
-                    {storyboardRows.length === 0 ? (
-                      <EmptyObjectState title="暂无内容单元候选" text="在 AI 候选对比中采纳分镜建议后，会形成可预演的内容单元基础。" />
-                    ) : storyboardRows.map((row, index) => (
-                      <ContentUnitCard key={row.client_id} row={row} order={index + 1} />
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-border bg-card">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div>
-                      <h2 className="text-sm font-semibold text-foreground">剧本正文证据</h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">正文修改后需要重新保存并解析，避免下游引用旧结构。</p>
-                    </div>
-                    <Badge variant="outline">{textStats.estimatedPages} 页估算</Badge>
-                  </div>
-                  <textarea
-                    className="min-h-[220px] w-full resize-y border-0 bg-background p-4 font-mono text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
-                    placeholder="自动载入剧本版本后编辑剧本正文"
-                    value={scriptInput}
-                    onChange={(event) => handleScriptInputChange(event.target.value)}
-                  />
-                </section>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-foreground">阶段</h2>
+                  <SaveStatusBadge status={saveStatus} />
+                </div>
+                <PreviewPhaseRail phase={previewPhase} />
+                <LoadStatusMessage status={loadStatus} message={loadMessage} />
+                <AnalysisStatusMessage status={analysisStatus} message={analysisMessage} />
+                <PreviewStatusMessage message={previewMessage} />
               </div>
 
-              <div className="space-y-4">
-                <section className="rounded-lg border border-border bg-card p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-foreground">项目制作</h2>
-                    <PreviewStatusBadge status={previewStatus} />
-                  </div>
-                  <div className="grid gap-3">
-                    <MiniMetric label="制作完整度" value={`${productionPackReadiness}%`} />
-                    <MiniMetric label="片段" value={segments.length} />
-                    <MiniMetric label="情节" value={sceneMomentCandidates.length} />
-                    <MiniMetric label="资料引用" value={involvedReferences.length} />
-                    <MiniMetric label="AI 候选" value={decisionCount} />
-                    <MiniMetric label="确认时间" value={confirmedAt ? formatDateTime(confirmedAt) : '-'} />
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    <ProductionPackGate label="来源剧本" done={scriptInput.trim().length > 0} />
-                    <ProductionPackGate label="片段" done={segments.length > 0} />
-                    <ProductionPackGate label="内容单元" done={storyboardRows.length > 0} />
-                    <ProductionPackGate label="预演时间线" done={previewTimeline.length > 0} />
-                    <ProductionPackGate label="素材缺口可控" done={assetGaps.every((item) => item.status === 'resolved' || item.status === 'rejected' || item.status === 'accepted')} />
-                  </div>
-                </section>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <h2 className="text-sm font-semibold text-foreground">入口</h2>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {[
+                    { label: '片段', href: '/segments', icon: Layers },
+                    { label: '情节', href: '/scene-moments', icon: Target },
+                    { label: '资料', href: '/creative-references', icon: Database },
+                    { label: '素材', href: '/asset-slots', icon: PackageCheck },
+                    { label: '单元', href: '/contents', icon: Boxes },
+                  ].map(({ label, href, icon: Icon }) => (
+                    <Link key={label} to={href} className="flex items-center justify-between rounded-md border border-border bg-background px-2 py-2 text-xs text-foreground hover:bg-muted/40">
+                      <span className="flex items-center gap-1.5"><Icon size={13} className="text-muted-foreground" />{label}</span>
+                      <Plus size={12} className="text-muted-foreground" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </aside>
 
-                <section className="rounded-lg border border-border bg-card">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <BookOpenCheck size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">资料绑定</h2>
-                    </div>
-                    <Badge variant="outline">{involvedReferences.length}</Badge>
+            <section className="space-y-4" aria-label="核心区">
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">核心区</h2>
                   </div>
-                  <div className="space-y-3 p-4">
-                    {involvedReferences.length === 0 ? (
-                      <EmptyObjectState title="暂无资料引用" text="在创作资料库中建立引用后，这里会展示当前制作涉及的资料卡片。" />
-                    ) : involvedReferences.slice(0, 4).map((reference) => (
-                      <CreativeReferenceCard key={reference.id} reference={reference} />
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{segments.length} 片段</Badge>
+                    <Badge variant="outline">{sceneMomentCandidates.length} 情节</Badge>
+                    <Button variant="outline" size="sm" className="gap-2" loading={saveDraft.isPending} disabled={!selectedScriptVersionId} onClick={() => saveDraft.mutate()}>
+                      <Save size={14} />
+                      保存
+                    </Button>
                   </div>
-                </section>
+                </div>
+                <div className="grid gap-3 border-b border-border p-4 md:grid-cols-3">
+                  <SourceMetric label="来源版本" value={selectedScriptVersion ? scriptVersionLabel(selectedScriptVersion) : '未选择'} />
+                  <SourceMetric label="正文" value={`${textStats.chars} 字 / ${textStats.lines} 行`} />
+                  <SourceMetric label="保存" value={saveMessage} />
+                </div>
+                <div className="space-y-3 p-4">
+                  {segments.length === 0 ? (
+                    <EmptyObjectState title="暂无片段" text={latestDraftId ? '解析候选后生成' : '先保存'} />
+                  ) : segments.map((segment) => {
+                    const sceneMoment = sceneMomentCandidates.find((item) => item.sourceSegmentId === segment.client_id)
+                    return (
+                      <ProductionObjectRow key={segment.client_id} segment={segment} sceneMoment={sceneMoment} />
+                    )
+                  })}
+                </div>
+              </div>
 
-                <section className="rounded-lg border border-border bg-card">
-                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Sparkles size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">AI 生成确认</h2>
-                    </div>
-                    <Badge variant="secondary">{decisionCount}</Badge>
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Boxes size={16} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">内容单元</h2>
                   </div>
-                  <div className="space-y-3 p-4">
-                    <CandidateSummary label="分镜建议" value={storyboardSuggestions.length} action="对比后采纳为内容单元" />
-                    <CandidateSummary label="关键帧候选" value={keyframeCandidates.length} action="在项目预演中确认视觉锚点" />
-                    <CandidateSummary label="素材缺口" value={assetGaps.length} action="保留到素材准备或标记已解决" />
+                  <Badge variant={storyboardRows.length > 0 ? 'success' : 'secondary'}>{storyboardRows.length}</Badge>
+                </div>
+                <div className="grid gap-3 p-4 lg:grid-cols-2">
+                  {storyboardRows.length === 0 ? (
+                    <EmptyObjectState title="暂无内容单元" text="从候选采纳" />
+                  ) : storyboardRows.map((row, index) => (
+                    <ContentUnitCard key={row.client_id} row={row} order={index + 1} />
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <ScrollText size={16} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">剧本正文</h2>
                   </div>
-                </section>
+                  <Badge variant="outline">{textStats.estimatedPages} 页</Badge>
+                </div>
+                <textarea
+                  className="min-h-[220px] w-full resize-y border-0 bg-background p-4 font-mono text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                  placeholder="剧本正文"
+                  value={scriptInput}
+                  onChange={(event) => handleScriptInputChange(event.target.value)}
+                />
               </div>
             </section>
-          </div>
+
+            <aside className="space-y-4" aria-label="全览区">
+              <PlanningAgentPanel
+                objective={planningObjective}
+                status={planningStatus}
+                message={planningMessage}
+                result={planningResult}
+                run={planningRun}
+                context={{
+                  saveStatus,
+                  previewStatus,
+                  segments: segments.length,
+                  sceneMoments: sceneMomentCandidates.length,
+                  contentUnits: storyboardRows.length,
+                  timeline: previewTimeline.length,
+                  assetGaps: assetGaps.length,
+                  readiness: productionPackReadiness,
+                }}
+                onObjectiveChange={setPlanningObjective}
+                onRun={() => runPlanningAgent()}
+                onPreset={(objective) => {
+                  setPlanningObjective(objective)
+                  runPlanningAgent(objective)
+                }}
+              />
+
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-foreground">全览区</h2>
+                  <PreviewStatusBadge status={previewStatus} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <MiniMetric label="完整度" value={`${productionPackReadiness}%`} />
+                  <MiniMetric label="AI 候选" value={decisionCount} />
+                  <MiniMetric label="资料" value={involvedReferences.length} />
+                  <MiniMetric label="确认" value={confirmedAt ? formatDateTime(confirmedAt) : '-'} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  <ProductionPackGate label="剧本" done={scriptInput.trim().length > 0} />
+                  <ProductionPackGate label="片段" done={segments.length > 0} />
+                  <ProductionPackGate label="内容单元" done={storyboardRows.length > 0} />
+                  <ProductionPackGate label="时间线" done={previewTimeline.length > 0} />
+                  <ProductionPackGate label="缺口" done={assetGaps.every((item) => item.status === 'resolved' || item.status === 'rejected' || item.status === 'accepted')} />
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" className="flex-1 gap-2" asChild>
+	                    <Link to={scopedPreviewHref}>
+                      <Play size={14} />
+                      预演
+                    </Link>
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    loading={confirmPreview.isPending}
+                    disabled={!canConfirmPreview}
+                    onClick={() => confirmPreview.mutate()}
+                  >
+                    确认
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <BookOpenCheck size={16} className="text-muted-foreground" />
+                    <h2 className="text-sm font-semibold text-foreground">资料</h2>
+                  </div>
+                  <Badge variant="outline">{involvedReferences.length}</Badge>
+                </div>
+                <div className="space-y-3 p-4">
+                  {involvedReferences.length === 0 ? (
+                    <EmptyObjectState title="暂无资料" text="" />
+                  ) : involvedReferences.slice(0, 4).map((reference) => (
+                    <CreativeReferenceCard key={reference.id} reference={reference} />
+                  ))}
+                </div>
+              </div>
+            </aside>
+          </section>
         </main>
       </div>
 
@@ -752,6 +949,324 @@ export default function ProjectPreviewPage() {
   )
 }
 
+const PRODUCTION_ORCHESTRATION_AGENT_MANIFEST: AgentManifest = {
+  schema: 'movscript.agent.current',
+  id: 'movscript.production-orchestration-agent',
+  version: '0.1.0',
+  name: '制作编排 Agent',
+  description: '负责把剧本、片段、情节、资料、素材、内容单元和项目预演组织成可执行生产计划。',
+  soul: '你是 MovScript 的制作编排 Agent。你的工作是把创作目标拆成可审查的制作对象、worker 任务、预演门禁和正式内容生成门禁。',
+  skills: [
+    {
+      id: 'movscript.production-orchestration-contract',
+      name: '制作编排契约',
+      description: '按片段、情节、资料、素材、内容单元、预演、正式生成的顺序组织项目。',
+      enabled: true,
+      priority: 200,
+      instruction: [
+        '编排阶段要规划片段、情节、创作资料、素材位、内容单元、关键帧和预演时间线。',
+        '工作人员先生成或准备候选素材和草稿，不直接覆盖正式项目数据。',
+        '素材准备好后进入项目预演，管理人员检查叙事、素材、关键帧和内容单元覆盖率。',
+        '只有预演确认且阻塞素材缺口清零后，才建议进入正式内容单元生成。',
+      ].join('\n'),
+      outputContract: '返回目标拆解、制作对象清单、worker 分工、预演检查项、阻塞项和下一步动作。',
+      toolHints: ['movscript.read_project_structure', 'movscript.create_draft'],
+    },
+  ],
+  permissions: ['project.read', 'draft.read', 'draft.write'],
+  tools: [
+    { name: 'movscript.get_context_pack', mode: 'allow', approval: 'never' },
+    { name: 'movscript.read_project_structure', mode: 'allow', approval: 'never' },
+    { name: 'movscript.search_entities', mode: 'allow', approval: 'never' },
+    { name: 'movscript.read_entity', mode: 'allow', approval: 'never' },
+    { name: 'movscript.create_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript.list_drafts', mode: 'allow', approval: 'never' },
+  ],
+  metadata: {
+    workflow: 'production_orchestration',
+    writesFormalProjectData: false,
+  },
+}
+
+function PlanningAgentPanel({
+  objective,
+  status,
+  message,
+  result,
+  run,
+  context,
+  onObjectiveChange,
+  onRun,
+  onPreset,
+}: {
+  objective: string
+  status: PlanningStatus
+  message: string
+  result: string
+  run: AgentRun | null
+  context: {
+    saveStatus: SaveStatus
+    previewStatus: string
+    segments: number
+    sceneMoments: number
+    contentUnits: number
+    timeline: number
+    assetGaps: number
+    readiness: number
+  }
+  onObjectiveChange: (value: string) => void
+  onRun: () => void
+  onPreset: (value: string) => void
+}) {
+  const running = status === 'running'
+  const presets = [
+    '生成制作规划',
+    '定位阻塞',
+    '整理候选',
+  ]
+
+  return (
+    <section className="rounded-lg border border-border bg-card">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <BrainCircuit size={16} className="text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground">目标规划协作</h2>
+          </div>
+        </div>
+        <PlanningStatusBadge status={status} />
+      </div>
+      <div className="space-y-3 p-4">
+        <div className="grid grid-cols-2 gap-2">
+          <PlanningContextMetric label="片段/情节" value={`${context.segments}/${context.sceneMoments}`} />
+          <PlanningContextMetric label="内容单元" value={context.contentUnits} />
+          <PlanningContextMetric label="预演时间线" value={context.timeline} />
+          <PlanningContextMetric label="完整度" value={`${context.readiness}%`} />
+        </div>
+
+        <textarea
+          className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          placeholder="输入目标"
+          value={objective}
+          onChange={(event) => onObjectiveChange(event.target.value)}
+        />
+
+        <div className="flex flex-wrap gap-2">
+          {presets.map((preset) => (
+            <Button
+              key={preset}
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={running}
+              onClick={() => onPreset(preset)}
+              className="h-7 text-[11px]"
+            >
+              {preset}
+            </Button>
+          ))}
+        </div>
+
+        <Button type="button" className="w-full justify-center gap-2" disabled={running || !objective.trim()} onClick={onRun}>
+          {running ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          生成项目规划
+        </Button>
+
+        <div className={cn(
+          'rounded-md border px-3 py-2 text-xs leading-5',
+          status === 'failed' ? 'border-red-200 bg-red-50 text-red-700' : 'border-border bg-background text-muted-foreground',
+        )}>
+          <div className="flex items-start gap-2">
+            <Bot size={14} className="mt-0.5 shrink-0" />
+            <span>{message}</span>
+          </div>
+          {run && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              <Badge variant="outline" className="text-[10px]">{run.status}</Badge>
+              {run.plan?.tasks?.length ? <Badge variant="secondary" className="text-[10px]">{run.plan.tasks.length} tasks</Badge> : null}
+              {(run.pendingApprovals ?? []).filter((item) => item.status === 'pending').length > 0 && (
+                <Badge variant="warning" className="text-[10px]">需要确认</Badge>
+              )}
+            </div>
+          )}
+        </div>
+
+        {result && (
+          <div className="rounded-md border border-border bg-background">
+            <div className="border-b border-border px-3 py-2">
+              <p className="text-xs font-semibold text-foreground">AI 规划草案</p>
+            </div>
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-xs leading-5 text-foreground">
+              {result}
+            </pre>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <PlanningGate label="草稿保存" done={context.saveStatus === 'saved'} />
+          <PlanningGate label="预演确认" done={context.previewStatus === 'ready_for_production'} />
+          <PlanningGate label="候选可审" done={context.contentUnits > 0 || context.timeline > 0} />
+          <PlanningGate label="缺口可控" done={context.assetGaps === 0} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PlanningStatusBadge({ status }: { status: PlanningStatus }) {
+  if (status === 'running') return <Badge variant="secondary" className="gap-1"><Loader2 size={12} className="animate-spin" />生成中</Badge>
+  if (status === 'succeeded') return <Badge variant="success">已生成</Badge>
+  if (status === 'failed') return <Badge variant="danger">需处理</Badge>
+  return <Badge variant="outline">待目标</Badge>
+}
+
+function PlanningContextMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-2 py-1.5">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 truncate text-xs font-semibold text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function PlanningGate({ label, done }: { label: string; done: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2 py-1.5">
+      <span className="truncate text-[11px] text-muted-foreground">{label}</span>
+      <Badge variant={done ? 'success' : 'secondary'} className="shrink-0 text-[10px]">{done ? 'OK' : '待'}</Badge>
+    </div>
+  )
+}
+
+function buildPlanningAgentContext({
+  projectName,
+  projectStatus,
+  objective,
+  saveStatus,
+  previewStatus,
+  textStats,
+  segments,
+  sceneMomentCount,
+  storyboardRows,
+  previewTimeline,
+  keyframeCandidates,
+  assetGaps,
+  involvedReferenceCount,
+  productionPackReadiness,
+  confirmedAt,
+}: {
+  projectName: string
+  projectStatus: string
+  objective: string
+  saveStatus: SaveStatus
+  previewStatus: string
+  textStats: { chars: number; lines: number; estimatedScenes: number; estimatedPages: number }
+  segments: SegmentCandidate[]
+  sceneMomentCount: number
+  storyboardRows: ProjectPreviewStoryboardRow[]
+  previewTimeline: PreviewTimelineCandidate[]
+  keyframeCandidates: KeyframeCandidate[]
+  assetGaps: AssetGapCandidate[]
+  involvedReferenceCount: number
+  productionPackReadiness: number
+  confirmedAt: string
+}) {
+  return [
+    '[用户目标]',
+    objective,
+    '',
+    '[项目状态]',
+    `项目：${projectName}`,
+    `状态：${projectStatus || '未指定'}`,
+    `草稿保存：${saveStatus}`,
+    `制作编排状态：${previewStatus}`,
+    `确认时间：${confirmedAt || '未确认'}`,
+    '',
+    '[当前页面事实]',
+    `剧本文本：${textStats.chars} 字，${textStats.lines} 行，估算 ${textStats.estimatedScenes} 场`,
+    `片段：${segments.length}`,
+    `情节：${sceneMomentCount}`,
+    `内容单元：${storyboardRows.length}`,
+    `预演时间线：${previewTimeline.length}`,
+    `关键帧候选：${keyframeCandidates.length}`,
+    `素材缺口：${assetGaps.length}`,
+    `资料引用：${involvedReferenceCount}`,
+    `制作完整度：${productionPackReadiness}%`,
+    '',
+    '[片段摘要]',
+    segments.slice(0, 8).map((segment) => `- ${segment.order}. ${segment.title}: ${segment.summary}`).join('\n') || '- 暂无片段',
+    '',
+    '[素材缺口]',
+    assetGaps.slice(0, 8).map((gap) => `- ${gap.name}: ${gap.description} (${gap.status})`).join('\n') || '- 暂无素材缺口',
+  ].join('\n')
+}
+
+function summarizeAgentRun(run: AgentRun) {
+  if (run.status === 'failed') return `AI 运行失败：${run.error ?? 'unknown error'}`
+  if (run.plan?.tasks?.length) {
+    return [
+      run.plan.objective,
+      '',
+      run.plan.strategy,
+      '',
+      ...run.plan.tasks.map((task, index) => `${index + 1}. ${task.title}\n${task.description}`),
+    ].join('\n')
+  }
+  return 'AI 已完成运行，但没有返回可展示的规划文本。'
+}
+
+function buildPlanningFallback({
+  objective,
+  saveStatus,
+  previewStatus,
+  segments,
+  storyboardRows,
+  previewTimeline,
+  keyframeCandidates,
+  assetGaps,
+  productionPackReadiness,
+}: {
+  objective: string
+  saveStatus: SaveStatus
+  previewStatus: string
+  segments: SegmentCandidate[]
+  storyboardRows: ProjectPreviewStoryboardRow[]
+  previewTimeline: PreviewTimelineCandidate[]
+  keyframeCandidates: KeyframeCandidate[]
+  assetGaps: AssetGapCandidate[]
+  productionPackReadiness: number
+}) {
+  const blockers = [
+    saveStatus !== 'saved' ? '先保存当前编排草稿' : '',
+    segments.length === 0 ? '先解析剧本，形成片段和情节' : '',
+    storyboardRows.length === 0 ? '先在候选对比中采纳内容单元' : '',
+    previewTimeline.length === 0 ? '生成项目预演时间线' : '',
+    assetGaps.some((gap) => gap.status === 'missing') ? '处理素材缺口' : '',
+    previewStatus !== 'ready_for_production' ? '完成制作编排确认' : '',
+  ].filter(Boolean)
+
+  return [
+    `目标：${objective}`,
+    '',
+    `当前完整度：${productionPackReadiness}%`,
+    '',
+    '最阻塞的问题：',
+    blockers[0] ? `- ${blockers[0]}` : '- 当前没有明显阻塞，可进入内容生成或交付准备。',
+    '',
+    '建议规划：',
+    '1. 固定来源剧本和目标口径。',
+    '2. 解析片段与情节，确认 AI 理解是否符合创作意图。',
+    '3. 采纳内容单元，拒绝不可靠候选。',
+    '4. 生成预演时间线、关键帧和素材缺口。',
+    '5. 处理素材缺口后确认制作编排。',
+    '',
+    '下一步：',
+    blockers.slice(0, 3).map((item, index) => `${index + 1}. ${item}`).join('\n') || '1. 打开项目预演继续生产验证。',
+    '',
+    keyframeCandidates.length > 0 ? `待审关键帧：${keyframeCandidates.length}` : '暂无关键帧候选。',
+  ].join('\n')
+}
+
 function scriptVersionText(version: ScriptVersion) {
   return (version.content || version.raw_source || version.summary || '').trim()
 }
@@ -780,6 +1295,58 @@ function formatDateTime(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
+}
+
+function positiveNumber(value: string | null) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+async function persistProductionPreviewTimeline({
+  projectId,
+  productionId,
+  scriptVersionId,
+  productionName,
+  timeline,
+}: {
+  projectId: number
+  productionId: number
+  scriptVersionId?: number | null
+  productionName: string
+  timeline: PreviewTimelineCandidate[]
+}) {
+  const duration = timeline.reduce((max, item) => Math.max(max, Number(item.end_seconds ?? 0), Number(item.start_seconds ?? 0) + Number(item.duration_seconds ?? 0)), 0)
+  const previewTimeline = await createSemanticEntity(projectId, semanticEntityConfig('previewTimelines'), {
+    production_id: productionId,
+    script_version_id: scriptVersionId ?? null,
+    name: `${productionName || `制作 #${productionId}`} 预演`,
+    status: 'confirmed',
+    duration_sec: duration,
+    is_primary: true,
+    metadata_json: JSON.stringify({ source: 'project-preview' }),
+  })
+
+  await Promise.all(timeline.map((item) => createSemanticEntity(projectId, semanticEntityConfig('previewTimelineItems'), {
+    preview_timeline_id: previewTimeline.ID,
+    kind: item.keyframe_candidate_client_id ? 'keyframe' : 'note',
+    order: item.order,
+    start_sec: item.start_seconds,
+    duration_sec: item.duration_seconds,
+    label: item.label,
+    status: item.confirmation_status === 'accepted' ? 'confirmed' : item.status,
+    metadata_json: JSON.stringify({
+      source: 'project-preview',
+      client_id: item.client_id,
+      storyboard_row_client_id: item.storyboard_row_client_id,
+      keyframe_candidate_client_id: item.keyframe_candidate_client_id,
+    }),
+  })))
+
+  await updateSemanticEntity(projectId, semanticEntityConfig('productions'), productionId, {
+    preview_timeline_id: previewTimeline.ID,
+    status: 'producing',
+    progress: 30,
+  })
 }
 
 function derivePreviewPhase({
@@ -1010,7 +1577,7 @@ function EmptyObjectState({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 text-center">
       <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{text}</p>
+      {text && <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{text}</p>}
     </div>
   )
 }

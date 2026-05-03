@@ -13,6 +13,8 @@ import type { AgentModelPlanner, ModelPlannerResult } from './modelPlanner.js'
 import { BackendApplyClient, type BackendApplyResult } from './backendApplyClient.js'
 import type { ApplyDraftReview } from './draftApply.js'
 
+process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
+
 type ToolCallRecord = {
   name: string
   args: Record<string, JSONValue>

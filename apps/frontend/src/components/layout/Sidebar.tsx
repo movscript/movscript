@@ -272,6 +272,7 @@ export function Sidebar() {
 
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
+              <NavItem to="/project-preview" icon={Eye} label={t('sidebar.items.projectPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProjectPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
               <NavItem to="/workbench/production" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
@@ -321,7 +322,6 @@ export function Sidebar() {
         <Section title={t('sidebar.sections.unused')} defaultOpen={false} collapsed={collapsed}>
           {current && (
             <>
-              <NavItem to="/project-preview" icon={Eye} label={t('sidebar.items.projectPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/script" icon={BookOpenText} label={t('sidebar.items.workbenchScript')} collapsed={collapsed} />
               <NavItem to="/workbench/creative" icon={Lightbulb} label={t('sidebar.items.workbenchCreative')} collapsed={collapsed} />
               <NavItem to="/workbench/delivery" icon={Send} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />

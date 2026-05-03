@@ -61,6 +61,36 @@ interface AIFunctionDebugSpec {
   missingVisibility: string[]
 }
 
+interface AgentArchitectureLayer {
+  id: string
+  name: string
+  scope: string
+  owner: string
+  entrypoints: string[]
+  runtimeArtifacts: string[]
+  debugVisibility: string[]
+}
+
+interface AgentInteractionCommand {
+  command: string
+  intent: string
+  inputContract: Record<string, unknown>
+  runtimeFlow: string[]
+  outputContract: Record<string, unknown>
+  currentSupport: string
+}
+
+interface AgentDebugCommandSpec {
+  id: string
+  label: string
+  agentFunction: string
+  command: string
+  endpoint: string
+  outputMode: string
+  description: string
+  requestShape?: Record<string, unknown>
+}
+
 interface DebugRunInputSnapshot {
   message: string
   startedAt: string
@@ -213,6 +243,250 @@ const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
     executionTrace: ['plugin args', 'sandbox runtime call', 'job create', 'job polling', 'plugin result mapping'],
     currentVisibility: ['plugin card executableSpec/result/error', 'job status if generated through backend'],
     missingVisibility: ['plugin API call transcript', 'job payload inspector', 'provider trace'],
+  },
+]
+
+const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
+  {
+    id: 'product_surface',
+    name: 'Product Surface',
+    scope: '用户入口和当前工作台上下文',
+    owner: 'Electron frontend',
+    entrypoints: [
+      'apps/frontend/src/pages/agent/AgentDebugPage.tsx',
+      'apps/frontend/src/components/layout/AIAgentPanel.tsx',
+      'apps/frontend/src/mcp/MCPContextBridge.tsx',
+    ],
+    runtimeArtifacts: ['uiSnapshot', 'attachments', 'route', 'current project', 'selection'],
+    debugVisibility: ['Agent Debug preview input', 'Context tab', 'Executed run input snapshot'],
+  },
+  {
+    id: 'local_runtime',
+    name: 'Local Production Runtime',
+    scope: '运行生命周期、规划、权限、草稿、记忆和模型 planner',
+    owner: 'apps/production-runtime',
+    entrypoints: [
+      'apps/production-runtime/src/server.ts',
+      'apps/production-runtime/src/runtime/agentRuntime.ts',
+      'apps/production-runtime/src/runtime/planner.ts',
+      'apps/production-runtime/src/runtime/modelPlanner.ts',
+    ],
+    runtimeArtifacts: ['thread', 'message', 'run', 'envelope', 'plan', 'steps', 'approval requests', 'memories', 'drafts'],
+    debugVisibility: ['Overview', 'Manifest', 'Skills', 'Tools', 'Prompt', 'Run Timeline', 'Raw JSON'],
+  },
+  {
+    id: 'business_context',
+    name: 'Business Context Layer',
+    scope: 'MovScript 项目、剧本、设定、语义生产实体、素材位和资源',
+    owner: 'Go backend + frontend MCP bridge',
+    entrypoints: [
+      'apps/backend/internal/router/router.go',
+      'apps/backend/internal/workflow/entity_schema.go',
+      'apps/frontend/src/lib/mcpTools.ts',
+    ],
+    runtimeArtifacts: ['context pack', 'semantic entities', 'workflow schemas', 'resource bindings', 'canvas tasks'],
+    debugVisibility: ['Context JSON', 'Tool result JSON', 'AI Function Inventory'],
+  },
+  {
+    id: 'tool_execution',
+    name: 'Tool Execution Layer',
+    scope: 'MCP/runtime/plugin 工具解析、授权和执行',
+    owner: 'runtime tool registry + MCP tool server',
+    entrypoints: [
+      'apps/production-runtime/src/runtime/toolRegistry.ts',
+      'apps/production-runtime/src/runtime/toolPolicy.ts',
+      'apps/production-runtime/catalog/tools',
+    ],
+    runtimeArtifacts: ['resolved tool catalog', 'blocked tools', 'tool calls', 'tool outcomes'],
+    debugVisibility: ['Tools table', 'Approval preview', 'Step timeline args/result/error'],
+  },
+  {
+    id: 'model_layer',
+    name: 'Model Layer',
+    scope: '可选模型 planner 和最终聊天回复模型',
+    owner: 'OpenAI-compatible runtime model config',
+    entrypoints: [
+      'apps/production-runtime/src/runtime/modelConfig.ts',
+      'apps/production-runtime/src/runtime/modelPlanner.ts',
+      'apps/production-runtime/src/runtime/modelChat.ts',
+    ],
+    runtimeArtifacts: ['planner kind', 'compiled prompt', 'planner warnings', 'assistant message'],
+    debugVisibility: ['Model Connection', 'Prompt tab', 'planner metadata', 'final assistant message'],
+  },
+]
+
+const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
+  {
+    command: '/production_plan',
+    intent: '对当前输入的剧本或项目上下文进行编排，返回机器可读计划。',
+    inputContract: {
+      command: '/production_plan',
+      payload: 'script text, project context, selected entity, or natural language goal',
+      uiSnapshot: '{ route, project, selection, recentResources }',
+    },
+    runtimeFlow: [
+      'capture frontend clientInput',
+      'resolve MCP context pack and memories',
+      'build AgentInputEnvelope',
+      'rule/model planner creates AgentTaskPlan',
+      'tool policy filters and approval-gates calls',
+      'assistant returns JSON envelope for the plan',
+    ],
+    outputContract: {
+      command: '/production_plan',
+      objective: 'string',
+      strategy: 'string',
+      planner: 'rule | model',
+      tasks: [
+        {
+          id: 'string',
+          title: 'string',
+          description: 'string',
+          agentRole: 'planner | researcher | creator | reviewer | coordinator',
+          status: 'pending | skipped | completed | failed',
+          toolCalls: [{ name: 'string', args: {} }],
+          successCriteria: 'optional string',
+        },
+      ],
+      warnings: ['string'],
+      pendingApprovals: ['approval request'],
+    },
+    currentSupport: 'Supported by runtime planner and Agent Debug preview/execute flow. /project_plan remains a compatibility alias.',
+  },
+  {
+    command: '/draft',
+    intent: '生成本地草稿，不直接写入正式项目实体。',
+    inputContract: {
+      command: '/draft',
+      payload: 'draft goal, entity hint, or script fragment',
+    },
+    runtimeFlow: ['infer draft kind', 'optionally read project structure/entity', 'call movscript.create_draft', 'return draft id in assistant message'],
+    outputContract: {
+      draftId: 'string',
+      kind: 'script | setting | storyboard_line | content_unit | asset_slot | prompt | task | note',
+      status: 'candidate',
+    },
+    currentSupport: 'Supported through natural language planner rules; command is documented for product UI consistency.',
+  },
+  {
+    command: '/inspect_context',
+    intent: '查看当前 route/project/selection/resources/memories 的 runtime 输入上下文。',
+    inputContract: {
+      command: '/inspect_context',
+      payload: 'optional question about current context',
+    },
+    runtimeFlow: ['capture uiSnapshot', 'call movscript.get_context_pack', 'load memories', 'render Context tab/Raw JSON'],
+    outputContract: {
+      context: 'AgentDebugContextPanel',
+      memories: 'memory refs',
+      labels: 'string[]',
+    },
+    currentSupport: 'Visible in Agent Debug Context and Raw tabs; explicit command remains a frontend/runtime convention.',
+  },
+]
+
+const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
+  {
+    id: 'inspect_context',
+    label: 'Inspect Context',
+    agentFunction: 'movscript.get_context_pack + AgentInputEnvelope',
+    command: '/inspect_context',
+    endpoint: 'POST /runs through clientInput.message',
+    outputMode: 'assistant text: JSON',
+    description: '输出当前 route、project、selection、resources、attachments 和 memories，前端只负责渲染 JSON。',
+  },
+  {
+    id: 'production_plan',
+    label: 'Production Plan',
+    agentFunction: 'AgentTaskPlan planner + tool policy',
+    command: '/production_plan 第一场：主角在雨夜进入废弃剧院',
+    endpoint: 'POST /runs/preview or POST /runs',
+    outputMode: 'assistant text: JSON',
+    description: '编排当前输入和项目上下文，返回可机器读取的任务计划、工具调用、告警和审批项。',
+  },
+  {
+    id: 'search_entities',
+    label: 'Search Entities',
+    agentFunction: 'movscript.search_entities',
+    command: '/search 主角',
+    endpoint: 'POST /runs/preview or POST /runs',
+    outputMode: 'assistant text summary + raw step JSON',
+    description: '按关键词检索项目实体；调试页会展示实际 tool args/result/error。',
+  },
+  {
+    id: 'project_structure',
+    label: 'Project Structure',
+    agentFunction: 'movscript.read_project_structure',
+    command: '/project_structure',
+    endpoint: 'POST /runs/preview or POST /runs',
+    outputMode: 'assistant text summary + structure JSON',
+    description: '单独读取项目结构摘要，方便调试剧本、设定、语义生产实体、素材位和管线节点的上下文入口。',
+  },
+  {
+    id: 'read_entity',
+    label: 'Read Entity',
+    agentFunction: 'movscript.read_entity',
+    command: '/read_entity script #1',
+    endpoint: 'POST /runs/preview or POST /runs',
+    outputMode: 'assistant text summary + raw step JSON',
+    description: '读取指定项目实体；实体类型和 ID 直接写在命令中。',
+  },
+  {
+    id: 'create_draft',
+    label: 'Create Draft',
+    agentFunction: 'movscript.create_draft',
+    command: '/draft 写一版第一场镜头草稿',
+    endpoint: 'POST /runs/preview or POST /runs',
+    outputMode: 'assistant text summary + local draft JSON',
+    description: '创建本地草稿，不直接写正式项目实体。',
+  },
+  {
+    id: 'list_drafts',
+    label: 'List Drafts',
+    agentFunction: 'movscript.list_drafts',
+    command: '/list_drafts',
+    endpoint: 'POST /runs/preview or POST /runs',
+    outputMode: 'assistant text summary + draft list JSON',
+    description: '列出当前项目的本地 Agent 草稿，适合不打开专用草稿 UI 时调试。',
+  },
+  {
+    id: 'apply_draft',
+    label: 'Apply Draft',
+    agentFunction: 'movscript.apply_draft',
+    command: '/apply_draft draft_xxx to script #1 field content',
+    endpoint: 'POST /runs then POST /runs/:id/approve',
+    outputMode: 'approval request + assistant text summary',
+    description: '走审批链应用草稿；调试页会展示 pending approval、before/after preview 和结果。',
+  },
+  {
+    id: 'open_entity',
+    label: 'Open Entity',
+    agentFunction: 'movscript.open_entity',
+    command: 'POST /runs/tool',
+    endpoint: 'POST /runs/tool',
+    outputMode: 'run timeline JSON; UI navigation can be adapter-specific',
+    description: 'UI 导航类能力不要求 agent 输出组件，调试时用显式 tool run payload 表示。',
+    requestShape: {
+      toolCall: {
+        name: 'movscript.open_entity',
+        args: { entityType: 'script', entityId: 1 },
+      },
+    },
+  },
+  {
+    id: 'generation_job',
+    label: 'Generation Job',
+    agentFunction: 'movscript.create_generation_job',
+    command: 'POST /runs/tool',
+    endpoint: 'POST /runs/tool',
+    outputMode: 'approval request + run timeline JSON',
+    description: '成本型生成能力不需要先做专用 UI；调试时直接检查 tool payload、审批和拦截原因。',
+    requestShape: {
+      toolCall: {
+        name: 'movscript.create_generation_job',
+        args: { jobType: 'image', prompt: '第一场雨夜剧院外景', aspectRatio: '16:9' },
+      },
+    },
   },
 ]
 
@@ -459,6 +733,11 @@ export default function AgentDebugPage() {
     await navigator.clipboard.writeText(rawPayload)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
+  }
+
+  function useDebugCommand(command: string) {
+    setPreviewMessage(command)
+    setActiveTab(command.startsWith('/') ? 'plan' : 'commands')
   }
 
   function applyPastedModelConfig() {
@@ -729,6 +1008,8 @@ export default function AgentDebugPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="flex h-auto w-full justify-start overflow-x-auto rounded-md border border-border bg-background p-1">
               <TabsTrigger value="overview" className="gap-1.5 text-xs"><Activity size={12} /> {t('agents.debug.tabs.overview')}</TabsTrigger>
+              <TabsTrigger value="architecture" className="gap-1.5 text-xs"><Database size={12} /> Architecture</TabsTrigger>
+              <TabsTrigger value="commands" className="gap-1.5 text-xs"><TerminalSquare size={12} /> Commands</TabsTrigger>
               <TabsTrigger value="functions" className="gap-1.5 text-xs"><FileJson size={12} /> AI Functions</TabsTrigger>
               <TabsTrigger value="manifest" className="gap-1.5 text-xs"><SlidersHorizontal size={12} /> {t('agents.debug.tabs.manifest')}</TabsTrigger>
               <TabsTrigger value="skills" className="gap-1.5 text-xs"><Clipboard size={12} /> {t('agents.debug.tabs.skills')}</TabsTrigger>
@@ -749,8 +1030,16 @@ export default function AgentDebugPage() {
               />
             </TabsContent>
 
+            <TabsContent value="architecture" className="mt-0">
+              <ArchitectureTab />
+            </TabsContent>
+
+            <TabsContent value="commands" className="mt-0">
+              <CommandsTab commands={AGENT_DEBUG_COMMANDS} onUse={useDebugCommand} />
+            </TabsContent>
+
             <TabsContent value="functions" className="mt-0">
-              <AIFunctionsTab />
+              <AIFunctionsTab onUseCommand={useDebugCommand} />
             </TabsContent>
 
             <TabsContent value="manifest" className="mt-0">
@@ -793,6 +1082,85 @@ export default function AgentDebugPage() {
           </Tabs>
         </main>
       </div>
+    </div>
+  )
+}
+
+function ArchitectureTab() {
+  return (
+    <div className="space-y-4">
+      <Panel title="Agent Runtime Architecture" icon={<Database size={14} />}>
+        <div className="space-y-3">
+          {AGENT_ARCHITECTURE_LAYERS.map((layer, index) => (
+            <div key={layer.id} className="grid gap-3 rounded-md border border-border bg-background p-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[9px]">L{index + 1}</Badge>
+                  <div className="text-sm font-medium text-foreground">{layer.name}</div>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{layer.scope}</p>
+                <div className="mt-2 text-[10px] uppercase text-muted-foreground">Owner</div>
+                <div className="font-mono text-[11px] text-foreground">{layer.owner}</div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <DebugPills title="Entrypoints" values={layer.entrypoints} />
+                <DebugPills title="Runtime Artifacts" values={layer.runtimeArtifacts} tone="success" />
+                <DebugPills title="Debug Visibility" values={layer.debugVisibility} tone="warning" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Business Layer Flow" icon={<Clipboard size={14} />}>
+          <div className="space-y-2 text-xs">
+            {[
+              'Project -> Script/Setting -> Segment/SceneMoment -> StoryboardLine -> ContentUnit/Keyframe -> AssetSlot -> Preview/Delivery',
+              '业务实体由 Go backend 和语义/workflow schema 维护，runtime 通过 MCP context pack 和工具读取。',
+              '写入类动作先落为 draft 或 approval request，避免 agent 直接改正式项目数据。',
+            ].map((line) => (
+              <div key={line} className="rounded-md border border-border bg-muted/20 px-3 py-2 text-foreground">{line}</div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Runtime Run Flow" icon={<Activity size={14} />}>
+          <div className="space-y-2 text-xs">
+            {[
+              'clientInput -> thread/message -> context pack -> AgentInputEnvelope',
+              'skills + manifest + tools + memories -> prompt preview',
+              'rule/model planner -> AgentTaskPlan -> tool policy -> approvals',
+              'subagent steps -> tool calls -> assistant message -> memory extraction',
+            ].map((line) => (
+              <div key={line} className="rounded-md border border-border bg-muted/20 px-3 py-2 font-mono text-[11px] text-foreground">{line}</div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Interaction Commands" icon={<TerminalSquare size={14} />}>
+        <div className="grid gap-3 xl:grid-cols-3">
+          {AGENT_INTERACTION_COMMANDS.map((item) => (
+            <div key={item.command} className="rounded-md border border-border bg-background p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-mono text-sm font-semibold text-foreground">{item.command}</div>
+                <Badge variant="outline" className="text-[9px]">contract</Badge>
+              </div>
+              <p className="mt-2 leading-relaxed text-muted-foreground">{item.intent}</p>
+              <DebugPills title="Runtime Flow" values={item.runtimeFlow} />
+              <div className="mt-3">
+                <div className="mb-1 text-[10px] uppercase text-muted-foreground">Input Contract</div>
+                <CodeBlock value={safeJSONStringify(item.inputContract)} maxHeight="160px" />
+              </div>
+              <div className="mt-3">
+                <div className="mb-1 text-[10px] uppercase text-muted-foreground">Output Contract</div>
+                <CodeBlock value={safeJSONStringify(item.outputContract)} maxHeight="220px" />
+              </div>
+              <p className="mt-2 rounded-md border border-border bg-muted/20 p-2 text-[11px] text-muted-foreground">{item.currentSupport}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -840,9 +1208,72 @@ function OverviewTab({
   )
 }
 
-function AIFunctionsTab() {
+function CommandsTab({ commands, onUse }: { commands: AgentDebugCommandSpec[]; onUse: (command: string) => void }) {
   return (
     <div className="space-y-4">
+      <Panel title="Agent Function Command Matrix" icon={<TerminalSquare size={14} />}>
+        <div className="grid gap-3 xl:grid-cols-2">
+          {commands.map((item) => (
+            <div key={item.id} className="rounded-md border border-border bg-background p-3 text-xs">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-foreground">{item.label}</h3>
+                    <Badge variant="outline" className="text-[9px]">{item.outputMode}</Badge>
+                  </div>
+                  <p className="mt-1 font-mono text-[11px] text-muted-foreground">{item.agentFunction}</p>
+                </div>
+                <Button type="button" size="xs" variant="outline" onClick={() => onUse(item.command)}>
+                  <Play size={12} />
+                  Use
+                </Button>
+              </div>
+              <p className="mt-2 leading-relaxed text-muted-foreground">{item.description}</p>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-[10px] uppercase text-muted-foreground">Command</div>
+                  <CodeBlock value={item.command} maxHeight="120px" />
+                </div>
+                <div>
+                  <div className="mb-1 text-[10px] uppercase text-muted-foreground">Endpoint</div>
+                  <div className="rounded-md border border-border bg-muted/20 px-2 py-2 font-mono text-[11px] text-foreground">
+                    {item.endpoint}
+                  </div>
+                </div>
+              </div>
+              {item.requestShape && (
+                <div className="mt-3">
+                  <div className="mb-1 text-[10px] uppercase text-muted-foreground">Tool Run Payload</div>
+                  <CodeBlock value={safeJSONStringify(item.requestShape)} maxHeight="180px" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  )
+}
+
+function AIFunctionsTab({ onUseCommand }: { onUseCommand: (command: string) => void }) {
+  return (
+    <div className="space-y-4">
+      <Panel title="Command-first Debugging" icon={<TerminalSquare size={14} />}>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {AGENT_DEBUG_COMMANDS.slice(0, 6).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onUseCommand(item.command)}
+              className="rounded-md border border-border bg-background p-3 text-left text-xs transition-colors hover:border-primary/50 hover:bg-muted/20"
+            >
+              <div className="font-mono text-[11px] text-foreground">{item.command}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{item.agentFunction}</div>
+            </button>
+          ))}
+        </div>
+      </Panel>
+
       <Panel title="AI Function Inventory" icon={<FileJson size={14} />}>
         <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full min-w-[980px] text-left text-xs">

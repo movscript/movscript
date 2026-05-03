@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -122,6 +122,7 @@ const unitMeta: Record<UnitStatus, { label: string; badge: string; dot: string }
 export default function ProductionFramePage() {
   const project = useProjectStore((s) => s.current)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const projectId = project?.ID
   const [selectedId, setSelectedId] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -136,10 +137,28 @@ export default function ProductionFramePage() {
 
   const productions = useMemo(() => buildProductionRecords(productionData), [productionData])
   const selected = productions.find((item) => item.id === selectedId) ?? productions[0]
+  const selectedProductionId = selected?.dbId
 
   useEffect(() => {
     if (selectedId && !productions.some((item) => item.id === selectedId)) setSelectedId('')
   }, [productions, selectedId])
+
+  useEffect(() => {
+    const productionId = Number(searchParams.get('productionId'))
+    if (!productionId || productions.length === 0) return
+    const production = productions.find((item) => item.dbId === productionId)
+    if (production) setSelectedId(production.id)
+  }, [productions, searchParams])
+
+  useEffect(() => {
+    if (!selectedProductionId) return
+    const current = Number(searchParams.get('productionId'))
+    if (current === selectedProductionId) return
+    const next = new URLSearchParams(searchParams)
+    next.set('productionId', String(selectedProductionId))
+    next.delete('created')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, selectedProductionId, setSearchParams])
 
   const aggregate = useMemo(() => {
     const active = productions.filter((item) => item.status !== 'delivered').length
@@ -169,15 +188,15 @@ export default function ProductionFramePage() {
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="outline" className="gap-2" asChild>
-                <Link to="/project-preview">
+                <Link to={selected ? productionPreviewHref(selected) : '/project-preview'}>
                   <Route size={15} />
                   制作编排
                 </Link>
               </Button>
               <Button variant="outline" className="gap-2" asChild>
-                <Link to="/project-preview">
+                <Link to="/scripts">
                   <Plus size={15} />
-                  从剧本创建制作
+                  去剧本创建
                 </Link>
               </Button>
               <Button className="gap-2" onClick={() => setCreateOpen(true)}>
@@ -331,7 +350,7 @@ export default function ProductionFramePage() {
                     </div>
                     <div className="mt-4">
                       <Button variant="outline" size="sm" className="gap-2" asChild>
-                        <Link to="/workbench/production-plan">
+                        <Link to={productionPlaybackHref(selected)}>
                           <Play size={14} />
                           项目预演
                         </Link>
@@ -787,11 +806,25 @@ function nextActionsForProduction(input: { blockedUnits: number; units: number; 
 function productionNextActionHref(action: string, production: ProductionRecord) {
   const lower = action.toLowerCase()
   if (action.includes('素材') || action.includes('资料')) return '/asset-slots'
-  if (action.includes('预演') || action.includes('时间线')) return '/workbench/production-plan'
+  if (action.includes('预演') || action.includes('时间线')) return productionPreviewHref(production)
   if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return '/workbench/production'
   if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return '/workbench/delivery'
   if (lower.includes('archive') || action.includes('归档')) return '/final-videos'
   return production.areas.find((area) => area.status === 'blocked')?.href ?? production.areas.find((area) => area.status === 'waiting' || area.status === 'active')?.href ?? '/workbench/production'
+}
+
+function productionPreviewHref(production: ProductionRecord) {
+  const params = new URLSearchParams({
+    productionId: String(production.dbId),
+  })
+  return `/project-preview?${params.toString()}`
+}
+
+function productionPlaybackHref(production: ProductionRecord) {
+  const params = new URLSearchParams({
+    productionId: String(production.dbId),
+  })
+  return `/workbench/production-plan?${params.toString()}`
 }
 
 function formatShortDate(value: string) {

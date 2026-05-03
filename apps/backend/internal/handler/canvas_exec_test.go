@@ -274,6 +274,30 @@ func TestCanvasRunTaskFailureSummaryFallsBackToNodeIDAndLimitsFailures(t *testin
 	}
 }
 
+func TestValidateCanvasProductionEntityWriteAllowsOnlyMediaTargets(t *testing.T) {
+	if err := validateCanvasProductionEntityWrite("asset_slot", canvasPortInputMap{
+		"candidates": []canvasPortValue{{Type: "image", ResourceID: uintPtr(7)}},
+		"image":      []canvasPortValue{{Type: "image", ResourceID: uintPtr(8)}},
+	}); err != nil {
+		t.Fatalf("expected asset slot media writes to pass, got %v", err)
+	}
+	if err := validateCanvasProductionEntityWrite("content_unit", canvasPortInputMap{
+		"video": []canvasPortValue{{Type: "video", ResourceID: uintPtr(9)}},
+	}); err != nil {
+		t.Fatalf("expected content unit media write to pass, got %v", err)
+	}
+	if err := validateCanvasProductionEntityWrite("scene_moment", canvasPortInputMap{
+		"description": []canvasPortValue{{Type: "text", Text: "rewrite"}},
+	}); err == nil || !strings.Contains(err.Error(), "asset_slot or content_unit") {
+		t.Fatalf("expected scene moment write to be rejected, got %v", err)
+	}
+	if err := validateCanvasProductionEntityWrite("content_unit", canvasPortInputMap{
+		"prompt": []canvasPortValue{{Type: "text", Text: "rewrite"}},
+	}); err == nil || !strings.Contains(err.Error(), "not a production write port") {
+		t.Fatalf("expected content unit prompt write to be rejected, got %v", err)
+	}
+}
+
 func TestMarshalParamsForPreflight(t *testing.T) {
 	if got := marshalParamsForPreflight(nil); got != "" {
 		t.Fatalf("expected empty params to marshal as empty string, got %q", got)

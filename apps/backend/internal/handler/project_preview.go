@@ -28,7 +28,16 @@ func (h *ProjectPreviewHandler) GetLatestDraft(c *gin.Context) {
 	if !ok {
 		return
 	}
-	resp, err := h.service.GetLatestDraftWithContext(c.Request.Context(), projectID)
+	var productionID *uint
+	if value, found, err := optionalUintQuery(c, "production_id"); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	} else if found && value > 0 {
+		productionID = &value
+	}
+	resp, err := h.service.GetLatestDraftWithOptions(c.Request.Context(), projectID, projectpreview.GetLatestDraftOptions{
+		ProductionID: productionID,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return

@@ -140,6 +140,13 @@ func RegisteredMigrations() []Migration {
 			},
 		},
 		{
+			Version: "000020a",
+			Name:    "script_preview_draft_production_scope",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.ProjectPreviewDraft{})
+			},
+		},
+		{
 			Version: "000021",
 			Name:    "video_edit_tool_feature",
 			Up:      migrateVideoEditToolFeature,

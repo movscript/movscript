@@ -23,6 +23,7 @@ func NewServiceWithStore(store DraftStore) *Service {
 
 type DraftPayload struct {
 	SourceText         string                `json:"source_text"`
+	ProductionID       *uint                 `json:"production_id,omitempty"`
 	ScriptVersionID    *uint                 `json:"script_version_id,omitempty"`
 	ScriptVersion      ScriptVersionDraft    `json:"script_version"`
 	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
@@ -65,8 +66,13 @@ type GetLatestDraftResponse struct {
 	Draft *SaveDraftResponse `json:"draft,omitempty"`
 }
 
+type GetLatestDraftOptions struct {
+	ProductionID *uint
+}
+
 type SaveDraftResponse struct {
 	DraftID              string               `json:"draft_id"`
+	ProductionID         *uint                `json:"production_id,omitempty"`
 	ScriptVersionID      *uint                `json:"script_version_id"`
 	StoryboardRevisionID string               `json:"storyboard_revision_id"`
 	PreviewTimelineID    string               `json:"preview_timeline_id"`
@@ -79,6 +85,7 @@ type SaveDraftResponse struct {
 type DraftPayloadResponse struct {
 	ProjectID          uint                  `json:"project_id"`
 	SourceText         string                `json:"source_text"`
+	ProductionID       *uint                 `json:"production_id,omitempty"`
 	ScriptVersionID    *uint                 `json:"script_version_id,omitempty"`
 	ScriptVersion      ScriptVersionDraft    `json:"script_version"`
 	StoryboardRows     []StoryboardRow       `json:"storyboard_rows"`
@@ -238,6 +245,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 
 	resp := SaveDraftResponse{
 		DraftID:              req.ScriptVersion.DraftID,
+		ProductionID:         req.ProductionID,
 		ScriptVersionID:      req.ScriptVersionID,
 		StoryboardRevisionID: fmt.Sprintf("%s-storyboard", req.ScriptVersion.DraftID),
 		PreviewTimelineID:    fmt.Sprintf("%s-preview", req.ScriptVersion.DraftID),
@@ -247,6 +255,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 		Draft: DraftPayloadResponse{
 			ProjectID:          projectID,
 			SourceText:         req.SourceText,
+			ProductionID:       req.ProductionID,
 			ScriptVersionID:    req.ScriptVersionID,
 			ScriptVersion:      req.ScriptVersion,
 			StoryboardRows:     req.StoryboardRows,
@@ -264,6 +273,7 @@ func (s *Service) SaveDraftWithContext(ctx context.Context, projectID uint, req 
 		}
 		if err := s.store.SaveDraftSnapshot(ctx, DraftSnapshot{
 			ProjectID:            projectID,
+			ProductionID:         resp.ProductionID,
 			ScriptVersionID:      resp.ScriptVersionID,
 			DraftID:              resp.DraftID,
 			Title:                resp.Draft.ScriptVersion.Title,
@@ -289,13 +299,23 @@ func (s *Service) GetLatestDraft(projectID uint) (GetLatestDraftResponse, error)
 }
 
 func (s *Service) GetLatestDraftWithContext(ctx context.Context, projectID uint) (GetLatestDraftResponse, error) {
+	return s.GetLatestDraftWithOptions(ctx, projectID, GetLatestDraftOptions{})
+}
+
+func (s *Service) GetLatestDraftWithOptions(ctx context.Context, projectID uint, opts GetLatestDraftOptions) (GetLatestDraftResponse, error) {
 	if projectID == 0 {
 		return GetLatestDraftResponse{}, fmt.Errorf("project id is required")
 	}
 	if s.store == nil {
 		return GetLatestDraftResponse{Found: false}, nil
 	}
-	snapshot, err := s.store.GetLatestDraftSnapshot(ctx, projectID)
+	var snapshot DraftSnapshot
+	var err error
+	if opts.ProductionID != nil && *opts.ProductionID > 0 {
+		snapshot, err = s.store.GetLatestDraftSnapshotForProduction(ctx, projectID, *opts.ProductionID)
+	} else {
+		snapshot, err = s.store.GetLatestDraftSnapshot(ctx, projectID)
+	}
 	if err != nil {
 		if err == ErrDraftNotFound {
 			return GetLatestDraftResponse{Found: false}, nil
@@ -307,6 +327,9 @@ func (s *Service) GetLatestDraftWithContext(ctx context.Context, projectID uint)
 		return GetLatestDraftResponse{}, fmt.Errorf("decode draft snapshot: %w", err)
 	}
 	draft.ProjectID = projectID
+	if draft.ProductionID == nil {
+		draft.ProductionID = snapshot.ProductionID
+	}
 	if draft.ScriptVersionID == nil {
 		draft.ScriptVersionID = snapshot.ScriptVersionID
 	}
@@ -321,6 +344,7 @@ func (s *Service) GetLatestDraftWithContext(ctx context.Context, projectID uint)
 	}
 	resp := SaveDraftResponse{
 		DraftID:              snapshot.DraftID,
+		ProductionID:         draft.ProductionID,
 		ScriptVersionID:      draft.ScriptVersionID,
 		StoryboardRevisionID: snapshot.StoryboardRevisionID,
 		PreviewTimelineID:    snapshot.PreviewTimelineID,
@@ -761,6 +785,9 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 		return SaveDraftResponse{}, fmt.Errorf("decode draft snapshot: %w", err)
 	}
 	draft.ProjectID = projectID
+	if draft.ProductionID == nil {
+		draft.ProductionID = snapshot.ProductionID
+	}
 	if draft.ScriptVersionID == nil {
 		draft.ScriptVersionID = snapshot.ScriptVersionID
 	}
@@ -775,6 +802,7 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 		return SaveDraftResponse{}, fmt.Errorf("encode draft snapshot: %w", err)
 	}
 	snapshot.Title = fallback(draft.ScriptVersion.Title, snapshot.Title)
+	snapshot.ProductionID = draft.ProductionID
 	snapshot.ScriptVersionID = draft.ScriptVersionID
 	snapshot.SourceType = fallback(draft.ScriptVersion.SourceType, snapshot.SourceType)
 	snapshot.SourceText = draft.SourceText
@@ -791,6 +819,9 @@ func (s *Service) updateDraftSnapshotAndReturn(ctx context.Context, projectID ui
 
 func saveDraftResponseFromSnapshot(projectID uint, snapshot DraftSnapshot, draft DraftPayloadResponse) SaveDraftResponse {
 	draft.ProjectID = projectID
+	if draft.ProductionID == nil {
+		draft.ProductionID = snapshot.ProductionID
+	}
 	if draft.ScriptVersionID == nil {
 		draft.ScriptVersionID = snapshot.ScriptVersionID
 	}
@@ -805,6 +836,7 @@ func saveDraftResponseFromSnapshot(projectID uint, snapshot DraftSnapshot, draft
 	}
 	return SaveDraftResponse{
 		DraftID:              snapshot.DraftID,
+		ProductionID:         draft.ProductionID,
 		ScriptVersionID:      draft.ScriptVersionID,
 		StoryboardRevisionID: snapshot.StoryboardRevisionID,
 		PreviewTimelineID:    snapshot.PreviewTimelineID,

@@ -2361,6 +2361,10 @@ func (h *CanvasHandler) completeEntityWriteTask(ctx context.Context, task *model
 		h.failTask(task, node, nd, "entity node is missing entity reference")
 		return nil
 	}
+	if err := validateCanvasProductionEntityWrite(kind, portInputs); err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return nil
+	}
 
 	values := h.entityPortValuesFromCanvasInputs(ctx, kind, portInputs)
 	var runID uint
@@ -2401,6 +2405,42 @@ func (h *CanvasHandler) completeEntityWriteTask(ctx context.Context, task *model
 	}
 	h.updateTaskOutputValues(task, outputs)
 	return outputs
+}
+
+func validateCanvasProductionEntityWrite(kind string, portInputs canvasPortInputMap) error {
+	if kind != "asset_slot" && kind != "content_unit" {
+		return fmt.Errorf("canvas can only write production media to asset_slot or content_unit entities")
+	}
+	for handle := range portInputs {
+		portID := strings.TrimSpace(handle)
+		if portID == "" {
+			continue
+		}
+		field, ok := workflow.EntityFieldForPort(kind, portID)
+		if !ok || !field.Workflow.Writable {
+			return fmt.Errorf("canvas port %q is not a production write port for %s", portID, kind)
+		}
+		if !canvasProductionWritePort(kind, field.Workflow.PortID) {
+			return fmt.Errorf("canvas port %q is not a production media write port for %s", portID, kind)
+		}
+	}
+	return nil
+}
+
+func canvasProductionWritePort(kind string, portID string) bool {
+	switch kind {
+	case "asset_slot":
+		switch portID {
+		case "result", "image", "video", "audio", "reference", "resource_id", "locked_asset_slot_id", "candidates", "candidate_item":
+			return true
+		}
+	case "content_unit":
+		switch portID {
+		case "result", "image", "video", "audio":
+			return true
+		}
+	}
+	return false
 }
 
 func (h *CanvasHandler) attachGeneratedAssetSlotCandidate(cv model.Canvas, runID uint, userID uint, kind string, entityID uint, resourceID uint) {

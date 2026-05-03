@@ -1347,14 +1347,16 @@ function ContentGenerationWorkbench() {
 
 function ProjectPreviewWorkspace() {
   const project = useProjectStore((s) => s.current)
+  const [searchParams] = useSearchParams()
   const projectId = project?.ID
+  const productionId = positiveNumber(searchParams.get('productionId'))
   const [activeStep, setActiveStep] = useState<ProjectPreviewStepKey>('inventory')
   const [selectedTimelineId, setSelectedTimelineId] = useState('')
   const [message, setMessage] = useState('读取制作编排后，可以检查项目预演所需资料、素材、情节、片段和内容单元。')
 
   const { data, isLoading, isError, refetch } = useQuery<GetLatestProjectPreviewDraftResponse>({
-    queryKey: ['project-preview-workbench', projectId],
-    queryFn: () => getLatestProjectPreviewDraft(projectId!),
+    queryKey: ['project-preview-workbench', projectId, productionId],
+    queryFn: () => getLatestProjectPreviewDraft(projectId!, { productionId }),
     enabled: !!projectId,
   })
 
@@ -1448,7 +1450,7 @@ function ProjectPreviewWorkspace() {
     },
     onMutate: () => setMessage('正在确认当前项目预演'),
     onSuccess: () => {
-      setMessage('项目预演已确认，可以继续后续内容制作')
+      setMessage(productionId ? '当前制作的项目预演已确认，可以继续后续内容制作' : '项目预演已确认，可以继续后续内容制作')
       refetch()
       setActiveStep('confirm')
     },
@@ -1613,6 +1615,11 @@ function ProjectPreviewWorkspace() {
       </div>
     </div>
   )
+}
+
+function positiveNumber(value: string | null) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
 function ProjectPreviewStage({

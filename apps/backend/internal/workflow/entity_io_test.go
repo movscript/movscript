@@ -201,6 +201,37 @@ func TestValidateEntityPortValuesRejectsReadonlyPort(t *testing.T) {
 	}
 }
 
+func TestProductionEntitySchemasOnlyWriteMediaPorts(t *testing.T) {
+	for _, tc := range []struct {
+		kind       string
+		readonly   string
+		writePorts []string
+	}{
+		{kind: "asset_slot", readonly: "prompt_hint", writePorts: []string{"result", "image", "video", "audio", "reference", "resource_id", "locked_asset_slot_id", "candidates", "candidate_item"}},
+		{kind: "content_unit", readonly: "prompt", writePorts: []string{"result", "image", "video", "audio"}},
+		{kind: "segment", readonly: "summary", writePorts: nil},
+		{kind: "scene_moment", readonly: "description", writePorts: nil},
+		{kind: "creative_reference", readonly: "description", writePorts: nil},
+	} {
+		field, ok := EntityFieldForPort(tc.kind, tc.readonly)
+		if !ok {
+			t.Fatalf("expected %s.%s field", tc.kind, tc.readonly)
+		}
+		if !field.Workflow.Readable || field.Workflow.Writable {
+			t.Fatalf("expected %s.%s to be read-only, got %#v", tc.kind, tc.readonly, field.Workflow)
+		}
+		for _, portID := range tc.writePorts {
+			field, ok := EntityFieldForPort(tc.kind, portID)
+			if !ok {
+				t.Fatalf("expected %s.%s field", tc.kind, portID)
+			}
+			if !field.Workflow.Writable {
+				t.Fatalf("expected %s.%s to be writable, got %#v", tc.kind, portID, field.Workflow)
+			}
+		}
+	}
+}
+
 func TestScriptCharacterArchivePortsAreReadonlyDeprecated(t *testing.T) {
 	for _, portID := range []string{"character_profiles", "character_relationships", "settings", "background", "scenes_desc"} {
 		field, ok := EntityFieldForPort("script", portID)

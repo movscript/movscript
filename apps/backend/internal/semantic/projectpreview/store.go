@@ -13,6 +13,7 @@ var ErrDraftNotFound = errors.New("project preview draft not found")
 
 type DraftSnapshot struct {
 	ProjectID            uint
+	ProductionID         *uint
 	ScriptVersionID      *uint
 	DraftID              string
 	Title                string
@@ -32,6 +33,7 @@ type DraftStore interface {
 	SaveDraftSnapshot(ctx context.Context, snapshot DraftSnapshot) error
 	GetDraftSnapshot(ctx context.Context, projectID uint, draftID string) (DraftSnapshot, error)
 	GetLatestDraftSnapshot(ctx context.Context, projectID uint) (DraftSnapshot, error)
+	GetLatestDraftSnapshotForProduction(ctx context.Context, projectID uint, productionID uint) (DraftSnapshot, error)
 }
 
 type gormDraftStore struct {
@@ -45,6 +47,7 @@ func NewGormDraftStore(db *gorm.DB) DraftStore {
 func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSnapshot) error {
 	record := model.ProjectPreviewDraft{
 		ProjectID:            snapshot.ProjectID,
+		ProductionID:         snapshot.ProductionID,
 		ScriptVersionID:      snapshot.ScriptVersionID,
 		DraftID:              snapshot.DraftID,
 		Title:                snapshot.Title,
@@ -63,6 +66,7 @@ func (s *gormDraftStore) SaveDraftSnapshot(ctx context.Context, snapshot DraftSn
 		Columns: []clause.Column{{Name: "project_id"}, {Name: "draft_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"script_version_id",
+			"production_id",
 			"title",
 			"source_type",
 			"source_text",
@@ -108,9 +112,25 @@ func (s *gormDraftStore) GetLatestDraftSnapshot(ctx context.Context, projectID u
 	return draftSnapshotFromRecord(record), nil
 }
 
+func (s *gormDraftStore) GetLatestDraftSnapshotForProduction(ctx context.Context, projectID uint, productionID uint) (DraftSnapshot, error) {
+	var record model.ProjectPreviewDraft
+	err := s.db.WithContext(ctx).
+		Where("project_id = ? AND production_id = ? AND status <> ?", projectID, productionID, "archived").
+		Order("updated_at desc").
+		First(&record).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return DraftSnapshot{}, ErrDraftNotFound
+		}
+		return DraftSnapshot{}, err
+	}
+	return draftSnapshotFromRecord(record), nil
+}
+
 func draftSnapshotFromRecord(record model.ProjectPreviewDraft) DraftSnapshot {
 	return DraftSnapshot{
 		ProjectID:            record.ProjectID,
+		ProductionID:         record.ProductionID,
 		ScriptVersionID:      record.ScriptVersionID,
 		DraftID:              record.DraftID,
 		Title:                record.Title,

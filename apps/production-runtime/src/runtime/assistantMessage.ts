@@ -1,15 +1,75 @@
 import type { JSONValue } from '../types.js'
 import { parseToolResult } from './context.js'
+import { resolveRuntimeChatFileModelConfig } from './modelConfig.js'
 import { formatMemoryBlock } from './planner.js'
 import type { AgentMemory } from './memory/types.js'
-import type { ToolCall, ToolCallOutcome } from './types.js'
+import type { AgentRun, ToolCall, ToolCallOutcome } from './types.js'
+
+type ChatMessage = {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+interface OpenAIChatResponse {
+  choices?: Array<{
+    message?: {
+      content?: string
+    }
+  }>
+}
 
 export function buildAssistantContent(
   userMessage: string,
   toolResults: ToolCallOutcome[],
   warnings: string[] = [],
   memories: AgentMemory[] = [],
+  run?: AgentRun,
 ): string {
+  if (isInspectContextCommand(userMessage) && run?.envelope) {
+    return JSON.stringify({
+      command: '/inspect_context',
+      runId: run.id,
+      threadId: run.threadId,
+      context: run.envelope.context,
+      memories: run.envelope.memories,
+      labels: run.envelope.context.labels,
+      warnings,
+    }, null, 2)
+  }
+
+  if (isProductionPlanCommand(userMessage) && run?.plan) {
+    return JSON.stringify({
+      command: '/production_plan',
+      runId: run.id,
+      threadId: run.threadId,
+      planner: typeof run.metadata?.planner === 'string' ? run.metadata.planner : undefined,
+      objective: run.plan.objective,
+      strategy: run.plan.strategy,
+      tasks: run.plan.tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        agentRole: task.agentRole,
+        status: task.status,
+        toolCalls: task.toolCalls,
+        ...(task.successCriteria ? { successCriteria: task.successCriteria } : {}),
+      })),
+      warnings,
+      toolResults: toolResults.map((outcome) => ({
+        call: outcome.call,
+        ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
+      })),
+      pendingApprovals: (run.pendingApprovals ?? []).map((approval) => ({
+        id: approval.id,
+        toolName: approval.toolName,
+        status: approval.status,
+        reason: approval.reason,
+        risk: approval.risk,
+        permission: approval.permission,
+      })),
+    }, null, 2)
+  }
+
   const memoryCount = memories.length
   const memoryLine = memoryCount > 0 ? `已参考 ${memoryCount} 条记忆。` : undefined
   const memoryBlock = memoryCount > 0 ? `相关记忆：\n${formatMemoryBlock(memories, 5)}` : undefined
@@ -40,6 +100,102 @@ export function buildAssistantContent(
     lines.push(`- ${describeToolOutcome(outcome)}`)
   }
   return lines.join('\n')
+}
+
+export async function buildConfiguredAssistantContent(
+  userMessage: string,
+  toolResults: ToolCallOutcome[],
+  warnings: string[] = [],
+  memories: AgentMemory[] = [],
+  run?: AgentRun,
+): Promise<string> {
+  if (isInspectContextCommand(userMessage) || isProductionPlanCommand(userMessage)) {
+    return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
+  }
+
+  const config = resolveRuntimeChatFileModelConfig()
+  if (!config) return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
+
+  try {
+    return await callOpenAICompatible(config, buildAssistantMessages(userMessage, toolResults, warnings, memories, run))
+  } catch (error) {
+    warnings.push(`model chat fallback: ${error instanceof Error ? error.message : String(error)}`)
+    return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
+  }
+}
+
+function buildAssistantMessages(
+  userMessage: string,
+  toolResults: ToolCallOutcome[],
+  warnings: string[],
+  memories: AgentMemory[],
+  run?: AgentRun,
+): ChatMessage[] {
+  return [
+    {
+      role: 'system',
+      content: [
+        'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
+        'Answer in the same language as the user unless they ask otherwise.',
+        'Use the runtime context, plan, tool results, and memories when available.',
+        'Do not claim you changed project data unless a tool result proves it.',
+        'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: JSON.stringify({
+        userMessage,
+        context: run?.envelope?.context,
+        planner: typeof run?.metadata?.planner === 'string' ? run.metadata.planner : undefined,
+        plan: run?.plan,
+        warnings,
+        memories: memories.map((memory) => ({
+          id: memory.id,
+          scope: memory.scope,
+          kind: memory.kind,
+          content: memory.content,
+        })),
+        toolResults: toolResults.map((outcome) => ({
+          call: outcome.call,
+          ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
+        })),
+      }),
+    },
+  ]
+}
+
+async function callOpenAICompatible(
+  config: { apiKey: string; model: string; baseURL: string },
+  messages: ChatMessage[],
+): Promise<string> {
+  const response = await fetch(`${config.baseURL.replace(/\/$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages,
+    }),
+  })
+  const responseText = await response.text()
+  if (!response.ok) throw new Error(`model chat HTTP ${response.status}: ${responseText}`)
+  const parsed = JSON.parse(responseText) as OpenAIChatResponse
+  const content = parsed.choices?.[0]?.message?.content?.trim()
+  if (!content) throw new Error('model chat returned no assistant content')
+  return content
+}
+
+function isProductionPlanCommand(message: string): boolean {
+  const firstToken = message.trim().split(/\s+/, 1)[0]
+  return firstToken === '/production_plan' || firstToken === '/project_plan'
+}
+
+function isInspectContextCommand(message: string): boolean {
+  const firstToken = message.trim().split(/\s+/, 1)[0]
+  return firstToken === '/inspect_context' || firstToken === '/context'
 }
 
 function describeToolOutcome(outcome: ToolCallOutcome): string {

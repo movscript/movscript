@@ -764,3 +764,23 @@ func (s *memoryDraftStore) GetLatestDraftSnapshot(_ context.Context, projectID u
 	}
 	return snapshot, nil
 }
+
+func (s *memoryDraftStore) GetLatestDraftSnapshotForProduction(_ context.Context, projectID uint, productionID uint) (DraftSnapshot, error) {
+	snapshots := s.snapshots[projectID]
+	if len(snapshots) == 0 {
+		return DraftSnapshot{}, ErrDraftNotFound
+	}
+	var snapshot DraftSnapshot
+	for _, item := range snapshots {
+		if item.ProductionID != nil && *item.ProductionID == productionID {
+			snapshot = item
+		}
+	}
+	if snapshot.DraftID == "" {
+		return DraftSnapshot{}, ErrDraftNotFound
+	}
+	if snapshot.SnapshotJSON == "bad-json" {
+		return DraftSnapshot{}, errors.New("bad fixture")
+	}
+	return snapshot, nil
+}
