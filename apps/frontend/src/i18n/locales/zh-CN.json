@@ -471,8 +471,6 @@
         "awaitingApproval": "等待审核通过"
       },
       "emptyFocus": {
-        "projectPreview": "从项目预演开始整理内容输入",
-        "projectPreviewMeta": "生成结构和素材缺口",
         "assets": "检查素材准备状态",
         "assetsMeta": "锁定生产引用"
       }
@@ -2162,7 +2160,6 @@
       "sceneMoments": "情节",
       "contentUnits": "内容单元",
       "episodes": "分集管理",
-      "projectPreview": "制作编排",
       "creativeReferences": "创作资料库",
       "referenceRelations": "关系总览",
       "production": "内容生产",
@@ -2206,9 +2203,7 @@
       "entityManage": "实体管理",
       "unused": "未使用"
     },
-    "groups": {
-      "projectPreviewWorkbench": "项目预演"
-    },
+    "groups": {},
     "items": {
       "scripts": "剧本库",
       "settings": "设定",
@@ -2237,6 +2232,7 @@
       "collaboration": "协作",
       "projectHome": "首页",
       "projectProduction": "制作",
+      "productionOrchestrate": "制作编排",
       "contentAreaProduction": "制作编排",
       "script": "剧本",
       "segments": "片段",
@@ -2246,7 +2242,6 @@
       "content": "内容",
       "contentUnits": "内容单元",
       "projectPlan": "筹备总览",
-      "projectPreview": "项目预演",
       "semanticEntities": "语义实体",
       "entityManagement": "实体管理",
       "creativeReferences": "创作资料库",
@@ -2265,7 +2260,7 @@
       "workbenchProduction": "生产决策",
       "workbenchDelivery": "交付门禁",
       "workbenchReferenceRelations": "关系校正",
-      "workbenchProjectPreview": "项目预演",
+      "workbenchProductionPreview": "制作预演",
       "workbenchAssetPreparation": "素材准备",
       "workbenchContentGeneration": "内容生成",
       "productionTasks": "任务",

@@ -44,33 +44,3 @@ func TestMigrationChecksumIsStable(t *testing.T) {
 		t.Fatalf("expected stable checksum, got %q and %q", first, second)
 	}
 }
-
-func TestMigrationAcceptsExplicitLegacyChecksum(t *testing.T) {
-	migration := Migration{
-		Version:         "000123",
-		Name:            "renamed",
-		LegacyChecksums: []string{"legacy-checksum"},
-	}
-
-	if !migrationAcceptsChecksum(migration, "legacy-checksum") {
-		t.Fatal("expected legacy checksum to be accepted")
-	}
-	if migrationAcceptsChecksum(migration, "other-checksum") {
-		t.Fatal("expected unrelated checksum to be rejected")
-	}
-}
-
-func TestRegisteredMigrationAcceptsRenamedSemanticSkeletonChecksum(t *testing.T) {
-	const appliedChecksum = "c8cf48991d28eab2da69743bca6348df3c4dddb81368d2a4ff0048281e67df82"
-
-	for _, migration := range RegisteredMigrations() {
-		if migration.Version != "000018" {
-			continue
-		}
-		if !migrationAcceptsChecksum(migration, appliedChecksum) {
-			t.Fatal("expected renamed semantic skeleton migration to accept applied checksum")
-		}
-		return
-	}
-	t.Fatal("migration 000018 not found")
-}

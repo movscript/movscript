@@ -471,8 +471,6 @@
         "awaitingApproval": "Awaiting approval"
       },
       "emptyFocus": {
-        "projectPreview": "Start with project preview",
-        "projectPreviewMeta": "Generate structure and asset gaps",
         "assets": "Check asset prep",
         "assetsMeta": "Lock production references"
       }
@@ -2146,7 +2144,7 @@
       "projectPlan": "Prep Overview",
       "creation": "Home",
       "workbenchScript": "Understanding Review",
-      "workbenchPreview": "Project Preview",
+      "workbenchPreview": "Production Preview",
       "workbenchCreative": "Reference Review",
       "workbenchAssets": "Asset Generation",
       "workbenchProduction": "Production Decisions",
@@ -2162,7 +2160,6 @@
       "sceneMoments": "Plot Beats",
       "contentUnits": "Content Units",
       "episodes": "Episode Management",
-      "projectPreview": "Production Planning",
       "creativeReferences": "Reference Library",
       "referenceRelations": "Relation Overview",
       "production": "Content Production",
@@ -2206,9 +2203,7 @@
       "entityManage": "Entity Management",
       "unused": "Unused"
     },
-    "groups": {
-      "projectPreviewWorkbench": "Project Preview"
-    },
+    "groups": {},
     "items": {
       "scripts": "Script Library",
       "settings": "Settings",
@@ -2237,6 +2232,7 @@
       "collaboration": "Collaboration",
       "projectHome": "Home",
       "projectProduction": "Production Overview",
+      "productionOrchestrate": "Orchestration",
       "contentAreaProduction": "Production Orchestration",
       "script": "Script",
       "segments": "Segments",
@@ -2246,7 +2242,6 @@
       "content": "Content",
       "contentUnits": "Content Units",
       "projectPlan": "Prep Overview",
-      "projectPreview": "Project Preview",
       "semanticEntities": "Semantic Entities",
       "entityManagement": "Entity Management",
       "creativeReferences": "Reference Library",
@@ -2259,13 +2254,13 @@
       "assetProductionWorkbench": "Asset Production Workbench",
       "contentProductionWorkbench": "Content Production Workbench",
       "workbenchScript": "Understanding Review",
-      "workbenchPreview": "Project Preview",
+      "workbenchPreview": "Production Preview",
       "workbenchCreative": "Reference Review",
       "workbenchAssets": "Asset Generation",
       "workbenchProduction": "Production Decisions",
       "workbenchDelivery": "Delivery Gate",
       "workbenchReferenceRelations": "Relation Correction",
-      "workbenchProjectPreview": "Project Preview",
+      "workbenchProductionPreview": "Production Preview",
       "workbenchAssetPreparation": "Asset Preparation",
       "workbenchContentGeneration": "Content Generation",
       "productionTasks": "Tasks",

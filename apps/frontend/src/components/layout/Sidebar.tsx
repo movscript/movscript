@@ -251,6 +251,7 @@ export function Sidebar() {
               <NavItem to="/project-home" icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
               <NavItem to="/scripts" icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
               <NavItem to="/production" icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
+              <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
               <NavItem to="/delivery" icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} />
             </>
@@ -260,20 +261,8 @@ export function Sidebar() {
         {current && (
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
-            <Section title={t('sidebar.sections.contentArea')} collapsed={collapsed}>
-              <NavItem to="/segments" icon={Clapperboard} label={t('sidebar.items.segments')} collapsed={collapsed} />
-              <NavItem to="/scene-moments" icon={Milestone} label={t('sidebar.items.sceneMoments')} collapsed={collapsed} />
-              <NavItem to="/creative-references" icon={Sparkles} label={t('sidebar.items.references')} collapsed={collapsed} />
-              <NavItem to="/asset-slots" icon={PackageSearch} label={t('sidebar.items.assetSlots')} collapsed={collapsed} />
-              <NavItem to="/reference-relations" icon={Network} label={t('sidebar.items.relations')} collapsed={collapsed} />
-              <NavItem to="/contents" icon={Layers3} label={t('sidebar.items.contentUnits')} collapsed={collapsed} />
-              <NavItem to="/final-videos" icon={FileVideo} label={t('sidebar.items.finalVideos')} collapsed={collapsed} />
-            </Section>
-
-            <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              <NavItem to="/project-preview" icon={Eye} label={t('sidebar.items.projectPreview')} collapsed={collapsed} />
-              <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProjectPreview')} collapsed={collapsed} />
+              <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
               <NavItem to="/workbench/production" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
             </Section>
@@ -310,32 +299,32 @@ export function Sidebar() {
         {/* Manage */}
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
           <NavItem to="/plugins" icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
-          <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
           {currentUser?.system_role === 'super_admin' && (
-            <NavItem to="/admin" icon={ShieldCheck} label={t('sidebar.items.admin')} collapsed={collapsed} />
+            <>
+              <NavItem to="/admin" icon={ShieldCheck} label={t('sidebar.items.admin')} collapsed={collapsed} />
+              <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
+            </>
           )}
         </Section>
 
-        <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
-
-        {/* Unused routes kept visible for audit */}
-        <Section title={t('sidebar.sections.unused')} defaultOpen={false} collapsed={collapsed}>
-          {current && (
-            <>
-              <NavItem to="/workbench/script" icon={BookOpenText} label={t('sidebar.items.workbenchScript')} collapsed={collapsed} />
-              <NavItem to="/workbench/creative" icon={Lightbulb} label={t('sidebar.items.workbenchCreative')} collapsed={collapsed} />
-              <NavItem to="/workbench/delivery" icon={Send} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
-              <NavItem to="/workbench/reference-relations" icon={GitFork} label={t('sidebar.items.workbenchReferenceRelations')} collapsed={collapsed} />
-            </>
-          )}
-          <NavItem to="/user" icon={CircleUserRound} label={t('sidebar.items.user')} collapsed={collapsed} />
-          {currentUser?.system_role === 'super_admin' && (
-            <>
+        {currentUser?.system_role === 'super_admin' && (
+          <>
+            <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
+            <Section title={t('sidebar.sections.unused')} defaultOpen={false} collapsed={collapsed}>
+              {current && (
+                <>
+                  <NavItem to="/workbench/script" icon={BookOpenText} label={t('sidebar.items.workbenchScript')} collapsed={collapsed} />
+                  <NavItem to="/workbench/creative" icon={Lightbulb} label={t('sidebar.items.workbenchCreative')} collapsed={collapsed} />
+                  <NavItem to="/workbench/delivery" icon={Send} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
+                  <NavItem to="/workbench/reference-relations" icon={GitFork} label={t('sidebar.items.workbenchReferenceRelations')} collapsed={collapsed} />
+                </>
+              )}
+              <NavItem to="/user" icon={CircleUserRound} label={t('sidebar.items.user')} collapsed={collapsed} />
               <NavItem to="/admin/debug" icon={MonitorCog} label={t('sidebar.items.adminDebug')} collapsed={collapsed} />
               <NavItem to="/admin/ui-preview" icon={SlidersHorizontal} label={t('sidebar.items.adminUiPreview')} collapsed={collapsed} />
-            </>
-          )}
-        </Section>
+            </Section>
+          </>
+        )}
 
       </nav>
 

@@ -170,10 +170,13 @@ async function getProductionRuntimeHealth(baseURL: string): Promise<{ ok: boolea
   try {
     const res = await fetch(`${baseURL}/health`)
     if (!res.ok) return { ok: false, supportsModelConfig: false }
-    const body = await res.json() as { ok?: unknown }
+    const body = await res.json() as { ok?: unknown; modelConfig?: { provider?: unknown } }
     if (body.ok !== true) return { ok: false, supportsModelConfig: false }
     const modelConfigRes = await fetch(`${baseURL}/model-config`)
-    return { ok: true, supportsModelConfig: modelConfigRes.status !== 404 }
+    if (!modelConfigRes.ok) return { ok: true, supportsModelConfig: false }
+    const modelConfig = await modelConfigRes.json() as { provider?: unknown }
+    const provider = modelConfig.provider ?? body.modelConfig?.provider
+    return { ok: true, supportsModelConfig: provider === 'backend-model-config' }
   } catch {
     return { ok: false, supportsModelConfig: false }
   }

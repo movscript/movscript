@@ -3,10 +3,9 @@ import { join } from 'node:path'
 import { atomicWriteJSON, resolveAgentStatePath } from './fileStore.js'
 
 export interface RuntimeModelConfig {
-  provider: 'openai-compatible'
-  baseURL: string
+  provider: 'backend-model-config'
+  modelConfigId: number
   model: string
-  apiKey?: string
   useForChat: boolean
   useForPlanner: boolean
   updatedAt: string
@@ -14,28 +13,57 @@ export interface RuntimeModelConfig {
 
 export interface RuntimeModelConfigPublic {
   configured: boolean
-  provider: 'openai-compatible'
-  baseURL: string
+  provider: 'backend-model-config'
+  modelConfigId?: number
   model: string
-  apiKeyConfigured: boolean
   useForChat: boolean
   useForPlanner: boolean
   updatedAt?: string
-  source: 'file' | 'env' | 'none'
+  source: 'file' | 'none'
 }
 
 export interface RuntimeModelConfigInput {
-  baseURL?: unknown
+  modelConfigId?: unknown
   model?: unknown
-  apiKey?: unknown
   useForChat?: unknown
   useForPlanner?: unknown
 }
 
-export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { apiKey: string }
+export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { modelConfigId: number }
 
-const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
+export interface RuntimeModelAuthContext {
+  backendAuthToken?: string
+}
+
+export interface RuntimeModelRequestSnapshot {
+  url: string
+  method: 'POST'
+  headers: Record<string, string>
+  body: {
+    model: string
+    messages: Array<{
+      role: 'system' | 'user' | 'assistant'
+      content: string
+    }>
+    temperature?: number
+    response_format?: { type: 'json_object' }
+  }
+}
+
+export interface RuntimeModelTestResult {
+  ok: boolean
+  provider: string
+  model: string
+  modelConfigId: number
+  latencyMs: number
+  content: string
+  request: RuntimeModelRequestSnapshot
+}
+
+export type RuntimeModelChatMessage = RuntimeModelRequestSnapshot['body']['messages'][number]
+
+const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'
+const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'
 
 export class RuntimeModelConfigStore {
   readonly filePath: string
@@ -45,12 +73,7 @@ export class RuntimeModelConfigStore {
   }
 
   getEffectiveConfig(): RuntimeModelConfig | undefined {
-    const fileConfig = this.readFileConfig()
-    if (fileConfig?.apiKey) return fileConfig
-
-    const envConfig = resolveEnvConfig()
-    if (envConfig) return envConfig
-    return fileConfig
+    return this.readFileConfig()
   }
 
   getFileConfig(): RuntimeModelConfig | undefined {
@@ -59,44 +82,37 @@ export class RuntimeModelConfigStore {
 
   getPublicConfig(): RuntimeModelConfigPublic {
     const fileConfig = this.readFileConfig()
-    const envConfig = resolveEnvConfig()
-    const effective = fileConfig ?? envConfig
-    if (!effective) {
+    if (!fileConfig) {
       return {
         configured: false,
-        provider: 'openai-compatible',
-        baseURL: DEFAULT_OPENAI_BASE_URL,
-        model: DEFAULT_OPENAI_MODEL,
-        apiKeyConfigured: false,
+        provider: 'backend-model-config',
+        model: DEFAULT_BACKEND_MODEL,
         useForChat: true,
         useForPlanner: true,
         source: 'none',
       }
     }
     return {
-      configured: !!effective.apiKey,
-      provider: 'openai-compatible',
-      baseURL: effective.baseURL,
-      model: effective.model,
-      apiKeyConfigured: !!effective.apiKey,
-      useForChat: effective.useForChat,
-      useForPlanner: effective.useForPlanner,
-      ...(effective.updatedAt ? { updatedAt: effective.updatedAt } : {}),
-      source: fileConfig ? 'file' : 'env',
+      configured: true,
+      provider: 'backend-model-config',
+      modelConfigId: fileConfig.modelConfigId,
+      model: fileConfig.model,
+      useForChat: fileConfig.useForChat,
+      useForPlanner: fileConfig.useForPlanner,
+      updatedAt: fileConfig.updatedAt,
+      source: 'file',
     }
   }
 
   save(input: RuntimeModelConfigInput): RuntimeModelConfigPublic {
     const existing = this.readFileConfig()
-    const baseURL = normalizeNonEmptyString(input.baseURL) ?? existing?.baseURL ?? DEFAULT_OPENAI_BASE_URL
-    const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? DEFAULT_OPENAI_MODEL
-    const apiKeyInput = normalizeNonEmptyString(input.apiKey)
-    const apiKey = apiKeyInput ?? existing?.apiKey
+    const modelConfigId = normalizePositiveInteger(input.modelConfigId) ?? existing?.modelConfigId
+    if (!modelConfigId) throw new Error('backend model config id is required')
+    const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? backendModelID(modelConfigId)
     const config: RuntimeModelConfig = {
-      provider: 'openai-compatible',
-      baseURL: normalizeBaseURL(baseURL),
+      provider: 'backend-model-config',
+      modelConfigId,
       model,
-      ...(apiKey ? { apiKey } : {}),
       useForChat: typeof input.useForChat === 'boolean' ? input.useForChat : existing?.useForChat ?? true,
       useForPlanner: typeof input.useForPlanner === 'boolean' ? input.useForPlanner : existing?.useForPlanner ?? true,
       updatedAt: new Date().toISOString(),
@@ -105,39 +121,33 @@ export class RuntimeModelConfigStore {
     return this.getPublicConfig()
   }
 
-  async test(input: { message?: unknown } = {}): Promise<{
-    ok: boolean
-    provider: string
-    model: string
-    baseURL: string
-    latencyMs: number
-    content: string
-  }> {
+  async test(input: { message?: unknown } = {}, auth: RuntimeModelAuthContext = {}): Promise<RuntimeModelTestResult> {
     const config = this.getEffectiveConfig()
-    if (!config?.apiKey) throw new Error('runtime model API key is not configured')
+    if (!config?.modelConfigId) throw new Error('backend model config is not configured')
+    const messages = buildTestMessages(normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
+    const request = buildBackendGatewayChatRequest(config, messages, auth)
     const started = Date.now()
-    const content = await callOpenAICompatible(config, normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
+    const content = await callBackendGatewayChat(request)
     return {
       ok: true,
       provider: config.provider,
       model: config.model,
-      baseURL: config.baseURL,
+      modelConfigId: config.modelConfigId,
       latencyMs: Date.now() - started,
       content,
+      request: publicRequestSnapshot(request),
     }
   }
 
   private readFileConfig(): RuntimeModelConfig | undefined {
     if (!existsSync(this.filePath)) return undefined
     const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<RuntimeModelConfig>
-    const apiKey = normalizeNonEmptyString(parsed.apiKey)
-    const baseURL = normalizeNonEmptyString(parsed.baseURL) ?? DEFAULT_OPENAI_BASE_URL
-    const model = normalizeNonEmptyString(parsed.model) ?? DEFAULT_OPENAI_MODEL
+    const modelConfigId = normalizePositiveInteger(parsed.modelConfigId)
+    if (!modelConfigId) return undefined
     return {
-      provider: 'openai-compatible',
-      baseURL: normalizeBaseURL(baseURL),
-      model,
-      ...(apiKey ? { apiKey } : {}),
+      provider: 'backend-model-config',
+      modelConfigId,
+      model: normalizeNonEmptyString(parsed.model) ?? backendModelID(modelConfigId),
       useForChat: parsed.useForChat !== false,
       useForPlanner: parsed.useForPlanner !== false,
       updatedAt: normalizeNonEmptyString(parsed.updatedAt) ?? new Date(0).toISOString(),
@@ -153,73 +163,83 @@ export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath(
 
 export function resolveRuntimeChatModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getEffectiveConfig()
-  return config?.apiKey && config.useForChat ? { ...config, apiKey: config.apiKey } : undefined
+  return config?.modelConfigId && config.useForChat ? config : undefined
 }
 
 export function resolveRuntimeChatFileModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getFileConfig()
-  return config?.apiKey && config.useForChat ? { ...config, apiKey: config.apiKey } : undefined
+  return config?.modelConfigId && config.useForChat ? config : undefined
 }
 
 export function resolveRuntimePlannerModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getEffectiveConfig()
-  return config?.apiKey && config.useForPlanner ? { ...config, apiKey: config.apiKey } : undefined
+  return config?.modelConfigId && config.useForPlanner ? config : undefined
 }
 
-async function callOpenAICompatible(config: RuntimeModelConfig, message: string): Promise<string> {
-  const response = await fetch(`${config.baseURL.replace(/\/$/, '')}/chat/completions`, {
+export function buildBackendGatewayChatRequest(
+  config: ConfiguredRuntimeModelConfig,
+  messages: RuntimeModelChatMessage[],
+  auth: RuntimeModelAuthContext = {},
+  options: { temperature?: number; jsonMode?: boolean } = {},
+): RuntimeModelRequestSnapshot {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (auth.backendAuthToken) {
+    headers.Authorization = `Bearer ${auth.backendAuthToken}`
+  }
+  return {
+    url: `${resolveBackendAPIBaseURL()}/model-gateway/chat/completions`,
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
+    headers,
+    body: {
+      model: backendModelID(config.modelConfigId),
+      messages,
+      ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
+      ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a concise connection test for MovScript Production Runtime.',
-        },
-        {
-          role: 'user',
-          content: message,
-        },
-      ],
-    }),
+  }
+}
+
+export async function callBackendGatewayChat(request: RuntimeModelRequestSnapshot): Promise<string> {
+  const response = await fetch(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: JSON.stringify(request.body),
   })
   const responseText = await response.text()
-  if (!response.ok) throw new Error(`runtime model test HTTP ${response.status}: ${responseText}`)
+  if (!response.ok) throw new Error(`backend model gateway HTTP ${response.status}: ${responseText}`)
   const parsed = JSON.parse(responseText) as { choices?: Array<{ message?: { content?: string } }> }
   const content = parsed.choices?.[0]?.message?.content?.trim()
-  if (!content) throw new Error('runtime model test returned no assistant content')
+  if (!content) throw new Error('backend model gateway returned no assistant content')
   return content
 }
 
-function resolveEnvConfig(): RuntimeModelConfig | undefined {
-  const gatewayKey = process.env.MOVSCRIPT_AGENT_GATEWAY_API_KEY || process.env.MOVSCRIPT_AGENT_GATEWAY_USER_ID
-  if (gatewayKey) {
-    return {
-      provider: 'openai-compatible',
-      apiKey: gatewayKey,
-      model: process.env.MOVSCRIPT_AGENT_GATEWAY_MODEL || process.env.MOVSCRIPT_AGENT_OPENAI_MODEL || 'movscript-default-chat',
-      baseURL: normalizeBaseURL(process.env.MOVSCRIPT_AGENT_GATEWAY_BASE_URL || process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || 'http://127.0.0.1:8080/v1'),
-      useForChat: true,
-      useForPlanner: true,
-      updatedAt: new Date(0).toISOString(),
-    }
-  }
+function publicRequestSnapshot(request: RuntimeModelRequestSnapshot): RuntimeModelRequestSnapshot {
+  const headers = { ...request.headers }
+  delete headers.Authorization
+  return { ...request, headers }
+}
 
-  const apiKey = process.env.MOVSCRIPT_AGENT_OPENAI_API_KEY || process.env.OPENAI_API_KEY
-  if (!apiKey) return undefined
-  return {
-    provider: 'openai-compatible',
-    apiKey,
-    model: process.env.MOVSCRIPT_AGENT_OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-    baseURL: normalizeBaseURL(process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL),
-    useForChat: true,
-    useForPlanner: true,
-    updatedAt: new Date(0).toISOString(),
-  }
+function buildTestMessages(message: string): RuntimeModelChatMessage[] {
+  return [
+    {
+      role: 'system',
+      content: 'You are a concise connection test for MovScript Production Runtime.',
+    },
+    {
+      role: 'user',
+      content: message,
+    },
+  ]
+}
+
+function resolveBackendAPIBaseURL(): string {
+  return normalizeBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || DEFAULT_BACKEND_API_BASE_URL)
+}
+
+function backendModelID(modelConfigId: number): string {
+  return `model_config:${modelConfigId}`
 }
 
 function normalizeBaseURL(value: string): string {
@@ -228,4 +248,13 @@ function normalizeBaseURL(value: string): string {
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function normalizePositiveInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim())
+    return parsed > 0 ? parsed : undefined
+  }
+  return undefined
 }

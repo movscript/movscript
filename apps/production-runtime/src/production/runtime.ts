@@ -246,8 +246,8 @@ export class ProductionRuntime {
       if (!result) return
       if (result.performed) {
         run.warnings.push(action.type === 'AnalyzeScriptToSegments'
-          ? 'semantic fallback wrote AnalyzeScriptToSegments output through project-preview/analyze.'
-          : 'semantic fallback wrote GenerateKeyframeCandidates output through project-preview/generate-preview.')
+          ? 'semantic fallback wrote AnalyzeScriptToSegments output through production-preview/analyze.'
+          : 'semantic fallback wrote GenerateKeyframeCandidates output through production-preview/generate-preview.')
       } else if (result.skippedReason) {
         run.warnings.push(result.skippedReason)
       }

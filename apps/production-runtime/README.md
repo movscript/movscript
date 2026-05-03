@@ -41,14 +41,8 @@ curl http://127.0.0.1:28765/health
 | `MOVSCRIPT_MCP_ENDPOINT` | `http://127.0.0.1:18765/mcp` | Desktop MCP-shaped endpoint. |
 | `MOVSCRIPT_AGENT_SKILLS_DIR` | derived from state path | Local skill metadata override directory. Built-in skills from `apps/production-runtime/catalog/skills` are always loaded first. |
 | `MOVSCRIPT_AGENT_TOOLS_DIR` | derived from state path | Local tool metadata override directory. Built-in tools from `apps/production-runtime/catalog/tools` are always loaded first. |
-| `MOVSCRIPT_AGENT_GATEWAY_BASE_URL` | `http://127.0.0.1:8080/v1` | Optional OpenAI-compatible gateway URL. |
-| `MOVSCRIPT_AGENT_GATEWAY_MODEL` | `movscript-default-chat` | Gateway model. |
-| `MOVSCRIPT_AGENT_GATEWAY_USER_ID` | unset | Enables backend gateway identity shim. |
-| `MOVSCRIPT_AGENT_OPENAI_API_KEY` | unset | Direct OpenAI-compatible API key. |
-| `MOVSCRIPT_AGENT_OPENAI_BASE_URL` | `https://api.openai.com/v1` | Direct provider base URL. |
-| `MOVSCRIPT_AGENT_OPENAI_MODEL` | `gpt-4o-mini` | Direct provider model. |
-| `MOVSCRIPT_AGENT_PLANNER_MODEL` | inherits chat model | Optional model used only for model-driven run planning. |
-| `MOVSCRIPT_BACKEND_API_BASE_URL` | unset | Optional MovScript backend origin or `/api/v1` URL used for approved `apply_draft` PATCH writes. |
+| `MOVSCRIPT_BACKEND_API_BASE_URL` | `http://localhost:8765/api/v1` for model calls | MovScript backend API base URL. Agent model calls use backend model configs through `/model-gateway/chat/completions`; provider API keys stay in the backend. |
+| `MOVSCRIPT_AGENT_MODEL_CONFIG_PATH` | derived from state path | Optional path for the local Agent model routing file. The file stores only backend `model_config_id` and usage flags. |
 
 ## HTTP API
 

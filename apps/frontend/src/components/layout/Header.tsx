@@ -9,7 +9,6 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 const titleKeys: Record<string, string> = {
   '/projects': 'header.titles.projects',
   '/project-home': 'header.titles.projectHome',
-  '/project-plan': 'header.titles.projectPlan',
   '/creation': 'header.titles.creation',
   '/workbench/script': 'header.titles.workbenchScript',
   '/workbench/production-plan': 'header.titles.workbenchPreview',
@@ -25,9 +24,6 @@ const titleKeys: Record<string, string> = {
   '/contents': 'header.titles.contentUnits',
   '/final-videos': 'header.titles.finalVideos',
   '/asset-slots': 'header.titles.assetSlots',
-  '/production-management': 'header.titles.projectPreview',
-  '/production-preview': 'header.titles.projectPreview',
-  '/project-preview': 'header.titles.projectPreview',
   '/creative-references': 'header.titles.creativeReferences',
   '/reference-relations': 'header.titles.referenceRelations',
   '/production': 'header.titles.production',

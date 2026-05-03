@@ -624,7 +624,7 @@ test('production runtime records enabled keyframe semantic fallback without chan
 
   assert.equal(fallback.generateKeyframeCalls, 1)
   assert.equal(run.candidates[0].status, 'candidate')
-  assert.equal(run.warnings.some((warning) => warning.includes('project-preview/generate-preview')), true)
+  assert.equal(run.warnings.some((warning) => warning.includes('production-preview/generate-preview')), true)
 })
 
 test('production runtime keyframe lifecycle and apply preview do not call semantic fallback again', async () => {
@@ -671,11 +671,11 @@ class RecordingFallbackClient implements ProductionSemanticFallbackClient {
 
   async writeAnalyzeScriptToSegments(_action: ProductionAction, _run: ProductionRun) {
     this.calls += 1
-    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/project-preview/analyze' }
+    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/production-preview/analyze' }
   }
 
   async writeGenerateKeyframeCandidates(_action: ProductionAction, _run: ProductionRun) {
     this.generateKeyframeCalls += 1
-    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/project-preview/generate-preview' }
+    return { performed: true, url: 'http://127.0.0.1/api/v1/projects/1/production-preview/generate-preview' }
   }
 }

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Script } from '@/types'
-import { Save, Upload } from 'lucide-react'
+import { GitBranch, Save, Upload } from 'lucide-react'
 import { Button, Input, Label, Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
@@ -11,9 +11,11 @@ interface ScriptFormProps {
   onChange: (d: Partial<Script>) => void
   onSave: (data: Partial<Script>) => void
   isSaving?: boolean
+  onCreateVersion?: () => void
+  isCreatingVersion?: boolean
 }
 
-export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProps) {
+export function ScriptForm({ draft, onChange, onSave, isSaving, onCreateVersion, isCreatingVersion }: ScriptFormProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
@@ -36,72 +38,84 @@ export function ScriptForm({ draft, onChange, onSave, isSaving }: ScriptFormProp
   }
 
   return (
-    <section className="bg-background">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <Upload size={14} className="shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-foreground">文件与正文</p>
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">上传文档或直接编辑剧本正文。</p>
-          </div>
+    <div className="flex h-full flex-col">
+      {/* Toolbar */}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.md,.text,.csv,.json,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+            className="hidden"
+            onChange={(event) => {
+              void handleFile(event.target.files?.[0])
+              event.currentTarget.value = ''
+            }}
+          />
+          <Button type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+            <Upload size={13} />
+            导入文档
+          </Button>
+          {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
+          {fileError && <span className="text-xs text-destructive">{fileError}</span>}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => onSave(draft)} disabled={isSaving} className="gap-1.5">
+        <div className="flex items-center gap-2">
+          {onCreateVersion && (
+            <Button size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion} className="gap-1.5">
+              <GitBranch size={13} />
+              {isCreatingVersion ? '创建中…' : '保存为版本'}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => onSave(draft)} disabled={isSaving} className="gap-1.5">
             <Save size={13} />
             {isSaving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-        <div className="flex min-h-[430px] flex-col">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.text,.csv,.json,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
-              className="hidden"
-              onChange={(event) => {
-                void handleFile(event.target.files?.[0])
-                event.currentTarget.value = ''
-              }}
-            />
-            <Button type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
-              <Upload size={13} />
-              选择文档
-            </Button>
-            {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
-            {fileError && <span className="text-xs text-destructive">{fileError}</span>}
-          </div>
-          <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('details.scriptBody')}</Label>
+      {/* Body */}
+      <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="flex min-h-0 flex-col">
+          <Label className="mb-1.5 text-xs font-medium text-muted-foreground">{t('details.scriptBody')}</Label>
           <Textarea
-            className="min-h-[380px] flex-1 resize-y font-mono leading-relaxed"
+            className="min-h-[400px] flex-1 resize-none font-mono text-sm leading-relaxed"
             placeholder={t('details.scriptBodyPlaceholder')}
             value={draft.raw_source ?? draft.content ?? ''}
             onChange={(event) => updateRawSource(event.target.value)}
           />
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-3">
           <div className="rounded-lg border border-border bg-card p-3">
-            <Label className="text-xs font-semibold text-foreground">分类</Label>
+            <Label className="text-xs font-semibold text-foreground">分类标签</Label>
             <Input
               className="mt-2"
               placeholder="未分类"
               value={draft.script_type === 'uncategorized' ? '' : draft.script_type ?? ''}
               onChange={(event) => onChange({ ...draft, script_type: event.target.value })}
             />
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">分类是自由标签，例如：第一集、广告脚本、拍摄版。</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">自由标签，如：第一集、广告脚本、拍摄版。</p>
           </div>
+
           <div className="rounded-lg border border-border bg-card p-3">
-            <p className="text-xs font-semibold text-foreground">文件说明</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              支持粘贴正文，或上传 txt、md、json、csv、docx 文档。保存后会更新当前剧本正文。
+            <Label className="text-xs font-semibold text-foreground">摘要</Label>
+            <Textarea
+              className="mt-2 min-h-[80px] resize-none text-xs"
+              placeholder="剧本简介或备注…"
+              value={draft.summary ?? ''}
+              onChange={(event) => onChange({ ...draft, summary: event.target.value })}
+            />
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/40 p-3">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              <strong className="font-medium text-foreground">保存</strong> — 更新剧本正文草稿。<br />
+              <strong className="font-medium text-foreground">保存为版本</strong> — 基于当前正文创建快照，可在「版本管理」中激活用于制作。
             </p>
           </div>
         </aside>
       </div>
-    </section>
+    </div>
   )
 }
 

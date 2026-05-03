@@ -8,6 +8,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronRight,
+  Clapperboard,
   Clock3,
   Captions,
   Database,
@@ -29,6 +30,7 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
+import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
@@ -598,7 +600,7 @@ export default function ContentsPage() {
                 setFilter({ content_unit_id: null, selected: null })
               }}
             />
-            <ContentUnitDetail item={selected} onOpenCanvas={() => selected && openCanvasMutation.mutate(selected)} openingCanvas={openCanvasMutation.isPending} />
+            <ContentUnitDetail item={selected} projectId={projectId} onOpenCanvas={() => selected && openCanvasMutation.mutate(selected)} openingCanvas={openCanvasMutation.isPending} />
             <ContentTargetPanel targets={selected?.targets ?? []} />
           </>
         )}
@@ -758,13 +760,16 @@ function ContentUnitCard({
 
 function ContentUnitDetail({
   item,
+  projectId,
   onOpenCanvas,
   openingCanvas,
 }: {
   item: ContentUnitViewModel | null
+  projectId?: number
   onOpenCanvas: () => void
   openingCanvas: boolean
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false)
   if (!item) {
     return (
       <section className="rounded-lg border border-border bg-card p-4">
@@ -774,6 +779,7 @@ function ContentUnitDetail({
   }
 
   return (
+    <>
     <section className="rounded-lg border border-border bg-card">
       <div className="border-b border-border bg-gradient-to-br from-indigo-500/15 to-cyan-500/10 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -782,6 +788,10 @@ function ContentUnitDetail({
           </span>
           <div className="flex shrink-0 items-center gap-2">
             <StatusBadge status={item.unit.status ?? 'draft'} />
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPreviewOpen(true)}>
+              <Clapperboard size={13} />
+              预演
+            </Button>
             <Button size="sm" loading={openingCanvas} disabled={openingCanvas} onClick={onOpenCanvas}>
               <Wand2 size={13} />
               去生成
@@ -822,6 +832,17 @@ function ContentUnitDetail({
         </div>
       </div>
     </section>
+    {projectId && (
+      <PreviewDrawer
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        projectId={projectId}
+        scope="content_unit"
+        entityId={item.unit.ID}
+        entityTitle={titleOf(item.unit)}
+      />
+    )}
+    </>
   )
 }
 

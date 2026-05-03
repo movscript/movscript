@@ -131,6 +131,7 @@ export class AgentRuntime {
   private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private readonly pluginWarnings: string[]
   private readonly modelPlanner?: AgentModelPlanner
+  private readonly runAuth = new Map<string, string>()
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -284,6 +285,7 @@ export class AgentRuntime {
     thread.lastRunStatus = run.status
     thread.updatedAt = now
     this.store.updateThread(thread)
+    this.rememberRunAuth(run.id, input.backendAuthToken)
     void this.executeRun(run.id)
     return run
   }
@@ -333,6 +335,7 @@ export class AgentRuntime {
     thread.lastRunStatus = run.status
     thread.updatedAt = now
     this.store.updateThread(thread)
+    this.rememberRunAuth(run.id, input.backendAuthToken)
     void this.executeRun(run.id)
     return run
   }
@@ -400,7 +403,7 @@ export class AgentRuntime {
     }
     const promptPreview = compilePromptPreview(envelope)
     envelope.debug.compiledPrompt = promptPreview
-    const planned = await this.planRun(envelope, memories)
+    const planned = await this.planRun(envelope, memories, normalizeBackendAuthToken(input.backendAuthToken))
     const warnings: string[] = [...capabilities.warnings]
     warnings.push(...planned.warnings.filter((warning) => !warnings.includes(warning)))
     const pendingApprovals: AgentApprovalRequest[] = []
@@ -494,6 +497,7 @@ export class AgentRuntime {
     run.updatedAt = now
     this.store.updateRun(run)
     this.updateThreadRunStatus(run.threadId, run.status)
+    this.rememberRunAuth(run.id, input.backendAuthToken)
     void this.executeRun(run.id)
     return run
   }
@@ -677,7 +681,7 @@ export class AgentRuntime {
       const promptPreview = compilePromptPreview(envelope)
       envelope.debug.compiledPrompt = promptPreview
       run.envelope = envelope
-      const planned = await this.planRun(envelope, memories)
+      const planned = await this.planRun(envelope, memories, this.getRunAuth(run.id))
       const planningStep = this.createStep(run, 'planning')
       planningStep.title = '任务规划'
       run.plan = planned.plan
@@ -743,7 +747,7 @@ export class AgentRuntime {
       const assistant = this.createMessage(
         thread.id,
         'assistant',
-        await buildConfiguredAssistantContent(lastUser.content, toolResults, warnings, memories, run),
+        await buildConfiguredAssistantContent(lastUser.content, toolResults, warnings, memories, run, this.getRunAuth(run.id)),
         run.id,
       )
       thread.messages.push(assistant)
@@ -915,6 +919,7 @@ export class AgentRuntime {
   private async planRun(
     envelope: AgentInputEnvelope,
     memories: AgentMemory[],
+    auth: { backendAuthToken?: string } = {},
   ): Promise<PlannedAgentRunResult> {
     const forcedToolCall = normalizeToolCall(this.store.getRun(envelope.runId ?? '')?.metadata?.forcedToolCall)
     if (forcedToolCall) {
@@ -946,7 +951,7 @@ export class AgentRuntime {
 
     if (this.modelPlanner?.isEnabled()) {
       try {
-        const planned = await this.modelPlanner.plan(envelope)
+        const planned = await this.modelPlanner.plan(envelope, auth)
         return {
           plan: planned.plan,
           toolCalls: planned.toolCalls,
@@ -968,6 +973,16 @@ export class AgentRuntime {
       planner: 'rule',
       warnings: [],
     }
+  }
+
+  private rememberRunAuth(runId: string, value: unknown): void {
+    const token = normalizeBackendAuthToken(value).backendAuthToken
+    if (token) this.runAuth.set(runId, token)
+  }
+
+  private getRunAuth(runId: string): { backendAuthToken?: string } {
+    const token = this.runAuth.get(runId)
+    return token ? { backendAuthToken: token } : {}
   }
 
   private async callRuntimeTool(
@@ -1485,6 +1500,10 @@ function mergePendingApprovals(
     byTool.set(approval.toolName, current ? { ...current, args: approval.args, reason: approval.reason, updatedAt } : approval)
   }
   return Array.from(byTool.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+function normalizeBackendAuthToken(value: unknown): { backendAuthToken?: string } {
+  return typeof value === 'string' && value.trim() ? { backendAuthToken: value.trim() } : {}
 }
 
 function makeId(prefix: string): string {

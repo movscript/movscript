@@ -1,3 +1,5 @@
+import { useUserStore } from '@/store/userStore'
+
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
@@ -381,23 +383,31 @@ export interface AgentHealth {
 
 export interface RuntimeModelConfigPublic {
   configured: boolean
-  provider: 'openai-compatible'
-  baseURL: string
+  provider: 'backend-model-config'
+  modelConfigId?: number
   model: string
-  apiKeyConfigured: boolean
   useForChat: boolean
   useForPlanner: boolean
   updatedAt?: string
-  source: 'file' | 'env' | 'none'
+  source: 'file' | 'none'
 }
 
 export interface RuntimeModelTestResult {
   ok: boolean
   provider: string
   model: string
-  baseURL: string
+  modelConfigId: number
   latencyMs: number
   content: string
+  request: {
+    url: string
+    method: 'POST'
+    headers: Record<string, string>
+    body: {
+      model: string
+      messages: Array<{ role: 'system' | 'user'; content: string }>
+    }
+  }
 }
 
 export type ProductionActionType =
@@ -552,7 +562,7 @@ export class LocalAgentClient {
   }
 
   health(): Promise<AgentHealth> {
-    return this.getJSON('/health')
+    return this.getJSON('/health', { auth: false })
   }
 
   inspect(): Promise<AgentInspectResponse> {
@@ -619,13 +629,12 @@ export class LocalAgentClient {
   }
 
   getModelConfig(): Promise<RuntimeModelConfigPublic> {
-    return withRuntimeModelConfigError(this.getJSON('/model-config'))
+    return withRuntimeModelConfigError(this.getJSON('/model-config', { auth: false }))
   }
 
   saveModelConfig(input: {
-    baseURL: string
+    modelConfigId: number
     model: string
-    apiKey?: string
     useForChat?: boolean
     useForPlanner?: boolean
   }): Promise<RuntimeModelConfigPublic> {
@@ -744,8 +753,10 @@ export class LocalAgentClient {
     }
   }
 
-  private async getJSON<T>(path: string): Promise<T> {
-    const res = await fetch(`${this.baseURL}${path}`)
+  private async getJSON<T>(path: string, options: { auth?: boolean } = {}): Promise<T> {
+    const res = await fetch(`${this.baseURL}${path}`, {
+      headers: options.auth === false ? {} : this.authHeaders(),
+    })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
   }
@@ -753,7 +764,7 @@ export class LocalAgentClient {
   private async postJSON<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
@@ -763,7 +774,7 @@ export class LocalAgentClient {
   private async patchJSON<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
@@ -771,9 +782,17 @@ export class LocalAgentClient {
   }
 
   private async deleteJSON<T>(path: string): Promise<T> {
-    const res = await fetch(`${this.baseURL}${path}`, { method: 'DELETE' })
+    const res = await fetch(`${this.baseURL}${path}`, {
+      method: 'DELETE',
+      headers: this.authHeaders(),
+    })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
+  }
+
+  private authHeaders(base: Record<string, string> = {}): Record<string, string> {
+    const token = useUserStore.getState().token
+    return token ? { ...base, Authorization: `Bearer ${token}` } : base
   }
 }
 

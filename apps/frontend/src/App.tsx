@@ -22,8 +22,8 @@ import CreativeReferencesPage from './pages/creative-references/CreativeReferenc
 import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
 import DeliveryPage from './pages/delivery/DeliveryPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
+import ProductionOrchestratePage from './pages/production/ProductionOrchestratePage'
 import ContentsPage from './pages/contents/ContentsPage'
-import ProjectPreviewPage from './pages/project-preview/ProjectPreviewPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import { DebugPage } from './pages/admin/DebugPage'
@@ -175,15 +175,12 @@ export default function App() {
                       <Route path="/scene-moments" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
                       <Route path="/contents" element={<ProjectGuard><ContentsPage /></ProjectGuard>} />
                       <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
-                      <Route path="/project-preview" element={<ProjectGuard><ProjectPreviewPage /></ProjectGuard>} />
-                      <Route path="/production-management" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
-                      <Route path="/production-preview" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
-                      <Route path="/preview-progress" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
+
                       <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
+                      <Route path="/production-orchestrate" element={<ProjectGuard><ProductionOrchestratePage /></ProjectGuard>} />
                       <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
                       <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
                       <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
-                      <Route path="/project-plan" element={<ProjectGuard><Navigate to="/project-preview" replace /></ProjectGuard>} />
                       <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
                       <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
                       <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />

@@ -136,7 +136,10 @@ export default function ProductionFramePage() {
   })
 
   const productions = useMemo(() => buildProductionRecords(productionData), [productionData])
-  const selected = productions.find((item) => item.id === selectedId) ?? productions[0]
+  const routeProductionId = Number(searchParams.get('productionId'))
+  const routeSelected = routeProductionId ? productions.find((item) => item.dbId === routeProductionId) : undefined
+  const explicitSelected = routeSelected ?? productions.find((item) => item.id === selectedId)
+  const selected = explicitSelected ?? productions[0]
   const selectedProductionId = selected?.dbId
 
   useEffect(() => {
@@ -151,14 +154,14 @@ export default function ProductionFramePage() {
   }, [productions, searchParams])
 
   useEffect(() => {
-    if (!selectedProductionId) return
+    if (!selectedProductionId || !explicitSelected) return
     const current = Number(searchParams.get('productionId'))
     if (current === selectedProductionId) return
     const next = new URLSearchParams(searchParams)
     next.set('productionId', String(selectedProductionId))
     next.delete('created')
     setSearchParams(next, { replace: true })
-  }, [searchParams, selectedProductionId, setSearchParams])
+  }, [explicitSelected, searchParams, selectedProductionId, setSearchParams])
 
   const aggregate = useMemo(() => {
     const active = productions.filter((item) => item.status !== 'delivered').length
@@ -167,6 +170,14 @@ export default function ProductionFramePage() {
     const avg = productions.length ? Math.round(productions.reduce((sum, item) => sum + item.progress, 0) / productions.length) : 0
     return { active, delivered, blocked, avg }
   }, [productions])
+
+  function selectProduction(production: ProductionRecord) {
+    setSelectedId(production.id)
+    const next = new URLSearchParams(searchParams)
+    next.set('productionId', String(production.dbId))
+    next.delete('created')
+    setSearchParams(next, { replace: true })
+  }
 
   return (
     <div className="h-full overflow-hidden bg-background">
@@ -188,7 +199,7 @@ export default function ProductionFramePage() {
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="outline" className="gap-2" asChild>
-                <Link to={selected ? productionPreviewHref(selected) : '/project-preview'}>
+                <Link to={explicitSelected ? `/production-orchestrate?productionId=${explicitSelected.dbId}` : '/production-orchestrate'}>
                   <Route size={15} />
                   制作编排
                 </Link>
@@ -273,7 +284,7 @@ export default function ProductionFramePage() {
                     key={production.id}
                     production={production}
                     active={production.id === selected?.id}
-                    onSelect={() => setSelectedId(production.id)}
+                    onSelect={() => selectProduction(production)}
                   />
                 )) : (
                   <div className="col-span-full rounded-md border border-dashed border-border bg-background p-8 text-center">
@@ -806,19 +817,13 @@ function nextActionsForProduction(input: { blockedUnits: number; units: number; 
 function productionNextActionHref(action: string, production: ProductionRecord) {
   const lower = action.toLowerCase()
   if (action.includes('素材') || action.includes('资料')) return '/asset-slots'
-  if (action.includes('预演') || action.includes('时间线')) return productionPreviewHref(production)
+  if (action.includes('预演') || action.includes('时间线')) return '/segments'
   if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return '/workbench/production'
   if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return '/workbench/delivery'
   if (lower.includes('archive') || action.includes('归档')) return '/final-videos'
   return production.areas.find((area) => area.status === 'blocked')?.href ?? production.areas.find((area) => area.status === 'waiting' || area.status === 'active')?.href ?? '/workbench/production'
 }
 
-function productionPreviewHref(production: ProductionRecord) {
-  const params = new URLSearchParams({
-    productionId: String(production.dbId),
-  })
-  return `/project-preview?${params.toString()}`
-}
 
 function productionPlaybackHref(production: ProductionRecord) {
   const params = new URLSearchParams({

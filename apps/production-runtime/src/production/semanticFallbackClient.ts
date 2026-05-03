@@ -28,7 +28,7 @@ export class DisabledProductionSemanticFallbackClient implements ProductionSeman
   }
 }
 
-export class ProjectPreviewSemanticFallbackClient implements ProductionSemanticFallbackClient {
+export class ProductionPreviewSemanticFallbackClient implements ProductionSemanticFallbackClient {
   private readonly baseURL?: string
   private readonly enabled: boolean
 
@@ -53,7 +53,7 @@ export class ProjectPreviewSemanticFallbackClient implements ProductionSemanticF
       return { performed: false, skippedReason: 'semantic fallback skipped: source_text is missing' }
     }
     const draftId = inferDraftId(action)
-    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/project-preview/analyze`
+    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/production-preview/analyze`
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -66,7 +66,7 @@ export class ProjectPreviewSemanticFallbackClient implements ProductionSemanticF
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`semantic project-preview/analyze fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`semantic production-preview/analyze fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,
@@ -87,7 +87,7 @@ export class ProjectPreviewSemanticFallbackClient implements ProductionSemanticF
       return { performed: false, skippedReason: 'semantic fallback skipped: storyboard_rows are missing' }
     }
     const draftId = inferDraftId(action)
-    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/project-preview/generate-preview`
+    const url = `${this.baseURL}/projects/${encodeURIComponent(String(action.projectId))}/production-preview/generate-preview`
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,7 +99,7 @@ export class ProjectPreviewSemanticFallbackClient implements ProductionSemanticF
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`semantic project-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`semantic production-preview/generate-preview fallback failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,

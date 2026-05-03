@@ -24,12 +24,18 @@ import {
   Badge,
   Button,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
   Textarea,
 } from '@movscript/ui'
+import { api } from '@/lib/api'
 import {
   localAgentClient,
   type AgentCapabilitiesResponse,
@@ -45,8 +51,10 @@ import {
   type RuntimeModelConfigPublic,
   type RuntimeModelTestResult,
 } from '@/lib/localAgentClient'
+import { publicModelLabel } from '@/lib/modelDisplay'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
+import type { PublicModel } from '@/types'
 
 interface AIFunctionDebugSpec {
   id: string
@@ -194,35 +202,19 @@ const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
     missingVisibility: ['full input_values inspector', 'per-node resolved prompt/model/resources', 'provider request/response trace'],
   },
   {
-    id: 'production_preview_analyze',
-    name: 'Production Preview Analyze',
-    surface: '/project-preview',
-    frontendEntry: 'apps/frontend/src/api/projectPreview.ts',
-    trigger: 'analyzeProjectPreview()',
-    endpoint: 'backend: POST /projects/:id/project-preview/analyze',
+    id: 'preview_generate',
+    name: 'Preview Generate (Drawer)',
+    surface: '/segments, /scene-moments, /contents',
+    frontendEntry: 'apps/frontend/src/api/preview.ts',
+    trigger: 'generatePreview(scope, entityId)',
+    endpoint: 'backend: POST /projects/:id/preview/generate',
     requestShape: {
-      draft_id: 'string',
-      source_text: 'string',
-      storyboard_rows: 'ProjectPreviewStoryboardRow[]',
+      scope: '"segment" | "scene_moment" | "content_unit"',
+      entity_id: 'number',
     },
-    executionTrace: ['draft context', 'section analysis', 'storyboard suggestions', 'draft save'],
-    currentVisibility: ['page message/result state', 'saved draft'],
-    missingVisibility: ['whether backend used deterministic or model path', 'analysis steps', 'candidate diff trace'],
-  },
-  {
-    id: 'production_preview_generate',
-    name: 'Production Preview Generate Keyframes',
-    surface: '/project-preview',
-    frontendEntry: 'apps/frontend/src/api/projectPreview.ts',
-    trigger: 'generateProjectPreview()',
-    endpoint: 'backend: POST /projects/:id/project-preview/generate-preview',
-    requestShape: {
-      draft_id: 'string',
-      storyboard_rows: 'ProjectPreviewStoryboardRow[]',
-    },
-    executionTrace: ['storyboard rows', 'keyframe candidate generation', 'asset gaps', 'preview timeline', 'draft save'],
-    currentVisibility: ['page keyframe candidates', 'asset gaps', 'timeline preview'],
-    missingVisibility: ['per-row generation decision', 'model/provider trace if used', 'candidate provenance'],
+    executionTrace: ['load entity', 'load related keyframes', 'load asset slots', 'assemble response'],
+    currentVisibility: ['keyframes list', 'missing assets list'],
+    missingVisibility: [],
   },
   {
     id: 'client_plugin_generation',
@@ -304,7 +296,7 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
     id: 'model_layer',
     name: 'Model Layer',
     scope: '可选模型 planner 和最终聊天回复模型',
-    owner: 'OpenAI-compatible runtime model config',
+    owner: 'Backend AI model config',
     entrypoints: [
       'apps/production-runtime/src/runtime/modelConfig.ts',
       'apps/production-runtime/src/runtime/modelPlanner.ts',
@@ -494,9 +486,7 @@ export default function AgentDebugPage() {
   const { t } = useTranslation()
   const currentProject = useProjectStore((s) => s.current)
   const [previewMessage, setPreviewMessage] = useState(() => t('agents.debug.defaultPreviewMessage'))
-  const [modelForm, setModelForm] = useState({ baseURL: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: '', useForChat: true, useForPlanner: true })
-  const [modelPaste, setModelPaste] = useState('')
-  const [modelPasteError, setModelPasteError] = useState<string | null>(null)
+  const [modelForm, setModelForm] = useState(initialRuntimeModelForm)
   const [debugRun, setDebugRun] = useState<AgentRun | null>(null)
   const [debugThreadMessages, setDebugThreadMessages] = useState<Array<{ id: string; role: string; content: string; createdAt: string }>>([])
   const [debugRunError, setDebugRunError] = useState<string | null>(null)
@@ -536,13 +526,18 @@ export default function AgentDebugPage() {
       const config = await localAgentClient.getModelConfig()
       setModelForm((current) => ({
         ...current,
-        baseURL: config.baseURL,
+        modelConfigId: config.modelConfigId ? String(config.modelConfigId) : current.modelConfigId,
         model: config.model,
         useForChat: config.useForChat,
         useForPlanner: config.useForPlanner,
       }))
       return config
     },
+    retry: false,
+  })
+  const backendTextModels = useQuery<PublicModel[]>({
+    queryKey: ['local-agent-backend-text-models'],
+    queryFn: () => api.get('/models?capability=text').then((r) => r.data),
     retry: false,
   })
   const preview = useMutation<AgentRunPreview, Error>({
@@ -631,16 +626,19 @@ export default function AgentDebugPage() {
   const saveModel = useMutation<RuntimeModelConfigPublic, Error>({
     mutationFn: async () => {
       await localAgentClient.ensureRunning()
+      const modelConfigId = Number(modelForm.modelConfigId)
+      if (!Number.isInteger(modelConfigId) || modelConfigId <= 0) {
+        throw new Error('Select a backend text model first')
+      }
       return localAgentClient.saveModelConfig({
-        baseURL: modelForm.baseURL,
+        modelConfigId,
         model: modelForm.model,
-        ...(modelForm.apiKey.trim() ? { apiKey: modelForm.apiKey.trim() } : {}),
         useForChat: modelForm.useForChat,
         useForPlanner: modelForm.useForPlanner,
       })
     },
     onSuccess: (config) => {
-      setModelForm((current) => ({ ...current, apiKey: '', baseURL: config.baseURL, model: config.model }))
+      setModelForm((current) => ({ ...current, modelConfigId: config.modelConfigId ? String(config.modelConfigId) : current.modelConfigId, model: config.model }))
       modelConfig.refetch()
       health.refetch()
     },
@@ -740,23 +738,6 @@ export default function AgentDebugPage() {
     setActiveTab(command.startsWith('/') ? 'plan' : 'commands')
   }
 
-  function applyPastedModelConfig() {
-    const parsed = parseRuntimeModelPaste(modelPaste)
-    if (!parsed) {
-      setModelPasteError('Paste JSON copied from Admin models, or paste at least a model id.')
-      return
-    }
-    setModelForm((current) => ({
-      ...current,
-      ...(parsed.baseURL ? { baseURL: parsed.baseURL } : {}),
-      ...(parsed.model ? { model: parsed.model } : {}),
-      ...(parsed.apiKey ? { apiKey: parsed.apiKey } : {}),
-      ...(typeof parsed.useForChat === 'boolean' ? { useForChat: parsed.useForChat } : {}),
-      ...(typeof parsed.useForPlanner === 'boolean' ? { useForPlanner: parsed.useForPlanner } : {}),
-    }))
-    setModelPasteError(null)
-  }
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border bg-background px-6 py-4">
@@ -811,45 +792,45 @@ export default function AgentDebugPage() {
 
             <Panel title="Model Connection" icon={<Bot size={14} />}>
               <div className="space-y-2">
-                <Input
-                  value={modelForm.baseURL}
-                  onChange={(event) => setModelForm((current) => ({ ...current, baseURL: event.target.value }))}
-                  placeholder="https://api.openai.com/v1"
-                  className="h-8 text-xs"
-                />
+                <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px] text-muted-foreground">
+                  <KeyValue label="Provider" value={modelConfig.data?.provider ?? 'backend-model-config'} />
+                  <KeyValue label="Source" value={modelConfig.data?.source ?? 'none'} />
+                  <KeyValue label="Config path" value={health.data?.modelConfigPath ?? t('agents.debug.values.unknown')} />
+                  <KeyValue label="Backend model config ID" value={modelConfig.data?.modelConfigId ? String(modelConfig.data.modelConfigId) : 'not configured'} />
+                  <KeyValue label="Model" value={modelConfig.data?.model ?? modelForm.model} />
+                  <KeyValue label="Use for chat" value={modelConfig.data?.useForChat ? 'true' : 'false'} />
+                  <KeyValue label="Use for planner" value={modelConfig.data?.useForPlanner ? 'true' : 'false'} />
+                  <KeyValue label="Credential visibility" value="Backend only; Agent does not store provider API keys." />
+                </div>
+                <Select
+                  value={modelForm.modelConfigId}
+                  onValueChange={(value) => {
+                    const selected = backendTextModels.data?.find((model) => String(model.id) === value)
+                    setModelForm((current) => ({
+                      ...current,
+                      modelConfigId: value,
+                      model: selected ? `model_config:${selected.id}` : current.model,
+                    }))
+                  }}
+                >
+                  <SelectTrigger size="sm" className="h-8 text-xs">
+                    <SelectValue placeholder={backendTextModels.isFetching ? 'Loading backend models...' : 'Select backend text model'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(backendTextModels.data ?? []).map((model) => (
+                      <SelectItem key={model.id} value={String(model.id)}>
+                        {publicModelLabel(model, true)}
+                      </SelectItem>
+                    ))}
+                    {(backendTextModels.data ?? []).length === 0 && (
+                      <SelectItem value="no-models" disabled>No backend text models</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
                 <Input
                   value={modelForm.model}
                   onChange={(event) => setModelForm((current) => ({ ...current, model: event.target.value }))}
-                  placeholder="gpt-4o-mini"
-                  className="h-8 text-xs"
-                />
-                <Textarea
-                  value={modelPaste}
-                  onChange={(event) => setModelPaste(event.target.value)}
-                  rows={3}
-                  placeholder="Paste admin model config JSON here"
-                  className="resize-none text-xs"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={applyPastedModelConfig}
-                  disabled={!modelPaste.trim()}
-                >
-                  <Clipboard size={13} />
-                  Apply Pasted Config
-                </Button>
-                {modelPasteError && (
-                  <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">
-                    {modelPasteError}
-                  </p>
-                )}
-                <Input
-                  type="password"
-                  value={modelForm.apiKey}
-                  onChange={(event) => setModelForm((current) => ({ ...current, apiKey: event.target.value }))}
-                  placeholder={modelConfig.data?.apiKeyConfigured ? 'API key already saved' : 'API key'}
+                  placeholder="model_config:1"
                   className="h-8 text-xs"
                 />
                 <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -873,6 +854,7 @@ export default function AgentDebugPage() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    className="w-full"
                     onClick={() => saveModel.mutate()}
                     disabled={saveModel.isPending}
                   >
@@ -882,15 +864,16 @@ export default function AgentDebugPage() {
                   <Button
                     type="button"
                     size="sm"
+                    className="w-full"
                     onClick={() => testModel.mutate()}
-                    disabled={testModel.isPending || !modelConfig.data?.apiKeyConfigured}
+                    disabled={testModel.isPending || !modelConfig.data?.configured}
                   >
                     {testModel.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
                     Test
                   </Button>
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  {modelConfig.data?.configured ? `Configured: ${modelConfig.data.model} via ${modelConfig.data.source}` : 'No runtime model configured'}
+                  {modelConfig.data?.configured ? `Configured: ${modelConfig.data.model} via backend model #${modelConfig.data.modelConfigId}` : 'No backend runtime model configured'}
                 </div>
                 {saveModel.error && (
                   <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">
@@ -903,10 +886,16 @@ export default function AgentDebugPage() {
                   </p>
                 )}
                 {testModel.data && (
-                  <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-[11px] text-emerald-700 dark:text-emerald-300">
-                    {testModel.data.model} · {testModel.data.latencyMs}ms<br />
-                    {testModel.data.content}
-                  </p>
+                  <div className="space-y-2">
+                    <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+                      {testModel.data.model} · {testModel.data.latencyMs}ms<br />
+                      {testModel.data.content}
+                    </p>
+                    <div className="rounded-md border border-border bg-muted/20 p-2">
+                      <div className="mb-1 text-[11px] font-medium text-foreground">Sent Request</div>
+                      <CodeBlock value={safeJSONStringify(testModel.data.request)} maxHeight="220px" className="text-[10px]" />
+                    </div>
+                  </div>
                 )}
               </div>
             </Panel>
@@ -2114,47 +2103,11 @@ function formatTime(value: string) {
   return new Date(value).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-function parseRuntimeModelPaste(value: string): Partial<typeof initialRuntimeModelForm> | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  try {
-    const parsed = JSON.parse(trimmed) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-    const record = parsed as Record<string, unknown>
-    const model = pickString(record, ['model', 'modelId', 'model_id', 'model_def_id', 'model_id_override'])
-    const baseURL = pickString(record, ['baseURL', 'base_url', 'url', 'endpoint'])
-    const apiKey = pickString(record, ['apiKey', 'api_key'])
-    const useForChat = typeof record.useForChat === 'boolean' ? record.useForChat : undefined
-    const useForPlanner = typeof record.useForPlanner === 'boolean' ? record.useForPlanner : undefined
-    if (!model && !baseURL && !apiKey) return null
-    return {
-      ...(model ? { model } : {}),
-      ...(baseURL ? { baseURL } : {}),
-      ...(apiKey ? { apiKey } : {}),
-      ...(typeof useForChat === 'boolean' ? { useForChat } : {}),
-      ...(typeof useForPlanner === 'boolean' ? { useForPlanner } : {}),
-    }
-  } catch {
-    if (/^https?:\/\//.test(trimmed)) return { baseURL: trimmed }
-    return { model: trimmed }
-  }
-}
-
 const initialRuntimeModelForm = {
-  baseURL: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini',
-  apiKey: '',
+  modelConfigId: '',
+  model: '',
   useForChat: true,
   useForPlanner: true,
-}
-
-function pickString(record: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-  return undefined
 }
 
 function EmptyState({ text }: { text: string }) {

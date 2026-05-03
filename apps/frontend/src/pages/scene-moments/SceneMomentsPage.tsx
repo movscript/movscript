@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Boxes,
   ChevronRight,
+  Clapperboard,
   Database,
   Film,
   GitBranch,
@@ -20,6 +21,7 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
+import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
@@ -114,6 +116,7 @@ export default function SceneMomentsPage() {
   const projectId = project?.ID
   const sceneMomentConfig = semanticEntityConfig('sceneMoments')
   const [creatingMoment, setCreatingMoment] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const segmentFilterId = readNumberParam(searchParams, 'segment_id')
   const selectedMomentId = readNumberParam(searchParams, 'scene_moment_id')
@@ -397,6 +400,14 @@ export default function SceneMomentsPage() {
         )}
         detail={(
           <>
+            {selected && !creatingMoment && projectId && (
+              <div className="flex justify-end">
+                <Button size="sm" variant="outline" className="gap-2" onClick={() => setPreviewOpen(true)}>
+                  <Clapperboard size={14} />
+                  预演
+                </Button>
+              </div>
+            )}
             <SemanticEntityInlineEditor
               projectId={projectId}
               config={sceneMomentConfig}
@@ -464,6 +475,16 @@ export default function SceneMomentsPage() {
           </div>
         )}
       />
+      {selected && !creatingMoment && projectId && (
+        <PreviewDrawer
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          projectId={projectId}
+          scope="scene_moment"
+          entityId={selected.moment.ID}
+          entityTitle={titleOf(selected.moment)}
+        />
+      )}
     </>
   )
 }

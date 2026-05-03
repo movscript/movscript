@@ -8,6 +8,7 @@ import {
   BookOpenText,
   Boxes,
   ChevronRight,
+  Clapperboard,
   Clock3,
   Database,
   Film,
@@ -37,6 +38,7 @@ import {
   type SemanticEntityRecord,
 } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
+import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { cn } from '@/lib/utils'
@@ -636,6 +638,7 @@ function SegmentDetailCard({
   const record: SegmentRecord | null = item?.segment ?? null
   const [form, setForm] = useState<SegmentFormState>(() => buildSegmentInitialForm(fields, record, defaults))
   const [isEditing, setIsEditing] = useState(Boolean(defaults || !record))
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     setForm(buildSegmentInitialForm(fields, record, defaults))
@@ -710,6 +713,7 @@ function SegmentDetailCard({
   const isNew = !record
 
   return (
+    <>
     <section className="overflow-hidden rounded-lg border border-border bg-card">
       <form id={formId} onSubmit={submit}>
         <div className="border-b border-border bg-gradient-to-br from-cyan-500/15 via-teal-500/10 to-indigo-500/10 p-5">
@@ -764,6 +768,10 @@ function SegmentDetailCard({
             )}
             {record && !isEditing ? (
               <div className="flex items-center gap-2">
+                <Button type="button" size="sm" variant="outline" className="gap-2 bg-background/80" onClick={() => setPreviewOpen(true)}>
+                  <Clapperboard size={14} />
+                  预演
+                </Button>
                 <Button type="button" size="sm" variant="outline" className="gap-2 bg-background/80" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
                   <Pencil size={14} />
                   编辑
@@ -857,6 +865,17 @@ function SegmentDetailCard({
         ) : null}
       </form>
     </section>
+    {record && projectId && (
+      <PreviewDrawer
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        projectId={projectId}
+        scope="segment"
+        entityId={record.ID}
+        entityTitle={String(record.title ?? '')}
+      />
+    )}
+    </>
   )
 }
 

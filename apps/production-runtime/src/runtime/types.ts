@@ -406,6 +406,7 @@ export interface CreateRunInput {
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown
+  backendAuthToken?: unknown
 }
 
 export interface CreateToolRunInput {
@@ -416,6 +417,7 @@ export interface CreateToolRunInput {
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown
+  backendAuthToken?: unknown
 }
 
 export interface PreviewRunInput {
@@ -424,11 +426,13 @@ export interface PreviewRunInput {
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown
+  backendAuthToken?: unknown
 }
 
 export interface ApproveRunInput {
   approvedToolNames?: unknown
   approvalIds?: unknown
+  backendAuthToken?: unknown
 }
 
 export interface RejectRunInput {

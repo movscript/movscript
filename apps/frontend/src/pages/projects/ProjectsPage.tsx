@@ -258,7 +258,11 @@ export default function ProjectsPage() {
 
   const create = useMutation({
     mutationFn: (p: Partial<Project>) => api.post('/projects', p).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+    onSuccess: (newProject: Project) => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      setCurrent(newProject)
+      navigate('/project-home')
+    },
   })
 
   const remove = useMutation({

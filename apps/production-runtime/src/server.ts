@@ -10,7 +10,7 @@ import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtime/modelConfig.js'
 import { ProductionRuntime } from './production/runtime.js'
 import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
-import { ProjectPreviewSemanticFallbackClient } from './production/semanticFallbackClient.js'
+import { ProductionPreviewSemanticFallbackClient } from './production/semanticFallbackClient.js'
 import type { JSONValue } from './types.js'
 
 const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
@@ -22,7 +22,7 @@ const productionStatePath = resolveProductionStatePath()
 const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
 const backendApplyClient = new BackendApplyClient()
 const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
-const productionSemanticFallbackClient = new ProjectPreviewSemanticFallbackClient()
+const productionSemanticFallbackClient = new ProductionPreviewSemanticFallbackClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
 const chatRuntime = new ChatRuntime({ mcpClient: client })
@@ -100,7 +100,7 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/model-config/test') {
       const body = await readJSON(req)
-      writeJSON(res, 200, await modelConfigStore.test(normalizeOptionalObject(body, 'model config test body')))
+      writeJSON(res, 200, await modelConfigStore.test(normalizeOptionalObject(body, 'model config test body'), requestAuth(req)))
       return
     }
 
@@ -280,7 +280,7 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/chat') {
       const body = await readJSON(req)
-      writeJSON(res, 200, await chatRuntime.chat(normalizeChatBody(body)))
+      writeJSON(res, 200, await chatRuntime.chat(normalizeChatBody(body), requestAuth(req)))
       return
     }
 
@@ -320,19 +320,19 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/runs') {
       const body = await readJSON(req)
-      writeJSON(res, 201, agentRuntime.createRun(normalizeOptionalObject(body, 'run body')))
+      writeJSON(res, 201, agentRuntime.createRun(withRequestAuth(normalizeOptionalObject(body, 'run body'), req)))
       return
     }
 
     if (req.method === 'POST' && url.pathname === '/runs/tool') {
       const body = await readJSON(req)
-      writeJSON(res, 201, agentRuntime.createToolRun(normalizeOptionalObject(body, 'tool run body')))
+      writeJSON(res, 201, agentRuntime.createToolRun(withRequestAuth(normalizeOptionalObject(body, 'tool run body'), req)))
       return
     }
 
     if (req.method === 'POST' && url.pathname === '/runs/preview') {
       const body = await readJSON(req)
-      writeJSON(res, 200, await agentRuntime.previewRun(normalizeOptionalObject(body, 'run preview body')))
+      writeJSON(res, 200, await agentRuntime.previewRun(withRequestAuth(normalizeOptionalObject(body, 'run preview body'), req)))
       return
     }
 
@@ -355,7 +355,7 @@ const server = createServer(async (req, res) => {
     const runApproveMatch = url.pathname.match(/^\/runs\/([^/]+)\/approve$/)
     if (runApproveMatch && req.method === 'POST') {
       const body = await readJSON(req)
-      writeJSON(res, 202, agentRuntime.approveRun(runApproveMatch[1], normalizeOptionalObject(body, 'approval body')))
+      writeJSON(res, 202, agentRuntime.approveRun(runApproveMatch[1], withRequestAuth(normalizeOptionalObject(body, 'approval body'), req)))
       return
     }
 
@@ -513,7 +513,19 @@ function writeJSON(res: ServerResponse, status: number, value: unknown): void {
 function setHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+}
+
+function requestAuth(req: IncomingMessage): { backendAuthToken?: string } {
+  const header = typeof req.headers.authorization === 'string' ? req.headers.authorization.trim() : ''
+  if (!header.toLowerCase().startsWith('bearer ')) return {}
+  const token = header.slice('Bearer '.length).trim()
+  return token ? { backendAuthToken: token } : {}
+}
+
+function withRequestAuth<T extends Record<string, unknown>>(body: T, req: IncomingMessage): T & { backendAuthToken?: string } {
+  const auth = requestAuth(req)
+  return auth.backendAuthToken ? { ...body, backendAuthToken: auth.backendAuthToken } : body
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

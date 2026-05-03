@@ -46,3 +46,10 @@ export async function createScriptVersion(projectId: number, payload: CreateScri
   const res = await api.post<ScriptVersion>(`/projects/${projectId}/entities/script-versions`, payload)
   return res.data
 }
+
+export type PatchScriptVersionPayload = Partial<Pick<ScriptVersion, 'title' | 'status' | 'summary' | 'content' | 'raw_source' | 'source_type'>>
+
+export async function patchScriptVersion(projectId: number, versionId: number, payload: PatchScriptVersionPayload) {
+  const res = await api.patch<ScriptVersion>(`/projects/${projectId}/entities/script-versions/${versionId}`, payload)
+  return res.data
+}

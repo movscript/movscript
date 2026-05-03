@@ -110,10 +110,10 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     key: 'plan',
     title: '预演与制作方案',
     shortTitle: '预演',
-    href: '/project-preview',
+    href: '/segments',
     icon: Clapperboard,
-    purpose: '把剧本理解转成分镜、时间线、关键帧和生产计划。',
-    owns: '分镜脚本、预演时间线、关键帧候选、制作缺口',
+    purpose: '在片段、情节或内容单元页面触发预演面板，检查关键帧与素材状态。',
+    owns: '关键帧、素材槽状态、预演上下文',
     output: '可执行的生产方案',
   },
   {

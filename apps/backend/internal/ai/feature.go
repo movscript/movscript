@@ -13,7 +13,7 @@ const (
 	FeatureCanvasVideo          = "canvas_video"
 	FeatureShotRefImage         = "shot_ref_image"
 	FeatureShotRefVideo         = "shot_ref_video"
-	LegacyFeatureAgentChat      = "agent_chat"
+	LegacyFeatureAgentChat = "agent_chat"
 
 	// Tool features — user-facing tools shown in admin feature config.
 	FeatureRefImageGen     = "ref_image_gen"

@@ -1,10 +1,15 @@
 import type { JSONValue } from '../types.js'
-import { resolveRuntimePlannerModelConfig } from './modelConfig.js'
+import {
+  buildBackendGatewayChatRequest,
+  callBackendGatewayChat,
+  resolveRuntimePlannerModelConfig,
+  type RuntimeModelAuthContext,
+} from './modelConfig.js'
 import type { AgentInputEnvelope, AgentPlanTask, AgentTaskPlan, ToolCall } from './types.js'
 
 export interface AgentModelPlanner {
   isEnabled(): boolean
-  plan(envelope: AgentInputEnvelope): Promise<ModelPlannerResult>
+  plan(envelope: AgentInputEnvelope, auth?: RuntimeModelAuthContext): Promise<ModelPlannerResult>
 }
 
 export interface ModelPlannerResult {
@@ -16,14 +21,6 @@ export interface ModelPlannerResult {
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant'
   content: string
-}
-
-interface OpenAIChatResponse {
-  choices?: Array<{
-    message?: {
-      content?: string
-    }
-  }>
 }
 
 interface ModelPlanTaskShape {
@@ -40,67 +37,31 @@ interface ModelPlanShape {
   tasks?: unknown
 }
 
-const DEFAULT_GATEWAY_MODEL = 'movscript-default-chat'
-const DEFAULT_GATEWAY_BASE_URL = 'http://127.0.0.1:8080/v1'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
-const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
-
-export class OpenAICompatibleModelPlanner implements AgentModelPlanner {
+export class BackendModelPlanner implements AgentModelPlanner {
   isEnabled(): boolean {
     return !!resolvePlannerConfig()
   }
 
-  async plan(envelope: AgentInputEnvelope): Promise<ModelPlannerResult> {
+  async plan(envelope: AgentInputEnvelope, auth: RuntimeModelAuthContext = {}): Promise<ModelPlannerResult> {
     const config = resolvePlannerConfig()
     if (!config) throw new Error('model planner is not configured')
 
     const messages = buildPlannerMessages(envelope)
-    const content = await callOpenAICompatible(config, messages)
+    const content = await callBackendGatewayChat(buildBackendGatewayChatRequest(config, messages, auth, {
+      temperature: 0.1,
+      jsonMode: true,
+    }))
     const parsed = parseModelPlan(content)
     return normalizeModelPlan(parsed, envelope)
   }
 }
 
 export function createDefaultModelPlanner(): AgentModelPlanner | undefined {
-  return new OpenAICompatibleModelPlanner()
+  return new BackendModelPlanner()
 }
 
-function resolvePlannerConfig(): { apiKey: string; model: string; baseURL: string; provider: string } | undefined {
-  const runtimeConfig = resolveRuntimePlannerModelConfig()
-  if (runtimeConfig) {
-    return {
-      apiKey: runtimeConfig.apiKey,
-      model: runtimeConfig.model,
-      baseURL: runtimeConfig.baseURL,
-      provider: 'runtime-openai-compatible',
-    }
-  }
-
-  const gatewayKey = process.env.MOVSCRIPT_AGENT_GATEWAY_API_KEY || process.env.MOVSCRIPT_AGENT_GATEWAY_USER_ID
-  if (gatewayKey) {
-    return {
-      apiKey: gatewayKey,
-      model: process.env.MOVSCRIPT_AGENT_PLANNER_MODEL
-        || process.env.MOVSCRIPT_AGENT_GATEWAY_MODEL
-        || process.env.MOVSCRIPT_AGENT_OPENAI_MODEL
-        || DEFAULT_GATEWAY_MODEL,
-      baseURL: process.env.MOVSCRIPT_AGENT_GATEWAY_BASE_URL
-        || process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL
-        || DEFAULT_GATEWAY_BASE_URL,
-      provider: 'movscript-model-gateway',
-    }
-  }
-
-  const apiKey = process.env.MOVSCRIPT_AGENT_OPENAI_API_KEY || process.env.OPENAI_API_KEY
-  if (!apiKey) return undefined
-  return {
-    apiKey,
-    model: process.env.MOVSCRIPT_AGENT_PLANNER_MODEL
-      || process.env.MOVSCRIPT_AGENT_OPENAI_MODEL
-      || DEFAULT_OPENAI_MODEL,
-    baseURL: process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL,
-    provider: 'openai-compatible',
-  }
+function resolvePlannerConfig() {
+  return resolveRuntimePlannerModelConfig()
 }
 
 function buildPlannerMessages(envelope: AgentInputEnvelope): ChatMessage[] {
@@ -142,10 +103,10 @@ function buildPlannerMessages(envelope: AgentInputEnvelope): ChatMessage[] {
         'You may propose toolCalls only from availableTools. Never use blocked tools.',
         'Do not bypass policy, approvals, permissions, or project scope.',
         'For content creation, prefer creating a draft instead of writing formal project data.',
-        'When the user asks for production orchestration or project preview planning, follow this workflow contract:',
+        'When the user asks for production orchestration or production preview planning, follow this workflow contract:',
         '1. Orchestration plans fragments/segments, scene moments, creative references, asset slots, content units, keyframes, and preview timeline items.',
         '2. Workers generate or prepare those materials as candidates or drafts first; they must not overwrite formal project data without approval.',
-        '3. After materials are ready, managers enter project preview. AI may generate preview candidates to expose problems, then managers analyze preview results.',
+        '3. After materials are ready, managers enter production preview. AI may generate preview candidates to expose problems, then managers analyze preview results.',
         '4. Only after preview is accepted and no blocking asset gaps remain should formal content unit generation begin.',
         '5. Include gates, owners, dependencies, expected artifacts, and next actions for each stage.',
         'The JSON shape must be:',
@@ -164,34 +125,6 @@ function buildPlannerMessages(envelope: AgentInputEnvelope): ChatMessage[] {
       }),
     },
   ]
-}
-
-async function callOpenAICompatible(
-  config: { apiKey: string; model: string; baseURL: string; provider: string },
-  messages: ChatMessage[],
-): Promise<string> {
-  const res = await fetch(`${config.baseURL.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: config.model,
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      messages,
-    }),
-  })
-
-  if (!res.ok) {
-    throw new Error(`model planner HTTP ${res.status}: ${await res.text()}`)
-  }
-
-  const json = await res.json() as OpenAIChatResponse
-  const content = json.choices?.[0]?.message?.content?.trim()
-  if (!content) throw new Error('model planner returned no content')
-  return content
 }
 
 function parseModelPlan(content: string): ModelPlanShape {

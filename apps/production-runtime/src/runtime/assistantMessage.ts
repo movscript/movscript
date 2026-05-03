@@ -1,6 +1,11 @@
 import type { JSONValue } from '../types.js'
 import { parseToolResult } from './context.js'
-import { resolveRuntimeChatFileModelConfig } from './modelConfig.js'
+import {
+  buildBackendGatewayChatRequest,
+  callBackendGatewayChat,
+  resolveRuntimeChatFileModelConfig,
+  type RuntimeModelAuthContext,
+} from './modelConfig.js'
 import { formatMemoryBlock } from './planner.js'
 import type { AgentMemory } from './memory/types.js'
 import type { AgentRun, ToolCall, ToolCallOutcome } from './types.js'
@@ -8,14 +13,6 @@ import type { AgentRun, ToolCall, ToolCallOutcome } from './types.js'
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant'
   content: string
-}
-
-interface OpenAIChatResponse {
-  choices?: Array<{
-    message?: {
-      content?: string
-    }
-  }>
 }
 
 export function buildAssistantContent(
@@ -108,6 +105,7 @@ export async function buildConfiguredAssistantContent(
   warnings: string[] = [],
   memories: AgentMemory[] = [],
   run?: AgentRun,
+  auth: RuntimeModelAuthContext = {},
 ): Promise<string> {
   if (isInspectContextCommand(userMessage) || isProductionPlanCommand(userMessage)) {
     return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
@@ -117,7 +115,7 @@ export async function buildConfiguredAssistantContent(
   if (!config) return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
 
   try {
-    return await callOpenAICompatible(config, buildAssistantMessages(userMessage, toolResults, warnings, memories, run))
+    return await callBackendGatewayChat(buildBackendGatewayChatRequest(config, buildAssistantMessages(userMessage, toolResults, warnings, memories, run), auth))
   } catch (error) {
     warnings.push(`model chat fallback: ${error instanceof Error ? error.message : String(error)}`)
     return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
@@ -163,29 +161,6 @@ function buildAssistantMessages(
       }),
     },
   ]
-}
-
-async function callOpenAICompatible(
-  config: { apiKey: string; model: string; baseURL: string },
-  messages: ChatMessage[],
-): Promise<string> {
-  const response = await fetch(`${config.baseURL.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-    }),
-  })
-  const responseText = await response.text()
-  if (!response.ok) throw new Error(`model chat HTTP ${response.status}: ${responseText}`)
-  const parsed = JSON.parse(responseText) as OpenAIChatResponse
-  const content = parsed.choices?.[0]?.message?.content?.trim()
-  if (!content) throw new Error('model chat returned no assistant content')
-  return content
 }
 
 function isProductionPlanCommand(message: string): boolean {

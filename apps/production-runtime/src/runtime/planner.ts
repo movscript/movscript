@@ -380,7 +380,7 @@ function wantsProjectStructure(message: string): boolean {
 }
 
 function wantsProductionOrchestration(message: string): boolean {
-  return /制作编排|编排阶段|项目预演|预演结果|工作人员|管理人员|素材准备|正式.*内容单元|内容单元.*生成|production orchestration|production plan|project preview|preview result|worker|manager/i.test(message)
+  return /制作编排|编排阶段|制作预演|预演结果|工作人员|管理人员|素材准备|正式.*内容单元|内容单元.*生成|production orchestration|production preview|production plan|preview result|worker|manager/i.test(message)
 }
 
 function inferApplyDraftCall(message: string): ToolCall | undefined {

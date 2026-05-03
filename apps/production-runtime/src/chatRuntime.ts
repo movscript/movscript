@@ -1,5 +1,5 @@
 import { MCPClient } from './mcpClient.js'
-import { resolveRuntimeChatModelConfig } from './runtime/modelConfig.js'
+import { buildBackendGatewayChatRequest, callBackendGatewayChat, resolveRuntimeChatModelConfig, type RuntimeModelAuthContext } from './runtime/modelConfig.js'
 import type { JSONValue } from './types.js'
 
 export type ChatRole = 'system' | 'user' | 'assistant'
@@ -29,19 +29,6 @@ export interface ChatRuntimeOptions {
   mcpClient: MCPClient
 }
 
-interface OpenAIChatResponse {
-  choices?: Array<{
-    message?: {
-      content?: string
-    }
-  }>
-}
-
-const DEFAULT_GATEWAY_MODEL = 'movscript-default-chat'
-const DEFAULT_GATEWAY_BASE_URL = 'http://127.0.0.1:8080/v1'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
-const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
-
 export class ChatRuntime {
   private readonly mcpClient: MCPClient
 
@@ -49,7 +36,7 @@ export class ChatRuntime {
     this.mcpClient = options.mcpClient
   }
 
-  async chat(request: ChatRequest): Promise<ChatResponse> {
+  async chat(request: ChatRequest, auth: RuntimeModelAuthContext = {}): Promise<ChatResponse> {
     const messages = normalizeMessages(request)
     const conversationId = request.conversationId || `conv_${Date.now().toString(36)}`
     const includeContext = request.includeContext !== false
@@ -59,37 +46,9 @@ export class ChatRuntime {
       return {
         conversationId,
         role: 'assistant',
-        content: await this.callOpenAICompatible(runtimeModelConfig.apiKey, runtimeModelConfig.model, messages, context, runtimeModelConfig.baseURL),
-        provider: 'runtime-openai-compatible',
+        content: await this.callBackendModel(runtimeModelConfig, messages, context, auth),
+        provider: 'backend-model-config',
         model: runtimeModelConfig.model,
-        contextIncluded: !!context,
-      }
-    }
-
-    const gatewayKey = process.env.MOVSCRIPT_AGENT_GATEWAY_API_KEY || process.env.MOVSCRIPT_AGENT_GATEWAY_USER_ID
-
-    if (gatewayKey) {
-      const model = process.env.MOVSCRIPT_AGENT_GATEWAY_MODEL || process.env.MOVSCRIPT_AGENT_OPENAI_MODEL || DEFAULT_GATEWAY_MODEL
-      const baseURL = process.env.MOVSCRIPT_AGENT_GATEWAY_BASE_URL || process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_GATEWAY_BASE_URL
-      return {
-        conversationId,
-        role: 'assistant',
-        content: await this.callOpenAICompatible(gatewayKey, model, messages, context, baseURL),
-        provider: 'movscript-model-gateway',
-        model,
-        contextIncluded: !!context,
-      }
-    }
-
-    const apiKey = process.env.MOVSCRIPT_AGENT_OPENAI_API_KEY || process.env.OPENAI_API_KEY
-    if (apiKey) {
-      const model = process.env.MOVSCRIPT_AGENT_OPENAI_MODEL || DEFAULT_OPENAI_MODEL
-      return {
-        conversationId,
-        role: 'assistant',
-        content: await this.callOpenAICompatible(apiKey, model, messages, context),
-        provider: 'openai-compatible',
-        model,
         contextIncluded: !!context,
       }
     }
@@ -112,12 +71,11 @@ export class ChatRuntime {
     }
   }
 
-  private async callOpenAICompatible(
-    apiKey: string,
-    model: string,
+  private async callBackendModel(
+    config: NonNullable<ReturnType<typeof resolveRuntimeChatModelConfig>>,
     messages: ChatMessage[],
     context: JSONValue | undefined,
-    baseURL = process.env.MOVSCRIPT_AGENT_OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL,
+    auth: RuntimeModelAuthContext,
   ): Promise<string> {
     const system = [
       'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
@@ -126,29 +84,10 @@ export class ChatRuntime {
       context ? `Current MovScript context JSON:\n${JSON.stringify(context, null, 2)}` : 'Current MovScript context is unavailable.',
     ].join('\n\n')
 
-    const res = await fetch(`${baseURL.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          ...messages,
-        ],
-      }),
-    })
-
-    if (!res.ok) {
-      throw new Error(`LLM HTTP ${res.status}: ${await res.text()}`)
-    }
-
-    const json = await res.json() as OpenAIChatResponse
-    const content = json.choices?.[0]?.message?.content?.trim()
-    if (!content) throw new Error('LLM returned no assistant content')
-    return content
+    return callBackendGatewayChat(buildBackendGatewayChatRequest(config, [
+      { role: 'system', content: system },
+      ...messages,
+    ], auth))
   }
 }
 
@@ -184,6 +123,6 @@ function buildLocalResponse(messages: ChatMessage[], context: JSONValue | undefi
     contextLine,
     userLine,
     '',
-    '当前 legacy chat 链路已经打通。要得到真正的模型回复，请在启动 movscript-production-runtime 前设置 MOVSCRIPT_AGENT_OPENAI_API_KEY 或 OPENAI_API_KEY；也可以设置 MOVSCRIPT_AGENT_OPENAI_MODEL 和 MOVSCRIPT_AGENT_OPENAI_BASE_URL 接入 OpenAI-compatible 服务。',
+    '当前 legacy chat 链路已经打通。要得到真正的模型回复，请先在 Agent Debug 的 Model Connection 中选择后端已配置的文本模型。',
   ].join('\n')
 }
