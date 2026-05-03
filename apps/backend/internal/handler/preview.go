@@ -28,7 +28,7 @@ type previewEntitySummary struct {
 }
 
 type previewContext struct {
-	SegmentTitle    string `json:"segment_title,omitempty"`
+	SegmentTitle     string `json:"segment_title,omitempty"`
 	SceneMomentTitle string `json:"scene_moment_title,omitempty"`
 }
 
@@ -59,13 +59,13 @@ type previewMissingAsset struct {
 }
 
 type previewGenerateResponse struct {
-	Scope         string               `json:"scope"`
-	Entity        previewEntitySummary `json:"entity"`
-	Context       previewContext       `json:"context"`
-	ContentUnits  []previewContentUnit `json:"content_units"`
-	Keyframes     []previewKeyframe    `json:"keyframes"`
+	Scope         string                `json:"scope"`
+	Entity        previewEntitySummary  `json:"entity"`
+	Context       previewContext        `json:"context"`
+	ContentUnits  []previewContentUnit  `json:"content_units"`
+	Keyframes     []previewKeyframe     `json:"keyframes"`
 	MissingAssets []previewMissingAsset `json:"missing_assets"`
-	GeneratedAt   string               `json:"generated_at"`
+	GeneratedAt   string                `json:"generated_at"`
 }
 
 func (h *PreviewHandler) Generate(c *gin.Context) {
@@ -121,7 +121,7 @@ func (h *PreviewHandler) loadSegmentPreview(projectID, segmentID uint, resp *pre
 	resp.Entity = previewEntitySummary{ID: seg.ID, Title: seg.Title, Description: seg.Summary}
 
 	var units []model.ContentUnit
-	h.db.Where("project_id = ? AND segment_id = ?", projectID, segmentID).Order("`order` asc, id asc").Find(&units)
+	h.db.Where("project_id = ? AND segment_id = ?", projectID, segmentID).Order(`"order" asc, id asc`).Find(&units)
 	for _, u := range units {
 		resp.ContentUnits = append(resp.ContentUnits, previewContentUnit{
 			ID: u.ID, Order: u.Order, Title: u.Title, Kind: u.Kind,
@@ -149,7 +149,7 @@ func (h *PreviewHandler) loadSceneMomentPreview(projectID, momentID uint, resp *
 	}
 
 	var units []model.ContentUnit
-	h.db.Where("project_id = ? AND scene_moment_id = ?", projectID, momentID).Order("`order` asc, id asc").Find(&units)
+	h.db.Where("project_id = ? AND scene_moment_id = ?", projectID, momentID).Order(`"order" asc, id asc`).Find(&units)
 	for _, u := range units {
 		resp.ContentUnits = append(resp.ContentUnits, previewContentUnit{
 			ID: u.ID, Order: u.Order, Title: u.Title, Kind: u.Kind,
@@ -200,7 +200,7 @@ func (h *PreviewHandler) loadKeyframesForUnits(projectID uint, units []model.Con
 		ids[i] = u.ID
 	}
 	var keyframes []model.Keyframe
-	h.db.Where("project_id = ? AND content_unit_id IN ?", projectID, ids).Order("`order` asc, id asc").Find(&keyframes)
+	h.db.Where("project_id = ? AND content_unit_id IN ?", projectID, ids).Order(`"order" asc, id asc`).Find(&keyframes)
 	for _, kf := range keyframes {
 		resp.Keyframes = append(resp.Keyframes, previewKeyframe{
 			ID:          kf.ID,

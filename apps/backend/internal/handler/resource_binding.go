@@ -155,7 +155,12 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 		MetadataJSON: input.MetadataJSON,
 		CreatedByID:  &user.ID,
 	}
-	if err := h.db.Create(&binding).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&binding).Error; err != nil {
+			return err
+		}
+		return model.SyncCoreEntityRelations(tx, &binding)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -184,7 +189,12 @@ func (h *ResourceBindingHandler) createBinding(binding model.ResourceBinding) er
 	if binding.SortOrder == 0 {
 		binding.SortOrder = h.nextSortOrder(binding.ProjectID, binding.OwnerType, binding.OwnerID, binding.Role, binding.Slot)
 	}
-	if err := h.db.Create(&binding).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&binding).Error; err != nil {
+			return err
+		}
+		return model.SyncCoreEntityRelations(tx, &binding)
+	}); err != nil {
 		return err
 	}
 	if binding.IsPrimary {
@@ -295,7 +305,12 @@ func (h *ResourceBindingHandler) Patch(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
-		if err := h.db.Model(&binding).Updates(updates).Error; err != nil {
+		if err := h.db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&binding).Updates(updates).Error; err != nil {
+				return err
+			}
+			return model.SyncCoreEntityRelations(tx, &binding)
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 			return
 		}
@@ -314,7 +329,12 @@ func (h *ResourceBindingHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, apierr.NotFound("资源绑定不存在"))
 		return
 	}
-	if err := h.db.Delete(&binding).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&binding).Error; err != nil {
+			return err
+		}
+		return model.DeleteCoreEntityRelations(tx, &binding)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}

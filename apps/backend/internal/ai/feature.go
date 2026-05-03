@@ -22,7 +22,8 @@ const (
 	FeatureStyleTransfer   = "style_transfer"
 	FeatureMultiAngle      = "multi_angle"
 	FeatureVideoEdit       = "video_edit"
-	FeatureBrainstorm      = "brainstorm"
+	FeatureBrainstorm             = "brainstorm"
+	FeatureProductionOrchestrate  = "production_orchestrate"
 )
 
 // Capability constants — used in FeatureDef.RequiredCap and ModelDef.Capabilities.
@@ -201,6 +202,14 @@ var FeatureCatalog = []FeatureDef{
 		RequiredCap:  CapabilityText,
 		SystemPrompt: `你是短剧创意助手，帮助用户进行头脑风暴、创意发散和剧本构思。思维开放，给出多样化建议。`,
 		MaxTokens:    DefaultTextMaxTokens, Temperature: 0.8,
+	},
+	{
+		ID: FeatureProductionOrchestrate, DisplayName: "制作编排 AI 分析", IsInternal: true,
+		Description:  "从剧本文本中提取五类制作编排候选：片段、情节、创作资料、素材需求、内容单元",
+		RequiredCap:  CapabilityText,
+		SystemPrompt: `你是专业制作编排分析助手。从用户提供的剧本文本中提取五类制作编排候选：片段（segments）、情节（scene_moments）、创作资料（creative_references）、素材需求（asset_slots）、内容单元（content_units）。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
+		OutputSchema: `{"segments":[{"client_id":"s1","order":1,"title":"片段标题","summary":"摘要","source_range":"来源范围"}],"scene_moments":[{"client_id":"sm1","segment_id":"s1","order":1,"title":"情节标题","time_text":"时间","location_text":"地点","action_text":"动作","mood":"氛围"}],"creative_references":[{"client_id":"cr1","name":"名称","type":"person|place|prop|product|brand|style|world_rule","importance":"high|normal|low","description":"描述"}],"asset_slots":[{"client_id":"as1","segment_id":"s1","name":"名称","type":"image|video|audio|text","description":"描述","priority":"critical|high|normal|low"}],"content_units":[{"client_id":"cu1","segment_id":"s1","scene_moment_id":"sm1","order":1,"type":"shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat","description":"描述","shot_size":"景别","camera_angle":"角度"}]}`,
+		MaxTokens:    DefaultTextMaxTokens, Temperature: 0,
 	},
 }
 

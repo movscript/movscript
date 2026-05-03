@@ -9,6 +9,7 @@ export const CONTENT_FILTER_KEYS = [
   'reference_id',
   'asset_slot_id',
   'content_unit_id',
+  'production_id',
   'selected',
 ] as const
 

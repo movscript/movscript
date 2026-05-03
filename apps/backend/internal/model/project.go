@@ -8,6 +8,7 @@ type Project struct {
 	Description string `json:"description"`
 	OwnerID     uint   `json:"owner_id"`
 	Owner       User   `json:"owner,omitempty"`
+	OrgID       *uint  `gorm:"index" json:"org_id,omitempty"`
 	// planning|script_analysis|asset_prep|production|editing|done
 	Status        string          `gorm:"default:'planning'" json:"status"`
 	TotalEpisodes int             `json:"total_episodes"` // target episode count

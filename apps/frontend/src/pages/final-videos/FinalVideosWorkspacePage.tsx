@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
+  BadgeCheck,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -9,11 +10,15 @@ import {
   FileVideo,
   Film,
   ListChecks,
+  Lock,
   Pencil,
   Plus,
   RefreshCcw,
+  ShieldCheck,
+  Timer,
   Trash2,
   X,
+  XCircle,
   Video,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,7 +49,7 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import type { PaginatedResponse, RawResource } from '@/types'
-import { Button, Input, Label, Textarea } from '@movscript/ui'
+import { Badge, Button, Input, Label, Progress as ProgressBar, Textarea } from '@movscript/ui'
 
 type VersionFilter = 'all' | 'draft' | 'checking' | 'approved' | 'exported'
 
@@ -173,6 +178,53 @@ export default function FinalVideosWorkspacePage() {
   const versionReadiness = readiness(timelineItems)
   const contentUnitById = new Map((contentUnitsQuery.data ?? []).map((item) => [item.ID, item]))
 
+  const gateChecks = useMemo(() => {
+    const total = timelineItems.length
+    const unlinked = timelineItems.filter((i) => !i.content_unit_id).length
+    const timelineOk = total > 0 && unlinked === 0
+    const assetOk = versionReadiness.missingCount === 0 && versionReadiness.noResourceCount === 0
+    const versionOk = selectedVersion ? ['approved', 'exported'].includes(selectedVersion.status) : false
+    const exportOk = timelineOk && assetOk && versionOk
+    return [
+      {
+        id: 'timeline',
+        label: '时间线完整性',
+        description: total === 0
+          ? '尚未添加任何片段。'
+          : unlinked > 0
+            ? `${unlinked} 个片段未绑定内容单元。`
+            : `全部 ${total} 个片段已绑定内容单元。`,
+        status: timelineOk ? 'passed' : 'warning',
+        count: `${total - unlinked}/${total}`,
+      },
+      {
+        id: 'assets',
+        label: '素材完整性',
+        description: assetOk
+          ? '全部媒体片段已锁定资源。'
+          : `${versionReadiness.missingCount + versionReadiness.noResourceCount} 个片段缺少成片资源。`,
+        status: assetOk ? 'passed' : 'warning',
+        count: assetOk ? '全部就绪' : `${versionReadiness.missingCount + versionReadiness.noResourceCount} 项`,
+      },
+      {
+        id: 'version',
+        label: '版本审核',
+        description: versionOk
+          ? '版本已批准，可以导出。'
+          : `当前版本状态为「${deliveryStatusLabel(selectedVersion?.status ?? 'draft')}」，需推进到「已批准」。`,
+        status: versionOk ? 'passed' : 'warning',
+        count: selectedVersion ? deliveryStatusLabel(selectedVersion.status) : '未选择',
+      },
+      {
+        id: 'export',
+        label: '导出条件',
+        description: exportOk ? '全部门禁通过，可以创建导出记录。' : '需先满足以上条件才能导出。',
+        status: exportOk ? 'passed' : (timelineOk && assetOk ? 'warning' : 'blocked'),
+        count: exportOk ? '可导出' : '未就绪',
+      },
+    ] as const
+  }, [timelineItems, versionReadiness, selectedVersion])
+
   const versionKey = ['semantic-delivery-versions', projectId]
   const itemsKey = ['semantic-delivery-timeline-items', projectId, selectedVersionId]
   const exportsKey = ['semantic-export-records', projectId, selectedVersionId]
@@ -269,13 +321,11 @@ export default function FinalVideosWorkspacePage() {
               <Film size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>内容区</span>
-              <ChevronRight size={13} />
-              <span>成片</span>
+              <span>交付</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal">成片库</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal">交付工作台</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              成片区维护交付版本、时间线片段、资源锁定、审核状态和导出记录。
+              维护交付版本、时间线片段、资源锁定、审核状态和导出记录。只记录交付结果，不回写剧本结构或素材事实。
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -295,12 +345,20 @@ export default function FinalVideosWorkspacePage() {
         </header>
       )}
       overview={(
-        <section className="grid grid-cols-4 gap-3">
-          <ReadinessCard icon={FileVideo} label="交付版本" value={versions.length} detail={`${versions.filter((item) => ['approved', 'exported'].includes(item.status)).length} 个可导出`} tone="text-indigo-600" />
-          <ReadinessCard icon={ListChecks} label="时间线片段" value={timelineItems.length} detail={`${formatDuration(sumDuration(timelineItems))} 总时长`} tone="text-sky-600" />
-          <ReadinessCard icon={AlertTriangle} label="缺失内容" value={versionReadiness.missingCount + versionReadiness.noResourceCount} detail="missing / needs_asset / 无资源" tone="text-amber-600" />
-          <ReadinessCard icon={Download} label="导出记录" value={exportRecords.length} detail={exportRecords[0]?.status ? exportStatusLabel(exportRecords[0].status) : '尚未导出'} tone="text-emerald-600" />
-        </section>
+        <div className="space-y-3">
+          <section className="grid grid-cols-4 gap-3">
+            <ReadinessCard icon={FileVideo} label="交付版本" value={versions.length} detail={`${versions.filter((item) => ['approved', 'exported'].includes(item.status)).length} 个可导出`} tone="text-indigo-600" />
+            <ReadinessCard icon={ListChecks} label="时间线片段" value={timelineItems.length} detail={`${formatDuration(sumDuration(timelineItems))} 总时长`} tone="text-sky-600" />
+            <ReadinessCard icon={AlertTriangle} label="缺失内容" value={versionReadiness.missingCount + versionReadiness.noResourceCount} detail="missing / needs_asset / 无资源" tone="text-amber-600" />
+            <ReadinessCard icon={Download} label="导出记录" value={exportRecords.length} detail={exportRecords[0]?.status ? exportStatusLabel(exportRecords[0].status) : '尚未导出'} tone="text-emerald-600" />
+          </section>
+          {selectedVersion && (
+            <section className="grid grid-cols-[minmax(0,1fr)_340px] gap-4">
+              <VersionSummaryCard version={selectedVersion} items={timelineItems} readiness={versionReadiness} />
+              <GateCheckPanel checks={gateChecks} />
+            </section>
+          )}
+        </div>
       )}
       filters={(
         <ContentFilterBar
@@ -551,6 +609,109 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
     <div className="rounded-md border border-border bg-background p-2">
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
+  )
+}
+
+type GateCheckStatus = 'passed' | 'warning' | 'blocked'
+
+const gateMeta: Record<GateCheckStatus, { className: string; icon: LucideIcon }> = {
+  passed: { className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 },
+  warning: { className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', icon: AlertTriangle },
+  blocked: { className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', icon: XCircle },
+}
+
+function VersionSummaryCard({
+  version,
+  items,
+  readiness: r,
+}: {
+  version: DeliveryVersion
+  items: DeliveryTimelineItem[]
+  readiness: ReturnType<typeof readiness>
+}) {
+  const lockedCount = r.lockedCount
+  const total = items.length
+  const completion = total > 0 ? Math.round((lockedCount / total) * 100) : 0
+  const warningCount = items.filter((i) => !['locked', 'approved'].includes(i.status)).length
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <BadgeCheck size={16} className={warningCount > 0 ? 'text-amber-600' : 'text-emerald-600'} />
+            <h2 className="text-sm font-semibold text-foreground">{version.name || `Delivery #${version.ID}`}</h2>
+            <Badge className={cn('text-[10px]', statusTone[version.status] ?? 'bg-muted text-muted-foreground')}>
+              {deliveryStatusLabel(version.status)}
+            </Badge>
+            {version.is_primary && (
+              <Badge className="text-[10px] bg-primary/10 text-primary">主版本</Badge>
+            )}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+            {version.description || '未填写版本说明'}
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-right shrink-0">
+          <div>
+            <p className={cn('text-xl font-semibold tabular-nums', warningCount > 0 ? 'text-amber-600' : 'text-emerald-600')}>{completion}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">完成度</p>
+          </div>
+          <div>
+            <p className="text-xl font-semibold tabular-nums">{formatDuration(sumDuration(items))}</p>
+            <p className="mt-1 text-xs text-muted-foreground">总时长</p>
+          </div>
+          <div>
+            <p className={cn('text-xl font-semibold tabular-nums', warningCount > 0 ? 'text-amber-600' : 'text-foreground')}>{warningCount}</p>
+            <p className="mt-1 text-xs text-muted-foreground">待处理</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span>成片片段锁定进度</span>
+          <span>{lockedCount}/{total}</span>
+        </div>
+        <ProgressBar value={completion} className="h-1.5" />
+      </div>
+    </div>
+  )
+}
+
+function GateCheckPanel({ checks }: { checks: ReadonlyArray<{ id: string; label: string; description: string; status: GateCheckStatus; count: string }> }) {
+  const warningCount = checks.filter((c) => c.status !== 'passed').length
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} className="text-emerald-600" />
+          <h2 className="text-sm font-semibold text-foreground">导出门禁</h2>
+        </div>
+        <Badge variant="secondary" className="text-[10px]">
+          {warningCount > 0 ? `需处理 ${warningCount} 项` : '全部通过'}
+        </Badge>
+      </div>
+      <div className="mt-4 space-y-2">
+        {checks.map((check) => {
+          const meta = gateMeta[check.status]
+          const Icon = meta.icon
+          return (
+            <div key={check.id} className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
+              <div className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md', meta.className)}>
+                <Icon size={14} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-sm font-medium text-foreground">{check.label}</p>
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">{check.count}</span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{check.description}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

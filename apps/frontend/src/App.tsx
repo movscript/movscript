@@ -20,7 +20,6 @@ import VideoEditPage from './pages/tools/VideoEditPage'
 import BrainstormPage from './pages/tools/BrainstormPage'
 import CreativeReferencesPage from './pages/creative-references/CreativeReferencesPage'
 import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
-import DeliveryPage from './pages/delivery/DeliveryPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
 import ProductionOrchestratePage from './pages/production/ProductionOrchestratePage'
 import ContentsPage from './pages/contents/ContentsPage'
@@ -28,6 +27,9 @@ import UserProfilePage from './pages/user/UserProfilePage'
 import AdminPage from './pages/admin/AdminPage'
 import { DebugPage } from './pages/admin/DebugPage'
 import { UIPreviewPage } from './pages/admin/UIPreviewPage'
+import OrgSelectPage from './pages/org/OrgSelectPage'
+import OrgSettingsPage from './pages/org/OrgSettingsPage'
+import InvitePage from './pages/auth/InvitePage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
@@ -92,6 +94,26 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function OrgGuard({ children }: { children: React.ReactNode }) {
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const memberships = useUserStore((s) => s.orgMemberships)
+  const nonPersonal = memberships.filter((m) => !m.is_personal)
+  if (nonPersonal.length > 1 && currentOrgID === null) {
+    return <Navigate to="/org/select" replace />
+  }
+  return <>{children}</>
+}
+
+function OrgAdminGuard({ children }: { children: React.ReactNode }) {
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const memberships = useUserStore((s) => s.orgMemberships)
+  const membership = memberships.find((m) => m.org_id === currentOrgID)
+  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    return <Navigate to="/projects" replace />
+  }
+  return <>{children}</>
+}
+
 function Padded({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-auto p-6">{children}</div>
 }
@@ -126,6 +148,7 @@ export default function App() {
         <MCPContextBridge />
         <Toaster />
         <Routes>
+          <Route path="/invite/:token" element={<InvitePage />} />
           <Route path="*" element={<AuthPage />} />
         </Routes>
       </BrowserRouter>
@@ -139,6 +162,10 @@ export default function App() {
       <Routes>
         {/* Canvas editor is full-screen, no sidebar/header */}
         <Route path="/canvases/:id" element={<CanvasEditorPage />} />
+        {/* Org select — full-screen, no sidebar */}
+        <Route path="/org/select" element={<OrgSelectPage />} />
+        {/* Invite page — accessible when logged in */}
+        <Route path="/invite/:token" element={<InvitePage />} />
         {/* All other pages use the shell layout */}
         <Route path="*" element={
           <div className="flex h-screen bg-background text-foreground">
@@ -174,12 +201,12 @@ export default function App() {
                       <Route path="/segments" element={<ProjectGuard><SegmentsPage /></ProjectGuard>} />
                       <Route path="/scene-moments" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
                       <Route path="/contents" element={<ProjectGuard><ContentsPage /></ProjectGuard>} />
-                      <Route path="/final-videos" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
+                      <Route path="/final-videos" element={<Navigate to="/delivery" replace />} />
 
                       <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
                       <Route path="/production-orchestrate" element={<ProjectGuard><ProductionOrchestratePage /></ProjectGuard>} />
                       <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
-                      <Route path="/delivery" element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
+                      <Route path="/delivery" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
                       <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
                       <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
                       <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
@@ -195,6 +222,9 @@ export default function App() {
 
                       {/* 用户 */}
                       <Route path="/user" element={<Padded><UserProfilePage /></Padded>} />
+
+                      {/* 组织 */}
+                      <Route path="/org/settings" element={<OrgAdminGuard><Padded><OrgSettingsPage /></Padded></OrgAdminGuard>} />
 
                       {/* 文件 */}
                       <Route path="/resources" element={<ResourcesPage />} />

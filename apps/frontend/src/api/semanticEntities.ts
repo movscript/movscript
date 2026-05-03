@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 export type SemanticEntityKind =
   | 'scriptVersions'
   | 'segments'
+  | 'productionTextBlocks'
   | 'sceneMoments'
   | 'productions'
   | 'storyboardScripts'
@@ -112,8 +113,9 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('summary', '摘要'),
       select('status', '状态', ['draft', 'active', 'archived']),
     ], '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。'),
-    cfg('segments', 'segments', '片段', '项目里的内容片段，可手动创建，也可选填剧本版本作为来源引用。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
-      num('script_version_id', 'ScriptVersion ID', false, false, '可选：仅在需要追溯来源剧本版本时填写'),
+    cfg('segments', 'segments', '片段', '制作里的内容片段，可选绑定制作文本块作为来源。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
+      num('production_id', 'Production ID'),
+      num('text_block_id', '文本块 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
         { value: 'section', label: '片段' },
@@ -127,10 +129,28 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('order', '顺序'),
       area('summary', '摘要'),
       area('content', '内容'),
-      text('source_range', '原文范围'),
       select('status', '状态', ['draft', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ]),
+    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，片段可以绑定到这里而不是直接绑定剧本。', 'text-amber-600', ['title', 'kind', 'status', 'summary'], [
+      num('production_id', 'Production ID', true, true),
+      num('parent_block_id', '父文本块 ID'),
+      selectOptions('kind', '类型', [
+        { value: 'section', label: '段落' },
+        { value: 'scene', label: '场次' },
+        { value: 'beat', label: '节拍' },
+        { value: 'dialogue', label: '对白' },
+        { value: 'narration', label: '旁白' },
+        { value: 'note', label: '备注' },
+      ]),
+      num('order', '顺序'),
+      text('title', '标题'),
+      area('content', '文本内容'),
+      area('summary', '摘要'),
+      select('source_type', '来源类型', ['manual', 'script', 'brief', 'ai', 'import']),
+      select('status', '状态', ['draft', 'active', 'archived']),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 production_id。'),
     cfg('sceneMoments', 'scene-moments', '情节', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
       num('segment_id', 'Segment ID'),
       text('title', '标题', true),

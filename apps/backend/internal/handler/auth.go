@@ -22,10 +22,19 @@ func NewAuthHandler(db *gorm.DB, tokens *auth.Manager) *AuthHandler {
 }
 
 type authResponse struct {
-	User      model.User `json:"user"`
-	Token     string     `json:"token"`
-	TokenType string     `json:"token_type"`
-	ExpiresAt time.Time  `json:"expires_at"`
+	User           model.User             `json:"user"`
+	Token          string                 `json:"token"`
+	TokenType      string                 `json:"token_type"`
+	ExpiresAt      time.Time              `json:"expires_at"`
+	OrgMemberships []orgMembershipSummary `json:"org_memberships"`
+}
+
+type orgMembershipSummary struct {
+	OrgID      uint   `json:"org_id"`
+	OrgName    string `json:"org_name"`
+	OrgSlug    string `json:"org_slug"`
+	IsPersonal bool   `json:"is_personal"`
+	Role       string `json:"role"`
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -67,6 +76,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Auto-create personal org for new user
+	if err := createPersonalOrg(h.db, &u); err != nil {
+		// non-fatal: log but don't fail registration
+	}
+
 	actorID := u.ID
 	audit.Record(c, h.db, audit.Event{
 		Action:     "auth.register",
@@ -125,10 +140,30 @@ func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user mod
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue auth token"})
 		return
 	}
+
+	var members []model.OrganizationMember
+	h.db.Where("user_id = ?", user.ID).Find(&members)
+
+	memberships := make([]orgMembershipSummary, 0, len(members))
+	for _, m := range members {
+		var org model.Organization
+		if h.db.First(&org, m.OrgID).Error != nil {
+			continue
+		}
+		memberships = append(memberships, orgMembershipSummary{
+			OrgID:      org.ID,
+			OrgName:    org.Name,
+			OrgSlug:    org.Slug,
+			IsPersonal: org.IsPersonal,
+			Role:       m.Role,
+		})
+	}
+
 	c.JSON(status, authResponse{
-		User:      user,
-		Token:     token,
-		TokenType: "Bearer",
-		ExpiresAt: expiresAt,
+		User:           user,
+		Token:          token,
+		TokenType:      "Bearer",
+		ExpiresAt:      expiresAt,
+		OrgMemberships: memberships,
 	})
 }

@@ -115,7 +115,15 @@ export async function buildConfiguredAssistantContent(
   if (!config) return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
 
   try {
-    return await callBackendGatewayChat(buildBackendGatewayChatRequest(config, buildAssistantMessages(userMessage, toolResults, warnings, memories, run), auth))
+    return await callBackendGatewayChat(buildBackendGatewayChatRequest(
+      config,
+      buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
+      auth,
+      {
+        temperature: shouldReturnStructuredJSON(run) ? 0.1 : undefined,
+        jsonMode: shouldReturnStructuredJSON(run),
+      },
+    ))
   } catch (error) {
     warnings.push(`model chat fallback: ${error instanceof Error ? error.message : String(error)}`)
     return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
@@ -129,6 +137,9 @@ function buildAssistantMessages(
   memories: AgentMemory[],
   run?: AgentRun,
 ): ChatMessage[] {
+  const agentSoul = typeof run?.agentManifest?.soul === 'string' && run.agentManifest.soul.trim()
+    ? run.agentManifest.soul.trim()
+    : undefined
   return [
     {
       role: 'system',
@@ -138,6 +149,8 @@ function buildAssistantMessages(
         'Use the runtime context, plan, tool results, and memories when available.',
         'Do not claim you changed project data unless a tool result proves it.',
         'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
+        agentSoul ? `[Agent-specific output contract]\n${agentSoul}` : undefined,
+        shouldReturnStructuredJSON(run) ? 'This run requires machine-readable JSON. Return only a valid JSON object and no markdown fences.' : undefined,
       ].join('\n'),
     },
     {
@@ -161,6 +174,12 @@ function buildAssistantMessages(
       }),
     },
   ]
+}
+
+function shouldReturnStructuredJSON(run?: AgentRun): boolean {
+  const soul = typeof run?.agentManifest?.soul === 'string' ? run.agentManifest.soul : ''
+  const manifestId = typeof run?.agentManifest?.id === 'string' ? run.agentManifest.id : ''
+  return manifestId === 'production-orchestrate-analyzer' || /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(soul)
 }
 
 function isProductionPlanCommand(message: string): boolean {

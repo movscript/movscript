@@ -218,7 +218,13 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 	featureKey = NormalizeFeatureKey(featureKey)
 	var cfg model.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&cfg).Error; err != nil {
-		return nil, fmt.Errorf("feature %q not found", featureKey)
+		// Feature not in DB — fall back to catalog so features seeded after initial
+		// migration still work without requiring a DB re-seed.
+		def := GetFeatureDef(featureKey)
+		if def == nil {
+			return nil, fmt.Errorf("feature %q not found", featureKey)
+		}
+		return s.GetModelsByCapability(def.RequiredCap)
 	}
 	if !cfg.IsEnabled {
 		return []PublicModel{}, nil

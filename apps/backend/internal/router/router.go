@@ -65,6 +65,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 	auditH := handler.NewAuditHandler(db)
 
 	cloudFileCfgH := handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey)
+	orgH := handler.NewOrgHandler(db)
 
 	// MCP endpoint removed — tools are now provided by the client.
 
@@ -90,6 +91,10 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 		// Model gateway execution accepts either signed sessions or gateway API keys.
 		v1.POST("/model-gateway/chat/completions", modelGatewayH.ChatCompletions)
 
+		// Public invitation endpoints (no auth required)
+		v1.GET("/invitations/:token", orgH.GetInvitation)
+		v1.POST("/invitations/:token/accept", orgH.AcceptInvitation)
+
 		protected := v1.Group("", middleware.RequireAuth())
 		{
 			// AI chat (brainstorm)
@@ -106,6 +111,27 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 
 			// users (read-only, for collaboration member picker)
 			protected.GET("/users", users.List)
+
+			// organizations
+			protected.GET("/orgs", orgH.List)
+			protected.POST("/orgs", orgH.Create)
+			orgRoutes := protected.Group("/orgs/:orgId", middleware.InjectOrgMember(db))
+			{
+				orgRoutes.GET("", orgH.Get)
+				orgRoutes.PUT("", orgH.Update)
+				orgRoutes.GET("/members", orgH.ListMembers)
+				orgRoutes.POST("/members", orgH.AddMember)
+				orgRoutes.PATCH("/members/:userId", orgH.UpdateMember)
+				orgRoutes.DELETE("/members/:userId", orgH.RemoveMember)
+				orgRoutes.GET("/invitations", orgH.ListInvitations)
+				orgRoutes.POST("/invitations", orgH.CreateInvitation)
+				orgRoutes.DELETE("/invitations/:invId", orgH.RevokeInvitation)
+				orgRoutes.GET("/groups", orgH.ListGroups)
+				orgRoutes.POST("/groups", orgH.CreateGroup)
+				orgRoutes.POST("/groups/:groupId/members", orgH.AddGroupMember)
+				orgRoutes.DELETE("/groups/:groupId/members/:userId", orgH.RemoveGroupMember)
+				orgRoutes.GET("/usage", orgH.GetUsage)
+			}
 
 			// raw resources
 			protected.GET("/resources", resources.List)
@@ -215,6 +241,7 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 
 			// preview drawer
 			protected.POST("/projects/:id/preview/generate", previewH.Generate)
+			protected.GET("/projects/:id/entities/relations", semanticEntities.ListEntityRelations)
 			protected.GET("/projects/:id/entities/script-versions", semanticEntities.ListScriptVersions)
 			protected.POST("/projects/:id/entities/script-versions", semanticEntities.CreateScriptVersion)
 			protected.PATCH("/projects/:id/entities/script-versions/:versionId", semanticEntities.PatchScriptVersion)
@@ -225,6 +252,12 @@ func New(db *gorm.DB, cfg *config.Config, store storage.Storage) *gin.Engine {
 			protected.POST("/projects/:id/entities/segments", semanticEntities.CreateSegment)
 			protected.PATCH("/projects/:id/entities/segments/:segmentId", semanticEntities.PatchSegment)
 			protected.DELETE("/projects/:id/entities/segments/:segmentId", func(c *gin.Context) { semanticEntities.DeleteSemanticItem(c, &model.Segment{}, c.Param("segmentId")) })
+			protected.GET("/projects/:id/entities/production-text-blocks", semanticEntities.ListProductionTextBlocks)
+			protected.POST("/projects/:id/entities/production-text-blocks", semanticEntities.CreateProductionTextBlock)
+			protected.PATCH("/projects/:id/entities/production-text-blocks/:textBlockId", semanticEntities.PatchProductionTextBlock)
+			protected.DELETE("/projects/:id/entities/production-text-blocks/:textBlockId", func(c *gin.Context) {
+				semanticEntities.DeleteSemanticItem(c, &model.ProductionTextBlock{}, c.Param("textBlockId"))
+			})
 			protected.GET("/projects/:id/entities/scene-moments", semanticEntities.ListSceneMoments)
 			protected.POST("/projects/:id/entities/scene-moments", semanticEntities.CreateSceneMoment)
 			protected.PATCH("/projects/:id/entities/scene-moments/:sceneMomentId", semanticEntities.PatchSceneMoment)

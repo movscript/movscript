@@ -43,6 +43,7 @@ import { Badge, Button, Progress } from '@movscript/ui'
 type StatusFilter = 'all' | 'ready' | 'attention' | 'locked'
 
 type ContentUnitRecord = SemanticEntityRecord & {
+  production_id?: number
   segment_id?: number
   scene_moment_id?: number
   title?: string
@@ -80,6 +81,7 @@ type SceneMomentRecord = SemanticEntityRecord & {
 }
 
 type SegmentRecord = SemanticEntityRecord & {
+  production_id?: number
   title?: string
   summary?: string
   content?: string
@@ -242,6 +244,7 @@ export default function ContentsPage() {
   const sceneMomentFilterId = readNumberParam(searchParams, 'scene_moment_id')
   const referenceFilterId = readNumberParam(searchParams, 'reference_id')
   const assetSlotFilterId = readNumberParam(searchParams, 'asset_slot_id')
+  const productionFilterId = readNumberParam(searchParams, 'production_id')
   const kindFilter = readStringParam(searchParams, 'kind', 'all')
   const statusFilter = normalizeStatusFilter(readStringParam(searchParams, 'status'))
   const query = readStringParam(searchParams, 'q')
@@ -376,6 +379,7 @@ export default function ContentsPage() {
       const matchesSceneMoment = !sceneMomentFilterId || item.unit.scene_moment_id === sceneMomentFilterId
       const matchesReference = !referenceFilterId || item.references.some((reference) => reference.ID === referenceFilterId)
       const matchesAssetSlot = !assetSlotFilterId || item.assetSlots.some((slot) => slot.ID === assetSlotFilterId)
+      const matchesProduction = !productionFilterId || item.unit.production_id === productionFilterId || item.section?.production_id === productionFilterId
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'ready' && item.readiness >= 70 && item.missingAssets.length === 0) ||
@@ -392,9 +396,9 @@ export default function ContentsPage() {
         item.assetSlots.map((slot) => slot.name).join(' '),
         cameraSummary(item.unit),
       ].filter(Boolean).join(' ').toLowerCase()
-      return matchesKind && matchesSegment && matchesSceneMoment && matchesReference && matchesAssetSlot && matchesStatus && (!q || haystack.includes(q))
+      return matchesKind && matchesSegment && matchesSceneMoment && matchesReference && matchesAssetSlot && matchesProduction && matchesStatus && (!q || haystack.includes(q))
     })
-  }, [assetSlotFilterId, kindFilter, query, referenceFilterId, sceneMomentFilterId, segmentFilterId, statusFilter, unitViewModels])
+  }, [assetSlotFilterId, kindFilter, productionFilterId, query, referenceFilterId, sceneMomentFilterId, segmentFilterId, statusFilter, unitViewModels])
 
   const selected = useMemo(() => {
     if (selectedId) {
@@ -521,6 +525,7 @@ export default function ContentsPage() {
               selectedId ? { id: 'content', label: `内容 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
               referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
               assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
+              productionFilterId ? { id: 'production', label: `制作 #${productionFilterId}`, onRemove: () => setFilter({ production_id: null }) } : null,
             ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
             resultCount={filteredUnits.length}
             totalCount={unitViewModels.length}

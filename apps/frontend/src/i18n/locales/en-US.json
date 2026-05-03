@@ -2269,6 +2269,7 @@
       "admin": "Admin",
       "adminDebug": "Admin Debug",
       "adminUiPreview": "UI Preview",
+      "orgSettings": "Org Settings",
       "projectRequired": "Select a project first"
     },
     "roles": {
@@ -2283,6 +2284,60 @@
       "finalShots": "Final Shots"
     },
     "logout": "Log out"
+  },
+  "org": {
+    "selectTitle": "Select Workspace",
+    "selectSubtitle": "Choose the workspace you want to enter",
+    "createTitle": "Create Workspace",
+    "createNew": "Create new workspace",
+    "createFailed": "Failed to create workspace",
+    "updateFailed": "Failed to update workspace",
+    "name": "Workspace name",
+    "namePlaceholder": "e.g. My Team",
+    "slug": "Identifier",
+    "slugPlaceholder": "e.g. my-team",
+    "slugHint": "Lowercase letters, numbers, and hyphens only",
+    "switchOrg": "Manage workspaces",
+    "settingsTitle": "Organization Settings",
+    "saved": "Saved",
+    "role": "Role",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "viewer": "Viewer"
+    },
+    "tabs": {
+      "members": "Members",
+      "invitations": "Invitations",
+      "settings": "Settings"
+    },
+    "membersCount": "{{count}} members",
+    "addMember": "Add member",
+    "addMemberFailed": "Failed to add member",
+    "removeMember": "Remove member",
+    "usernamePlaceholder": "Enter username",
+    "invitationsCount": "{{count}} invitations",
+    "createInvite": "Create invitation",
+    "createInviteFailed": "Failed to create invitation",
+    "noInvitations": "No invitation links yet",
+    "inviteUsed": "Used",
+    "copyInviteLink": "Copy invite link",
+    "revokeInvite": "Revoke invitation",
+    "inviteNote": "Note",
+    "inviteNotePlaceholder": "Optional note, e.g. Invite for designer"
+  },
+  "invite": {
+    "title": "Join Workspace",
+    "subtitleLoggedIn": "You are logged in. Click below to join {{org}}",
+    "subtitleRegister": "Register an account and join {{org}}",
+    "roleLabel": "Invited as: {{role}}",
+    "joinButton": "Join {{org}}",
+    "registerAndJoin": "Register and join {{org}}",
+    "acceptFailed": "Failed to accept invitation",
+    "invalidTitle": "Invalid invitation link",
+    "invalidDescription": "This invitation link has expired or has already been used",
+    "required": "is required"
   },
   "layout": {
     "emptyDetail": "Select an item from the left list"

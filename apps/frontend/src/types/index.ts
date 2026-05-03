@@ -187,6 +187,60 @@ export interface User {
   system_role: 'super_admin' | 'user'
 }
 
+export interface Organization {
+  ID: number
+  name: string
+  slug: string
+  is_personal: boolean
+  created_by: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface OrganizationMember {
+  ID: number
+  org_id: number
+  user_id: number
+  role: 'owner' | 'admin' | 'member' | 'viewer'
+  user?: User
+  CreatedAt: string
+}
+
+export interface OrgMembership {
+  org_id: number
+  org_name: string
+  org_slug: string
+  is_personal: boolean
+  role: 'owner' | 'admin' | 'member' | 'viewer'
+}
+
+export interface OrgInvitation {
+  ID: number
+  org_id: number
+  token: string
+  role: string
+  note?: string
+  created_by: number
+  used_by?: number
+  expires_at: string
+  used_at?: string
+  CreatedAt: string
+}
+
+export interface UserGroup {
+  ID: number
+  org_id: number
+  name: string
+  members?: UserGroupMember[]
+}
+
+export interface UserGroupMember {
+  ID: number
+  group_id: number
+  user_id: number
+  user?: User
+}
+
 export interface Progress {
   scripts: number
   asset_slots: number

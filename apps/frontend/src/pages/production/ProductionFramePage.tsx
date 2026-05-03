@@ -70,7 +70,7 @@ interface ProductionRecord {
     confirmedAt?: string
   }
   stats: {
-    structures: number
+    segments: number
     sceneMoments: number
     references: number
     assets: number
@@ -96,6 +96,10 @@ type ProductionBackendRecord = SemanticEntityRecord & {
 
 type ProductionData = {
   productions: ProductionBackendRecord[]
+  segments: SemanticEntityRecord[]
+  sceneMoments: SemanticEntityRecord[]
+  creativeReferences: SemanticEntityRecord[]
+  creativeReferenceUsages: SemanticEntityRecord[]
   contentUnits: SemanticEntityRecord[]
   assetSlots: SemanticEntityRecord[]
   keyframes: SemanticEntityRecord[]
@@ -194,16 +198,10 @@ export default function ProductionFramePage() {
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作</h1>
               <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载制作结构、情节、创作资料、素材需求、内容和成片。
+                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载片段、情节、创作资料、素材需求、内容和成片。
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <Button variant="outline" className="gap-2" asChild>
-                <Link to={explicitSelected ? `/production-orchestrate?productionId=${explicitSelected.dbId}` : '/production-orchestrate'}>
-                  <Route size={15} />
-                  制作编排
-                </Link>
-              </Button>
               <Button variant="outline" className="gap-2" asChild>
                 <Link to="/scripts">
                   <Plus size={15} />
@@ -290,10 +288,18 @@ export default function ProductionFramePage() {
                   <div className="col-span-full rounded-md border border-dashed border-border bg-background p-8 text-center">
                     <p className="text-sm font-medium text-foreground">暂无制作</p>
                     <p className="mt-1 text-xs text-muted-foreground">可以直接裸创建制作，也可以先完成制作编排后再从剧本创建。</p>
-                    <Button className="mt-4 gap-2" onClick={() => setCreateOpen(true)}>
-                      <Plus size={15} />
-                      直接创建制作
-                    </Button>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <Button variant="outline" className="gap-2" asChild>
+                        <Link to="/production-orchestrate">
+                          <Route size={15} />
+                          制作编排
+                        </Link>
+                      </Button>
+                      <Button className="gap-2" onClick={() => setCreateOpen(true)}>
+                        <Plus size={15} />
+                        直接创建制作
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -317,7 +323,7 @@ export default function ProductionFramePage() {
                 </div>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-6">
-                  <StatCard icon={GitBranch} label="结构" value={selected.stats.structures} />
+                  <StatCard icon={GitBranch} label="片段" value={selected.stats.segments} />
                   <StatCard icon={Route} label="情节" value={selected.stats.sceneMoments} />
                   <StatCard icon={Sparkles} label="资料" value={selected.stats.references} />
                   <StatCard icon={PackageCheck} label="素材" value={selected.stats.assets} />
@@ -331,7 +337,7 @@ export default function ProductionFramePage() {
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="min-w-0">
                       <h2 className="text-sm font-semibold text-foreground">推演对象</h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">从制作结构推导出情节、资料、素材、内容与成片。</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">从片段推导出情节、资料、素材、内容与成片。</p>
                     </div>
                   </div>
                   <div className="grid gap-3 p-4 md:grid-cols-2">
@@ -352,7 +358,7 @@ export default function ProductionFramePage() {
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预演挂在制作下面，用于追踪结构、关键帧、素材和内容准备情况。
+                      预演挂在制作下面，用于追踪片段、关键帧、素材和内容准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">
@@ -419,7 +425,7 @@ export default function ProductionFramePage() {
               <div className="space-y-3 p-4">
                 {[
                   ['预演', selected.preview.status === 'done' ? '已有确认记录，可作为制作输入。' : '可继续挂载或更新预演记录。'],
-                  ['结构', `${selected.stats.structures} 个结构对象已挂在制作下。`],
+                  ['片段', `${selected.stats.segments} 个片段已挂在制作下。`],
                   ['素材', `${selected.stats.assets} 个素材需求等待候选或锁定。`],
                   ['成片', selected.stats.finals > 0 ? '已有成片版本进入交付检查。' : '尚未生成成片版本。'],
                 ].map(([label, text]) => (
@@ -469,36 +475,44 @@ export default function ProductionFramePage() {
 
 function ProductionListCard({ production, active, onSelect }: { production: ProductionRecord; active: boolean; onSelect: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <article
       className={cn(
-        'w-full rounded-lg border p-3 text-left transition-colors',
+        'w-full rounded-lg border p-3 transition-colors',
         active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={cn('h-2.5 w-2.5 rounded-full', statusMeta[production.status].dot)} />
-            <p className="truncate text-sm font-semibold text-foreground">{production.name}</p>
+      <button type="button" onClick={onSelect} className="block w-full text-left">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={cn('h-2.5 w-2.5 rounded-full', statusMeta[production.status].dot)} />
+              <p className="truncate text-sm font-semibold text-foreground">{production.name}</p>
+            </div>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{production.source}</p>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{production.source}</p>
+          <Badge variant="secondary" className={cn('text-[10px]', statusMeta[production.status].badge)}>
+            {statusMeta[production.status].label}
+          </Badge>
         </div>
-        <Badge variant="secondary" className={cn('text-[10px]', statusMeta[production.status].badge)}>
-          {statusMeta[production.status].label}
-        </Badge>
+        <p className="mt-3 line-clamp-2 text-xs leading-5 text-muted-foreground">{production.description}</p>
+        <div className="mt-3 flex items-center gap-2">
+          <Progress value={production.progress} className="h-1.5 flex-1" />
+          <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{production.progress}%</span>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>{production.owner}</span>
+          <span>{production.updatedAt}</span>
+        </div>
+      </button>
+      <div className="mt-3 border-t border-border pt-3">
+        <Button size="sm" variant={active ? 'secondary' : 'outline'} className="h-8 w-full gap-2 text-xs" asChild>
+          <Link to={`/production-orchestrate?productionId=${production.dbId}`}>
+            <Route size={14} />
+            制作编排
+          </Link>
+        </Button>
       </div>
-      <p className="mt-3 line-clamp-2 text-xs leading-5 text-muted-foreground">{production.description}</p>
-      <div className="mt-3 flex items-center gap-2">
-        <Progress value={production.progress} className="h-1.5 flex-1" />
-        <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{production.progress}%</span>
-      </div>
-      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>{production.owner}</span>
-        <span>{production.updatedAt}</span>
-      </div>
-    </button>
+    </article>
   )
 }
 
@@ -574,8 +588,23 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 }
 
 async function loadProductionData(projectId: number): Promise<ProductionData> {
-  const [productions, contentUnits, assetSlots, keyframes, previewTimelines, deliveryVersions] = await Promise.all([
+  const [
+    productions,
+    segments,
+    sceneMoments,
+    creativeReferences,
+    creativeReferenceUsages,
+    contentUnits,
+    assetSlots,
+    keyframes,
+    previewTimelines,
+    deliveryVersions,
+  ] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
+    listSemanticEntities(projectId, semanticEntityConfig('segments')),
+    listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
@@ -584,6 +613,10 @@ async function loadProductionData(projectId: number): Promise<ProductionData> {
   ])
   return {
     productions: productions as ProductionBackendRecord[],
+    segments,
+    sceneMoments,
+    creativeReferences,
+    creativeReferenceUsages,
     contentUnits,
     assetSlots,
     keyframes,
@@ -596,11 +629,19 @@ function buildProductionRecords(data?: ProductionData): ProductionRecord[] {
   if (!data?.productions.length) return []
   return data.productions.map((production) => {
     const productionId = production.ID
-    const units = mapContentUnitsToProductionUnits(recordsForProduction(data.contentUnits, productionId), recordsForProduction(data.assetSlots, productionId))
-    const assetSlots = recordsForProduction(data.assetSlots, productionId)
-    const keyframes = recordsForProduction(data.keyframes, productionId)
+    const relatedSegmentIds = relatedSegmentIdsForProduction(production, data)
+    const relatedSceneMomentIds = relatedSceneMomentIdsForProduction(relatedSegmentIds, productionId, data)
+    const relatedContentUnits = contentUnitsForProduction(relatedSegmentIds, relatedSceneMomentIds, productionId, data)
+    const relatedContentUnitIds = new Set(relatedContentUnits.map((item) => item.ID))
+    const assetSlots = assetSlotsForProduction(relatedSegmentIds, relatedSceneMomentIds, relatedContentUnitIds, productionId, data)
+    const keyframes = keyframesForProduction(relatedSceneMomentIds, relatedContentUnitIds, productionId, data)
     const previewTimelines = recordsForProduction(data.previewTimelines, productionId)
     const deliveryVersions = recordsForProduction(data.deliveryVersions, productionId)
+    const units = mapContentUnitsToProductionUnits(relatedContentUnits, assetSlots)
+    const relatedReferenceIds = relatedReferenceIdsForProduction(relatedSegmentIds, relatedSceneMomentIds, relatedContentUnitIds, assetSlots, data)
+    const relatedSegmentCount = relatedSegmentIds.size
+    const relatedSceneMomentCount = relatedSceneMomentIds.size
+    const relatedReferenceCount = relatedReferenceIds.size
     const blockedUnits = units.filter((unit) => unit.status === 'blocked').length
     const activeUnits = units.filter((unit) => unit.status === 'active').length
     const doneUnits = units.filter((unit) => unit.status === 'done').length
@@ -627,18 +668,18 @@ function buildProductionRecords(data?: ProductionData): ProductionRecord[] {
         savedAt: String(previewTimelines[0]?.UpdatedAt ?? ''),
       },
       stats: {
-        structures: units.length,
-        sceneMoments: uniqueCount(data.contentUnits.filter((item) => Number(item.production_id) === productionId).map((item) => item.scene_moment_id)),
-        references: 0,
+        segments: relatedSegmentCount,
+        sceneMoments: relatedSceneMomentCount,
+        references: relatedReferenceCount,
         assets: assetSlots.length,
         contents: units.length,
         finals: deliveryVersions.length,
       },
       areas: buildAreas({
         previewProgress,
-        structureCount: units.length,
-        sceneMomentCount: uniqueCount(data.contentUnits.filter((item) => Number(item.production_id) === productionId).map((item) => item.scene_moment_id)),
-        referenceCount: 0,
+        segmentCount: relatedSegmentCount,
+        sceneMomentCount: relatedSceneMomentCount,
+        referenceCount: relatedReferenceCount,
         assetCount: assetSlots.length,
         contentCount: units.length,
         finalCount: deliveryVersions.length,
@@ -657,7 +698,7 @@ function buildProductionRecords(data?: ProductionData): ProductionRecord[] {
 
 function buildAreas(input: {
   previewProgress: number
-  structureCount: number
+  segmentCount: number
   sceneMomentCount: number
   referenceCount: number
   assetCount: number
@@ -668,14 +709,14 @@ function buildAreas(input: {
 }): ProductionArea[] {
   return [
     {
-      key: 'structure',
-      title: '制作结构',
-      description: '片段、分镜行、内容单元骨架',
+      key: 'segments',
+      title: '片段',
+      description: '叙事和制作块',
       icon: GitBranch,
-      count: input.structureCount,
+      count: input.segmentCount,
       progress: input.previewProgress,
-      status: input.structureCount > 0 ? 'active' : 'waiting',
-      href: '/semantic-entities',
+      status: input.segmentCount > 0 ? 'active' : 'waiting',
+      href: '/segments',
     },
     {
       key: 'sceneMoments',
@@ -700,7 +741,7 @@ function buildAreas(input: {
     {
       key: 'assets',
       title: '素材需求',
-      description: '从结构和资料推演出的素材位',
+      description: '从片段和资料推演出的素材位',
       icon: PackageCheck,
       count: input.assetCount,
       progress: input.blockedUnits > 0 ? 38 : input.assetCount > 0 ? 68 : 0,
@@ -715,7 +756,7 @@ function buildAreas(input: {
       count: input.contentCount,
       progress: input.activeUnits > 0 ? 44 : input.contentCount > 0 ? 30 : 0,
       status: input.contentCount > 0 ? 'active' : 'waiting',
-      href: '/workbench/production',
+      href: '/contents',
     },
     {
       key: 'final',
@@ -775,8 +816,97 @@ function recordsForProduction(records: SemanticEntityRecord[], productionId: num
   return records.filter((item) => Number(item.production_id) === productionId)
 }
 
-function uniqueCount(values: unknown[]) {
-  return new Set(values.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)).size
+function relatedSegmentIdsForProduction(production: ProductionBackendRecord, data: ProductionData) {
+  const productionId = production.ID
+  const ids = new Set<number>()
+  for (const segment of data.segments) {
+    if (Number(segment.production_id) === productionId) ids.add(segment.ID)
+    if (production.script_version_id && Number(segment.script_version_id) === Number(production.script_version_id)) ids.add(segment.ID)
+  }
+  for (const unit of data.contentUnits.filter((item) => Number(item.production_id) === productionId)) {
+    addRecordId(ids, unit.segment_id)
+    const sceneMoment = data.sceneMoments.find((item) => item.ID === Number(unit.scene_moment_id))
+    addRecordId(ids, sceneMoment?.segment_id)
+  }
+  for (const slot of data.assetSlots.filter((item) => Number(item.production_id) === productionId)) {
+    if (slot.owner_type === 'segment') addRecordId(ids, slot.owner_id)
+    if (slot.owner_type === 'scene_moment') {
+      const sceneMoment = data.sceneMoments.find((item) => item.ID === Number(slot.owner_id))
+      addRecordId(ids, sceneMoment?.segment_id)
+    }
+    if (slot.owner_type === 'content_unit') {
+      const unit = data.contentUnits.find((item) => item.ID === Number(slot.owner_id))
+      addRecordId(ids, unit?.segment_id)
+      const sceneMoment = data.sceneMoments.find((item) => item.ID === Number(unit?.scene_moment_id))
+      addRecordId(ids, sceneMoment?.segment_id)
+    }
+  }
+  return ids
+}
+
+function relatedSceneMomentIdsForProduction(segmentIds: Set<number>, productionId: number, data: ProductionData) {
+  const ids = new Set<number>()
+  for (const moment of data.sceneMoments) {
+    if (segmentIds.has(Number(moment.segment_id))) ids.add(moment.ID)
+  }
+  for (const unit of recordsForProduction(data.contentUnits, productionId)) {
+    addRecordId(ids, unit.scene_moment_id)
+  }
+  for (const slot of recordsForProduction(data.assetSlots, productionId)) {
+    if (slot.owner_type === 'scene_moment') addRecordId(ids, slot.owner_id)
+    if (slot.owner_type === 'content_unit') {
+      const unit = data.contentUnits.find((item) => item.ID === Number(slot.owner_id))
+      addRecordId(ids, unit?.scene_moment_id)
+    }
+  }
+  return ids
+}
+
+function contentUnitsForProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, productionId: number, data: ProductionData) {
+  return data.contentUnits.filter((unit) => (
+    Number(unit.production_id) === productionId ||
+    segmentIds.has(Number(unit.segment_id)) ||
+    sceneMomentIds.has(Number(unit.scene_moment_id))
+  ))
+}
+
+function assetSlotsForProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, contentUnitIds: Set<number>, productionId: number, data: ProductionData) {
+  return data.assetSlots.filter((slot) => (
+    Number(slot.production_id) === productionId ||
+    (slot.owner_type === 'segment' && segmentIds.has(Number(slot.owner_id))) ||
+    (slot.owner_type === 'scene_moment' && sceneMomentIds.has(Number(slot.owner_id))) ||
+    (slot.owner_type === 'content_unit' && contentUnitIds.has(Number(slot.owner_id)))
+  ))
+}
+
+function keyframesForProduction(sceneMomentIds: Set<number>, contentUnitIds: Set<number>, productionId: number, data: ProductionData) {
+  return data.keyframes.filter((keyframe) => (
+    Number(keyframe.production_id) === productionId ||
+    sceneMomentIds.has(Number(keyframe.scene_moment_id)) ||
+    contentUnitIds.has(Number(keyframe.content_unit_id))
+  ))
+}
+
+function relatedReferenceIdsForProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, contentUnitIds: Set<number>, assetSlots: SemanticEntityRecord[], data: ProductionData) {
+  const ids = new Set<number>()
+  for (const usage of data.creativeReferenceUsages) {
+    if (
+      (usage.owner_type === 'segment' && segmentIds.has(Number(usage.owner_id))) ||
+      (usage.owner_type === 'scene_moment' && sceneMomentIds.has(Number(usage.owner_id))) ||
+      (usage.owner_type === 'content_unit' && contentUnitIds.has(Number(usage.owner_id)))
+    ) {
+      addRecordId(ids, usage.creative_reference_id)
+    }
+  }
+  for (const slot of assetSlots) {
+    addRecordId(ids, slot.creative_reference_id)
+  }
+  return new Set([...ids].filter((id) => data.creativeReferences.some((reference) => reference.ID === id)))
+}
+
+function addRecordId(target: Set<number>, value: unknown) {
+  const id = Number(value)
+  if (Number.isFinite(id) && id > 0) target.add(id)
 }
 
 function clampProgress(value: number) {
@@ -818,10 +948,10 @@ function productionNextActionHref(action: string, production: ProductionRecord) 
   const lower = action.toLowerCase()
   if (action.includes('素材') || action.includes('资料')) return '/asset-slots'
   if (action.includes('预演') || action.includes('时间线')) return '/segments'
-  if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return '/workbench/production'
+  if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return `/contents?production_id=${production.dbId}`
   if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return '/workbench/delivery'
   if (lower.includes('archive') || action.includes('归档')) return '/final-videos'
-  return production.areas.find((area) => area.status === 'blocked')?.href ?? production.areas.find((area) => area.status === 'waiting' || area.status === 'active')?.href ?? '/workbench/production'
+  return production.areas.find((area) => area.status === 'blocked')?.href ?? production.areas.find((area) => area.status === 'waiting' || area.status === 'active')?.href ?? `/contents?production_id=${production.dbId}`
 }
 
 

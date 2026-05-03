@@ -49,13 +49,12 @@ import { Badge, Button, Input, Label, Progress as ProgressBar, Textarea } from '
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
 type SegmentRecord = SemanticEntityRecord & {
-  script_id?: number
-  script_version_id?: number
+  production_id?: number
+  text_block_id?: number
   title?: string
   kind?: string
   summary?: string
   content?: string
-  source_range?: string
   order?: number
   status?: string
 }
@@ -649,7 +648,7 @@ function SegmentDetailCard({
   const canSave = Boolean(projectId) && missingRequiredFields.length === 0 && (isEditing || !record)
   const primaryFields = fields.filter((field) => ['title', 'kind', 'status', 'summary', 'content'].includes(field.key))
   const advancedFields = fields.filter((field) => !primaryFields.includes(field))
-  const compactEditFields = ['kind', 'order', 'source_range', 'script_version_id']
+  const compactEditFields = ['kind', 'order', 'production_id', 'text_block_id']
   const fieldByKey = useMemo(() => new Map(fields.map((field) => [field.key, field])), [fields])
   const formId = `segment-detail-${record?.ID ?? 'new'}`
 
@@ -724,7 +723,7 @@ function SegmentDetailCard({
                 <BookOpenText size={19} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '片段')} · {record?.source_range || (isNew ? '新建片段' : '项目片段')}</p>
+                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '片段')} · {isNew ? '新建片段' : record?.text_block_id ? `文本块 #${record.text_block_id}` : '项目片段'}</p>
                 {isEditing && fieldByKey.get('title') ? (
                   <SegmentInlineField
                     field={fieldByKey.get('title')!}

@@ -21,6 +21,38 @@ func NewSemanticEntityHandler(db *gorm.DB) *SemanticEntityHandler {
 	return &SemanticEntityHandler{db: db}
 }
 
+func (h *SemanticEntityHandler) ListEntityRelations(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	items := make([]model.EntityRelation, 0)
+	q := h.db.Where("project_id = ?", projectID)
+	if category := strings.TrimSpace(c.Query("category")); category != "" {
+		q = q.Where("category = ?", category)
+	}
+	if relationType := strings.TrimSpace(c.Query("type")); relationType != "" {
+		q = q.Where("type = ?", relationType)
+	}
+	if sourceType := strings.TrimSpace(c.Query("source_type")); sourceType != "" {
+		q = q.Where("source_type = ?", sourceType)
+	}
+	if sourceID := parseID(c.Query("source_id")); sourceID > 0 {
+		q = q.Where("source_id = ?", sourceID)
+	}
+	if targetType := strings.TrimSpace(c.Query("target_type")); targetType != "" {
+		q = q.Where("target_type = ?", targetType)
+	}
+	if targetID := parseID(c.Query("target_id")); targetID > 0 {
+		q = q.Where("target_id = ?", targetID)
+	}
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Order("category, type, source_type, source_id, \"order\", target_type, target_id, id").Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
 func (h *SemanticEntityHandler) ListScriptVersions(c *gin.Context) {
 	var items []model.ScriptVersion
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
@@ -97,16 +129,16 @@ func (h *SemanticEntityHandler) PatchScriptVersion(c *gin.Context) {
 func (h *SemanticEntityHandler) ListSegments(c *gin.Context) {
 	var items []model.Segment
 	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
-	if scriptID := parseID(c.Query("script_id")); scriptID > 0 {
-		q = q.Where("script_id = ?", scriptID)
+	if productionID := parseID(c.Query("production_id")); productionID > 0 {
+		q = q.Where("production_id = ?", productionID)
 	}
-	if versionID := parseID(c.Query("script_version_id")); versionID > 0 {
-		q = q.Where("script_version_id = ?", versionID)
+	if textBlockID := parseID(c.Query("text_block_id")); textBlockID > 0 {
+		q = q.Where("text_block_id = ?", textBlockID)
 	}
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
 		q = q.Where("status = ?", status)
 	}
-	if err := q.Order(`script_version_id, "order", id`).Find(&items).Error; err != nil {
+	if err := q.Order(`production_id, text_block_id, "order", id`).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -120,28 +152,32 @@ func (h *SemanticEntityHandler) CreateSegment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	var scriptID *uint
-	var scriptVersionID *uint
-	if req.ScriptVersionID != nil {
-		var version model.ScriptVersion
-		if err := h.db.First(&version, *req.ScriptVersionID).Error; err != nil || version.ProjectID != projectID {
-			c.JSON(http.StatusNotFound, apierr.NotFound("剧本版本不存在"))
+	if !h.optionalOwnerInProject(c, "production", req.ProductionID) || !h.optionalOwnerInProject(c, "production_text_block", req.TextBlockID) {
+		return
+	}
+	productionID := req.ProductionID
+	if req.TextBlockID != nil {
+		var block model.ProductionTextBlock
+		if err := h.db.Select("id, production_id").First(&block, *req.TextBlockID).Error; err != nil {
+			c.JSON(http.StatusNotFound, apierr.NotFound("文本块不存在"))
 			return
 		}
-		scriptID = &version.ScriptID
-		scriptVersionID = &version.ID
+		if productionID != nil && *productionID != block.ProductionID {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("片段绑定的制作和文本块所属制作不一致"))
+			return
+		}
+		productionID = &block.ProductionID
 	}
 	item := model.Segment{
 		ProjectID:       projectID,
-		ScriptID:        scriptID,
-		ScriptVersionID: scriptVersionID,
+		ProductionID:    productionID,
+		TextBlockID:     req.TextBlockID,
 		ParentSegmentID: req.ParentSegmentID,
 		Kind:            fallbackString(req.Kind, "section"),
 		Order:           req.Order,
 		Title:           req.Title,
 		Summary:         req.Summary,
 		Content:         req.Content,
-		SourceRange:     req.SourceRange,
 		Status:          fallbackString(req.Status, "draft"),
 		MetadataJSON:    req.MetadataJSON,
 	}
@@ -149,7 +185,6 @@ func (h *SemanticEntityHandler) CreateSegment(c *gin.Context) {
 }
 
 func (h *SemanticEntityHandler) PatchSegment(c *gin.Context) {
-	projectID := parseID(c.Param("id"))
 	var item model.Segment
 	if !h.loadProjectItem(c, &item, c.Param("segmentId")) {
 		return
@@ -159,30 +194,108 @@ func (h *SemanticEntityHandler) PatchSegment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	var scriptID *uint
-	var scriptVersionID *uint
-	if req.ScriptVersionID != nil {
-		var version model.ScriptVersion
-		if err := h.db.First(&version, *req.ScriptVersionID).Error; err != nil || version.ProjectID != projectID {
-			c.JSON(http.StatusNotFound, apierr.NotFound("剧本版本不存在"))
-			return
-		}
-		scriptID = &version.ScriptID
-		scriptVersionID = &version.ID
+	if !h.optionalOwnerInProject(c, "production", req.ProductionID) || !h.optionalOwnerInProject(c, "production_text_block", req.TextBlockID) {
+		return
 	}
-	h.patchItem(c, &item, compactUpdates(map[string]any{
-		"script_id":         scriptID,
-		"script_version_id": scriptVersionID,
+	updates := compactUpdates(map[string]any{
 		"parent_segment_id": req.ParentSegmentID,
 		"kind":              req.Kind,
 		"order":             req.Order,
 		"title":             req.Title,
 		"summary":           req.Summary,
 		"content":           req.Content,
-		"source_range":      req.SourceRange,
 		"status":            req.Status,
 		"metadata_json":     req.MetadataJSON,
-	}))
+	})
+	productionID := req.ProductionID
+	if req.TextBlockID != nil {
+		var block model.ProductionTextBlock
+		if err := h.db.Select("id, production_id").First(&block, *req.TextBlockID).Error; err != nil {
+			c.JSON(http.StatusNotFound, apierr.NotFound("文本块不存在"))
+			return
+		}
+		if productionID != nil && *productionID != block.ProductionID {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("片段绑定的制作和文本块所属制作不一致"))
+			return
+		}
+		updates["production_id"] = block.ProductionID
+		updates["text_block_id"] = *req.TextBlockID
+	} else if req.ProductionID != nil {
+		updates["production_id"] = *req.ProductionID
+	}
+	h.patchItem(c, &item, updates)
+}
+
+func (h *SemanticEntityHandler) ListProductionTextBlocks(c *gin.Context) {
+	var items []model.ProductionTextBlock
+	q := h.db.Where("project_id = ?", parseID(c.Param("id")))
+	if productionID := parseID(c.Query("production_id")); productionID > 0 {
+		q = q.Where("production_id = ?", productionID)
+	}
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Order(`production_id, "order", id`).Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *SemanticEntityHandler) CreateProductionTextBlock(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req productionTextBlockInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.ownerInProject(c, "production", req.ProductionID) || !h.optionalOwnerInProject(c, "production_text_block", req.ParentBlockID) {
+		return
+	}
+	item := model.ProductionTextBlock{
+		ProjectID:     projectID,
+		ProductionID:  req.ProductionID,
+		ParentBlockID: req.ParentBlockID,
+		Kind:          fallbackString(req.Kind, "section"),
+		Order:         req.Order,
+		Title:         req.Title,
+		Content:       req.Content,
+		Summary:       req.Summary,
+		SourceType:    fallbackString(req.SourceType, "manual"),
+		Status:        fallbackString(req.Status, "draft"),
+		MetadataJSON:  req.MetadataJSON,
+	}
+	h.createItem(c, &item)
+}
+
+func (h *SemanticEntityHandler) PatchProductionTextBlock(c *gin.Context) {
+	var item model.ProductionTextBlock
+	if !h.loadProjectItem(c, &item, c.Param("textBlockId")) {
+		return
+	}
+	var req productionTextBlockPatchInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if !h.optionalOwnerInProject(c, "production", req.ProductionID) || !h.optionalOwnerInProject(c, "production_text_block", req.ParentBlockID) {
+		return
+	}
+	updates := compactUpdates(map[string]any{
+		"parent_block_id": req.ParentBlockID,
+		"kind":            req.Kind,
+		"order":           req.Order,
+		"title":           req.Title,
+		"content":         req.Content,
+		"summary":         req.Summary,
+		"source_type":     req.SourceType,
+		"status":          req.Status,
+		"metadata_json":   req.MetadataJSON,
+	})
+	if req.ProductionID != nil {
+		updates["production_id"] = *req.ProductionID
+	}
+	h.patchItem(c, &item, updates)
 }
 
 func (h *SemanticEntityHandler) ListSceneMoments(c *gin.Context) {
@@ -2188,7 +2301,12 @@ func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id 
 	if !h.loadProjectItem(c, item, id) {
 		return
 	}
-	if err := h.db.Delete(item).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(item).Error; err != nil {
+			return err
+		}
+		return model.DeleteCoreEntityRelations(tx, item)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -2196,7 +2314,12 @@ func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id 
 }
 
 func (h *SemanticEntityHandler) createItem(c *gin.Context, item any) {
-	if err := h.db.Create(item).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(item).Error; err != nil {
+			return err
+		}
+		return model.SyncCoreEntityRelations(tx, item)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
@@ -2205,7 +2328,12 @@ func (h *SemanticEntityHandler) createItem(c *gin.Context, item any) {
 
 func (h *SemanticEntityHandler) patchItem(c *gin.Context, item any, updates map[string]any) {
 	if len(updates) > 0 {
-		if err := h.db.Model(item).Updates(updates).Error; err != nil {
+		if err := h.db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(item).Updates(updates).Error; err != nil {
+				return err
+			}
+			return model.SyncCoreEntityRelations(tx, item)
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 			return
 		}
@@ -2650,6 +2778,12 @@ func (h *SemanticEntityHandler) ensureSemanticOwnerInProject(projectID uint, own
 			return err
 		}
 		ownerProjectID = item.ProjectID
+	case "production_text_block":
+		var item model.ProductionTextBlock
+		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
+			return err
+		}
+		ownerProjectID = item.ProjectID
 	case "storyboard_script":
 		var item model.StoryboardScript
 		if err := h.db.Select("id, project_id").First(&item, ownerID).Error; err != nil {
@@ -3016,29 +3150,55 @@ type scriptVersionPatchInput struct {
 }
 
 type segmentInput struct {
-	ScriptVersionID *uint  `json:"script_version_id"`
+	ProductionID    *uint  `json:"production_id"`
+	TextBlockID     *uint  `json:"text_block_id"`
 	ParentSegmentID *uint  `json:"parent_segment_id"`
 	Kind            string `json:"kind"`
 	Order           int    `json:"order"`
 	Title           string `json:"title"`
 	Summary         string `json:"summary"`
 	Content         string `json:"content"`
-	SourceRange     string `json:"source_range"`
 	Status          string `json:"status"`
 	MetadataJSON    string `json:"metadata_json"`
 }
 
 type segmentPatchInput struct {
-	ScriptVersionID *uint  `json:"script_version_id"`
+	ProductionID    *uint  `json:"production_id"`
+	TextBlockID     *uint  `json:"text_block_id"`
 	ParentSegmentID *uint  `json:"parent_segment_id"`
 	Kind            string `json:"kind"`
 	Order           int    `json:"order"`
 	Title           string `json:"title"`
 	Summary         string `json:"summary"`
 	Content         string `json:"content"`
-	SourceRange     string `json:"source_range"`
 	Status          string `json:"status"`
 	MetadataJSON    string `json:"metadata_json"`
+}
+
+type productionTextBlockInput struct {
+	ProductionID  uint   `json:"production_id" binding:"required"`
+	ParentBlockID *uint  `json:"parent_block_id"`
+	Kind          string `json:"kind"`
+	Order         int    `json:"order"`
+	Title         string `json:"title"`
+	Content       string `json:"content"`
+	Summary       string `json:"summary"`
+	SourceType    string `json:"source_type"`
+	Status        string `json:"status"`
+	MetadataJSON  string `json:"metadata_json"`
+}
+
+type productionTextBlockPatchInput struct {
+	ProductionID  *uint  `json:"production_id"`
+	ParentBlockID *uint  `json:"parent_block_id"`
+	Kind          string `json:"kind"`
+	Order         int    `json:"order"`
+	Title         string `json:"title"`
+	Content       string `json:"content"`
+	Summary       string `json:"summary"`
+	SourceType    string `json:"source_type"`
+	Status        string `json:"status"`
+	MetadataJSON  string `json:"metadata_json"`
 }
 
 type sceneMomentInput struct {

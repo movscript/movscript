@@ -42,7 +42,106 @@ func RegisteredMigrations() []Migration {
 				return seedFeatureConfigs(db)
 			},
 		},
+		{
+			Version: "000002",
+			Name:    "add_organization_support",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(
+					&model.Organization{},
+					&model.OrganizationMember{},
+					&model.UserGroup{},
+					&model.UserGroupMember{},
+					&model.OrgInvitation{},
+					&model.OrgQuota{},
+					&model.Project{},
+					&model.AICredential{},
+					&model.FeatureConfig{},
+					&model.ResourceFolder{},
+					&model.GatewayAPIKey{},
+					&model.UsageLog{},
+					&model.UsageReservation{},
+					&model.AuditLog{},
+				); err != nil {
+					return err
+				}
+				return seedDefaultOrg(db)
+			},
+		},
+		{
+			Version: "000003",
+			Name:    "decouple_segments_from_script_versions",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&model.ProductionTextBlock{}, &model.Segment{}); err != nil {
+					return err
+				}
+				migrator := db.Migrator()
+				for _, column := range []string{"script_id", "script_version_id", "source_range"} {
+					if migrator.HasColumn(&model.Segment{}, column) {
+						if err := migrator.DropColumn(&model.Segment{}, column); err != nil {
+							return fmt.Errorf("drop segments.%s: %w", column, err)
+						}
+					}
+				}
+				return nil
+			},
+		},
+		{
+			Version: "000004",
+			Name:    "add_entity_relations",
+			Up: func(db *gorm.DB) error {
+				return model.BackfillCoreEntityRelations(db, model.EntityRelationSourceMigration)
+			},
+		},
 	}
+}
+
+func seedDefaultOrg(db *gorm.DB) error {
+	var count int64
+	if err := db.Model(&model.Organization{}).Count(&count).Error; err != nil {
+		return fmt.Errorf("check orgs: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	var owner model.User
+	if err := db.Where("system_role = ?", "super_admin").First(&owner).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return fmt.Errorf("find super_admin: %w", err)
+	}
+
+	org := model.Organization{
+		Name:       "Default",
+		Slug:       "default",
+		IsPersonal: false,
+		CreatedBy:  owner.ID,
+	}
+	if err := db.Create(&org).Error; err != nil {
+		return fmt.Errorf("create default org: %w", err)
+	}
+
+	var users []model.User
+	if err := db.Find(&users).Error; err != nil {
+		return fmt.Errorf("list users: %w", err)
+	}
+	for _, u := range users {
+		role := "member"
+		if u.SystemRole == "super_admin" {
+			role = "owner"
+		}
+		member := model.OrganizationMember{OrgID: org.ID, UserID: u.ID, Role: role}
+		if err := db.Create(&member).Error; err != nil {
+			return fmt.Errorf("add user %d to default org: %w", u.ID, err)
+		}
+	}
+
+	if err := db.Model(&model.Project{}).Where("org_id IS NULL").Update("org_id", org.ID).Error; err != nil {
+		return fmt.Errorf("assign projects to default org: %w", err)
+	}
+
+	return nil
 }
 
 func seedFeatureConfigs(db *gorm.DB) error {
@@ -200,9 +299,10 @@ func allModels() []any {
 		&model.ProjectMember{},
 		&model.Script{},
 		&model.ScriptVersion{},
+		&model.Production{},
+		&model.ProductionTextBlock{},
 		&model.Segment{},
 		&model.SceneMoment{},
-		&model.Production{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.PreviewTimeline{},
@@ -211,6 +311,7 @@ func allModels() []any {
 		&model.CreativeReferenceState{},
 		&model.CreativeReferenceUsage{},
 		&model.CreativeRelationship{},
+		&model.EntityRelation{},
 		&model.AssetSlot{},
 		&model.AssetSlotCandidate{},
 		&model.CandidateDecision{},
@@ -253,5 +354,11 @@ func allModels() []any {
 		&model.StoryboardScript{},
 		&model.StoryboardVersion{},
 		&model.StoryboardLine{},
+		&model.Organization{},
+		&model.OrganizationMember{},
+		&model.UserGroup{},
+		&model.UserGroupMember{},
+		&model.OrgInvitation{},
+		&model.OrgQuota{},
 	}
 }

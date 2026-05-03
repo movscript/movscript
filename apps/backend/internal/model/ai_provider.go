@@ -12,6 +12,7 @@ type AICredential struct {
 	EncryptedKey string          `json:"-"`
 	MaskedKey    string          `gorm:"-" json:"masked_key"`
 	IsEnabled    bool            `gorm:"default:true" json:"is_enabled"`
+	OrgID        *uint           `gorm:"index" json:"org_id,omitempty"` // nil = instance-level
 	Models       []AIModelConfig `gorm:"foreignKey:CredentialID" json:"models,omitempty"`
 
 	// AI Files API — independent from the main inference credentials.

@@ -13,6 +13,7 @@ import {
   Bot,
   BrainCircuit,
   Bug,
+  Building2,
   Cable,
   ChevronDown,
   ChevronRight,
@@ -52,6 +53,7 @@ import {
   ScanSearch,
   ScrollText,
   Send,
+  Settings,
   Shapes,
   ShieldCheck,
   SlidersHorizontal,
@@ -69,6 +71,7 @@ import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { Avatar, AvatarFallback } from '@movscript/ui'
 import { Button } from '@movscript/ui'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
 
 const SIDEBAR_COLLAPSED_KEY = 'movscript-sidebar-collapsed'
@@ -156,8 +159,15 @@ export function Sidebar() {
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const orgMemberships = useUserStore((s) => s.orgMemberships)
+  const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
   const navigate = useNavigate()
   const { pathname } = useLocation()
+
+  const currentMembership = orgMemberships.find((m) => m.org_id === currentOrgID)
+  const isOrgAdmin = currentMembership && ['owner', 'admin'].includes(currentMembership.role)
+  const nonPersonalOrgs = orgMemberships.filter((m) => !m.is_personal)
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/lib/clientPlugins').ClientPluginManifest[]>([])
   const [collapsed, setCollapsed] = useState(() => {
@@ -251,7 +261,6 @@ export function Sidebar() {
               <NavItem to="/project-home" icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
               <NavItem to="/scripts" icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
               <NavItem to="/production" icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
-              <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
               <NavItem to="/delivery" icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} />
             </>
@@ -262,6 +271,7 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
+              <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
               <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
               <NavItem to="/workbench/production" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
@@ -299,6 +309,9 @@ export function Sidebar() {
         {/* Manage */}
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
           <NavItem to="/plugins" icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
+          {isOrgAdmin && (
+            <NavItem to="/org/settings" icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />
+          )}
           {currentUser?.system_role === 'super_admin' && (
             <>
               <NavItem to="/admin" icon={ShieldCheck} label={t('sidebar.items.admin')} collapsed={collapsed} />
@@ -330,34 +343,70 @@ export function Sidebar() {
 
       {/* User footer */}
       {currentUser && (
-        <div
-          className={cn(
-            'border-t border-sidebar-border flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors shrink-0',
-            collapsed ? 'justify-center px-2 py-3' : 'px-3 py-3'
+        <div className={cn('border-t border-sidebar-border shrink-0', collapsed ? 'px-1.5 py-2' : 'px-2 py-2')}>
+          {/* Org switcher row */}
+          {!collapsed && currentMembership && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors mb-0.5">
+                  <Building2 size={12} className="shrink-0" />
+                  <span className="flex-1 truncate text-left font-medium">{currentMembership.org_name}</span>
+                  <ChevronDown size={11} className="shrink-0" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {orgMemberships.map((m) => (
+                  <DropdownMenuItem
+                    key={m.org_id}
+                    onClick={() => { setCurrentOrg(m.org_id); navigate('/projects') }}
+                    className={cn(m.org_id === currentOrgID && 'font-medium')}
+                  >
+                    {m.is_personal ? <CircleUserRound size={13} className="mr-2 shrink-0" /> : <Building2 size={13} className="mr-2 shrink-0" />}
+                    <span className="truncate">{m.org_name}</span>
+                  </DropdownMenuItem>
+                ))}
+                {nonPersonalOrgs.length > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem onClick={() => navigate('/org/select')}>
+                  <Settings size={13} className="mr-2 shrink-0" />
+                  {t('org.switchOrg')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-          onClick={() => navigate('/user')}
-          title={collapsed ? currentUser.username : undefined}
-        >
-          <Avatar className="w-7 h-7 shrink-0">
-            <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
-              {currentUser.username[0]?.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          {!collapsed && <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground truncate">{currentUser.username}</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
-            </p>
-          </div>}
-          {!collapsed && <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => { e.stopPropagation(); setCurrentUser(null) }}
-            className="text-muted-foreground hover:text-muted-foreground h-7 w-7 shrink-0"
-            title={t('sidebar.logout')}
+
+          {/* User row */}
+          <div
+            className={cn(
+              'flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-md',
+              collapsed ? 'justify-center px-0 py-2' : 'px-2 py-1.5'
+            )}
+            onClick={() => navigate('/user')}
+            title={collapsed ? currentUser.username : undefined}
           >
-            <LogOut size={14} />
-          </Button>}
+            <Avatar className="w-6 h-6 shrink-0">
+              <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
+                {currentUser.username[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {!collapsed && <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">{currentUser.username}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {currentMembership
+                  ? t(`org.roles.${currentMembership.role}`, { defaultValue: currentMembership.role })
+                  : currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')
+                }
+              </p>
+            </div>}
+            {!collapsed && <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); setCurrentUser(null) }}
+              className="text-muted-foreground hover:text-muted-foreground h-6 w-6 shrink-0"
+              title={t('sidebar.logout')}
+            >
+              <LogOut size={13} />
+            </Button>}
+          </div>
         </div>
       )}
     </aside>

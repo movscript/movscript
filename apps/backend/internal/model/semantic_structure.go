@@ -21,25 +21,24 @@ type ScriptVersion struct {
 	CreatedByID     *uint   `json:"created_by_id,omitempty"`
 }
 
-// Segment is the first semantic entity cut of a script version. It is not a
-// scene synonym; it can represent a scene, montage, product beat, narration,
-// title card, transition, or any other meaningful segment.
+// Segment is a production-facing semantic unit. It is not a scene synonym; it
+// can represent a scene, montage, product beat, narration, title card,
+// transition, or any other meaningful segment.
 type Segment struct {
 	gorm.Model
-	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
-	ScriptID        *uint          `gorm:"index" json:"script_id,omitempty"`
-	Script          *Script        `gorm:"foreignKey:ScriptID" json:"script,omitempty"`
-	ScriptVersionID *uint          `gorm:"index" json:"script_version_id,omitempty"`
-	ScriptVersion   *ScriptVersion `gorm:"foreignKey:ScriptVersionID" json:"script_version,omitempty"`
-	ParentSegmentID *uint          `gorm:"index" json:"parent_segment_id,omitempty"`
-	Kind            string         `gorm:"not null;default:'section';index" json:"kind"` // scene|montage|narration|product_showcase|title_card|transition|section
-	Order           int            `gorm:"not null;default:0;index" json:"order"`
-	Title           string         `json:"title"`
-	Summary         string         `gorm:"type:text" json:"summary"`
-	Content         string         `gorm:"type:text" json:"content"`
-	SourceRange     string         `json:"source_range"`
-	Status          string         `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|ignored
-	MetadataJSON    string         `gorm:"type:text" json:"metadata_json"`
+	ProjectID       uint                 `gorm:"not null;index" json:"project_id"`
+	ProductionID    *uint                `gorm:"index" json:"production_id,omitempty"`
+	Production      *Production          `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
+	TextBlockID     *uint                `gorm:"index" json:"text_block_id,omitempty"`
+	TextBlock       *ProductionTextBlock `gorm:"foreignKey:TextBlockID" json:"text_block,omitempty"`
+	ParentSegmentID *uint                `gorm:"index" json:"parent_segment_id,omitempty"`
+	Kind            string               `gorm:"not null;default:'section';index" json:"kind"` // scene|montage|narration|product_showcase|title_card|transition|section
+	Order           int                  `gorm:"not null;default:0;index" json:"order"`
+	Title           string               `json:"title"`
+	Summary         string               `gorm:"type:text" json:"summary"`
+	Content         string               `gorm:"type:text" json:"content"`
+	Status          string               `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|ignored
+	MetadataJSON    string               `gorm:"type:text" json:"metadata_json"`
 }
 
 // SceneMoment is the core AI-generation context: when, where, under what

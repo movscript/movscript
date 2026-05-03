@@ -11,6 +11,7 @@ type UserQuota struct {
 type UsageLog struct {
 	gorm.Model
 	UserID             uint          `gorm:"not null" json:"user_id"`
+	OrgID              *uint         `gorm:"index" json:"org_id,omitempty"`
 	AIModelConfigID    uint          `gorm:"not null" json:"ai_model_config_id"`
 	UsageReservationID *uint         `gorm:"index" json:"usage_reservation_id,omitempty"`
 	GatewayAPIKeyID    *uint         `gorm:"index" json:"gateway_api_key_id,omitempty"`
@@ -28,6 +29,7 @@ type UsageLog struct {
 type UsageReservation struct {
 	gorm.Model
 	UserID          uint          `gorm:"not null;index" json:"user_id"`
+	OrgID           *uint         `gorm:"index" json:"org_id,omitempty"`
 	AIModelConfigID uint          `gorm:"not null;index" json:"ai_model_config_id"`
 	GatewayAPIKeyID *uint         `gorm:"index" json:"gateway_api_key_id,omitempty"`
 	ProjectID       *uint         `gorm:"index" json:"project_id,omitempty"`

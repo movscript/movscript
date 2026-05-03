@@ -2269,6 +2269,7 @@
       "admin": "管理后台",
       "adminDebug": "管理调试",
       "adminUiPreview": "UI 预览",
+      "orgSettings": "组织设置",
       "projectRequired": "需要先选择项目"
     },
     "roles": {
@@ -2283,6 +2284,60 @@
       "finalShots": "镜头终稿"
     },
     "logout": "退出登录"
+  },
+  "org": {
+    "selectTitle": "选择工作区",
+    "selectSubtitle": "请选择你要进入的工作区",
+    "createTitle": "创建工作区",
+    "createNew": "创建新工作区",
+    "createFailed": "创建工作区失败",
+    "updateFailed": "更新工作区失败",
+    "name": "工作区名称",
+    "namePlaceholder": "例如：我的团队",
+    "slug": "标识符",
+    "slugPlaceholder": "例如：my-team",
+    "slugHint": "只能包含小写字母、数字和连字符",
+    "switchOrg": "管理工作区",
+    "settingsTitle": "组织设置",
+    "saved": "已保存",
+    "role": "角色",
+    "roles": {
+      "owner": "所有者",
+      "admin": "管理员",
+      "member": "成员",
+      "viewer": "观察者"
+    },
+    "tabs": {
+      "members": "成员",
+      "invitations": "邀请",
+      "settings": "设置"
+    },
+    "membersCount": "{{count}} 位成员",
+    "addMember": "添加成员",
+    "addMemberFailed": "添加成员失败",
+    "removeMember": "移除成员",
+    "usernamePlaceholder": "输入用户名",
+    "invitationsCount": "{{count}} 个邀请",
+    "createInvite": "创建邀请",
+    "createInviteFailed": "创建邀请失败",
+    "noInvitations": "暂无邀请链接",
+    "inviteUsed": "已使用",
+    "copyInviteLink": "复制邀请链接",
+    "revokeInvite": "撤销邀请",
+    "inviteNote": "备注",
+    "inviteNotePlaceholder": "可选备注，例如：给设计师的邀请"
+  },
+  "invite": {
+    "title": "加入工作区",
+    "subtitleLoggedIn": "你已登录，点击下方按钮加入 {{org}}",
+    "subtitleRegister": "注册账号并加入 {{org}}",
+    "roleLabel": "邀请角色：{{role}}",
+    "joinButton": "加入 {{org}}",
+    "registerAndJoin": "注册并加入 {{org}}",
+    "acceptFailed": "接受邀请失败",
+    "invalidTitle": "邀请链接无效",
+    "invalidDescription": "该邀请链接已过期或已被使用",
+    "required": "不能为空"
   },
   "layout": {
     "emptyDetail": "从左侧列表选择一个项目"

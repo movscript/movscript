@@ -36,7 +36,7 @@ const FIELD_ALLOWLIST: Record<string, Set<string>> = {
   ]),
   setting: new Set(['type', 'name', 'alias', 'description', 'content', 'status', 'importance', 'tags', 'profile_json']),
   asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'resource_id', 'locked_asset_slot_id', 'status', 'metadata_json']),
-  segment: new Set(['title', 'kind', 'summary', 'content', 'source_range', 'status', 'metadata_json']),
+  segment: new Set(['title', 'kind', 'summary', 'content', 'production_id', 'text_block_id', 'status', 'metadata_json']),
   scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),
   storyboard_script: new Set(['name', 'description', 'is_primary', 'status', 'metadata_json']),
   storyboard_line: new Set(['title', 'kind', 'description', 'dialogue', 'visual_intent', 'duration_sec', 'status', 'metadata_json']),

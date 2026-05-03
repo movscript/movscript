@@ -20,6 +20,25 @@ type Production struct {
 	MetadataJSON      string           `gorm:"type:text" json:"metadata_json"`
 }
 
+// ProductionTextBlock is the source text grain inside a concrete production.
+// Segments can bind here without depending on legacy script/script version
+// records.
+type ProductionTextBlock struct {
+	gorm.Model
+	ProjectID     uint        `gorm:"not null;index" json:"project_id"`
+	ProductionID  uint        `gorm:"not null;index" json:"production_id"`
+	Production    *Production `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
+	ParentBlockID *uint       `gorm:"index" json:"parent_block_id,omitempty"`
+	Kind          string      `gorm:"not null;default:'section';index" json:"kind"` // section|scene|beat|dialogue|narration|note
+	Order         int         `gorm:"not null;default:0;index" json:"order"`
+	Title         string      `json:"title"`
+	Content       string      `gorm:"type:text" json:"content"`
+	Summary       string      `gorm:"type:text" json:"summary"`
+	SourceType    string      `gorm:"not null;default:'manual';index" json:"source_type"` // manual|script|brief|ai|import
+	Status        string      `gorm:"not null;default:'draft';index" json:"status"`       // draft|active|archived
+	MetadataJSON  string      `gorm:"type:text" json:"metadata_json"`
+}
+
 // AssetSlot is the semantic material unit. It can represent a missing production
 // need, a candidate result, or the locked material used downstream.
 type AssetSlot struct {
