@@ -23,6 +23,7 @@ func NewAnthropicAdapter(apiKey, baseURL string) *AnthropicAdapter {
 }
 
 func (a *AnthropicAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
+	attachTextPromptDebug(ctx, req)
 	var system string
 	msgs := make([]anthropic.MessageParam, 0, len(req.Messages))
 	for _, m := range req.Messages {

@@ -10,6 +10,7 @@ import (
 const (
 	maxDebugBodyChars       = 64 * 1024
 	maxDebugStringChars     = 8 * 1024
+	maxDebugPromptChars     = 64 * 1024
 	minLikelyBase64Chars    = 256
 	redactedBase64Preview   = "[base64 redacted, %d chars]"
 	redactedDataURLTemplate = "data:%s;base64,[redacted, %d chars]"
@@ -112,4 +113,22 @@ func truncateDebugString(s string, limit int) string {
 	buf.WriteString(s[:limit])
 	buf.WriteString(fmt.Sprintf("...[truncated, %d chars total]", len(s)))
 	return buf.String()
+}
+
+func sanitizeDebugPrompt(prompt string) string {
+	return truncateDebugString(prompt, maxDebugPromptChars)
+}
+
+func sanitizeDebugPromptMessages(messages []DebugPromptMessage) []DebugPromptMessage {
+	if len(messages) == 0 {
+		return nil
+	}
+	out := make([]DebugPromptMessage, 0, len(messages))
+	for _, message := range messages {
+		out = append(out, DebugPromptMessage{
+			Role:    truncateDebugString(message.Role, 64),
+			Content: sanitizeDebugPrompt(message.Content),
+		})
+	}
+	return out
 }

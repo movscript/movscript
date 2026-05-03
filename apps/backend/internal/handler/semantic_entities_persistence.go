@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
@@ -47,26 +46,6 @@ func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error)
 	}
 }
 
-func (h *SemanticEntityHandler) createItem(c *gin.Context, item any) {
-	if err := h.semantic.CreateItem(c.Request.Context(), item); err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return
-	}
-	c.JSON(http.StatusCreated, item)
-}
-
-func (h *SemanticEntityHandler) patchItem(c *gin.Context, item any, updates map[string]any) {
-	if err := h.semantic.PatchItem(c.Request.Context(), item, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return
-	}
-	if err := h.semantic.ReloadItem(c.Request.Context(), item); err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return
-	}
-	c.JSON(http.StatusOK, item)
-}
-
 func (h *SemanticEntityHandler) loadProjectItem(c *gin.Context, item any, id string) bool {
 	projectID := parseID(c.Param("id"))
 	if err := h.semantic.LoadProjectItem(c.Request.Context(), projectID, item, id); err != nil {
@@ -78,36 +57,6 @@ func (h *SemanticEntityHandler) loadProjectItem(c *gin.Context, item any, id str
 		return false
 	}
 	return true
-}
-
-func (h *SemanticEntityHandler) ownerInProject(c *gin.Context, ownerType string, ownerID uint) bool {
-	if ownerID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner id is required"))
-		return false
-	}
-	if err := h.ensureSemanticOwnerInProject(parseID(c.Param("id")), ownerType, ownerID); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("关联对象不存在"))
-			return false
-		}
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("关联对象不属于当前项目"))
-		return false
-	}
-	return true
-}
-
-func (h *SemanticEntityHandler) optionalOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
-	if ownerID == nil {
-		return true
-	}
-	return h.ownerInProject(c, ownerType, *ownerID)
-}
-
-func (h *SemanticEntityHandler) optionalScopedOwnerInProject(c *gin.Context, ownerType string, ownerID *uint) bool {
-	if strings.TrimSpace(ownerType) == "" || ownerID == nil {
-		return true
-	}
-	return h.ownerInProject(c, ownerType, *ownerID)
 }
 
 func (h *SemanticEntityHandler) projectRole(c *gin.Context, projectID uint) (string, uint, bool) {
@@ -155,45 +104,6 @@ func (h *SemanticEntityHandler) projectRole(c *gin.Context, projectID uint) (str
 		return "", 0, false
 	}
 	return member.Role, user.ID, true
-}
-
-func (h *SemanticEntityHandler) userInProject(c *gin.Context, projectID, userID uint) bool {
-	if userID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("user id is required"))
-		return false
-	}
-	var count int64
-	h.db.Model(&model.Project{}).Where("id = ? AND owner_id = ?", projectID, userID).Count(&count)
-	if count > 0 {
-		return true
-	}
-	h.db.Model(&model.ProjectMember{}).Where("project_id = ? AND user_id = ?", projectID, userID).Count(&count)
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("执行成员不属于当前项目"))
-		return false
-	}
-	return true
-}
-
-func (h *SemanticEntityHandler) jobInProject(c *gin.Context, projectID, jobID uint) bool {
-	if jobID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("source job id is required"))
-		return false
-	}
-	var job model.Job
-	if err := h.db.Select("id, project_id").First(&job, jobID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("关联任务不存在"))
-			return false
-		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return false
-	}
-	if job.ProjectID == nil || *job.ProjectID != projectID {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("关联任务不属于当前项目"))
-		return false
-	}
-	return true
 }
 
 func currentUserID(c *gin.Context) *uint {

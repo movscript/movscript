@@ -242,12 +242,12 @@ function projectEndpoint(projectId: number, kind: string): string {
 function listTools(): MCPTool[] {
   return [
     {
-      name: 'movscript.get_context_pack',
+      name: 'movscript_get_context_pack',
       description: 'Return the current route, project, user, selection, and available resources.',
       inputSchema: objectSchema({}),
     },
     {
-      name: 'movscript.read_entity',
+      name: 'movscript_read_entity',
       description: 'Read one project entity by type and id from MovScript backend APIs.',
       inputSchema: objectSchema(
         {
@@ -259,7 +259,7 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.search_entities',
+      name: 'movscript_search_entities',
       description: 'Search project entities by keyword across first-version read scopes.',
       inputSchema: objectSchema(
         {
@@ -272,7 +272,7 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.read_project_structure',
+      name: 'movscript_read_project_structure',
       description: 'Read compact project structure across scripts, settings, episodes, scenes, storyboards, and shots.',
       inputSchema: objectSchema(
         {
@@ -282,7 +282,7 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.create_draft',
+      name: 'movscript_create_draft',
       description: 'Create a local draft artifact. This does not write to MovScript project entities.',
       inputSchema: objectSchema(
         {
@@ -296,12 +296,12 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.list_drafts',
+      name: 'movscript_list_drafts',
       description: 'List local draft artifacts for the current or specified project.',
       inputSchema: objectSchema({ projectId: { type: 'number' } }),
     },
     {
-      name: 'movscript.open_entity',
+      name: 'movscript_open_entity',
       description: 'Ask the MovScript UI to open a page for an entity type. This is navigation only.',
       inputSchema: objectSchema(
         {
@@ -312,7 +312,18 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.read_production_context',
+      name: 'movscript_list_productions',
+      description: 'List productions for the current or specified project.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          status: { type: 'string' },
+          limit: { type: 'number' },
+        }
+      ),
+    },
+    {
+      name: 'movscript_read_production_context',
       description: 'Read the full production orchestration context: existing segments, scene moments, creative references (project-level), asset slots (project-level), and content units for a given production. Use this as the first step before generating any candidates.',
       inputSchema: objectSchema(
         {
@@ -324,12 +335,13 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.check_entity_conflicts',
-      description: 'Given a list of proposed production entities, check each one against existing entities and return conflict status: "none" (safe to create), "duplicate" (very similar entity exists), or "supersedes" (new version replaces old). Always call this before propose_production_entities.',
+      name: 'movscript_check_entity_conflicts',
+      description: 'Given a list of proposed production entities, check each one against existing entities and return conflict status: "none" (safe to create), "duplicate" (very similar entity exists), or "supersedes" (new version replaces old). For creative_references, pass scope="project" to check across all productions and get reuse_candidates. Always call this before propose_production_entities.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
           productionId: { type: 'number' },
+          scope: { type: 'string', enum: ['production', 'project'], description: 'Conflict check scope. Use "project" to find reusable CreativeReferences across all productions.' },
           candidates: {
             type: 'object',
             description: 'Object with keys: segments, scene_moments, creative_references, asset_slots, content_units — each an array of candidate objects with client_id and identifying fields.',
@@ -339,20 +351,24 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript.propose_production_entities',
-      description: 'Write the final analysis result — all five entity types with their relationships and conflict statuses — into a draft so the frontend can display them for user review. Call this as the last step after check_entity_conflicts.',
+      name: 'movscript_propose_production_entities',
+      description: 'Write the final analysis result as a tree-form production_proposal draft so the frontend can display it for user review. Supports action: "create" (new entity), "reuse" (reference existing by id), "update" (modify existing by id). Automatically supersedes previous draft proposals for the same production. Call this as the last step after check_entity_conflicts.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
           productionId: { type: 'number' },
           analysisScope: { type: 'string' },
+          proposal: {
+            type: 'object',
+            description: 'Tree-form proposal with keys: segments (array), each segment has scene_moments (array), each scene_moment has content_units and creative_references. Each node has action: "create"|"reuse"|"update" and optionally id for reuse/update.',
+          },
           candidates: {
             type: 'object',
-            description: 'Object with keys: segments, scene_moments, creative_references, asset_slots, content_units — each an array with conflict_status field added.',
+            description: 'Legacy flat candidates format (segments, scene_moments, creative_references, asset_slots, content_units). Use proposal instead for tree-form.',
           },
           summary: { type: 'string' },
         },
-        ['projectId', 'productionId', 'candidates']
+        ['projectId', 'productionId']
       ),
     },
   ]
@@ -372,29 +388,31 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'movscript.get_context_pack':
+    case 'movscript_get_context_pack':
       return toolText({
         snapshot: contextSnapshot,
         resources: listResources(),
         draftCount: drafts.size,
       })
-    case 'movscript.read_entity':
+    case 'movscript_read_entity':
       return toolText(await readEntity(args))
-    case 'movscript.search_entities':
+    case 'movscript_search_entities':
       return toolText(await searchEntities(args))
-    case 'movscript.read_project_structure':
+    case 'movscript_read_project_structure':
       return toolText(await readProjectStructure(args))
-    case 'movscript.create_draft':
+    case 'movscript_list_productions':
+      return toolText(await listProductions(args))
+    case 'movscript_create_draft':
       return toolText(createDraft(args))
-    case 'movscript.list_drafts':
+    case 'movscript_list_drafts':
       return toolText(listDrafts(args))
-    case 'movscript.open_entity':
+    case 'movscript_open_entity':
       return toolText(openEntity(args))
-    case 'movscript.read_production_context':
+    case 'movscript_read_production_context':
       return toolText(await readProductionContext(args))
-    case 'movscript.check_entity_conflicts':
+    case 'movscript_check_entity_conflicts':
       return toolText(await checkEntityConflicts(args))
-    case 'movscript.propose_production_entities':
+    case 'movscript_propose_production_entities':
       return toolText(proposeProductionEntities(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
@@ -439,6 +457,24 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
       shots: shots.filter((shot) => Number(shot?.storyboard_id) === Number(storyboard?.ID ?? storyboard?.id)).length,
     })),
     shots: shots.slice(0, limit).map(summarizeEntity),
+  }
+}
+
+async function listProductions(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
+  const status = typeof args.status === 'string' ? args.status.trim() : ''
+  const limit = getOptionalNumber(args, 'limit') ?? 50
+  if (!projectId) throw new Error('projectId is required when no current project is selected')
+
+  let productions = await backendList(`/projects/${projectId}/entities/productions`)
+  if (status) {
+    productions = productions.filter((production: any) => String(production?.status ?? '') === status)
+  }
+
+  return {
+    projectId,
+    count: productions.length,
+    productions: productions.slice(0, limit).map(summarizeProductionEntity),
   }
 }
 
@@ -509,6 +545,7 @@ function createDraft(args: Record<string, unknown>): MCPDraft {
     id: `draft_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     projectId,
     kind,
+    status: 'draft',
     title,
     content,
     source: isRecord(args.source) ? {
@@ -601,6 +638,7 @@ async function readProductionContext(args: Record<string, unknown>): Promise<unk
 async function checkEntityConflicts(args: Record<string, unknown>): Promise<unknown> {
   const projectId = getRequiredNumber(args, 'projectId')
   const productionId = getRequiredNumber(args, 'productionId')
+  const scope = typeof args.scope === 'string' && args.scope === 'project' ? 'project' : 'production'
   const candidates = isRecord(args.candidates) ? args.candidates : {}
 
   const [segments, sceneMoments, creativeReferences, assetSlots, contentUnits] = await Promise.all([
@@ -681,16 +719,57 @@ async function checkEntityConflicts(args: Record<string, unknown>): Promise<unkn
     exactNameMatch,
     nameSimilarity,
   )
-  const checkedCreativeReferences = checkConflict(
-    getArray(candidates.creative_references),
-    creativeReferences,
-    (a, b) => exactNameMatch(a, b) && (a.type ?? a.kind) === (b.kind ?? b.type),
-    (a, b) => {
-      const nameSim = nameSimilarity(a, b)
-      const kindMatch = (a.type ?? a.kind) === (b.kind ?? b.type) ? 0.2 : 0
-      return Math.min(1, nameSim + kindMatch)
-    },
-  )
+
+  // For creative_references: project scope checks all existing refs (project-level entities have no production_id)
+  // Returns reuse_candidates for items that already exist at project level
+  const creativeRefCandidates = getArray(candidates.creative_references)
+  const checkedCreativeReferences = creativeRefCandidates.map((candidate) => {
+    const exactMatch = creativeReferences.find(
+      (e: any) => exactNameMatch(candidate, e) && (candidate.type ?? candidate.kind) === (e.kind ?? e.type),
+    )
+    if (exactMatch) {
+      return {
+        ...candidate,
+        conflict_status: 'duplicate',
+        conflict_entity_id: Number(exactMatch.ID ?? exactMatch.id),
+        conflict_entity_name: exactMatch.name ?? exactMatch.title ?? '',
+        conflict_similarity: 1.0,
+        ...(scope === 'project' ? { reuse_action: 'reuse', reuse_source: 'project' } : {}),
+      }
+    }
+    const similar = creativeReferences
+      .map((e: any) => ({
+        entity: e,
+        score: Math.min(1, nameSimilarity(candidate, e) + ((candidate.type ?? candidate.kind) === (e.kind ?? e.type) ? 0.2 : 0)),
+      }))
+      .filter((r: any) => r.score >= 0.7)
+      .sort((a: any, b: any) => b.score - a.score)[0]
+    if (similar) {
+      return {
+        ...candidate,
+        conflict_status: 'duplicate',
+        conflict_entity_id: Number(similar.entity.ID ?? similar.entity.id),
+        conflict_entity_name: similar.entity.name ?? similar.entity.title ?? '',
+        conflict_similarity: similar.score,
+        ...(scope === 'project' ? { reuse_action: 'reuse', reuse_source: 'project' } : {}),
+      }
+    }
+    return { ...candidate, conflict_status: 'none' }
+  })
+
+  // reuse_candidates: project-level CreativeReferences that match proposed ones
+  const reuseCandidates = scope === 'project'
+    ? checkedCreativeReferences
+        .filter((c: any) => c.conflict_status === 'duplicate')
+        .map((c: any) => ({
+          proposed_client_id: c.client_id,
+          existing_id: c.conflict_entity_id,
+          existing_name: c.conflict_entity_name,
+          similarity: c.conflict_similarity,
+          source: 'project',
+        }))
+    : []
+
   const checkedAssetSlots = checkConflict(
     getArray(candidates.asset_slots),
     assetSlots,
@@ -707,14 +786,16 @@ async function checkEntityConflicts(args: Record<string, unknown>): Promise<unkn
   const conflictCounts = {
     segments: checkedSegments.filter((c) => c.conflict_status !== 'none').length,
     scene_moments: checkedSceneMoments.filter((c) => c.conflict_status !== 'none').length,
-    creative_references: checkedCreativeReferences.filter((c) => c.conflict_status !== 'none').length,
+    creative_references: checkedCreativeReferences.filter((c: any) => c.conflict_status !== 'none').length,
     asset_slots: checkedAssetSlots.filter((c) => c.conflict_status !== 'none').length,
     content_units: checkedContentUnits.filter((c) => c.conflict_status !== 'none').length,
   }
 
   return {
+    scope,
     conflict_counts: conflictCounts,
     total_conflicts: Object.values(conflictCounts).reduce((sum, n) => sum + n, 0),
+    ...(scope === 'project' && reuseCandidates.length > 0 ? { reuse_candidates: reuseCandidates } : {}),
     candidates: {
       segments: checkedSegments,
       scene_moments: checkedSceneMoments,
@@ -728,9 +809,25 @@ async function checkEntityConflicts(args: Record<string, unknown>): Promise<unkn
 function proposeProductionEntities(args: Record<string, unknown>): unknown {
   const projectId = getRequiredNumber(args, 'projectId')
   const productionId = getRequiredNumber(args, 'productionId')
-  const candidates = isRecord(args.candidates) ? args.candidates : {}
   const analysisScope = typeof args.analysisScope === 'string' ? args.analysisScope : 'production'
   const summary = typeof args.summary === 'string' ? args.summary : ''
+  const proposal = isRecord(args.proposal) ? args.proposal : null
+  const candidates = isRecord(args.candidates) ? args.candidates : {}
+
+  // Supersede existing draft proposals for the same production
+  const supersededIds: string[] = []
+  for (const [id, draft] of drafts.entries()) {
+    if (
+      draft.projectId === projectId &&
+      draft.kind === 'production_proposal' &&
+      draft.status === 'draft' &&
+      isRecord(draft.source) &&
+      Number(draft.source.entityId) === productionId
+    ) {
+      drafts.set(id, { ...draft, status: 'superseded', updatedAt: new Date().toISOString() })
+      supersededIds.push(id)
+    }
+  }
 
   const now = new Date().toISOString()
   const draftId = `prod_proposal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -738,13 +835,14 @@ function proposeProductionEntities(args: Record<string, unknown>): unknown {
   const draft: MCPDraft = {
     id: draftId,
     projectId,
-    kind: 'pipeline',
-    title: `制作编排候选 — ${analysisScope}`,
+    kind: 'production_proposal',
+    status: 'draft',
+    title: `制作编排提案 — ${analysisScope}`,
     content: JSON.stringify({
       productionId,
       analysisScope,
       summary,
-      candidates,
+      ...(proposal ? { proposal } : { candidates }),
       proposedAt: now,
     }),
     source: { entityType: 'production', entityId: productionId },
@@ -754,27 +852,38 @@ function proposeProductionEntities(args: Record<string, unknown>): unknown {
 
   drafts.set(draftId, draft)
 
-  const counts = {
-    segments: getArray(candidates.segments).length,
-    scene_moments: getArray(candidates.scene_moments).length,
-    creative_references: getArray(candidates.creative_references).length,
-    asset_slots: getArray(candidates.asset_slots).length,
-    content_units: getArray(candidates.content_units).length,
-  }
-  const conflictCounts = {
-    segments: getArray(candidates.segments).filter((c: any) => c.conflict_status === 'duplicate').length,
-    scene_moments: getArray(candidates.scene_moments).filter((c: any) => c.conflict_status === 'duplicate').length,
-    creative_references: getArray(candidates.creative_references).filter((c: any) => c.conflict_status === 'duplicate').length,
-    asset_slots: getArray(candidates.asset_slots).filter((c: any) => c.conflict_status === 'duplicate').length,
-    content_units: getArray(candidates.content_units).filter((c: any) => c.conflict_status === 'duplicate').length,
+  // Count proposed entities
+  let counts: Record<string, number>
+  if (proposal) {
+    const segments = getArray(proposal.segments)
+    const sceneMoments = segments.flatMap((s: any) => getArray(s.scene_moments))
+    const contentUnits = sceneMoments.flatMap((sm: any) => getArray(sm.content_units))
+    const creativeRefs = sceneMoments.flatMap((sm: any) => getArray(sm.creative_references))
+    const assetSlots = sceneMoments.flatMap((sm: any) => getArray(sm.asset_slots))
+    counts = {
+      segments: segments.length,
+      scene_moments: sceneMoments.length,
+      content_units: contentUnits.length,
+      creative_references: creativeRefs.length,
+      asset_slots: assetSlots.length,
+    }
+  } else {
+    counts = {
+      segments: getArray(candidates.segments).length,
+      scene_moments: getArray(candidates.scene_moments).length,
+      creative_references: getArray(candidates.creative_references).length,
+      asset_slots: getArray(candidates.asset_slots).length,
+      content_units: getArray(candidates.content_units).length,
+    }
   }
 
+  const total = Object.values(counts).reduce((s, n) => s + n, 0)
   return {
     draftId,
     status: 'proposed',
     counts,
-    conflict_counts: conflictCounts,
-    message: `已写入 ${Object.values(counts).reduce((s, n) => s + n, 0)} 个候选（其中 ${Object.values(conflictCounts).reduce((s, n) => s + n, 0)} 个有冲突需用户决策）`,
+    supersededDraftIds: supersededIds,
+    message: `已写入 ${total} 个候选实体${supersededIds.length > 0 ? `，已替换 ${supersededIds.length} 个旧提案` : ''}`,
   }
 }
 

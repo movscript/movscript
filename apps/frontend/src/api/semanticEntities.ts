@@ -142,6 +142,33 @@ export async function deleteSemanticEntity(projectId: number, config: SemanticEn
   await api.delete(`${semanticEntityPath(projectId, config)}/${id}`)
 }
 
+export interface ApplyProductionProposalResponse {
+  production_id: number
+  counts: {
+    segments_created: number
+    scene_moments_created: number
+    content_units_created: number
+    asset_slots_created: number
+    creative_references_created: number
+    creative_reference_usages: number
+  }
+  segments: SemanticEntityRecord[]
+  scene_moments: SemanticEntityRecord[]
+  content_units: SemanticEntityRecord[]
+  asset_slots: SemanticEntityRecord[]
+}
+
+export async function applyProductionProposal(
+  projectId: number,
+  payload: Record<string, unknown>,
+): Promise<ApplyProductionProposalResponse> {
+  const { data } = await api.post<ApplyProductionProposalResponse>(
+    `/projects/${projectId}/entities/production-proposals/apply`,
+    payload,
+  )
+  return data
+}
+
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
     cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是片段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [

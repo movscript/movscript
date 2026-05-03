@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
+	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/canvasservice"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/storage"
@@ -298,7 +299,7 @@ func (h *CanvasHandler) Patch(c *gin.Context) {
 		cv.Description = strings.TrimSpace(*req.Description)
 	}
 	if req.Tags != nil && cv.CanvasType == "workflow" {
-		tagsRaw, _ := json.Marshal(cleanWorkflowTags(req.Tags))
+		tagsRaw, _ := json.Marshal(workflowmarket.CleanTags(req.Tags))
 		cv.WorkflowTags = string(tagsRaw)
 	}
 	if err := h.db.Save(&cv).Error; err != nil {

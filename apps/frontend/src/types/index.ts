@@ -451,6 +451,11 @@ export interface DebugHTTPExchange {
   method: string
   request_headers?: Record<string, string>
   request_body: string
+  prompt_name?: string
+  system_prompt?: string
+  user_prompt?: string
+  compiled_prompt?: string
+  prompt_messages?: Array<{ role: string; content: string }>
   response_status: number
   response_body: string
   latency_ms: number

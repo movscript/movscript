@@ -1,131 +1,144 @@
 {
   "tools": [
     {
-      "name": "movscript.get_context_pack",
+      "name": "movscript_get_context_pack",
       "description": "Return current MovScript UI route, selected project, current user, selected entity, available project resources, and local draft count. Use this before project-specific work.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.get_context_pack",
+        "name": "movscript_get_context_pack",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.search_entities",
+      "name": "movscript_search_entities",
       "description": "Search scripts, settings, semantic production entities, and asset slots in the current or specified project. Use when the user names content without an exact entity ID.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.search_entities",
+        "name": "movscript_search_entities",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.read_entity",
+      "name": "movscript_read_entity",
       "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, setting, asset_slot, segment, scene_moment, storyboard_script, storyboard_line, content_unit, keyframe, preview_timeline, and delivery_version.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.read_entity",
+        "name": "movscript_read_entity",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.read_project_structure",
+      "name": "movscript_read_project_structure",
       "description": "Read compact project structure across scripts, settings, semantic production entities, asset slots, and pipeline nodes.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.read_project_structure",
+        "name": "movscript_read_project_structure",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.create_draft",
-      "description": "Create a local draft artifact for proposed scripts, settings, storyboard scripts or lines, content units, prompts, asset slots, or notes. This does not write formal project entities.",
+      "name": "movscript_create_draft",
+      "description": "Create a local draft artifact for proposed scripts, settings, storyboard scripts or lines, content units, prompts, asset slots, segments, scene moments, or notes. This does not write formal project entities.",
       "permission": "draft.write",
       "risk": "draft",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.create_draft",
+        "name": "movscript_create_draft",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.list_drafts",
+      "name": "movscript_list_drafts",
       "description": "List local draft artifacts for the current or specified project. Use to review previous agent proposals.",
       "permission": "draft.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.list_drafts",
+        "name": "movscript_list_drafts",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.open_entity",
+      "name": "movscript_open_entity",
       "description": "Navigate the MovScript UI to an entity page such as scripts, asset slots, scene moments, content units, productions, or pipeline. Navigation only; no project data is changed.",
       "permission": "ui.navigate",
       "risk": "ui",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.open_entity",
+        "name": "movscript_open_entity",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.read_production_context",
+      "name": "movscript_list_productions",
+      "description": "List productions in the current or specified project. Use this before production orchestration when the active production is missing or ambiguous.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_productions",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_read_production_context",
       "description": "Read full production orchestration context before generating production candidates.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.read_production_context",
+        "name": "movscript_read_production_context",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.check_entity_conflicts",
-      "description": "Check proposed production candidates against existing entities before writing a proposal draft.",
+      "name": "movscript_check_entity_conflicts",
+      "description": "Check proposed production candidates against existing entities before writing a proposal draft. Pass scope='project' to check CreativeReferences across all productions and get reuse_candidates.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.check_entity_conflicts",
+        "name": "movscript_check_entity_conflicts",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript.propose_production_entities",
-      "description": "Write production analysis candidates into a reviewable draft proposal.",
+      "name": "movscript_propose_production_entities",
+      "description": "Write production analysis candidates into a reviewable draft proposal. Supports tree-form proposal (action: create|reuse|update) and automatically supersedes previous draft proposals for the same production.",
       "permission": "draft.write",
       "risk": "draft",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript.propose_production_entities",
+        "name": "movscript_propose_production_entities",
         "mode": "allow",
         "approval": "never"
       }

@@ -14,11 +14,11 @@ test('assistant message surfaces missing project warning', () => {
 test('assistant message describes successful and failed tool outcomes', () => {
   const content = buildAssistantContent('搜索并写草稿', [
     {
-      call: { name: 'movscript.search_entities', args: { query: '主角' } },
+      call: { name: 'movscript_search_entities', args: { query: '主角' } },
       result: toolText({ results: [{ id: 1 }, { id: 2 }] }),
     },
     {
-      call: { name: 'movscript.create_draft', args: { kind: 'note' } },
+      call: { name: 'movscript_create_draft', args: { kind: 'note' } },
       error: 'create failed',
     },
   ])
@@ -30,7 +30,7 @@ test('assistant message describes successful and failed tool outcomes', () => {
 test('assistant message returns JSON for production plan commands from run steps', () => {
   const content = buildAssistantContent('/production_plan 第一场', [
     {
-      call: { name: 'movscript.read_project_structure', args: { limit: 50 } },
+      call: { name: 'movscript_read_project_structure', args: { limit: 50 } },
       result: toolText({ counts: { scripts: 1 } }),
     },
   ], [], [], makeRun())
@@ -39,7 +39,7 @@ test('assistant message returns JSON for production plan commands from run steps
   assert.equal(parsed.command, '/production_plan')
   assert.equal(parsed.runId, 'run_test')
   assert.equal(parsed.strategy, 'agentic_loop')
-  assert.equal(parsed.steps[0].toolName, 'movscript.read_project_structure')
+  assert.equal(parsed.steps[0].toolName, 'movscript_read_project_structure')
 })
 
 test('assistant message returns JSON for inspect context commands', () => {
@@ -56,20 +56,20 @@ test('assistant message extracts tool calls from model JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'movscript.read_production_context',
+        name: 'movscript_read_production_context',
         parameters: { production_id: 4, project_id: 1 },
       },
     ],
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript.read_production_context')
+  assert.equal(toolCalls[0].name, 'movscript_read_production_context')
   assert.equal(toolCalls[0].args?.production_id, 4)
 })
 
 test('assistant message extracts a single tool call returned as JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
-    name: 'movscript.propose_production_entities',
+    name: 'movscript_propose_production_entities',
     args: {
       projectId: 1,
       productionId: 4,
@@ -80,7 +80,7 @@ test('assistant message extracts a single tool call returned as JSON content', (
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript.propose_production_entities')
+  assert.equal(toolCalls[0].name, 'movscript_propose_production_entities')
   assert.equal(toolCalls[0].args?.projectId, 1)
   assert.equal(toolCalls[0].args?.productionId, 4)
 })
@@ -88,7 +88,7 @@ test('assistant message extracts a single tool call returned as JSON content', (
 test('assistant message extracts model-emitted single tool_call wrapper', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_call: {
-      tool_name: 'movscript.check_entity_conflicts',
+      tool_name: 'movscript_check_entity_conflicts',
       parameters: {
         project_id: 1,
         production_id: 4,
@@ -100,7 +100,7 @@ test('assistant message extracts model-emitted single tool_call wrapper', () => 
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript.check_entity_conflicts')
+  assert.equal(toolCalls[0].name, 'movscript_check_entity_conflicts')
   assert.equal(toolCalls[0].args?.projectId, 1)
   assert.equal(toolCalls[0].args?.productionId, 4)
   assert.deepEqual((toolCalls[0].args?.candidates as any)?.scene_moments, [{ client_id: 'sm_001', segment_id: 39 }])
@@ -148,7 +148,7 @@ function makeRun(): AgentRun {
         runId: 'run_test',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'movscript.read_project_structure',
+        toolName: 'movscript_read_project_structure',
         args: { limit: 50 },
         createdAt: '2026-05-03T00:00:00.000Z',
         completedAt: '2026-05-03T00:00:00.000Z',

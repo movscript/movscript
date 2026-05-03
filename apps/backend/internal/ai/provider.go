@@ -14,6 +14,8 @@ type TextRequest struct {
 	Temperature float32 // -1 = don't set (use model default); 0 = deterministic
 	IsReasoning bool    // true = reasoning model path (system merged into user upstream)
 	JSONMode    bool    // true = request structured JSON output format
+	// PromptName identifies the compiled prompt in debug output.
+	PromptName string
 	// ExtraParams holds provider-specific extra fields to merge into the request body.
 	// Used for grok2api/grop2api extensions: reasoning_effort, deepsearch, etc.
 	// Keys here take precedence over any auto-derived fields with the same name.
@@ -187,6 +189,11 @@ type DebugHTTPExchange struct {
 	Method         string            `json:"method"`
 	RequestHeaders map[string]string `json:"request_headers,omitempty"`
 	RequestBody    string            `json:"request_body"`
+	PromptName     string            `json:"prompt_name,omitempty"`
+	SystemPrompt   string            `json:"system_prompt,omitempty"`
+	UserPrompt     string            `json:"user_prompt,omitempty"`
+	CompiledPrompt string            `json:"compiled_prompt,omitempty"`
+	PromptMessages []DebugPromptMessage `json:"prompt_messages,omitempty"`
 	ResponseStatus int               `json:"response_status"`
 	ResponseBody   string            `json:"response_body"`
 	LatencyMs      int64             `json:"latency_ms"`
@@ -241,8 +248,18 @@ type DebugCallResult struct {
 	Method         string            `json:"method"`
 	RequestHeaders map[string]string `json:"request_headers,omitempty"`
 	RequestBody    string            `json:"request_body"`
+	PromptName     string            `json:"prompt_name,omitempty"`
+	SystemPrompt   string            `json:"system_prompt,omitempty"`
+	UserPrompt     string            `json:"user_prompt,omitempty"`
+	CompiledPrompt string            `json:"compiled_prompt,omitempty"`
+	PromptMessages []DebugPromptMessage `json:"prompt_messages,omitempty"`
 	ResponseStatus int               `json:"response_status"`
 	ResponseBody   string            `json:"response_body"`
 	LatencyMs      int64             `json:"latency_ms"`
 	Error          string            `json:"error,omitempty"`
+}
+
+type DebugPromptMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }

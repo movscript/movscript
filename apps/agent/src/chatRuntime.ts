@@ -65,7 +65,7 @@ export class ChatRuntime {
   private async readContextSafely(): Promise<JSONValue | undefined> {
     try {
       await this.mcpClient.initialize()
-      return await this.mcpClient.callTool('movscript.get_context_pack')
+      return await this.mcpClient.callTool('movscript_get_context_pack')
     } catch {
       return undefined
     }

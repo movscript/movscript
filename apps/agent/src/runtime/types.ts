@@ -1,9 +1,11 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue, MCPResource, MCPTool } from '../types.js'
-import type { AgentManifest, AgentSkillManifest } from './agentManifest.js'
-import type { RegisteredTool, ToolRiskLevel } from './toolRegistry.js'
-import type { AgentDraftStore } from './draftStore.js'
-import type { BackendApplyClient } from './backendApplyClient.js'
+import type { AgentManifest, AgentSkillManifest } from './manifest/agentManifest.js'
+import type { RegisteredTool, ToolRiskLevel } from './tools/toolRegistry.js'
+import type { AgentDraftStore } from './store/draftStore.js'
+import type { BackendApplyClient } from './store/backendApplyClient.js'
+
+export type { JSONValue, MCPResource, MCPTool } from '../types.js'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
@@ -169,6 +171,7 @@ export interface AgentDebugContextPanel {
     status?: string
     description?: string
   }
+  productionId?: number
   user?: {
     id: number
     username: string
@@ -230,6 +233,7 @@ export interface AgentClientUISnapshot {
     status?: string
     description?: string
   }
+  productionId?: number
   selection?: {
     entityType?: string
     entityId?: number | string
@@ -345,13 +349,13 @@ export interface AgentCapabilitiesResponse {
 
 export interface AgentRuntimeOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
-  store?: import('./store.js').AgentStore
+  store?: import('./store/store.js').AgentStore
   draftStore?: AgentDraftStore
   backendApplyClient?: BackendApplyClient
   memoryStore?: import('./memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
   skillCatalog?: AgentSkillManifest[]
-  toolRegistry?: import('./toolRegistry.js').ToolRegistry
+  toolRegistry?: import('./tools/toolRegistry.js').ToolRegistry
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
 }
@@ -418,6 +422,7 @@ export interface UpdateThreadInput {
 }
 
 export interface ToolCall {
+  id?: string
   name: string
   args?: Record<string, JSONValue>
 }

@@ -230,3 +230,50 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.Job, resp 
 	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
 	return nil
 }
+
+func (w *Worker) completeProviderResult(ctx context.Context, job *model.Job, result providerResult, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+	sm.enter(StateValidatingProviderData, "validate provider result URL")
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
+	result.URL = strings.TrimSpace(result.URL)
+	if err := validateProviderResultURL(result.URL); err != nil {
+		return err
+	}
+	sm.succeed("provider returned downloadable result")
+
+	sm.enter(StateSavingResult, "download and store provider result")
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
+	resourceID, err := w.saveResult(ctx, job, result.URL, result.MimeType)
+	if err != nil {
+		return fmt.Errorf("save result: %w", err)
+	}
+	sm.succeed(fmt.Sprintf("stored resource #%d", resourceID))
+
+	sm.enter(StatePersistingSuccess, "mark job succeeded")
+	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
+		return err
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status":             StatusSucceeded,
+		"output_resource_id": resourceID,
+		"finished_at":        &now,
+	}
+	if debugResult != nil {
+		if b, err := json.Marshal(debugResult); err == nil {
+			updates["debug_info"] = string(b)
+		}
+	}
+	dbResult := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
+	if dbResult.RowsAffected == 0 && w.isJobCancelled(job.ID) {
+		sm.cancel("job cancelled")
+		return errJobCancelled
+	}
+	sm.succeed("job marked succeeded")
+	sm.finish(StateSucceeded, fmt.Sprintf("resource #%d", resourceID))
+	log.Printf("[job] job #%d succeeded → resource #%d", job.ID, resourceID)
+	return nil
+}

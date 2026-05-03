@@ -1,17 +1,16 @@
 package handler
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/media"
+	appresource "github.com/movscript/movscript/internal/app/resource"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/storage"
@@ -19,12 +18,13 @@ import (
 )
 
 type ResourceHandler struct {
-	db    *gorm.DB
-	store storage.Storage
+	db      *gorm.DB
+	store   storage.Storage
+	service *appresource.Service
 }
 
 func NewResourceHandler(db *gorm.DB, store storage.Storage) *ResourceHandler {
-	return &ResourceHandler{db: db, store: store}
+	return &ResourceHandler{db: db, store: store, service: appresource.NewService(db, store)}
 }
 
 // List returns the current user's resources.
@@ -37,81 +37,24 @@ func (h *ResourceHandler) List(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-
-	if c.Query("shared") == "true" {
-		h.listShared(c, user)
+	resources, page, err := h.service.List(c.Request.Context(), appresource.ListInput{
+		UserID:   user.ID,
+		FolderID: c.Query("folder_id"),
+		Shared:   c.Query("shared") == "true",
+		Type:     c.Query("type"),
+		Query:    c.Query("q"),
+		Page:     parseInt(c.DefaultQuery("page", "0")),
+		PageSize: parseInt(c.DefaultQuery("page_size", "0")),
+	})
+	if err != nil {
+		h.writeResourceError(c, err)
 		return
 	}
-
-	q := h.db.Model(&model.RawResource{}).Where("owner_id = ?", user.ID)
-
-	switch c.Query("folder_id") {
-	case "", "all":
-		// no filter
-	case "root", "0":
-		q = q.Where("folder_id IS NULL")
-	default:
-		q = q.Where("folder_id = ?", c.Query("folder_id"))
-	}
-	q = applyResourceListFilters(q, c)
-
-	pageMode := c.Query("page") != "" || c.Query("page_size") != ""
-	if pageMode {
-		h.respondResourcePage(c, q.Preload("Owner"))
+	h.populateResourceURLs(c, resources)
+	if page != nil {
+		page.Items = resources
+		c.JSON(http.StatusOK, page)
 		return
-	}
-
-	resources := make([]model.RawResource, 0)
-	q.Order("created_at desc").Find(&resources)
-	for i := range resources {
-		resources[i].URL = resourceURL(c, resources[i].ID)
-		h.populateDirectURL(c, &resources[i])
-	}
-	c.JSON(http.StatusOK, resources)
-}
-
-// listShared returns resources visible to the user via folder permissions.
-// If folder_id is provided, verify the user has at least read permission for that folder
-// and return all files in it.
-// Otherwise return files individually marked as is_shared.
-func (h *ResourceHandler) listShared(c *gin.Context, user *model.User) {
-	folderID := c.Query("folder_id")
-
-	if folderID != "" {
-		var folder model.ResourceFolder
-		if err := h.db.First(&folder, folderID).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
-			return
-		}
-		if folder.OwnerID != user.ID && !folder.IsShared {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
-			return
-		}
-		q := applyResourceListFilters(h.db.Model(&model.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), c)
-		if c.Query("page") != "" || c.Query("page_size") != "" {
-			h.respondResourcePage(c, q)
-			return
-		}
-		resources := make([]model.RawResource, 0)
-		q.Order("created_at desc").Find(&resources)
-		for i := range resources {
-			resources[i].URL = resourceURL(c, resources[i].ID)
-			h.populateDirectURL(c, &resources[i])
-		}
-		c.JSON(http.StatusOK, resources)
-		return
-	}
-
-	q := applyResourceListFilters(h.db.Model(&model.RawResource{}).Where("owner_id != ? AND is_shared = true", user.ID).Preload("Owner"), c)
-	if c.Query("page") != "" || c.Query("page_size") != "" {
-		h.respondResourcePage(c, q)
-		return
-	}
-	resources := make([]model.RawResource, 0)
-	q.Order("created_at desc").Find(&resources)
-	for i := range resources {
-		resources[i].URL = resourceURL(c, resources[i].ID)
-		h.populateDirectURL(c, &resources[i])
 	}
 	c.JSON(http.StatusOK, resources)
 }
@@ -129,84 +72,25 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 		return
 	}
 	defer file.Close()
-
-	mimeType := header.Header.Get("Content-Type")
-	resType := mimeToType(mimeType, header.Filename)
-
-	var folderID *uint
-	if fidStr := c.PostForm("folder_id"); fidStr != "" && fidStr != "0" {
-		var folder model.ResourceFolder
-		if h.db.First(&folder, fidStr).Error == nil {
-			// If uploading into someone else's folder, require write permission.
-			if folder.OwnerID != user.ID {
-				if !folder.IsShared {
-					c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
-					return
-				}
-				var perm model.ResourceFolderPermission
-				if h.db.Where("folder_id = ? AND user_id = ? AND permission = ?", folder.ID, user.ID, "write").
-					First(&perm).Error != nil {
-					c.JSON(http.StatusForbidden, gin.H{"error": "需要写权限才能上传到此文件夹"})
-					return
-				}
-			}
-			fid := folder.ID
-			folderID = &fid
-		}
-	}
-
-	r := model.RawResource{
-		OwnerID:        user.ID,
-		FolderID:       folderID,
-		Type:           resType,
-		Name:           header.Filename,
-		MimeType:       mimeType,
-		Size:           header.Size,
-		FilePath:       "",
-		StorageBackend: h.store.Backend(),
-	}
-	if err := h.db.Create(&r).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	key := generateStorageKey(r.ID, header.Filename)
 	data, err := io.ReadAll(file)
 	if err != nil {
-		h.db.Delete(&r)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
 		return
 	}
-	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(c.Request.Context(), data, mimeType); err != nil {
-		fmt.Printf("[resource] video normalization skipped for %q: %v\n", header.Filename, err)
-	} else if changed {
-		data = normalized
-		mimeType = normalizedMime
-		r.Type = mimeToType(mimeType, header.Filename)
-		r.MimeType = mimeType
-		r.Name = media.MP4Name(r.Name)
-		r.Size = int64(len(data))
-	}
 
-	if err := h.store.Put(c.Request.Context(), key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
-		h.db.Delete(&r)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store file"})
+	r, err := h.service.Upload(c.Request.Context(), appresource.UploadInput{
+		UserID:   user.ID,
+		FolderID: c.PostForm("folder_id"),
+		Filename: header.Filename,
+		MimeType: header.Header.Get("Content-Type"),
+		Size:     header.Size,
+		Data:     data,
+	})
+	if err != nil {
+		h.writeResourceError(c, err)
 		return
 	}
-
-	h.db.Model(&r).Updates(map[string]any{
-		"file_path":       key,
-		"storage_key":     key,
-		"storage_backend": h.store.Backend(),
-		"type":            r.Type,
-		"name":            r.Name,
-		"mime_type":       r.MimeType,
-		"size":            r.Size,
-	})
-	r.StorageKey = key
-	r.StorageBackend = h.store.Backend()
-	r.URL = resourceURL(c, r.ID)
-	h.populateDirectURL(c, &r)
+	h.populateResourceURL(c, &r)
 	c.JSON(http.StatusCreated, r)
 }
 
@@ -216,32 +100,16 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var r model.RawResource
-	if err := h.db.First(&r, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	r, err := h.service.GetVisible(c.Request.Context(), parseID(c.Param("id")), user.ID)
+	if err != nil {
+		h.writeResourceError(c, err)
 		return
-	}
-	if r.OwnerID != user.ID {
-		allowed := r.IsShared
-		if !allowed && r.FolderID != nil {
-			// Allow read access if the file lives in a shared folder (is_shared=true).
-			var folder model.ResourceFolder
-			if h.db.First(&folder, *r.FolderID).Error == nil {
-				allowed = folder.IsShared
-			}
-		}
-		if !allowed {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
 	}
 	if r.StorageKey == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no storage key"})
 		return
 	}
 
-	// Parse optional Range header for video seeking support.
-	// Format: "bytes=start-end" or "bytes=start-"
 	rangeStart, rangeEnd := int64(-1), int64(-1)
 	if rh := c.GetHeader("Range"); rh != "" {
 		rangeStart, rangeEnd = parseRangeHeader(rh)
@@ -261,7 +129,6 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 
 	c.Header("Content-Type", mimeType)
 	c.Header("Accept-Ranges", "bytes")
-
 	if rangeStart >= 0 {
 		end := rangeEnd
 		if end < 0 || end >= totalSize {
@@ -275,8 +142,7 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 		c.Header("Content-Length", strconv.FormatInt(totalSize, 10))
 		c.Status(http.StatusOK)
 	}
-
-	io.Copy(c.Writer, body)
+	_, _ = io.Copy(c.Writer, body)
 }
 
 // parseRangeHeader parses "bytes=start-end" or "bytes=start-" into start/end.
@@ -292,7 +158,7 @@ func parseRangeHeader(h string) (start, end int64) {
 	}
 	startStr, endStr := spec[:idx], spec[idx+1:]
 	if startStr == "" {
-		return -1, -1 // suffix ranges not needed for now
+		return -1, -1
 	}
 	s, err := strconv.ParseInt(startStr, 10, 64)
 	if err != nil {
@@ -314,21 +180,10 @@ func (h *ResourceHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var r model.RawResource
-	if err := h.db.First(&r, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	if err := h.service.Delete(c.Request.Context(), parseID(c.Param("id")), user.ID); err != nil {
+		h.writeResourceError(c, err)
 		return
 	}
-	if r.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-
-	if r.StorageKey != "" {
-		_ = h.store.Delete(c.Request.Context(), r.StorageKey)
-	}
-	h.db.Where("resource_id = ?", r.ID).Delete(&model.ResourceBinding{})
-	h.db.Delete(&r)
 	c.Status(http.StatusNoContent)
 }
 
@@ -339,17 +194,6 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-
-	var r model.RawResource
-	if err := h.db.First(&r, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
-	if r.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-
 	var body struct {
 		IsShared *bool  `json:"is_shared"`
 		FolderID *uint  `json:"folder_id"`
@@ -359,26 +203,30 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	updates := map[string]any{}
-	if body.IsShared != nil {
-		updates["is_shared"] = *body.IsShared
+	r, err := h.service.Update(c.Request.Context(), appresource.UpdateInput{
+		UserID:   user.ID,
+		ID:       parseID(c.Param("id")),
+		IsShared: body.IsShared,
+		FolderID: body.FolderID,
+		Name:     body.Name,
+	})
+	if err != nil {
+		h.writeResourceError(c, err)
+		return
 	}
-	if body.FolderID != nil {
-		if *body.FolderID == 0 {
-			updates["folder_id"] = nil
-		} else {
-			updates["folder_id"] = *body.FolderID
-		}
-	}
-	if body.Name != "" {
-		updates["name"] = body.Name
-	}
-	h.db.Model(&r).Updates(updates)
-	h.db.First(&r, r.ID)
-	r.URL = resourceURL(c, r.ID)
-	h.populateDirectURL(c, &r)
+	h.populateResourceURL(c, &r)
 	c.JSON(http.StatusOK, r)
+}
+
+func (h *ResourceHandler) populateResourceURLs(c *gin.Context, resources []model.RawResource) {
+	for i := range resources {
+		h.populateResourceURL(c, &resources[i])
+	}
+}
+
+func (h *ResourceHandler) populateResourceURL(c *gin.Context, resource *model.RawResource) {
+	resource.URL = resourceURL(c, resource.ID)
+	h.populateDirectURL(c, resource)
 }
 
 func (h *ResourceHandler) populateDirectURL(_ *gin.Context, _ *model.RawResource) {
@@ -388,49 +236,17 @@ func (h *ResourceHandler) populateDirectURL(_ *gin.Context, _ *model.RawResource
 	// proxy route /api/v1/resources/:id/file instead.
 }
 
-func applyResourceListFilters(q *gorm.DB, c *gin.Context) *gorm.DB {
-	if typ := strings.TrimSpace(c.Query("type")); typ != "" && typ != "all" {
-		parts := strings.Split(typ, ",")
-		types := make([]string, 0, len(parts))
-		for _, p := range parts {
-			if v := strings.TrimSpace(p); v != "" {
-				types = append(types, v)
-			}
-		}
-		if len(types) == 1 {
-			q = q.Where("type = ?", types[0])
-		} else if len(types) > 1 {
-			q = q.Where("type IN ?", types)
-		}
-	}
-	if keyword := strings.TrimSpace(c.Query("q")); keyword != "" {
-		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(keyword)+"%")
-	}
-	return q
-}
-
-func (h *ResourceHandler) respondResourcePage(c *gin.Context, q *gorm.DB) {
-	page := max(1, parseInt(c.DefaultQuery("page", "1")))
-	pageSize := max(1, parseInt(c.DefaultQuery("page_size", "24")))
-	if pageSize > 100 {
-		pageSize = 100
-	}
-	offset := (page - 1) * pageSize
-	var total int64
-	if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Count(&total).Error; err != nil {
+func (h *ResourceHandler) writeResourceError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, appresource.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	case errors.Is(err, appresource.ErrFolderNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
+	case errors.Is(err, appresource.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
 	}
-	resources := make([]model.RawResource, 0)
-	if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(pageSize).Offset(offset).Find(&resources).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	for i := range resources {
-		resources[i].URL = resourceURL(c, resources[i].ID)
-		h.populateDirectURL(c, &resources[i])
-	}
-	c.JSON(http.StatusOK, gin.H{"total": total, "items": resources, "page": page, "page_size": pageSize})
 }
 
 func currentUser(c *gin.Context) *model.User {
@@ -446,48 +262,11 @@ func resourceURL(c *gin.Context, id uint) string {
 }
 
 func mimeToType(mime, filename string) string {
-	switch {
-	case strings.HasPrefix(mime, "image/"):
-		return "image"
-	case strings.HasPrefix(mime, "video/"):
-		return "video"
-	case strings.HasPrefix(mime, "audio/"):
-		return "audio"
-	case strings.HasPrefix(mime, "text/"):
-		return "text"
-	case mime == "application/json", mime == "application/xml", mime == "application/yaml", mime == "application/x-yaml":
-		return "text"
-	}
-	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif":
-		return "image"
-	case ".mp4", ".mov", ".avi", ".webm":
-		return "video"
-	case ".mp3", ".wav", ".ogg", ".aac", ".flac":
-		return "audio"
-	case ".txt", ".md", ".json", ".csv", ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".xml", ".yaml", ".yml", ".log":
-		return "text"
-	}
-	return "file"
-}
-
-func sanitizeName(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			b.WriteRune(r)
-		} else {
-			b.WriteRune('_')
-		}
-	}
-	return b.String()
+	return appresource.MimeToType(mime, filename)
 }
 
 func generateStorageKey(resourceID uint, filename string) string {
-	ext := filepath.Ext(filename)
-	base := sanitizeName(strings.TrimSuffix(filename, ext))
-	return fmt.Sprintf("%d_%s%s", resourceID, base, ext)
+	return appresource.GenerateStorageKey(resourceID, filename)
 }
 
 // saveUploadedFile is kept for backward compatibility with the asset handler.

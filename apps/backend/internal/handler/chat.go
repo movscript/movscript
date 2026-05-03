@@ -5,17 +5,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
-	"gorm.io/gorm"
+	chatapp "github.com/movscript/movscript/internal/app/chat"
 )
 
 // ChatHandler handles the brainstorm / free-form AI chat endpoint.
 type ChatHandler struct {
-	db  *gorm.DB
-	svc *ai.AIService
+	service *chatapp.Service
 }
 
-func NewChatHandler(db *gorm.DB, svc *ai.AIService) *ChatHandler {
-	return &ChatHandler{db: db, svc: svc}
+func NewChatHandler(svc *ai.AIService) *ChatHandler {
+	return &ChatHandler{service: chatapp.NewService(svc)}
 }
 
 // Chat sends a multi-turn conversation to a text model and returns the assistant reply.
@@ -40,14 +39,15 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 		return
 	}
 
-	msgs := make([]ai.Message, len(req.Messages))
+	msgs := make([]chatapp.Message, len(req.Messages))
 	for i, m := range req.Messages {
-		msgs[i] = ai.Message{Role: m.Role, Content: m.Content}
+		msgs[i] = chatapp.Message{Role: m.Role, Content: m.Content}
 	}
 
-	resp, err := h.svc.CallText(c.Request.Context(), user.ID, req.ModelConfigID, ai.TextRequest{
-		Messages:    msgs,
-		Temperature: -1,
+	resp, err := h.service.Chat(c.Request.Context(), chatapp.Input{
+		UserID:        user.ID,
+		ModelConfigID: req.ModelConfigID,
+		Messages:      msgs,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -56,9 +56,6 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"content": resp.Content,
-		"usage": gin.H{
-			"input_tokens":  resp.Usage.InputTokens,
-			"output_tokens": resp.Usage.OutputTokens,
-		},
+		"usage":   resp.Usage,
 	})
 }

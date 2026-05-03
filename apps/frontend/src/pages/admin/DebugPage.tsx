@@ -186,11 +186,44 @@ function getDebugCalls(debug: DebugCallResult): DebugHTTPExchange[] {
   return []
 }
 
-function HttpExchange({ method, url, headers, body, responseStatus, responseBody, latencyMs, error }: {
+function debugPromptText(debug?: Pick<DebugHTTPExchange, 'compiled_prompt' | 'system_prompt' | 'user_prompt' | 'prompt_messages'> | null): string {
+  if (!debug) return ''
+  if (debug.compiled_prompt?.trim()) return debug.compiled_prompt
+  if (debug.prompt_messages?.length) {
+    return debug.prompt_messages.map((message) => `[${message.role}]\n${message.content}`).join('\n\n')
+  }
+  return [
+    debug.system_prompt ? `[system]\n${debug.system_prompt}` : '',
+    debug.user_prompt ? `[user]\n${debug.user_prompt}` : '',
+  ].filter(Boolean).join('\n\n')
+}
+
+function PromptDebugBlock({ debug }: { debug: Pick<DebugHTTPExchange, 'prompt_name' | 'compiled_prompt' | 'system_prompt' | 'user_prompt' | 'prompt_messages'> }) {
+  const prompt = debugPromptText(debug)
+  if (!prompt) return null
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-0.5">
+        <p className="text-muted-foreground font-sans">Prompt{debug.prompt_name ? ` · ${debug.prompt_name}` : ''}</p>
+        <CopyButton text={prompt} />
+      </div>
+      <pre className="bg-muted rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-words max-h-80">
+        {prompt}
+      </pre>
+    </div>
+  )
+}
+
+function HttpExchange({ method, url, headers, body, promptName, systemPrompt, userPrompt, compiledPrompt, promptMessages, responseStatus, responseBody, latencyMs, error }: {
   method?: string
   url?: string
   headers?: Record<string, string>
   body?: string
+  promptName?: string
+  systemPrompt?: string
+  userPrompt?: string
+  compiledPrompt?: string
+  promptMessages?: Array<{ role: string; content: string }>
   responseStatus?: number
   responseBody?: string
   latencyMs?: number
@@ -216,6 +249,8 @@ function HttpExchange({ method, url, headers, body, responseStatus, responseBody
           {error && <span className="text-destructive truncate">{error}</span>}
         </div>
       )}
+
+      <PromptDebugBlock debug={{ prompt_name: promptName, system_prompt: systemPrompt, user_prompt: userPrompt, compiled_prompt: compiledPrompt, prompt_messages: promptMessages }} />
 
       {headers && Object.keys(headers).length > 0 && (
         <div>
@@ -601,6 +636,11 @@ function JobMonitorSection() {
                               url={call.endpoint}
                               headers={call.request_headers}
                               body={call.request_body}
+                              promptName={call.prompt_name}
+                              systemPrompt={call.system_prompt}
+                              userPrompt={call.user_prompt}
+                              compiledPrompt={call.compiled_prompt}
+                              promptMessages={call.prompt_messages}
                               responseStatus={call.response_status}
                               responseBody={call.response_body}
                               latencyMs={call.latency_ms}
@@ -725,13 +765,18 @@ function ModelConnectivitySection() {
                     <span className="text-xs text-muted-foreground">{state.result.latency_ms}ms</span>
                     {state.result.error && <span className="text-xs text-destructive truncate">{state.result.error}</span>}
                   </div>
-                  <HttpExchange
-                    method={state.result.method}
-                    url={state.result.endpoint}
-                    headers={state.result.request_headers}
-                    body={state.result.request_body}
-                    responseStatus={state.result.response_status}
-                    responseBody={state.result.response_body}
+                    <HttpExchange
+                      method={state.result.method}
+                      url={state.result.endpoint}
+                      headers={state.result.request_headers}
+                      body={state.result.request_body}
+                      promptName={state.result.prompt_name}
+                      systemPrompt={state.result.system_prompt}
+                      userPrompt={state.result.user_prompt}
+                      compiledPrompt={state.result.compiled_prompt}
+                      promptMessages={state.result.prompt_messages}
+                      responseStatus={state.result.response_status}
+                      responseBody={state.result.response_body}
                     latencyMs={state.result.latency_ms}
                     error={state.result.error}
                   />
@@ -1149,10 +1194,15 @@ function ProviderSandboxSection() {
                 <span className="text-xs font-mono text-muted-foreground/70">{result.model_id}</span>
               </div>
               <div className="p-4">
-                <HttpExchange
-                  method={result.method} url={result.endpoint}
-                  headers={result.request_headers} body={result.request_body}
-                  responseStatus={result.response_status} responseBody={result.response_body}
+                  <HttpExchange
+                    method={result.method} url={result.endpoint}
+                    headers={result.request_headers} body={result.request_body}
+                    promptName={result.prompt_name}
+                    systemPrompt={result.system_prompt}
+                    userPrompt={result.user_prompt}
+                    compiledPrompt={result.compiled_prompt}
+                    promptMessages={result.prompt_messages}
+                    responseStatus={result.response_status} responseBody={result.response_body}
                   latencyMs={result.latency_ms} error={result.error}
                 />
               </div>

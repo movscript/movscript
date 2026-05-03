@@ -1,4 +1,4 @@
-import type { AgentManifest } from './agentManifest.js'
+import type { AgentManifest } from './manifest/agentManifest.js'
 import type {
   AgentDebugContextPanel,
   AgentMessage,

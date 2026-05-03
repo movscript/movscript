@@ -8,8 +8,8 @@ import {
   type AgentManifest,
   type AgentSkillManifest,
   type AgentToolGrant,
-} from './agentManifest.js'
-import { resolveAgentStatePath } from './fileStore.js'
+} from './manifest/agentManifest.js'
+import { resolveAgentStatePath } from './store/fileStore.js'
 import {
   DEFAULT_TOOL_REGISTRY,
   StaticToolRegistry,
@@ -17,7 +17,7 @@ import {
   normalizeRegisteredTool,
   type RegisteredTool,
   type ToolRegistry,
-} from './toolRegistry.js'
+} from './tools/toolRegistry.js'
 
 export interface AgentPluginCatalog {
   skillsDir: string

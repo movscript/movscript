@@ -1,4 +1,4 @@
-package handler
+package workflowmarket
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuiltinWorkflowTemplatesExposeReusablePorts(t *testing.T) {
-	tpl, ok := findWorkflowTemplate("image-generation")
+	tpl, ok := FindTemplate("image-generation")
 	if !ok {
 		t.Fatal("expected image-generation workflow template")
 	}
@@ -17,8 +17,8 @@ func TestBuiltinWorkflowTemplatesExposeReusablePorts(t *testing.T) {
 		t.Fatalf("unexpected template outputs: %#v", tpl.Outputs)
 	}
 
-	nodes := templateNodesForCanvas(12, tpl.Nodes)
-	edges := templateEdgesForCanvas(12, tpl.Edges)
+	nodes := TemplateNodesForCanvas(12, tpl.Nodes)
+	edges := TemplateEdgesForCanvas(12, tpl.Edges)
 	if len(nodes) != 3 || len(edges) != 2 {
 		t.Fatalf("expected 3 nodes and 2 edges, got %d nodes and %d edges", len(nodes), len(edges))
 	}
@@ -36,11 +36,11 @@ func TestBuiltinWorkflowTemplatesExposeReusablePorts(t *testing.T) {
 }
 
 func TestWorkflowMarketItemMatchSearchesTags(t *testing.T) {
-	item := workflowMarketItem{Key: "template:image-generation", Name: "Image Generation", Tags: []string{"starter"}}
-	if !workflowMarketItemMatches(item, "starter") {
+	item := MarketItem{Key: "template:image-generation", Name: "Image Generation", Tags: []string{"starter"}}
+	if !MarketItemMatches(item, "starter") {
 		t.Fatal("expected query to match tags")
 	}
-	if workflowMarketItemMatches(item, "storyboard") {
+	if MarketItemMatches(item, "storyboard") {
 		t.Fatal("did not expect unrelated query to match")
 	}
 }

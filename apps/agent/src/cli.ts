@@ -18,7 +18,7 @@ async function main() {
 
   if (command === 'context') {
     await client.initialize()
-    const context = await client.callTool('movscript.get_context_pack')
+    const context = await client.callTool('movscript_get_context_pack')
     printJSON(context)
     return
   }
@@ -37,7 +37,7 @@ async function main() {
     const title = getFlag(args, '--title') || 'Untitled draft'
     const content = getFlag(args, '--content') || ''
     const projectId = getNumberFlag(args, '--project-id')
-    const result = await client.callTool('movscript.create_draft', compact({
+    const result = await client.callTool('movscript_create_draft', compact({
       projectId,
       kind,
       title,

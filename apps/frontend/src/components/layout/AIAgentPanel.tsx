@@ -1415,7 +1415,7 @@ function DraftPanel({
         title: `Apply draft ${selectedDraft.title}`,
         message: `Apply Agent draft ${selectedDraft.id} to ${String(activePreview.review.target.entityType)} ${String(activePreview.review.target.entityId)}.`,
         toolCall: {
-          name: 'movscript.apply_draft',
+          name: 'movscript_apply_draft',
           args: {
             draftId: selectedDraft.id,
             target: activePreview.review.target,

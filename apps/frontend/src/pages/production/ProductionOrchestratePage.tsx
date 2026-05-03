@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 
 import {
+  applyProductionProposal,
   createSemanticEntity,
   deleteSemanticEntity,
   listSemanticEntities,
@@ -144,6 +145,72 @@ interface AIAnalysisResult {
   creative_references: AICreativeReferenceCandidate[]
   asset_slots: AIAssetSlotCandidate[]
   content_units: AIContentUnitCandidate[]
+}
+
+// Tree-form proposal types (from propose_production_entities)
+interface ProposalContentUnitNode {
+  action: 'create' | 'reuse' | 'update'
+  id?: number
+  client_id?: string
+  title?: string
+  kind?: string
+  description?: string
+  shot_size?: string
+  camera_angle?: string
+  duration_sec?: number
+  order?: number
+  status?: string
+}
+interface ProposalCreativeRefNode {
+  action: 'create' | 'reuse' | 'update'
+  id?: number
+  client_id?: string
+  name?: string
+  kind?: string
+  role?: string
+}
+interface ProposalAssetSlotNode {
+  action: 'create' | 'reuse' | 'update'
+  id?: number
+  client_id?: string
+  name?: string
+  kind?: string
+  description?: string
+  priority?: string
+}
+interface ProposalSceneMomentNode {
+  action: 'create' | 'reuse' | 'update'
+  id?: number
+  client_id?: string
+  title?: string
+  time_text?: string
+  location_text?: string
+  action_text?: string
+  mood?: string
+  description?: string
+  order?: number
+  status?: string
+  content_units?: ProposalContentUnitNode[]
+  creative_references?: ProposalCreativeRefNode[]
+  asset_slots?: ProposalAssetSlotNode[]
+}
+interface ProposalSegmentNode {
+  action: 'create' | 'reuse' | 'update'
+  id?: number
+  client_id?: string
+  title?: string
+  kind?: string
+  summary?: string
+  order?: number
+  status?: string
+  scene_moments?: ProposalSceneMomentNode[]
+}
+interface ProposalDraftContent {
+  productionId: number
+  analysisScope?: string
+  summary?: string
+  proposal: { segments: ProposalSegmentNode[] }
+  proposedAt?: string
 }
 
 type CandidateStatus =
@@ -2247,36 +2314,40 @@ function buildOrchestrationAnalysisPrompt(scriptText: string, productionId?: num
     '',
     '执行步骤（必须按顺序，每步都要调用对应工具）：',
     '',
-    '1. 调用 movscript.read_production_context 读取当前制作已有的实体和剧本文本。',
+    '1. 如果当前制作 ID 缺失或不确定，先调用 movscript_list_productions 列出当前项目的制作并选择目标制作。',
+    '   - 参数：projectId（从上下文获取）',
+    '   - 目的：避免在错误 production 下写入候选',
+    '',
+    '2. 调用 movscript_read_production_context 读取当前制作已有的实体和剧本文本。',
     '   - 参数：projectId（从上下文获取）、productionId（从上下文获取）、includeScriptText: true',
     '   - 目的：了解已有片段/情节/资料/素材/内容单元，为去重做准备',
     '',
-    '2. 基于剧本文本，按叙事节奏（情绪弧线、时空跳跃、节奏变化）拆分片段。',
+    '3. 基于剧本文本，按叙事节奏（情绪弧线、时空跳跃、节奏变化）拆分片段。',
     '   - 片段是剧集级的，不是简单段落分割',
     '   - 每个片段：client_id（s1/s2...）、order、title、summary、source_range',
     '',
-    '3. 对每个片段，递归分析其内部情节（scene_moments）。',
+    '4. 对每个片段，递归分析其内部情节（scene_moments）。',
     '   - 每个情节必须带 segment_id（指向片段 client_id）',
     '   - 记录 time_text、location_text、action_text、mood',
     '',
-    '4. 扫描全文提取创作资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
+    '5. 扫描全文提取创作资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
     '   - 创作资料是项目级的，必须与已有资料对比去重',
     '   - 建立关系：segment_ids、scene_moment_ids、content_unit_ids',
     '',
-    '5. 基于资料和情节，推断素材需求（asset_slots）。',
+    '6. 基于资料和情节，推断素材需求（asset_slots）。',
     '   - 素材也是项目级的，必须与已有素材对比去重',
     '   - 每个素材必须有 owner_type 和对应 owner client_id',
     '',
-    '6. 对每个情节，递归分析内容单元（content_units）。',
+    '7. 对每个情节，递归分析内容单元（content_units）。',
     '   - 每个内容单元必须带 segment_id 和 scene_moment_id',
     '   - 记录 type、shot_size、camera_angle',
     '   - 关联 creative_reference_ids 和 asset_slot_ids',
     '',
-    '7. 调用 movscript.check_entity_conflicts 检查所有候选的冲突情况。',
+    '8. 调用 movscript_check_entity_conflicts 检查所有候选的冲突情况。',
     '   - 传入所有五类候选',
     '   - 获取每个候选的 conflict_status',
     '',
-    '8. 调用 movscript.propose_production_entities 写入最终候选。',
+    '9. 调用 movscript_propose_production_entities 写入最终候选。',
     '   - 传入带 conflict_status 的完整候选列表',
     '   - 包含 summary 字段描述分析结果',
     '',
@@ -2680,7 +2751,7 @@ function normalizeContentUnitType(value: string): string {
   return ['shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat'].includes(value) ? value : 'shot'
 }
 
-type AnalysisPhase = 'input' | 'running' | 'done' | 'error'
+type AnalysisPhase = 'input' | 'running' | 'done' | 'error' | 'proposal'
 
 function AgentChatSidebar({
   projectId,
@@ -2732,6 +2803,7 @@ function AgentChatSidebar({
   const [outputResult, setOutputResult] = useState<AIAnalysisResult | null>(null)
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
   const [showReceived, setShowReceived] = useState(false)
+  const [proposalDraft, setProposalDraft] = useState<ProposalDraftContent | null>(null)
   const agentClientRef = useRef(new LocalAgentClient())
 
   // When switching to manual mode, pre-fill with linked version content
@@ -2758,6 +2830,7 @@ function AgentChatSidebar({
     setErrorMsg('')
     setRawAgentResponse('')
     setOutputResult(null)
+    setProposalDraft(null)
 
     const client = agentClientRef.current
     const productionId = production?.ID ?? 0
@@ -2774,6 +2847,7 @@ function AgentChatSidebar({
         uiSnapshot: {
           route: { pathname: '/production-orchestrate', search: window.location.search },
           project: projectId ? { id: projectId } : undefined,
+          productionId: production?.ID,
           selection: production?.ID
             ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `制作 #${production.ID}`) }
             : null,
@@ -2809,10 +2883,15 @@ function AgentChatSidebar({
 
       // Try to read the proposal draft written by the agent via propose_production_entities
       const proposalResult = await tryReadProposalDraft(client, projectId, productionId)
-      if (proposalResult) {
-        setOutputResult(proposalResult)
+      if (proposalResult.kind === 'tree' && proposalResult.draft) {
+        setProposalDraft(proposalResult.draft)
+        setPhase('proposal')
+        return
+      }
+      if (proposalResult.kind === 'flat' && proposalResult.result) {
+        setOutputResult(proposalResult.result)
         setPhase('done')
-        onResult(proposalResult)
+        onResult(proposalResult.result)
         return
       }
 
@@ -2841,11 +2920,29 @@ function AgentChatSidebar({
     client: LocalAgentClient,
     projectId: number | undefined,
     productionId: number,
-  ): Promise<AIAnalysisResult | null> {
-    if (!projectId) return null
+  ): Promise<{ kind: 'tree'; draft: ProposalDraftContent } | { kind: 'flat'; result: AIAnalysisResult } | { kind: 'none' }> {
+    if (!projectId) return { kind: 'none' }
     try {
+      // First check for tree-form production_proposal drafts
+      const { drafts: proposalDrafts } = await client.listDrafts({ projectId, kind: 'production_proposal', status: 'draft', limit: 5 })
+      const treeDraft = proposalDrafts
+        .filter((d) => {
+          try {
+            const content = JSON.parse(d.content)
+            return content.productionId === productionId && content.proposal
+          } catch {
+            return false
+          }
+        })
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+
+      if (treeDraft) {
+        const content = JSON.parse(treeDraft.content) as ProposalDraftContent
+        return { kind: 'tree', draft: content }
+      }
+
+      // Fallback: check for legacy flat pipeline drafts
       const { drafts } = await client.listDrafts({ projectId, kind: 'pipeline', status: 'draft', limit: 5 })
-      // Find the most recent proposal draft for this production
       const proposal = drafts
         .filter((d) => {
           try {
@@ -2857,15 +2954,17 @@ function AgentChatSidebar({
         })
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
 
-      if (!proposal) return null
+      if (!proposal) return { kind: 'none' }
 
       const content = JSON.parse(proposal.content)
       const candidates = content.candidates
-      if (!candidates) return null
+      if (!candidates) return { kind: 'none' }
 
-      return normalizeAIAnalysisResult(candidates)
+      const result = normalizeAIAnalysisResult(candidates)
+      if (!result) return { kind: 'none' }
+      return { kind: 'flat', result }
     } catch {
-      return null
+      return { kind: 'none' }
     }
   }
 
@@ -3070,8 +3169,18 @@ function AgentChatSidebar({
           </div>
         )}
 
+        {/* Proposal review phase */}
+        {phase === 'proposal' && proposalDraft && (
+          <ProposalReviewPanel
+            projectId={projectId}
+            proposalDraft={proposalDraft}
+            onAccepted={() => { setPhase('input'); setProposalDraft(null) }}
+            onDiscard={() => { setPhase('input'); setProposalDraft(null) }}
+          />
+        )}
+
         {/* Running / done / error */}
-        {phase !== 'input' && (
+        {phase !== 'input' && phase !== 'proposal' && (
           <div className="flex flex-col gap-3 p-4">
             {receivedData && (
               <div className="rounded-lg border border-border bg-background px-3 py-2">
@@ -3203,6 +3312,7 @@ function AgentChatSidebar({
             {phase === 'running' && 'Agent 分析中…'}
             {phase === 'done' && '分析完成'}
             {phase === 'error' && '分析失败'}
+            {phase === 'proposal' && '待审提案'}
           </p>
           <div className="flex gap-2">
             {phase === 'error' && (
@@ -3233,6 +3343,217 @@ function AgentChatSidebar({
   )
 }
 
+function ProposalReviewPanel({
+  projectId,
+  proposalDraft,
+  onAccepted,
+  onDiscard,
+}: {
+  projectId?: number
+  proposalDraft: ProposalDraftContent
+  onAccepted: () => void
+  onDiscard: () => void
+}) {
+  const [applying, setApplying] = useState(false)
+  const [applyError, setApplyError] = useState('')
+  const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
+  const [expandedSegments, setExpandedSegments] = useState<Set<string>>(new Set())
+
+  const segments = proposalDraft.proposal?.segments ?? []
+  const totalSceneMoments = segments.reduce((s, seg) => s + (seg.scene_moments?.length ?? 0), 0)
+  const totalContentUnits = segments.reduce((s, seg) =>
+    s + (seg.scene_moments ?? []).reduce((ss, sm) => ss + (sm.content_units?.length ?? 0), 0), 0)
+  const totalCreativeRefs = segments.reduce((s, seg) =>
+    s + (seg.scene_moments ?? []).reduce((ss, sm) => ss + (sm.creative_references?.length ?? 0), 0), 0)
+  const totalAssetSlots = segments.reduce((s, seg) =>
+    s + (seg.scene_moments ?? []).reduce((ss, sm) => ss + (sm.asset_slots?.length ?? 0), 0), 0)
+
+  function toggleSegment(key: string) {
+    setExpandedSegments((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  async function handleAccept() {
+    if (!projectId) return
+    setApplying(true)
+    setApplyError('')
+    try {
+      const result = await applyProductionProposal(projectId, {
+        production_id: proposalDraft.productionId,
+        analysis_scope: proposalDraft.analysisScope ?? 'production',
+        proposal: proposalDraft.proposal,
+      })
+      setAppliedCounts(result.counts as unknown as Record<string, number>)
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : '写入失败')
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  if (appliedCounts) {
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">提案已写入项目</p>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
+            {appliedCounts.segments_created > 0 && (
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">片段 +{appliedCounts.segments_created}</span>
+            )}
+            {appliedCounts.scene_moments_created > 0 && (
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{appliedCounts.scene_moments_created}</span>
+            )}
+            {appliedCounts.content_units_created > 0 && (
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">单元 +{appliedCounts.content_units_created}</span>
+            )}
+            {appliedCounts.creative_references_created > 0 && (
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">资料 +{appliedCounts.creative_references_created}</span>
+            )}
+            {appliedCounts.asset_slots_created > 0 && (
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材 +{appliedCounts.asset_slots_created}</span>
+            )}
+          </div>
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAccepted}>
+          完成
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      {/* Summary */}
+      <div className="rounded-lg border border-border bg-background p-3">
+        <div className="flex items-center gap-2">
+          <Sparkles size={13} className="text-primary" />
+          <p className="text-xs font-semibold text-foreground">Agent 提案</p>
+        </div>
+        {proposalDraft.summary && (
+          <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{proposalDraft.summary}</p>
+        )}
+        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px]">
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">片段 {segments.length}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">情节 {totalSceneMoments}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">单元 {totalContentUnits}</span>
+          {totalCreativeRefs > 0 && (
+            <span className="rounded bg-muted px-1.5 py-1 text-foreground">资料 {totalCreativeRefs}</span>
+          )}
+          {totalAssetSlots > 0 && (
+            <span className="rounded bg-muted px-1.5 py-1 text-foreground">素材 {totalAssetSlots}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Tree */}
+      <div className="rounded-lg border border-border">
+        <div className="border-b border-border px-3 py-2">
+          <span className="text-[11px] font-medium text-foreground">提案结构</span>
+        </div>
+        <div className="divide-y divide-border">
+          {segments.map((seg, i) => {
+            const key = seg.client_id ?? String(i)
+            const expanded = expandedSegments.has(key)
+            const smCount = seg.scene_moments?.length ?? 0
+            return (
+              <div key={key}>
+                <button
+                  type="button"
+                  onClick={() => toggleSegment(key)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40"
+                >
+                  <ActionBadge action={seg.action} />
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+                    {seg.title || `片段 ${i + 1}`}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{smCount} 情节</span>
+                  {smCount > 0 && (
+                    <span className="shrink-0 text-muted-foreground">
+                      {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </span>
+                  )}
+                </button>
+                {expanded && smCount > 0 && (
+                  <div className="border-t border-border bg-muted/20">
+                    {(seg.scene_moments ?? []).map((sm, j) => {
+                      const smKey = sm.client_id ?? String(j)
+                      const cuCount = sm.content_units?.length ?? 0
+                      return (
+                        <div key={smKey} className="border-b border-border/50 px-3 py-2 last:border-b-0">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 shrink-0" />
+                            <ActionBadge action={sm.action} />
+                            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
+                              {sm.title || `情节 ${j + 1}`}
+                            </span>
+                            {cuCount > 0 && (
+                              <span className="shrink-0 text-[10px] text-muted-foreground">{cuCount} 单元</span>
+                            )}
+                          </div>
+                          {(sm.time_text || sm.location_text) && (
+                            <p className="ml-8 mt-0.5 truncate text-[10px] text-muted-foreground">
+                              {[sm.time_text, sm.location_text].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {applyError && (
+        <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-800/50 dark:bg-rose-950/30">
+          <AlertCircle size={13} className="mt-0.5 shrink-0 text-rose-500" />
+          <p className="text-xs text-rose-700 dark:text-rose-300">{applyError}</p>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 flex-1 text-xs"
+          disabled={applying}
+          onClick={onDiscard}
+        >
+          丢弃
+        </Button>
+        <Button
+          size="sm"
+          className="h-7 flex-1 gap-1.5 text-xs"
+          disabled={applying || !projectId}
+          onClick={handleAccept}
+        >
+          {applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+          写入项目
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ActionBadge({ action }: { action: 'create' | 'reuse' | 'update' | string | undefined }) {
+  if (action === 'reuse') {
+    return <span className="shrink-0 rounded bg-blue-500/10 px-1 py-0.5 text-[9px] font-medium text-blue-600 dark:text-blue-400">复用</span>
+  }
+  if (action === 'update') {
+    return <span className="shrink-0 rounded bg-amber-500/10 px-1 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">更新</span>
+  }
+  return <span className="shrink-0 rounded bg-emerald-500/10 px-1 py-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400">新建</span>
+}
+
 
 const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
   schema: 'movscript.agent.current',
@@ -3245,7 +3566,8 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 ## 分析流程（必须严格按顺序执行）
 
 ### Step 1：读取现有上下文
-调用 movscript.read_production_context，获取当前制作已有的片段、情节、创作资料（项目级）、素材（项目级）、内容单元，以及关联剧本文本。这是去重的基础，不可跳过。
+如果当前 productionId 缺失或不确定，先调用 movscript_list_productions，列出当前项目的制作，并选择与用户上下文最匹配的 production。
+调用 movscript_read_production_context，获取当前制作已有的片段、情节、创作资料（项目级）、素材（项目级）、内容单元，以及关联剧本文本。这是去重的基础，不可跳过。
 
 ### Step 2：片段拆分（剧集级）
 把剧本按叙事节奏拆分为片段。片段不是简单的段落分割，而是基于：
@@ -3281,10 +3603,10 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 - 关联 creative_reference_ids 和 asset_slot_ids
 
 ### Step 7：冲突检查
-调用 movscript.check_entity_conflicts，传入所有候选，获取每个候选的 conflict_status。
+调用 movscript_check_entity_conflicts，传入所有候选，获取每个候选的 conflict_status。
 
 ### Step 8：写入候选
-调用 movscript.propose_production_entities，传入带 conflict_status 的完整候选列表和关系图。
+调用 movscript_propose_production_entities，传入带 conflict_status 的完整候选列表和关系图。
 
 ## 关系完整性要求
 - scene_moment.segment_id → 必须指向有效的 segment client_id
@@ -3305,13 +3627,14 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 - 创作资料要覆盖所有出现的人物、地点、关键道具/产品`,
   permissions: ['project.read', 'draft.read', 'draft.write'],
   tools: [
-    { name: 'movscript.read_production_context', mode: 'allow', approval: 'never' },
-    { name: 'movscript.check_entity_conflicts', mode: 'allow', approval: 'never' },
-    { name: 'movscript.propose_production_entities', mode: 'allow', approval: 'never' },
-    { name: 'movscript.read_project_structure', mode: 'allow', approval: 'never' },
-    { name: 'movscript.search_entities', mode: 'allow', approval: 'never' },
-    { name: 'movscript.read_entity', mode: 'allow', approval: 'never' },
-    { name: 'movscript.list_drafts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
+    { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
+    { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
+    { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
+    { name: 'movscript_search_entities', mode: 'allow', approval: 'never' },
+    { name: 'movscript_read_entity', mode: 'allow', approval: 'never' },
+    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
   ],
 }
 

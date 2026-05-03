@@ -110,6 +110,7 @@ func (a *GeminiAdapter) newClient(ctx context.Context) (*genai.Client, error) {
 }
 
 func (a *GeminiAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
+	attachTextPromptDebug(ctx, req)
 	client, err := a.newClient(ctx)
 	if err != nil {
 		return TextResponse{}, fmt.Errorf("gemini: create client: %w", err)

@@ -50,7 +50,7 @@ export class MemoryManager {
     }
 
     for (const outcome of input.toolResults) {
-      if (outcome.call.name === 'movscript.create_draft' && !outcome.error) {
+      if (outcome.call.name === 'movscript_create_draft' && !outcome.error) {
         writes.push({
           scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
@@ -62,7 +62,7 @@ export class MemoryManager {
         })
       }
 
-      if ((outcome.call.name === 'movscript.read_entity' || outcome.call.name === 'movscript.search_entities') && !outcome.error) {
+      if ((outcome.call.name === 'movscript_read_entity' || outcome.call.name === 'movscript_search_entities') && !outcome.error) {
         writes.push({
           scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
@@ -119,7 +119,7 @@ function describeDraftMemory(result: JSONValue | undefined): string {
 }
 
 function describeEntityRefMemory(outcome: ToolCallOutcome): string {
-  if (outcome.call.name === 'movscript.read_entity') {
+  if (outcome.call.name === 'movscript_read_entity') {
     return `Read ${String(outcome.call.args?.entityType ?? 'entity')} ${String(outcome.call.args?.entityId ?? '')}.`
   }
   const parsed = parseToolResult(outcome.result ?? null)

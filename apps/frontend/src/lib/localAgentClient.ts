@@ -247,6 +247,7 @@ export interface AgentClientInput {
       status?: string
       description?: string
     }
+    productionId?: number
     selection?: {
       entityType?: string
       entityId?: number | string
@@ -460,6 +461,9 @@ export type AgentDraftKind =
   | 'prompt'
   | 'note'
   | 'pipeline'
+  | 'segment'
+  | 'scene_moment'
+  | 'production_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentMemory {

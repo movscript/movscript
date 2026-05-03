@@ -7,16 +7,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
+	workflowschemaapp "github.com/movscript/movscript/internal/app/workflowschema"
 	"github.com/movscript/movscript/internal/workflow"
 	"gorm.io/gorm"
 )
 
 type WorkflowSchemaHandler struct {
-	db *gorm.DB
+	service *workflowschemaapp.Service
 }
 
 func NewWorkflowSchemaHandler(db *gorm.DB) *WorkflowSchemaHandler {
-	return &WorkflowSchemaHandler{db: db}
+	return &WorkflowSchemaHandler{service: workflowschemaapp.NewService(db)}
 }
 
 func (h *WorkflowSchemaHandler) ListEntitySchemas(c *gin.Context) {
@@ -61,17 +62,7 @@ func (h *WorkflowSchemaHandler) GetEntitySemanticValues(c *gin.Context) {
 		return
 	}
 	fieldIDs := parseCSVQuery(c.Query("fields"))
-	svc := workflow.NewEntityIOService(h.db)
-	if len(fieldIDs) > 0 {
-		values, err := svc.ReadDetailValuesByFields(c.Request.Context(), c.Param("kind"), uint(id64), fieldIDs)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-			return
-		}
-		c.JSON(http.StatusOK, values)
-		return
-	}
-	values, err := svc.ReadDetailValues(c.Request.Context(), c.Param("kind"), uint(id64))
+	values, err := h.service.ReadEntitySemanticValues(c.Request.Context(), c.Param("kind"), uint(id64), fieldIDs)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return

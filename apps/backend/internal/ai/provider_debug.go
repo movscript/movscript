@@ -158,9 +158,10 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 
 	default: // text
 		treq := TextRequest{
-			Model:     model,
-			MaxTokens: providerIntParam(params, "max_tokens", DefaultTextMaxTokens),
-			Messages:  []Message{{Role: "user", Content: prompt}},
+			Model:      model,
+			PromptName: "provider_debug_text",
+			MaxTokens:  providerIntParam(params, "max_tokens", DefaultTextMaxTokens),
+			Messages:   []Message{{Role: "user", Content: prompt}},
 		}
 		if t, ok := params["temperature"]; ok {
 			if f, ok2 := toFloat64(t); ok2 {

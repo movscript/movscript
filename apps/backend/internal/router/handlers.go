@@ -58,7 +58,7 @@ func newHandlers(deps Dependencies) handlers {
 		models:           handler.NewModelsHandler(aiService),
 		feature:          handler.NewFeatureHandler(db, aiService),
 		jobs:             handler.NewJobHandler(db, aiService),
-		chat:             handler.NewChatHandler(db, aiService),
+		chat:             handler.NewChatHandler(aiService),
 		modelGateway:     handler.NewModelGatewayHandler(db, aiService),
 		debug:            handler.NewDebugHandler(db, deps.EncryptionKey, registry),
 		plugin:           handler.NewPluginHandler(db),

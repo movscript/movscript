@@ -43,6 +43,7 @@ func NewOpenAIAdapter(baseURL, apiKey string) *OpenAIAdapter {
 }
 
 func (a *OpenAIAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
+	attachTextPromptDebug(ctx, req)
 	body, err := buildOpenAIChatBody(req, false)
 	if err != nil {
 		return TextResponse{}, err
@@ -84,6 +85,7 @@ func (a *OpenAIAdapter) TextGenerate(ctx context.Context, req TextRequest) (Text
 }
 
 func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
+	attachTextPromptDebug(ctx, req)
 	body, err := buildOpenAIChatBody(req, true)
 	if err != nil {
 		return nil, err

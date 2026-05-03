@@ -3,9 +3,9 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import { ChatRuntime } from './chatRuntime.js'
 import { MCPClient } from './mcpClient.js'
 import { AgentRuntime, loadAgentPluginCatalog } from './runtime/agentRuntime.js'
-import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from './runtime/fileStore.js'
-import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/draftStore.js'
-import { BackendApplyClient } from './runtime/backendApplyClient.js'
+import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from './runtime/store/fileStore.js'
+import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/store/draftStore.js'
+import { BackendApplyClient } from './runtime/store/backendApplyClient.js'
 import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtime/modelConfig.js'
 import { ProductionRuntime } from './production/runtime.js'
@@ -157,7 +157,7 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/context') {
       await client.initialize()
-      writeJSON(res, 200, await client.callTool('movscript.get_context_pack'))
+      writeJSON(res, 200, await client.callTool('movscript_get_context_pack'))
       return
     }
 

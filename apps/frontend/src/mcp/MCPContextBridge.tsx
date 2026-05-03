@@ -7,6 +7,12 @@ export function MCPContextBridge() {
   const location = useLocation()
   const navigate = useNavigate()
   const project = useProjectStore((s) => s.current)
+  const productionId = useMemo(() => {
+    if (location.pathname !== '/production-orchestrate') return null
+    const params = new URLSearchParams(location.search)
+    const value = Number(params.get('productionId') ?? '')
+    return Number.isFinite(value) && value > 0 ? value : null
+  }, [location.pathname, location.search])
   const user = useUserStore((s) => s.currentUser)
   const token = useUserStore((s) => s.token)
 
@@ -23,6 +29,7 @@ export function MCPContextBridge() {
       status: project.status,
       totalEpisodes: project.total_episodes,
     } : null,
+    productionId,
     user: user ? {
       id: user.ID,
       username: user.username,
@@ -31,7 +38,7 @@ export function MCPContextBridge() {
     auth: token ? { token } : null,
     selection: null,
     updatedAt: new Date().toISOString(),
-  }), [location.hash, location.pathname, location.search, project, token, user])
+  }), [location.hash, location.pathname, location.search, productionId, project, token, user])
 
   useEffect(() => {
     window.api?.updateMCPContext?.(snapshot)

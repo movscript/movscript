@@ -2,19 +2,16 @@ import type { JSONValue } from '../types.js'
 import { parseToolResult } from './context.js'
 import {
   buildBackendGatewayChatRequest,
-  callBackendGatewayChat,
   callBackendGatewayChatWithTrace,
   resolveRuntimeChatFileModelConfig,
+  type RuntimeModelChatMessage,
+  type RuntimeModelChatTool,
+  type RuntimeModelChatToolCall,
   type RuntimeModelAuthContext,
   type RuntimeModelTraceCallback,
-} from './modelConfig.js'
+} from './model/modelConfig.js'
 import type { AgentMemory } from './memory/types.js'
-import type { AgentRun, ToolCall, ToolCallOutcome } from './types.js'
-
-type ChatMessage = {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
+import type { AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from './types.js'
 
 export function buildAssistantContent(
   userMessage: string,
@@ -107,8 +104,49 @@ export async function buildConfiguredAssistantContent(
   auth: RuntimeModelAuthContext = {},
   onModelTrace?: RuntimeModelTraceCallback,
 ): Promise<string> {
+  const turn = await buildConfiguredAssistantTurn({
+    userMessage,
+    toolResults,
+    warnings,
+    memories,
+    run,
+    auth,
+    onModelTrace,
+  })
+  return turn.content
+}
+
+export interface ConfiguredAssistantTurnInput {
+  userMessage: string
+  toolResults: ToolCallOutcome[]
+  warnings?: string[]
+  memories?: AgentMemory[]
+  run?: AgentRun
+  auth?: RuntimeModelAuthContext
+  onModelTrace?: RuntimeModelTraceCallback
+  messages?: RuntimeModelChatMessage[]
+  tools?: RuntimeModelChatTool[]
+}
+
+export interface ConfiguredAssistantTurn {
+  content: string
+  assistantMessage?: RuntimeModelChatMessage
+}
+
+export async function buildConfiguredAssistantTurn(input: ConfiguredAssistantTurnInput): Promise<ConfiguredAssistantTurn> {
+  const {
+    userMessage,
+    toolResults,
+    warnings = [],
+    memories = [],
+    run,
+    auth = {},
+    onModelTrace,
+    messages,
+    tools = [],
+  } = input
   if (isInspectContextCommand(userMessage) || isProductionPlanCommand(userMessage)) {
-    return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
+    return { content: buildAssistantContent(userMessage, toolResults, warnings, memories, run) }
   }
 
   const config = resolveRuntimeChatFileModelConfig()
@@ -117,26 +155,78 @@ export async function buildConfiguredAssistantContent(
     if (requiresModel) {
       throw new Error('production orchestration requires a configured backend chat model; no local fallback is allowed')
     }
-    return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
+    return { content: buildAssistantContent(userMessage, toolResults, warnings, memories, run) }
   }
 
   try {
     const result = await callBackendGatewayChatWithTrace(buildBackendGatewayChatRequest(
       config,
-      buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
+      messages ?? buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
       auth,
       {
         temperature: shouldReturnStructuredJSON(run) ? 0.1 : undefined,
         jsonMode: shouldReturnStructuredJSON(run),
+        tools,
+        toolChoice: tools.length > 0 ? 'auto' : undefined,
       },
     ), onModelTrace)
-    return result.content
+    return { content: result.content, assistantMessage: result.assistantMessage }
   } catch (error) {
     if (requiresModel) {
       throw new Error(`production orchestration model call failed: ${error instanceof Error ? error.message : String(error)}`)
     }
     warnings.push(`model chat fallback: ${error instanceof Error ? error.message : String(error)}`)
-    return buildAssistantContent(userMessage, toolResults, warnings, memories, run)
+    return { content: buildAssistantContent(userMessage, toolResults, warnings, memories, run) }
+  }
+}
+
+export function buildOpenAIChatTools(catalog: ResolvedToolCatalog): RuntimeModelChatTool[] {
+  return catalog.available.map((tool) => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      ...(tool.description ? { description: tool.description } : {}),
+      ...(tool.inputSchema !== undefined ? { parameters: tool.inputSchema } : {}),
+    },
+  }))
+}
+
+export function appendAssistantToolExchange(
+  messages: RuntimeModelChatMessage[],
+  assistantMessage: RuntimeModelChatMessage | undefined,
+  outcomes: ToolCallOutcome[],
+  requestedToolCalls: ToolCall[] = [],
+): RuntimeModelChatMessage[] {
+  const toolCalls = assistantMessage?.tool_calls?.length
+    ? assistantMessage.tool_calls
+    : requestedToolCalls.map(toRuntimeToolCall)
+  if (toolCalls.length === 0 || outcomes.length === 0) return messages
+  const assistantContent = assistantMessage?.tool_calls?.length ? assistantMessage?.content ?? null : null
+  return [
+    ...messages,
+    {
+      role: 'assistant',
+      content: assistantContent,
+      tool_calls: toolCalls,
+    },
+    ...matchToolOutcomes(toolCalls, outcomes).map(({ toolCall, outcome }) => ({
+      role: 'tool' as const,
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(outcome.error
+        ? { error: outcome.error, call: outcome.call }
+        : { result: outcome.result ?? null, call: outcome.call }),
+    })),
+  ]
+}
+
+function toRuntimeToolCall(call: ToolCall, index: number): RuntimeModelChatToolCall {
+  return {
+    id: `call_runtime_${index + 1}`,
+    type: 'function',
+    function: {
+      name: call.name,
+      arguments: JSON.stringify(call.args ?? {}),
+    },
   }
 }
 
@@ -157,17 +247,18 @@ export function extractRequestedToolCallsFromAssistantContent(content: string): 
   return dedupeToolCalls(rawToolCalls.flatMap(normalizeAssistantToolCall))
 }
 
-function buildAssistantMessages(
+export function buildAssistantMessages(
   userMessage: string,
   toolResults: ToolCallOutcome[],
   warnings: string[],
   memories: AgentMemory[],
   run?: AgentRun,
-): ChatMessage[] {
+): RuntimeModelChatMessage[] {
   const agentSoul = typeof run?.agentManifest?.soul === 'string' && run.agentManifest.soul.trim()
     ? run.agentManifest.soul.trim()
     : undefined
-  return [
+  const context = run?.metadata?.context
+  const messages: Array<RuntimeModelChatMessage | undefined> = [
     {
       role: 'system',
       content: [
@@ -180,26 +271,52 @@ function buildAssistantMessages(
         shouldReturnStructuredJSON(run) ? 'This run requires machine-readable JSON. Return only a valid JSON object and no markdown fences.' : undefined,
       ].join('\n'),
     },
+    context !== undefined ? {
+      role: 'system' as const,
+      content: `Runtime context JSON:\n${JSON.stringify(context)}`,
+    } : undefined,
+    {
+      role: 'system',
+      content: `Execution policy JSON:\n${JSON.stringify(run?.policy ?? null)}`,
+    },
+    warnings.length > 0 ? {
+      role: 'system' as const,
+      content: `Runtime warnings JSON:\n${JSON.stringify(warnings)}`,
+    } : undefined,
+    memories.length > 0 ? {
+      role: 'system' as const,
+      content: `Relevant memories JSON:\n${JSON.stringify(memories.map((memory) => ({
+        id: memory.id,
+        scope: memory.scope,
+        kind: memory.kind,
+        content: memory.content,
+      })))}`,
+    } : undefined,
+    toolResults.length > 0 ? {
+      role: 'system' as const,
+      content: `Pre-model runtime tool outcomes JSON:\n${JSON.stringify(toolResults.map((outcome) => ({
+        call: outcome.call,
+        ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
+      })))}`,
+    } : undefined,
     {
       role: 'user',
-      content: JSON.stringify({
-        userMessage,
-        context: run?.metadata?.context,
-        policy: run?.policy,
-        warnings,
-        memories: memories.map((memory) => ({
-          id: memory.id,
-          scope: memory.scope,
-          kind: memory.kind,
-          content: memory.content,
-        })),
-        toolResults: toolResults.map((outcome) => ({
-          call: outcome.call,
-          ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
-        })),
-      }),
+      content: userMessage,
     },
   ]
+  return messages.filter((message): message is RuntimeModelChatMessage => !!message)
+}
+
+function matchToolOutcomes(
+  toolCalls: RuntimeModelChatToolCall[],
+  outcomes: ToolCallOutcome[],
+): Array<{ toolCall: RuntimeModelChatToolCall; outcome: ToolCallOutcome }> {
+  const remaining = [...toolCalls]
+  return outcomes.flatMap((outcome) => {
+    const index = remaining.findIndex((toolCall) => toolCall.function.name === outcome.call.name)
+    const toolCall = index >= 0 ? remaining.splice(index, 1)[0] : remaining.shift()
+    return toolCall ? [{ toolCall, outcome }] : []
+  })
 }
 
 function formatMemoryBlock(memories: AgentMemory[], limit: number): string {
@@ -316,29 +433,29 @@ function describeToolOutcome(outcome: ToolCallOutcome): string {
 
 function describeToolResult(call: ToolCall, result: JSONValue): string {
   const parsed = parseToolResult(result)
-  if (call.name === 'movscript.search_entities') {
+  if (call.name === 'movscript_search_entities') {
     const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
     return `搜索项目内容${count === undefined ? '' : `，找到 ${count} 条结果`}。`
   }
-  if (call.name === 'movscript.read_entity') {
+  if (call.name === 'movscript_read_entity') {
     return `读取 ${String(call.args?.entityType ?? 'entity')} ${String(call.args?.entityId ?? '')}。`
   }
-  if (call.name === 'movscript.read_project_structure') {
+  if (call.name === 'movscript_read_project_structure') {
     const counts = isRecord(parsed) && isRecord(parsed.counts) ? parsed.counts : undefined
     const summary = counts
       ? `（scripts=${String(counts.scripts ?? 0)}, settings=${String(counts.settings ?? 0)}, asset_slots=${String(counts.asset_slots ?? counts.assetSlots ?? 0)}, content_units=${String(counts.content_units ?? counts.contentUnits ?? 0)}）`
       : ''
     return `读取项目结构摘要${summary}。`
   }
-  if (call.name === 'movscript.create_draft') {
+  if (call.name === 'movscript_create_draft') {
     const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
     return `创建本地草稿${draftId}。`
   }
-  if (call.name === 'movscript.list_drafts') {
+  if (call.name === 'movscript_list_drafts') {
     const count = isRecord(parsed) && Array.isArray(parsed.drafts) ? parsed.drafts.length : undefined
     return `列出本地草稿${count === undefined ? '' : `，共 ${count} 条`}。`
   }
-  if (call.name === 'movscript.apply_draft') {
+  if (call.name === 'movscript_apply_draft') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
     return `应用草稿审批链已执行（${status}）；当前只更新本地 Agent 草稿生命周期，不直接写正式项目实体。`
   }

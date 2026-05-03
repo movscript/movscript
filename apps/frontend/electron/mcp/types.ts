@@ -52,6 +52,7 @@ export interface MCPContextSnapshot {
     status?: string
     totalEpisodes?: number
   } | null
+  productionId?: number | null
   user: {
     id: number
     username: string
@@ -65,12 +66,14 @@ export interface MCPContextSnapshot {
   updatedAt: string
 }
 
-export type MCPDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline'
+export type MCPDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline' | 'segment' | 'scene_moment' | 'production_proposal'
+export type MCPDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface MCPDraft {
   id: string
   projectId: number | null
   kind: MCPDraftKind
+  status: MCPDraftStatus
   title: string
   content: string
   source?: {

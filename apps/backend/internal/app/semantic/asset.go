@@ -2,6 +2,7 @@ package semantic
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/movscript/movscript/internal/model"
@@ -13,7 +14,7 @@ type AssetSlotFilter struct {
 	ProductionID    uint
 	Status          string
 	OwnerType       string
-	IncludeInternal bool
+	IncludeInternal string
 }
 
 type AssetSlotInput struct {
@@ -127,7 +128,7 @@ func (s *Service) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([
 	}
 	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
 		q = q.Where("owner_type = ?", ownerType)
-	} else if !filter.IncludeInternal {
+	} else if !truthyFilter(filter.IncludeInternal) {
 		q = q.Where("owner_type <> ? OR owner_type IS NULL OR owner_type = ''", "asset_slot")
 	}
 	err := q.Order("status, priority desc, id desc").Find(&items).Error
@@ -464,4 +465,16 @@ func (s *Service) validateScopedOwner(ctx context.Context, projectID uint, owner
 
 func (s *Service) ensureAssetSlotInProject(ctx context.Context, projectID uint, assetSlotID uint) error {
 	return s.ensureProjectScopedModelInProject(ctx, projectID, assetSlotID, &model.AssetSlot{})
+}
+
+func truthyFilter(value string) bool {
+	if parsed, err := strconv.ParseBool(strings.TrimSpace(value)); err == nil {
+		return parsed
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }

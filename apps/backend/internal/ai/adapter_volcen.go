@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
@@ -35,6 +36,7 @@ func NewVolcenAdapter(baseURL, apiKey string) *VolcenAdapter {
 }
 
 func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (TextResponse, error) {
+	attachTextPromptDebug(ctx, req)
 	arkReq := buildVolcenChatRequest(req)
 
 	resp, err := a.client.CreateChatCompletion(ctx, arkReq)
@@ -44,12 +46,23 @@ func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (Text
 	if len(resp.Choices) == 0 {
 		return TextResponse{}, fmt.Errorf("volcen text: no choices in response")
 	}
+	choice := resp.Choices[0]
 	text := ""
-	if c := resp.Choices[0].Message.Content; c != nil && c.StringValue != nil {
+	if c := choice.Message.Content; c != nil && c.StringValue != nil {
 		text = *c.StringValue
 	}
+	toolCalls := convertVolcenToolCalls(choice.Message.ToolCalls)
+	// Fallback: some Doubao models embed tool calls in content as <|FunctionCallBegin|>...<|FunctionCallEnd|>
+	if len(toolCalls) == 0 && text != "" {
+		if parsed, remaining := parseVolcenFunctionCallContent(text); len(parsed) > 0 {
+			toolCalls = parsed
+			text = remaining
+		}
+	}
 	return TextResponse{
-		Content: text,
+		Content:      text,
+		ToolCalls:    toolCalls,
+		FinishReason: string(choice.FinishReason),
 		Usage: TokenUsage{
 			InputTokens:  resp.Usage.PromptTokens,
 			OutputTokens: resp.Usage.CompletionTokens,
@@ -59,6 +72,7 @@ func (a *VolcenAdapter) TextGenerate(ctx context.Context, req TextRequest) (Text
 }
 
 func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
+	attachTextPromptDebug(ctx, req)
 	arkReq := buildVolcenChatRequest(req)
 	arkReq.StreamOptions = &arkmodel.StreamOptions{IncludeUsage: true}
 
@@ -89,6 +103,24 @@ func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				if choice.Delta.ReasoningContent != nil {
 					event.ReasoningDelta = *choice.Delta.ReasoningContent
 				}
+				if len(choice.Delta.ToolCalls) > 0 {
+					deltas := make([]ToolCallDelta, 0, len(choice.Delta.ToolCalls))
+					for _, tc := range choice.Delta.ToolCalls {
+						d := ToolCallDelta{
+							ID:   tc.ID,
+							Type: string(tc.Type),
+							Function: ToolFunction{
+								Name:      tc.Function.Name,
+								Arguments: tc.Function.Arguments,
+							},
+						}
+						if tc.Index != nil {
+							d.Index = *tc.Index
+						}
+						deltas = append(deltas, d)
+					}
+					event.ToolCallDeltas = deltas
+				}
 				if choice.FinishReason != "" {
 					event.FinishReason = string(choice.FinishReason)
 				}
@@ -108,12 +140,34 @@ func (a *VolcenAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 func buildVolcenChatRequest(req TextRequest) arkmodel.CreateChatCompletionRequest {
 	msgs := make([]*arkmodel.ChatCompletionMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {
-		role := m.Role
-		content := arkmodel.ChatCompletionMessageContent{StringValue: &m.Content}
-		msgs = append(msgs, &arkmodel.ChatCompletionMessage{
-			Role:    role,
-			Content: &content,
-		})
+		msg := &arkmodel.ChatCompletionMessage{Role: m.Role}
+		switch {
+		case m.Role == "tool":
+			content := arkmodel.ChatCompletionMessageContent{StringValue: &m.Content}
+			msg.Content = &content
+			msg.ToolCallID = m.ToolCallID
+		case len(m.ToolCalls) > 0:
+			if m.Content != "" {
+				content := arkmodel.ChatCompletionMessageContent{StringValue: &m.Content}
+				msg.Content = &content
+			}
+			arkCalls := make([]*arkmodel.ToolCall, 0, len(m.ToolCalls))
+			for _, tc := range m.ToolCalls {
+				arkCalls = append(arkCalls, &arkmodel.ToolCall{
+					ID:   tc.ID,
+					Type: arkmodel.ToolTypeFunction,
+					Function: arkmodel.FunctionCall{
+						Name:      tc.Function.Name,
+						Arguments: tc.Function.Arguments,
+					},
+				})
+			}
+			msg.ToolCalls = arkCalls
+		default:
+			content := arkmodel.ChatCompletionMessageContent{StringValue: &m.Content}
+			msg.Content = &content
+		}
+		msgs = append(msgs, msg)
 	}
 
 	arkReq := arkmodel.CreateChatCompletionRequest{
@@ -148,6 +202,18 @@ func buildVolcenChatRequest(req TextRequest) arkmodel.CreateChatCompletionReques
 				v := float32(n)
 				arkReq.FrequencyPenalty = &v
 			}
+		}
+	}
+	if rawJSONPresentAI(req.Tools) {
+		var tools []*arkmodel.Tool
+		if err := json.Unmarshal(req.Tools, &tools); err == nil {
+			arkReq.Tools = tools
+		}
+	}
+	if rawJSONPresentAI(req.ToolChoice) {
+		var toolChoice any
+		if err := json.Unmarshal(req.ToolChoice, &toolChoice); err == nil {
+			arkReq.ToolChoice = toolChoice
 		}
 	}
 	return arkReq
@@ -661,4 +727,65 @@ func aspectRatioToArkSize(ratio string) string {
 
 func base64Encode(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
+}
+
+// convertVolcenToolCalls converts Volcengine SDK tool calls to the internal format.
+func convertVolcenToolCalls(arkCalls []*arkmodel.ToolCall) []ToolCall {
+	if len(arkCalls) == 0 {
+		return nil
+	}
+	result := make([]ToolCall, 0, len(arkCalls))
+	for _, tc := range arkCalls {
+		result = append(result, ToolCall{
+			ID:   tc.ID,
+			Type: string(tc.Type),
+			Function: ToolFunction{
+				Name:      tc.Function.Name,
+				Arguments: tc.Function.Arguments,
+			},
+		})
+	}
+	return result
+}
+
+// parseVolcenFunctionCallContent parses the <|FunctionCallBegin|>...<|FunctionCallEnd|> format
+// that some Doubao models use when standard tool_calls are not returned.
+// Returns the parsed tool calls and the remaining content with the marker stripped.
+func parseVolcenFunctionCallContent(content string) ([]ToolCall, string) {
+	const begin = "<|FunctionCallBegin|>"
+	const end = "<|FunctionCallEnd|>"
+	startIdx := strings.Index(content, begin)
+	if startIdx < 0 {
+		return nil, content
+	}
+	endIdx := strings.Index(content, end)
+	if endIdx < 0 {
+		return nil, content
+	}
+	jsonStr := content[startIdx+len(begin) : endIdx]
+	remaining := strings.TrimSpace(content[:startIdx] + content[endIdx+len(end):])
+
+	var calls []struct {
+		Name       string          `json:"name"`
+		Parameters json.RawMessage `json:"parameters"`
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &calls); err != nil {
+		return nil, content
+	}
+	result := make([]ToolCall, 0, len(calls))
+	for i, c := range calls {
+		args := "{}"
+		if len(c.Parameters) > 0 {
+			args = string(c.Parameters)
+		}
+		result = append(result, ToolCall{
+			ID:   fmt.Sprintf("call_%d", i),
+			Type: "function",
+			Function: ToolFunction{
+				Name:      c.Name,
+				Arguments: args,
+			},
+		})
+	}
+	return result, remaining
 }

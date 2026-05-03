@@ -10,6 +10,8 @@ import {
   Clipboard,
   Copy,
   Database,
+  ChevronDown,
+  ChevronRight,
   FileJson,
   Loader2,
   Play,
@@ -338,7 +340,7 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
       command: '/draft',
       payload: 'draft goal, entity hint, or script fragment',
     },
-    runtimeFlow: ['infer draft kind', 'optionally read project structure/entity', 'call movscript.create_draft', 'return draft id in assistant message'],
+    runtimeFlow: ['infer draft kind', 'optionally read project structure/entity', 'call movscript_create_draft', 'return draft id in assistant message'],
     outputContract: {
       draftId: 'string',
       kind: 'script | setting | storyboard_line | content_unit | asset_slot | prompt | task | note',
@@ -353,7 +355,7 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
       command: '/inspect_context',
       payload: 'optional question about current context',
     },
-    runtimeFlow: ['capture uiSnapshot', 'call movscript.get_context_pack', 'load memories', 'render Context tab/Raw JSON'],
+    runtimeFlow: ['capture uiSnapshot', 'call movscript_get_context_pack', 'load memories', 'render Context tab/Raw JSON'],
     outputContract: {
       context: 'AgentDebugContextPanel',
       memories: 'memory refs',
@@ -367,7 +369,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'inspect_context',
     label: 'Inspect Context',
-    agentFunction: 'movscript.get_context_pack + AgentDebugContextPanel',
+    agentFunction: 'movscript_get_context_pack + AgentDebugContextPanel',
     command: '/inspect_context',
     endpoint: 'POST /runs through clientInput.message',
     outputMode: 'assistant text: JSON',
@@ -385,7 +387,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'search_entities',
     label: 'Search Entities',
-    agentFunction: 'movscript.search_entities',
+    agentFunction: 'movscript_search_entities',
     command: '/search 主角',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + raw step JSON',
@@ -394,7 +396,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'project_structure',
     label: 'Project Structure',
-    agentFunction: 'movscript.read_project_structure',
+    agentFunction: 'movscript_read_project_structure',
     command: '/project_structure',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + structure JSON',
@@ -403,7 +405,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'read_entity',
     label: 'Read Entity',
-    agentFunction: 'movscript.read_entity',
+    agentFunction: 'movscript_read_entity',
     command: '/read_entity script #1',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + raw step JSON',
@@ -412,7 +414,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'create_draft',
     label: 'Create Draft',
-    agentFunction: 'movscript.create_draft',
+    agentFunction: 'movscript_create_draft',
     command: '/draft 写一版第一场镜头草稿',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + local draft JSON',
@@ -421,7 +423,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'list_drafts',
     label: 'List Drafts',
-    agentFunction: 'movscript.list_drafts',
+    agentFunction: 'movscript_list_drafts',
     command: '/list_drafts',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + draft list JSON',
@@ -430,7 +432,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'apply_draft',
     label: 'Apply Draft',
-    agentFunction: 'movscript.apply_draft',
+    agentFunction: 'movscript_apply_draft',
     command: '/apply_draft draft_xxx to script #1 field content',
     endpoint: 'POST /runs then POST /runs/:id/approve',
     outputMode: 'approval request + assistant text summary',
@@ -439,14 +441,14 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'open_entity',
     label: 'Open Entity',
-    agentFunction: 'movscript.open_entity',
+    agentFunction: 'movscript_open_entity',
     command: 'POST /runs/tool',
     endpoint: 'POST /runs/tool',
     outputMode: 'run timeline JSON; UI navigation can be adapter-specific',
     description: 'UI 导航类能力不要求 agent 输出组件，调试时用显式 tool run payload 表示。',
     requestShape: {
       toolCall: {
-        name: 'movscript.open_entity',
+        name: 'movscript_open_entity',
         args: { entityType: 'script', entityId: 1 },
       },
     },
@@ -2094,7 +2096,7 @@ function AgentActivityTrace({
   const events = normalizeTraceEvents(run, threadMessages)
   const rounds = groupTraceRounds(run, events)
   const toolEventCount = events.filter((event) => event.kind === 'tool_call').length
-  const modelEventCount = events.filter((event) => event.kind === 'model_call').length
+  const modelCallCount = rounds.reduce((count, round) => count + groupModelHTTPCalls(round.events).length, 0)
   const dataEventCount = events.filter((event) => event.data !== undefined).length
 
   return (
@@ -2102,7 +2104,7 @@ function AgentActivityTrace({
       <div className="grid gap-3 md:grid-cols-4">
         <Metric label="Rounds" value={String(rounds.length)} />
         <Metric label="Tool events" value={String(toolEventCount)} />
-        <Metric label="Model HTTP" value={String(modelEventCount)} tone={modelEventCount > 0 ? 'success' : 'neutral'} />
+        <Metric label="Model HTTP" value={String(modelCallCount)} tone={modelCallCount > 0 ? 'success' : 'neutral'} />
         <Metric label="Data snapshots" value={String(dataEventCount)} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
@@ -2140,7 +2142,8 @@ type TraceRound = {
 
 function TraceRoundPanel({ round }: { round: TraceRound }) {
   const toolSteps = round.steps.filter((step) => step.type === 'tool_call')
-  const modelEvents = round.events.filter((event) => event.kind === 'model_call')
+  const modelCalls = groupModelHTTPCalls(round.events)
+  const visibleEvents = round.events.filter((event) => event.kind !== 'model_call')
   const dataEvents = round.events.filter((event) => event.data !== undefined)
   return (
     <div className="rounded-md border border-border bg-background p-3">
@@ -2155,7 +2158,7 @@ function TraceRoundPanel({ round }: { round: TraceRound }) {
           <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
             <span>{round.events.length} event(s)</span>
             <span>{toolSteps.length} tool step(s)</span>
-            <span>{modelEvents.length} model event(s)</span>
+            <span>{modelCalls.length} HTTP call(s)</span>
             <span>{dataEvents.length} data snapshot(s)</span>
           </div>
         </div>
@@ -2176,10 +2179,69 @@ function TraceRoundPanel({ round }: { round: TraceRound }) {
       )}
 
       <div className="mt-3 space-y-2">
-        {round.events.map((event, index) => (
+        {modelCalls.map((call, index) => (
+          <ModelHTTPCallPanel key={call.id} call={call} index={index} />
+        ))}
+        {visibleEvents.map((event, index) => (
           <TraceEventRow key={event.id} event={event} index={index} compact />
         ))}
       </div>
+    </div>
+  )
+}
+
+type ModelHTTPCall = {
+  id: string
+  status: AgentTraceEvent['status']
+  startedAt: string
+  completedAt?: string
+  request?: AgentTraceEvent
+  response?: AgentTraceEvent
+  error?: AgentTraceEvent
+  events: AgentTraceEvent[]
+}
+
+function ModelHTTPCallPanel({ call, index }: { call: ModelHTTPCall; index: number }) {
+  const [open, setOpen] = useState(false)
+  const data = (call.response ?? call.error ?? call.request)?.data as Record<string, unknown> | undefined
+  const trace = data && typeof data === 'object' ? data : undefined
+  const request = trace?.request as { body?: { model?: string } } | undefined
+  const response = trace?.response as { status?: number; statusText?: string } | undefined
+  const latency = typeof trace?.latencyMs === 'number' ? `${trace.latencyMs}ms` : undefined
+  const title = response
+    ? `HTTP ${response.status ?? 'unknown'}${response.statusText ? ` ${response.statusText}` : ''}`
+    : call.error?.summary ?? call.request?.summary ?? 'Model HTTP call'
+
+  return (
+    <div className="rounded-md border border-border bg-muted/10">
+      <button type="button" className="flex w-full items-start gap-3 p-2 text-left" onClick={() => setOpen((value) => !value)}>
+        <div className={cn('mt-0.5 flex h-7 w-7 items-center justify-center rounded-md border', traceEventIconClass(call.status))}>
+          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">HTTP #{index + 1}</span>
+            <span className="text-sm font-medium text-foreground">{title}</span>
+            <Badge variant={traceEventBadgeVariant(call.status)} className="text-[9px]">{call.status}</Badge>
+            <Badge variant="outline" className="text-[9px]">model_call</Badge>
+            {request?.body?.model && <Badge variant="secondary" className="text-[9px]">{request.body.model}</Badge>}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+            <span>{formatTime(call.startedAt)}</span>
+            {latency && <span>{latency}</span>}
+            <span>{call.events.length} event(s)</span>
+          </div>
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-border px-2 pb-2 pt-2">
+          <div className="space-y-2">
+            {call.events.map((event, eventIndex) => (
+              <TraceEventRow key={event.id} event={event} index={eventIndex} compact />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2315,6 +2377,33 @@ function groupTraceRounds(run: AgentRun, events: AgentTraceEvent[]): TraceRound[
     })
 }
 
+function groupModelHTTPCalls(events: AgentTraceEvent[]): ModelHTTPCall[] {
+  const calls: ModelHTTPCall[] = []
+  let current: ModelHTTPCall | undefined
+  for (const event of events.filter((item) => item.kind === 'model_call')) {
+    if (event.title === 'Model HTTP request sent' || !current) {
+      current = {
+        id: event.id,
+        status: event.status,
+        startedAt: event.createdAt,
+        completedAt: event.completedAt ?? event.createdAt,
+        request: event.title === 'Model HTTP request sent' ? event : undefined,
+        events: [event],
+      }
+      calls.push(current)
+      continue
+    }
+    current.events.push(event)
+    current.status = mergeTraceStatus(current.status, event.status)
+    if (event.createdAt < current.startedAt) current.startedAt = event.createdAt
+    const completedAt = event.completedAt ?? event.createdAt
+    if (!current.completedAt || completedAt > current.completedAt) current.completedAt = completedAt
+    if (event.title === 'Model HTTP response received') current.response = event
+    if (event.title === 'Model HTTP call failed') current.error = event
+  }
+  return calls
+}
+
 function mergeTraceStatus(current: AgentTraceEvent['status'], next: AgentTraceEvent['status']): AgentTraceEvent['status'] {
   const rank: Record<AgentTraceEvent['status'], number> = {
     failed: 5,
@@ -2434,7 +2523,6 @@ function traceEventIcon(event: AgentTraceEvent) {
   if (event.status === 'blocked') return <AlertTriangle size={14} />
   if (event.status === 'started') return <Loader2 size={14} className="animate-spin" />
   if (event.kind === 'tool_call') return <Wrench size={14} />
-  if (event.kind === 'subagent') return <Bot size={14} />
   if (event.kind === 'context' || event.kind === 'memory' || event.kind === 'tool_catalog') return <Database size={14} />
   if (event.kind === 'prompt' || event.kind === 'manifest' || event.kind === 'skill') return <Clipboard size={14} />
   return <Check size={14} />
