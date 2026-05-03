@@ -9,7 +9,6 @@ import {
   Clock3,
   Film,
   GitBranch,
-  Layers3,
   ListChecks,
   PackageCheck,
   Play,

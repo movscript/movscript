@@ -11,7 +11,7 @@ This is the short orientation document for contributors. The broader architectur
 | Backend | Go 1.25, Gin, GORM, PostgreSQL |
 | Storage | MinIO/S3-compatible object storage |
 | AI | Adapter layer for OpenAI-compatible APIs, Anthropic, Gemini, Kling, Volcengine, and dry-run |
-| Production Runtime | Standalone TypeScript HTTP service using MCP-shaped client tools |
+| Agent | Standalone TypeScript HTTP service using MCP-shaped client tools |
 | Plugins | Backend-stored plugin manifests plus frontend/runtime plugin surfaces |
 
 Default backend origin: `http://localhost:8765`. The frontend builds API v1 URLs from `VITE_API_BASE_URL`.
@@ -26,7 +26,7 @@ Electron frontend
   -> MinIO-compatible object storage for media
   -> AI provider adapters and async generation worker
 
-Local production runtime
+Local agent
   -> MCP-shaped endpoint exposed by the desktop side
   -> local thread/run/memory files
   -> optional Movscript model gateway or OpenAI-compatible model endpoint
@@ -37,15 +37,17 @@ Local production runtime
 ```text
 apps/backend/
   cmd/server/              Backend entry point
+  internal/bootstrap/      Backend composition root for config, DB, storage, auth, AI services, worker, router
+  internal/app/            Application services / use cases; handlers should call this layer for business flows
   internal/ai/             Provider interfaces, adapters, catalogs, feature routing
   internal/config/         Environment loading
   internal/crypto/         AES-256-GCM helpers for provider credentials
   internal/db/             GORM connection and AutoMigrate
-  internal/job/         Async generation state machine and worker
-  internal/handler/        HTTP handlers
+  internal/job/            Async generation state machine and worker
+  internal/handler/        HTTP adapters: bind request, call app services, map errors, return JSON
   internal/model/          GORM models
   internal/pluginkit/      Plugin manifest parsing and import logic
-  internal/router/         Route registration
+  internal/router/         Route module registration; no service construction beyond handler wiring
   internal/storage/        Object storage abstraction
 
 apps/frontend/
@@ -57,8 +59,8 @@ apps/frontend/
   src/store/               Zustand stores
   src/types/               Frontend API and domain types
 
-apps/production-runtime/
-  src/server.ts            Local production runtime HTTP server
+apps/agent/
+  src/server.ts            Local agent HTTP server
   src/runtime/             Thread/run lifecycle, planner, policy, memory, manifest logic
 
 apps/movcli/
@@ -91,7 +93,11 @@ Raw media is stored as `RawResource` rows with object-storage keys and optional 
 
 ### Backend Handlers
 
-Handlers live in `apps/backend/internal/handler/`. Most handlers directly use `h.db` and GORM models. If you add a route, update the handler and `apps/backend/internal/router/router.go`.
+Handlers live in `apps/backend/internal/handler/`. New or refactored handlers should stay thin: bind request input, call an `internal/app/<domain>` service, map domain/application errors, and return JSON. Do not add new business flows directly in handlers unless the area has not yet been migrated.
+
+Route registration is split by module in `apps/backend/internal/router/`. Add routes to the relevant `*_routes.go` file rather than growing `router.go`.
+
+The backend is assembled by `apps/backend/internal/bootstrap`. Avoid constructing shared services such as auth token managers, AI registries, AI services, storage clients, or workers inside route registration.
 
 ### AI Routing
 
@@ -109,16 +115,17 @@ Entity management and creation pages are in `apps/frontend/src/pages/`. Shared c
 
 Plugin manifests are parsed by `apps/backend/internal/pluginkit` and stored by `/api/v1/plugins`. Frontend plugin pages and runtime helpers live in `apps/frontend/src/pages/plugins/` and `apps/frontend/src/lib/`.
 
-### Production Runtime
+### Agent
 
-The local production runtime owns thread/run lifecycle, policy checks, tool metadata, skill catalog loading, and local memory. It should be treated as an HTTP service by Electron and CLI callers.
+The local agent owns thread/run lifecycle, policy checks, tool metadata, skill catalog loading, and local memory. It should be treated as an HTTP service by Electron and CLI callers.
 
 ## Where To Change Things
 
 | Goal | Main files |
 | --- | --- |
-| Add or change a backend route | `apps/backend/internal/handler/*`, `apps/backend/internal/router/router.go` |
-| Add a database-backed entity | `apps/backend/internal/model/*`, handler, router, frontend types |
+| Add or change a backend route | `apps/backend/internal/router/*_routes.go`, matching `internal/handler/*` |
+| Add a backend use case | `apps/backend/internal/app/<domain>/*`, then call it from a thin handler |
+| Add a database-backed entity | `apps/backend/internal/model/*`, app service, handler, router, frontend types |
 | Add an AI provider | `apps/backend/internal/ai/adapter_*.go`, `registry.go`, catalog/debug tests |
 | Change model/feature configuration | `apps/backend/internal/ai/feature.go`, `catalog.go`, admin frontend pages |
 | Change generation job behavior | `apps/backend/internal/job/*`, `apps/backend/internal/ai/*` |
@@ -127,4 +134,4 @@ The local production runtime owns thread/run lifecycle, policy checks, tool meta
 | Change i18n copy | `apps/frontend/src/i18n/locales/*.json` |
 | Change canvas behavior | `apps/frontend/src/pages/canvas/*`, `apps/backend/internal/handler/canvas*.go` |
 | Change plugin manifest/runtime behavior | `apps/backend/internal/pluginkit/*`, `apps/frontend/src/lib/*Plugin*`, `docs/plugins.md` |
-| Change local production runtime behavior | `apps/production-runtime/src/runtime/*`, `apps/production-runtime/src/server.ts` |
+| Change local agent behavior | `apps/agent/src/runtime/*`, `apps/agent/src/server.ts` |

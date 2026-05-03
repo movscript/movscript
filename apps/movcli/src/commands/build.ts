@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync, createWriteStream } from 'node:fs'
-import { resolve, join, extname, basename } from 'node:path'
+import { resolve, join } from 'node:path'
 import { build as esbuild } from 'esbuild'
 import archiver from 'archiver'
 import { loadMovJson, type MovJson } from '../manifest.js'
@@ -75,7 +75,7 @@ export async function cmdBuild(options: BuildOptions) {
   // 5. Pack into .movpkg (zip)
   const pkgName = `${manifest.id}-${manifest.version}.movpkg`
   const pkgPath = join(outDir, pkgName)
-  await packMovpkg(outDir, pkgPath, manifest, hasUi, cwd)
+  await packMovpkg(outDir, pkgPath, hasUi, cwd)
 
   console.log(`Built: ${outDir}/${pkgName}`)
 }
@@ -96,7 +96,7 @@ function buildOutputManifest(m: MovJson, hasUi: boolean) {
   return base
 }
 
-function packMovpkg(outDir: string, pkgPath: string, manifest: MovJson, hasUi: boolean, cwd: string): Promise<void> {
+function packMovpkg(outDir: string, pkgPath: string, hasUi: boolean, cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const output = createWriteStream(pkgPath)
     const archive = archiver('zip', { zlib: { level: 9 } })

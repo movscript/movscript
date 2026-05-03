@@ -3,8 +3,6 @@ import { useUserStore } from '@/store/userStore'
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
-export type AgentPlanTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
-export type AgentPlannerKind = 'rule' | 'model'
 
 export interface AgentMessage {
   id: string
@@ -43,41 +41,57 @@ export interface AgentThreadSummary {
 export interface AgentRunStep {
   id: string
   runId: string
-  type: 'planning' | 'subagent' | 'tool_call' | 'message'
+  type: 'tool_call' | 'message'
   status: AgentStepStatus
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
   title?: string
-  agentId?: string
-  agentRole?: string
-  parentStepId?: string
   toolName?: string
   args?: Record<string, unknown>
   result?: unknown
   error?: string
+  sandboxed?: boolean
   createdAt: string
   completedAt?: string
 }
 
-export interface AgentPlanTask {
+export type AgentTraceEventKind =
+  | 'run'
+  | 'thread'
+  | 'message'
+  | 'context'
+  | 'memory'
+  | 'manifest'
+  | 'skill'
+  | 'tool_catalog'
+  | 'prompt'
+  | 'policy'
+  | 'tool_call'
+  | 'model_call'
+  | 'approval'
+  | 'assistant'
+  | 'error'
+
+export interface AgentTraceEvent {
   id: string
+  runId: string
+  kind: AgentTraceEventKind
   title: string
-  description: string
-  agentRole: string
-  status: AgentPlanTaskStatus
-  toolCalls: AgentToolCall[]
+  summary?: string
+  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
+  agentId?: string
+  parentAgentId?: string
+  stepId?: string
+  toolName?: string
+  data?: unknown
   createdAt: string
-  startedAt?: string
   completedAt?: string
-  error?: string
-  successCriteria?: string
-}
-
-export interface AgentTaskPlan {
-  id: string
-  objective: string
-  strategy: string
-  tasks: AgentPlanTask[]
-  createdAt: string
-  updatedAt: string
 }
 
 export interface AgentToolCall {
@@ -175,9 +189,8 @@ export interface AgentRun {
   threadId: string
   status: AgentRunStatus
   agentManifest?: AgentManifest
-  envelope?: AgentInputEnvelope
-  plan?: AgentTaskPlan
   pendingApprovals?: AgentApprovalRequest[]
+  policy: AgentRunPolicy
   metadata?: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -188,6 +201,7 @@ export interface AgentRun {
   warnings?: string[]
   assistantMessageId?: string
   steps: AgentRunStep[]
+  traceEvents?: AgentTraceEvent[]
 }
 
 export interface AgentRunPreview {
@@ -203,9 +217,6 @@ export interface AgentRunPreview {
   policy?: AgentRunPolicy
   promptPreview?: CompiledPromptPreview
   debug?: Record<string, unknown>
-  planner: AgentPlannerKind
-  plannerWarnings: string[]
-  plan: AgentTaskPlan
   toolCalls: AgentToolCall[]
   pendingApprovals: AgentApprovalRequest[]
   warnings: string[]
@@ -253,7 +264,8 @@ export interface AgentClientInput {
 }
 
 export interface AgentRunPolicy {
-  approvalMode: 'interactive' | 'dry_run' | 'auto_readonly'
+  approvalMode: 'interactive' | 'auto_readonly' | 'auto'
+  sandboxMode?: boolean
   maxToolCalls: number
   maxIterations: number
   allowNetwork: boolean
@@ -261,35 +273,6 @@ export interface AgentRunPolicy {
   costLimit?: {
     currency: string
     amount: number
-  }
-}
-
-export interface AgentInputEnvelope {
-  id: string
-  threadId?: string
-  runId?: string
-  mode: 'preview' | 'run'
-  message: {
-    role: 'user'
-    content: string
-  }
-  history: Array<{
-    id: string
-    role: AgentMessageRole
-    content: string
-    createdAt: string
-  }>
-  context: AgentDebugContextPanel
-  manifest: AgentManifest
-  skills: ResolvedAgentSkill[]
-  tools: ResolvedToolCatalog
-  policy: AgentRunPolicy
-  memories: Array<{ id: string; scope: string; kind: string; content: string }>
-  model?: AgentManifest['model']
-  debug: {
-    source: 'frontend' | 'runtime'
-    warnings: string[]
-    compiledPrompt?: CompiledPromptPreview
   }
 }
 
@@ -575,12 +558,12 @@ export class LocalAgentClient {
     } catch (healthError) {
       const ensureProductionRuntime = canStartLocalAgentFromClient() ? window.api?.ensureProductionRuntime : undefined
       if (!ensureProductionRuntime) {
-        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter movscript-production-runtime dev`)
+        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter movscript-agent dev`)
       }
 
       const status = await ensureProductionRuntime({ baseURL: this.baseURL })
       if (!status.ok) {
-        throw new Error(status.error || `failed to start production runtime at ${this.baseURL}`)
+        throw new Error(status.error || `failed to start agent at ${this.baseURL}`)
       }
       return this.health()
     }
@@ -604,6 +587,10 @@ export class LocalAgentClient {
 
   createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput } = {}): Promise<AgentRun> {
     return this.postJSON('/runs', { threadId, ...input })
+  }
+
+  listRuns(): Promise<{ runs: AgentRun[] }> {
+    return this.getJSON('/runs')
   }
 
   createToolRun(input: {
@@ -804,7 +791,7 @@ async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes('local agent returned 404')) {
-      throw new Error('当前 Production Runtime 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter movscript-production-runtime dev')
+      throw new Error('当前 Agent 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter movscript-agent dev')
     }
     throw error
   }

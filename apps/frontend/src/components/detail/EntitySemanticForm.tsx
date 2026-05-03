@@ -394,12 +394,11 @@ function RelatedEntityListField({
 }
 
 function RelatedEntityCard({ item, index, kind }: { item: unknown; index: number; kind?: string }) {
-  const { t } = useTranslation()
   const record = item && typeof item === 'object' ? item as Record<string, unknown> : {}
   const title = relatedEntityLabel(item, index, kind)
   const status = relatedEntityStatus(item)
   const description = stringRecordValue(record.description) || stringRecordValue(record.prompt)
-  const meta = relatedEntityMeta(record, kind, t)
+  const meta = relatedEntityMeta(record, kind)
 
   return (
     <div className="rounded-md border border-border/70 bg-card px-2.5 py-2 text-xs">
@@ -517,7 +516,7 @@ function relatedEntityStatus(item: unknown) {
   return typeof status === 'string' ? status : ''
 }
 
-function relatedEntityMeta(record: Record<string, unknown>, kind: string | undefined, t: (key: string, options?: Record<string, unknown>) => string) {
+function relatedEntityMeta(record: Record<string, unknown>, kind: string | undefined) {
   if (kind === 'asset_slot') {
     const ownerType = record.owner_type
     const ownerId = record.owner_id

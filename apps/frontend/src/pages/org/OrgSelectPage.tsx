@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Building2, User, Plus, ChevronRight } from 'lucide-react'
 import { useUserStore } from '@/store/userStore'
@@ -83,7 +83,7 @@ function CreateOrgDialog({ onClose, onCreated }: { onClose: () => void; onCreate
 export default function OrgSelectPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { orgMemberships, setCurrentOrg, orgMemberships: memberships } = useUserStore()
+  const { setCurrentOrg, orgMemberships: memberships } = useUserStore()
   const [showCreate, setShowCreate] = useState(false)
 
   function selectOrg(orgId: number) {

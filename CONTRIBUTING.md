@@ -22,7 +22,7 @@ make dev-backend
 make dev-frontend
 ```
 
-Optional local production runtime:
+Optional local agent:
 
 ```bash
 make dev-runtime

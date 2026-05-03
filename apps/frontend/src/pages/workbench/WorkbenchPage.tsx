@@ -23,7 +23,6 @@ import {
   RefreshCw,
   Settings2,
   ShieldCheck,
-  Sparkles,
   SquareStack,
   Target,
   Upload,

@@ -94,16 +94,6 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function OrgGuard({ children }: { children: React.ReactNode }) {
-  const currentOrgID = useUserStore((s) => s.currentOrgID)
-  const memberships = useUserStore((s) => s.orgMemberships)
-  const nonPersonal = memberships.filter((m) => !m.is_personal)
-  if (nonPersonal.length > 1 && currentOrgID === null) {
-    return <Navigate to="/org/select" replace />
-  }
-  return <>{children}</>
-}
-
 function OrgAdminGuard({ children }: { children: React.ReactNode }) {
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const memberships = useUserStore((s) => s.orgMemberships)

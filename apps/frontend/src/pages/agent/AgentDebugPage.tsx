@@ -44,6 +44,7 @@ import {
   type AgentInspectResponse,
   type AgentManifest,
   type AgentRun,
+  type AgentTraceEvent,
   type AgentRunPreview,
   type AgentSkillManifest,
   type ResolvedAgentSkill,
@@ -110,8 +111,8 @@ type DebugStageStatus = 'pending' | 'active' | 'complete' | 'blocked' | 'failed'
 
 const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
   {
-    id: 'agent_debug_model_planner',
-    name: 'Agent Debug Model Planner / Run',
+    id: 'agent_debug_agentic_loop',
+    name: 'Agent Debug Agentic Loop / Run',
     surface: '/agent/debug',
     frontendEntry: 'apps/frontend/src/pages/agent/AgentDebugPage.tsx',
     trigger: 'Run Preview / Execute Debug Run',
@@ -127,9 +128,9 @@ const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
       agentManifest: 'optional',
       approvedToolNames: 'optional string[]',
     },
-    executionTrace: ['context pack', 'skill resolution', 'tool capability resolution', 'prompt compilation', 'model/rule planner', 'tool policy', 'run steps', 'approval gate', 'assistant message'],
-    currentVisibility: ['prompt', 'context', 'planner kind', 'plan', 'tool calls', 'approvals', 'step args/result/error', 'final message', 'raw run JSON'],
-    missingVisibility: ['token usage', 'model raw request/response body', 'per-step latency'],
+    executionTrace: ['context pack', 'skill resolution', 'tool capability resolution', 'prompt compilation', 'agentic loop', 'tool policy', 'run steps', 'approval gate', 'model HTTP call', 'assistant message'],
+    currentVisibility: ['prompt', 'context', 'tool calls', 'approvals', 'step args/result/error', 'model HTTP request/response body', 'final message', 'raw run JSON'],
+    missingVisibility: ['token usage', 'per-step latency'],
   },
   {
     id: 'brainstorm_chat',
@@ -254,16 +255,14 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
   },
   {
     id: 'local_runtime',
-    name: 'Local Production Runtime',
-    scope: '运行生命周期、规划、权限、草稿、记忆和模型 planner',
-    owner: 'apps/production-runtime',
+    name: 'Local Agent',
+    scope: '运行生命周期、agentic loop、权限、草稿和记忆',
+    owner: 'apps/agent',
     entrypoints: [
-      'apps/production-runtime/src/server.ts',
-      'apps/production-runtime/src/runtime/agentRuntime.ts',
-      'apps/production-runtime/src/runtime/planner.ts',
-      'apps/production-runtime/src/runtime/modelPlanner.ts',
+      'apps/agent/src/server.ts',
+      'apps/agent/src/runtime/agentRuntime.ts',
     ],
-    runtimeArtifacts: ['thread', 'message', 'run', 'envelope', 'plan', 'steps', 'approval requests', 'memories', 'drafts'],
+    runtimeArtifacts: ['thread', 'message', 'run', 'policy', 'steps', 'approval requests', 'memories', 'drafts'],
     debugVisibility: ['Overview', 'Manifest', 'Skills', 'Tools', 'Prompt', 'Run Timeline', 'Raw JSON'],
   },
   {
@@ -285,9 +284,9 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
     scope: 'MCP/runtime/plugin 工具解析、授权和执行',
     owner: 'runtime tool registry + MCP tool server',
     entrypoints: [
-      'apps/production-runtime/src/runtime/toolRegistry.ts',
-      'apps/production-runtime/src/runtime/toolPolicy.ts',
-      'apps/production-runtime/catalog/tools',
+      'apps/agent/src/runtime/toolRegistry.ts',
+      'apps/agent/src/runtime/toolPolicy.ts',
+      'apps/agent/catalog/tools',
     ],
     runtimeArtifacts: ['resolved tool catalog', 'blocked tools', 'tool calls', 'tool outcomes'],
     debugVisibility: ['Tools table', 'Approval preview', 'Step timeline args/result/error'],
@@ -295,15 +294,14 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
   {
     id: 'model_layer',
     name: 'Model Layer',
-    scope: '可选模型 planner 和最终聊天回复模型',
+    scope: '最终聊天回复模型和 backend model gateway 配置',
     owner: 'Backend AI model config',
     entrypoints: [
-      'apps/production-runtime/src/runtime/modelConfig.ts',
-      'apps/production-runtime/src/runtime/modelPlanner.ts',
-      'apps/production-runtime/src/runtime/modelChat.ts',
+      'apps/agent/src/runtime/modelConfig.ts',
+      'apps/agent/src/runtime/assistantMessage.ts',
     ],
-    runtimeArtifacts: ['planner kind', 'compiled prompt', 'planner warnings', 'assistant message'],
-    debugVisibility: ['Model Connection', 'Prompt tab', 'planner metadata', 'final assistant message'],
+    runtimeArtifacts: ['compiled prompt', 'assistant message'],
+    debugVisibility: ['Model Connection', 'Prompt tab', 'final assistant message'],
   },
 ]
 
@@ -319,31 +317,19 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
     runtimeFlow: [
       'capture frontend clientInput',
       'resolve MCP context pack and memories',
-      'build AgentInputEnvelope',
-      'rule/model planner creates AgentTaskPlan',
-      'tool policy filters and approval-gates calls',
-      'assistant returns JSON envelope for the plan',
+      'compile agentic-loop prompt',
+      'agent selects tool calls and policy gates approvals',
+      'assistant returns JSON summary for the run',
     ],
     outputContract: {
       command: '/production_plan',
       objective: 'string',
-      strategy: 'string',
-      planner: 'rule | model',
-      tasks: [
-        {
-          id: 'string',
-          title: 'string',
-          description: 'string',
-          agentRole: 'planner | researcher | creator | reviewer | coordinator',
-          status: 'pending | skipped | completed | failed',
-          toolCalls: [{ name: 'string', args: {} }],
-          successCriteria: 'optional string',
-        },
-      ],
+      strategy: 'agentic_loop',
+      steps: [{ id: 'string', type: 'tool_call | message', status: 'string', toolName: 'optional string' }],
       warnings: ['string'],
       pendingApprovals: ['approval request'],
     },
-    currentSupport: 'Supported by runtime planner and Agent Debug preview/execute flow. /project_plan remains a compatibility alias.',
+    currentSupport: 'Supported by agentic loop preview/execute flow. /project_plan remains a compatibility alias.',
   },
   {
     command: '/draft',
@@ -358,7 +344,7 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
       kind: 'script | setting | storyboard_line | content_unit | asset_slot | prompt | task | note',
       status: 'candidate',
     },
-    currentSupport: 'Supported through natural language planner rules; command is documented for product UI consistency.',
+    currentSupport: 'Supported through the agentic loop tool-selection rules; command is documented for product UI consistency.',
   },
   {
     command: '/inspect_context',
@@ -381,7 +367,7 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'inspect_context',
     label: 'Inspect Context',
-    agentFunction: 'movscript.get_context_pack + AgentInputEnvelope',
+    agentFunction: 'movscript.get_context_pack + AgentDebugContextPanel',
     command: '/inspect_context',
     endpoint: 'POST /runs through clientInput.message',
     outputMode: 'assistant text: JSON',
@@ -390,11 +376,11 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
   {
     id: 'production_plan',
     label: 'Production Plan',
-    agentFunction: 'AgentTaskPlan planner + tool policy',
+    agentFunction: 'agentic loop + tool policy',
     command: '/production_plan 第一场：主角在雨夜进入废弃剧院',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text: JSON',
-    description: '编排当前输入和项目上下文，返回可机器读取的任务计划、工具调用、告警和审批项。',
+    description: '编排当前输入和项目上下文，返回可机器读取的步骤、工具调用、告警和审批项。',
   },
   {
     id: 'search_entities',
@@ -491,6 +477,7 @@ export default function AgentDebugPage() {
   const [debugThreadMessages, setDebugThreadMessages] = useState<Array<{ id: string; role: string; content: string; createdAt: string }>>([])
   const [debugRunError, setDebugRunError] = useState<string | null>(null)
   const [debugRunInput, setDebugRunInput] = useState<DebugRunInputSnapshot | null>(null)
+  const [selectedHistoryRunId, setSelectedHistoryRunId] = useState<string | null>(null)
   const [approvingRun, setApprovingRun] = useState(false)
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
@@ -518,6 +505,15 @@ export default function AgentDebugPage() {
       })
     },
     retry: false,
+  })
+  const runHistory = useQuery<{ runs: AgentRun[] }>({
+    queryKey: ['local-agent-debug-run-history', localAgentClient.baseURL],
+    queryFn: async () => {
+      await localAgentClient.ensureRunning()
+      return localAgentClient.listRuns()
+    },
+    retry: false,
+    refetchInterval: approvingRun ? 1000 : false,
   })
   const modelConfig = useQuery<RuntimeModelConfigPublic>({
     queryKey: ['local-agent-model-config', localAgentClient.baseURL],
@@ -573,6 +569,7 @@ export default function AgentDebugPage() {
       setDebugRun(null)
       setDebugRunError(null)
       setDebugThreadMessages([])
+      setSelectedHistoryRunId(null)
       setDebugRunInput({
         message,
         startedAt: new Date().toISOString(),
@@ -610,12 +607,14 @@ export default function AgentDebugPage() {
         onRunUpdate: (run) => setDebugRun(run),
       })
       setDebugRun(result.run)
+      setSelectedHistoryRunId(result.run.id)
       setDebugThreadMessages(result.thread.messages.map((message) => ({
         id: message.id,
         role: message.role,
         content: message.content,
         createdAt: message.createdAt,
       })))
+      runHistory.refetch()
       return result.run
     },
     onError: (error) => {
@@ -671,11 +670,13 @@ export default function AgentDebugPage() {
     modelConfig: modelConfig.data,
     modelTest: testModel.data,
     modelTestError: testModel.error?.message,
+    runHistory: runHistory.data,
+    runHistoryError: runHistory.error?.message,
     debugRun,
     debugThreadMessages,
     debugRunError,
     debugRunInput,
-  }), [capabilities.data, debugRun, debugRunError, debugRunInput, debugThreadMessages, health.data, inspect.data, modelConfig.data, preview.data, preview.error, selectedManifest, testModel.data, testModel.error])
+  }), [capabilities.data, debugRun, debugRunError, debugRunInput, debugThreadMessages, health.data, inspect.data, modelConfig.data, preview.data, preview.error, runHistory.data, runHistory.error, selectedManifest, testModel.data, testModel.error])
 
   async function approveDebugRun(approvalIds?: string[]) {
     if (!debugRun) return
@@ -685,12 +686,14 @@ export default function AgentDebugPage() {
     try {
       const approvedRun = await localAgentClient.approveRun(debugRun.id, { approvalIds })
       setDebugRun(approvedRun)
+      setSelectedHistoryRunId(approvedRun.id)
       const finalRun = await localAgentClient.waitForRun(approvedRun.id, {
         timeoutMs: 45_000,
         pollMs: 400,
         onRunUpdate: (run) => setDebugRun(run),
       })
       setDebugRun(finalRun)
+      setSelectedHistoryRunId(finalRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
       setDebugThreadMessages(thread.messages.map((message) => ({
         id: message.id,
@@ -698,6 +701,7 @@ export default function AgentDebugPage() {
         content: message.content,
         createdAt: message.createdAt,
       })))
+      runHistory.refetch()
     } catch (error) {
       setDebugRunError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -713,6 +717,7 @@ export default function AgentDebugPage() {
     try {
       const rejectedRun = await localAgentClient.rejectRun(debugRun.id, { approvalIds })
       setDebugRun(rejectedRun)
+      setSelectedHistoryRunId(rejectedRun.id)
       const thread = await localAgentClient.getThread(rejectedRun.threadId)
       setDebugThreadMessages(thread.messages.map((message) => ({
         id: message.id,
@@ -720,6 +725,7 @@ export default function AgentDebugPage() {
         content: message.content,
         createdAt: message.createdAt,
       })))
+      runHistory.refetch()
     } catch (error) {
       setDebugRunError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -736,6 +742,25 @@ export default function AgentDebugPage() {
   function useDebugCommand(command: string) {
     setPreviewMessage(command)
     setActiveTab(command.startsWith('/') ? 'plan' : 'commands')
+  }
+
+  async function openHistoryRun(run: AgentRun) {
+    setDebugRun(run)
+    setSelectedHistoryRunId(run.id)
+    setDebugRunInput(buildInputSnapshotFromRun(run))
+    setDebugRunError(null)
+    setActiveTab('plan')
+    try {
+      const thread = await localAgentClient.getThread(run.threadId)
+      setDebugThreadMessages(thread.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+      })))
+    } catch {
+      setDebugThreadMessages([])
+    }
   }
 
   return (
@@ -790,6 +815,15 @@ export default function AgentDebugPage() {
               </div>
             </Panel>
 
+            <RunHistoryPanel
+              runs={runHistory.data?.runs ?? []}
+              loading={runHistory.isFetching}
+              selectedRunId={selectedHistoryRunId ?? debugRun?.id}
+              error={runHistory.error?.message ?? null}
+              onRefresh={() => runHistory.refetch()}
+              onOpen={openHistoryRun}
+            />
+
             <Panel title="Model Connection" icon={<Bot size={14} />}>
               <div className="space-y-2">
                 <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px] text-muted-foreground">
@@ -799,7 +833,7 @@ export default function AgentDebugPage() {
                   <KeyValue label="Backend model config ID" value={modelConfig.data?.modelConfigId ? String(modelConfig.data.modelConfigId) : 'not configured'} />
                   <KeyValue label="Model" value={modelConfig.data?.model ?? modelForm.model} />
                   <KeyValue label="Use for chat" value={modelConfig.data?.useForChat ? 'true' : 'false'} />
-                  <KeyValue label="Use for planner" value={modelConfig.data?.useForPlanner ? 'true' : 'false'} />
+                  <KeyValue label="Use for legacy planner" value={modelConfig.data?.useForPlanner ? 'true' : 'false'} />
                   <KeyValue label="Credential visibility" value="Backend only; Agent does not store provider API keys." />
                 </div>
                 <Select
@@ -847,7 +881,7 @@ export default function AgentDebugPage() {
                     checked={modelForm.useForPlanner}
                     onChange={(event) => setModelForm((current) => ({ ...current, useForPlanner: event.target.checked }))}
                   />
-                  Use for agent planner
+                  Use for legacy planner
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
@@ -1116,10 +1150,10 @@ function ArchitectureTab() {
         <Panel title="Runtime Run Flow" icon={<Activity size={14} />}>
           <div className="space-y-2 text-xs">
             {[
-              'clientInput -> thread/message -> context pack -> AgentInputEnvelope',
+              'clientInput -> thread/message -> context pack',
               'skills + manifest + tools + memories -> prompt preview',
-              'rule/model planner -> AgentTaskPlan -> tool policy -> approvals',
-              'subagent steps -> tool calls -> assistant message -> memory extraction',
+              'agentic loop -> tool policy -> approvals',
+              'tool call steps -> assistant message -> memory extraction',
             ].map((line) => (
               <div key={line} className="rounded-md border border-border bg-muted/20 px-3 py-2 font-mono text-[11px] text-foreground">{line}</div>
             ))}
@@ -1339,6 +1373,79 @@ function DebugPills({ title, values, tone = 'neutral' }: { title: string; values
         ))}
       </div>
     </div>
+  )
+}
+
+function RunHistoryPanel({
+  runs,
+  loading,
+  selectedRunId,
+  error,
+  onRefresh,
+  onOpen,
+}: {
+  runs: AgentRun[]
+  loading: boolean
+  selectedRunId?: string | null
+  error: string | null
+  onRefresh: () => void
+  onOpen: (run: AgentRun) => void
+}) {
+  const recentRuns = runs.slice(0, 12)
+  return (
+    <Panel title="Run History" icon={loading ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] text-muted-foreground">{runs.length} persisted run(s)</div>
+          <Button type="button" size="xs" variant="outline" onClick={onRefresh} disabled={loading}>
+            <RefreshCw size={12} />
+            Refresh
+          </Button>
+        </div>
+        {error && (
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">
+            {error}
+          </p>
+        )}
+        {recentRuns.length === 0 ? (
+          <EmptyState text="No executed run history yet." />
+        ) : (
+          <div className="space-y-1.5">
+            {recentRuns.map((run) => {
+              const selected = run.id === selectedRunId
+              const firstUserMessage = extractRunMessage(run)
+              return (
+                <button
+                  key={run.id}
+                  type="button"
+                  onClick={() => onOpen(run)}
+                  className={cn(
+                    'w-full rounded-md border p-2 text-left transition-colors',
+                    selected ? 'border-primary/50 bg-primary/5' : 'border-border bg-background hover:border-primary/30 hover:bg-muted/20',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant={runStatusTone(run.status, false)} className="text-[9px]">{run.status}</Badge>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(run.createdAt)}</span>
+                  </div>
+                  <div className="mt-1 truncate font-mono text-[10px] text-foreground" title={run.id}>{run.id}</div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {firstUserMessage || `${run.steps.length} step(s), ${run.traceEvents?.length ?? 0} event(s)`}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <Badge variant="outline" className="text-[9px]">{run.steps.length} steps</Badge>
+                    <Badge variant="outline" className="text-[9px]">{run.traceEvents?.length ?? 0} events</Badge>
+                    {run.pendingApprovals?.some((approval) => approval.status === 'pending') && (
+                      <Badge variant="warning" className="text-[9px]">approval</Badge>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </Panel>
   )
 }
 
@@ -1588,13 +1695,13 @@ function RunInteractionPanel({
             </div>
             <div className="mt-2 rounded-md border border-border bg-muted/20 p-3">
               <div className="mb-1 text-[10px] uppercase text-muted-foreground">User Input</div>
-              <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{input?.message ?? run?.envelope?.message.content ?? 'No input captured.'}</p>
+              <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{input?.message ?? 'No input captured.'}</p>
             </div>
           </div>
           <div className="grid min-w-[220px] gap-2 text-xs">
             <KeyValue label="Runtime" value={runtimeOnline ? 'online' : running ? 'checking' : 'unknown'} />
-            <KeyValue label="Thread" value={run?.threadId ?? run?.envelope?.threadId ?? 'pending'} />
-            <KeyValue label="Planner" value={String(run?.metadata?.planner ?? (running ? 'resolving' : 'unknown'))} />
+            <KeyValue label="Thread" value={run?.threadId ?? 'pending'} />
+            <KeyValue label="Loop" value={run ? `${run.steps.length} step(s)` : running ? 'running' : 'unknown'} />
             <Button type="button" size="sm" variant="outline" onClick={onOpenTimeline}>
               Open Run Timeline
             </Button>
@@ -1670,32 +1777,37 @@ function PlanTab({
       />
       {preview && (
         <>
-          <Panel title="Dry-run Plan Preview" icon={<ShieldCheck size={14} />}>
+          <Panel title="Agentic Loop Preview" icon={<ShieldCheck size={14} />}>
             <div className="space-y-3">
               <div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge variant={preview.planner === 'model' ? 'secondary' : 'outline'} className="text-[9px]">
-                    {preview.planner} planner
+                  <Badge variant={preview.policy?.sandboxMode ? 'secondary' : 'outline'} className="text-[9px]">
+                    sandbox {preview.policy?.sandboxMode ? 'on' : 'off'}
                   </Badge>
-                  {preview.plannerWarnings.map((warning) => (
+                  {preview.warnings.map((warning) => (
                     <Badge key={warning} variant="warning" className="text-[9px]">{warning}</Badge>
                   ))}
                 </div>
-                <h3 className="text-sm font-medium text-foreground">{preview.plan.objective}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{preview.plan.strategy}</p>
+                <h3 className="text-sm font-medium text-foreground">{preview.message}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount} · tool calls: {preview.toolCalls.length}
+                </p>
               </div>
               <div className="space-y-2">
-                {(preview.plan.tasks ?? []).map((task, index) => (
-                  <div key={task.id} className="rounded-md border border-border bg-background p-3">
+                {preview.toolCalls.length === 0 ? (
+                  <div className="rounded-md border border-border bg-background p-3 text-xs text-muted-foreground">
+                    No immediate tool calls predicted for this message.
+                  </div>
+                ) : preview.toolCalls.map((call, index) => (
+                  <div key={`${call.name}-${index}`} className="rounded-md border border-border bg-background p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="text-sm font-medium text-foreground">{index + 1}. {task.title}</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
+                        <div className="text-sm font-medium text-foreground">{index + 1}. {call.name}</div>
                       </div>
-                      <Badge variant={task.status === 'skipped' ? 'warning' : 'outline'} className="text-[9px]">{task.status}</Badge>
+                      <Badge variant="outline" className="text-[9px]">tool</Badge>
                     </div>
-                    {(task.toolCalls?.length ?? 0) > 0 && (
-                      <CodeBlock value={safeJSONStringify(task.toolCalls)} maxHeight="160px" className="mt-2" />
+                    {call.args && (
+                      <CodeBlock value={safeJSONStringify(call.args)} maxHeight="160px" className="mt-2" />
                     )}
                   </div>
                 ))}
@@ -1766,11 +1878,11 @@ function DebugRunTimeline({
                 {error}
               </div>
             ) : (
-              <EmptyState text="Starting runtime run. Waiting for thread, planner, and step timeline..." />
+              <EmptyState text="Starting runtime run. Waiting for thread and step timeline..." />
             )}
           </div>
         ) : (
-          <EmptyState text="Execute a debug run to inspect the actual planner, steps, tool calls, approvals, and final assistant message." />
+          <EmptyState text="Execute a debug run to inspect steps, tool calls, approvals, and final assistant message." />
         )}
       </Panel>
     )
@@ -1785,7 +1897,7 @@ function DebugRunTimeline({
         <div className="grid gap-3 md:grid-cols-4">
           <Metric label="Run" value={run.id} />
           <Metric label="Status" value={run.status} tone={run.status === 'failed' ? 'warning' : run.status === 'completed' ? 'success' : 'neutral'} />
-          <Metric label="Planner" value={String(run.metadata?.planner ?? 'unknown')} tone={run.metadata?.planner === 'model' ? 'success' : 'neutral'} />
+          <Metric label="Loop" value={run.policy.sandboxMode ? 'sandbox' : 'live'} tone={run.policy.sandboxMode ? 'warning' : 'neutral'} />
           <Metric label="Steps" value={String(run.steps.length)} />
         </div>
 
@@ -1838,29 +1950,7 @@ function DebugRunTimeline({
           </div>
         )}
 
-        {run.plan && (
-          <div className="rounded-md border border-border bg-muted/10 p-3">
-            <div className="mb-2 text-xs font-semibold text-foreground">Plan</div>
-            <div className="text-sm font-medium text-foreground">{run.plan.objective}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{run.plan.strategy}</p>
-            <div className="mt-3 space-y-2">
-              {run.plan.tasks.map((task, index) => (
-                <div key={task.id} className="rounded-md border border-border bg-background p-2 text-xs">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium text-foreground">{index + 1}. {task.title}</div>
-                      <p className="mt-1 text-muted-foreground">{task.description}</p>
-                    </div>
-                    <Badge variant={task.status === 'failed' ? 'destructive' : task.status === 'completed' ? 'success' : task.status === 'skipped' ? 'warning' : 'outline'} className="text-[9px]">
-                      {task.status}
-                    </Badge>
-                  </div>
-                  {(task.toolCalls?.length ?? 0) > 0 && <CodeBlock value={safeJSONStringify(task.toolCalls)} maxHeight="160px" className="mt-2" />}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <AgentActivityTrace run={run} threadMessages={threadMessages} />
 
         <div className="space-y-2">
           <div className="text-xs font-semibold text-foreground">Step Timeline</div>
@@ -1880,7 +1970,7 @@ function DebugRunTimeline({
                     <Badge variant="outline" className="text-[9px]">{step.type}</Badge>
                   </div>
                   <div className="mt-1 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                    {step.agentRole && <KeyValue label="Agent" value={step.agentRole} />}
+                    {step.sandboxed && <KeyValue label="Sandbox" value="true" />}
                     {step.toolName && <KeyValue label="Tool" value={step.toolName} />}
                     {step.createdAt && <KeyValue label="Created" value={formatTime(step.createdAt)} />}
                     {step.completedAt && <KeyValue label="Completed" value={formatTime(step.completedAt)} />}
@@ -1931,10 +2021,9 @@ function buildRunStages({
   runtimeOnline?: boolean
 }): Array<{ id: string; title: string; detail: string; status: DebugStageStatus }> {
   const hasRun = Boolean(run)
-  const hasThread = Boolean(run?.threadId || run?.envelope?.threadId)
+  const hasThread = Boolean(run?.threadId)
   const hasUserMessage = threadMessages.some((message) => message.role === 'user') || Boolean(input)
-  const hasContext = Boolean(run?.envelope?.context)
-  const hasPlan = Boolean(run?.plan)
+  const hasContext = Boolean(run?.metadata?.context)
   const pendingApprovals = (run?.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
   const toolSteps = run?.steps.filter((step) => step.type === 'tool_call') ?? []
   const activeStep = run?.steps.find((step) => step.status === 'in_progress')
@@ -1947,13 +2036,13 @@ function buildRunStages({
     {
       id: 'runtime',
       title: 'Runtime Check',
-      detail: runtimeOnline || hasRun ? 'Local Production Runtime accepted the request.' : running ? 'Checking local runtime and endpoint capability.' : 'Runtime has not been checked for this run.',
+      detail: runtimeOnline || hasRun ? 'Local Agent accepted the request.' : running ? 'Checking local runtime and endpoint capability.' : 'Runtime has not been checked for this run.',
       status: runFailed && !hasRun ? 'failed' : runtimeOnline || hasRun ? 'complete' : running ? 'active' : 'pending',
     },
     {
       id: 'thread',
       title: 'Thread Setup',
-      detail: hasThread ? `Thread ${run?.threadId ?? run?.envelope?.threadId} is bound to this run.` : hasUserMessage ? 'User input captured, waiting for runtime thread id.' : 'No submitted input yet.',
+      detail: hasThread ? `Thread ${run?.threadId} is bound to this run.` : hasUserMessage ? 'User input captured, waiting for runtime thread id.' : 'No submitted input yet.',
       status: runFailed && !hasThread ? 'failed' : hasThread ? 'complete' : hasUserMessage ? 'active' : 'pending',
     },
     {
@@ -1969,22 +2058,22 @@ function buildRunStages({
       status: runFailed && !hasContext ? 'failed' : hasContext ? 'complete' : hasRun || running ? 'active' : 'pending',
     },
     {
-      id: 'planner',
-      title: 'Planner',
-      detail: hasPlan ? `${String(run?.metadata?.planner ?? 'runtime')} planner produced ${run?.plan?.tasks.length ?? 0} task(s).` : hasRun || running ? 'Planner is compiling the prompt and creating a task plan.' : 'No planner output yet.',
-      status: runFailed && !hasPlan ? 'failed' : hasPlan ? 'complete' : hasRun || running ? 'active' : 'pending',
+      id: 'loop',
+      title: 'Agentic Loop',
+      detail: hasRun ? `${run?.steps.length ?? 0} step(s) recorded.` : running ? 'Agentic loop is starting.' : 'No loop output yet.',
+      status: runFailed && !hasRun ? 'failed' : hasRun ? 'complete' : running ? 'active' : 'pending',
     },
     {
       id: 'policy',
       title: 'Tool Policy',
-      detail: waitingApproval ? `${pendingApprovals.length || 1} tool action requires approval before continuing.` : hasPlan ? 'Tool grants and approval policy have been evaluated.' : 'Tool policy runs after planning.',
-      status: waitingApproval ? 'blocked' : hasPlan ? 'complete' : hasRun || running ? 'active' : 'pending',
+      detail: waitingApproval ? `${pendingApprovals.length || 1} tool action requires approval before continuing.` : hasRun ? 'Tool grants and approval policy have been evaluated.' : 'Tool policy runs inside the loop.',
+      status: waitingApproval ? 'blocked' : hasRun ? 'complete' : running ? 'active' : 'pending',
     },
     {
       id: 'tools',
       title: 'Tool Execution',
-      detail: failedStep ? `${stepTitle(failedStep)} failed.` : activeStep ? `${stepTitle(activeStep)} is running.` : toolSteps.length > 0 ? `${toolSteps.filter((step) => step.status === 'completed').length}/${toolSteps.length} tool step(s) completed.` : hasPlan ? 'No tool execution was required, or execution has not started.' : 'Waiting for planner tool calls.',
-      status: failedStep ? 'failed' : waitingApproval ? 'blocked' : activeStep ? 'active' : toolSteps.length > 0 || (hasPlan && run?.status !== 'in_progress') ? 'complete' : hasPlan || running ? 'active' : 'pending',
+      detail: failedStep ? `${stepTitle(failedStep)} failed.` : activeStep ? `${stepTitle(activeStep)} is running.` : toolSteps.length > 0 ? `${toolSteps.filter((step) => step.status === 'completed').length}/${toolSteps.length} tool step(s) completed.` : hasRun ? 'No tool execution was required, or execution has not started.' : 'Waiting for tool calls.',
+      status: failedStep ? 'failed' : waitingApproval ? 'blocked' : activeStep ? 'active' : toolSteps.length > 0 || (hasRun && run?.status !== 'in_progress') ? 'complete' : running ? 'active' : 'pending',
     },
     {
       id: 'assistant',
@@ -1993,6 +2082,306 @@ function buildRunStages({
       status: assistantMessage ? 'complete' : runFailed ? 'failed' : waitingApproval ? 'blocked' : running || approving || run?.status === 'in_progress' ? 'active' : 'pending',
     },
   ]
+}
+
+function AgentActivityTrace({
+  run,
+  threadMessages,
+}: {
+  run: AgentRun
+  threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>
+}) {
+  const events = normalizeTraceEvents(run, threadMessages)
+  const rounds = groupTraceRounds(run, events)
+  const toolEventCount = events.filter((event) => event.kind === 'tool_call').length
+  const modelEventCount = events.filter((event) => event.kind === 'model_call').length
+  const dataEventCount = events.filter((event) => event.data !== undefined).length
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-4">
+        <Metric label="Rounds" value={String(rounds.length)} />
+        <Metric label="Tool events" value={String(toolEventCount)} />
+        <Metric label="Model HTTP" value={String(modelEventCount)} tone={modelEventCount > 0 ? 'success' : 'neutral'} />
+        <Metric label="Data snapshots" value={String(dataEventCount)} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-foreground">Round Trace</div>
+          {rounds.length === 0 ? (
+            <EmptyState text="No activity events were recorded for this run." />
+          ) : (
+            rounds.map((round) => (
+              <TraceRoundPanel key={round.id} round={round} />
+            ))
+          )}
+        </div>
+        <div className="space-y-3">
+          <TraceSummaryCard title="Setup & Decisions" events={events.filter((event) => event.kind !== 'tool_call' && event.kind !== 'model_call')} />
+          <TraceSummaryCard title="Tool Data" events={events.filter((event) => event.kind === 'tool_call')} />
+          <TraceSummaryCard title="Model HTTP" events={events.filter((event) => event.kind === 'model_call')} empty="No model HTTP calls recorded for this run." />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type TraceRound = {
+  id: string
+  index: number
+  label: string
+  source: AgentTraceEvent['roundSource']
+  status: AgentTraceEvent['status']
+  events: AgentTraceEvent[]
+  steps: AgentRun['steps']
+  startedAt: string
+  completedAt?: string
+}
+
+function TraceRoundPanel({ round }: { round: TraceRound }) {
+  const toolSteps = round.steps.filter((step) => step.type === 'tool_call')
+  const modelEvents = round.events.filter((event) => event.kind === 'model_call')
+  const dataEvents = round.events.filter((event) => event.data !== undefined)
+  return (
+    <div className="rounded-md border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="text-[9px]">Round {round.index}</Badge>
+            <h3 className="text-sm font-semibold text-foreground">{round.label}</h3>
+            <Badge variant={traceEventBadgeVariant(round.status)} className="text-[9px]">{round.status}</Badge>
+            {round.source && <Badge variant="outline" className="text-[9px]">{round.source}</Badge>}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+            <span>{round.events.length} event(s)</span>
+            <span>{toolSteps.length} tool step(s)</span>
+            <span>{modelEvents.length} model event(s)</span>
+            <span>{dataEvents.length} data snapshot(s)</span>
+          </div>
+        </div>
+        <div className="text-right text-[11px] text-muted-foreground">
+          <div>{formatTime(round.startedAt)}</div>
+          {round.completedAt && <div>{formatTime(round.completedAt)}</div>}
+        </div>
+      </div>
+
+      {toolSteps.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {toolSteps.map((step) => (
+            <Badge key={step.id} variant={step.status === 'failed' ? 'destructive' : step.sandboxed ? 'warning' : 'outline'} className="text-[9px]">
+              {step.toolName ?? step.type}{step.sandboxed ? ' sandbox' : ''}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2">
+        {round.events.map((event, index) => (
+          <TraceEventRow key={event.id} event={event} index={index} compact />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TraceEventRow({ event, index, compact = false }: { event: AgentTraceEvent; index: number; compact?: boolean }) {
+  return (
+    <div className={cn('grid gap-3 rounded-md border border-border bg-background', compact ? 'grid-cols-[28px_minmax(0,1fr)] p-2' : 'grid-cols-[32px_minmax(0,1fr)] p-3')}>
+      <div className={cn('flex items-center justify-center rounded-md border', compact ? 'h-7 w-7' : 'h-8 w-8', traceEventIconClass(event.status))}>
+        {traceEventIcon(event)}
+      </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">#{index + 1}</span>
+          <span className="text-sm font-medium text-foreground">{event.title}</span>
+          <Badge variant={traceEventBadgeVariant(event.status)} className="text-[9px]">{event.status}</Badge>
+          <Badge variant="outline" className="text-[9px]">{event.kind}</Badge>
+          {event.roundLabel && !compact && <Badge variant="secondary" className="text-[9px]">{event.roundLabel}</Badge>}
+          {event.agentId && <Badge variant="secondary" className="text-[9px]">{event.agentId}</Badge>}
+          {event.toolName && <Badge variant="outline" className="text-[9px]">{event.toolName}</Badge>}
+        </div>
+        {event.summary && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{event.summary}</p>}
+        <div className="mt-2 grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+          <KeyValue label="Created" value={formatTime(event.createdAt)} />
+          {event.completedAt && <KeyValue label="Completed" value={formatTime(event.completedAt)} />}
+          {event.stepId && <KeyValue label="Step" value={event.stepId} />}
+          {event.parentAgentId && <KeyValue label="Parent Agent" value={event.parentAgentId} />}
+        </div>
+        {event.data !== undefined && <CodeBlock value={safeJSONStringify(event.data)} maxHeight={compact ? '180px' : '240px'} className="mt-2" />}
+      </div>
+    </div>
+  )
+}
+
+function TraceSummaryCard({
+  title,
+  events,
+  empty = 'No events.',
+}: {
+  title: string
+  events: AgentTraceEvent[]
+  empty?: string
+}) {
+  return (
+    <div className="rounded-md border border-border bg-muted/10 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-foreground">{title}</div>
+        <Badge variant="outline" className="text-[9px]">{events.length}</Badge>
+      </div>
+      {events.length === 0 ? (
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {events.slice(0, 8).map((event) => (
+            <div key={event.id} className="rounded border border-border/60 bg-background px-2 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[11px] font-medium text-foreground" title={event.title}>{event.title}</span>
+                <Badge variant={traceEventBadgeVariant(event.status)} className="text-[8px]">{event.status}</Badge>
+              </div>
+              {event.summary && <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">{event.summary}</p>}
+            </div>
+          ))}
+          {events.length > 8 && <p className="text-[10px] text-muted-foreground">+{events.length - 8} more event(s)</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function groupTraceRounds(run: AgentRun, events: AgentTraceEvent[]): TraceRound[] {
+  const stepById = new Map(run.steps.map((step) => [step.id, step]))
+  const groups = new Map<string, TraceRound>()
+
+  for (const event of events) {
+    const step = event.stepId ? stepById.get(event.stepId) : undefined
+    const index = event.roundIndex ?? step?.roundIndex ?? 0
+    const label = event.roundLabel ?? step?.roundLabel ?? (index === 0 ? 'Setup' : 'Legacy timeline')
+    const source = event.roundSource ?? step?.roundSource ?? (index === 0 ? 'setup' : undefined)
+    const id = event.roundId ?? step?.roundId ?? `round_${index}_${label}`
+    const current = groups.get(id)
+    if (current) {
+      current.events.push(event)
+      current.status = mergeTraceStatus(current.status, event.status)
+      if (event.createdAt < current.startedAt) current.startedAt = event.createdAt
+      const completedAt = event.completedAt ?? event.createdAt
+      if (!current.completedAt || completedAt > current.completedAt) current.completedAt = completedAt
+      continue
+    }
+    groups.set(id, {
+      id,
+      index,
+      label,
+      source,
+      status: event.status,
+      events: [event],
+      steps: [],
+      startedAt: event.createdAt,
+      completedAt: event.completedAt ?? event.createdAt,
+    })
+  }
+
+  for (const step of run.steps) {
+    const index = step.roundIndex ?? 0
+    const label = step.roundLabel ?? (index === 0 ? 'Setup' : 'Legacy timeline')
+    const id = step.roundId ?? `round_${index}_${label}`
+    const current = groups.get(id)
+    if (current) {
+      current.steps.push(step)
+      current.status = mergeTraceStatus(current.status, step.status === 'failed' ? 'failed' : step.status === 'in_progress' ? 'started' : 'completed')
+      continue
+    }
+    groups.set(id, {
+      id,
+      index,
+      label,
+      source: step.roundSource ?? (index === 0 ? 'setup' : undefined),
+      status: step.status === 'failed' ? 'failed' : step.status === 'in_progress' ? 'started' : 'completed',
+      events: [],
+      steps: [step],
+      startedAt: step.createdAt,
+      completedAt: step.completedAt,
+    })
+  }
+
+  return Array.from(groups.values())
+    .map((round) => ({
+      ...round,
+      events: round.events.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+      steps: round.steps.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    }))
+    .sort((a, b) => {
+      if (a.index !== b.index) return a.index - b.index
+      return a.startedAt.localeCompare(b.startedAt)
+    })
+}
+
+function mergeTraceStatus(current: AgentTraceEvent['status'], next: AgentTraceEvent['status']): AgentTraceEvent['status'] {
+  const rank: Record<AgentTraceEvent['status'], number> = {
+    failed: 5,
+    blocked: 4,
+    started: 3,
+    info: 2,
+    completed: 1,
+  }
+  return rank[next] > rank[current] ? next : current
+}
+
+function normalizeTraceEvents(
+  run: AgentRun,
+  threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>,
+): AgentTraceEvent[] {
+  if ((run.traceEvents?.length ?? 0) > 0) {
+    return [...(run.traceEvents ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+  const events: AgentTraceEvent[] = []
+  const userMessage = threadMessages.find((message) => message.role === 'user')
+  if (userMessage) {
+    events.push({
+      id: `${run.id}-message-${userMessage.id}`,
+      runId: run.id,
+      kind: 'message',
+      title: 'User message loaded',
+      summary: userMessage.content.slice(0, 180),
+      status: 'completed',
+      data: { messageId: userMessage.id },
+      createdAt: userMessage.createdAt,
+    })
+  }
+  if (run.metadata?.context) {
+    events.push({
+      id: `${run.id}-context`,
+      runId: run.id,
+      kind: 'context',
+      title: 'Runtime context resolved',
+      status: 'completed',
+      data: run.metadata.context,
+      createdAt: run.startedAt ?? run.createdAt,
+    })
+  }
+  for (const step of run.steps) {
+    events.push({
+      id: `${run.id}-step-${step.id}`,
+      runId: run.id,
+      kind: step.type === 'tool_call' ? 'tool_call' : 'assistant',
+      title: stepTitle(step),
+      summary: step.error ?? summarizeUnknown(step.result),
+      status: step.status === 'failed' ? 'failed' : step.status === 'completed' ? 'completed' : 'started',
+      stepId: step.id,
+      ...(step.roundId ? { roundId: step.roundId } : {}),
+      ...(typeof step.roundIndex === 'number' ? { roundIndex: step.roundIndex } : {}),
+      ...(step.roundLabel ? { roundLabel: step.roundLabel } : {}),
+      ...(step.roundSource ? { roundSource: step.roundSource } : {}),
+      ...(step.toolName ? { toolName: step.toolName } : {}),
+      data: {
+        ...(step.args ? { args: step.args } : {}),
+        ...(step.result !== undefined ? { result: step.result } : {}),
+        ...(step.error ? { error: step.error } : {}),
+      },
+      createdAt: step.createdAt,
+      ...(step.completedAt ? { completedAt: step.completedAt } : {}),
+    })
+  }
+  return events.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
 function StageIcon({ status }: { status: DebugStageStatus }) {
@@ -2031,6 +2420,66 @@ function runStatusTone(status: AgentRun['status'] | undefined, running: boolean,
   if (status === 'requires_action') return 'warning'
   if (running || status === 'queued' || status === 'in_progress') return 'secondary'
   return 'outline'
+}
+
+function traceEventBadgeVariant(status: AgentTraceEvent['status']) {
+  if (status === 'failed') return 'destructive'
+  if (status === 'blocked') return 'warning'
+  if (status === 'completed') return 'success'
+  return 'outline'
+}
+
+function traceEventIcon(event: AgentTraceEvent) {
+  if (event.status === 'failed') return <X size={14} />
+  if (event.status === 'blocked') return <AlertTriangle size={14} />
+  if (event.status === 'started') return <Loader2 size={14} className="animate-spin" />
+  if (event.kind === 'tool_call') return <Wrench size={14} />
+  if (event.kind === 'subagent') return <Bot size={14} />
+  if (event.kind === 'context' || event.kind === 'memory' || event.kind === 'tool_catalog') return <Database size={14} />
+  if (event.kind === 'prompt' || event.kind === 'manifest' || event.kind === 'skill') return <Clipboard size={14} />
+  return <Check size={14} />
+}
+
+function traceEventIconClass(status: AgentTraceEvent['status']) {
+  if (status === 'failed') return 'border-destructive/30 bg-destructive/10 text-destructive'
+  if (status === 'blocked') return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+  if (status === 'started') return 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+  if (status === 'completed') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+  return 'border-border bg-muted/20 text-muted-foreground'
+}
+
+function extractRunMessage(run: AgentRun): string {
+  const clientInput = run.metadata?.clientInput
+  if (isPlainRecord(clientInput) && typeof clientInput.visibleMessage === 'string') return clientInput.visibleMessage
+  if (isPlainRecord(clientInput) && typeof clientInput.message === 'string') return clientInput.message
+  const traceMessage = run.traceEvents?.find((event) => event.kind === 'message' && event.summary)?.summary
+  return traceMessage ?? ''
+}
+
+function buildInputSnapshotFromRun(run: AgentRun): DebugRunInputSnapshot | null {
+  const clientInput = run.metadata?.clientInput
+  const message = extractRunMessage(run)
+  const uiSnapshot = isPlainRecord(clientInput) && isPlainRecord(clientInput.uiSnapshot) ? clientInput.uiSnapshot : undefined
+  const route = isPlainRecord(uiSnapshot?.route)
+    ? {
+      pathname: typeof uiSnapshot.route.pathname === 'string' ? uiSnapshot.route.pathname : '/',
+      search: typeof uiSnapshot.route.search === 'string' ? uiSnapshot.route.search : '',
+      hash: typeof uiSnapshot.route.hash === 'string' ? uiSnapshot.route.hash : '',
+    }
+    : undefined
+  const project = isPlainRecord(uiSnapshot?.project) && typeof uiSnapshot.project.id === 'number'
+    ? {
+      id: uiSnapshot.project.id,
+      name: typeof uiSnapshot.project.name === 'string' ? uiSnapshot.project.name : `Project #${uiSnapshot.project.id}`,
+      ...(typeof uiSnapshot.project.status === 'string' ? { status: uiSnapshot.project.status } : {}),
+    }
+    : undefined
+  return {
+    message: message || `Run ${run.id}`,
+    startedAt: run.startedAt ?? run.createdAt,
+    ...(route ? { route } : {}),
+    ...(project ? { project } : {}),
+  }
 }
 
 function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
@@ -2087,8 +2536,6 @@ function List({ values, empty }: { values: string[]; empty: string }) {
 
 function stepTitle(step: AgentRun['steps'][number]) {
   if (step.title) return step.title
-  if (step.type === 'planning') return 'Planning'
-  if (step.type === 'subagent') return step.agentRole ?? 'Subagent'
   if (step.type === 'tool_call') return step.toolName ?? 'Tool call'
   return 'Assistant message'
 }
@@ -2131,6 +2578,19 @@ function CodeBlock({ value, maxHeight = '360px', className }: { value: string; m
 
 function safeJSONStringify(value: unknown): string {
   return JSON.stringify(redact(value), null, 2)
+}
+
+function summarizeUnknown(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return 'null'
+  if (typeof value !== 'object') return String(value).slice(0, 180)
+  if (Array.isArray(value)) return `${value.length} item(s)`
+  const keys = Object.keys(value)
+  return `${keys.length} key(s): ${keys.slice(0, 6).join(', ')}`
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function redact(value: unknown): unknown {

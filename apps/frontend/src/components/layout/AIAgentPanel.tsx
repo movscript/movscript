@@ -482,7 +482,6 @@ function LocalAgentWorkflow({
   onReject?: (approvalIds?: string[]) => void
 }) {
   if (!run) return null
-  const tasks = run.plan?.tasks ?? []
   const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
   const statusLabel = run.status === 'requires_action'
     ? 'Waiting for approval'
@@ -591,24 +590,6 @@ function LocalAgentWorkflow({
         </div>
       )}
 
-      {tasks.length > 0 && (
-        <div className="mb-2 space-y-1">
-          {tasks.map((task, index) => (
-            <div key={task.id} className="grid grid-cols-[16px_1fr_auto] items-start gap-2 rounded border border-border/60 bg-muted/20 px-2 py-1.5">
-              <span className="pt-0.5 text-[10px] text-muted-foreground">{index + 1}</span>
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-medium text-foreground">{task.title}</span>
-                  <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">{task.agentRole}</span>
-                </div>
-                <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{task.description}</p>
-              </div>
-              <span className={cn('rounded px-1 py-0.5 text-[9px]', workflowStatusClass(task.status))}>{task.status}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div className="space-y-1">
         {run.steps.map((step) => (
           <div key={step.id} className="flex items-start gap-2 text-[10px]">
@@ -619,8 +600,8 @@ function LocalAgentWorkflow({
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="truncate font-medium text-foreground">{workflowStepTitle(step)}</span>
                 <span className="shrink-0 text-muted-foreground/60">{step.type}</span>
+                {step.sandboxed && <Badge variant="outline" className="h-4 px-1 text-[9px]">sandbox</Badge>}
               </div>
-              {step.agentRole && <p className="truncate text-muted-foreground">subagent: {step.agentRole}</p>}
               {step.error && <p className="text-destructive">{step.error}</p>}
             </div>
           </div>
@@ -799,42 +780,26 @@ function AgentDebugPreviewDialog({
           )}
 
           {preview && (
-            <DebugSection title="Plan">
+            <DebugSection title="Agentic Loop Preview">
               <div className="space-y-2 text-[11px]">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-foreground">{preview.plan.objective}</div>
-                    <Badge variant={preview.planner === 'model' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
-                      {preview.planner ?? 'rule'} planner
-                    </Badge>
-                  </div>
-                  <div className="mt-1 whitespace-pre-wrap text-muted-foreground">{preview.plan.strategy}</div>
+                  <div className="font-medium text-foreground">{preview.message}</div>
                   <div className="mt-1 text-muted-foreground">
-                    project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount} · planned tool calls: {preview.toolCalls.length}
+                    project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount} · tool calls: {preview.toolCalls.length} · sandbox: {preview.policy?.sandboxMode ? 'on' : 'off'}
                   </div>
-                  {preview.plannerWarnings.length > 0 && (
-                    <div className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-300">
-                      {preview.plannerWarnings.map((warning) => <div key={warning}>{warning}</div>)}
-                    </div>
-                  )}
                 </div>
                 <div className="space-y-1">
-                  {preview.plan.tasks.map((task, index) => (
-                    <div key={task.id} className="rounded-md border border-border bg-background px-2 py-1.5">
+                  {preview.toolCalls.length === 0 ? (
+                    <div className="rounded-md border border-border bg-background px-2 py-1.5 text-muted-foreground">No immediate tool calls predicted.</div>
+                  ) : preview.toolCalls.map((call, index) => (
+                    <div key={`${call.name}-${index}`} className="rounded-md border border-border bg-background px-2 py-1.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-foreground">{index + 1}. {task.title}</span>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Badge variant="outline" className="text-[9px]">{task.agentRole}</Badge>
-                          <Badge variant={task.status === 'skipped' ? 'warning' : 'outline'} className="text-[9px]">{task.status}</Badge>
-                        </div>
+                        <span className="font-medium text-foreground">{index + 1}. {call.name}</span>
+                        <Badge variant="outline" className="text-[9px]">tool</Badge>
                       </div>
-                      <p className="mt-0.5 text-muted-foreground">{task.description}</p>
-                      {task.successCriteria && (
-                        <p className="mt-0.5 text-[10px] text-muted-foreground/80">success: {task.successCriteria}</p>
-                      )}
-                      {task.toolCalls.length > 0 && (
+                      {call.args && (
                         <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
-                          {safeJSONStringify(task.toolCalls)}
+                          {safeJSONStringify(call.args)}
                         </pre>
                       )}
                     </div>
@@ -1011,8 +976,6 @@ function DebugSummaryItem({ label, value }: { label: string; value: string }) {
 }
 
 function workflowStepTitle(step: AgentRun['steps'][number]) {
-  if (step.type === 'planning') return step.title ?? 'Task planning'
-  if (step.type === 'subagent') return step.title ?? step.agentRole ?? 'Subagent'
   if (step.type === 'tool_call') return step.toolName ?? 'Tool call'
   return 'Assistant message'
 }
@@ -2021,7 +1984,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         const message = e instanceof Error ? e.message : String(e)
         addMessage(userId, conv.id, {
           role: 'assistant',
-          content: `本地 Production Runtime 暂不可用。\n\n启动命令：\`pnpm --filter movscript-production-runtime dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
+          content: `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
         })
         return
       }
@@ -2202,7 +2165,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             </div>
             {!localAgentOnline && (
               <p className="text-[10px] leading-relaxed text-muted-foreground">
-                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-production-runtime dev</code>.
+                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
               </p>
             )}
             {localAgentErrorMessage && (

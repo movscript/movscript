@@ -1,0 +1,173 @@
+package router
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/model"
+)
+
+func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
+	protected.POST("/projects/:id/preview/generate", h.preview.Generate)
+	protected.GET("/projects/:id/entities/relations", h.semanticEntities.ListEntityRelations)
+	protected.GET("/projects/:id/entities/script-versions", h.semanticEntities.ListScriptVersions)
+	protected.POST("/projects/:id/entities/script-versions", h.semanticEntities.CreateScriptVersion)
+	protected.PATCH("/projects/:id/entities/script-versions/:versionId", h.semanticEntities.PatchScriptVersion)
+	protected.DELETE("/projects/:id/entities/script-versions/:versionId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.ScriptVersion{}, c.Param("versionId"))
+	})
+	protected.GET("/projects/:id/entities/segments", h.semanticEntities.ListSegments)
+	protected.POST("/projects/:id/entities/segments", h.semanticEntities.CreateSegment)
+	protected.PATCH("/projects/:id/entities/segments/:segmentId", h.semanticEntities.PatchSegment)
+	protected.DELETE("/projects/:id/entities/segments/:segmentId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.Segment{}, c.Param("segmentId"))
+	})
+	protected.GET("/projects/:id/entities/production-text-blocks", h.semanticEntities.ListProductionTextBlocks)
+	protected.POST("/projects/:id/entities/production-text-blocks", h.semanticEntities.CreateProductionTextBlock)
+	protected.PATCH("/projects/:id/entities/production-text-blocks/:textBlockId", h.semanticEntities.PatchProductionTextBlock)
+	protected.DELETE("/projects/:id/entities/production-text-blocks/:textBlockId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.ProductionTextBlock{}, c.Param("textBlockId"))
+	})
+	protected.GET("/projects/:id/entities/scene-moments", h.semanticEntities.ListSceneMoments)
+	protected.POST("/projects/:id/entities/scene-moments", h.semanticEntities.CreateSceneMoment)
+	protected.PATCH("/projects/:id/entities/scene-moments/:sceneMomentId", h.semanticEntities.PatchSceneMoment)
+	protected.DELETE("/projects/:id/entities/scene-moments/:sceneMomentId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.SceneMoment{}, c.Param("sceneMomentId"))
+	})
+	protected.GET("/projects/:id/entities/storyboard-scripts", h.semanticEntities.ListStoryboardScripts)
+	protected.POST("/projects/:id/entities/storyboard-scripts", h.semanticEntities.CreateStoryboardScript)
+	protected.PATCH("/projects/:id/entities/storyboard-scripts/:storyboardScriptId", h.semanticEntities.PatchStoryboardScript)
+	protected.DELETE("/projects/:id/entities/storyboard-scripts/:storyboardScriptId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.StoryboardScript{}, c.Param("storyboardScriptId"))
+	})
+	protected.GET("/projects/:id/entities/storyboard-versions", h.semanticEntities.ListStoryboardVersions)
+	protected.POST("/projects/:id/entities/storyboard-versions", h.semanticEntities.CreateStoryboardVersion)
+	protected.PATCH("/projects/:id/entities/storyboard-versions/:storyboardVersionId", h.semanticEntities.PatchStoryboardVersion)
+	protected.DELETE("/projects/:id/entities/storyboard-versions/:storyboardVersionId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.StoryboardVersion{}, c.Param("storyboardVersionId"))
+	})
+	protected.GET("/projects/:id/entities/storyboard-lines", h.semanticEntities.ListStoryboardLines)
+	protected.POST("/projects/:id/entities/storyboard-lines", h.semanticEntities.CreateStoryboardLine)
+	protected.PATCH("/projects/:id/entities/storyboard-lines/:storyboardLineId", h.semanticEntities.PatchStoryboardLine)
+	protected.DELETE("/projects/:id/entities/storyboard-lines/:storyboardLineId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.StoryboardLine{}, c.Param("storyboardLineId"))
+	})
+	protected.GET("/projects/:id/entities/productions", h.semanticEntities.ListProductions)
+	protected.POST("/projects/:id/entities/productions", h.semanticEntities.CreateProduction)
+	protected.PATCH("/projects/:id/entities/productions/:productionId", h.semanticEntities.PatchProduction)
+	protected.DELETE("/projects/:id/entities/productions/:productionId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.Production{}, c.Param("productionId"))
+	})
+	protected.GET("/projects/:id/entities/content-units", h.semanticEntities.ListContentUnits)
+	protected.POST("/projects/:id/entities/content-units", h.semanticEntities.CreateContentUnit)
+	protected.PATCH("/projects/:id/entities/content-units/:contentUnitId", h.semanticEntities.PatchContentUnit)
+	protected.DELETE("/projects/:id/entities/content-units/:contentUnitId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.ContentUnit{}, c.Param("contentUnitId"))
+	})
+	protected.GET("/projects/:id/entities/keyframes", h.semanticEntities.ListKeyframes)
+	protected.POST("/projects/:id/entities/keyframes", h.semanticEntities.CreateKeyframe)
+	protected.PATCH("/projects/:id/entities/keyframes/:keyframeId", h.semanticEntities.PatchKeyframe)
+	protected.DELETE("/projects/:id/entities/keyframes/:keyframeId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.Keyframe{}, c.Param("keyframeId"))
+	})
+	protected.GET("/projects/:id/entities/preview-timelines", h.semanticEntities.ListPreviewTimelines)
+	protected.POST("/projects/:id/entities/preview-timelines", h.semanticEntities.CreatePreviewTimeline)
+	protected.PATCH("/projects/:id/entities/preview-timelines/:timelineId", h.semanticEntities.PatchPreviewTimeline)
+	protected.DELETE("/projects/:id/entities/preview-timelines/:timelineId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.PreviewTimeline{}, c.Param("timelineId"))
+	})
+	protected.GET("/projects/:id/entities/preview-timeline-items", h.semanticEntities.ListPreviewTimelineItemsFlat)
+	protected.POST("/projects/:id/entities/preview-timeline-items", h.semanticEntities.CreatePreviewTimelineItemFlat)
+	protected.PATCH("/projects/:id/entities/preview-timeline-items/:itemId", h.semanticEntities.PatchPreviewTimelineItemFlat)
+	protected.DELETE("/projects/:id/entities/preview-timeline-items/:itemId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.PreviewTimelineItem{}, c.Param("itemId"))
+	})
+	protected.GET("/projects/:id/entities/preview-timelines/:timelineId/items", h.semanticEntities.ListPreviewTimelineItems)
+	protected.POST("/projects/:id/entities/preview-timelines/:timelineId/items", h.semanticEntities.CreatePreviewTimelineItem)
+	protected.PATCH("/projects/:id/entities/preview-timelines/:timelineId/items/:itemId", h.semanticEntities.PatchPreviewTimelineItem)
+	protected.DELETE("/projects/:id/entities/preview-timelines/:timelineId/items/:itemId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.PreviewTimelineItem{}, c.Param("itemId"))
+	})
+	protected.GET("/projects/:id/entities/creative-references", h.semanticEntities.ListCreativeReferences)
+	protected.POST("/projects/:id/entities/creative-references", h.semanticEntities.CreateCreativeReference)
+	protected.PATCH("/projects/:id/entities/creative-references/:referenceId", h.semanticEntities.PatchCreativeReference)
+	protected.DELETE("/projects/:id/entities/creative-references/:referenceId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.CreativeReference{}, c.Param("referenceId"))
+	})
+	protected.GET("/projects/:id/entities/creative-reference-states", h.semanticEntities.ListCreativeReferenceStates)
+	protected.POST("/projects/:id/entities/creative-reference-states", h.semanticEntities.CreateCreativeReferenceState)
+	protected.PATCH("/projects/:id/entities/creative-reference-states/:stateId", h.semanticEntities.PatchCreativeReferenceState)
+	protected.DELETE("/projects/:id/entities/creative-reference-states/:stateId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.CreativeReferenceState{}, c.Param("stateId"))
+	})
+	protected.GET("/projects/:id/entities/creative-reference-usages", h.semanticEntities.ListCreativeReferenceUsages)
+	protected.POST("/projects/:id/entities/creative-reference-usages", h.semanticEntities.CreateCreativeReferenceUsage)
+	protected.PATCH("/projects/:id/entities/creative-reference-usages/:usageId", h.semanticEntities.PatchCreativeReferenceUsage)
+	protected.DELETE("/projects/:id/entities/creative-reference-usages/:usageId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.CreativeReferenceUsage{}, c.Param("usageId"))
+	})
+	protected.GET("/projects/:id/entities/creative-relationships", h.semanticEntities.ListCreativeRelationships)
+	protected.POST("/projects/:id/entities/creative-relationships", h.semanticEntities.CreateCreativeRelationship)
+	protected.PATCH("/projects/:id/entities/creative-relationships/:relationshipId", h.semanticEntities.PatchCreativeRelationship)
+	protected.DELETE("/projects/:id/entities/creative-relationships/:relationshipId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.CreativeRelationship{}, c.Param("relationshipId"))
+	})
+	protected.GET("/projects/:id/entities/asset-slots", h.semanticEntities.ListAssetSlots)
+	protected.POST("/projects/:id/entities/asset-slots", h.semanticEntities.CreateAssetSlot)
+	protected.PATCH("/projects/:id/entities/asset-slots/:slotId", h.semanticEntities.PatchAssetSlot)
+	protected.DELETE("/projects/:id/entities/asset-slots/:slotId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.AssetSlot{}, c.Param("slotId"))
+	})
+	protected.GET("/projects/:id/entities/asset-slot-candidates", h.semanticEntities.ListAssetSlotCandidates)
+	protected.POST("/projects/:id/entities/asset-slot-candidates", h.semanticEntities.CreateAssetSlotCandidate)
+	protected.PATCH("/projects/:id/entities/asset-slot-candidates/:candidateId", h.semanticEntities.PatchAssetSlotCandidate)
+	protected.DELETE("/projects/:id/entities/asset-slot-candidates/:candidateId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.AssetSlotCandidate{}, c.Param("candidateId"))
+	})
+	protected.GET("/projects/:id/entities/candidate-decisions", h.semanticEntities.ListCandidateDecisions)
+	protected.POST("/projects/:id/entities/candidate-decisions", h.semanticEntities.CreateCandidateDecision)
+	protected.PATCH("/projects/:id/entities/candidate-decisions/:decisionId", h.semanticEntities.PatchCandidateDecision)
+	protected.DELETE("/projects/:id/entities/candidate-decisions/:decisionId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.CandidateDecision{}, c.Param("decisionId"))
+	})
+	protected.GET("/projects/:id/entities/review-events", h.semanticEntities.ListReviewEvents)
+	protected.POST("/projects/:id/entities/review-events", h.semanticEntities.CreateReviewEvent)
+	protected.PATCH("/projects/:id/entities/review-events/:eventId", h.semanticEntities.PatchReviewEvent)
+	protected.DELETE("/projects/:id/entities/review-events/:eventId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.ReviewEvent{}, c.Param("eventId"))
+	})
+	protected.GET("/projects/:id/entities/work-items", h.semanticEntities.ListWorkItems)
+	protected.POST("/projects/:id/entities/work-items", h.semanticEntities.CreateWorkItem)
+	protected.PATCH("/projects/:id/entities/work-items/:workItemId", h.semanticEntities.PatchWorkItem)
+	protected.DELETE("/projects/:id/entities/work-items/:workItemId", h.semanticEntities.DeleteWorkItem)
+	protected.GET("/projects/:id/entities/work-reviews", h.semanticEntities.ListWorkReviews)
+	protected.POST("/projects/:id/entities/work-reviews", h.semanticEntities.CreateWorkReview)
+	protected.PATCH("/projects/:id/entities/work-reviews/:reviewId", h.semanticEntities.PatchWorkReview)
+	protected.DELETE("/projects/:id/entities/work-reviews/:reviewId", h.semanticEntities.DeleteWorkReview)
+	protected.GET("/projects/:id/entities/work-dependencies", h.semanticEntities.ListWorkDependencies)
+	protected.POST("/projects/:id/entities/work-dependencies", h.semanticEntities.CreateWorkDependency)
+	protected.PATCH("/projects/:id/entities/work-dependencies/:dependencyId", h.semanticEntities.PatchWorkDependency)
+	protected.DELETE("/projects/:id/entities/work-dependencies/:dependencyId", h.semanticEntities.DeleteWorkDependency)
+	protected.GET("/projects/:id/entities/delivery-versions", h.semanticEntities.ListDeliveryVersions)
+	protected.POST("/projects/:id/entities/delivery-versions", h.semanticEntities.CreateDeliveryVersion)
+	protected.PATCH("/projects/:id/entities/delivery-versions/:deliveryVersionId", h.semanticEntities.PatchDeliveryVersion)
+	protected.DELETE("/projects/:id/entities/delivery-versions/:deliveryVersionId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.DeliveryVersion{}, c.Param("deliveryVersionId"))
+	})
+	protected.GET("/projects/:id/entities/delivery-timeline-items", h.semanticEntities.ListDeliveryTimelineItems)
+	protected.POST("/projects/:id/entities/delivery-timeline-items", h.semanticEntities.CreateDeliveryTimelineItem)
+	protected.PATCH("/projects/:id/entities/delivery-timeline-items/:itemId", h.semanticEntities.PatchDeliveryTimelineItem)
+	protected.DELETE("/projects/:id/entities/delivery-timeline-items/:itemId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.DeliveryTimelineItem{}, c.Param("itemId"))
+	})
+	protected.GET("/projects/:id/entities/export-records", h.semanticEntities.ListExportRecords)
+	protected.POST("/projects/:id/entities/export-records", h.semanticEntities.CreateExportRecord)
+	protected.PATCH("/projects/:id/entities/export-records/:exportId", h.semanticEntities.PatchExportRecord)
+	protected.DELETE("/projects/:id/entities/export-records/:exportId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.ExportRecord{}, c.Param("exportId"))
+	})
+	protected.GET("/projects/:id/entities/canvas-outputs", h.semanticEntities.ListCanvasOutputs)
+	protected.POST("/projects/:id/entities/canvas-outputs", h.semanticEntities.CreateCanvasOutput)
+	protected.PATCH("/projects/:id/entities/canvas-outputs/:outputId", h.semanticEntities.PatchCanvasOutput)
+	protected.DELETE("/projects/:id/entities/canvas-outputs/:outputId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItem(c, &model.CanvasOutput{}, c.Param("outputId"))
+	})
+}

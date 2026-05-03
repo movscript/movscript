@@ -67,8 +67,6 @@ import {
   Zap,
   Lightbulb,
   HardDrive,
-  Image as ImageIcon,
-  Video,
   Music,
   File,
   Puzzle,
@@ -657,12 +655,10 @@ function ResourceThumb({ resource }: { resource: RawResource }) {
 
 function CanvasResourceShelf({
   projectId,
-  canvasId,
   dependencyBindings = [],
   variant = 'floating',
 }: {
   projectId?: number
-  canvasId?: number | string
   dependencyBindings?: ResourceBinding[]
   variant?: 'floating' | 'panel' | 'side'
 }) {
@@ -1339,7 +1335,7 @@ function WorkflowSidePanel({
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === 'resources' ? (
-          <CanvasResourceShelf projectId={projectId} canvasId={canvasId} dependencyBindings={dependencyBindings} variant="side" />
+          <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} variant="side" />
         ) : (
           <WorkflowRunHistory
             embedded

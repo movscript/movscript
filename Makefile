@@ -15,7 +15,7 @@ build-plugins:
 	pnpm run build:plugins
 
 build-runtime:
-	pnpm --filter movscript-production-runtime build
+	pnpm --filter movscript-agent build
 
 build-movcli:
 	pnpm --filter movcli build
@@ -36,7 +36,7 @@ dev-frontend:
 	pnpm --filter movscript-frontend dev
 
 dev-runtime:
-	pnpm --filter movscript-production-runtime dev
+	pnpm --filter movscript-agent dev
 
 dev-movcli:
 	pnpm --filter movcli dev

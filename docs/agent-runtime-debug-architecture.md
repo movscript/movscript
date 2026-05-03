@@ -7,10 +7,10 @@ This document is the working map for the current MovScript agent framework and t
 | Layer | Scope | Main code | Runtime artifacts | Debug visibility |
 | --- | --- | --- | --- | --- |
 | Product surface | User entrypoints and current workspace context. | `apps/frontend/src/pages/agent/AgentDebugPage.tsx`, `apps/frontend/src/components/layout/AIAgentPanel.tsx`, `apps/frontend/src/mcp/MCPContextBridge.tsx` | `clientInput`, `uiSnapshot`, attachments, route, current project, selection | Preview input, Context tab, run input snapshot |
-| Local production runtime | Run lifecycle, planning, permissions, drafts, memory, model planner. | `apps/production-runtime/src/server.ts`, `apps/production-runtime/src/runtime/agentRuntime.ts`, `apps/production-runtime/src/runtime/planner.ts`, `apps/production-runtime/src/runtime/modelPlanner.ts` | thread, message, run, envelope, plan, steps, approvals, memories, drafts | Overview, Manifest, Skills, Tools, Prompt, Run Timeline, Raw JSON |
+| Local agent | Run lifecycle, agentic loop, permissions, drafts, memory, sandbox mode. | `apps/agent/src/server.ts`, `apps/agent/src/runtime/agentRuntime.ts` | thread, message, run, policy, steps, approvals, memories, drafts | Overview, Manifest, Skills, Tools, Prompt, Run Timeline, Raw JSON |
 | Business context layer | MovScript project entities and production state. | `apps/backend/internal/router/router.go`, `apps/backend/internal/workflow/entity_schema.go`, `apps/frontend/src/lib/mcpTools.ts` | context pack, semantic entities, workflow schemas, resource bindings, canvas tasks | Context JSON, tool result JSON, AI Function Inventory |
-| Tool execution layer | MCP/runtime/plugin tool discovery, grants, policy, execution. | `apps/production-runtime/src/runtime/toolRegistry.ts`, `apps/production-runtime/src/runtime/toolPolicy.ts`, `apps/production-runtime/catalog/tools` | resolved tool catalog, blocked tools, tool calls, tool outcomes | Tools table, approval preview, step timeline args/result/error |
-| Model layer | Optional model planner and assistant chat reply. | `apps/production-runtime/src/runtime/modelConfig.ts`, `apps/production-runtime/src/runtime/modelPlanner.ts`, `apps/production-runtime/src/runtime/modelChat.ts` | planner kind, compiled prompt, planner warnings, assistant message | Model Connection, Prompt tab, planner metadata, final assistant message |
+| Tool execution layer | MCP/runtime/plugin tool discovery, grants, policy, execution. | `apps/agent/src/runtime/toolRegistry.ts`, `apps/agent/src/runtime/toolPolicy.ts`, `apps/agent/catalog/tools` | resolved tool catalog, blocked tools, tool calls, tool outcomes | Tools table, approval preview, step timeline args/result/error |
+| Model layer | Optional assistant chat reply through backend model gateway. | `apps/agent/src/runtime/modelConfig.ts`, `apps/agent/src/runtime/assistantMessage.ts` | compiled prompt, assistant message | Model Connection, Prompt tab, final assistant message |
 
 ## Business Flow
 
@@ -34,21 +34,19 @@ The Go backend owns formal project entities, semantic schemas, workflow schemas,
 clientInput
   -> thread/message
   -> movscript.get_context_pack
-  -> AgentInputEnvelope
   -> skill + manifest + tool + memory resolution
   -> compiled prompt preview
-  -> rule/model planner
-  -> AgentTaskPlan
-  -> tool policy and approval gate
-  -> subagent steps and tool calls
+  -> agentic loop
+  -> tool policy / approval / sandbox gate
+  -> tool call steps
   -> assistant message
   -> memory extraction
 ```
 
 The frontend debug page exposes both dry-run preview and executed run views:
 
-- Dry-run preview: context, prompt, planner output, planned tool calls, approval preview.
-- Executed run: actual run status, plan, step timeline, tool args/results/errors, pending approval actions, final assistant message, raw JSON.
+- Dry-run preview: context, prompt, predicted first tool calls, approval preview.
+- Executed run: actual run status, step timeline, tool args/results/errors, pending approval actions, final assistant message, raw JSON.
 
 ## Interaction Commands
 
@@ -56,7 +54,7 @@ Commands are product-level conventions for making agent interactions explicit. T
 
 ### `/production_plan`
 
-Intent: compile the current script input, selected project context, and available tools into a machine-readable production plan.
+Intent: compile the current script input, selected project context, and available tools into a machine-readable agentic-loop summary.
 
 Input contract:
 
@@ -76,11 +74,10 @@ Input contract:
 Runtime behavior:
 
 1. Resolve the MCP context pack and memories.
-2. Build `AgentInputEnvelope`.
-3. Force project-structure lookup in the rule planner.
-4. Build `AgentTaskPlan`.
-5. Apply tool policy and approval gates.
-6. Return assistant content as JSON when the executed input starts with `/production_plan`.
+2. Compile the agentic-loop prompt from context, manifest, skills, tools, policy, and memories.
+3. Select the next tool calls.
+4. Apply tool policy, approval gates, and sandbox interception.
+5. Return assistant content as JSON when the executed input starts with `/production_plan`.
 
 `/project_plan` is kept as a compatibility alias, but `/production_plan` is the preferred command name because it describes the short-drama production workflow rather than only project metadata.
 
@@ -91,23 +88,15 @@ Output contract:
   "command": "/production_plan",
   "runId": "run_...",
   "threadId": "thread_...",
-  "planner": "rule | model",
   "objective": "string",
-  "strategy": "string",
-  "tasks": [
+  "strategy": "agentic_loop",
+  "steps": [
     {
-      "id": "task_...",
-      "title": "string",
-      "description": "string",
-      "agentRole": "planner | researcher | creator | reviewer | coordinator",
-      "status": "pending | skipped | completed | failed",
-      "toolCalls": [
-        {
-          "name": "movscript.read_project_structure",
-          "args": {}
-        }
-      ],
-      "successCriteria": "optional string"
+      "id": "step_...",
+      "type": "tool_call | message",
+      "status": "in_progress | completed | failed",
+      "toolName": "optional string",
+      "sandboxed": false
     }
   ],
   "warnings": [],
@@ -130,7 +119,7 @@ Example:
 
 ### `/inspect_context`
 
-Intent: show the runtime input context that will be used by planner and tools.
+Intent: show the runtime input context that will be used by the agentic loop and tools.
 
 Current support: `/inspect_context` returns assistant content as JSON. The Agent Debug `Context` and `Raw` tabs are only frontend renderers over the same text-representable data.
 
@@ -169,4 +158,4 @@ The Agent Debug page includes:
 - `Commands`: one-by-one command/debug entrypoints for current runtime and tool functions.
 - `AI Functions`: frontend AI feature inventory, trigger, endpoint, request shape, trace, visible/missing debug fields.
 - `Manifest`, `Skills`, `Tools`: effective runtime policy inputs.
-- `Prompt`, `Context`, `Runs`, `Raw`: runtime envelope, planner, approval, tool execution, and raw payload inspection.
+- `Prompt`, `Context`, `Runs`, `Raw`: prompt, context, approval, tool execution, and raw payload inspection.

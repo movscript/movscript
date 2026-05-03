@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { RawResource, PublicModel } from '@/types'
+import type { RawResource } from '@/types'
 import {
   ArrowLeft, Wand2, Loader2, Bot,
   ChevronDown, ChevronUp, History, X,
@@ -117,7 +117,6 @@ function BrainstormResultCard({
 export default function BrainstormPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const [prompt, setPrompt] = useState('')

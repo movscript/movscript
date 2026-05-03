@@ -1192,18 +1192,6 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
   )
 }
 
-function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Icon size={14} className="text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-      </div>
-      <div className="p-3">{children}</div>
-    </section>
-  )
-}
-
 function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<RelatedRecord | SceneMomentRecord | SegmentRecord>; empty: string }) {
   return (
     <section className="rounded-lg border border-border bg-card">

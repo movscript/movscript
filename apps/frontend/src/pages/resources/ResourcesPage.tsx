@@ -2,12 +2,11 @@ import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
-import { useProjectStore } from '@/store/projectStore'
 import {
   Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File,
   FolderPlus, Folder, FolderOpen, Share2,
   ChevronRight, MoreHorizontal, Globe, MoveRight,
-  ShieldCheck, Pencil, Eye, PenLine, X as XIcon, UserPlus,
+  ShieldCheck, Pencil, Eye, PenLine, X as XIcon,
   LayoutGrid, List, ChevronLeft, Download, FileText,
 } from 'lucide-react'
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'

@@ -1,0 +1,106 @@
+package bootstrap
+
+import (
+	"context"
+	"encoding/hex"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/ai"
+	"github.com/movscript/movscript/internal/auth"
+	"github.com/movscript/movscript/internal/config"
+	"github.com/movscript/movscript/internal/db"
+	"github.com/movscript/movscript/internal/job"
+	"github.com/movscript/movscript/internal/observability"
+	"github.com/movscript/movscript/internal/router"
+	"github.com/movscript/movscript/internal/storage"
+	"gorm.io/gorm"
+)
+
+type App struct {
+	Config    *config.Config
+	DB        *gorm.DB
+	Store     storage.Storage
+	Tokens    *auth.Manager
+	Registry  *ai.Registry
+	AIService *ai.AIService
+	Worker    *job.Worker
+	Router    *gin.Engine
+}
+
+func New() (*App, error) {
+	cfg := config.Load()
+	if err := cfg.ValidateStartup(); err != nil {
+		return nil, err
+	}
+	observability.Logger().Info("startup_config_validated", slog.Any("config", cfg.SafeSummary()))
+
+	database, err := db.Connect(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("connect database: %w", err)
+	}
+	if err := db.EnsureMigrationsCurrent(database); err != nil {
+		return nil, fmt.Errorf("check database migrations: %w", err)
+	}
+
+	store, err := storage.NewMinIOStorage(
+		cfg.MinIOEndpoint,
+		cfg.MinIOAccessKey,
+		cfg.MinIOSecretKey,
+		cfg.MinIOBucket,
+		cfg.MinIOUseSSL,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initialize object storage: %w", err)
+	}
+	observability.Logger().Info(
+		"storage_initialized",
+		slog.String("backend", "minio"),
+		slog.String("endpoint", cfg.MinIOEndpoint),
+		slog.String("bucket", cfg.MinIOBucket),
+	)
+
+	tokens, err := auth.NewManager(cfg.AuthTokenSecret, time.Duration(cfg.AuthTokenTTLHours)*time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("initialize auth manager: %w", err)
+	}
+
+	encKey, err := hex.DecodeString(cfg.EncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("decode encryption key: %w", err)
+	}
+
+	registry := ai.NewRegistry(database, encKey)
+	aiService := ai.NewAIService(database, registry)
+	worker := job.NewWorker(database, aiService, store, encKey)
+
+	engine := router.New(router.Dependencies{
+		DB:            database,
+		Config:        cfg,
+		Store:         store,
+		Tokens:        tokens,
+		Registry:      registry,
+		AIService:     aiService,
+		EncryptionKey: encKey,
+	})
+
+	return &App{
+		Config:    cfg,
+		DB:        database,
+		Store:     store,
+		Tokens:    tokens,
+		Registry:  registry,
+		AIService: aiService,
+		Worker:    worker,
+		Router:    engine,
+	}, nil
+}
+
+func (a *App) StartWorkers(ctx context.Context, workers int) {
+	if a == nil || a.Worker == nil || workers <= 0 {
+		return
+	}
+	a.Worker.Start(ctx, workers)
+}

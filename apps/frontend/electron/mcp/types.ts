@@ -65,7 +65,7 @@ export interface MCPContextSnapshot {
   updatedAt: string
 }
 
-export type MCPDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note'
+export type MCPDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline'
 
 export interface MCPDraft {
   id: string

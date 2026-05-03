@@ -1,13 +1,13 @@
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useQuery } from '@tanstack/react-query'
-import type { CanvasNodeData, CanvasPortDef, EntitySemanticValues, EntityWorkflowSchema } from '@/types'
+import type { CanvasNodeData, CanvasPortDef, EntitySemanticValues } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
   Image, Video, Music, Brush, Camera, Layers3, ImagePlus,
 	  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
-	  Database, ArrowRightLeft, HardDrive,
+	  HardDrive,
 	} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
@@ -427,7 +427,7 @@ function workflowOutputInputPorts(data: CanvasNodeData): CanvasPortDef[] {
   }]
 }
 
-function resourceSinkPorts(data: CanvasNodeData): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
+function resourceSinkPorts(): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } {
   return {
     inputs: [{
       id: 'input',
@@ -491,19 +491,6 @@ function StatusPip({ status }: { status: string }) {
   return null
 }
 
-function ParamMeta({ name, type }: { name?: string; type?: string }) {
-  const { t } = useTranslation()
-  const typeLabel = PARAM_TYPE_LABELS[type || '']
-  return (
-    <div className="flex items-center gap-1.5 min-w-0 text-[10px] text-muted-foreground">
-      <span className="truncate font-medium text-foreground">{name || 'param'}</span>
-      <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 leading-none">
-        {typeLabel ? t(typeLabel) : type ?? t('canvas.unset')}
-      </span>
-    </div>
-  )
-}
-
 function RunBtn({ onClick, disabled }: { onClick?: () => void; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
@@ -520,36 +507,6 @@ function PushBtn({ onClick }: { onClick?: () => void }) {
       className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
       <Share2 size={11} />
     </button>
-  )
-}
-
-function PluginParamSummary({ data }: { data: NodeDataWithHandlers }) {
-  const { t } = useTranslation()
-  const args = (data.pluginArgs ?? {}) as Record<string, unknown>
-  const schemaEntries = Object.entries(data.pluginInputProperties ?? {})
-  const argEntries = Object.entries(args).map(([name, value]) => [name, { title: name, default: value }] as const)
-  const entries = (schemaEntries.length > 0 ? schemaEntries : argEntries)
-    .map(([name, prop]) => {
-      const value = args[name] ?? prop.default
-      return { name, label: prop.title || name, value }
-    })
-    .filter((item) => item.value !== undefined && item.value !== null && String(item.value).trim() !== '')
-    .slice(0, 4)
-
-  if (entries.length === 0) return null
-
-  return (
-    <div className="space-y-1 rounded-md border border-border bg-muted/20 px-2 py-1.5">
-      <div className="text-[9px] font-semibold uppercase text-muted-foreground">{t('plugins.parameters')}</div>
-      {entries.map((item) => (
-        <div key={item.name} className="flex items-center gap-2 text-[10px]">
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.label}</span>
-          <span className="max-w-[120px] truncate rounded border border-border bg-background px-1.5 py-0.5 text-foreground">
-            {String(item.value)}
-          </span>
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -655,139 +612,6 @@ export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHa
           : <span className="text-muted-foreground/40 italic">{t('canvas.emptyAudio')}</span>}
       </div>
     </NodeCard>
-  )
-}
-
-// ── CanvasCardBody — shared body for ToolNode / AIGenNode ─────────────────
-
-const API_BASE_CANVAS = API_BASE
-
-function CanvasCardBody({
-  prompt, status, outputResource, outputType, error,
-}: {
-  prompt?: string
-  status: 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  outputResource?: CanvasNodeData['resource']
-  outputType: 'image' | 'video'
-  error?: string
-}) {
-  const { t } = useTranslation()
-  const isRunning = status === 'pending' || status === 'running'
-  const outputUrl = outputResource
-    ? outputResource.direct_url ?? `${API_BASE_CANVAS}${outputResource.url}`
-    : undefined
-
-  return (
-    <>
-      {prompt && (
-        <div className="px-3 py-2 border-b border-border">
-          <p className="text-xs text-foreground leading-relaxed line-clamp-3 whitespace-pre-wrap">{prompt}</p>
-        </div>
-      )}
-      {!prompt && status === 'idle' && (
-        <div className="px-3 py-2">
-          <span className="italic text-muted-foreground/40 text-xs">{t('canvas.noPrompt')}</span>
-        </div>
-      )}
-      <div className="flex-1 bg-card min-h-[48px]">
-        {isRunning && (
-          <div className="flex items-center justify-center py-6">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <Loader2 size={16} className="animate-spin" />
-              <p className="text-xs">{status === 'pending' ? t('canvas.waitingStart') : t('canvas.generating')}</p>
-            </div>
-          </div>
-        )}
-        {!isRunning && status === 'failed' && (
-          <div className="flex items-center justify-center gap-2 text-destructive py-4">
-            <XCircle size={12} />
-            <p className="text-xs">{error ?? t('canvas.generationFailed')}</p>
-          </div>
-        )}
-        {!isRunning && status === 'done' && outputUrl && (
-          <div className="w-full h-full">
-            {outputType === 'image'
-              ? (outputResource?.direct_url
-                ? <img src={outputResource.direct_url} alt={t('shared.generation.resultAlt')} className="w-full h-full object-cover" />
-                : <AuthedImage src={`${API_BASE_CANVAS}${outputResource?.url}`} alt={t('shared.generation.resultAlt')} className="w-full h-full object-cover" />)
-              : (outputResource?.direct_url
-                ? <video src={outputResource.direct_url} className="w-full h-full object-cover" />
-                : <AuthedVideo src={`${API_BASE_CANVAS}${outputResource?.url}`} className="w-full h-full object-cover" />)
-            }
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
-
-function CanvasReferenceBody({
-  referencedCanvasId,
-  status,
-  inputPorts,
-  outputPorts,
-  outputResource,
-  error,
-}: {
-  referencedCanvasId?: number
-  status: 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  inputPorts?: CanvasPortDef[]
-  outputPorts?: CanvasPortDef[]
-  outputResource?: CanvasNodeData['resource']
-  error?: string
-}) {
-  const { t } = useTranslation()
-  const inputCount = inputPorts?.length ?? 0
-  const outputCount = outputPorts?.length ?? 0
-  const isRunning = status === 'pending' || status === 'running'
-  const outputUrl = outputResource
-    ? outputResource.direct_url ?? `${API_BASE_CANVAS}${outputResource.url}`
-    : undefined
-
-  return (
-    <div className="flex-1 rounded-b-lg bg-card">
-      <div className="border-b border-border px-3 py-2">
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <ArrowRightLeft size={11} />
-          <span className="truncate">
-            {referencedCanvasId
-              ? t('canvas.referenceWorkflow.interfaceSummary', { inputs: inputCount, outputs: outputCount })
-              : t('canvas.referenceWorkflow.selectWorkflow')}
-          </span>
-        </div>
-      </div>
-      {isRunning && (
-        <div className="flex items-center justify-center gap-2 px-3 py-5 text-xs text-muted-foreground">
-          <Loader2 size={14} className="animate-spin" />
-          {t('canvas.referenceWorkflow.reading')}
-        </div>
-      )}
-      {!isRunning && status === 'failed' && (
-        <div className="flex items-center gap-2 px-3 py-3 text-xs text-destructive">
-          <XCircle size={12} />
-          <span className="line-clamp-2">{error ?? t('canvas.generationFailed')}</span>
-        </div>
-      )}
-      {!isRunning && status === 'done' && outputUrl && (
-        <div className="h-28 overflow-hidden bg-muted/30">
-          {outputResource?.type === 'video'
-            ? (outputResource.direct_url
-              ? <video src={outputResource.direct_url} className="h-full w-full object-cover" />
-              : <AuthedVideo src={`${API_BASE_CANVAS}${outputResource.url}`} className="h-full w-full object-cover" />)
-            : outputResource?.direct_url
-              ? <img src={outputResource.direct_url} alt={t('shared.generation.resultAlt')} className="h-full w-full object-cover" />
-              : <AuthedImage src={`${API_BASE_CANVAS}${outputResource?.url}`} alt={t('shared.generation.resultAlt')} className="h-full w-full object-cover" />
-          }
-        </div>
-      )}
-      {!isRunning && !(status === 'done' && outputUrl) && status !== 'failed' && (
-        <div className="px-3 py-3 text-xs text-muted-foreground">
-          {referencedCanvasId
-            ? t('canvas.referenceWorkflow.latestOutputHint')
-            : t('canvas.referenceWorkflow.noWorkflowHint')}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -953,7 +777,7 @@ export function OutputNode({ data, selected }: NodeProps & { data: NodeDataWithH
 export function ResourceSinkNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  const port = resourceSinkPorts(data).inputs[0]
+  const port = resourceSinkPorts().inputs[0]
   const hasOutput = !!data.resource || status === 'done'
   const isRunning = status === 'pending' || status === 'running'
   const state = ioStateFromStatus(status, hasOutput)

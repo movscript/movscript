@@ -1,11 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpenCheck,
-  CheckCircle2,
   Clapperboard,
   ClipboardCheck,
   FileText,
-  Film,
   GitBranch,
   LayoutDashboard,
   PackageCheck,

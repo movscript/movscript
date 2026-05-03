@@ -242,9 +242,6 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
     [references, relationshipRecords, usageRecords],
   )
 
-  const selectedUsage = tab === 'usage' ? usageRecords.find((item) => item.ID === selectedId) ?? null : null
-  const selectedRelationship = tab === 'relationship' ? relationshipRecords.find((item) => item.ID === selectedId) ?? null : null
-
   const filteredUsages = useMemo(() => {
     const q = query.trim().toLowerCase()
     return usageRecords.filter((item) => {

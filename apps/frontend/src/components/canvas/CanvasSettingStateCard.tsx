@@ -196,34 +196,3 @@ function toneClass(tone: SettingStateTone) {
   if (tone === 'violet') return 'border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300'
   return 'border-border bg-background text-muted-foreground'
 }
-
-function PortDot({
-  side,
-  tone,
-  label,
-  compact,
-  className,
-}: {
-  side: 'left' | 'right'
-  tone: 'target' | 'source' | 'neutral' | 'muted'
-  label: string
-  compact?: boolean
-  className?: string
-}) {
-  return (
-    <span
-      title={label}
-      className={cn(
-        'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
-        compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
-        side === 'left' ? '-left-1.5' : '-right-1.5',
-        tone === 'target' && 'border-sky-500 bg-sky-500/90',
-        tone === 'source' && 'border-primary bg-primary/90',
-        tone === 'neutral' && 'border-border bg-card',
-        tone === 'muted' && 'border-border bg-muted',
-        className,
-      )}
-      aria-hidden="true"
-    />
-  )
-}

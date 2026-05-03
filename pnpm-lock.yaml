@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  apps/production-runtime:
+  apps/agent:
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

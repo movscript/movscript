@@ -73,6 +73,40 @@ export interface SemanticEntityConfig {
 
 export type SemanticEntityPayload = Record<string, string | number | boolean | null>
 
+export interface EntityRelation {
+  ID: number
+  CreatedAt?: string
+  UpdatedAt?: string
+  project_id: number
+  source_type: string
+  source_id: number
+  target_type: string
+  target_id: number
+  category: string
+  type: string
+  label?: string
+  scope_type?: string
+  scope_id?: number | null
+  direction: string
+  order: number
+  weight: number
+  status: string
+  source: string
+  evidence?: string
+  metadata_json?: string
+  created_by_id?: number | null
+}
+
+export interface EntityRelationFilters {
+  category?: string
+  type?: string
+  source_type?: string
+  source_id?: number
+  target_type?: string
+  target_id?: number
+  status?: string
+}
+
 export const semanticEntityConfigs: SemanticEntityConfig[] = semanticCoreEntityConfigs()
 
 export function semanticEntityConfig(kind: SemanticEntityKind) {
@@ -86,6 +120,12 @@ export function semanticEntityPath(projectId: number, config: SemanticEntityConf
 export async function listSemanticEntities(projectId: number, config: SemanticEntityConfig) {
   const { data } = await api.get<SemanticEntityRecord[] | { items?: SemanticEntityRecord[] }>(semanticEntityPath(projectId, config))
   return Array.isArray(data) ? data : data.items ?? []
+}
+
+export async function listEntityRelations(projectId: number, filters: EntityRelationFilters = {}) {
+  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ''))
+  const { data } = await api.get<EntityRelation[]>(`/projects/${projectId}/entities/relations`, { params })
+  return data
 }
 
 export async function createSemanticEntity(projectId: number, config: SemanticEntityConfig, payload: SemanticEntityPayload) {

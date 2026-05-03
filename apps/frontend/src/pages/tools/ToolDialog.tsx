@@ -3,10 +3,9 @@ import type React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { API_BASE_URL as API_BASE } from '@/lib/config'
 import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
 import {
-  ArrowLeft, Wand2, Loader2,
+  ArrowLeft, Wand2,
   Bug, Copy, Check, History, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'

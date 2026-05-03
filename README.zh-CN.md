@@ -19,7 +19,7 @@ Movscript 是一个开源的短剧生产与 AI 辅助视频创作桌面工作台
 movscript/
 ├── apps/backend/          Go API server、数据库模型、AI adapters、任务 worker
 ├── apps/frontend/         Electron + Vite + React 桌面应用
-├── apps/production-runtime/ 本地 Production Runtime HTTP 服务与实验
+├── apps/agent/ 本地 Agent HTTP 服务与实验
 ├── apps/movcli/           插件打包和 Agent 调试 CLI
 ├── packages/plugin-sdk/   TypeScript 插件 SDK
 ├── packages/tokens/       共享设计 token
@@ -86,7 +86,7 @@ curl http://localhost:8765/health
 ```bash
 make dev-backend          # Go API server
 make dev-frontend         # Electron 桌面应用
-make dev-runtime          # 本地 Production Runtime
+make dev-runtime          # 本地 Agent
 make test                 # 后端测试 + workspace typecheck
 make build                # 后端、packages、apps 和 plugins 构建
 pnpm run typecheck        # 可用包的 TypeScript 类型检查

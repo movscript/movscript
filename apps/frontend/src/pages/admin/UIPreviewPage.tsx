@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ElementType, ReactNode } from 'react'
-import { AlertTriangle, ArrowRight, Boxes, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Inbox, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, Send, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Boxes, Camera, CheckCircle2, Clapperboard, Clock, CopyPlus, Database, FileText, Film, GitBranch, ImagePlus, Layers, ListChecks, MapPin, Play, Plus, Puzzle, RefreshCw, ShieldCheck, Sparkles, Users, Video, Wrench } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { CanvasCandidateGroupCard, type CanvasCandidateGroupCardProps } from '@/components/canvas/CanvasCandidateGroupCard'

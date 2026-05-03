@@ -1,8 +1,8 @@
 # Movscript
 
-Movscript is an open-source desktop production workspace for short drama and AI-assisted video creation. It combines story planning, production assets, episode and scene breakdowns, storyboards, shots, canvas workflows, generation jobs, model administration, plugins, and a local production runtime in one local-first application.
+Movscript is an open-source desktop production workspace for short drama and AI-assisted video creation. It combines story planning, production assets, episode and scene breakdowns, storyboards, shots, canvas workflows, generation jobs, model administration, plugins, and a local agent in one local-first application.
 
-> The project is still early. APIs, plugin manifests, and production runtime contracts may change before a stable release.
+> The project is still early. APIs, plugin manifests, and agent contracts may change before a stable release.
 
 ## What You Can Build With It
 
@@ -11,7 +11,7 @@ Movscript is an open-source desktop production workspace for short drama and AI-
 - Configure AI credentials, model capabilities, feature routing, credit pricing, and debug calls from the admin UI.
 - Run text, image, image-edit, video, image-to-video, and video-to-video generation jobs asynchronously.
 - Compose reusable canvas workflows with manual media nodes, AI nodes, tool nodes, approvals, and plugin-provided nodes.
-- Extend the desktop experience with local plugins and a standalone local production runtime.
+- Extend the desktop experience with local plugins and a standalone local agent.
 
 ## Repository Layout
 
@@ -19,7 +19,7 @@ Movscript is an open-source desktop production workspace for short drama and AI-
 movscript/
 ├── apps/backend/          Go API server, database models, AI adapters, job worker
 ├── apps/frontend/         Electron + Vite + React desktop application
-├── apps/production-runtime/ Local production runtime HTTP service and experiments
+├── apps/agent/ Local agent HTTP service and experiments
 ├── apps/movcli/           CLI for plugin packaging and runtime smoke tests
 ├── packages/plugin-sdk/   TypeScript plugin SDK
 ├── packages/tokens/       Shared design tokens
@@ -86,7 +86,7 @@ curl http://localhost:8765/health
 ```bash
 make dev-backend          # Go API server
 make dev-frontend         # Electron desktop app
-make dev-runtime          # Local production runtime
+make dev-runtime          # Local agent
 make test                 # Backend tests + workspace typechecks
 make build                # Backend, packages, apps, and plugins
 pnpm run typecheck        # TypeScript typechecks where available

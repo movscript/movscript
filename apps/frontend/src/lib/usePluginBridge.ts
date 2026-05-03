@@ -15,10 +15,7 @@ import { api } from '@/lib/api'
 import { createMcpTools } from '@/lib/mcpTools'
 import { generateImageViaRuntime } from '@/lib/clientPlugins'
 
-type PendingCall = { resolve: (v: unknown) => void; reject: (e: unknown) => void }
-
 export function usePluginBridge(iframeRef: React.RefObject<HTMLIFrameElement | null>) {
-  const pending = useRef<Map<string, PendingCall>>(new Map())
   const mcp = useRef(createMcpTools())
 
   const handleMessage = useCallback(async (event: MessageEvent) => {

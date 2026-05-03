@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, Download, RefreshCw, Sparkles, Copy } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -921,8 +921,6 @@ function ModelManagementTab() {
   })
 
   function openAddPanel(credId: number) {
-    const cred = credentials.find((c) => c.ID === credId)
-    const adapter = adapters.find((a) => a.adapter_type === cred?.adapter_type)
     const defaultCaps = ['text']
     setAddingFor(credId)
     setAddModelId('')

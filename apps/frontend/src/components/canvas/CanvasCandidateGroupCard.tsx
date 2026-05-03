@@ -1,10 +1,7 @@
-import type { LucideIcon } from 'lucide-react'
 import {
   Check,
   ChevronRight,
   Circle,
-  FileText,
-  Layers,
   MoreHorizontal,
   RefreshCw,
   Sparkles,
@@ -194,35 +191,5 @@ function Metric({ label, value, tone }: { label: string; value: number; tone: 's
       <p className="text-[9px] text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm font-semibold text-foreground">{value}</p>
     </div>
-  )
-}
-
-function PortDot({
-  side,
-  tone,
-  label,
-  compact,
-  className,
-}: {
-  side: 'left' | 'right'
-  tone: 'target' | 'source' | 'muted'
-  label: string
-  compact?: boolean
-  className?: string
-}) {
-  return (
-    <span
-      title={label}
-      className={cn(
-        'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
-        compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
-        side === 'left' ? '-left-1.5' : '-right-1.5',
-        tone === 'target' && 'border-sky-500 bg-sky-500/90',
-        tone === 'source' && 'border-primary bg-primary/90',
-        tone === 'muted' && 'border-border bg-muted',
-        className,
-      )}
-      aria-hidden="true"
-    />
   )
 }

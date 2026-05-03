@@ -273,7 +273,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <ScriptTypeBadge script={selected} />
-                    <ScriptStageBadge script={selected} versionCount={versionsForSelected.length} hasActive={versionsForSelected.some((v) => v.status === 'active')} />
+                    <ScriptStageBadge versionCount={versionsForSelected.length} hasActive={versionsForSelected.some((v) => v.status === 'active')} />
                     {activeVersion && (
                       <span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
                         激活版本 v{activeVersion.version_number || activeVersion.ID}
@@ -544,7 +544,7 @@ function ScriptTypeBadge({ script }: { script: Script }) {
   return <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{categoryLabel(script.script_type)}</span>
 }
 
-function ScriptStageBadge({ script, versionCount, hasActive }: { script: Script; versionCount: number; hasActive: boolean }) {
+function ScriptStageBadge({ versionCount, hasActive }: { versionCount: number; hasActive: boolean }) {
   const stage = !versionCount ? '无版本' : !hasActive ? '待激活' : '已就绪'
   const config = {
     '无版本': { className: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300', icon: AlertTriangle },
@@ -560,7 +560,7 @@ function ScriptStageBadge({ script, versionCount, hasActive }: { script: Script;
   )
 }
 
-function MetricBox({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: string }) {
+function MetricBox({ label, value }: { icon: typeof FileText; label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-background p-2.5">
       <p className="text-[11px] text-muted-foreground">{label}</p>

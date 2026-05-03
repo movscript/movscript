@@ -50,7 +50,7 @@ export async function ensureProductionRuntimeRunning(input: { baseURL?: string }
       managed: false,
       started: false,
       baseURL,
-      error: 'Production Runtime is running but does not support /model-config. Stop the old runtime process and restart the desktop app.',
+      error: 'Agent is running but does not support /model-config. Stop the old runtime process and restart the desktop app.',
     }
   }
 
@@ -82,9 +82,9 @@ async function startProductionRuntime(baseURL: string): Promise<ProductionRuntim
       stdio: app.isPackaged ? 'ignore' : 'inherit',
     })
 
-    proc.on('error', (err) => console.error('[production-runtime]', err))
+    proc.on('error', (err) => console.error('[agent]', err))
     proc.on('exit', (code, signal) => {
-      console.info(`[production-runtime] movscript-production-runtime exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
+      console.info(`[agent] movscript-agent exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
       proc = null
     })
 
@@ -113,10 +113,10 @@ async function startProductionRuntime(baseURL: string): Promise<ProductionRuntim
 
 function resolveProductionRuntimeLaunch(): ProductionRuntimeLaunch {
   const roots = [
-    join(app.getAppPath(), '..', 'production-runtime'),
-    join(process.cwd(), '..', 'production-runtime'),
-    join(process.cwd(), 'apps', 'production-runtime'),
-    join(process.resourcesPath || '', 'movscript-production-runtime'),
+    join(app.getAppPath(), '..', 'agent'),
+    join(process.cwd(), '..', 'agent'),
+    join(process.cwd(), 'apps', 'agent'),
+    join(process.resourcesPath || '', 'movscript-agent'),
   ]
 
   for (const root of roots) {
@@ -149,7 +149,7 @@ function resolveProductionRuntimeLaunch(): ProductionRuntimeLaunch {
     }
   }
 
-  throw new Error('movscript-production-runtime not found. Expected apps/production-runtime in development or resources/movscript-production-runtime/dist/server.js in packaged builds.')
+  throw new Error('movscript-agent not found. Expected apps/agent in development or resources/movscript-agent/dist/server.js in packaged builds.')
 }
 
 async function waitForProductionRuntime(baseURL: string, timeoutMs: number): Promise<void> {
@@ -159,11 +159,7 @@ async function waitForProductionRuntime(baseURL: string, timeoutMs: number): Pro
     if (health.ok && health.supportsModelConfig) return
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`movscript-production-runtime did not become healthy with model config support at ${baseURL} within ${timeoutMs}ms`)
-}
-
-async function isProductionRuntimeHealthy(baseURL: string): Promise<boolean> {
-  return (await getProductionRuntimeHealth(baseURL)).ok
+  throw new Error(`movscript-agent did not become healthy with model config support at ${baseURL} within ${timeoutMs}ms`)
 }
 
 async function getProductionRuntimeHealth(baseURL: string): Promise<{ ok: boolean; supportsModelConfig: boolean }> {

@@ -201,7 +201,7 @@ async function readResource(uri: string): Promise<MCPJSONValue> {
   }
 
   const data = await backendGet(projectEndpoint(projectId, kind))
-  return resourceContent(uri, summarizeResource(kind, data))
+  return resourceContent(uri, summarizeResource(data))
 }
 
 function resourceContent(uri: string, value: unknown): MCPJSONValue {
@@ -220,13 +220,19 @@ function projectEndpoint(projectId: number, kind: string): string {
   switch (kind) {
     case 'summary':
       return `/projects/${projectId}`
+    case 'assets':
+    case 'assests':
+      return `/projects/${projectId}/entities/asset-slots`
+    case 'episodes':
+      return `/projects/${projectId}/entities/productions`
+    case 'scenes':
+      return `/projects/${projectId}/entities/segments`
+    case 'storyboards':
+      return `/projects/${projectId}/entities/storyboard-scripts`
+    case 'shots':
+      return `/projects/${projectId}/entities/content-units`
     case 'scripts':
     case 'settings':
-    case 'assets':
-    case 'episodes':
-    case 'scenes':
-    case 'storyboards':
-    case 'shots':
       return `/projects/${projectId}/${kind}`
     default:
       throw new Error(`Unsupported project resource kind: ${kind}`)
@@ -281,7 +287,7 @@ function listTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
-          kind: { type: 'string', enum: ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note'] },
+          kind: { type: 'string', enum: ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note', 'pipeline'] },
           title: { type: 'string' },
           content: { type: 'string' },
           source: { type: 'object' },
@@ -303,6 +309,50 @@ function listTools(): MCPTool[] {
           entityId: { type: 'number' },
         },
         ['entityType']
+      ),
+    },
+    {
+      name: 'movscript.read_production_context',
+      description: 'Read the full production orchestration context: existing segments, scene moments, creative references (project-level), asset slots (project-level), and content units for a given production. Use this as the first step before generating any candidates.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          productionId: { type: 'number' },
+          includeScriptText: { type: 'boolean' },
+        },
+        ['projectId', 'productionId']
+      ),
+    },
+    {
+      name: 'movscript.check_entity_conflicts',
+      description: 'Given a list of proposed production entities, check each one against existing entities and return conflict status: "none" (safe to create), "duplicate" (very similar entity exists), or "supersedes" (new version replaces old). Always call this before propose_production_entities.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          productionId: { type: 'number' },
+          candidates: {
+            type: 'object',
+            description: 'Object with keys: segments, scene_moments, creative_references, asset_slots, content_units — each an array of candidate objects with client_id and identifying fields.',
+          },
+        },
+        ['projectId', 'productionId', 'candidates']
+      ),
+    },
+    {
+      name: 'movscript.propose_production_entities',
+      description: 'Write the final analysis result — all five entity types with their relationships and conflict statuses — into a draft so the frontend can display them for user review. Call this as the last step after check_entity_conflicts.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          productionId: { type: 'number' },
+          analysisScope: { type: 'string' },
+          candidates: {
+            type: 'object',
+            description: 'Object with keys: segments, scene_moments, creative_references, asset_slots, content_units — each an array with conflict_status field added.',
+          },
+          summary: { type: 'string' },
+        },
+        ['projectId', 'productionId', 'candidates']
       ),
     },
   ]
@@ -340,6 +390,12 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(listDrafts(args))
     case 'movscript.open_entity':
       return toolText(openEntity(args))
+    case 'movscript.read_production_context':
+      return toolText(await readProductionContext(args))
+    case 'movscript.check_entity_conflicts':
+      return toolText(await checkEntityConflicts(args))
+    case 'movscript.propose_production_entities':
+      return toolText(proposeProductionEntities(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
@@ -352,10 +408,10 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
   const [scripts, settings, episodes, scenes, storyboards, shots] = await Promise.all([
     backendList(`/projects/${projectId}/scripts`),
     backendList(`/projects/${projectId}/settings`),
-    backendList(`/projects/${projectId}/episodes`),
-    backendList(`/projects/${projectId}/scenes`),
-    backendList(`/projects/${projectId}/storyboards`),
-    backendList(`/projects/${projectId}/shots`),
+    backendList(`/projects/${projectId}/entities/productions`),
+    backendList(`/projects/${projectId}/entities/segments`),
+    backendList(`/projects/${projectId}/entities/storyboard-scripts`),
+    backendList(`/projects/${projectId}/entities/content-units`),
   ])
   return {
     projectId,
@@ -488,6 +544,261 @@ function openEntity(args: Record<string, unknown>): { opened: boolean; route: st
   return { opened: true, route }
 }
 
+async function readProductionContext(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getRequiredNumber(args, 'projectId')
+  const productionId = getRequiredNumber(args, 'productionId')
+  const includeScriptText = args.includeScriptText === true
+
+  const [segments, sceneMoments, creativeReferences, assetSlots, contentUnits, productions] = await Promise.all([
+    backendList(`/projects/${projectId}/entities/segments`),
+    backendList(`/projects/${projectId}/entities/scene-moments`),
+    backendList(`/projects/${projectId}/entities/creative-references`),
+    backendList(`/projects/${projectId}/entities/asset-slots`),
+    backendList(`/projects/${projectId}/entities/content-units`),
+    backendList(`/projects/${projectId}/entities/productions`),
+  ])
+
+  const production = productions.find((p: any) => Number(p.ID ?? p.id) === productionId) ?? null
+  const productionSegments = segments.filter((s: any) => Number(s.production_id) === productionId)
+  const segmentIds = new Set(productionSegments.map((s: any) => Number(s.ID ?? s.id)))
+  const productionSceneMoments = sceneMoments.filter((sm: any) => segmentIds.has(Number(sm.segment_id)))
+  const sceneMomentIds = new Set(productionSceneMoments.map((sm: any) => Number(sm.ID ?? sm.id)))
+  const productionContentUnits = contentUnits.filter((cu: any) =>
+    Number(cu.production_id) === productionId ||
+    segmentIds.has(Number(cu.segment_id)) ||
+    sceneMomentIds.has(Number(cu.scene_moment_id))
+  )
+
+  let scriptText: string | undefined
+  if (includeScriptText && production?.script_version_id) {
+    try {
+      const scriptVersions = await backendList(`/projects/${projectId}/entities/script-versions`)
+      const version = scriptVersions.find((v: any) => Number(v.ID ?? v.id) === Number(production.script_version_id))
+      scriptText = version?.content || version?.raw_source || undefined
+    } catch {
+      // script text is optional
+    }
+  }
+
+  return {
+    production: production ? summarizeProductionEntity(production) : null,
+    counts: {
+      segments: productionSegments.length,
+      sceneMoments: productionSceneMoments.length,
+      creativeReferences: creativeReferences.length,
+      assetSlots: assetSlots.length,
+      contentUnits: productionContentUnits.length,
+    },
+    segments: productionSegments.map(summarizeProductionEntity),
+    sceneMoments: productionSceneMoments.map(summarizeProductionEntity),
+    creativeReferences: creativeReferences.map(summarizeProductionEntity),
+    assetSlots: assetSlots.map(summarizeProductionEntity),
+    contentUnits: productionContentUnits.map(summarizeProductionEntity),
+    ...(scriptText !== undefined ? { scriptText: scriptText.length > 8000 ? scriptText.slice(0, 8000) + '...' : scriptText } : {}),
+  }
+}
+
+async function checkEntityConflicts(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getRequiredNumber(args, 'projectId')
+  const productionId = getRequiredNumber(args, 'productionId')
+  const candidates = isRecord(args.candidates) ? args.candidates : {}
+
+  const [segments, sceneMoments, creativeReferences, assetSlots, contentUnits] = await Promise.all([
+    backendList(`/projects/${projectId}/entities/segments`),
+    backendList(`/projects/${projectId}/entities/scene-moments`),
+    backendList(`/projects/${projectId}/entities/creative-references`),
+    backendList(`/projects/${projectId}/entities/asset-slots`),
+    backendList(`/projects/${projectId}/entities/content-units`),
+  ])
+
+  const productionSegments = segments.filter((s: any) => Number(s.production_id) === productionId)
+
+  function checkConflict(
+    proposed: any[],
+    existing: any[],
+    matchFn: (p: any, e: any) => boolean,
+    similarityFn: (p: any, e: any) => number,
+  ): any[] {
+    return proposed.map((candidate) => {
+      const exactMatch = existing.find((e) => matchFn(candidate, e))
+      if (exactMatch) {
+        return {
+          ...candidate,
+          conflict_status: 'duplicate',
+          conflict_entity_id: Number(exactMatch.ID ?? exactMatch.id),
+          conflict_entity_name: exactMatch.name ?? exactMatch.title ?? '',
+          conflict_similarity: 1.0,
+        }
+      }
+      const similar = existing
+        .map((e) => ({ entity: e, score: similarityFn(candidate, e) }))
+        .filter((r) => r.score >= 0.7)
+        .sort((a, b) => b.score - a.score)[0]
+      if (similar) {
+        return {
+          ...candidate,
+          conflict_status: 'duplicate',
+          conflict_entity_id: Number(similar.entity.ID ?? similar.entity.id),
+          conflict_entity_name: similar.entity.name ?? similar.entity.title ?? '',
+          conflict_similarity: similar.score,
+        }
+      }
+      return { ...candidate, conflict_status: 'none' }
+    })
+  }
+
+  function nameSimilarity(a: any, b: any): number {
+    const nameA = String(a.name ?? a.title ?? '').toLowerCase().trim()
+    const nameB = String(b.name ?? b.title ?? '').toLowerCase().trim()
+    if (!nameA || !nameB) return 0
+    if (nameA === nameB) return 1.0
+    if (nameA.includes(nameB) || nameB.includes(nameA)) return 0.85
+    const wordsA = new Set(nameA.split(/\s+/))
+    const wordsB = new Set(nameB.split(/\s+/))
+    const intersection = [...wordsA].filter((w) => wordsB.has(w)).length
+    const union = new Set([...wordsA, ...wordsB]).size
+    return union > 0 ? intersection / union : 0
+  }
+
+  function exactNameMatch(a: any, b: any): boolean {
+    return String(a.name ?? a.title ?? '').toLowerCase().trim() ===
+      String(b.name ?? b.title ?? '').toLowerCase().trim()
+  }
+
+  function segmentMatch(a: any, b: any): boolean {
+    return exactNameMatch(a, b) && Number(b.production_id) === productionId
+  }
+
+  const checkedSegments = checkConflict(
+    getArray(candidates.segments),
+    productionSegments,
+    segmentMatch,
+    nameSimilarity,
+  )
+  const checkedSceneMoments = checkConflict(
+    getArray(candidates.scene_moments),
+    sceneMoments,
+    exactNameMatch,
+    nameSimilarity,
+  )
+  const checkedCreativeReferences = checkConflict(
+    getArray(candidates.creative_references),
+    creativeReferences,
+    (a, b) => exactNameMatch(a, b) && (a.type ?? a.kind) === (b.kind ?? b.type),
+    (a, b) => {
+      const nameSim = nameSimilarity(a, b)
+      const kindMatch = (a.type ?? a.kind) === (b.kind ?? b.type) ? 0.2 : 0
+      return Math.min(1, nameSim + kindMatch)
+    },
+  )
+  const checkedAssetSlots = checkConflict(
+    getArray(candidates.asset_slots),
+    assetSlots,
+    exactNameMatch,
+    nameSimilarity,
+  )
+  const checkedContentUnits = checkConflict(
+    getArray(candidates.content_units),
+    contentUnits,
+    exactNameMatch,
+    nameSimilarity,
+  )
+
+  const conflictCounts = {
+    segments: checkedSegments.filter((c) => c.conflict_status !== 'none').length,
+    scene_moments: checkedSceneMoments.filter((c) => c.conflict_status !== 'none').length,
+    creative_references: checkedCreativeReferences.filter((c) => c.conflict_status !== 'none').length,
+    asset_slots: checkedAssetSlots.filter((c) => c.conflict_status !== 'none').length,
+    content_units: checkedContentUnits.filter((c) => c.conflict_status !== 'none').length,
+  }
+
+  return {
+    conflict_counts: conflictCounts,
+    total_conflicts: Object.values(conflictCounts).reduce((sum, n) => sum + n, 0),
+    candidates: {
+      segments: checkedSegments,
+      scene_moments: checkedSceneMoments,
+      creative_references: checkedCreativeReferences,
+      asset_slots: checkedAssetSlots,
+      content_units: checkedContentUnits,
+    },
+  }
+}
+
+function proposeProductionEntities(args: Record<string, unknown>): unknown {
+  const projectId = getRequiredNumber(args, 'projectId')
+  const productionId = getRequiredNumber(args, 'productionId')
+  const candidates = isRecord(args.candidates) ? args.candidates : {}
+  const analysisScope = typeof args.analysisScope === 'string' ? args.analysisScope : 'production'
+  const summary = typeof args.summary === 'string' ? args.summary : ''
+
+  const now = new Date().toISOString()
+  const draftId = `prod_proposal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+
+  const draft: MCPDraft = {
+    id: draftId,
+    projectId,
+    kind: 'pipeline',
+    title: `制作编排候选 — ${analysisScope}`,
+    content: JSON.stringify({
+      productionId,
+      analysisScope,
+      summary,
+      candidates,
+      proposedAt: now,
+    }),
+    source: { entityType: 'production', entityId: productionId },
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  drafts.set(draftId, draft)
+
+  const counts = {
+    segments: getArray(candidates.segments).length,
+    scene_moments: getArray(candidates.scene_moments).length,
+    creative_references: getArray(candidates.creative_references).length,
+    asset_slots: getArray(candidates.asset_slots).length,
+    content_units: getArray(candidates.content_units).length,
+  }
+  const conflictCounts = {
+    segments: getArray(candidates.segments).filter((c: any) => c.conflict_status === 'duplicate').length,
+    scene_moments: getArray(candidates.scene_moments).filter((c: any) => c.conflict_status === 'duplicate').length,
+    creative_references: getArray(candidates.creative_references).filter((c: any) => c.conflict_status === 'duplicate').length,
+    asset_slots: getArray(candidates.asset_slots).filter((c: any) => c.conflict_status === 'duplicate').length,
+    content_units: getArray(candidates.content_units).filter((c: any) => c.conflict_status === 'duplicate').length,
+  }
+
+  return {
+    draftId,
+    status: 'proposed',
+    counts,
+    conflict_counts: conflictCounts,
+    message: `已写入 ${Object.values(counts).reduce((s, n) => s + n, 0)} 个候选（其中 ${Object.values(conflictCounts).reduce((s, n) => s + n, 0)} 个有冲突需用户决策）`,
+  }
+}
+
+function summarizeProductionEntity(item: any): unknown {
+  if (!item || typeof item !== 'object') return item
+  const summary: Record<string, unknown> = {}
+  for (const key of [
+    'ID', 'id', 'project_id', 'production_id', 'segment_id', 'scene_moment_id',
+    'content_unit_id', 'creative_reference_id', 'script_version_id',
+    'title', 'name', 'kind', 'type', 'status', 'importance', 'priority',
+    'order', 'summary', 'description', 'source_range',
+    'time_text', 'location_text', 'action_text', 'mood',
+    'shot_size', 'camera_angle', 'owner_type', 'owner_id',
+    'CreatedAt', 'UpdatedAt',
+  ]) {
+    if (item[key] !== undefined) summary[key] = truncateLongText(item[key])
+  }
+  return summary
+}
+
+function getArray(value: unknown): any[] {
+  return Array.isArray(value) ? value : []
+}
+
 function collectionForEntity(entityType: string): string {
   switch (entityType) {
     case 'script':
@@ -495,15 +806,15 @@ function collectionForEntity(entityType: string): string {
     case 'setting':
       return 'settings'
     case 'asset':
-      return 'assets'
+      return 'entities/asset-slots'
     case 'episode':
-      return 'episodes'
+      return 'entities/productions'
     case 'scene':
-      return 'scenes'
+      return 'entities/segments'
     case 'storyboard':
-      return 'storyboards'
+      return 'entities/storyboard-scripts'
     case 'shot':
-      return 'shots'
+      return 'entities/content-units'
     default:
       throw new Error(`Unsupported entity type: ${entityType}`)
   }
@@ -543,7 +854,7 @@ async function backendGet(path: string): Promise<any> {
   return res.json()
 }
 
-function summarizeResource(kind: string, data: unknown): unknown {
+function summarizeResource(data: unknown): unknown {
   if (!Array.isArray(data)) return data
   return data.map(summarizeEntity)
 }

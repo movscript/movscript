@@ -40,10 +40,10 @@ function createWindow(): void {
 async function startProductionRuntimeOnAppReady(): Promise<void> {
   const status = await ensureProductionRuntimeRunning()
   if (!status.ok) {
-    console.warn(`[production-runtime] auto-start failed: ${status.error ?? 'unknown error'}`)
+    console.warn(`[agent] auto-start failed: ${status.error ?? 'unknown error'}`)
     return
   }
-  console.info(`[production-runtime] auto-start ${status.started ? 'started' : 'ready'} at ${status.baseURL}${status.pid ? ` pid=${status.pid}` : ''}`)
+  console.info(`[agent] auto-start ${status.started ? 'started' : 'ready'} at ${status.baseURL}${status.pid ? ` pid=${status.pid}` : ''}`)
 }
 
 app.whenReady().then(async () => {
@@ -78,6 +78,6 @@ ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
   updateMCPContextSnapshot(snapshot)
 })
 
-ipcMain.handle('production-runtime:ensure-running', (_e, input?: { baseURL?: string }) => {
+ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {
   return ensureProductionRuntimeRunning(input)
 })
