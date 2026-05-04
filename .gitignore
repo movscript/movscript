@@ -4,6 +4,7 @@ apps/backend/main
 apps/frontend/dist/
 apps/frontend/dist-electron/
 apps/frontend/out/
+apps/frontend/release/
 
 # Go
 apps/backend/uploads/

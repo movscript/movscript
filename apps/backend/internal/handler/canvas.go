@@ -16,24 +16,12 @@ import (
 
 type CanvasHandler struct {
 	CanvasExecService canvasservice.Service
-	db                *gorm.DB
-	registry          *ai.Registry
-	svc               *ai.AIService
-	entityIO          *workflow.EntityIOService
-	store             storage.Storage
-	uploadDir         string
 }
 
 func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
 	entityIO := workflow.NewEntityIOService(db)
 	return &CanvasHandler{
 		CanvasExecService: canvasservice.NewService(db, registry, svc, entityIO, store),
-		db:                db,
-		registry:          registry,
-		svc:               svc,
-		entityIO:          entityIO,
-		store:             store,
-		uploadDir:         "/tmp/movscript-canvas",
 	}
 }
 

@@ -129,6 +129,25 @@
     "registerFailed": "Registration failed",
     "passwordMismatch": "Passwords do not match"
   },
+  "appSettings": {
+    "title": "App Settings",
+    "description": "Configure the Movscript cloud service used by this client. This is stored locally and can be changed before sign-in.",
+    "cloudApiTitle": "Cloud API",
+    "cloudApiHint": "Login, assets, projects, and agent requests will use this service.",
+    "apiBaseURL": "Cloud API URL",
+    "apiBaseURLHelp": "Enter the service root, such as https://api.example.com. The app will use /api/v1 automatically.",
+    "currentApi": "Current API",
+    "effectiveEndpoint": "Effective endpoint",
+    "invalidURL": "Enter a URL that starts with http:// or https://.",
+    "testConnection": "Test Connection",
+    "testing": "Testing connection...",
+    "testSuccess": "Connection succeeded.",
+    "testFailed": "Connection failed.",
+    "testFailedWithReason": "Connection failed: {{reason}}",
+    "resetDefault": "Reset Default",
+    "savedReloading": "Saved. Reloading the client...",
+    "returnToLogin": "Back to login"
+  },
   "domain": {
     "assetTypes": {
       "character": "Character",

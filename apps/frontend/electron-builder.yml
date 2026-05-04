@@ -1,0 +1,37 @@
+appId: com.movscript.desktop
+productName: Movscript
+asar: true
+icon: ../../assets/logo.png
+
+directories:
+  output: release
+
+files:
+  - out/**
+  - package.json
+
+extraResources:
+  - from: ../../assets/logo.png
+    to: logo.png
+  - from: ../agent
+    to: movscript-agent
+    filter:
+      - dist/**
+      - package.json
+      - node_modules/**
+
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.productivity
+
+win:
+  target:
+    - nsis
+    - portable
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

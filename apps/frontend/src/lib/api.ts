@@ -1,15 +1,16 @@
 import axios from 'axios'
 import { useUserStore } from '@/store/userStore'
 import { toast } from '@/store/toastStore'
-import { API_V1_BASE_URL } from '@/lib/config'
+import { getAPIV1BaseURL } from '@/lib/config'
 import { translateApiError, type APIErrorBody } from '@/lib/apiError'
 
 export const api = axios.create({
-  baseURL: API_V1_BASE_URL
+  baseURL: getAPIV1BaseURL()
 })
 
 api.interceptors.request.use((config) => {
   const { token, currentOrgID } = useUserStore.getState()
+  config.baseURL = getAPIV1BaseURL()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }

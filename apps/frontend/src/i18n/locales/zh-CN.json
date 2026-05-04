@@ -129,6 +129,25 @@
     "registerFailed": "注册失败",
     "passwordMismatch": "两次密码不一致"
   },
+  "appSettings": {
+    "title": "应用设置",
+    "description": "配置当前客户端连接的 Movscript 云端服务。该设置保存在本机，登录前也可以修改。",
+    "cloudApiTitle": "云端 API",
+    "cloudApiHint": "客户端登录、素材、项目和 Agent 请求都会连接到这个服务。",
+    "apiBaseURL": "云端 API 地址",
+    "apiBaseURLHelp": "填写服务根地址即可，例如 https://api.example.com；系统会自动使用 /api/v1。",
+    "currentApi": "当前 API",
+    "effectiveEndpoint": "实际接口",
+    "invalidURL": "请输入以 http:// 或 https:// 开头的地址。",
+    "testConnection": "测试连接",
+    "testing": "正在测试连接…",
+    "testSuccess": "连接成功。",
+    "testFailed": "连接失败。",
+    "testFailedWithReason": "连接失败：{{reason}}",
+    "resetDefault": "恢复默认",
+    "savedReloading": "已保存，正在重新加载客户端…",
+    "returnToLogin": "返回登录"
+  },
   "domain": {
     "assetTypes": {
       "character": "角色",

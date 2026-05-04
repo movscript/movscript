@@ -31,47 +31,19 @@ func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipa
 }
 
 func gatewayKeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
-	scopes := parseStringArray(key.AllowedScopes)
-	if len(scopes) == 0 {
-		return scope == "model:chat"
-	}
-	for _, s := range scopes {
-		if s == scope || s == "*" {
-			return true
-		}
-	}
-	return false
+	return modelgatewayapp.KeyAllowsScope(key, scope)
 }
 
 func gatewayKeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
-	ids := parseUintArray(key.AllowedModelIDs)
-	if len(ids) == 0 {
-		return true
-	}
-	for _, id := range ids {
-		if id == modelConfigID {
-			return true
-		}
-	}
-	return false
+	return modelgatewayapp.KeyAllowsModel(key, modelConfigID)
 }
 
 func gatewayKeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
-	if key.ProjectID == nil {
-		return true
-	}
-	if requestedProjectID == nil {
-		return false
-	}
-	return *key.ProjectID == *requestedProjectID
+	return modelgatewayapp.KeyAllowsProject(key, requestedProjectID)
 }
 
 func gatewayBillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
-	ctx := ai.BillingContext{ProjectID: projectID}
-	if key != nil {
-		ctx.GatewayAPIKeyID = &key.ID
-	}
-	return ctx
+	return modelgatewayapp.BillingContext(key, projectID)
 }
 
 func (h *ModelGatewayHandler) enforceGatewayKeyLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {

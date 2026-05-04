@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '@/lib/api'
+import { getAPIBaseURL } from '@/lib/config'
 import { translateApiError } from '@/lib/apiError'
 import { type AuthSession, useUserStore } from '@/store/userStore'
 import { Button } from '@movscript/ui'
@@ -79,6 +81,14 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <Link
+        to="/app/settings"
+        className="absolute right-5 top-5 inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label={t('appSettings.title')}
+        title={t('appSettings.title')}
+      >
+        <Settings size={16} />
+      </Link>
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-foreground mb-1">Movscript</h1>
         <p className="text-sm text-muted-foreground mb-8">{t('auth.tagline')}</p>
@@ -126,6 +136,10 @@ export default function AuthPage() {
             {loading ? t('auth.pleaseWait') : tab === 'login' ? t('auth.login') : t('auth.register')}
           </Button>
         </div>
+
+        <p className="mt-4 truncate text-center text-xs text-muted-foreground">
+          {t('appSettings.currentApi')}: <span className="font-mono">{getAPIBaseURL()}</span>
+        </p>
 
         {tab === 'login' && (
           <p className="text-xs text-muted-foreground text-center mt-5">

@@ -6,10 +6,13 @@ let proc: ChildProcess | null = null
 
 export async function startBackend(): Promise<void> {
   // In dev, assume the Go server is started manually.
-  // In production, launch the bundled binary.
+  // Desktop releases use the configured cloud API by default. A bundled local
+  // backend is opt-in for internal builds.
   if (process.env.NODE_ENV === 'development') return
+  if (process.env.MOVSCRIPT_ENABLE_BUNDLED_BACKEND !== '1') return
 
-  const bin = join(app.getAppPath(), '..', 'backend', 'server')
+  const binary = process.platform === 'win32' ? 'server.exe' : 'server'
+  const bin = join(app.getAppPath(), '..', 'backend', binary)
   proc = spawn(bin, [], {
     env: { ...process.env },
     stdio: 'inherit'

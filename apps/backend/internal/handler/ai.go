@@ -3,26 +3,25 @@ package handler
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
-	"github.com/movscript/movscript/internal/crypto"
-	"github.com/movscript/movscript/internal/model"
+	aiadminapp "github.com/movscript/movscript/internal/app/aiadmin"
 	"github.com/movscript/movscript/internal/service"
 	"gorm.io/gorm"
 )
 
 type AIHandler struct {
-	db            *gorm.DB
-	encryptionKey []byte
-	registry      *ai.Registry
+	registry *ai.Registry
+	service  *aiadminapp.Service
 }
 
 func NewAIHandler(db *gorm.DB, encryptionKeyHex string, registry *ai.Registry) *AIHandler {
 	key, _ := hex.DecodeString(encryptionKeyHex)
-	return &AIHandler{db: db, encryptionKey: key, registry: registry}
+	return &AIHandler{registry: registry, service: aiadminapp.NewService(db, key, registry)}
 }
 
 // ── Adapter & Model Presets ───────────────────────────────────────────────────
@@ -40,19 +39,10 @@ func (h *AIHandler) ListModelPresets(c *gin.Context) {
 // ── Credentials ───────────────────────────────────────────────────────────────
 
 func (h *AIHandler) ListCredentials(c *gin.Context) {
-	var creds []model.AICredential
-	h.db.Preload("Models").Find(&creds)
-	for i := range creds {
-		if creds[i].EncryptedKey != "" {
-			if plain, err := crypto.Decrypt(creds[i].EncryptedKey, h.encryptionKey); err == nil {
-				creds[i].MaskedKey = crypto.MaskKey(plain)
-			}
-		}
-		if creds[i].FilesAPIEncryptedKey != "" {
-			if plain, err := crypto.Decrypt(creds[i].FilesAPIEncryptedKey, h.encryptionKey); err == nil {
-				creds[i].FilesAPIMaskedKey = crypto.MaskKey(plain)
-			}
-		}
+	creds, err := h.service.ListCredentials(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, creds)
 }
@@ -82,37 +72,23 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		}
 	}
 
-	baseURL := def.DefaultBaseURL
-	if v := req.Credentials["base_url"]; v != "" {
-		baseURL = v
-	}
-
-	cred := model.AICredential{
+	cred, err := h.service.CreateCredential(c.Request.Context(), aiadminapp.CreateCredentialInput{
 		AdapterType:     req.AdapterType,
 		DisplayName:     req.DisplayName,
-		BaseURL:         baseURL,
-		IsEnabled:       true,
+		Credentials:     req.Credentials,
 		FilesAPIEnabled: req.FilesAPIEnabled,
 		FilesAPIBaseURL: req.FilesAPIBaseURL,
-	}
-	if req.FilesAPIKey != "" {
-		encFilesKey, _, err := h.registry.EncryptRawKey(req.FilesAPIKey)
-		if err != nil {
+		FilesAPIKey:     req.FilesAPIKey,
+	})
+	if err != nil {
+		if errors.Is(err, aiadminapp.ErrEncryptFilesAPIKey) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt files api key"})
 			return
 		}
-		cred.FilesAPIEncryptedKey = encFilesKey
-		cred.FilesAPIMaskedKey = crypto.MaskKey(req.FilesAPIKey)
-	}
-	encKey, masked, err := h.registry.EncryptCredentials(req.AdapterType, req.Credentials)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials"})
-		return
-	}
-	cred.EncryptedKey = encKey
-	cred.MaskedKey = masked
-
-	if err := h.db.Create(&cred).Error; err != nil {
+		if errors.Is(err, aiadminapp.ErrEncryptCredentials) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -125,11 +101,6 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 // SyncModels was removed — model configs are admin-declared.
 
 func (h *AIHandler) UpdateCredential(c *gin.Context) {
-	var cred model.AICredential
-	if err := h.db.First(&cred, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
 	var req struct {
 		DisplayName     string            `json:"display_name"`
 		BaseURL         *string           `json:"base_url"`
@@ -144,89 +115,46 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if req.DisplayName != "" {
-		cred.DisplayName = req.DisplayName
-	}
-	if req.BaseURL != nil {
-		cred.BaseURL = *req.BaseURL
-	}
-	if req.IsEnabled != nil {
-		cred.IsEnabled = *req.IsEnabled
-	}
-	if req.FilesAPIEnabled != nil {
-		cred.FilesAPIEnabled = *req.FilesAPIEnabled
-	}
-	if req.FilesAPIBaseURL != nil {
-		cred.FilesAPIBaseURL = *req.FilesAPIBaseURL
-	}
-	if req.FilesAPIKey != "" {
-		encFilesKey, _, err := h.registry.EncryptRawKey(req.FilesAPIKey)
-		if err != nil {
+	cred, err := h.service.UpdateCredential(c.Request.Context(), aiadminapp.UpdateCredentialInput{
+		ID:              c.Param("id"),
+		DisplayName:     req.DisplayName,
+		BaseURL:         req.BaseURL,
+		APIKey:          req.APIKey,
+		IsEnabled:       req.IsEnabled,
+		FilesAPIEnabled: req.FilesAPIEnabled,
+		FilesAPIBaseURL: req.FilesAPIBaseURL,
+		FilesAPIKey:     req.FilesAPIKey,
+		Credentials:     req.Credentials,
+	})
+	if err != nil {
+		if errors.Is(err, aiadminapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		if errors.Is(err, aiadminapp.ErrEncryptFilesAPIKey) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt files api key"})
 			return
 		}
-		cred.FilesAPIEncryptedKey = encFilesKey
-		cred.FilesAPIMaskedKey = crypto.MaskKey(req.FilesAPIKey)
-	}
-	if req.APIKey != "" {
-		if req.Credentials == nil {
-			req.Credentials = map[string]string{}
-		}
-		req.Credentials["api_key"] = req.APIKey
-	}
-	if len(req.Credentials) > 0 {
-		if v, ok := req.Credentials["base_url"]; ok {
-			cred.BaseURL = v
-		}
-		if cred.AdapterType == ai.AdapterKling && (req.Credentials["access_key"] != "" || req.Credentials["secret_key"] != "") {
-			if plain, err := crypto.Decrypt(cred.EncryptedKey, h.encryptionKey); err == nil {
-				parts := splitKlingCredential(plain)
-				if req.Credentials["access_key"] == "" {
-					req.Credentials["access_key"] = parts[0]
-				}
-				if req.Credentials["secret_key"] == "" {
-					req.Credentials["secret_key"] = parts[1]
-				}
-			}
-		}
-		encKey, masked, err := h.registry.EncryptCredentials(cred.AdapterType, req.Credentials)
-		if err != nil {
+		if errors.Is(err, aiadminapp.ErrEncryptCredentials) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials"})
 			return
 		}
-		if encKey != "" {
-			cred.EncryptedKey = encKey
-			cred.MaskedKey = masked
-		}
-	}
-	h.db.Save(&cred)
-	if cred.EncryptedKey != "" {
-		if plain, err := crypto.Decrypt(cred.EncryptedKey, h.encryptionKey); err == nil {
-			cred.MaskedKey = crypto.MaskKey(plain)
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, cred)
 }
 
-func splitKlingCredential(key string) [2]string {
-	for i, c := range key {
-		if c == ':' {
-			return [2]string{key[:i], key[i+1:]}
-		}
-	}
-	return [2]string{key, ""}
-}
-
 func (h *AIHandler) DeleteCredential(c *gin.Context) {
-	h.db.Delete(&model.AICredential{}, c.Param("id"))
+	_ = h.service.DeleteCredential(c.Request.Context(), c.Param("id"))
 	c.Status(http.StatusNoContent)
 }
 
 // ListRemoteModels calls the provider's /models endpoint and returns available model IDs.
 // Only supported for OpenAI-compatible providers (including custom).
 func (h *AIHandler) ListRemoteModels(c *gin.Context) {
-	var cred model.AICredential
-	if err := h.db.First(&cred, c.Param("id")).Error; err != nil {
+	cred, err := h.service.GetCredential(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -255,8 +183,8 @@ func (h *AIHandler) ListRemoteModels(c *gin.Context) {
 
 // TestCredential tests connectivity for a credential (provider-level ping).
 func (h *AIHandler) TestCredential(c *gin.Context) {
-	var cred model.AICredential
-	if err := h.db.First(&cred, c.Param("id")).Error; err != nil {
+	cred, err := h.service.GetCredential(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -278,8 +206,11 @@ func (h *AIHandler) TestCredential(c *gin.Context) {
 // ── Model Configs ────────────────────────────────────────────────────────────
 
 func (h *AIHandler) ListModelConfigs(c *gin.Context) {
-	var cfgs []model.AIModelConfig
-	h.db.Where("credential_id = ?", c.Param("id")).Find(&cfgs)
+	cfgs, err := h.service.ListModelConfigs(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, cfgs)
 }
 
@@ -296,8 +227,8 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		return
 	}
 
-	cfg := service.NewAIModelConfig(req, parseUint(c.Param("id")))
-	if err := h.db.Create(&cfg).Error; err != nil {
+	cfg, err := h.service.CreateModelConfig(c.Request.Context(), parseUint(c.Param("id")), req)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -305,11 +236,6 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 }
 
 func (h *AIHandler) UpdateModelConfig(c *gin.Context) {
-	var cfg model.AIModelConfig
-	if err := h.db.First(&cfg, c.Param("modelId")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
 	var req service.AIModelConfigInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -319,13 +245,20 @@ func (h *AIHandler) UpdateModelConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "custom_capabilities is required (e.g. \"text\" or \"image\")"})
 		return
 	}
-	service.ApplyAIModelConfigInput(&cfg, req)
-	h.db.Save(&cfg)
+	cfg, err := h.service.UpdateModelConfig(c.Request.Context(), c.Param("modelId"), req)
+	if err != nil {
+		if errors.Is(err, aiadminapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, cfg)
 }
 
 func (h *AIHandler) DeleteModelConfig(c *gin.Context) {
-	h.db.Delete(&model.AIModelConfig{}, c.Param("modelId"))
+	_ = h.service.DeleteModelConfig(c.Request.Context(), c.Param("modelId"))
 	c.Status(http.StatusNoContent)
 }
 
@@ -333,11 +266,6 @@ func (h *AIHandler) DeleteModelConfig(c *gin.Context) {
 // Supports partial updates for all custom metadata, credit prices, and flags.
 // Used by the admin feature-config tab for inline editing.
 func (h *AIHandler) PatchModelConfig(c *gin.Context) {
-	var cfg model.AIModelConfig
-	if err := h.db.First(&cfg, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
 	var req struct {
 		ModelIDOverride       *string  `json:"model_id_override"`
 		IsEnabled             *bool    `json:"is_enabled"`
@@ -361,70 +289,46 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if req.ModelIDOverride != nil {
-		cfg.ModelIDOverride = *req.ModelIDOverride
+	cfg, err := h.service.PatchModelConfig(c.Request.Context(), aiadminapp.PatchModelConfigInput{
+		ID:                    c.Param("id"),
+		ModelIDOverride:       req.ModelIDOverride,
+		IsEnabled:             req.IsEnabled,
+		Priority:              req.Priority,
+		CreditsInputPer1M:     req.CreditsInputPer1M,
+		CreditsOutputPer1M:    req.CreditsOutputPer1M,
+		CreditsPerImage:       req.CreditsPerImage,
+		CreditsPerSecond:      req.CreditsPerSecond,
+		CreditsPerCall:        req.CreditsPerCall,
+		CustomDisplayName:     req.CustomDisplayName,
+		ShortName:             req.ShortName,
+		CustomCapabilities:    req.CustomCapabilities,
+		CustomBillingMode:     req.CustomBillingMode,
+		CustomAcceptsImage:    req.CustomAcceptsImage,
+		CustomMaxInputImages:  req.CustomMaxInputImages,
+		CustomMaxInputVideos:  req.CustomMaxInputVideos,
+		CustomImageEditField:  req.CustomImageEditField,
+		CustomSupportedParams: req.CustomSupportedParams,
+	})
+	if err != nil {
+		if errors.Is(err, aiadminapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	if req.CustomDisplayName != nil {
-		cfg.CustomDisplayName = *req.CustomDisplayName
-	}
-	if req.ShortName != nil {
-		cfg.ShortName = *req.ShortName
-	}
-	if req.CustomCapabilities != nil {
-		cfg.CustomCapabilities = *req.CustomCapabilities
-	}
-	if req.CustomBillingMode != nil {
-		cfg.CustomBillingMode = *req.CustomBillingMode
-	}
-	if req.CustomAcceptsImage != nil {
-		cfg.CustomAcceptsImage = *req.CustomAcceptsImage
-	}
-	if req.CustomMaxInputImages != nil {
-		cfg.CustomMaxInputImages = *req.CustomMaxInputImages
-	}
-	if req.CustomMaxInputVideos != nil {
-		cfg.CustomMaxInputVideos = *req.CustomMaxInputVideos
-	}
-	if req.CustomImageEditField != nil {
-		cfg.CustomImageEditField = *req.CustomImageEditField
-	}
-	if req.CustomSupportedParams != nil {
-		cfg.CustomSupportedParams = *req.CustomSupportedParams
-	}
-	if req.IsEnabled != nil {
-		cfg.IsEnabled = *req.IsEnabled
-	}
-	if req.Priority != nil {
-		cfg.Priority = *req.Priority
-	}
-	if req.CreditsInputPer1M != nil {
-		cfg.CreditsInputPer1M = *req.CreditsInputPer1M
-	}
-	if req.CreditsOutputPer1M != nil {
-		cfg.CreditsOutputPer1M = *req.CreditsOutputPer1M
-	}
-	if req.CreditsPerImage != nil {
-		cfg.CreditsPerImage = *req.CreditsPerImage
-	}
-	if req.CreditsPerSecond != nil {
-		cfg.CreditsPerSecond = *req.CreditsPerSecond
-	}
-	if req.CreditsPerCall != nil {
-		cfg.CreditsPerCall = *req.CreditsPerCall
-	}
-	h.db.Save(&cfg)
 	c.JSON(http.StatusOK, cfg)
 }
 
 // TestModelConfig runs a minimal generation to verify a model config works.
 func (h *AIHandler) TestModelConfig(c *gin.Context) {
-	var cfg model.AIModelConfig
-	if err := h.db.First(&cfg, c.Param("modelId")).Error; err != nil {
+	cfg, err := h.service.GetModelConfig(c.Request.Context(), c.Param("modelId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	var cred model.AICredential
-	if err := h.db.First(&cred, cfg.CredentialID).Error; err != nil {
+	cred, err := h.service.GetCredential(c.Request.Context(), cfg.CredentialID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "credential not found"})
 		return
 	}
@@ -471,8 +375,8 @@ func (h *AIHandler) TestModelConfig(c *gin.Context) {
 // Unlike TestModelConfig, image models are actually called (may incur cost).
 // Video models use a read-only list request to avoid creating billable tasks.
 func (h *AIHandler) DebugModelConfig(c *gin.Context) {
-	var cfg model.AIModelConfig
-	if err := h.db.First(&cfg, c.Param("modelId")).Error; err != nil {
+	cfg, err := h.service.GetModelConfig(c.Request.Context(), c.Param("modelId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -482,21 +386,11 @@ func (h *AIHandler) DebugModelConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// ── Admin: user management & quotas ──────────────────────────────────────────
-
-type userWithQuota struct {
-	model.User
-	Balance float64 `json:"balance"`
-}
-
 func (h *AIHandler) ListUsersWithQuota(c *gin.Context) {
-	var users []model.User
-	h.db.Find(&users)
-	result := make([]userWithQuota, len(users))
-	for i, u := range users {
-		var quota model.UserQuota
-		h.db.Where("user_id = ?", u.ID).First(&quota)
-		result[i] = userWithQuota{User: u, Balance: quota.Balance}
+	result, err := h.service.ListUsersWithQuota(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, result)
 }
@@ -510,14 +404,10 @@ func (h *AIHandler) SetUserQuota(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	var quota model.UserQuota
-	result := h.db.Where("user_id = ?", userID).First(&quota)
-	if result.Error != nil {
-		quota = model.UserQuota{UserID: userID, Balance: req.Balance}
-		h.db.Create(&quota)
-	} else {
-		quota.Balance = req.Balance
-		h.db.Save(&quota)
+	quota, err := h.service.SetUserQuota(c.Request.Context(), userID, req.Balance)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, quota)
 }
@@ -530,32 +420,20 @@ func (h *AIHandler) ListUsageLogs(c *gin.Context) {
 	if pageSize > 200 {
 		pageSize = 200
 	}
-	offset := (page - 1) * pageSize
-
-	q := h.db.Model(&model.UsageLog{}).Preload("User").Preload("AIModelConfig")
-	if uid := c.Query("user_id"); uid != "" {
-		q = q.Where("user_id = ?", uid)
+	pageResult, err := h.service.ListUsageLogs(c.Request.Context(), aiadminapp.UsageLogFilter{
+		UserID:        c.Query("user_id"),
+		ModelConfigID: c.Query("model_config_id"),
+		ProviderID:    c.Query("provider_id"),
+		Start:         c.Query("start"),
+		End:           c.Query("end"),
+		Page:          page,
+		PageSize:      pageSize,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	if modelID := c.Query("model_config_id"); modelID != "" {
-		q = q.Where("ai_model_config_id = ?", modelID)
-	}
-	if providerID := c.Query("provider_id"); providerID != "" {
-		q = q.Joins("JOIN ai_model_configs ON ai_model_configs.id = usage_logs.ai_model_config_id").
-			Where("ai_model_configs.credential_id = ?", providerID)
-	}
-	if start := c.Query("start"); start != "" {
-		q = q.Where("usage_logs.created_at >= ?", start)
-	}
-	if end := c.Query("end"); end != "" {
-		q = q.Where("usage_logs.created_at <= ?", end)
-	}
-
-	var total int64
-	q.Count(&total)
-
-	var logs []model.UsageLog
-	q.Order("usage_logs.created_at DESC").Limit(pageSize).Offset(offset).Find(&logs)
-	c.JSON(http.StatusOK, gin.H{"total": total, "items": logs, "page": page, "page_size": pageSize})
+	c.JSON(http.StatusOK, gin.H{"total": pageResult.Total, "items": pageResult.Items, "page": pageResult.Page, "page_size": pageResult.PageSize})
 }
 
 // ── User: own quota & usage ───────────────────────────────────────────────────
@@ -566,22 +444,16 @@ func (h *AIHandler) GetMyQuota(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未登录"})
 		return
 	}
-	var quota model.UserQuota
-	h.db.Where("user_id = ?", u.ID).First(&quota)
-
-	var totalCost float64
-	var totalTokens int64
-	h.db.Model(&model.UsageLog{}).
-		Where("user_id = ? AND created_at >= date_trunc('month', now())", u.ID).
-		Select("COALESCE(SUM(cost), 0)").Scan(&totalCost)
-	h.db.Model(&model.UsageLog{}).
-		Where("user_id = ? AND created_at >= date_trunc('month', now())", u.ID).
-		Select("COALESCE(SUM(input_tokens + output_tokens), 0)").Scan(&totalTokens)
+	summary, err := h.service.GetMyQuota(c.Request.Context(), u.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"balance":                 quota.Balance,
-		"total_cost_this_month":   totalCost,
-		"total_tokens_this_month": totalTokens,
+		"balance":                 summary.Balance,
+		"total_cost_this_month":   summary.TotalCostThisMonth,
+		"total_tokens_this_month": summary.TotalTokensThisMonth,
 	})
 }
 
@@ -593,18 +465,12 @@ func (h *AIHandler) GetMyUsageLogs(c *gin.Context) {
 	}
 	page := max(1, parseInt(c.DefaultQuery("page", "1")))
 	pageSize := max(1, parseInt(c.DefaultQuery("page_size", "20")))
-	offset := (page - 1) * pageSize
-
-	var total int64
-	h.db.Model(&model.UsageLog{}).Where("user_id = ?", u.ID).Count(&total)
-
-	var logs []model.UsageLog
-	h.db.Where("user_id = ?", u.ID).
-		Preload("AIModelConfig").
-		Order("created_at DESC").
-		Limit(pageSize).Offset(offset).
-		Find(&logs)
-	c.JSON(http.StatusOK, gin.H{"total": total, "items": logs})
+	pageResult, err := h.service.GetMyUsageLogs(c.Request.Context(), u.ID, page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"total": pageResult.Total, "items": pageResult.Items})
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

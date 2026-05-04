@@ -51,7 +51,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 		return
 	}
 
-	inputResources, imageCount, videoCount, err := h.loadInputResources(c.Request.Context(), append(req.InputResourceIDs, idOrNil(req.InputResourceID)...))
+	inputResources, imageCount, videoCount, err := h.loadInputResources(c.Request.Context(), append(req.InputResourceIDs, jobapp.IDOrNil(req.InputResourceID)...))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load input resources: " + err.Error()})
 		return
@@ -79,7 +79,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 
 	inputResourceIDsJSON := ""
-	allIDs := mergeIDs(req.InputResourceIDs, req.InputResourceID)
+	allIDs := jobapp.MergeIDs(req.InputResourceIDs, req.InputResourceID)
 	if len(allIDs) > 0 {
 		b, _ := json.Marshal(allIDs)
 		inputResourceIDsJSON = string(b)
@@ -89,7 +89,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 	if len(allIDs) > 0 {
 		legacyInputID = &allIDs[0]
 	}
-	requestContext := buildJobContextSnapshot(mcfg, cred, req.Prompt, req.ExtraParams, req.AspectRatio, req.Duration, jobType, req.FeatureKey, orderedResources(inputResources, allIDs), time.Now())
+	requestContext := buildJobContextSnapshot(mcfg, cred, req.Prompt, req.ExtraParams, req.AspectRatio, req.Duration, jobType, req.FeatureKey, jobapp.OrderedResources(inputResources, allIDs), time.Now())
 	estimate, err := h.estimateJobCost(req.ModelConfigID, jobType, req.Duration, req.ExtraParams, req.AspectRatio)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

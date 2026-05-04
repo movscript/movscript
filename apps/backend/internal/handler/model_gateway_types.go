@@ -9,16 +9,13 @@ import (
 	"gorm.io/gorm"
 )
 
-const defaultGatewayChatModel = "movscript-default-chat"
-
 type ModelGatewayHandler struct {
-	db      *gorm.DB
 	svc     *ai.AIService
 	service *modelgatewayapp.Service
 }
 
 func NewModelGatewayHandler(db *gorm.DB, svc *ai.AIService) *ModelGatewayHandler {
-	return &ModelGatewayHandler{db: db, svc: svc, service: modelgatewayapp.NewService(db)}
+	return &ModelGatewayHandler{svc: svc, service: modelgatewayapp.NewService(db)}
 }
 
 type chatCompletionRequest struct {

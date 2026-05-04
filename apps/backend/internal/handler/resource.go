@@ -18,13 +18,12 @@ import (
 )
 
 type ResourceHandler struct {
-	db      *gorm.DB
 	store   storage.Storage
 	service *appresource.Service
 }
 
 func NewResourceHandler(db *gorm.DB, store storage.Storage) *ResourceHandler {
-	return &ResourceHandler{db: db, store: store, service: appresource.NewService(db, store)}
+	return &ResourceHandler{store: store, service: appresource.NewService(db, store)}
 }
 
 // List returns the current user's resources.

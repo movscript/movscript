@@ -11,13 +11,12 @@ import (
 )
 
 type SemanticEntityHandler struct {
-	db       *gorm.DB
 	semantic *semanticapp.Service
 	projects *projectapp.Service
 }
 
 func NewSemanticEntityHandler(db *gorm.DB) *SemanticEntityHandler {
-	return &SemanticEntityHandler{db: db, semantic: semanticapp.NewService(db), projects: projectapp.NewService(db)}
+	return &SemanticEntityHandler{semantic: semanticapp.NewService(db), projects: projectapp.NewService(db)}
 }
 
 func (h *SemanticEntityHandler) ListEntityRelations(c *gin.Context) {

@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
 )
 
 // ListModels exposes text-capable MovScript models in the OpenAI-compatible
@@ -31,11 +31,11 @@ func (h *ModelGatewayHandler) ListModels(c *gin.Context) {
 	}
 
 	out := []openAIModel{{
-		ID:      defaultGatewayChatModel,
+		ID:      modelgatewayapp.DefaultChatModel,
 		Object:  "model",
 		OwnedBy: "movscript",
 	}}
-	seen := map[string]bool{defaultGatewayChatModel: true}
+	seen := map[string]bool{modelgatewayapp.DefaultChatModel: true}
 	for _, m := range models {
 		id := gatewayModelID(m)
 		if id == "" || seen[id] {
@@ -267,51 +267,14 @@ func normalizeGatewayMessages(c *gin.Context, input []gatewayMessage) ([]ai.Mess
 }
 
 func (h *ModelGatewayHandler) resolveTextModel(modelID string) (uint, string, error) {
-	requested := strings.TrimSpace(modelID)
-	if requested == "" || requested == defaultGatewayChatModel {
-		id, _, err := h.svc.GetAnyTextModel()
-		return id, defaultGatewayChatModel, err
-	}
-
-	if strings.HasPrefix(requested, "model_config:") {
-		rawID := strings.TrimPrefix(requested, "model_config:")
-		id, err := strconv.ParseUint(rawID, 10, 64)
-		if err != nil || id == 0 {
-			return 0, requested, fmt.Errorf("model %q not found", requested)
-		}
-		models, err := h.svc.GetModelsByCapability(ai.CapabilityText)
-		if err != nil {
-			return 0, requested, err
-		}
-		for _, m := range models {
-			if m.ID == uint(id) {
-				return uint(id), requested, nil
-			}
-		}
-		return 0, requested, fmt.Errorf("model %q not found", requested)
-	}
-
 	models, err := h.svc.GetModelsByCapability(ai.CapabilityText)
 	if err != nil {
-		return 0, requested, err
+		return 0, strings.TrimSpace(modelID), err
 	}
-	for _, m := range models {
-		if requested == gatewayModelID(m) || requested == m.ModelDefID || requested == m.ModelIDOverride {
-			return m.ID, requested, nil
-		}
-	}
-	return 0, requested, fmt.Errorf("model %q not found", requested)
+	defaultID, _, defaultErr := h.svc.GetAnyTextModel()
+	return modelgatewayapp.ResolveTextModel(models, modelID, defaultID, defaultErr)
 }
 
 func gatewayModelID(m ai.PublicModel) string {
-	if m.ModelIDOverride != "" {
-		return m.ModelIDOverride
-	}
-	if m.ModelDefID != "" {
-		return m.ModelDefID
-	}
-	if m.ID > 0 {
-		return fmt.Sprintf("model_config:%d", m.ID)
-	}
-	return ""
+	return modelgatewayapp.ModelID(m)
 }

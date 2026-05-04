@@ -2,8 +2,8 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { startBackend, stopBackend } from './backend'
-import { ensureProductionRuntimeRunning, stopProductionRuntime } from './productionRuntime'
-import { startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
+import { ensureProductionRuntimeRunning, setProductionRuntimeAPIBaseURL, stopProductionRuntime } from './productionRuntime'
+import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
 
 function resolvePreloadPath(): string {
@@ -12,10 +12,17 @@ function resolvePreloadPath(): string {
   return existsSync(jsPath) ? jsPath : mjsPath
 }
 
+function resolveAppIconPath(): string {
+  const packagedIcon = join(process.resourcesPath || '', 'logo.png')
+  if (app.isPackaged && existsSync(packagedIcon)) return packagedIcon
+  return join(process.cwd(), '../../assets/logo.png')
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: resolveAppIconPath(),
     webPreferences: {
       preload: resolvePreloadPath(),
       sandbox: false
@@ -76,6 +83,12 @@ ipcMain.handle('dialog:saveFile', async (_e, defaultPath?: string) => {
 
 ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
   updateMCPContextSnapshot(snapshot)
+})
+
+ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string }) => {
+  if (!settings?.apiBaseURL) return
+  setMCPAPIBaseURL(settings.apiBaseURL)
+  await setProductionRuntimeAPIBaseURL(settings.apiBaseURL)
 })
 
 ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {

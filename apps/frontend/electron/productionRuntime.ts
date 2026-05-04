@@ -8,6 +8,7 @@ const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<ProductionRuntimeStatus> | null = null
+let backendAPIBaseURL = normalizeBackendAPIBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || '')
 
 export interface ProductionRuntimeStatus {
   ok: boolean
@@ -67,6 +68,15 @@ export async function stopProductionRuntime(): Promise<void> {
   proc = null
 }
 
+export async function setProductionRuntimeAPIBaseURL(apiBaseURL: string): Promise<void> {
+  const next = normalizeBackendAPIBaseURL(apiBaseURL)
+  if (next === backendAPIBaseURL) return
+  backendAPIBaseURL = next
+  process.env.MOVSCRIPT_BACKEND_API_BASE_URL = next
+  process.env.MOVSCRIPT_API_BASE_URL = next
+  await stopProductionRuntime()
+}
+
 async function startProductionRuntime(baseURL: string): Promise<ProductionRuntimeStatus> {
   try {
     const launch = resolveProductionRuntimeLaunch()
@@ -78,6 +88,10 @@ async function startProductionRuntime(baseURL: string): Promise<ProductionRuntim
         ...launch.env,
         MOVSCRIPT_AGENT_PORT: String(port),
         MOVSCRIPT_MCP_ENDPOINT: process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT,
+        ...(backendAPIBaseURL ? {
+          MOVSCRIPT_BACKEND_API_BASE_URL: backendAPIBaseURL,
+          MOVSCRIPT_API_BASE_URL: backendAPIBaseURL,
+        } : {}),
       },
       stdio: app.isPackaged ? 'ignore' : 'inherit',
     })
@@ -185,4 +199,10 @@ function normalizeBaseURL(value?: string): string {
 function resolvePort(baseURL: string): number {
   const url = new URL(baseURL)
   return Number(url.port || 28765)
+}
+
+function normalizeBackendAPIBaseURL(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`
 }

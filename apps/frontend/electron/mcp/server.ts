@@ -12,7 +12,7 @@ import {
 } from './types'
 
 const DEFAULT_PORT = 18765
-const API_BASE_URL = process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765/api/v1'
+let apiBaseURL = normalizeAPIBaseURL(process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765')
 
 const contextSnapshot: MCPContextSnapshot = {
   route: { pathname: '/', search: '', hash: '' },
@@ -33,6 +33,10 @@ export function updateMCPContextSnapshot(next: MCPContextSnapshot & { auth?: { t
   contextSnapshot.selection = next.selection
   contextSnapshot.updatedAt = next.updatedAt
   contextAuthToken = next.auth?.token ?? ''
+}
+
+export function setMCPAPIBaseURL(next: string): void {
+  apiBaseURL = normalizeAPIBaseURL(next)
 }
 
 export function getMCPContextSnapshot(): MCPContextSnapshot {
@@ -955,12 +959,17 @@ async function backendGet(path: string): Promise<any> {
   const headers: Record<string, string> = {}
   if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { headers })
+  const res = await fetch(`${apiBaseURL}${path}`, { headers })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Backend GET ${path} failed: HTTP ${res.status} ${text}`)
   }
   return res.json()
+}
+
+function normalizeAPIBaseURL(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, '')
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`
 }
 
 function summarizeResource(data: unknown): unknown {

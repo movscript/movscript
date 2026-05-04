@@ -9,6 +9,7 @@ import ProjectsPage from './pages/projects/ProjectsPage'
 import AssetSlotsPage from './pages/asset-slots/AssetSlotsPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
 import AuthPage from './pages/AuthPage'
+import AppSettingsPage from './pages/app-settings/AppSettingsPage'
 import CanvasListPage from './pages/canvas/CanvasListPage'
 import CanvasEditorPage from './pages/canvas/CanvasEditorPage'
 import RefImageGenPage from './pages/tools/RefImageGenPage'
@@ -139,6 +140,7 @@ export default function App() {
         <Toaster />
         <Routes>
           <Route path="/invite/:token" element={<InvitePage />} />
+          <Route path="/app/settings" element={<AppSettingsPage />} />
           <Route path="*" element={<AuthPage />} />
         </Routes>
       </BrowserRouter>
@@ -156,6 +158,7 @@ export default function App() {
         <Route path="/org/select" element={<OrgSelectPage />} />
         {/* Invite page — accessible when logged in */}
         <Route path="/invite/:token" element={<InvitePage />} />
+        <Route path="/app/settings" element={<AppSettingsPage />} />
         {/* All other pages use the shell layout */}
         <Route path="*" element={
           <div className="flex h-screen bg-background text-foreground">
