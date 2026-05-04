@@ -5,12 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/ai"
-	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
 	"github.com/movscript/movscript/internal/model"
 )
-
-var errGatewayMonthlyBudgetExceeded = modelgatewayapp.ErrMonthlyBudgetExceeded
 
 func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipal, bool) {
 	if user := currentUser(c); user != nil {
@@ -28,22 +24,6 @@ func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipa
 		return nil, false
 	}
 	return &gatewayPrincipal{User: principal.User, Key: principal.Key}, true
-}
-
-func gatewayKeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
-	return modelgatewayapp.KeyAllowsScope(key, scope)
-}
-
-func gatewayKeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
-	return modelgatewayapp.KeyAllowsModel(key, modelConfigID)
-}
-
-func gatewayKeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
-	return modelgatewayapp.KeyAllowsProject(key, requestedProjectID)
-}
-
-func gatewayBillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
-	return modelgatewayapp.BillingContext(key, projectID)
 }
 
 func (h *ModelGatewayHandler) enforceGatewayKeyLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {

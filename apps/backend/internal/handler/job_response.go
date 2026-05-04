@@ -49,76 +49,10 @@ func (h *JobHandler) estimateJobCost(modelConfigID uint, jobType string, duratio
 	}
 }
 
-func jobModelDisplay(mcfg model.AIModelConfig) string {
-	return jobapp.ModelDisplay(mcfg)
-}
-
-func jobModelIdentifier(mcfg model.AIModelConfig) string {
-	return jobapp.ModelIdentifier(mcfg)
-}
-
-func (h *JobHandler) buildJobResponses(c *gin.Context, jobs []model.Job) []jobResponse {
-	if len(jobs) == 0 {
-		return []jobResponse{}
-	}
-
-	resourceIDSet := make(map[uint]bool)
-	modelConfigIDSet := make(map[uint]bool)
-	for i := range jobs {
-		if jobs[i].OutputResource != nil {
-			jobs[i].OutputResource.URL = resourceURL(c, jobs[i].OutputResource.ID)
-		}
-		modelConfigIDSet[jobs[i].ModelConfigID] = true
-		for _, id := range jobapp.ParseInputIDs(jobs[i]) {
-			resourceIDSet[id] = true
-		}
-	}
-
-	resourceIDs := make([]uint, 0, len(resourceIDSet))
-	for id := range resourceIDSet {
-		resourceIDs = append(resourceIDs, id)
-	}
-
-	modelConfigIDs := make([]uint, 0, len(modelConfigIDSet))
-	for id := range modelConfigIDSet {
-		modelConfigIDs = append(modelConfigIDs, id)
-	}
-	lookups, err := h.service.ResponseLookups(c.Request.Context(), resourceIDs, modelConfigIDs)
-	if err != nil {
-		return []jobResponse{}
-	}
-	for id, resource := range lookups.ResourcesByID {
-		resource.URL = resourceURL(c, resource.ID)
-		lookups.ResourcesByID[id] = resource
-	}
-
-	resp := make([]jobResponse, 0, len(jobs))
-	for _, job := range jobs {
-		item := jobResponse{Job: job}
-		inputIDs := jobapp.ParseInputIDs(job)
-		item.InputResources = make([]model.RawResource, 0, len(inputIDs))
-		seenResources := make(map[uint]bool, len(inputIDs))
-		for _, id := range inputIDs {
-			if seenResources[id] {
-				continue
-			}
-			seenResources[id] = true
-			if r, ok := lookups.ResourcesByID[id]; ok {
-				item.InputResources = append(item.InputResources, r)
-			}
-		}
-		if cfg, ok := lookups.ConfigsByID[job.ModelConfigID]; ok {
-			cfgCopy := cfg
-			item.ModelConfig = &cfgCopy
-			item.ModelDisplay = jobModelDisplay(cfg)
-			item.ModelIdentifier = jobModelIdentifier(cfg)
-			if cred, ok := lookups.CredentialsByID[cfg.CredentialID]; ok {
-				item.ProviderName = cred.DisplayName
-			}
-		}
-		resp = append(resp, item)
-	}
-	return resp
+func (h *JobHandler) buildJobResponses(c *gin.Context, jobs []model.Job) []jobapp.Response {
+	return h.service.BuildResponses(c.Request.Context(), jobs, func(id uint) string {
+		return resourceURL(c, id)
+	})
 }
 
 func isVideoJob(jobType string) bool {

@@ -1,11 +1,7 @@
 package handler
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,19 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
 	debugapp "github.com/movscript/movscript/internal/app/debug"
-	"github.com/movscript/movscript/internal/crypto"
-	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
 
 type DebugHandler struct {
-	encryptionKey []byte
-	registry      *ai.Registry
-	service       *debugapp.Service
+	service *debugapp.Service
 }
 
 func NewDebugHandler(db *gorm.DB, encryptionKey []byte, registry *ai.Registry) *DebugHandler {
-	return &DebugHandler{encryptionKey: encryptionKey, registry: registry, service: debugapp.NewService(db)}
+	_ = registry
+	return &DebugHandler{service: debugapp.NewService(db, encryptionKey)}
 }
 
 // RawCall sends an arbitrary HTTP request from the backend and returns full details.
@@ -44,103 +37,17 @@ func (h *DebugHandler) RawCall(c *gin.Context) {
 		return
 	}
 
-	headers := make(map[string]string)
-	for k, v := range req.Headers {
-		headers[k] = v
-	}
-
-	// If a credential is specified, inject auth headers.
-	if req.CredentialID != nil {
-		if cred, err := h.service.GetCredential(c.Request.Context(), *req.CredentialID); err == nil {
-			apiKey := ""
-			if cred.EncryptedKey != "" {
-				if plain, err := crypto.Decrypt(cred.EncryptedKey, h.encryptionKey); err == nil {
-					apiKey = plain
-				}
-			}
-			if apiKey != "" {
-				switch cred.AdapterType {
-				case ai.AdapterAnthropic:
-					headers["x-api-key"] = apiKey
-					headers["anthropic-version"] = "2023-06-01"
-				default:
-					headers["Authorization"] = "Bearer " + apiKey
-				}
-			}
-		}
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
 
-	result := doRawHTTP(ctx, req.Method, req.URL, headers, req.Body)
+	result := h.service.RawCall(ctx, debugapp.RawCallInput{
+		CredentialID: req.CredentialID,
+		URL:          req.URL,
+		Method:       req.Method,
+		Headers:      req.Headers,
+		Body:         req.Body,
+	})
 	c.JSON(http.StatusOK, result)
-}
-
-// RawCallResult is the response shape for a raw HTTP call.
-type RawCallResult struct {
-	URL            string            `json:"url"`
-	Method         string            `json:"method"`
-	RequestHeaders map[string]string `json:"request_headers"`
-	RequestBody    string            `json:"request_body"`
-	ResponseStatus int               `json:"response_status"`
-	ResponseBody   string            `json:"response_body"`
-	LatencyMs      int64             `json:"latency_ms"`
-	Error          string            `json:"error,omitempty"`
-}
-
-func doRawHTTP(ctx context.Context, method, url string, headers map[string]string, body string) RawCallResult {
-	var bodyReader io.Reader
-	if body != "" {
-		bodyReader = bytes.NewBufferString(body)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
-	if err != nil {
-		return RawCallResult{URL: url, Method: method, Error: err.Error()}
-	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-	if body != "" && req.Header.Get("Content-Type") == "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	// Capture request headers (mask auth).
-	reqHeaders := make(map[string]string)
-	for k := range req.Header {
-		v := req.Header.Get(k)
-		if k == "Authorization" || k == "X-Api-Key" {
-			v = maskHeader(v)
-		}
-		reqHeaders[k] = v
-	}
-
-	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	latency := time.Since(start).Milliseconds()
-	if err != nil {
-		return RawCallResult{URL: url, Method: method, RequestHeaders: reqHeaders,
-			RequestBody: body, LatencyMs: latency, Error: err.Error()}
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-	errMsg := ""
-	if resp.StatusCode >= 400 {
-		errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
-	}
-	return RawCallResult{
-		URL: url, Method: method,
-		RequestHeaders: reqHeaders, RequestBody: body,
-		ResponseStatus: resp.StatusCode, ResponseBody: string(respBody),
-		LatencyMs: latency, Error: errMsg,
-	}
-}
-
-func maskHeader(v string) string {
-	if len(v) > 12 {
-		return v[:7] + "..." + v[len(v)-4:]
-	}
-	return "***"
 }
 
 // ListJobs returns Jobs with full debug info for the job monitor.
@@ -156,30 +63,14 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 		offset = 0
 	}
 
-	type jobDetail struct {
-		model.Job
-		DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
-	}
-
-	page, err := h.service.ListJobs(c.Request.Context(), status, limit, offset)
+	items, total, err := h.service.ListJobDetails(c.Request.Context(), status, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	out := make([]jobDetail, 0, len(page.Items))
-	for _, j := range page.Items {
-		d := jobDetail{Job: j}
-		if j.DebugInfo != "" {
-			var dr ai.DebugCallResult
-			if err := json.Unmarshal([]byte(j.DebugInfo), &dr); err == nil {
-				d.DebugDetail = &dr
-			}
-		}
-		out = append(out, d)
-	}
-	c.Header("X-Total-Count", strconv.FormatInt(page.Total, 10))
-	c.JSON(http.StatusOK, out)
+	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
+	c.JSON(http.StatusOK, items)
 }
 
 // ProviderCall builds a temporary provider from caller-supplied credentials and
@@ -205,7 +96,7 @@ func (h *DebugHandler) ProviderCall(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
 	defer cancel()
 
-	result := ai.ProviderDebugCall(ctx, ai.ProviderDebugCallRequest{
+	result := h.service.ProviderCall(ctx, debugapp.ProviderCallInput{
 		AdapterType: req.AdapterType,
 		BaseURL:     req.BaseURL,
 		APIKey:      req.APIKey,
@@ -223,22 +114,11 @@ func (h *DebugHandler) ProviderCall(c *gin.Context) {
 // GET /admin/debug/jobs/:id
 func (h *DebugHandler) GetJob(c *gin.Context) {
 	id := c.Param("id")
-	job, err := h.service.GetJob(c.Request.Context(), id)
+	detail, err := h.service.GetJobDetail(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
 		return
 	}
 
-	type jobDetail struct {
-		model.Job
-		DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
-	}
-	d := jobDetail{Job: job}
-	if job.DebugInfo != "" {
-		var dr ai.DebugCallResult
-		if err := json.Unmarshal([]byte(job.DebugInfo), &dr); err == nil {
-			d.DebugDetail = &dr
-		}
-	}
-	c.JSON(http.StatusOK, d)
+	c.JSON(http.StatusOK, detail)
 }

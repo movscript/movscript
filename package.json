@@ -12,6 +12,7 @@
     "package:desktop": "pnpm run build:packages && pnpm --filter movscript-agent build && pnpm --filter movscript-frontend dist",
     "package:desktop:mac": "pnpm run build:packages && pnpm --filter movscript-agent build && pnpm --filter movscript-frontend dist:mac",
     "package:desktop:win": "pnpm run build:packages && pnpm --filter movscript-agent build && pnpm --filter movscript-frontend dist:win",
+    "package:desktop:win:arm64": "pnpm run build:packages && pnpm --filter movscript-agent build && pnpm --filter movscript-frontend dist:win:arm64",
     "generate:api-types": "node scripts/generate-openapi-types.mjs",
     "check:api-types": "node scripts/generate-openapi-types.mjs && git diff --exit-code -- apps/frontend/src/api/generated.ts",
     "dev:backend": "cd apps/backend && go run ./cmd/server",

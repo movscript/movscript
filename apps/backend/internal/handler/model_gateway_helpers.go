@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
 )
 
 func gatewayMessageContent(raw json.RawMessage) (string, error) {
@@ -38,49 +37,6 @@ func gatewayMessageContent(raw json.RawMessage) (string, error) {
 		}
 	}
 	return builder.String(), nil
-}
-
-func rawJSONPresent(raw json.RawMessage) bool {
-	s := strings.TrimSpace(string(raw))
-	return s != "" && s != "null" && s != "[]"
-}
-
-func parseStringArray(raw string) []string {
-	var values []string
-	if strings.TrimSpace(raw) == "" {
-		return values
-	}
-	_ = json.Unmarshal([]byte(raw), &values)
-	return values
-}
-
-func parseUintArray(raw string) []uint {
-	var values []uint
-	if strings.TrimSpace(raw) == "" {
-		return values
-	}
-	_ = json.Unmarshal([]byte(raw), &values)
-	return values
-}
-
-func mustJSONString(value any) string {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return "[]"
-	}
-	return string(data)
-}
-
-func generateGatewayAPIKey() string {
-	return modelgatewayapp.GenerateAPIKey()
-}
-
-func hashGatewayAPIKey(raw string) string {
-	return modelgatewayapp.HashAPIKey(raw)
-}
-
-func gatewayKeyPrefix(raw string) string {
-	return modelgatewayapp.KeyPrefix(raw)
 }
 
 func writeOpenAIError(c *gin.Context, status int, message, typ, param, code string) {

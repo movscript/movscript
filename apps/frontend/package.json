@@ -10,7 +10,8 @@
     "pack": "pnpm run build && electron-builder --dir",
     "dist": "pnpm run build && electron-builder",
     "dist:mac": "pnpm run build && electron-builder --mac",
-    "dist:win": "pnpm run build && electron-builder --win",
+    "dist:win": "pnpm run build && electron-builder --win --x64",
+    "dist:win:arm64": "pnpm run build && electron-builder --win --arm64",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit"
   },

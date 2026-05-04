@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
 import { Header } from './components/layout/Header'
 import { Toaster } from './components/ui/Toaster'
@@ -130,12 +130,14 @@ function RedirectListener() {
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
+const AppRouter = typeof window !== 'undefined' && window.location.protocol === 'file:' ? HashRouter : BrowserRouter
+
 export default function App() {
   const user = useUserStore((s) => s.currentUser)
 
   if (!user) {
     return (
-      <BrowserRouter>
+      <AppRouter>
         <MCPContextBridge />
         <Toaster />
         <Routes>
@@ -143,12 +145,12 @@ export default function App() {
           <Route path="/app/settings" element={<AppSettingsPage />} />
           <Route path="*" element={<AuthPage />} />
         </Routes>
-      </BrowserRouter>
+      </AppRouter>
     )
   }
 
   return (
-    <BrowserRouter>
+    <AppRouter>
       <MCPContextBridge />
       <Toaster />
       <Routes>
@@ -242,6 +244,6 @@ export default function App() {
           </div>
         } />
       </Routes>
-    </BrowserRouter>
+    </AppRouter>
   )
 }

@@ -19,7 +19,7 @@ func (h *ModelGatewayHandler) ListModels(c *gin.Context) {
 	if principal, ok := h.gatewayPrincipal(c); !ok {
 		writeOpenAIError(c, http.StatusUnauthorized, "authentication required", "authentication_error", "", "authentication_required")
 		return
-	} else if principal.Key != nil && !gatewayKeyAllowsScope(principal.Key, "model:chat") {
+	} else if principal.Key != nil && !modelgatewayapp.KeyAllowsScope(principal.Key, "model:chat") {
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to list chat models", "insufficient_permissions", "", "insufficient_scope")
 		return
 	}
@@ -37,7 +37,7 @@ func (h *ModelGatewayHandler) ListModels(c *gin.Context) {
 	}}
 	seen := map[string]bool{modelgatewayapp.DefaultChatModel: true}
 	for _, m := range models {
-		id := gatewayModelID(m)
+		id := modelgatewayapp.ModelID(m)
 		if id == "" || seen[id] {
 			continue
 		}
@@ -55,7 +55,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		writeOpenAIError(c, http.StatusUnauthorized, "authentication required", "authentication_error", "", "authentication_required")
 		return
 	}
-	if principal.Key != nil && !gatewayKeyAllowsScope(principal.Key, "model:chat") {
+	if principal.Key != nil && !modelgatewayapp.KeyAllowsScope(principal.Key, "model:chat") {
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to call chat models", "insufficient_permissions", "", "insufficient_scope")
 		return
 	}
@@ -71,11 +71,11 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		writeOpenAIError(c, http.StatusNotFound, err.Error(), "invalid_request_error", "model", "model_not_found")
 		return
 	}
-	if principal.Key != nil && !gatewayKeyAllowsModel(principal.Key, modelConfigID) {
+	if principal.Key != nil && !modelgatewayapp.KeyAllowsModel(principal.Key, modelConfigID) {
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this model", "insufficient_permissions", "model", "model_not_allowed")
 		return
 	}
-	if principal.Key != nil && !gatewayKeyAllowsProject(principal.Key, req.ProjectID) {
+	if principal.Key != nil && !modelgatewayapp.KeyAllowsProject(principal.Key, req.ProjectID) {
 		writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to use this project scope", "insufficient_permissions", "project_id", "project_not_allowed")
 		return
 	}
@@ -115,7 +115,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		if err := h.enforceGatewayKeyLimits(c.Request.Context(), principal.Key, estimate.Cost); err != nil {
 			status := http.StatusTooManyRequests
 			code := "rate_limit_exceeded"
-			if errors.Is(err, errGatewayMonthlyBudgetExceeded) {
+			if errors.Is(err, modelgatewayapp.ErrMonthlyBudgetExceeded) {
 				status = http.StatusPaymentRequired
 				code = "monthly_budget_exceeded"
 			}
@@ -129,7 +129,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.svc.CallTextWithBilling(c.Request.Context(), principal.User.ID, modelConfigID, textReq, gatewayBillingContext(principal.Key, req.ProjectID))
+	resp, err := h.svc.CallTextWithBilling(c.Request.Context(), principal.User.ID, modelConfigID, textReq, modelgatewayapp.BillingContext(principal.Key, req.ProjectID))
 	if err != nil {
 		if errors.Is(err, ai.ErrInsufficientQuota) {
 			writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", "", "insufficient_quota")
@@ -175,7 +175,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 }
 
 func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, principal *gatewayPrincipal, modelConfigID uint, responseModel string, req ai.TextRequest, projectID *uint) {
-	events, err := h.svc.CallTextStreamWithBilling(c.Request.Context(), principal.User.ID, modelConfigID, req, gatewayBillingContext(principal.Key, projectID))
+	events, err := h.svc.CallTextStreamWithBilling(c.Request.Context(), principal.User.ID, modelConfigID, req, modelgatewayapp.BillingContext(principal.Key, projectID))
 	if err != nil {
 		if errors.Is(err, ai.ErrInsufficientQuota) {
 			writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", "stream", "insufficient_quota")
@@ -273,8 +273,4 @@ func (h *ModelGatewayHandler) resolveTextModel(modelID string) (uint, string, er
 	}
 	defaultID, _, defaultErr := h.svc.GetAnyTextModel()
 	return modelgatewayapp.ResolveTextModel(models, modelID, defaultID, defaultErr)
-}
-
-func gatewayModelID(m ai.PublicModel) string {
-	return modelgatewayapp.ModelID(m)
 }
