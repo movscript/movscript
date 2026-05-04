@@ -296,10 +296,19 @@ export interface AgentRunPolicy {
   maxIterations: number
   allowNetwork: boolean
   allowFileBytes: boolean
+  workflow?: AgentWorkflowConfig
   costLimit?: {
     currency: string
     amount: number
   }
+}
+
+export type AgentWorkflowProfile = 'standard' | 'compact' | 'deep'
+
+export interface AgentWorkflowConfig {
+  profile: AgentWorkflowProfile
+  includeMemories?: boolean
+  allowForcedToolCalls?: boolean
 }
 
 export interface CompiledPromptPreview {

@@ -1,15 +1,12 @@
 package handler
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
-	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/canvasservice"
 	"github.com/movscript/movscript/internal/model"
 	"github.com/movscript/movscript/internal/storage"
@@ -46,24 +43,15 @@ func (h *CanvasHandler) List(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var canvases []model.Canvas
-	q := h.db.Where("owner_id = ?", user.ID)
-	if pid := c.Query("project_id"); pid != "" {
-		q = q.Where("project_id = ?", pid)
-	}
-	if stage := c.Query("stage"); stage != "" {
-		q = q.Where("stage = ?", stage)
-	}
-	if refType := strings.TrimSpace(c.Query("ref_type")); refType != "" {
-		q = q.Where("ref_type = ?", refType)
-	}
-	if refID := strings.TrimSpace(c.Query("ref_id")); refID != "" {
-		q = q.Where("ref_id = ?", refID)
-	}
-	if canvasType := c.Query("type"); canvasType != "" {
-		q = q.Where("canvas_type = ?", canvasType)
-	}
-	if err := q.Find(&canvases).Error; err != nil {
+	canvases, err := h.CanvasExecService.ListCanvases(c.Request.Context(), canvasservice.CanvasListFilter{
+		OwnerID:    user.ID,
+		ProjectID:  c.Query("project_id"),
+		Stage:      c.Query("stage"),
+		RefType:    strings.TrimSpace(c.Query("ref_type")),
+		RefID:      strings.TrimSpace(c.Query("ref_id")),
+		CanvasType: c.Query("type"),
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -106,7 +94,7 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 		return
 	}
 	if singleCanvasRefType(req.RefType) && req.RefID != nil {
-		existing, ok, err := h.findOwnedEntityCanvas(user.ID, req.ProjectID, req.CanvasType, req.RefType, *req.RefID)
+		existing, ok, err := h.CanvasExecService.FindOwnedEntityCanvas(c.Request.Context(), user.ID, req.ProjectID, req.CanvasType, req.RefType, *req.RefID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -116,22 +104,17 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 			return
 		}
 	}
-	cv := model.Canvas{
+	cv, err := h.CanvasExecService.CreateCanvas(c.Request.Context(), canvasservice.CanvasCreateInput{
 		OwnerID:     user.ID,
 		Name:        req.Name,
-		Description: strings.TrimSpace(req.Description),
+		Description: req.Description,
 		ProjectID:   req.ProjectID,
 		CanvasType:  req.CanvasType,
 		Stage:       req.Stage,
 		RefType:     req.RefType,
 		RefID:       req.RefID,
-		Visibility:  "private",
-	}
-	if err := h.createCanvas(&cv); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID).Error; err != nil {
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -142,116 +125,14 @@ func singleCanvasRefType(refType string) bool {
 	return refType == "asset_slot" || refType == "content_unit"
 }
 
-func (h *CanvasHandler) findOwnedEntityCanvas(ownerID uint, projectID *uint, canvasType string, refType string, refID uint) (model.Canvas, bool, error) {
-	var existing model.Canvas
-	q := h.db.Preload("Nodes").Preload("Edges").
-		Where("owner_id = ? AND canvas_type = ? AND ref_type = ? AND ref_id = ?", ownerID, canvasType, refType, refID)
-	if projectID != nil {
-		q = q.Where("project_id = ?", *projectID)
-	} else {
-		q = q.Where("project_id IS NULL")
-	}
-	if err := q.Order("id asc").First(&existing).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return model.Canvas{}, false, nil
-		}
-		return model.Canvas{}, false, err
-	}
-	return existing, true, nil
-}
-
-func (h *CanvasHandler) createCanvas(cv *model.Canvas) error {
-	return h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(cv).Error; err != nil {
-			return err
-		}
-		if cv.CanvasType == "inspiration" && cv.RefType == "asset_slot" && cv.RefID != nil && *cv.RefID != 0 {
-			return createAssetSlotCanvasTargetNode(tx, cv)
-		}
-		if cv.CanvasType != "workflow" {
-			return nil
-		}
-
-		inputData, _ := json.Marshal(map[string]any{
-			"source":     "manual",
-			"inputValue": "",
-			"paramName":  "input",
-			"paramType":  "text",
-		})
-		outputData, _ := json.Marshal(map[string]any{
-			"source":            "manual",
-			"label":             "最终输出",
-			"paramName":         "final_output",
-			"paramType":         "resource",
-			"lockedFinalOutput": true,
-		})
-		nodes := []model.CanvasNode{
-			{CanvasID: cv.ID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
-			{CanvasID: cv.ID, NodeID: "final-output", Type: "output", Label: "最终输出", PosX: 560, PosY: 160, Data: string(outputData)},
-		}
-		if err := tx.Create(&nodes).Error; err != nil {
-			return err
-		}
-		edge := model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
-		return tx.Create(&edge).Error
-	})
-}
-
-func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *model.Canvas) error {
-	var slot model.AssetSlot
-	if err := tx.First(&slot, *cv.RefID).Error; err != nil {
-		return err
-	}
-	title := strings.TrimSpace(slot.Name)
-	if title == "" {
-		title = fmt.Sprintf("素材位 #%d", slot.ID)
-	}
-	data, _ := json.Marshal(map[string]any{
-		"source":        "manual",
-		"label":         title,
-		"entityKind":    "asset_slot",
-		"entityId":      slot.ID,
-		"entityTitle":   title,
-		"assetSlotKind": slot.Kind,
-		"textContent":   title,
-		"inputPorts": []map[string]any{
-			{"id": "candidates", "type": assetSlotCanvasPortType(slot.Kind), "label": "候选集", "maxCount": 12},
-			{"id": "candidate_item", "type": assetSlotCanvasPortType(slot.Kind), "label": "单个候选"},
-		},
-		"outputPorts": []map[string]any{
-			{"id": "reference", "type": "resource", "label": "参考图"},
-			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
-			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
-		},
-	})
-	return tx.Create(&model.CanvasNode{
-		CanvasID: cv.ID,
-		NodeID:   "asset-slot-target",
-		Type:     "entity_card",
-		Label:    title,
-		PosX:     520,
-		PosY:     180,
-		Data:     string(data),
-	}).Error
-}
-
-func assetSlotCanvasPortType(kind string) string {
-	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "image", "video", "audio", "text":
-		return strings.ToLower(strings.TrimSpace(kind))
-	default:
-		return "resource"
-	}
-}
-
 func (h *CanvasHandler) Get(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, c.Param("id")).Error; err != nil {
+	cv, err := h.CanvasExecService.GetCanvas(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -268,16 +149,6 @@ func (h *CanvasHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
-	if cv.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-
 	var req struct {
 		Name        *string  `json:"name"`
 		Description *string  `json:"description"`
@@ -287,23 +158,17 @@ func (h *CanvasHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if req.Name != nil {
-		name := strings.TrimSpace(*req.Name)
-		if name == "" {
+	cv, err := h.CanvasExecService.PatchCanvas(c.Request.Context(), c.Param("id"), user.ID, canvasservice.CanvasPatchInput{
+		Name:        req.Name,
+		Description: req.Description,
+		Tags:        req.Tags,
+	})
+	if err != nil {
+		if err.Error() == "name is required" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
 			return
 		}
-		cv.Name = name
-	}
-	if req.Description != nil {
-		cv.Description = strings.TrimSpace(*req.Description)
-	}
-	if req.Tags != nil && cv.CanvasType == "workflow" {
-		tagsRaw, _ := json.Marshal(workflowmarket.CleanTags(req.Tags))
-		cv.WorkflowTags = string(tagsRaw)
-	}
-	if err := h.db.Save(&cv).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
 	c.JSON(http.StatusOK, cv)
@@ -315,20 +180,10 @@ func (h *CanvasHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+	if err := h.CanvasExecService.DeleteCanvas(c.Request.Context(), c.Param("id"), user.ID); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if cv.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	h.db.Where("canvas_run_id IN (?)", h.db.Model(&model.CanvasRun{}).Select("id").Where("canvas_id = ?", cv.ID)).Delete(&model.CanvasTask{})
-	h.db.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasRun{})
-	h.db.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{})
-	h.db.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{})
-	h.db.Delete(&cv)
 	c.Status(http.StatusNoContent)
 }
 
@@ -339,16 +194,6 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-		return
-	}
-	if cv.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-
 	var req struct {
 		Name       string             `json:"name"`
 		CanvasType string             `json:"canvas_type"`
@@ -359,43 +204,13 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	if req.Name != "" {
-		cv.Name = req.Name
-	}
-
-	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{}).Error; err != nil {
-			return err
-		}
-		for i := range req.Nodes {
-			req.Nodes[i].CanvasID = cv.ID
-			req.Nodes[i].ID = 0
-		}
-		for i := range req.Edges {
-			req.Edges[i].CanvasID = cv.ID
-			req.Edges[i].ID = 0
-		}
-		if len(req.Nodes) > 0 {
-			if err := tx.Create(&req.Nodes).Error; err != nil {
-				return err
-			}
-		}
-		if len(req.Edges) > 0 {
-			if err := tx.Create(&req.Edges).Error; err != nil {
-				return err
-			}
-		}
-		return tx.Save(&cv).Error
-	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, cv.ID).Error; err != nil {
+	cv, err := h.CanvasExecService.SaveCanvas(c.Request.Context(), c.Param("id"), user.ID, canvasservice.CanvasSaveInput{
+		Name:       req.Name,
+		CanvasType: req.CanvasType,
+		Nodes:      req.Nodes,
+		Edges:      req.Edges,
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

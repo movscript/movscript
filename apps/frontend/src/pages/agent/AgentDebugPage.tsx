@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -14,11 +14,14 @@ import {
   ChevronRight,
   FileJson,
   Loader2,
+  MessageSquare,
   Play,
+  Plus,
   RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
   TerminalSquare,
+  Trash2,
   Wrench,
   X,
 } from 'lucide-react'
@@ -26,6 +29,8 @@ import {
   Badge,
   Button,
   Input,
+  Label,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -46,9 +51,9 @@ import {
   type AgentInspectResponse,
   type AgentManifest,
   type AgentRun,
+  type AgentSkillManifest,
   type AgentTraceEvent,
   type AgentRunPreview,
-  type AgentSkillManifest,
   type ResolvedAgentSkill,
   type ResolvedToolCatalog,
   type RuntimeModelConfigPublic,
@@ -482,7 +487,8 @@ export default function AgentDebugPage() {
   const [selectedHistoryRunId, setSelectedHistoryRunId] = useState<string | null>(null)
   const [approvingRun, setApprovingRun] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('workbench')
+  const [rightTab, setRightTab] = useState('history')
 
   const health = useQuery<AgentHealth>({
     queryKey: ['local-agent-debug-health', localAgentClient.baseURL],
@@ -561,13 +567,13 @@ export default function AgentDebugPage() {
       })
     },
   })
-  const executeRun = useMutation<AgentRun, Error>({
-    mutationFn: async () => {
-      const message = previewMessage.trim() || t('agents.debug.defaultPreviewMessage')
+  const executeRun = useMutation<AgentRun, Error, string | undefined>({
+    mutationFn: async (messageOverride) => {
+      const message = messageOverride?.trim() || previewMessage.trim() || t('agents.debug.defaultPreviewMessage')
       const route = typeof window !== 'undefined'
         ? { pathname: window.location.pathname, search: window.location.search, hash: window.location.hash }
         : undefined
-      setActiveTab('plan')
+      setRightTab('run')
       setDebugRun(null)
       setDebugRunError(null)
       setDebugThreadMessages([])
@@ -617,6 +623,7 @@ export default function AgentDebugPage() {
         createdAt: message.createdAt,
       })))
       runHistory.refetch()
+      setPreviewMessage(message)
       return result.run
     },
     onError: (error) => {
@@ -751,7 +758,7 @@ export default function AgentDebugPage() {
     setSelectedHistoryRunId(run.id)
     setDebugRunInput(buildInputSnapshotFromRun(run))
     setDebugRunError(null)
-    setActiveTab('plan')
+    setRightTab('run')
     try {
       const thread = await localAgentClient.getThread(run.threadId)
       setDebugThreadMessages(thread.messages.map((message) => ({
@@ -804,7 +811,7 @@ export default function AgentDebugPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)] overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)_340px] overflow-hidden">
         <aside className="overflow-y-auto border-r border-border bg-muted/10 p-4">
           <div className="space-y-4">
             <Panel title={t('agents.debug.panels.runtime')} icon={<Activity size={14} />}>
@@ -816,15 +823,6 @@ export default function AgentDebugPage() {
                 <KeyValue label={t('agents.debug.fields.toolsDir')} value={health.data?.pluginCatalog?.toolsDir ?? inspect.data?.pluginCatalog?.toolsDir ?? t('agents.debug.values.unknown')} />
               </div>
             </Panel>
-
-            <RunHistoryPanel
-              runs={runHistory.data?.runs ?? []}
-              loading={runHistory.isFetching}
-              selectedRunId={selectedHistoryRunId ?? debugRun?.id}
-              error={runHistory.error?.message ?? null}
-              onRefresh={() => runHistory.refetch()}
-              onOpen={openHistoryRun}
-            />
 
             <Panel title="Model Connection" icon={<Bot size={14} />}>
               <div className="space-y-2">
@@ -936,74 +934,6 @@ export default function AgentDebugPage() {
               </div>
             </Panel>
 
-            <Panel title={t('agents.debug.panels.previewInput')} icon={<Bot size={14} />}>
-              <div className="space-y-2">
-                <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground">
-                  {t('agents.debug.defaultRuntimeManifest')}
-                </div>
-                <Textarea
-                  value={previewMessage}
-                  onChange={(event) => setPreviewMessage(event.target.value)}
-                  rows={5}
-                  className="resize-none text-xs"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => preview.mutate()}
-                  disabled={preview.isPending}
-                >
-                  {preview.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                  {t('agents.debug.actions.runPreview')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => {
-                    setActiveTab('plan')
-                    executeRun.mutate()
-                  }}
-                  disabled={executeRun.isPending}
-                >
-                  {executeRun.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                  {executeRun.isPending ? 'Running Debug Run' : 'Execute Debug Run'}
-                </Button>
-                {(debugRunInput || debugRun || executeRun.isPending || debugRunError) && (
-                  <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px]">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground">Latest run</span>
-                      <Badge variant={runStatusTone(debugRun?.status, executeRun.isPending, debugRunError)} className="text-[9px]">
-                        {debugRunStatusLabel(debugRun, executeRun.isPending, debugRunError)}
-                      </Badge>
-                    </div>
-                    <p className="line-clamp-2 text-muted-foreground">{debugRunInput?.message}</p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 w-full"
-                      onClick={() => setActiveTab('plan')}
-                    >
-                      Open Run Timeline
-                    </Button>
-                  </div>
-                )}
-                {preview.error && (
-                  <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">
-                    {preview.error.message}
-                  </p>
-                )}
-                {(executeRun.error || debugRunError) && (
-                  <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">
-                    {debugRunError ?? executeRun.error?.message}
-                  </p>
-                )}
-              </div>
-            </Panel>
-
             {warnings.length > 0 && (
               <Panel title={t('agents.debug.panels.warnings')} icon={<AlertTriangle size={14} />}>
                 <div className="space-y-1">
@@ -1019,19 +949,9 @@ export default function AgentDebugPage() {
         </aside>
 
         <main className="min-w-0 overflow-y-auto p-6">
-          <RunInteractionPanel
-            input={debugRunInput}
-            run={debugRun}
-            threadMessages={debugThreadMessages}
-            running={executeRun.isPending}
-            approving={approvingRun}
-            error={debugRunError ?? executeRun.error?.message ?? null}
-            runtimeOnline={health.data?.ok}
-            onOpenTimeline={() => setActiveTab('plan')}
-          />
-
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="flex h-auto w-full justify-start overflow-x-auto rounded-md border border-border bg-background p-1">
+              <TabsTrigger value="workbench" className="gap-1.5 text-xs"><MessageSquare size={12} /> Workbench</TabsTrigger>
               <TabsTrigger value="overview" className="gap-1.5 text-xs"><Activity size={12} /> {t('agents.debug.tabs.overview')}</TabsTrigger>
               <TabsTrigger value="architecture" className="gap-1.5 text-xs"><Database size={12} /> Architecture</TabsTrigger>
               <TabsTrigger value="commands" className="gap-1.5 text-xs"><TerminalSquare size={12} /> Commands</TabsTrigger>
@@ -1044,6 +964,25 @@ export default function AgentDebugPage() {
               <TabsTrigger value="plan" className="gap-1.5 text-xs"><ShieldCheck size={12} /> {t('agents.debug.tabs.runs')}</TabsTrigger>
               <TabsTrigger value="raw" className="gap-1.5 text-xs"><TerminalSquare size={12} /> {t('agents.debug.tabs.raw')}</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="workbench" className="mt-0">
+              <WorkbenchTab
+                inspect={inspect.data}
+                capabilities={capabilities.data}
+                currentProject={currentProject}
+                debugMessage={previewMessage}
+                debugRun={debugRun}
+                debugRunInput={debugRunInput}
+                debugRunError={debugRunError ?? executeRun.error?.message ?? null}
+                debugRunning={executeRun.isPending}
+                onDebugMessageChange={setPreviewMessage}
+                onExecuteDebugRun={(message) => {
+                  setRightTab('run')
+                  executeRun.mutate(message)
+                }}
+                onOpenDebugRun={() => setRightTab('run')}
+              />
+            </TabsContent>
 
             <TabsContent value="overview" className="mt-0">
               <OverviewTab
@@ -1106,10 +1045,618 @@ export default function AgentDebugPage() {
             </TabsContent>
           </Tabs>
         </main>
+
+        <aside className="min-w-0 overflow-hidden border-l border-border bg-muted/10 p-4">
+          <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full min-h-0 flex-col">
+            <TabsList className="grid h-auto w-full grid-cols-2 rounded-md border border-border bg-background p-1">
+              <TabsTrigger value="history" className="gap-1.5 text-xs">
+                <Activity size={12} />
+                History
+              </TabsTrigger>
+              <TabsTrigger value="run" className="gap-1.5 text-xs">
+                <Play size={12} />
+                Current Run
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="history" className="mt-3 min-h-0 flex-1">
+              <RunHistoryPanel
+                runs={runHistory.data?.runs ?? []}
+                loading={runHistory.isFetching}
+                selectedRunId={selectedHistoryRunId ?? debugRun?.id}
+                error={runHistory.error?.message ?? null}
+                onRefresh={() => runHistory.refetch()}
+                onOpen={openHistoryRun}
+                compact
+              />
+            </TabsContent>
+            <TabsContent value="run" className="mt-3 min-h-0 flex-1">
+              <RightRunPanel
+                input={debugRunInput}
+                run={debugRun}
+                running={executeRun.isPending || approvingRun}
+                error={debugRunError ?? executeRun.error?.message ?? null}
+                onOpenTimeline={() => setActiveTab('plan')}
+              />
+            </TabsContent>
+          </Tabs>
+        </aside>
       </div>
     </div>
   )
 }
+
+// ─── Workbench ────────────────────────────────────────────────────────────────
+
+interface WorkbenchSession {
+  threadId: string
+  title: string
+  createdAt: string
+  lastRunStatus?: string
+  messageCount: number
+}
+
+interface WorkbenchRunState {
+  run: AgentRun | null
+  threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>
+  running: boolean
+  error: string | null
+}
+
+function buildContextDefault(currentProject: { ID: number; name?: string; status?: string; description?: string } | null): string {
+  return JSON.stringify({
+    route: { pathname: typeof window !== 'undefined' ? window.location.pathname : '/agent/debug', search: '', hash: '' },
+    ...(currentProject ? {
+      project: { id: currentProject.ID, name: currentProject.name ?? '', status: currentProject.status ?? '', description: currentProject.description ?? '' },
+    } : {}),
+    selection: null,
+  }, null, 2)
+}
+
+function WorkbenchTab({
+  inspect,
+  capabilities,
+  currentProject,
+  debugMessage,
+  debugRun,
+  debugRunInput,
+  debugRunError,
+  debugRunning,
+  onDebugMessageChange,
+  onExecuteDebugRun,
+  onOpenDebugRun,
+}: {
+  inspect?: AgentInspectResponse
+  capabilities?: AgentCapabilitiesResponse
+  currentProject: { ID: number; name?: string; status?: string; description?: string } | null
+  debugMessage: string
+  debugRun: AgentRun | null
+  debugRunInput: DebugRunInputSnapshot | null
+  debugRunError: string | null
+  debugRunning: boolean
+  onDebugMessageChange: (message: string) => void
+  onExecuteDebugRun: (message?: string) => void
+  onOpenDebugRun: () => void
+}) {
+  // Sessions
+  const [sessions, setSessions] = useState<WorkbenchSession[]>([])
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const [loadingSessions, setLoadingSessions] = useState(false)
+
+  // Per-session run state
+  const [runStates, setRunStates] = useState<Record<string, WorkbenchRunState>>({})
+
+  // Skill picker: set of enabled skill IDs (null = use defaults)
+  const allSkills = inspect?.skills ?? []
+  const [skillOverrides, setSkillOverrides] = useState<Record<string, boolean>>({})
+  const [useSkillOverride, setUseSkillOverride] = useState(false)
+
+  // Context editor
+  const [contextJson, setContextJson] = useState(() => buildContextDefault(currentProject))
+  const [contextError, setContextError] = useState<string | null>(null)
+
+  // Tool runner
+  const [selectedTool, setSelectedTool] = useState<string>('')
+  const [toolArgsJson, setToolArgsJson] = useState('{}')
+  const [toolArgsError, setToolArgsError] = useState<string | null>(null)
+  const [firingTool, setFiringTool] = useState(false)
+
+  // Message input
+  const [message, setMessage] = useState(debugMessage)
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const [inputTab, setInputTab] = useState<'message' | 'tool' | 'skills' | 'context'>('message')
+
+  const availableTools = capabilities?.resolvedTools?.available ?? inspect?.registeredTools?.map((t) => ({ name: t.name, description: t.description })) ?? []
+
+  const activeRunState = activeThreadId ? (runStates[activeThreadId] ?? { run: null, threadMessages: [], running: false, error: null }) : null
+
+  useEffect(() => {
+    setMessage(debugMessage)
+  }, [debugMessage])
+
+  const draftMessage = message.trim() || debugMessage.trim()
+
+  function setRunState(threadId: string, patch: Partial<WorkbenchRunState>) {
+    setRunStates((prev) => {
+      const existing = prev[threadId] ?? { run: null, threadMessages: [], running: false, error: null }
+      return { ...prev, [threadId]: { ...existing, ...patch } }
+    })
+  }
+
+  async function loadSessions() {
+    setLoadingSessions(true)
+    try {
+      const { threads } = await localAgentClient.listThreads()
+      setSessions(threads.map((t) => ({
+        threadId: t.id,
+        title: t.title ?? t.id.slice(0, 12),
+        createdAt: t.createdAt,
+        lastRunStatus: t.lastRunStatus,
+        messageCount: t.messageCount,
+      })))
+    } catch {
+      // ignore
+    } finally {
+      setLoadingSessions(false)
+    }
+  }
+
+  useEffect(() => { loadSessions() }, [])
+
+  async function createSession() {
+    const thread = await localAgentClient.createThread({ title: `Session ${new Date().toLocaleTimeString()}` })
+    const session: WorkbenchSession = { threadId: thread.id, title: thread.title ?? thread.id.slice(0, 12), createdAt: thread.createdAt, messageCount: 0 }
+    setSessions((prev) => [session, ...prev])
+    setActiveThreadId(thread.id)
+  }
+
+  async function deleteSession(threadId: string) {
+    setSessions((prev) => prev.filter((s) => s.threadId !== threadId))
+    if (activeThreadId === threadId) setActiveThreadId(null)
+  }
+
+  function buildManifestOverride(): AgentManifest | undefined {
+    if (!useSkillOverride) return undefined
+    const base = inspect?.defaultAgentManifest
+    if (!base) return undefined
+    const overriddenSkills = (base.skills ?? []).map((skill) => ({
+      ...skill,
+      enabled: skillOverrides[skill.id] ?? skill.enabled,
+    }))
+    return { ...base, skills: overriddenSkills }
+  }
+
+  function parseContextSnapshot() {
+    try {
+      const parsed = JSON.parse(contextJson)
+      setContextError(null)
+      return parsed
+    } catch (err) {
+      setContextError(err instanceof Error ? err.message : 'Invalid JSON')
+      return null
+    }
+  }
+
+  async function fireTool() {
+    if (!selectedTool || !activeThreadId) return
+    let args: Record<string, unknown> = {}
+    try {
+      args = JSON.parse(toolArgsJson)
+      setToolArgsError(null)
+    } catch (err) {
+      setToolArgsError(err instanceof Error ? err.message : 'Invalid JSON')
+      return
+    }
+    const snapshot = parseContextSnapshot()
+    if (!snapshot) return
+    setFiringTool(true)
+    setRunState(activeThreadId, { running: true, error: null })
+    try {
+      const run = await localAgentClient.createToolRun({
+        threadId: activeThreadId,
+        title: `Tool: ${selectedTool}`,
+        toolCall: { name: selectedTool, args },
+        agentManifest: buildManifestOverride(),
+        clientInput: { message: `fire tool ${selectedTool}`, uiSnapshot: snapshot },
+      })
+      setRunState(activeThreadId, { run, running: true })
+      const finalRun = await localAgentClient.waitForRun(run.id, {
+        timeoutMs: 30_000,
+        pollMs: 300,
+        onRunUpdate: (r) => setRunState(activeThreadId, { run: r }),
+      })
+      const thread = await localAgentClient.getThread(activeThreadId)
+      setRunState(activeThreadId, {
+        run: finalRun,
+        running: false,
+        threadMessages: thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt })),
+      })
+      setSessions((prev) => prev.map((s) => s.threadId === activeThreadId ? { ...s, messageCount: thread.messages.length } : s))
+    } catch (err) {
+      setRunState(activeThreadId, { running: false, error: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setFiringTool(false)
+    }
+  }
+
+  async function sendMessage() {
+    if (!message.trim() || !activeThreadId) return
+    const snapshot = parseContextSnapshot()
+    if (!snapshot) return
+    setSendingMessage(true)
+    setRunState(activeThreadId, { running: true, error: null })
+    try {
+      const result = await localAgentClient.runMessage({
+        threadId: activeThreadId,
+        message: message.trim(),
+        clientInput: { message: message.trim(), uiSnapshot: snapshot },
+      }, {
+        timeoutMs: 60_000,
+        pollMs: 400,
+        agentManifest: buildManifestOverride(),
+        onRunUpdate: (r) => setRunState(activeThreadId, { run: r }),
+      })
+      setRunState(activeThreadId, {
+        run: result.run,
+        running: false,
+        threadMessages: result.thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt })),
+      })
+      setSessions((prev) => prev.map((s) => s.threadId === activeThreadId ? { ...s, messageCount: result.thread.messages.length, lastRunStatus: result.run.status } : s))
+      setMessage('')
+    } catch (err) {
+      setRunState(activeThreadId, { running: false, error: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setSendingMessage(false)
+    }
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-220px)] min-h-[520px] max-h-[760px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={14} className="text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground">Agent Workbench</h2>
+            {debugRun && (
+              <Badge variant={runStatusTone(debugRun.status, debugRunning, debugRunError)} className="text-[9px]">
+                {debugRunStatusLabel(debugRun, debugRunning, debugRunError)}
+              </Badge>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Session runs, tool calls, skills, context, preview, and debug execution share one workspace.</p>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={onOpenDebugRun} disabled={!debugRun && !debugRunInput && !debugRunning && !debugRunError}>
+          <Play size={13} />
+          Current Run
+        </Button>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)] overflow-hidden">
+      {/* Sessions sidebar */}
+      <div className="flex min-h-0 flex-col border-r border-border bg-muted/10">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <span className="text-xs font-semibold text-foreground">Sessions</span>
+          <div className="flex items-center gap-1">
+            <Button type="button" size="xs" variant="ghost" onClick={loadSessions} disabled={loadingSessions}>
+              <RefreshCw size={11} className={loadingSessions ? 'animate-spin' : ''} />
+            </Button>
+            <Button type="button" size="xs" variant="outline" onClick={createSession}>
+              <Plus size={11} />
+              New
+            </Button>
+          </div>
+        </div>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-1 p-2">
+            {sessions.length === 0 && (
+              <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">No sessions yet. Create one to start.</p>
+            )}
+            {sessions.map((session) => {
+              const isActive = session.threadId === activeThreadId
+              const state = runStates[session.threadId]
+              return (
+                <div
+                  key={session.threadId}
+                  className={cn(
+                    'group flex cursor-pointer items-start justify-between gap-1 rounded-md border p-2 transition-colors',
+                    isActive ? 'border-primary/50 bg-primary/5' : 'border-transparent hover:border-border hover:bg-muted/20',
+                  )}
+                  onClick={() => setActiveThreadId(session.threadId)}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[11px] font-medium text-foreground">{session.title}</div>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground">{session.messageCount} msg</span>
+                      {(state?.running) && <Loader2 size={9} className="animate-spin text-blue-500" />}
+                      {session.lastRunStatus === 'completed' && !state?.running && <span className="text-[9px] text-emerald-600">done</span>}
+                      {session.lastRunStatus === 'failed' && !state?.running && <span className="text-[9px] text-destructive">failed</span>}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-0.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                    onClick={(e) => { e.stopPropagation(); deleteSession(session.threadId) }}
+                  >
+                    <Trash2 size={11} className="text-muted-foreground hover:text-destructive" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Main area */}
+      {!activeThreadId ? (
+        <div className="flex min-h-0 items-center justify-center overflow-auto p-8 text-center text-sm text-muted-foreground">
+          Select a session or create a new one to start debugging.
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-col">
+          {/* Tab bar */}
+          <div className="flex shrink-0 items-center gap-0 border-b border-border px-3">
+            {([
+              { id: 'message', label: 'Message', icon: <MessageSquare size={11} /> },
+              { id: 'tool', label: 'Tool Runner', icon: <Wrench size={11} /> },
+              { id: 'skills', label: 'Skills', icon: <Clipboard size={11} />, badge: useSkillOverride ? 'override' : undefined },
+              { id: 'context', label: 'Context', icon: <Database size={11} /> },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setInputTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-1 border-b-2 px-3 py-2 text-xs transition-colors',
+                  inputTab === tab.id
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {tab.icon}
+                {tab.label}
+                {'badge' in tab && tab.badge && (
+                  <Badge variant="warning" className="ml-1 text-[8px]">{tab.badge}</Badge>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Output area */}
+          <ScrollArea className="min-h-0 flex-1 p-3">
+            <WorkbenchRunOutput state={activeRunState} />
+          </ScrollArea>
+
+          {/* Input area — always visible, content switches by inputTab */}
+          <div className="shrink-0 border-t border-border bg-background/95 p-3">
+            {inputTab === 'message' && (
+              <div className="space-y-2">
+                <Textarea
+                  value={message}
+                  onChange={(e) => {
+                    setMessage(e.target.value)
+                    onDebugMessageChange(e.target.value)
+                  }}
+                  placeholder="Send a message to the agent... (⌘+Enter to run)"
+                  rows={3}
+                  className="resize-none text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendMessage() }
+                  }}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0 text-[11px] text-muted-foreground">
+                    {debugRunInput ? `Latest debug input: ${debugRunInput.message.slice(0, 80)}` : 'Execute Debug Run uses this message and the current workbench context.'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="secondary"
+                      className="!h-8 !w-40 shrink-0"
+                      onClick={() => onExecuteDebugRun(draftMessage)}
+                      disabled={debugRunning}
+                    >
+                      {debugRunning ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      {debugRunning ? 'Running Debug Run' : 'Execute Debug Run'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="xs"
+                      className="!h-8 !w-40 shrink-0"
+                      onClick={sendMessage}
+                      disabled={sendingMessage || !message.trim() || !activeThreadId}
+                    >
+                      {sendingMessage ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      Session Run
+                    </Button>
+                  </div>
+                </div>
+                {debugRunError && (
+                  <div className="space-y-1">
+                    <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">{debugRunError}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {inputTab === 'tool' && (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Select value={selectedTool} onValueChange={setSelectedTool}>
+                    <SelectTrigger size="sm" className="h-8 flex-1 text-xs">
+                      <SelectValue placeholder="Select a tool to fire..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTools.map((tool) => (
+                        <SelectItem key={'name' in tool ? tool.name : ''} value={'name' in tool ? tool.name : ''}>
+                          {'name' in tool ? tool.name : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="sm" onClick={fireTool} disabled={firingTool || !selectedTool}>
+                    {firingTool ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                    Fire
+                  </Button>
+                </div>
+                <Textarea
+                  value={toolArgsJson}
+                  onChange={(e) => setToolArgsJson(e.target.value)}
+                  placeholder='{"key": "value"}'
+                  rows={3}
+                  className="resize-none font-mono text-xs"
+                />
+                {toolArgsError && <p className="text-[11px] text-destructive">Args: {toolArgsError}</p>}
+                {contextError && <p className="text-[11px] text-destructive">Context: {contextError}</p>}
+              </div>
+            )}
+
+            {inputTab === 'skills' && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="skill-override-toggle"
+                    checked={useSkillOverride}
+                    onChange={(e) => setUseSkillOverride(e.target.checked)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <Label htmlFor="skill-override-toggle" className="text-xs">Override skills for this run</Label>
+                  {useSkillOverride && (
+                    <Button type="button" size="xs" variant="ghost" onClick={() => setSkillOverrides({})}>Reset</Button>
+                  )}
+                </div>
+                {allSkills.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground">No skills loaded. Run inspect first.</p>
+                ) : (
+                  <div className="grid max-h-40 gap-1 overflow-y-auto sm:grid-cols-2">
+                    {allSkills.map((skill) => {
+                      const enabled = skillOverrides[skill.id] ?? skill.enabled
+                      return (
+                        <label
+                          key={skill.id}
+                          className={cn(
+                            'flex cursor-pointer items-start gap-2 rounded-md border p-2 text-xs transition-colors',
+                            useSkillOverride ? 'hover:bg-muted/20' : 'cursor-default opacity-60',
+                            enabled ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border bg-background',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            disabled={!useSkillOverride}
+                            onChange={(e) => setSkillOverrides((prev) => ({ ...prev, [skill.id]: e.target.checked }))}
+                            className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-foreground">{skill.name}</div>
+                            <div className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">{skill.description}</div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {inputTab === 'context' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">uiSnapshot sent with every run</span>
+                  <Button type="button" size="xs" variant="ghost" onClick={() => setContextJson(buildContextDefault(currentProject))}>
+                    Reset
+                  </Button>
+                </div>
+                <Textarea
+                  value={contextJson}
+                  onChange={(e) => { setContextJson(e.target.value); setContextError(null) }}
+                  rows={5}
+                  className="resize-none font-mono text-xs"
+                />
+                {contextError && <p className="text-[11px] text-destructive">{contextError}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  )
+}
+
+function WorkbenchRunOutput({ state }: { state: WorkbenchRunState | null }) {
+  if (!state) return <p className="text-center text-xs text-muted-foreground py-8">No run yet for this session.</p>
+
+  const { run, threadMessages, running, error } = state
+  const orderedSteps = run ? orderRunStepsChronologically(run.steps) : []
+  const assistantMessage = run
+    ? threadMessages.find((m) => m.id === run.assistantMessageId) ?? [...threadMessages].reverse().find((m) => m.role === 'assistant')
+    : [...threadMessages].reverse().find((m) => m.role === 'assistant')
+
+  return (
+    <div className="space-y-3">
+      {/* Thread messages */}
+      {threadMessages.length > 0 && (
+        <div className="space-y-2">
+          {threadMessages.map((msg) => (
+            <div key={msg.id} className={cn('rounded-md border p-3', msg.role === 'user' ? 'border-border bg-muted/10' : 'border-primary/20 bg-primary/5')}>
+              <div className="mb-1 flex items-center gap-2">
+                <Badge variant={msg.role === 'user' ? 'secondary' : 'outline'} className="text-[9px]">{msg.role}</Badge>
+                <span className="text-[10px] text-muted-foreground">{formatTime(msg.createdAt)}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{msg.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Running indicator */}
+      {running && !run && (
+        <div className="flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-700 dark:text-blue-300">
+          <Loader2 size={13} className="animate-spin" />
+          Running...
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{error}</div>
+      )}
+
+      {/* Run steps */}
+      {run && orderedSteps.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold uppercase text-muted-foreground">Steps ({orderedSteps.length})</div>
+          {orderedSteps.map((step, i) => (
+            <div key={step.id} className="grid grid-cols-[24px_minmax(0,1fr)] gap-2 rounded-md border border-border bg-background p-2">
+              <div className={cn('flex h-6 w-6 items-center justify-center rounded-full border text-[9px]', stepDotClass(step.status))}>
+                {step.status === 'in_progress' ? <Loader2 size={11} className="animate-spin" /> : step.status === 'completed' ? <Check size={11} /> : <X size={11} />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">#{i + 1}</span>
+                  <span className="text-xs font-medium text-foreground">{stepTitle(step)}</span>
+                  <Badge variant={step.status === 'failed' ? 'destructive' : step.status === 'completed' ? 'success' : 'secondary'} className="text-[8px]">{step.status}</Badge>
+                  {step.toolName && <Badge variant="outline" className="text-[8px]">{step.toolName}</Badge>}
+                </div>
+                {step.args && <CodeBlock value={safeJSONStringify(step.args)} maxHeight="140px" className="mt-1.5" />}
+                {step.result !== undefined && <CodeBlock value={safeJSONStringify(step.result)} maxHeight="200px" className="mt-1.5" />}
+                {step.error && <p className="mt-1 rounded border border-destructive/30 bg-destructive/10 p-1.5 text-[11px] text-destructive">{step.error}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!running && !error && !run && threadMessages.length === 0 && (
+        <p className="py-8 text-center text-xs text-muted-foreground">Fire a tool or send a message to see results here.</p>
+      )}
+    </div>
+  )
+}
+
+// ─── End Workbench ─────────────────────────────────────────────────────────────
 
 function ArchitectureTab() {
   return (
@@ -1385,6 +1932,7 @@ function RunHistoryPanel({
   error,
   onRefresh,
   onOpen,
+  compact = false,
 }: {
   runs: AgentRun[]
   loading: boolean
@@ -1392,11 +1940,17 @@ function RunHistoryPanel({
   error: string | null
   onRefresh: () => void
   onOpen: (run: AgentRun) => void
+  compact?: boolean
 }) {
-  const recentRuns = runs.slice(0, 12)
+  const recentRuns = orderRunsChronologically(getMostRecentRuns(runs, 12))
   return (
-    <Panel title="Run History" icon={loading ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}>
-      <div className="space-y-2">
+    <Panel
+      title="Run History"
+      icon={loading ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+      className={cn(compact ? 'h-full min-h-0 overflow-hidden' : 'h-[420px] overflow-hidden')}
+      bodyClassName="flex min-h-0 flex-1 flex-col p-3"
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[11px] text-muted-foreground">{runs.length} persisted run(s)</div>
           <Button type="button" size="xs" variant="outline" onClick={onRefresh} disabled={loading}>
@@ -1412,7 +1966,7 @@ function RunHistoryPanel({
         {recentRuns.length === 0 ? (
           <EmptyState text="No executed run history yet." />
         ) : (
-          <div className="space-y-1.5">
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
             {recentRuns.map((run) => {
               const selected = run.id === selectedRunId
               const firstUserMessage = extractRunMessage(run)
@@ -1447,6 +2001,87 @@ function RunHistoryPanel({
           </div>
         )}
       </div>
+    </Panel>
+  )
+}
+
+function RightRunPanel({
+  input,
+  run,
+  running,
+  error,
+  onOpenTimeline,
+}: {
+  input: DebugRunInputSnapshot | null
+  run: AgentRun | null
+  running: boolean
+  error: string | null
+  onOpenTimeline: () => void
+}) {
+  const recentSteps = run ? orderRunStepsChronologically(run.steps).slice(-8) : []
+  const recentStepOffset = run ? Math.max(0, run.steps.length - recentSteps.length) : 0
+  return (
+    <Panel
+      title="Current Run"
+      icon={running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+      className="h-full min-h-0 overflow-hidden"
+      bodyClassName="flex min-h-0 flex-1 flex-col gap-3 p-3"
+    >
+      {!input && !run && !running && !error ? (
+        <EmptyState text="Execute Debug Run from Workbench to inspect the current run here." />
+      ) : (
+        <>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant={runStatusTone(run?.status, running, error)} className="text-[9px]">
+                {debugRunStatusLabel(run, running, error)}
+              </Badge>
+              {input?.startedAt && <span className="text-[10px] text-muted-foreground">{formatTime(input.startedAt)}</span>}
+            </div>
+            <div className="rounded-md border border-border bg-muted/20 p-2">
+              <div className="mb-1 text-[10px] uppercase text-muted-foreground">Input</div>
+              <p className="max-h-28 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-foreground">
+                {input?.message ?? 'No input captured.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Metric label="Thread" value={run?.threadId ?? 'pending'} />
+            <Metric label="Steps" value={run ? String(run.steps.length) : running ? '...' : '0'} />
+          </div>
+
+          {run && recentSteps.length > 0 && (
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="mb-2 text-[10px] font-semibold uppercase text-muted-foreground">Recent Steps</div>
+              <div className="space-y-1.5">
+                {recentSteps.map((step, index) => (
+                  <div key={step.id} className="rounded-md border border-border bg-background p-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">#{recentStepOffset + index + 1}</span>
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{stepTitle(step)}</span>
+                      <Badge variant={step.status === 'failed' ? 'destructive' : step.status === 'completed' ? 'success' : 'secondary'} className="text-[8px]">
+                        {step.status}
+                      </Badge>
+                    </div>
+                    {step.error && <p className="mt-1 line-clamp-2 text-[10px] text-destructive">{step.error}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] text-destructive">
+              {error}
+            </p>
+          )}
+
+          <Button type="button" size="sm" variant="outline" className="w-full" onClick={onOpenTimeline}>
+            Open Run Timeline
+          </Button>
+        </>
+      )}
     </Panel>
   )
 }
@@ -1891,6 +2526,7 @@ function DebugRunTimeline({
   }
 
   const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
+  const orderedSteps = orderRunStepsChronologically(run.steps)
   const assistantMessage = findAssistantMessage(run, threadMessages)
 
   return (
@@ -1956,10 +2592,10 @@ function DebugRunTimeline({
 
         <div className="space-y-2">
           <div className="text-xs font-semibold text-foreground">Step Timeline</div>
-          {run.steps.length === 0 ? (
+          {orderedSteps.length === 0 ? (
             <EmptyState text="No steps recorded yet." />
           ) : (
-            run.steps.map((step, index) => (
+            orderedSteps.map((step, index) => (
               <div key={step.id} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 rounded-md border border-border bg-background p-3">
                 <div className={cn('flex h-7 w-7 items-center justify-center rounded-full border text-[10px]', stepDotClass(step.status))}>
                   {step.status === 'in_progress' ? <Loader2 size={13} className="animate-spin" /> : step.status === 'completed' ? <Check size={13} /> : <X size={13} />}
@@ -2311,7 +2947,8 @@ function TraceSummaryCard({
 }
 
 function groupTraceRounds(run: AgentRun, events: AgentTraceEvent[]): TraceRound[] {
-  const stepById = new Map(run.steps.map((step) => [step.id, step]))
+  const orderedSteps = orderRunStepsChronologically(run.steps)
+  const stepById = new Map(orderedSteps.map((step) => [step.id, step]))
   const groups = new Map<string, TraceRound>()
 
   for (const event of events) {
@@ -2342,7 +2979,7 @@ function groupTraceRounds(run: AgentRun, events: AgentTraceEvent[]): TraceRound[
     })
   }
 
-  for (const step of run.steps) {
+  for (const step of orderedSteps) {
     const index = step.roundIndex ?? 0
     const label = step.roundLabel ?? (index === 0 ? 'Setup' : 'Legacy timeline')
     const id = step.roundId ?? `round_${index}_${label}`
@@ -2447,7 +3084,7 @@ function normalizeTraceEvents(
       createdAt: run.startedAt ?? run.createdAt,
     })
   }
-  for (const step of run.steps) {
+  for (const step of orderRunStepsChronologically(run.steps)) {
     events.push({
       id: `${run.id}-step-${step.id}`,
       runId: run.id,
@@ -2471,6 +3108,20 @@ function normalizeTraceEvents(
     })
   }
   return events.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+function getMostRecentRuns(runs: AgentRun[], limit: number): AgentRun[] {
+  return [...runs]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit)
+}
+
+function orderRunsChronologically(runs: AgentRun[]): AgentRun[] {
+  return [...runs].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+function orderRunStepsChronologically(steps: AgentRun['steps']): AgentRun['steps'] {
+  return [...steps].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
 function StageIcon({ status }: { status: DebugStageStatus }) {
@@ -2570,14 +3221,26 @@ function buildInputSnapshotFromRun(run: AgentRun): DebugRunInputSnapshot | null 
   }
 }
 
-function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+function Panel({
+  title,
+  icon,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title: string
+  icon: ReactNode
+  children: ReactNode
+  className?: string
+  bodyClassName?: string
+}) {
   return (
-    <section className="rounded-md border border-border bg-background">
+    <section className={cn('flex flex-col rounded-md border border-border bg-background', className)}>
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <span className="text-muted-foreground">{icon}</span>
         <h3 className="text-xs font-semibold text-foreground">{title}</h3>
       </div>
-      <div className="p-3">{children}</div>
+      <div className={cn('p-3', bodyClassName)}>{children}</div>
     </section>
   )
 }

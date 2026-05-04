@@ -2,8 +2,6 @@ package handler
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
 )
 
 func gatewayMessageContent(raw json.RawMessage) (string, error) {
@@ -73,23 +72,15 @@ func mustJSONString(value any) string {
 }
 
 func generateGatewayAPIKey() string {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "mgw_" + strconv.FormatInt(time.Now().UnixNano(), 36)
-	}
-	return "mgw_" + base64.RawURLEncoding.EncodeToString(buf)
+	return modelgatewayapp.GenerateAPIKey()
 }
 
 func hashGatewayAPIKey(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:])
+	return modelgatewayapp.HashAPIKey(raw)
 }
 
 func gatewayKeyPrefix(raw string) string {
-	if len(raw) <= 12 {
-		return raw
-	}
-	return raw[:12]
+	return modelgatewayapp.KeyPrefix(raw)
 }
 
 func writeOpenAIError(c *gin.Context, status int, message, typ, param, code string) {

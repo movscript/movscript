@@ -1,5 +1,5 @@
 import type { JSONValue } from '../types.js'
-import type { AgentApprovalRequest, AgentRun, AgentRunPolicy, ToolCall } from '../types.js'
+import type { AgentApprovalRequest, AgentRun, AgentRunPolicy, AgentWorkflowConfig, ToolCall } from '../types.js'
 import type { AgentDraftKind, AgentDraftStatus } from '../store/draftStore.js'
 import { normalizeDraftKind, normalizeDraftStatus } from '../store/draftStore.js'
 
@@ -59,7 +59,7 @@ export function getApprovedToolNames(run: AgentRun): string[] {
   return normalizeApprovedToolNames(run.metadata?.approvedToolNames)
 }
 
-export function defaultRunPolicy(input: { approvalMode?: AgentRunPolicy['approvalMode']; sandboxMode?: boolean } = {}): AgentRunPolicy {
+export function defaultRunPolicy(input: { approvalMode?: AgentRunPolicy['approvalMode']; sandboxMode?: boolean; workflow?: AgentWorkflowConfig } = {}): AgentRunPolicy {
   return {
     approvalMode: input.approvalMode ?? 'interactive',
     ...(input.sandboxMode ? { sandboxMode: true } : {}),
@@ -67,6 +67,7 @@ export function defaultRunPolicy(input: { approvalMode?: AgentRunPolicy['approva
     maxIterations: 20,
     allowNetwork: false,
     allowFileBytes: false,
+    workflow: input.workflow ?? { profile: 'standard', includeMemories: true, allowForcedToolCalls: true },
   }
 }
 

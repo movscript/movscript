@@ -425,7 +425,7 @@ function dedupeToolCalls(calls: ToolCall[]): ToolCall[] {
 
 function describeToolOutcome(outcome: ToolCallOutcome): string {
   if (outcome.error) {
-    return `${outcome.call.name} 未完成：${outcome.error}`
+    return `${formatToolNameForDisplay(outcome.call.name)} 未完成：${outcome.error}`
   }
 
   return describeToolResult(outcome.call, outcome.result ?? null)
@@ -460,6 +460,10 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     return `应用草稿审批链已执行（${status}）；当前只更新本地 Agent 草稿生命周期，不直接写正式项目实体。`
   }
   return `调用 ${call.name}。`
+}
+
+function formatToolNameForDisplay(name: string): string {
+  return name.startsWith('movscript_') ? `movscript.${name.slice('movscript_'.length)}` : name
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,11 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/model"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
 )
 
 func (h *ModelGatewayHandler) ListAPIKeys(c *gin.Context) {
@@ -14,8 +14,8 @@ func (h *ModelGatewayHandler) ListAPIKeys(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
-	var keys []model.GatewayAPIKey
-	if err := h.db.Where("owner_user_id = ?", user.ID).Order("created_at desc").Find(&keys).Error; err != nil {
+	keys, err := h.service.ListAPIKeys(c.Request.Context(), user.ID)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -33,28 +33,20 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	scopes := req.AllowedScopes
-	if len(scopes) == 0 {
-		scopes = []string{"model:chat"}
-	}
-	rawKey := generateGatewayAPIKey()
-	key := model.GatewayAPIKey{
-		Name:            strings.TrimSpace(req.Name),
-		KeyPrefix:       gatewayKeyPrefix(rawKey),
-		KeyHash:         hashGatewayAPIKey(rawKey),
+	result, err := h.service.CreateAPIKey(c.Request.Context(), modelgatewayapp.CreateAPIKeyInput{
 		OwnerUserID:     user.ID,
+		Name:            req.Name,
 		ProjectID:       req.ProjectID,
-		AllowedModelIDs: mustJSONString(req.AllowedModelIDs),
-		AllowedScopes:   mustJSONString(scopes),
+		AllowedModelIDs: req.AllowedModelIDs,
+		AllowedScopes:   req.AllowedScopes,
 		RateLimitRPM:    req.RateLimitRPM,
 		MonthlyBudget:   req.MonthlyBudget,
-		IsEnabled:       true,
-	}
-	if err := h.db.Create(&key).Error; err != nil {
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{GatewayAPIKey: key, Key: rawKey})
+	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{GatewayAPIKey: result.Key, Key: result.RawKey})
 }
 
 func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
@@ -63,42 +55,25 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
-	var key model.GatewayAPIKey
-	if err := h.db.Where("id = ? AND owner_user_id = ?", c.Param("id"), user.ID).First(&key).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "api key not found"})
-		return
-	}
 	var req updateGatewayAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	updates := map[string]any{}
-	if req.Name != nil {
-		updates["name"] = strings.TrimSpace(*req.Name)
+	key, err := h.service.UpdateAPIKey(c.Request.Context(), modelgatewayapp.UpdateAPIKeyInput{
+		ID:              parseID(c.Param("id")),
+		OwnerUserID:     user.ID,
+		Name:            req.Name,
+		AllowedModelIDs: req.AllowedModelIDs,
+		AllowedScopes:   req.AllowedScopes,
+		RateLimitRPM:    req.RateLimitRPM,
+		MonthlyBudget:   req.MonthlyBudget,
+		IsEnabled:       req.IsEnabled,
+	})
+	if err != nil {
+		writeGatewayAPIKeyError(c, err)
+		return
 	}
-	if req.AllowedModelIDs != nil {
-		updates["allowed_model_ids"] = mustJSONString(req.AllowedModelIDs)
-	}
-	if req.AllowedScopes != nil {
-		updates["allowed_scopes"] = mustJSONString(req.AllowedScopes)
-	}
-	if req.RateLimitRPM != nil {
-		updates["rate_limit_rpm"] = *req.RateLimitRPM
-	}
-	if req.MonthlyBudget != nil {
-		updates["monthly_budget"] = *req.MonthlyBudget
-	}
-	if req.IsEnabled != nil {
-		updates["is_enabled"] = *req.IsEnabled
-	}
-	if len(updates) > 0 {
-		if err := h.db.Model(&key).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	}
-	h.db.First(&key, key.ID)
 	c.JSON(http.StatusOK, key)
 }
 
@@ -108,14 +83,17 @@ func (h *ModelGatewayHandler) DeleteAPIKey(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
-	var key model.GatewayAPIKey
-	if err := h.db.Where("id = ? AND owner_user_id = ?", c.Param("id"), user.ID).First(&key).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "api key not found"})
-		return
-	}
-	if err := h.db.Delete(&key).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := h.service.DeleteAPIKey(c.Request.Context(), parseID(c.Param("id")), user.ID); err != nil {
+		writeGatewayAPIKeyError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func writeGatewayAPIKeyError(c *gin.Context, err error) {
+	if errors.Is(err, modelgatewayapp.ErrAPIKeyNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "api key not found"})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 }

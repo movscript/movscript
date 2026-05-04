@@ -79,7 +79,7 @@ export class MemoryManager {
           scope: 'thread',
           threadId: input.userMessage.threadId,
           kind: 'warning',
-          content: `${outcome.call.name} failed: ${outcome.error}`,
+          content: `${formatToolNameForDisplay(outcome.call.name)} failed: ${outcome.error}`,
           sourceRunId: input.run.id,
           sourceMessageId: input.userMessage.id,
         })
@@ -129,4 +129,8 @@ function describeEntityRefMemory(outcome: ToolCallOutcome): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function formatToolNameForDisplay(name: string): string {
+  return name.startsWith('movscript_') ? `movscript.${name.slice('movscript_'.length)}` : name
 }

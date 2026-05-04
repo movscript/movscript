@@ -6,10 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
+	projectapp "github.com/movscript/movscript/internal/app/project"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
 	"github.com/movscript/movscript/internal/middleware"
 	"github.com/movscript/movscript/internal/model"
-	"gorm.io/gorm"
 )
 
 func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id string) {
@@ -65,45 +65,11 @@ func (h *SemanticEntityHandler) projectRole(c *gin.Context, projectID uint) (str
 		c.JSON(http.StatusUnauthorized, apierr.InvalidInput("未登录"))
 		return "", 0, false
 	}
-	if projectID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("project id is required"))
+	role, _, ok := h.resolveProjectRole(c, projectID, user.ID, user.SystemRole)
+	if !ok {
 		return "", 0, false
 	}
-	if user.SystemRole == "super_admin" {
-		var project model.Project
-		if err := h.db.Select("id").First(&project, projectID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
-				return "", 0, false
-			}
-			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-			return "", 0, false
-		}
-		return "super_admin", user.ID, true
-	}
-
-	var project model.Project
-	if err := h.db.Select("id, owner_id").First(&project, projectID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
-			return "", 0, false
-		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return "", 0, false
-	}
-	if project.OwnerID == user.ID {
-		return "owner", user.ID, true
-	}
-	var member model.ProjectMember
-	if err := h.db.Where("project_id = ? AND user_id = ?", projectID, user.ID).First(&member).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusForbidden, apierr.InvalidInput("不是项目成员"))
-			return "", 0, false
-		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return "", 0, false
-	}
-	return member.Role, user.ID, true
+	return role, user.ID, true
 }
 
 func currentUserID(c *gin.Context) *uint {
@@ -112,4 +78,20 @@ func currentUserID(c *gin.Context) *uint {
 		return &id
 	}
 	return nil
+}
+
+func (h *SemanticEntityHandler) resolveProjectRole(c *gin.Context, projectID uint, userID uint, systemRole string) (string, uint, bool) {
+	role, err := h.projects.ResolveRole(c.Request.Context(), projectID, userID, systemRole)
+	if err != nil {
+		switch {
+		case errors.Is(err, projectapp.ErrProjectNotFound):
+			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+		case errors.Is(err, projectapp.ErrProjectMemberNotFound):
+			c.JSON(http.StatusForbidden, apierr.InvalidInput("不是项目成员"))
+		default:
+			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		}
+		return "", 0, false
+	}
+	return role.Role, role.UserID, true
 }

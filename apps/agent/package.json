@@ -15,7 +15,11 @@
     "start": "node dist/server.js",
     "cli": "node dist/cli.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@langchain/core": "^1.1.44",
+    "@langchain/langgraph": "^1.2.9",
+    "zod": "^4.4.2"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",

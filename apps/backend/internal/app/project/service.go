@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrProjectNotFound = errors.New("project not found")
-	ErrOwnerNotFound   = errors.New("owner user not found")
+	ErrProjectNotFound       = errors.New("project not found")
+	ErrOwnerNotFound         = errors.New("owner user not found")
+	ErrProjectMemberNotFound = errors.New("project member not found")
 )
 
 type Service struct {
@@ -46,6 +47,11 @@ type Progress struct {
 	StoryboardLines int64
 	ContentUnits    map[string]int64
 	Keyframes       map[string]int64
+}
+
+type ProjectRole struct {
+	Role   string
+	UserID uint
 }
 
 func (s *Service) List(ctx context.Context) ([]model.Project, error) {
@@ -137,6 +143,42 @@ func (s *Service) Get(ctx context.Context, id uint) (model.Project, error) {
 		return project, err
 	}
 	return project, nil
+}
+
+func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (ProjectRole, error) {
+	if projectID == 0 {
+		return ProjectRole{}, ErrProjectNotFound
+	}
+	if systemRole == "super_admin" {
+		var project model.Project
+		if err := s.db.WithContext(ctx).Select("id").First(&project, projectID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ProjectRole{}, ErrProjectNotFound
+			}
+			return ProjectRole{}, err
+		}
+		return ProjectRole{Role: "super_admin", UserID: userID}, nil
+	}
+
+	var project model.Project
+	if err := s.db.WithContext(ctx).Select("id, owner_id").First(&project, projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ProjectRole{}, ErrProjectNotFound
+		}
+		return ProjectRole{}, err
+	}
+	if project.OwnerID == userID {
+		return ProjectRole{Role: "owner", UserID: userID}, nil
+	}
+
+	var member model.ProjectMember
+	if err := s.db.WithContext(ctx).Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ProjectRole{}, ErrProjectMemberNotFound
+		}
+		return ProjectRole{}, err
+	}
+	return ProjectRole{Role: member.Role, UserID: userID}, nil
 }
 
 func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model.Project, error) {

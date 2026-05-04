@@ -44,6 +44,7 @@ export function compilePromptPreview(input: CompileAgentPromptInput): CompiledPr
       '除非用户明确要求，不跨越当前选中实体修改其他内容。',
       input.policy.sandboxMode ? '当前运行处于 sandbox 模式：write/generate/destructive 工具会被模拟拦截。' : undefined,
       `approvalMode=${input.policy.approvalMode}; maxToolCalls=${input.policy.maxToolCalls}; maxIterations=${input.policy.maxIterations}`,
+      input.policy.workflow ? `workflow.profile=${input.policy.workflow.profile}` : undefined,
     ].filter(Boolean).join('\n'),
   })
 

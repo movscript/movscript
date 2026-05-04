@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/ai"
+	jobapp "github.com/movscript/movscript/internal/app/job"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
@@ -11,6 +12,7 @@ import (
 type JobHandler struct {
 	db        *gorm.DB
 	aiService *ai.AIService
+	service   *jobapp.Service
 }
 
 type jobResponse struct {
@@ -56,5 +58,5 @@ type jobResourceSnapshot struct {
 }
 
 func NewJobHandler(db *gorm.DB, aiService *ai.AIService) *JobHandler {
-	return &JobHandler{db: db, aiService: aiService}
+	return &JobHandler{db: db, aiService: aiService, service: jobapp.NewService(db)}
 }

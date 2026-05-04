@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -12,22 +13,12 @@ import (
 )
 
 // loadInputResources loads resources by ID and returns them plus image/video counts.
-func (h *JobHandler) loadInputResources(ids []uint) (resources []model.RawResource, imageCount, videoCount int, err error) {
-	if len(ids) == 0 {
-		return nil, 0, 0, nil
-	}
-	if err := h.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
+func (h *JobHandler) loadInputResources(ctx context.Context, ids []uint) (resources []model.RawResource, imageCount, videoCount int, err error) {
+	result, err := h.service.LoadInputResources(ctx, ids)
+	if err != nil {
 		return nil, 0, 0, err
 	}
-	for _, r := range resources {
-		switch r.Type {
-		case "image":
-			imageCount++
-		case "video":
-			videoCount++
-		}
-	}
-	return resources, imageCount, videoCount, nil
+	return result.Resources, result.ImageCount, result.VideoCount, nil
 }
 
 // idOrNil returns a slice with the dereferenced uint, or empty if nil.
@@ -206,45 +197,18 @@ func (h *JobHandler) buildJobResponses(c *gin.Context, jobs []model.Job) []jobRe
 	for id := range resourceIDSet {
 		resourceIDs = append(resourceIDs, id)
 	}
-	resourcesByID := make(map[uint]model.RawResource, len(resourceIDs))
-	if len(resourceIDs) > 0 {
-		var resources []model.RawResource
-		if err := h.db.Where("id IN ?", resourceIDs).Find(&resources).Error; err == nil {
-			for _, r := range resources {
-				r.URL = resourceURL(c, r.ID)
-				resourcesByID[r.ID] = r
-			}
-		}
-	}
 
 	modelConfigIDs := make([]uint, 0, len(modelConfigIDSet))
 	for id := range modelConfigIDSet {
 		modelConfigIDs = append(modelConfigIDs, id)
 	}
-	configsByID := make(map[uint]model.AIModelConfig, len(modelConfigIDs))
-	credentialIDSet := make(map[uint]bool)
-	if len(modelConfigIDs) > 0 {
-		var configs []model.AIModelConfig
-		if err := h.db.Where("id IN ?", modelConfigIDs).Find(&configs).Error; err == nil {
-			for _, cfg := range configs {
-				configsByID[cfg.ID] = cfg
-				credentialIDSet[cfg.CredentialID] = true
-			}
-		}
+	lookups, err := h.service.ResponseLookups(c.Request.Context(), resourceIDs, modelConfigIDs)
+	if err != nil {
+		return []jobResponse{}
 	}
-
-	credentialIDs := make([]uint, 0, len(credentialIDSet))
-	for id := range credentialIDSet {
-		credentialIDs = append(credentialIDs, id)
-	}
-	credentialsByID := make(map[uint]model.AICredential, len(credentialIDs))
-	if len(credentialIDs) > 0 {
-		var creds []model.AICredential
-		if err := h.db.Where("id IN ?", credentialIDs).Find(&creds).Error; err == nil {
-			for _, cred := range creds {
-				credentialsByID[cred.ID] = cred
-			}
-		}
+	for id, resource := range lookups.ResourcesByID {
+		resource.URL = resourceURL(c, resource.ID)
+		lookups.ResourcesByID[id] = resource
 	}
 
 	resp := make([]jobResponse, 0, len(jobs))
@@ -258,16 +222,16 @@ func (h *JobHandler) buildJobResponses(c *gin.Context, jobs []model.Job) []jobRe
 				continue
 			}
 			seenResources[id] = true
-			if r, ok := resourcesByID[id]; ok {
+			if r, ok := lookups.ResourcesByID[id]; ok {
 				item.InputResources = append(item.InputResources, r)
 			}
 		}
-		if cfg, ok := configsByID[job.ModelConfigID]; ok {
+		if cfg, ok := lookups.ConfigsByID[job.ModelConfigID]; ok {
 			cfgCopy := cfg
 			item.ModelConfig = &cfgCopy
 			item.ModelDisplay = jobModelDisplay(cfg)
 			item.ModelIdentifier = jobModelIdentifier(cfg)
-			if cred, ok := credentialsByID[cfg.CredentialID]; ok {
+			if cred, ok := lookups.CredentialsByID[cfg.CredentialID]; ok {
 				item.ProviderName = cred.DisplayName
 			}
 		}

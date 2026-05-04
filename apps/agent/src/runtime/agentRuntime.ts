@@ -19,7 +19,7 @@ import {
 } from './store/draftStore.js'
 import { buildApplyDraftPreview, rejectDraft } from './store/draftApply.js'
 import { BackendApplyClient } from './store/backendApplyClient.js'
-import { runAgentLoop } from './loop/agentLoop.js'
+import { runAgentGraph } from './loop/agentGraph.js'
 import { buildPromptPreview } from './loop/contextBuilder.js'
 import type {
   AgentApprovalRequest,
@@ -713,9 +713,9 @@ export class AgentRuntime {
       const modelConfig = resolveRuntimeChatModelConfig()
       if (!modelConfig) throw new Error('no model config found — configure a backend model config first')
 
-      const loopResult = await runAgentLoop({
+      const loopResult = await runAgentGraph({
         run,
-        thread,
+        threadMessages: thread.messages,
         manifest: agentManifest,
         capabilities: capabilities.resolvedTools,
         skills,
@@ -730,6 +730,7 @@ export class AgentRuntime {
         backendApplyClient: this.backendApplyClient,
         registry: this.toolRegistry,
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
+        ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),
         onTrace: (traceInput) => {
           this.recordTraceEvent(run, {
             kind: traceInput.kind,

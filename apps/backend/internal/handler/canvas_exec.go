@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/canvasservice"
 )
 
 // RunNode executes one canvas node by resolving its input ports from upstream outputs.
@@ -18,8 +18,8 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, c.Param("id")).Error; err != nil {
+	cv, err := h.CanvasExecService.GetCanvas(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "canvas not found"})
 		return
 	}
@@ -28,8 +28,8 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 		return
 	}
 
-	var node model.CanvasNode
-	if err := h.db.Where("canvas_id = ? AND node_id = ?", cv.ID, c.Param("nodeId")).First(&node).Error; err != nil {
+	node, err := h.CanvasExecService.GetNode(c.Request.Context(), cv.ID, c.Param("nodeId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
 		return
 	}
@@ -53,8 +53,8 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, c.Param("id")).Error; err != nil {
+	cv, err := h.CanvasExecService.GetCanvas(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -82,19 +82,10 @@ func (h *CanvasHandler) ListRuns(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "canvas not found"})
 		return
-	}
-	if cv.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	var runs []model.CanvasRun
-	q := h.db.Model(&model.CanvasRun{}).Where("canvas_id = ?", cv.ID)
-	if status := strings.TrimSpace(c.Query("status")); status != "" && status != "all" {
-		q = q.Where("status = ?", status)
 	}
 
 	pageMode := c.Query("page") != "" || c.Query("page_size") != ""
@@ -106,17 +97,16 @@ func (h *CanvasHandler) ListRuns(c *gin.Context) {
 	if pageSize <= 0 || pageSize > 100 {
 		pageSize = 20
 	}
-
-	var total int64
-	q.Count(&total)
-	q.Omit("graph_snapshot").Order("id desc")
-	if pageMode {
-		q.Limit(pageSize).Offset((page - 1) * pageSize).Find(&runs)
-		c.JSON(http.StatusOK, gin.H{"total": total, "items": runs, "page": page, "page_size": pageSize})
+	result, err := h.CanvasExecService.ListRuns(c.Request.Context(), cv.ID, c.Query("status"), pageMode, page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	q.Limit(20).Find(&runs)
-	c.JSON(http.StatusOK, runs)
+	if pageMode {
+		c.JSON(http.StatusOK, gin.H{"total": result.Total, "items": result.Items, "page": page, "page_size": pageSize})
+		return
+	}
+	c.JSON(http.StatusOK, result.Items)
 }
 
 // GetRun returns one workflow run and its tasks.
@@ -126,17 +116,13 @@ func (h *CanvasHandler) GetRun(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "canvas not found"})
 		return
 	}
-	if cv.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	var run model.CanvasRun
-	if err := h.db.Where("canvas_id = ? AND id = ?", cv.ID, c.Param("runId")).Preload("Tasks.Resource").First(&run).Error; err != nil {
+	run, err := h.CanvasExecService.GetRun(c.Request.Context(), cv.ID, c.Param("runId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "run not found"})
 		return
 	}
@@ -155,24 +141,17 @@ func (h *CanvasHandler) ListRunTasks(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var cv model.Canvas
-	if err := h.db.First(&cv, c.Param("id")).Error; err != nil {
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "canvas not found"})
 		return
 	}
-	if cv.OwnerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	var run model.CanvasRun
-	if err := h.db.Where("canvas_id = ? AND id = ?", cv.ID, c.Param("runId")).First(&run).Error; err != nil {
+	tasks, err := h.CanvasExecService.ListRunTasks(c.Request.Context(), cv.ID, c.Param("runId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "run not found"})
 		return
 	}
-	var tasks []model.CanvasTask
-	h.db.Where("canvas_run_id = ?", run.ID).Preload("Resource").Order("id asc").Find(&tasks)
 	for i := range tasks {
-		h.CanvasExecService.LazyBackfillCanvasTaskOutputs(&tasks[i], tasks[i].NodeType)
 		if tasks[i].Resource != nil {
 			tasks[i].Resource.URL = resourceURL(c, tasks[i].Resource.ID)
 		}
@@ -188,43 +167,38 @@ func (h *CanvasHandler) ListEntityWriteAudits(c *gin.Context) {
 		return
 	}
 
-	canvasTable := h.db.NamingStrategy.TableName("Canvas")
-	q := h.db.Model(&model.CanvasEntityWriteAudit{}).
-		Joins("JOIN "+canvasTable+" ON "+canvasTable+".id = canvas_entity_write_audits.canvas_id").
-		Where(canvasTable+".owner_id = ?", user.ID)
+	filter := canvasservice.EntityWriteAuditFilter{OwnerID: user.ID}
 
 	if value, ok, err := optionalUintQuery(c, "canvas_id"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	} else if ok {
-		q = q.Where("canvas_entity_write_audits.canvas_id = ?", value)
+		filter.CanvasID = value
 	}
 	if value, ok, err := optionalUintQuery(c, "run_id"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	} else if ok {
-		q = q.Where("canvas_entity_write_audits.canvas_run_id = ?", value)
+		filter.CanvasRunID = value
 	}
 	if value, ok, err := optionalUintQuery(c, "canvas_run_id"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	} else if ok {
-		q = q.Where("canvas_entity_write_audits.canvas_run_id = ?", value)
+		filter.CanvasRunID = value
 	}
-	if entityKind := strings.TrimSpace(c.Query("entity_kind")); entityKind != "" {
-		q = q.Where("canvas_entity_write_audits.entity_kind = ?", entityKind)
-	}
+	filter.EntityKind = strings.TrimSpace(c.Query("entity_kind"))
 	if value, ok, err := optionalUintQuery(c, "entity_id"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	} else if ok {
-		q = q.Where("canvas_entity_write_audits.entity_id = ?", value)
+		filter.EntityID = value
 	}
 	if value, ok, err := optionalUintQuery(c, "user_id"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	} else if ok {
-		q = q.Where("canvas_entity_write_audits.user_id = ?", value)
+		filter.UserID = value
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -235,18 +209,14 @@ func (h *CanvasHandler) ListEntityWriteAudits(c *gin.Context) {
 	if pageSize <= 0 || pageSize > 200 {
 		pageSize = 50
 	}
-
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	filter.Page = page
+	filter.PageSize = pageSize
+	result, err := h.CanvasExecService.ListEntityWriteAudits(c.Request.Context(), filter)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	var audits []model.CanvasEntityWriteAudit
-	if err := q.Order("canvas_entity_write_audits.id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&audits).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"total": total, "items": audits, "page": page, "page_size": pageSize})
+	c.JSON(http.StatusOK, gin.H{"total": result.Total, "items": result.Items, "page": result.Page, "page_size": result.PageSize})
 }
 
 func optionalUintQuery(c *gin.Context, key string) (uint, bool, error) {
@@ -268,24 +238,14 @@ func (h *CanvasHandler) GetNodeTask(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var node model.CanvasNode
-	if err := h.db.Where("canvas_id = ? AND node_id = ?", c.Param("id"), c.Param("nodeId")).First(&node).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
-		return
-	}
-	var task model.CanvasTask
-	if err := h.db.Where("canvas_node_id = ?", node.ID).Order("id desc").First(&task).Error; err != nil {
+	task, _, err := h.CanvasExecService.LatestNodeTask(c.Request.Context(), c.Param("id"), c.Param("nodeId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no task"})
 		return
 	}
-	if task.ResourceID != nil {
-		var resource model.RawResource
-		if err := h.db.First(&resource, *task.ResourceID).Error; err == nil {
-			resource.URL = resourceURL(c, resource.ID)
-			task.Resource = &resource
-		}
+	if task.Resource != nil {
+		task.Resource.URL = resourceURL(c, task.Resource.ID)
 	}
-	h.CanvasExecService.LazyBackfillCanvasTaskOutputs(&task, node.Type)
 	c.JSON(http.StatusOK, task)
 }
 
@@ -296,16 +256,12 @@ func (h *CanvasHandler) ListNodeTasks(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	var node model.CanvasNode
-	if err := h.db.Where("canvas_id = ? AND node_id = ?", c.Param("id"), c.Param("nodeId")).First(&node).Error; err != nil {
+	tasks, _, err := h.CanvasExecService.ListNodeTasks(c.Request.Context(), c.Param("id"), c.Param("nodeId"))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
 		return
 	}
-	var tasks []model.CanvasTask
-	h.db.Where("canvas_node_id = ?", node.ID).Preload("Resource").Order("id desc").Find(&tasks)
-	// Populate resource URLs
 	for i := range tasks {
-		h.CanvasExecService.LazyBackfillCanvasTaskOutputs(&tasks[i], node.Type)
 		if tasks[i].Resource != nil {
 			tasks[i].Resource.URL = resourceURL(c, tasks[i].Resource.ID)
 		}

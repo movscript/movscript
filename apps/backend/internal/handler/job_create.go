@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
-	jobrunner "github.com/movscript/movscript/internal/job"
+	jobapp "github.com/movscript/movscript/internal/app/job"
 	"github.com/movscript/movscript/internal/model"
 )
 
@@ -51,7 +51,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 		return
 	}
 
-	inputResources, imageCount, videoCount, err := h.loadInputResources(append(req.InputResourceIDs, idOrNil(req.InputResourceID)...))
+	inputResources, imageCount, videoCount, err := h.loadInputResources(c.Request.Context(), append(req.InputResourceIDs, idOrNil(req.InputResourceID)...))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load input resources: " + err.Error()})
 		return
@@ -72,8 +72,8 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 	mcfg := preflight.Config
 
-	var cred model.AICredential
-	if err := h.db.First(&cred, mcfg.CredentialID).Error; err != nil {
+	cred, err := h.service.GetCredential(c.Request.Context(), mcfg.CredentialID)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "credential not found"})
 		return
 	}
@@ -105,13 +105,11 @@ func (h *JobHandler) Create(c *gin.Context) {
 		return
 	}
 
-	job := model.Job{
+	job, err := h.service.Create(c.Request.Context(), jobapp.CreateInput{
 		UserID:             user.ID,
 		ModelConfigID:      req.ModelConfigID,
 		JobType:            jobType,
 		FeatureKey:         req.FeatureKey,
-		Status:             jobrunner.StatusPending,
-		MaxAttempts:        jobrunner.DefaultMaxAttempts,
 		Prompt:             req.Prompt,
 		ExtraParams:        req.ExtraParams,
 		AspectRatio:        req.AspectRatio,
@@ -121,8 +119,8 @@ func (h *JobHandler) Create(c *gin.Context) {
 		InputResourceIDs:   inputResourceIDsJSON,
 		UsageReservationID: &reservation.ID,
 		ProjectID:          req.ProjectID,
-	}
-	if err := h.db.Create(&job).Error; err != nil {
+	})
+	if err != nil {
 		_ = h.aiService.ReleaseReservation(c.Request.Context(), reservation.ID, "gen job create failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

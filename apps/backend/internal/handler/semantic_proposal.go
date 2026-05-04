@@ -1,44 +1,41 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/apierr"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/model"
-	"gorm.io/gorm"
 )
 
 // ProposalSegmentNode is one segment in the tree-form proposal.
 type ProposalSegmentNode struct {
-	Action      string                    `json:"action"` // create | reuse | update
-	ID          *uint                     `json:"id"`
-	ClientID    string                    `json:"client_id"`
-	Title       string                    `json:"title"`
-	Kind        string                    `json:"kind"`
-	Summary     string                    `json:"summary"`
-	Order       int                       `json:"order"`
-	Status      string                    `json:"status"`
+	Action       string                    `json:"action"` // create | reuse | update
+	ID           *uint                     `json:"id"`
+	ClientID     string                    `json:"client_id"`
+	Title        string                    `json:"title"`
+	Kind         string                    `json:"kind"`
+	Summary      string                    `json:"summary"`
+	Order        int                       `json:"order"`
+	Status       string                    `json:"status"`
 	SceneMoments []ProposalSceneMomentNode `json:"scene_moments"`
 }
 
 type ProposalSceneMomentNode struct {
-	Action             string                       `json:"action"`
-	ID                 *uint                        `json:"id"`
-	ClientID           string                       `json:"client_id"`
-	Title              string                       `json:"title"`
-	TimeText           string                       `json:"time_text"`
-	LocationText       string                       `json:"location_text"`
-	ActionText         string                       `json:"action_text"`
-	Mood               string                       `json:"mood"`
-	Description        string                       `json:"description"`
-	Order              int                          `json:"order"`
-	Status             string                       `json:"status"`
-	ContentUnits       []ProposalContentUnitNode    `json:"content_units"`
-	CreativeReferences []ProposalCreativeRefNode    `json:"creative_references"`
-	AssetSlots         []ProposalAssetSlotNode      `json:"asset_slots"`
+	Action             string                    `json:"action"`
+	ID                 *uint                     `json:"id"`
+	ClientID           string                    `json:"client_id"`
+	Title              string                    `json:"title"`
+	TimeText           string                    `json:"time_text"`
+	LocationText       string                    `json:"location_text"`
+	ActionText         string                    `json:"action_text"`
+	Mood               string                    `json:"mood"`
+	Description        string                    `json:"description"`
+	Order              int                       `json:"order"`
+	Status             string                    `json:"status"`
+	ContentUnits       []ProposalContentUnitNode `json:"content_units"`
+	CreativeReferences []ProposalCreativeRefNode `json:"creative_references"`
+	AssetSlots         []ProposalAssetSlotNode   `json:"asset_slots"`
 }
 
 type ProposalContentUnitNode struct {
@@ -83,31 +80,13 @@ type ProposalAssetSlotNode struct {
 }
 
 type ApplyProductionProposalRequest struct {
-	ProductionID  uint                  `json:"production_id" binding:"required"`
-	AnalysisScope string                `json:"analysis_scope"`
-	Proposal      *ProposalTree         `json:"proposal"`
+	ProductionID  uint          `json:"production_id" binding:"required"`
+	AnalysisScope string        `json:"analysis_scope"`
+	Proposal      *ProposalTree `json:"proposal"`
 }
 
 type ProposalTree struct {
 	Segments []ProposalSegmentNode `json:"segments"`
-}
-
-type ApplyProductionProposalResponse struct {
-	ProductionID uint                    `json:"production_id"`
-	Counts       ProposalApplyCounts     `json:"counts"`
-	Segments     []model.Segment         `json:"segments"`
-	SceneMoments []model.SceneMoment     `json:"scene_moments"`
-	ContentUnits []model.ContentUnit     `json:"content_units"`
-	AssetSlots   []model.AssetSlot       `json:"asset_slots"`
-}
-
-type ProposalApplyCounts struct {
-	SegmentsCreated              int `json:"segments_created"`
-	SceneMomentsCreated          int `json:"scene_moments_created"`
-	ContentUnitsCreated          int `json:"content_units_created"`
-	AssetSlotsCreated            int `json:"asset_slots_created"`
-	CreativeReferencesCreated    int `json:"creative_references_created"`
-	CreativeReferenceUsages      int `json:"creative_reference_usages"`
 }
 
 func (h *SemanticEntityHandler) ApplyProductionProposal(c *gin.Context) {
@@ -122,7 +101,11 @@ func (h *SemanticEntityHandler) ApplyProductionProposal(c *gin.Context) {
 		return
 	}
 
-	resp, err := applyProposalInTransaction(c.Request.Context(), h.db, h.semantic, projectID, req)
+	resp, err := h.semantic.ApplyProductionProposal(c.Request.Context(), projectID, semanticapp.ApplyProductionProposalRequest{
+		ProductionID:  req.ProductionID,
+		AnalysisScope: req.AnalysisScope,
+		Proposal:      toSemanticProposalTree(req.Proposal),
+	})
 	if err != nil {
 		h.writeSemanticAppError(c, err)
 		return
@@ -130,191 +113,89 @@ func (h *SemanticEntityHandler) ApplyProductionProposal(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-func applyProposalInTransaction(
-	ctx context.Context,
-	db *gorm.DB,
-	_ *semanticapp.Service,
-	projectID uint,
-	req ApplyProductionProposalRequest,
-) (*ApplyProductionProposalResponse, error) {
-	resp := &ApplyProductionProposalResponse{ProductionID: req.ProductionID}
-
-	err := db.Transaction(func(tx *gorm.DB) error {
-		txSvc := semanticapp.NewService(tx)
-
-		for i, segNode := range req.Proposal.Segments {
-			var segmentID uint
-
-			if segNode.Action == "reuse" && segNode.ID != nil {
-				segmentID = *segNode.ID
-			} else if segNode.Action == "create" || segNode.Action == "" {
-				seg, err := txSvc.CreateSegment(ctx, projectID, semanticapp.CreateSegmentInput{
-					ProductionID: &req.ProductionID,
-					Kind:         fallbackStr(segNode.Kind, "section"),
-					Order:        fallbackInt(segNode.Order, i+1),
-					Title:        segNode.Title,
-					Summary:      segNode.Summary,
-					Status:       fallbackStr(segNode.Status, "draft"),
-				})
-				if err != nil {
-					return err
-				}
-				resp.Segments = append(resp.Segments, seg)
-				resp.Counts.SegmentsCreated++
-				segmentID = seg.ID
-			}
-
-			for j, smNode := range segNode.SceneMoments {
-				var sceneMomentID uint
-
-				if smNode.Action == "reuse" && smNode.ID != nil {
-					sceneMomentID = *smNode.ID
-				} else if smNode.Action == "create" || smNode.Action == "" {
-					segIDPtr := &segmentID
-					sm, err := txSvc.CreateSceneMoment(ctx, projectID, semanticapp.CreateSceneMomentInput{
-						SegmentID:    segIDPtr,
-						Order:        fallbackInt(smNode.Order, j+1),
-						Title:        smNode.Title,
-						Description:  smNode.Description,
-						TimeText:     smNode.TimeText,
-						LocationText: smNode.LocationText,
-						ActionText:   smNode.ActionText,
-						Mood:         smNode.Mood,
-						Status:       fallbackStr(smNode.Status, "draft"),
-					})
-					if err != nil {
-						return err
-					}
-					resp.SceneMoments = append(resp.SceneMoments, sm)
-					resp.Counts.SceneMomentsCreated++
-					sceneMomentID = sm.ID
-				}
-
-				// Create/reuse CreativeReferences and bind usages
-				for _, crNode := range smNode.CreativeReferences {
-					var refID uint
-					if crNode.Action == "reuse" && crNode.ID != nil {
-						refID = *crNode.ID
-					} else if crNode.Action == "create" || crNode.Action == "" {
-						ref, err := txSvc.CreateCreativeReference(ctx, projectID, semanticapp.CreativeReferenceInput{
-							Kind:        fallbackStr(crNode.Kind, "character"),
-							Name:        crNode.Name,
-							Importance:  "supporting",
-							Status:      "draft",
-						})
-						if err != nil {
-							return err
-						}
-						resp.Counts.CreativeReferencesCreated++
-						refID = ref.ID
-					}
-
-					if refID > 0 && sceneMomentID > 0 {
-						var stateID *uint
-						if crNode.State != nil {
-							state, err := txSvc.CreateCreativeReferenceState(ctx, projectID, semanticapp.CreativeReferenceStateInput{
-								CreativeReferenceID: refID,
-								ScopeType:           "scene_moment",
-								ScopeID:             &sceneMomentID,
-								Name:                crNode.Name,
-								Costume:             crNode.State.Costume,
-								Emotion:             crNode.State.Emotion,
-								Props:               crNode.State.Props,
-								VisualNotes:         crNode.State.VisualNotes,
-								Status:              "draft",
-							})
-							if err != nil {
-								return err
-							}
-							stateID = &state.ID
-						}
-						_, err := txSvc.CreateCreativeReferenceUsage(ctx, projectID, semanticapp.CreativeReferenceUsageInput{
-							OwnerType:                "scene_moment",
-							OwnerID:                  sceneMomentID,
-							CreativeReferenceID:      refID,
-							CreativeReferenceStateID: stateID,
-							Role:                     crNode.Role,
-							Source:                   "agent_proposal",
-							Status:                   "draft",
-						})
-						if err != nil {
-							return err
-						}
-						resp.Counts.CreativeReferenceUsages++
-					}
-				}
-
-				// Create ContentUnits
-				for k, cuNode := range smNode.ContentUnits {
-					if cuNode.Action == "reuse" {
-						continue
-					}
-					smIDPtr := &sceneMomentID
-					prodIDPtr := &req.ProductionID
-					segIDPtr := &segmentID
-					cu, err := txSvc.CreateContentUnit(ctx, projectID, semanticapp.ContentUnitInput{
-						ProductionID:  prodIDPtr,
-						SegmentID:     segIDPtr,
-						SceneMomentID: smIDPtr,
-						Kind:          fallbackStr(cuNode.Kind, "shot"),
-						Order:         fallbackInt(cuNode.Order, k+1),
-						Title:         cuNode.Title,
-						Description:   cuNode.Description,
-						ShotSize:      cuNode.ShotSize,
-						CameraAngle:   cuNode.CameraAngle,
-						DurationSec:   cuNode.DurationSec,
-						Status:        fallbackStr(cuNode.Status, "draft"),
-					})
-					if err != nil {
-						return err
-					}
-					resp.ContentUnits = append(resp.ContentUnits, cu)
-					resp.Counts.ContentUnitsCreated++
-				}
-
-				// Create AssetSlots
-				for _, asNode := range smNode.AssetSlots {
-					if asNode.Action == "reuse" {
-						continue
-					}
-					smIDPtr := &sceneMomentID
-					prodIDPtr := &req.ProductionID
-					slot, err := txSvc.CreateAssetSlot(ctx, projectID, semanticapp.AssetSlotInput{
-						ProductionID: prodIDPtr,
-						OwnerType:    "scene_moment",
-						OwnerID:      smIDPtr,
-						Kind:         fallbackStr(asNode.Kind, "image"),
-						Name:         asNode.Name,
-						Description:  asNode.Description,
-						Priority:     fallbackStr(asNode.Priority, "normal"),
-						Status:       "draft",
-					})
-					if err != nil {
-						return err
-					}
-					resp.AssetSlots = append(resp.AssetSlots, slot)
-					resp.Counts.AssetSlotsCreated++
-				}
-			}
-		}
+func toSemanticProposalTree(tree *ProposalTree) *semanticapp.ProposalTree {
+	if tree == nil {
 		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	return resp, nil
-}
-
-func fallbackStr(s, def string) string {
-	if s == "" {
-		return def
+	out := &semanticapp.ProposalTree{Segments: make([]semanticapp.ProposalSegmentNode, 0, len(tree.Segments))}
+	for _, segNode := range tree.Segments {
+		seg := semanticapp.ProposalSegmentNode{
+			Action:       segNode.Action,
+			ID:           segNode.ID,
+			ClientID:     segNode.ClientID,
+			Title:        segNode.Title,
+			Kind:         segNode.Kind,
+			Summary:      segNode.Summary,
+			Order:        segNode.Order,
+			Status:       segNode.Status,
+			SceneMoments: make([]semanticapp.ProposalSceneMomentNode, 0, len(segNode.SceneMoments)),
+		}
+		for _, smNode := range segNode.SceneMoments {
+			sm := semanticapp.ProposalSceneMomentNode{
+				Action:             smNode.Action,
+				ID:                 smNode.ID,
+				ClientID:           smNode.ClientID,
+				Title:              smNode.Title,
+				TimeText:           smNode.TimeText,
+				LocationText:       smNode.LocationText,
+				ActionText:         smNode.ActionText,
+				Mood:               smNode.Mood,
+				Description:        smNode.Description,
+				Order:              smNode.Order,
+				Status:             smNode.Status,
+				ContentUnits:       make([]semanticapp.ProposalContentUnitNode, 0, len(smNode.ContentUnits)),
+				CreativeReferences: make([]semanticapp.ProposalCreativeRefNode, 0, len(smNode.CreativeReferences)),
+				AssetSlots:         make([]semanticapp.ProposalAssetSlotNode, 0, len(smNode.AssetSlots)),
+			}
+			for _, cuNode := range smNode.ContentUnits {
+				sm.ContentUnits = append(sm.ContentUnits, semanticapp.ProposalContentUnitNode{
+					Action:      cuNode.Action,
+					ID:          cuNode.ID,
+					ClientID:    cuNode.ClientID,
+					Title:       cuNode.Title,
+					Kind:        cuNode.Kind,
+					Description: cuNode.Description,
+					ShotSize:    cuNode.ShotSize,
+					CameraAngle: cuNode.CameraAngle,
+					DurationSec: cuNode.DurationSec,
+					Order:       cuNode.Order,
+					Status:      cuNode.Status,
+				})
+			}
+			for _, crNode := range smNode.CreativeReferences {
+				var state *semanticapp.ProposalCreativeRefState
+				if crNode.State != nil {
+					state = &semanticapp.ProposalCreativeRefState{
+						Costume:     crNode.State.Costume,
+						Emotion:     crNode.State.Emotion,
+						Props:       crNode.State.Props,
+						VisualNotes: crNode.State.VisualNotes,
+					}
+				}
+				sm.CreativeReferences = append(sm.CreativeReferences, semanticapp.ProposalCreativeRefNode{
+					Action:   crNode.Action,
+					ID:       crNode.ID,
+					ClientID: crNode.ClientID,
+					Name:     crNode.Name,
+					Kind:     crNode.Kind,
+					Role:     crNode.Role,
+					State:    state,
+				})
+			}
+			for _, asNode := range smNode.AssetSlots {
+				sm.AssetSlots = append(sm.AssetSlots, semanticapp.ProposalAssetSlotNode{
+					Action:      asNode.Action,
+					ID:          asNode.ID,
+					ClientID:    asNode.ClientID,
+					Name:        asNode.Name,
+					Kind:        asNode.Kind,
+					Description: asNode.Description,
+					Priority:    asNode.Priority,
+				})
+			}
+			seg.SceneMoments = append(seg.SceneMoments, sm)
+		}
+		out.Segments = append(out.Segments, seg)
 	}
-	return s
-}
-
-func fallbackInt(v, def int) int {
-	if v == 0 {
-		return def
-	}
-	return v
+	return out
 }

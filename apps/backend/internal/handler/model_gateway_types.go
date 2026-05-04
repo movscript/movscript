@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/movscript/movscript/internal/ai"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
@@ -11,12 +12,13 @@ import (
 const defaultGatewayChatModel = "movscript-default-chat"
 
 type ModelGatewayHandler struct {
-	db  *gorm.DB
-	svc *ai.AIService
+	db      *gorm.DB
+	svc     *ai.AIService
+	service *modelgatewayapp.Service
 }
 
 func NewModelGatewayHandler(db *gorm.DB, svc *ai.AIService) *ModelGatewayHandler {
-	return &ModelGatewayHandler{db: db, svc: svc}
+	return &ModelGatewayHandler{db: db, svc: svc, service: modelgatewayapp.NewService(db)}
 }
 
 type chatCompletionRequest struct {

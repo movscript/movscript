@@ -12,19 +12,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/ai"
+	debugapp "github.com/movscript/movscript/internal/app/debug"
 	"github.com/movscript/movscript/internal/crypto"
 	"github.com/movscript/movscript/internal/model"
 	"gorm.io/gorm"
 )
 
 type DebugHandler struct {
-	db            *gorm.DB
 	encryptionKey []byte
 	registry      *ai.Registry
+	service       *debugapp.Service
 }
 
 func NewDebugHandler(db *gorm.DB, encryptionKey []byte, registry *ai.Registry) *DebugHandler {
-	return &DebugHandler{db: db, encryptionKey: encryptionKey, registry: registry}
+	return &DebugHandler{encryptionKey: encryptionKey, registry: registry, service: debugapp.NewService(db)}
 }
 
 // RawCall sends an arbitrary HTTP request from the backend and returns full details.
@@ -50,8 +51,7 @@ func (h *DebugHandler) RawCall(c *gin.Context) {
 
 	// If a credential is specified, inject auth headers.
 	if req.CredentialID != nil {
-		var cred model.AICredential
-		if err := h.db.First(&cred, *req.CredentialID).Error; err == nil {
+		if cred, err := h.service.GetCredential(c.Request.Context(), *req.CredentialID); err == nil {
 			apiKey := ""
 			if cred.EncryptedKey != "" {
 				if plain, err := crypto.Decrypt(cred.EncryptedKey, h.encryptionKey); err == nil {
@@ -156,25 +156,19 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 		offset = 0
 	}
 
-	q := h.db.Model(&model.Job{}).
-		Preload("OutputResource")
-	if status != "" {
-		q = q.Where("status = ?", status)
-	}
-
-	var total int64
-	q.Count(&total)
-
-	var jobs []model.Job
-	q.Order("id DESC").Limit(limit).Offset(offset).Find(&jobs)
-
 	type jobDetail struct {
 		model.Job
 		DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
 	}
 
-	out := make([]jobDetail, 0, len(jobs))
-	for _, j := range jobs {
+	page, err := h.service.ListJobs(c.Request.Context(), status, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	out := make([]jobDetail, 0, len(page.Items))
+	for _, j := range page.Items {
 		d := jobDetail{Job: j}
 		if j.DebugInfo != "" {
 			var dr ai.DebugCallResult
@@ -184,7 +178,7 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 		}
 		out = append(out, d)
 	}
-	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
+	c.Header("X-Total-Count", strconv.FormatInt(page.Total, 10))
 	c.JSON(http.StatusOK, out)
 }
 
@@ -229,8 +223,8 @@ func (h *DebugHandler) ProviderCall(c *gin.Context) {
 // GET /admin/debug/jobs/:id
 func (h *DebugHandler) GetJob(c *gin.Context) {
 	id := c.Param("id")
-	var job model.Job
-	if err := h.db.Preload("OutputResource").First(&job, id).Error; err != nil {
+	job, err := h.service.GetJob(c.Request.Context(), id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
 		return
 	}

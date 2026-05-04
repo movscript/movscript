@@ -244,6 +244,13 @@ func fallbackString(value string, fallback string) string {
 	return fallback
 }
 
+func fallbackInt(value int, fallback int) int {
+	if value != 0 {
+		return value
+	}
+	return fallback
+}
+
 func compactUpdates(values map[string]any) map[string]any {
 	updates := map[string]any{}
 	for key, value := range values {
