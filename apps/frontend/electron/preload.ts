@@ -6,6 +6,12 @@ contextBridge.exposeInMainWorld('api', {
   saveFile: (defaultPath?: string) => ipcRenderer.invoke('dialog:saveFile', defaultPath),
   updateMCPContext: (snapshot: unknown) => ipcRenderer.invoke('mcp:update-context', snapshot),
   setAppSettings: (settings: AppSettings) => ipcRenderer.invoke('app:set-settings', settings),
+  onBackendStatus: (handler: (status: unknown) => void) => {
+    const listener = (_event: unknown, status: unknown) => handler(status)
+    ipcRenderer.on('backend:status', listener)
+    return () => ipcRenderer.removeListener('backend:status', listener)
+  },
+  getBackendStatus: () => ipcRenderer.invoke('backend:get-status'),
   ensureProductionRuntime: (input?: { baseURL?: string }) => ipcRenderer.invoke('agent:ensure-running', input),
   onMCPOpenRoute: (handler: (route: string) => void) => {
     const listener = (_event: unknown, route: string) => handler(route)

@@ -1,4 +1,5 @@
 const DEFAULT_API_ORIGIN = 'http://localhost:8765'
+const LOCAL_API_ORIGIN = 'http://localhost:8766'
 export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
 
 export interface AppSettings {
@@ -42,6 +43,10 @@ export function isLocalLaunchMode(settings?: Pick<AppSettings, 'launchMode'> | n
 
 export function getDefaultAPIBaseURL(): string {
   return normalizeAPIBaseURL(import.meta.env.VITE_API_BASE_URL || DEFAULT_API_ORIGIN)
+}
+
+export function getLocalAPIBaseURL(): string {
+  return normalizeAPIBaseURL(import.meta.env.VITE_LOCAL_API_BASE_URL || LOCAL_API_ORIGIN)
 }
 
 export function getAPIBaseURL(): string {

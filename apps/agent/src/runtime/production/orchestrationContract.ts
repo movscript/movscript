@@ -1,3 +1,5 @@
+import type { AgentRuntimeContract } from '../contracts/runtimeContract.js'
+
 export const PRODUCTION_ORCHESTRATE_ANALYZER_ID = 'production-orchestrate-analyzer'
 
 export const PRODUCTION_ORCHESTRATION_OUTPUT_SCHEMA = {
@@ -340,4 +342,25 @@ export const PROPOSE_PRODUCTION_ENTITIES_SCHEMA = {
 
 export function isProductionOrchestrationAnalyzer(manifestId?: string): boolean {
   return manifestId === PRODUCTION_ORCHESTRATE_ANALYZER_ID
+}
+
+export const PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT: AgentRuntimeContract = {
+  id: PRODUCTION_ORCHESTRATE_ANALYZER_ID,
+  matches: (manifest) => isProductionOrchestrationAnalyzer(manifest.id),
+  structuredContract: PRODUCTION_ORCHESTRATION_CONTRACT,
+  toolSchemas: {
+    movscript_read_production_context: READ_PRODUCTION_CONTEXT_SCHEMA,
+    movscript_check_entity_conflicts: CHECK_ENTITY_CONFLICTS_SCHEMA,
+    movscript_propose_production_entities: PROPOSE_PRODUCTION_ENTITIES_SCHEMA,
+  },
+  requiresConfiguredModel: true,
+  requiresStructuredJSON: true,
+  commandOverride: ({ userMessage }) => ({
+    name: 'chat',
+    payload: userMessage,
+    contextProfile: 'production_context',
+    outputMode: 'json',
+    requiredTools: [],
+    systemContract: 'Production orchestration analyzer run.',
+  }),
 }

@@ -12,12 +12,9 @@ import type { RuntimeModelChatMessage, RuntimeModelChatTool } from '../model/mod
 import { parseAgentCommand, type AgentCommandRuntime } from '../commands/commandRouter.js'
 import { renderDebugContextText, renderMemoriesText, renderToolCatalogText } from '../contextText.js'
 import {
-  CHECK_ENTITY_CONFLICTS_SCHEMA,
-  PRODUCTION_ORCHESTRATION_CONTRACT,
-  PROPOSE_PRODUCTION_ENTITIES_SCHEMA,
-  READ_PRODUCTION_CONTEXT_SCHEMA,
-  isProductionOrchestrationAnalyzer,
-} from '../production/orchestrationContract.js'
+  EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+  type AgentRuntimeContractResolver,
+} from '../contracts/runtimeContract.js'
 
 export interface ContextBuilderInput {
   manifest: AgentManifest
@@ -30,6 +27,7 @@ export interface ContextBuilderInput {
   history: AgentMessage[]
   userMessage: string
   command?: AgentCommandRuntime
+  contractResolver?: AgentRuntimeContractResolver
 }
 
 export interface BuiltContext {
@@ -42,6 +40,8 @@ export interface BuiltContext {
 export function buildContext(input: ContextBuilderInput): BuiltContext {
   const debugParts: CompiledPromptPreview['debugParts'] = []
   const command = input.command ?? parseAgentCommand(input.userMessage)
+  const contractResolver = input.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
+  const runtimeContract = contractResolver.find(input.manifest)
 
   // --- Context ---
   debugParts.push({
@@ -82,8 +82,8 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   if (input.manifest.soul) {
     identityLines.push('', '[Agent-specific output contract]', input.manifest.soul)
   }
-  if (isProductionOrchestrationAnalyzer(input.manifest.id)) {
-    identityLines.push('', '[Production orchestration structured contract]', PRODUCTION_ORCHESTRATION_CONTRACT)
+  if (runtimeContract?.structuredContract) {
+    identityLines.push('', '[Runtime structured contract]', runtimeContract.structuredContract)
   }
   debugParts.push({
     id: 'agent.identity',
@@ -169,7 +169,10 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   return { messages, systemPrompt, systemMessages, debugParts }
 }
 
-export function buildOpenAIChatTools(catalog: ResolvedToolCatalog): RuntimeModelChatTool[] {
+export function buildOpenAIChatTools(
+  catalog: ResolvedToolCatalog,
+  contract?: ReturnType<AgentRuntimeContractResolver['find']>,
+): RuntimeModelChatTool[] {
   return catalog.available.map((tool) => ({
     type: 'function' as const,
     function: {
@@ -180,9 +183,7 @@ export function buildOpenAIChatTools(catalog: ResolvedToolCatalog): RuntimeModel
       ...(tool.inputSchema === undefined && tool.name === 'movscript_search_memories' ? { parameters: SEARCH_MEMORIES_TOOL_SCHEMA } : {}),
       ...(tool.inputSchema === undefined && tool.name === 'movscript_create_project' ? { parameters: CREATE_PROJECT_TOOL_SCHEMA } : {}),
       ...(tool.inputSchema === undefined && tool.name === 'movscript_create_script' ? { parameters: CREATE_SCRIPT_TOOL_SCHEMA } : {}),
-      ...(tool.inputSchema === undefined && tool.name === 'movscript_read_production_context' ? { parameters: READ_PRODUCTION_CONTEXT_SCHEMA } : {}),
-      ...(tool.inputSchema === undefined && tool.name === 'movscript_check_entity_conflicts' ? { parameters: CHECK_ENTITY_CONFLICTS_SCHEMA } : {}),
-      ...(tool.inputSchema === undefined && tool.name === 'movscript_propose_production_entities' ? { parameters: PROPOSE_PRODUCTION_ENTITIES_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && contract?.toolSchemas?.[tool.name] ? { parameters: contract.toolSchemas[tool.name] } : {}),
     },
   }))
 }

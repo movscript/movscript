@@ -52,6 +52,7 @@ docker compose up -d db minio createbuckets
 ```
 
 This starts PostgreSQL on `localhost:5432`, MinIO on `localhost:9000`, and the MinIO console on `localhost:9001`.
+Frontend-managed local mode uses SQLite on `localhost:8766` and can run alongside a separately started backend on `localhost:8765`.
 
 ### 3. Configure the Backend
 

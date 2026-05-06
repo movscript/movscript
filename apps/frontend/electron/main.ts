@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { getBackendLaunchPolicy, startBackend, stopBackend } from './backend'
+import { getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
 import { ensureProductionRuntimeRunning, setProductionRuntimeAPIBaseURL, stopProductionRuntime } from './productionRuntime'
 import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
@@ -44,6 +44,12 @@ function createWindow(): void {
   })
 }
 
+function broadcastBackendStatus(status: BackendStatus): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('backend:status', status)
+  }
+}
+
 async function startProductionRuntimeOnAppReady(): Promise<void> {
   const status = await ensureProductionRuntimeRunning()
   if (!status.ok) {
@@ -54,7 +60,6 @@ async function startProductionRuntimeOnAppReady(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  await startBackend(getBackendLaunchPolicy())
   await startMCPServer()
   void startProductionRuntimeOnAppReady()
   createWindow()
@@ -67,7 +72,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', async () => {
   await stopProductionRuntime()
   await stopMCPServer()
-  await stopBackend()
+  await stopBackend(broadcastBackendStatus)
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -85,11 +90,16 @@ ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
   updateMCPContextSnapshot(snapshot)
 })
 
+ipcMain.handle('backend:get-status', () => {
+  return getBackendStatus()
+})
+
 ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; launchMode?: 'cloud' | 'local' }) => {
   if (settings?.launchMode === 'local') {
-    await startBackend('spawn')
+    broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
+    await startBackend('spawn', broadcastBackendStatus)
   } else if (settings?.launchMode === 'cloud') {
-    await stopBackend()
+    await stopBackend(broadcastBackendStatus)
   }
   if (!settings?.apiBaseURL) return
   setMCPAPIBaseURL(settings.apiBaseURL)

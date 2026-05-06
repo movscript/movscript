@@ -21,7 +21,10 @@ import { buildApplyDraftPreview, rejectDraft } from './store/draftApply.js'
 import { BackendApplyClient } from './store/backendApplyClient.js'
 import { runAgentGraph } from './loop/agentGraph.js'
 import { buildContext, buildPromptPreview } from './loop/contextBuilder.js'
-import { isProductionOrchestrationAnalyzer } from './production/orchestrationContract.js'
+import {
+  EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+  type AgentRuntimeContractResolver,
+} from './contracts/runtimeContract.js'
 import type {
   AgentApprovalRequest,
   AgentInputRequest,
@@ -127,6 +130,7 @@ export class AgentRuntime {
   private readonly defaultAgentManifest: AgentManifest
   private readonly skillCatalog: AgentManifest['skills']
   private readonly toolRegistry: ToolRegistry
+  private readonly contractResolver: AgentRuntimeContractResolver
   private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private readonly pluginWarnings: string[]
   private readonly runAuth = new Map<string, string>()
@@ -141,6 +145,7 @@ export class AgentRuntime {
     this.defaultAgentManifest = options.defaultAgentManifest ?? DEFAULT_AGENT_MANIFEST
     this.skillCatalog = options.skillCatalog ?? []
     this.toolRegistry = options.toolRegistry ?? DEFAULT_TOOL_REGISTRY
+    this.contractResolver = options.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
     this.pluginCatalogInfo = options.pluginCatalogInfo
     this.pluginWarnings = options.pluginWarnings ?? []
   }
@@ -911,7 +916,9 @@ export class AgentRuntime {
         backendApplyClient: this.backendApplyClient,
         registry: this.toolRegistry,
         memoryManager: this.memoryManager,
-        ...(isProductionOrchestrationAnalyzer(agentManifest.id) ? { command: { name: 'chat', payload: lastUser.content, contextProfile: 'production_context', outputMode: 'json', requiredTools: [], systemContract: 'Production orchestration analyzer run.' } } : {}),
+        ...(this.contractResolver.find(agentManifest)?.commandOverride
+          ? { command: this.contractResolver.find(agentManifest)?.commandOverride?.({ userMessage: lastUser.content, manifest: agentManifest }) }
+          : {}),
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
         ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),
         onTrace: (traceInput) => {

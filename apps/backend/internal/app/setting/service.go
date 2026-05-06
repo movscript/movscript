@@ -206,7 +206,14 @@ func (s *Service) UpdateRelationship(ctx context.Context, id uint, input dto.Set
 }
 
 func (s *Service) DeleteRelationship(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Delete(&model.SettingRelationship{}, id).Error
+	var item model.SettingRelationship
+	if err := s.db.WithContext(ctx).First(&item, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return s.db.WithContext(ctx).Delete(&item).Error
 }
 
 func normalizeSetting(item *model.Setting) {

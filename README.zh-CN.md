@@ -76,6 +76,7 @@ MOVSCRIPT_DATA_DIR=$HOME/.movscript
 ```
 
 此模式会把数据库写入 `$HOME/.movscript/movscript.db`，资源文件写入 `$HOME/.movscript/resources`，不需要启动 MinIO；SQLite 模式也不需要 PostgreSQL。
+前端托管的本地后端默认使用 `localhost:8766`，可以和单独启动的后端 `localhost:8765` 同时运行。
 
 ### 4. 启动后端和前端
 

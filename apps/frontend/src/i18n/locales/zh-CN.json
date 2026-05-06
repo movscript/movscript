@@ -169,7 +169,7 @@
     "cloudApiTitle": "服务 API",
     "cloudApiHint": "客户端登录、素材、项目和 Agent 请求都会连接到这个服务。",
     "apiBaseURL": "服务 API 地址",
-    "apiBaseURLHelp": "填写服务根地址即可，例如 http://localhost:8765 或 https://api.example.com；系统会自动使用 /api/v1。",
+    "apiBaseURLHelp": "云端或外部服务可使用 http://localhost:8765 或 https://api.example.com；前端托管的本地模式使用 http://localhost:8766。",
     "currentApi": "当前 API",
     "effectiveEndpoint": "实际接口",
     "invalidURL": "请输入以 http:// 或 https:// 开头的地址。",
@@ -185,6 +185,12 @@
     "showDeveloperTools": "显示开发者工具入口",
     "showDeveloperToolsHelp": "开启后会在侧边栏显示 Agent 调试入口；超级管理员始终可见。",
     "returnToLogin": "返回登录"
+  },
+  "backendBoot": {
+    "startingTitle": "正在启动本地工作区",
+    "startingDescription": "正在准备由前端托管的后端、SQLite 数据库和本地文件存储。",
+    "errorTitle": "本地后端启动失败",
+    "errorDescription": "请查看后端日志，或在应用设置中切换启动方式后重试。"
   },
   "domain": {
     "assetTypes": {

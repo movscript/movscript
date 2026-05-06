@@ -169,7 +169,7 @@
     "cloudApiTitle": "Service API",
     "cloudApiHint": "Login, assets, projects, and agent requests will use this service.",
     "apiBaseURL": "Service API URL",
-    "apiBaseURLHelp": "Enter the service root, such as http://localhost:8765 or https://api.example.com. The app will use /api/v1 automatically.",
+    "apiBaseURLHelp": "Cloud or external services can use http://localhost:8765 or https://api.example.com. Frontend-managed local mode uses http://localhost:8766.",
     "currentApi": "Current API",
     "effectiveEndpoint": "Effective endpoint",
     "invalidURL": "Enter a URL that starts with http:// or https://.",
@@ -185,6 +185,12 @@
     "showDeveloperTools": "Show developer tools entry",
     "showDeveloperToolsHelp": "When enabled, the sidebar shows Agent Debug. Super admins always see it.",
     "returnToLogin": "Back to login"
+  },
+  "backendBoot": {
+    "startingTitle": "Starting local workspace",
+    "startingDescription": "Preparing the frontend-managed backend, SQLite database, and local file storage.",
+    "errorTitle": "Local backend failed to start",
+    "errorDescription": "Check the backend logs and try switching modes from App Settings."
   },
   "domain": {
     "assetTypes": {

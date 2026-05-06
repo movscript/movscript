@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import {
   APP_SETTINGS_STORAGE_KEY,
   getDefaultAPIBaseURL,
+  getLocalAPIBaseURL,
   normalizeAPIBaseURL,
   type AppSettings,
 } from '@/lib/config'
@@ -31,7 +32,7 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
     launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
     onboardingCompleted: settings?.onboardingCompleted ?? defaultSettings.onboardingCompleted,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
-    apiBaseURL: normalizeAPIBaseURL(settings?.apiBaseURL || defaultSettings.apiBaseURL),
+    apiBaseURL: normalizeAPIBaseURL(settings?.apiBaseURL || (settings?.launchMode === 'local' ? getLocalAPIBaseURL() : defaultSettings.apiBaseURL)),
     showDeveloperTools: settings?.showDeveloperTools ?? defaultSettings.showDeveloperTools,
   }
 }
@@ -56,7 +57,12 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
         syncElectronSettings(next)
       },
       setLaunchMode: (launchMode) => {
-        const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, launchMode })
+        const current = useAppSettingsStore.getState().settings
+        const next = normalizeSettings({
+          ...current,
+          launchMode,
+          apiBaseURL: launchMode === 'local' ? getLocalAPIBaseURL() : current.apiBaseURL,
+        })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },

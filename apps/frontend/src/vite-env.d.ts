@@ -2,6 +2,13 @@
 
 import type { AppSettings } from '@/lib/config'
 
+type BackendStatus = {
+  state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
+  baseURL: string
+  pid?: number
+  message?: string
+}
+
 declare global {
   interface Window {
     api?: {
@@ -9,6 +16,8 @@ declare global {
       saveFile?: (defaultPath?: string) => Promise<string | null>
       updateMCPContext?: (snapshot: unknown) => Promise<void>
       setAppSettings?: (settings: AppSettings) => Promise<void>
+      onBackendStatus?: (handler: (status: BackendStatus) => void) => () => void
+      getBackendStatus?: () => Promise<BackendStatus>
       ensureProductionRuntime?: (input?: { baseURL?: string }) => Promise<{
         ok: boolean
         running: boolean

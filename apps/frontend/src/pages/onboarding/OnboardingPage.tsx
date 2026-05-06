@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { Cloud, HardDrive, Loader2, User } from 'lucide-react'
 import { Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
-import { APP_SETTINGS_STORAGE_KEY, getDefaultAPIBaseURL, normalizeAPIBaseURL } from '@/lib/config'
+import { APP_SETTINGS_STORAGE_KEY, getDefaultAPIBaseURL, getLocalAPIBaseURL, normalizeAPIBaseURL } from '@/lib/config'
 import { translateApiError } from '@/lib/apiError'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/store/userStore'
 
 type Mode = 'local' | 'cloud'
 
-const LOCAL_API_URL = 'http://localhost:8765'
+const LOCAL_API_URL = getLocalAPIBaseURL()
 
 export default function OnboardingPage() {
   const { t } = useTranslation()

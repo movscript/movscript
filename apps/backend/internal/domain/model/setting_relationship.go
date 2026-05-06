@@ -37,7 +37,7 @@ func syncSettingRelationshipRelations(tx *gorm.DB, item *SettingRelationship) er
 	}
 	category := strings.TrimSpace(item.Category)
 	if category == "" {
-		category = EntityRelationCategorySetting
+		category = "relationship"
 	}
 	return syncEntityRelations(tx, nil, []entityRelationSeed{{
 		ProjectID:    item.ProjectID,

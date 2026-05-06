@@ -4,6 +4,7 @@ import type { AgentManifest, AgentSkillManifest } from './manifest/agentManifest
 import type { RegisteredTool, ToolRiskLevel } from './tools/toolRegistry.js'
 import type { AgentDraftStore } from './store/draftStore.js'
 import type { BackendApplyClient } from './store/backendApplyClient.js'
+import type { AgentRuntimeContractResolver } from './contracts/runtimeContract.js'
 
 export type { JSONValue, MCPResource, MCPTool } from '../types.js'
 
@@ -401,6 +402,7 @@ export interface AgentRuntimeOptions {
   defaultAgentManifest?: AgentManifest
   skillCatalog?: AgentSkillManifest[]
   toolRegistry?: import('./tools/toolRegistry.js').ToolRegistry
+  contractResolver?: AgentRuntimeContractResolver
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
 }

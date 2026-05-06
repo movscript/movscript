@@ -44,6 +44,7 @@ import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
 import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
+import { Loader2 } from 'lucide-react'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -82,6 +83,65 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+type BackendBootStatus = {
+  state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
+  baseURL: string
+  pid?: number
+  message?: string
+}
+
+function isBackendBootStatus(value: unknown): value is BackendBootStatus {
+  if (!value || typeof value !== 'object') return false
+  const status = value as Partial<BackendBootStatus>
+  return status.state === 'idle'
+    || status.state === 'starting'
+    || status.state === 'ready'
+    || status.state === 'error'
+    || status.state === 'stopped'
+}
+
+function BackendBootOverlay() {
+  const settings = useAppSettingsStore((s) => s.settings)
+  const [status, setStatus] = React.useState<BackendBootStatus | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    const off = window.api?.onBackendStatus?.((next) => {
+      if (isBackendBootStatus(next)) setStatus(next)
+    })
+    void window.api?.getBackendStatus?.().then((next) => {
+      if (!disposed && isBackendBootStatus(next)) setStatus(next)
+    }).catch(() => {})
+    return () => {
+      disposed = true
+      off?.()
+    }
+  }, [])
+
+  if (settings.launchMode !== 'local') return null
+  if (!status || status.state === 'ready' || status.state === 'idle' || status.state === 'stopped') return null
+
+  const isError = status.state === 'error'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/92 px-6 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-lg">
+        <div className={`mx-auto mb-4 flex size-11 items-center justify-center rounded-md ${isError ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+          {isError ? <span className="text-lg font-semibold">!</span> : <Loader2 size={22} className="animate-spin" />}
+        </div>
+        <h2 className="text-sm font-semibold">
+          {isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
+        </h2>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          {isError ? (status.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
+        </p>
+        <p className="mt-4 truncate rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+          {status.baseURL}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function ProjectGuard({ children }: { children: React.ReactNode }) {
   const current = useProjectStore((s) => s.current)
@@ -172,6 +232,7 @@ export default function App() {
       <AppRouter>
         <MCPContextBridge />
         <Toaster />
+        <BackendBootOverlay />
         <Routes>
           <Route path="/invite/:token" element={<InvitePage />} />
           <Route path="/app/settings" element={<AppSettingsPage />} />
@@ -186,6 +247,7 @@ export default function App() {
     <AppRouter>
       <MCPContextBridge />
       <Toaster />
+      <BackendBootOverlay />
       <Routes>
         {/* Canvas editor is full-screen, no sidebar/header */}
         <Route path="/canvases/:id" element={<CanvasEditorPage />} />
