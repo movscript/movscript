@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
-import { ensureProductionRuntimeRunning, setProductionRuntimeAPIBaseURL, stopProductionRuntime } from './productionRuntime'
+import { ensureAgentRuntimeRunning, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
 import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
 
@@ -50,8 +50,8 @@ function broadcastBackendStatus(status: BackendStatus): void {
   }
 }
 
-async function startProductionRuntimeOnAppReady(): Promise<void> {
-  const status = await ensureProductionRuntimeRunning()
+async function startAgentRuntimeOnAppReady(): Promise<void> {
+  const status = await ensureAgentRuntimeRunning()
   if (!status.ok) {
     console.warn(`[agent] auto-start failed: ${status.error ?? 'unknown error'}`)
     return
@@ -61,7 +61,7 @@ async function startProductionRuntimeOnAppReady(): Promise<void> {
 
 app.whenReady().then(async () => {
   await startMCPServer()
-  void startProductionRuntimeOnAppReady()
+  void startAgentRuntimeOnAppReady()
   createWindow()
 
   app.on('activate', () => {
@@ -70,7 +70,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
-  await stopProductionRuntime()
+  await stopAgentRuntime()
   await stopMCPServer()
   await stopBackend(broadcastBackendStatus)
   if (process.platform !== 'darwin') app.quit()
@@ -103,9 +103,9 @@ ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; 
   }
   if (!settings?.apiBaseURL) return
   setMCPAPIBaseURL(settings.apiBaseURL)
-  await setProductionRuntimeAPIBaseURL(settings.apiBaseURL)
+  await setAgentRuntimeAPIBaseURL(settings.apiBaseURL)
 })
 
 ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {
-  return ensureProductionRuntimeRunning(input)
+  return ensureAgentRuntimeRunning(input)
 })

@@ -7,10 +7,10 @@ const DEFAULT_PRODUCTION_RUNTIME_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
 
 let proc: ChildProcess | null = null
-let startPromise: Promise<ProductionRuntimeStatus> | null = null
+let startPromise: Promise<AgentRuntimeStatus> | null = null
 let backendAPIBaseURL = normalizeBackendAPIBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || '')
 
-export interface ProductionRuntimeStatus {
+export interface AgentRuntimeStatus {
   ok: boolean
   running: boolean
   managed: boolean
@@ -20,16 +20,16 @@ export interface ProductionRuntimeStatus {
   error?: string
 }
 
-interface ProductionRuntimeLaunch {
+interface AgentRuntimeLaunch {
   command: string
   args: string[]
   cwd: string
   env?: Record<string, string>
 }
 
-export async function ensureProductionRuntimeRunning(input: { baseURL?: string } = {}): Promise<ProductionRuntimeStatus> {
+export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}): Promise<AgentRuntimeStatus> {
   const baseURL = normalizeBaseURL(input.baseURL)
-  const health = await getProductionRuntimeHealth(baseURL)
+  const health = await getAgentRuntimeHealth(baseURL)
   if (health.ok && health.supportsModelConfig) {
     return {
       ok: true,
@@ -56,30 +56,30 @@ export async function ensureProductionRuntimeRunning(input: { baseURL?: string }
   }
 
   if (startPromise) return startPromise
-  startPromise = startProductionRuntime(baseURL).finally(() => {
+  startPromise = startAgentRuntime(baseURL).finally(() => {
     startPromise = null
   })
   return startPromise
 }
 
-export async function stopProductionRuntime(): Promise<void> {
+export async function stopAgentRuntime(): Promise<void> {
   if (!proc) return
   proc.kill()
   proc = null
 }
 
-export async function setProductionRuntimeAPIBaseURL(apiBaseURL: string): Promise<void> {
+export async function setAgentRuntimeAPIBaseURL(apiBaseURL: string): Promise<void> {
   const next = normalizeBackendAPIBaseURL(apiBaseURL)
   if (next === backendAPIBaseURL) return
   backendAPIBaseURL = next
   process.env.MOVSCRIPT_BACKEND_API_BASE_URL = next
   process.env.MOVSCRIPT_API_BASE_URL = next
-  await stopProductionRuntime()
+  await stopAgentRuntime()
 }
 
-async function startProductionRuntime(baseURL: string): Promise<ProductionRuntimeStatus> {
+async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
   try {
-    const launch = resolveProductionRuntimeLaunch()
+    const launch = resolveAgentRuntimeLaunch()
     const port = resolvePort(baseURL)
     proc = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
@@ -102,7 +102,7 @@ async function startProductionRuntime(baseURL: string): Promise<ProductionRuntim
       proc = null
     })
 
-    await waitForProductionRuntime(baseURL, 10_000)
+    await waitForAgentRuntime(baseURL, 10_000)
     return {
       ok: true,
       running: true,
@@ -125,7 +125,7 @@ async function startProductionRuntime(baseURL: string): Promise<ProductionRuntim
   }
 }
 
-function resolveProductionRuntimeLaunch(): ProductionRuntimeLaunch {
+function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
   const roots = [
     join(app.getAppPath(), '..', 'agent'),
     join(process.cwd(), '..', 'agent'),
@@ -166,17 +166,17 @@ function resolveProductionRuntimeLaunch(): ProductionRuntimeLaunch {
   throw new Error('movscript-agent not found. Expected apps/agent in development or resources/movscript-agent/dist/server.js in packaged builds.')
 }
 
-async function waitForProductionRuntime(baseURL: string, timeoutMs: number): Promise<void> {
+async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const health = await getProductionRuntimeHealth(baseURL)
+    const health = await getAgentRuntimeHealth(baseURL)
     if (health.ok && health.supportsModelConfig) return
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
   throw new Error(`movscript-agent did not become healthy with model config support at ${baseURL} within ${timeoutMs}ms`)
 }
 
-async function getProductionRuntimeHealth(baseURL: string): Promise<{ ok: boolean; supportsModelConfig: boolean }> {
+async function getAgentRuntimeHealth(baseURL: string): Promise<{ ok: boolean; supportsModelConfig: boolean }> {
   try {
     const res = await fetch(`${baseURL}/health`)
     if (!res.ok) return { ok: false, supportsModelConfig: false }

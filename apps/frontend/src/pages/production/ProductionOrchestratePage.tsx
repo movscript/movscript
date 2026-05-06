@@ -44,7 +44,7 @@ import {
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { cn } from '@/lib/utils'
 import { listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
-import { LocalAgentClient, type AgentManifest, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentManifest, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
@@ -3907,7 +3907,7 @@ function AgentChatSidebar({
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
   const [showReceived, setShowReceived] = useState(false)
   const [proposalDraft, setProposalDraft] = useState<ProposalDraftContent | null>(null)
-  const agentClientRef = useRef(new LocalAgentClient())
+  const agentClientRef = useRef(localAgentClient)
 
   // When switching to manual mode, pre-fill with linked version content
   useEffect(() => {
@@ -4024,7 +4024,7 @@ function AgentChatSidebar({
   }
 
   async function tryReadProposalDraft(
-    client: LocalAgentClient,
+    client: typeof localAgentClient,
     projectId: number | undefined,
     productionId: number,
   ): Promise<{ kind: 'tree'; draft: ProposalDraftContent } | { kind: 'flat'; result: AIAnalysisResult } | { kind: 'none' }> {

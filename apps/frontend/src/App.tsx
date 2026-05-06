@@ -302,7 +302,7 @@ export default function App() {
               <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
               <Route path="/creative-workbench" element={<ProjectGuard><CreativeWorkbenchPage /></ProjectGuard>} />
               <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/workbench" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={true} /></ProjectGuard>} />
+              <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
               <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/production-plan" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/preview" element={<ProjectGuard><Navigate to="/workbench/production-plan" replace /></ProjectGuard>} />

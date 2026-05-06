@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('backend:status', listener)
   },
   getBackendStatus: () => ipcRenderer.invoke('backend:get-status'),
-  ensureProductionRuntime: (input?: { baseURL?: string }) => ipcRenderer.invoke('agent:ensure-running', input),
+  ensureAgentRuntime: (input?: { baseURL?: string }) => ipcRenderer.invoke('agent:ensure-running', input),
   onMCPOpenRoute: (handler: (route: string) => void) => {
     const listener = (_event: unknown, route: string) => handler(route)
     ipcRenderer.on('mcp:open-route', listener)

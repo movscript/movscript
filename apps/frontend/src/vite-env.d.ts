@@ -18,7 +18,7 @@ declare global {
       setAppSettings?: (settings: AppSettings) => Promise<void>
       onBackendStatus?: (handler: (status: BackendStatus) => void) => () => void
       getBackendStatus?: () => Promise<BackendStatus>
-      ensureProductionRuntime?: (input?: { baseURL?: string }) => Promise<{
+      ensureAgentRuntime?: (input?: { baseURL?: string }) => Promise<{
         ok: boolean
         running: boolean
         managed: boolean

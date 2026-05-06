@@ -566,7 +566,7 @@ const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
 ])
 
 export function canStartLocalAgentFromClient(): boolean {
-  return typeof window !== 'undefined' && typeof window.api?.ensureProductionRuntime === 'function'
+  return typeof window !== 'undefined' && typeof window.api?.ensureAgentRuntime === 'function'
 }
 
 export class LocalAgentClient {
@@ -588,12 +588,12 @@ export class LocalAgentClient {
     try {
       return await this.health()
     } catch (healthError) {
-      const ensureProductionRuntime = canStartLocalAgentFromClient() ? window.api?.ensureProductionRuntime : undefined
-      if (!ensureProductionRuntime) {
+      const ensureAgentRuntime = canStartLocalAgentFromClient() ? window.api?.ensureAgentRuntime : undefined
+      if (!ensureAgentRuntime) {
         throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter movscript-agent dev`)
       }
 
-      const status = await ensureProductionRuntime({ baseURL: this.baseURL })
+      const status = await ensureAgentRuntime({ baseURL: this.baseURL })
       if (!status.ok) {
         throw new Error(status.error || `failed to start agent at ${this.baseURL}`)
       }
