@@ -171,17 +171,17 @@ function LegacyAgentDebugRedirect() {
 
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const shell = (
-    <div className="flex h-screen bg-background text-foreground">
+    <div className="flex h-dvh w-dvw overflow-hidden bg-background text-foreground">
       <RedirectListener />
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header />
-        <main className="flex-1 min-h-0 overflow-hidden bg-muted/20 p-3">
-          <div className="flex h-full min-h-0 gap-3">
+        <main className="min-w-0 flex-1 min-h-0 overflow-hidden bg-muted/20 p-3">
+          <div className="flex h-full min-h-0 min-w-0 overflow-hidden gap-3">
             <div className="flex-1 min-w-0 overflow-hidden rounded-md border border-border bg-background">
               <RouteErrorBoundary>{children}</RouteErrorBoundary>
             </div>
-            <div className="h-full min-h-0 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm">
+            <div className="h-full min-h-0 min-w-0 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm">
               <AIAgentPanel />
             </div>
           </div>

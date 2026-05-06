@@ -15,8 +15,19 @@
   *::-webkit-scrollbar-track  { background: transparent; }
   *::-webkit-scrollbar-thumb  { background: hsl(var(--border)); border-radius: 2px; }
   *::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.3); }
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: hsl(var(--background));
+  }
   body {
     @apply bg-background text-foreground;
+    margin: 0;
   }
 }
 
@@ -154,12 +165,20 @@
   }
 }
 
+.ai-agent-panel {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .ai-agent-panel-shell {
   grid-template-columns: minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-height: 0;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -178,16 +197,26 @@
 }
 
 .ai-agent-panel-shell .ms-agent-header__content {
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .ai-agent-panel-shell .ms-agent-header__actions {
   min-width: 0;
   max-width: 48%;
   gap: 6px;
+  overflow: hidden;
 }
 
 .ai-agent-panel-shell .ms-agent-title {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   line-height: 20px;
 }
@@ -213,6 +242,7 @@
 .ai-agent-panel-shell .ms-agent-thread {
   gap: 14px;
   padding: 14px 12px;
+  overflow-x: hidden;
 }
 
 .ai-agent-panel-shell .ms-agent-message {
@@ -257,6 +287,46 @@
   border-radius: 10px;
   padding: 8px;
   box-shadow: var(--ms-shadow-sm);
+}
+
+.ai-agent-panel-shell .ms-agent-conversation,
+.ai-agent-panel-shell .ms-agent-run-card,
+.ai-agent-panel-shell .ms-agent-tool,
+.ai-agent-panel-shell details,
+.ai-agent-panel-shell pre {
+  max-width: 100%;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__header,
+.ai-agent-panel-shell .ms-agent-tool__header {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__title,
+.ai-agent-panel-shell .ms-agent-tool__title,
+.ai-agent-panel-shell .ms-agent-instruction__title,
+.ai-agent-panel-shell .ms-agent-rail-section__title {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__meta {
+  min-width: 0;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__field {

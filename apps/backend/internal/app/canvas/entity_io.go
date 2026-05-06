@@ -11,6 +11,7 @@ import (
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
 
 func (h *Service) completeEntityWriteTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, cv model.Canvas, portInputs canvasPortInputMap, user *model.User) map[string]canvasPortValue {
@@ -60,7 +61,7 @@ func (h *Service) completeEntityWriteTask(ctx context.Context, task *model.Canva
 }
 
 func ValidateCanvasProductionEntityWrite(kind string, portInputs canvasPortInputMap) error {
-	if kind != "asset_slot" && kind != "content_unit" {
+	if kind != domainworkflow.EntityKindAssetSlot && kind != domainworkflow.EntityKindContentUnit {
 		return fmt.Errorf("canvas can only write production media to asset_slot or content_unit entities")
 	}
 	for handle := range portInputs {
@@ -81,12 +82,12 @@ func ValidateCanvasProductionEntityWrite(kind string, portInputs canvasPortInput
 
 func canvasProductionWritePort(kind string, portID string) bool {
 	switch kind {
-	case "asset_slot":
+	case domainworkflow.EntityKindAssetSlot:
 		switch portID {
 		case "result", "image", "video", "audio", "reference", "resource_id", "locked_asset_slot_id", "candidates", "candidate_item":
 			return true
 		}
-	case "content_unit":
+	case domainworkflow.EntityKindContentUnit:
 		switch portID {
 		case "result", "image", "video", "audio":
 			return true
@@ -96,7 +97,7 @@ func canvasProductionWritePort(kind string, portID string) bool {
 }
 
 func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv model.Canvas, runID uint, userID uint, kind string, entityID uint, resourceID uint) {
-	if h == nil || cv.ProjectID == nil || kind != "asset_slot" || entityID == 0 || resourceID == 0 {
+	if h == nil || cv.ProjectID == nil || kind != domainworkflow.EntityKindAssetSlot || entityID == 0 || resourceID == 0 {
 		return
 	}
 	_ = h.canvasRepo().AttachGeneratedAssetSlotCandidate(ctx, AttachGeneratedAssetSlotCandidateInput{

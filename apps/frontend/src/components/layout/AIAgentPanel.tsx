@@ -1812,12 +1812,14 @@ function ChatView({
   userId,
   onBack,
   externalDraft,
+  pageToolRequestId,
   onExternalDraftConsumed,
 }: {
   conv: Conversation
   userId: string
   onBack: () => void
   externalDraft?: AgentPanelDraftPayload
+  pageToolRequestId?: string
   onExternalDraftConsumed?: () => void
 }) {
   const { t } = useTranslation()
@@ -2116,7 +2118,7 @@ function ChatView({
       ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
       clientInput,
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
-      ...(options.requestId ? { requestId: options.requestId } : {}),
+      ...((options.requestId ?? pageToolRequestId) ? { requestId: options.requestId ?? pageToolRequestId } : {}),
       ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
       diagnosticCommand,
     }
@@ -2208,6 +2210,7 @@ function ChatView({
     activeModel,
     contextLabels,
     userId,
+    pageToolRequestId,
   ])
 
   const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {
@@ -2823,6 +2826,7 @@ function BuiltinChat({ userId }: { userId: string }) {
     updateConversationTitle,
   } = useAgentStore()
   const [externalDrafts, setExternalDrafts] = useState<Record<string, AgentPanelDraftPayload>>({})
+  const [pageToolRequestIds, setPageToolRequestIds] = useState<Record<string, string>>({})
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
@@ -2852,10 +2856,11 @@ function BuiltinChat({ userId }: { userId: string }) {
   useEffect(() => {
     const pending = consumeAgentPanelDraft()
     if (!pending?.message?.trim()) return
-    const convId = getActiveConversationId(userId) ?? createConversation(userId)
+    const convId = pending.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
     if (pending.title) updateConversationTitle(userId, convId, pending.title)
     if (pending.mode) useAgentStore.getState().updateSettings({ mode: pending.mode })
     setActiveConversation(userId, convId)
+    if (pending.requestId) setPageToolRequestIds((current) => ({ ...current, [convId]: pending.requestId! }))
     setExternalDrafts((current) => ({ ...current, [convId]: pending }))
   }, [createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
 
@@ -2863,10 +2868,11 @@ function BuiltinChat({ userId }: { userId: string }) {
     function handleDraft(event: Event) {
       const detail = (event as CustomEvent<AgentPanelDraftPayload>).detail
       if (!detail?.message?.trim()) return
-      const convId = getActiveConversationId(userId) ?? createConversation(userId)
+      const convId = detail.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
       if (detail.title) updateConversationTitle(userId, convId, detail.title)
       if (detail.mode) useAgentStore.getState().updateSettings({ mode: detail.mode })
       setActiveConversation(userId, convId)
+      if (detail.requestId) setPageToolRequestIds((current) => ({ ...current, [convId]: detail.requestId! }))
       setExternalDrafts((current) => ({ ...current, [convId]: detail }))
     }
 
@@ -2882,6 +2888,7 @@ function BuiltinChat({ userId }: { userId: string }) {
           userId={userId}
           onBack={() => setActiveConversation(userId, null)}
           externalDraft={externalDrafts[activeConv.id]}
+          pageToolRequestId={pageToolRequestIds[activeConv.id]}
           onExternalDraftConsumed={() => {
             setExternalDrafts((current) => {
               const next = { ...current }
@@ -2963,8 +2970,8 @@ export function AIAgentPanel() {
 
   return (
     <div className={cn(
-      'ai-agent-panel h-full shrink-0 bg-background flex flex-col overflow-hidden transition-all duration-200',
-      open ? 'w-[420px]' : 'w-11'
+      'ai-agent-panel h-full min-w-0 shrink-0 bg-background flex flex-col overflow-hidden transition-all duration-200',
+      open ? 'w-[clamp(280px,40vw,420px)]' : 'w-11'
     )}>
       <div className="flex items-center h-11 border-b border-border shrink-0 px-2.5 gap-2">
         <button

@@ -184,7 +184,7 @@ func (s *EntityIOService) readRelatedDetailValues(ctx context.Context, kind stri
 }
 
 func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string, id uint, field domainworkflow.EntitySemanticField) ([]map[string]any, error) {
-	if kind == "asset_slot" && field.ID == "candidates" {
+	if kind == domainworkflow.EntityKindAssetSlot && field.ID == "candidates" {
 		candidates, err := s.repo.ListAssetSlotCandidates(ctx, id)
 		if err != nil {
 			return nil, err

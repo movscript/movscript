@@ -3,6 +3,7 @@ package org
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
@@ -47,5 +48,27 @@ func TestNewPersonalOrgUsesStableSlugFallback(t *testing.T) {
 	org := NewPersonalOrg(user, true)
 	if org.Slug != "alice-7" || !org.IsPersonal || org.CreatedBy != 7 {
 		t.Fatalf("unexpected personal org: %+v", org)
+	}
+}
+
+func TestNewInvitationAppliesDefaultRole(t *testing.T) {
+	expiresAt := time.Unix(100, 0)
+	inv := NewInvitation(1, "token", "", "hello", 2, expiresAt)
+	if inv.OrgID != 1 || inv.Token != "token" || inv.Role != RoleMember || inv.Note != "hello" || inv.CreatedBy != 2 || !inv.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("unexpected invitation: %+v", inv)
+	}
+}
+
+func TestNewUserGroupTrimsName(t *testing.T) {
+	group := NewUserGroup(1, " Team ")
+	if group.OrgID != 1 || group.Name != "Team" {
+		t.Fatalf("unexpected group: %+v", group)
+	}
+}
+
+func TestGroupMemberLinksGroupAndUser(t *testing.T) {
+	member := GroupMember(1, 2)
+	if member.GroupID != 1 || member.UserID != 2 {
+		t.Fatalf("unexpected group member: %+v", member)
 	}
 }

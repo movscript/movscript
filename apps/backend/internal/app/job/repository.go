@@ -153,10 +153,10 @@ func (r *gormRepository) Retry(ctx context.Context, job *model.Job, message stri
 	now := time.Now()
 	maxAttempts := job.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = DefaultMaxAttempts
+		maxAttempts = domainjob.DefaultMaxAttempts
 	}
 	if err := r.db.WithContext(ctx).Model(job).Updates(map[string]any{
-		"status":                StatusPending,
+		"status":                domainjob.StatusPending,
 		"attempt_count":         0,
 		"max_attempts":          maxAttempts,
 		"error_msg":             "",
@@ -184,7 +184,7 @@ func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint
 	}
 	now := time.Now()
 	if err := r.db.WithContext(ctx).Model(&job).Updates(map[string]any{
-		"status":               StatusCancelled,
+		"status":               domainjob.StatusCancelled,
 		"provider_task_status": providerStatus,
 		"error_msg":            message,
 		"next_run_at":          nil,
@@ -204,10 +204,10 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID
 		return job, false, err
 	}
 	releaseReservation := false
-	if job.Status == StatusPending {
+	if job.Status == domainjob.StatusPending {
 		now := time.Now()
 		if err := r.db.WithContext(ctx).Model(&job).Updates(map[string]any{
-			"status":            StatusCancelled,
+			"status":            domainjob.StatusCancelled,
 			"error_msg":         "cancelled by user",
 			"finished_at":       &now,
 			"next_run_at":       nil,
@@ -218,7 +218,7 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID
 			return job, false, err
 		}
 		releaseReservation = job.UsageReservationID != nil
-	} else if job.Status == StatusRunning {
+	} else if job.Status == domainjob.StatusRunning {
 		return job, false, ErrRunningJobMustCancelDelete
 	} else if err := r.db.WithContext(ctx).Delete(&job).Error; err != nil {
 		return job, false, err

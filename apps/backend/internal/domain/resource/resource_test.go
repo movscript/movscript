@@ -41,6 +41,35 @@ func TestParseListFilters(t *testing.T) {
 	}
 }
 
+func TestNewUploadedResourceDerivesType(t *testing.T) {
+	folderID := uint(3)
+	item := NewUploadedResource(NewUploadedResourceSpec{
+		OwnerID:        1,
+		FolderID:       &folderID,
+		Name:           "clip.webm",
+		MimeType:       "",
+		Size:           12,
+		StorageBackend: "local",
+	})
+	if item.OwnerID != 1 || item.FolderID == nil || *item.FolderID != folderID || item.Type != "video" || item.FilePath != "" || item.StorageBackend != "local" {
+		t.Fatalf("unexpected uploaded resource: %+v", item)
+	}
+}
+
+func TestNewStoredGeneratedResourceAppliesPendingPathAndKey(t *testing.T) {
+	item := NewStoredGeneratedResource(NewStoredGeneratedResourceSpec{
+		OwnerID:        1,
+		Name:           "image.png",
+		MimeType:       "image/png",
+		Size:           12,
+		StorageBackend: "local",
+		StorageKey:     "canvas/key",
+	})
+	if item.Type != "image" || item.FilePath != "pending" || item.StorageKey != "canvas/key" {
+		t.Fatalf("unexpected generated resource: %+v", item)
+	}
+}
+
 func TestInOrgScopeAllowsLegacyPersonalOnlyForOwner(t *testing.T) {
 	orgID := uint(9)
 	if !InOrgScope(nil, &orgID, 7, 7, true) {

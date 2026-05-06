@@ -47,6 +47,34 @@ type InputResourcesResult struct {
 	VideoCount int
 }
 
+type NewQueuedJobSpec struct {
+	UserID             uint
+	OrgID              *uint
+	ModelConfigID      uint
+	JobType            string
+	FeatureKey         string
+	Prompt             string
+	ExtraParams        string
+	AspectRatio        string
+	Duration           int
+	RequestContext     string
+	InputResourceID    *uint
+	InputResourceIDs   string
+	UsageReservationID *uint
+	ProjectID          *uint
+}
+
+// Job status constants match the jobs.status DB column values.
+const (
+	StatusPending   = "pending"
+	StatusRunning   = "running"
+	StatusSucceeded = "succeeded"
+	StatusFailed    = "failed"
+	StatusCancelled = "cancelled"
+)
+
+const DefaultMaxAttempts = 3
+
 type contextSnapshot struct {
 	Model          modelSnapshot      `json:"model"`
 	JobType        string             `json:"job_type"`
@@ -93,6 +121,27 @@ func BuildListSpec(filter ListFilter) ListSpec {
 		spec.JobTypes = []string{}
 	}
 	return spec
+}
+
+func NewQueuedJob(spec NewQueuedJobSpec) model.Job {
+	return model.Job{
+		UserID:             spec.UserID,
+		OrgID:              spec.OrgID,
+		ModelConfigID:      spec.ModelConfigID,
+		JobType:            spec.JobType,
+		FeatureKey:         spec.FeatureKey,
+		Status:             StatusPending,
+		MaxAttempts:        DefaultMaxAttempts,
+		Prompt:             spec.Prompt,
+		ExtraParams:        spec.ExtraParams,
+		AspectRatio:        spec.AspectRatio,
+		Duration:           spec.Duration,
+		RequestContext:     spec.RequestContext,
+		InputResourceID:    spec.InputResourceID,
+		InputResourceIDs:   spec.InputResourceIDs,
+		UsageReservationID: spec.UsageReservationID,
+		ProjectID:          spec.ProjectID,
+	}
 }
 
 func CountInputResources(resources []model.RawResource) InputResourcesResult {

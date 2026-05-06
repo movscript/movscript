@@ -132,15 +132,7 @@ func (s *Service) CreateInvitation(ctx context.Context, caller model.Organizatio
 	if err != nil {
 		return model.OrgInvitation{}, err
 	}
-	role := domainorg.DefaultMemberRole(input.Role)
-	inv := model.OrgInvitation{
-		OrgID:     caller.OrgID,
-		Token:     token,
-		Role:      role,
-		Note:      input.Note,
-		CreatedBy: creatorID,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-	}
+	inv := domainorg.NewInvitation(caller.OrgID, token, input.Role, input.Note, creatorID, time.Now().Add(7*24*time.Hour))
 	return s.repo.CreateInvitation(ctx, inv)
 }
 
@@ -226,7 +218,7 @@ func (s *Service) CreateGroup(ctx context.Context, caller model.OrganizationMemb
 	if !IsAdminOrAbove(caller.Role) {
 		return model.UserGroup{}, ErrForbidden
 	}
-	group := model.UserGroup{OrgID: caller.OrgID, Name: input.Name}
+	group := domainorg.NewUserGroup(caller.OrgID, input.Name)
 	return s.repo.CreateGroup(ctx, group)
 }
 
@@ -234,7 +226,7 @@ func (s *Service) AddGroupMember(ctx context.Context, caller model.OrganizationM
 	if !IsAdminOrAbove(caller.Role) {
 		return model.UserGroupMember{}, ErrForbidden
 	}
-	gm := model.UserGroupMember{GroupID: groupID, UserID: userID}
+	gm := domainorg.GroupMember(groupID, userID)
 	return s.repo.CreateGroupMember(ctx, gm)
 }
 

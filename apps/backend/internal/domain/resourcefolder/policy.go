@@ -1,6 +1,61 @@
 package resourcefolder
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+
+	"github.com/movscript/movscript/internal/domain/model"
+)
+
+const (
+	PermissionRead  = "read"
+	PermissionWrite = "write"
+)
+
+type NewFolderSpec struct {
+	OwnerID        uint
+	OrgID          *uint
+	Name           string
+	ParentID       *uint
+	StorageBackend string
+	IsShared       bool
+}
+
+func NewFolder(spec NewFolderSpec) model.ResourceFolder {
+	return model.ResourceFolder{
+		OwnerID:        spec.OwnerID,
+		OrgID:          spec.OrgID,
+		Name:           strings.TrimSpace(spec.Name),
+		ParentID:       spec.ParentID,
+		StorageBackend: strings.TrimSpace(spec.StorageBackend),
+		IsShared:       spec.IsShared,
+	}
+}
+
+func NormalizePermission(permission string) string {
+	permission = strings.TrimSpace(strings.ToLower(permission))
+	if permission == "" {
+		return PermissionRead
+	}
+	return permission
+}
+
+func ValidPermission(permission string) bool {
+	switch permission {
+	case PermissionRead, PermissionWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+func NewPermission(folderID uint, userID uint, permission string) model.ResourceFolderPermission {
+	return model.ResourceFolderPermission{
+		FolderID:   folderID,
+		UserID:     userID,
+		Permission: NormalizePermission(permission),
+	}
+}
 
 func FolderInOrgScope(folderOrgID, currentOrgID *uint, ownerID uint, userID uint, includeLegacy bool) bool {
 	if SameOrg(folderOrgID, currentOrgID) {

@@ -278,9 +278,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileI
 func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput) (ChallengeStartResult, error) {
 	channel := strings.TrimSpace(input.Channel)
 	if channel == "" {
-		channel = "email"
+		channel = domainauth.ChallengeChannelEmail
 	}
-	if channel != "email" {
+	if channel != domainauth.ChallengeChannelEmail {
 		return ChallengeStartResult{}, ErrInvalidInput
 	}
 	target := normalizeEmail(input.Target)
@@ -292,19 +292,13 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	if err != nil {
 		return ChallengeStartResult{}, err
 	}
-	expiresIn := 10 * 60
-	challenge := model.AuthChallenge{
-		Channel:   channel,
-		Target:    target,
-		CodeHash:  sha256Hex(code),
-		ExpiresAt: time.Now().UTC().Add(time.Duration(expiresIn) * time.Second),
-	}
+	challenge := domainauth.NewAuthChallenge(channel, target, sha256Hex(code), time.Now().UTC())
 	if err := s.repo.CreateChallenge(ctx, &challenge); err != nil {
 		return ChallengeStartResult{}, err
 	}
 	return ChallengeStartResult{
 		ChallengeID: fmt.Sprint(challenge.ID),
-		ExpiresIn:   expiresIn,
+		ExpiresIn:   domainauth.ChallengeExpiresInSec,
 		DevCode:     code,
 	}, nil
 }
@@ -314,7 +308,7 @@ func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInpu
 	if err != nil {
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
-	if challenge.ConsumedAt != nil || !challenge.ExpiresAt.After(time.Now().UTC()) || challenge.Attempts >= 5 {
+	if !domainauth.ChallengeValidForVerification(challenge, time.Now().UTC()) {
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
 	if challenge.CodeHash != sha256Hex(strings.TrimSpace(input.Code)) {
@@ -350,13 +344,7 @@ func (s *Service) CreateSession(ctx context.Context, userID uint, ttl time.Durat
 		return "", time.Time{}, err
 	}
 	expiresAt := time.Now().UTC().Add(ttl)
-	session := model.AuthSession{
-		UserID:    userID,
-		TokenHash: sha256Hex(raw),
-		ExpiresAt: expiresAt,
-		UserAgent: domainauth.Truncate(userAgent, 512),
-		IPAddress: domainauth.Truncate(ipAddress, 64),
-	}
+	session := domainauth.NewAuthSession(userID, sha256Hex(raw), expiresAt, userAgent, ipAddress)
 	if err := s.repo.CreateSession(ctx, &session); err != nil {
 		return "", time.Time{}, err
 	}

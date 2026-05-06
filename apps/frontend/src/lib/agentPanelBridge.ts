@@ -9,6 +9,7 @@ export interface AgentPanelDraftPayload {
   message: string
   title?: string
   mode?: AgentWorkMode
+  newConversation?: boolean
   autoSend?: boolean
   projectId?: number
   clientInput?: AgentClientInput
@@ -24,7 +25,10 @@ export interface AgentPanelRunSettledPayload {
   error?: string
 }
 
+export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void | Promise<void>
+
 let pendingAgentPanelDraft: AgentPanelDraftPayload | null = null
+const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
 
 export function openAgentPanelDraft(payload: AgentPanelDraftPayload) {
   pendingAgentPanelDraft = payload
@@ -37,6 +41,21 @@ export function consumeAgentPanelDraft() {
   return draft
 }
 
+export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPageTool) {
+  pageToolsByRequestId.set(requestId, tool)
+  return () => {
+    if (pageToolsByRequestId.get(requestId) === tool) {
+      pageToolsByRequestId.delete(requestId)
+    }
+  }
+}
+
 export function notifyAgentPanelRunSettled(payload: AgentPanelRunSettledPayload) {
   window.dispatchEvent(new CustomEvent<AgentPanelRunSettledPayload>(AGENT_PANEL_RUN_SETTLED_EVENT, { detail: payload }))
+  if (!payload.requestId) return
+  const tool = pageToolsByRequestId.get(payload.requestId)
+  if (!tool) return
+  Promise.resolve(tool(payload)).catch((error) => {
+    console.error('[agent-panel] page tool failed', error)
+  })
 }

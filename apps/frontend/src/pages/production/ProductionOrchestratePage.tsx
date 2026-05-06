@@ -43,6 +43,8 @@ import {
 } from '@/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { cn } from '@/lib/utils'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
 import { localAgentClient, type AgentManifest, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
 import { useProjectStore } from '@/store/projectStore'
@@ -4001,6 +4003,7 @@ function AgentChatSidebar({
   const [showReceived, setShowReceived] = useState(false)
   const [proposalDraft, setProposalDraft] = useState<ProposalDraftContent | null>(null)
   const agentClientRef = useRef(localAgentClient)
+  const orchestrationToolCleanupRef = useRef<(() => void) | null>(null)
 
   // When switching to manual mode, pre-fill with linked version content
   useEffect(() => {
@@ -4008,6 +4011,10 @@ function AgentChatSidebar({
       setScriptText(linkedVersion.content || linkedVersion.raw_source || '')
     }
   }, [manualMode, linkedVersion])
+
+  useEffect(() => {
+    return () => orchestrationToolCleanupRef.current?.()
+  }, [])
 
   function toggleStep(id: string) {
     setExpandedSteps((prev) => {
@@ -4031,6 +4038,7 @@ function AgentChatSidebar({
 
     const client = agentClientRef.current
     const productionId = production?.ID ?? 0
+    const requestId = `production_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
     // Build a concise prompt that instructs the agent to use its tools
     const analysisPrompt = buildOrchestrationAnalysisPrompt(
@@ -4039,80 +4047,96 @@ function AgentChatSidebar({
     )
 
     try {
-      await client.ensureRunning()
-
-      const thread = await client.createThread({ projectId })
-      await client.addMessage(thread.id, analysisPrompt, {
-        message: '递归分析剧本，提取剧本段落、情景、设定资料、素材需求和制作项，去重并建立关系图',
-        uiSnapshot: {
-          route: { pathname: '/production-orchestrate', search: window.location.search },
-          project: projectId ? { id: projectId } : undefined,
-          productionId: production?.ID,
-          selection: production?.ID
-            ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `分集 #${production.ID}`) }
-            : null,
-          labels: ['production-orchestrate', 'recursive-analysis', 'tool-driven'],
-        },
-      })
-
       setReceivedData({
         message: text.trim(),
         context: {
           projectId,
           productionId,
-          threadId: thread.id,
+          requestId,
           scriptVersionId: scriptVersionId || undefined,
           promptLength: analysisPrompt.length,
           userPrompt: orchestrationPrompt.trim() || undefined,
-          mode: 'tool-driven',
+          mode: 'dialog-tool-driven',
         },
       })
 
-      const run = await client.createRun(thread.id, { agentManifest: ORCHESTRATE_AGENT_MANIFEST })
-      setAgentRun(run)
-
-      const finalRun = await client.waitForRun(run.id, {
-        timeoutMs: 300_000,
-        pollMs: 800,
-        onRunUpdate: (updated) => setAgentRun({ ...updated }),
-      })
-      setAgentRun(finalRun)
-
-      if (finalRun.status === 'failed') {
-        throw new Error(finalRun.error || 'Agent 运行失败')
-      }
-
-      // Try to read the proposal draft written by the agent via propose_production_entities
-      const proposalResult = await tryReadProposalDraft(client, projectId, productionId)
-      if (proposalResult.kind === 'tree' && proposalResult.draft) {
-        setProposalDraft(proposalResult.draft)
-        onProposalDraft(proposalResult.draft)
-        setPhase('proposal')
-        return
-      }
-      if (proposalResult.kind === 'flat' && proposalResult.result) {
-        setOutputResult(proposalResult.result)
-        setPhase('done')
-        onResult(proposalResult.result)
-        return
-      }
-
-      // Fallback: parse assistant message content as JSON (old behavior)
-      const finalThread = await client.getThread(thread.id)
-      const assistantMsg = [...finalThread.messages].reverse().find((m) => m.role === 'assistant')
-      if (assistantMsg) {
-        const parsed = parseAIAnalysisResult(assistantMsg.content)
-        if (parsed) {
-          setOutputResult(parsed)
-          setPhase('done')
-          onResult(parsed)
+      orchestrationToolCleanupRef.current?.()
+      orchestrationToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
+        if (payload.status === 'error') {
+          setErrorMsg(payload.error || '分析失败')
+          setPhase('retryable')
           return
         }
-        setRawAgentResponse(assistantMsg.content)
-      }
 
-      setErrorMsg('模型这次没有返回可写入的结构化提案。下面保留了模型原始回复，请调整输入或直接重试。')
-      setPhase('retryable')
+        const finalRun = payload.run
+        const finalThread = payload.thread
+        if (!finalRun || !finalThread) {
+          return
+        }
+        setAgentRun(finalRun)
+
+        if (finalRun.status === 'failed') {
+          setErrorMsg(finalRun.error || 'Agent 运行失败')
+          setPhase('retryable')
+          return
+        }
+
+        // Try to read the proposal draft written by the agent via propose_production_entities
+        const proposalResult = await tryReadProposalDraft(client, projectId, productionId)
+        if (proposalResult.kind === 'tree' && proposalResult.draft) {
+          setProposalDraft(proposalResult.draft)
+          onProposalDraft(proposalResult.draft)
+          setPhase('proposal')
+          return
+        }
+        if (proposalResult.kind === 'flat' && proposalResult.result) {
+          setOutputResult(proposalResult.result)
+          setPhase('done')
+          onResult(proposalResult.result)
+          return
+        }
+
+        // Fallback: parse assistant message content as JSON (old behavior)
+        const assistantMsg = finalThread.messages.find((message) => message.id === finalRun.assistantMessageId)
+          ?? [...finalThread.messages].reverse().find((m) => m.role === 'assistant')
+        if (assistantMsg) {
+          const parsed = parseAIAnalysisResult(assistantMsg.content)
+          if (parsed) {
+            setOutputResult(parsed)
+            setPhase('done')
+            onResult(parsed)
+            return
+          }
+          setRawAgentResponse(assistantMsg.content)
+        }
+
+        setErrorMsg('当前对话还没有产生可渲染的结构化提案。请继续在右侧对话框中讨论，确认后让 Agent 应用编排结论。')
+        setPhase('retryable')
+      })
+
+      openAgentPanelDraft({
+        requestId,
+        message: analysisPrompt,
+        title: `分集编排: ${production?.name ?? `#${productionId}`}`,
+        mode: 'create',
+        newConversation: true,
+        autoSend: true,
+        projectId,
+        clientInput: buildCommandFirstClientInput({
+          message: analysisPrompt,
+          labels: ['production-orchestrate', 'recursive-analysis', 'tool-driven', 'page-tool-render'],
+          hints: {
+            projectId,
+            productionId,
+            selection: production?.ID
+              ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `分集 #${production.ID}`) }
+              : null,
+          },
+        }),
+        agentManifest: ORCHESTRATE_AGENT_MANIFEST,
+        timeoutMs: 300_000,
+      })
+      toast.info('已打开分集编排会话，请在右侧对话框协作并让 Agent 应用编排结论')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : '分析失败')
       setPhase('error')

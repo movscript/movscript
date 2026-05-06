@@ -3,6 +3,7 @@ package auth
 import (
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
@@ -12,6 +13,13 @@ const (
 	SystemRoleUser       = "user"
 
 	UserStatusActive = "active"
+
+	ChallengeChannelEmail = "email"
+	ChallengeExpiresInSec = 10 * 60
+	ChallengeMaxAttempts  = 5
+
+	UserAgentMaxLength = 512
+	IPAddressMaxLength = 64
 )
 
 func NormalizeEmail(value string) string {
@@ -44,6 +52,33 @@ func NewRegisteredUser(username string, passwordHash string, email string, boots
 		user.EmailVerifiedAt = verifiedAt
 	}
 	return user
+}
+
+func NewAuthChallenge(channel string, target string, codeHash string, now time.Time) model.AuthChallenge {
+	channel = strings.TrimSpace(channel)
+	if channel == "" {
+		channel = ChallengeChannelEmail
+	}
+	return model.AuthChallenge{
+		Channel:   channel,
+		Target:    NormalizeEmail(target),
+		CodeHash:  codeHash,
+		ExpiresAt: now.UTC().Add(time.Duration(ChallengeExpiresInSec) * time.Second),
+	}
+}
+
+func ChallengeValidForVerification(challenge model.AuthChallenge, now time.Time) bool {
+	return challenge.ConsumedAt == nil && challenge.ExpiresAt.After(now.UTC()) && challenge.Attempts < ChallengeMaxAttempts
+}
+
+func NewAuthSession(userID uint, tokenHash string, expiresAt time.Time, userAgent string, ipAddress string) model.AuthSession {
+	return model.AuthSession{
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt.UTC(),
+		UserAgent: Truncate(userAgent, UserAgentMaxLength),
+		IPAddress: Truncate(ipAddress, IPAddressMaxLength),
+	}
 }
 
 type ProfileInput struct {

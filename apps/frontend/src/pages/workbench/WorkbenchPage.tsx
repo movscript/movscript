@@ -38,10 +38,8 @@ import {
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { api } from '@/lib/api'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
-import { AGENT_PANEL_RUN_SETTLED_EVENT, openAgentPanelDraft, type AgentPanelRunSettledPayload } from '@/lib/agentPanelBridge'
+import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { type AgentManifest } from '@/lib/localAgentClient'
-import { publicModelLabel } from '@/lib/modelDisplay'
-import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
@@ -2400,6 +2398,7 @@ function ScriptSplitWorkbench() {
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [result, setResult] = useState<ScriptSplitResult | null>(null)
   const [lastAgentRunId, setLastAgentRunId] = useState<string | null>(null)
+  const scriptSplitToolCleanupRef = useRef<(() => void) | null>(null)
 
   const { data: scripts = [], isLoading: scriptsLoading } = useQuery<Script[]>({
     queryKey: ['workbench-script-scripts', projectId],
@@ -2426,7 +2425,6 @@ function ScriptSplitWorkbench() {
   const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0] ?? null
   const sourceTitleLabel = sourceTitle.trim() || sourceFileName || '未命名总稿'
   const modelId = agentSettings.modelId ?? textModels[0]?.id ?? null
-  const activeModel = textModels.find((model) => model.id === modelId)
 
   function syncDrafts(nextDrafts: ScriptSplitDraft[]) {
     setDrafts(nextDrafts)
@@ -2444,11 +2442,14 @@ function ScriptSplitWorkbench() {
     resetAgentDrafts()
   }
 
-  async function runScriptSplitAgent(normalized: string) {
+  useEffect(() => {
+    return () => scriptSplitToolCleanupRef.current?.()
+  }, [])
+
+  async function openScriptSplitAgentSession(normalized: string) {
     if (!projectId) throw new Error('请先选择项目')
     if (!modelId) throw new Error('请先在右侧 Agent 面板选择一个文本模型')
     const baseTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
-    await syncRuntimeModelConfig(modelId, activeModel ? publicModelLabel(activeModel) : undefined)
     const message = buildScriptSplitAgentMessage({
       projectId,
       sourceTitle: baseTitle,
@@ -2465,66 +2466,50 @@ function ScriptSplitWorkbench() {
     })
     const requestId = `script_split_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
-    return await new Promise<{ baseTitle: string; drafts: ScriptSplitDraft[]; runId: string }>((resolve, reject) => {
-      let settled = false
-      let timeout = 0
-      const cleanup = () => {
-        window.clearTimeout(timeout)
-        window.removeEventListener(AGENT_PANEL_RUN_SETTLED_EVENT, handleSettled)
+    scriptSplitToolCleanupRef.current?.()
+    scriptSplitToolCleanupRef.current = registerAgentPanelPageTool(requestId, (detail) => {
+      if (detail.status === 'error') {
+        toast.error(detail.error || 'Agent 拆分会话运行失败')
+        return
       }
-      const finish = (fn: () => void) => {
-        if (settled) return
-        settled = true
-        cleanup()
-        fn()
+      const run = detail.run
+      const thread = detail.thread
+      if (!run || !thread || (run.status !== 'completed' && run.status !== 'completed_with_warnings')) return
+      const assistant = thread.messages.find((message) => message.id === run.assistantMessageId)
+        ?? [...thread.messages].reverse().find((message) => message.role === 'assistant')
+      if (!assistant?.content) return
+      try {
+        const nextDrafts = parseScriptSplitAgentContent(assistant.content, sortedScripts, normalized)
+        syncDrafts(nextDrafts)
+        setLastAgentRunId(run.id)
+        setResult({
+          sourceTitle: baseTitle,
+          sourceScriptId: null,
+          createdCount: 0,
+          updatedCount: 0,
+          episodeCount: nextDrafts.length,
+          agentRunId: run.id,
+        })
+        toast.success(`Agent 已给出拆分结论：${nextDrafts.length} 集`)
+      } catch {
+        // This response may still be part of the conversation. Wait for a later structured conclusion.
       }
-      timeout = window.setTimeout(() => {
-        finish(() => reject(new Error('Agent 对话运行超时，请在右侧对话框查看当前状态')))
-      }, 150_000)
-      const handleSettled = (event: Event) => {
-        const detail = (event as CustomEvent<AgentPanelRunSettledPayload>).detail
-        if (detail?.requestId !== requestId) return
-        if (detail.status === 'error') {
-          finish(() => reject(new Error(detail.error || 'Agent 拆分失败')))
-          return
-        }
-        const run = detail.run
-        const thread = detail.thread
-        if (!run || !thread) {
-          finish(() => reject(new Error('Agent 没有返回运行结果')))
-          return
-        }
-        if (run.status !== 'completed' && run.status !== 'completed_with_warnings') {
-          finish(() => reject(new Error(run.error || `Agent 运行未完成：${run.status}`)))
-          return
-        }
-        const assistant = thread.messages.find((message) => message.id === run.assistantMessageId)
-          ?? [...thread.messages].reverse().find((message) => message.role === 'assistant')
-        if (!assistant?.content) {
-          finish(() => reject(new Error('Agent 没有返回拆分结果')))
-          return
-        }
-        try {
-          const drafts = parseScriptSplitAgentContent(assistant.content, sortedScripts, normalized)
-          finish(() => resolve({ baseTitle, drafts, runId: run.id }))
-        } catch (error) {
-          finish(() => reject(error instanceof Error ? error : new Error(String(error))))
-        }
-      }
-
-      window.addEventListener(AGENT_PANEL_RUN_SETTLED_EVENT, handleSettled)
-      openAgentPanelDraft({
-        requestId,
-        message,
-        title: `剧本拆分: ${baseTitle}`,
-        mode: 'create',
-        autoSend: true,
-        projectId,
-        clientInput,
-        agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
-        timeoutMs: 120_000,
-      })
     })
+
+    openAgentPanelDraft({
+      requestId,
+      message,
+      title: `剧本拆分: ${baseTitle}`,
+      mode: 'create',
+      newConversation: true,
+      autoSend: true,
+      projectId,
+      clientInput,
+      agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
+      timeoutMs: 120_000,
+    })
+
+    return { baseTitle }
   }
 
   async function handleImportFile(file?: File) {
@@ -2553,20 +2538,10 @@ function ScriptSplitWorkbench() {
       if (!projectId) throw new Error('请先选择项目')
       const normalized = sourceText.trim()
       if (!normalized) throw new Error('请先粘贴剧本文本')
-      return runScriptSplitAgent(normalized)
+      return openScriptSplitAgentSession(normalized)
     },
-    onSuccess: (next) => {
-      syncDrafts(next.drafts)
-      setLastAgentRunId(next.runId)
-      setResult({
-        sourceTitle: next.baseTitle,
-        sourceScriptId: null,
-        createdCount: 0,
-        updatedCount: 0,
-        episodeCount: next.drafts.length,
-        agentRunId: next.runId,
-      })
-      toast.success(`Agent 已拆分出 ${next.drafts.length} 集`)
+    onSuccess: () => {
+      toast.success('已打开剧本拆分会话，请在右侧对话框协作并让 Agent 应用拆分结论')
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Agent 拆分失败')
@@ -2641,11 +2616,7 @@ function ScriptSplitWorkbench() {
       let agentRunId = lastAgentRunId ?? undefined
       let nextDrafts = drafts
       if (nextDrafts.length === 0) {
-        const agentResult = await runScriptSplitAgent(normalized)
-        nextDrafts = agentResult.drafts
-        agentRunId = agentResult.runId
-        syncDrafts(nextDrafts)
-        setLastAgentRunId(agentResult.runId)
+        throw new Error('请先通过右侧 Agent 会话完成拆分，并让 Agent 应用拆分结论')
       }
       if (nextDrafts.length === 0) throw new Error('没有可拆分的剧本内容')
 

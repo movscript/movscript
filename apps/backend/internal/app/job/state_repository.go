@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
@@ -19,7 +20,7 @@ func MarkRetryScheduled(db *gorm.DB, job *model.Job, message string) {
 	now := time.Now()
 	trace = append(trace, StateTraceEntry{
 		State:      StateRetryScheduled,
-		Status:     StatusSucceeded,
+		Status:     domainjob.StatusSucceeded,
 		Message:    message,
 		StartedAt:  now,
 		FinishedAt: &now,

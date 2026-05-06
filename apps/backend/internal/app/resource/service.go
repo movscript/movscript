@@ -104,18 +104,15 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 		return model.RawResource{}, err
 	}
 	mimeType := input.MimeType
-	resType := MimeToType(mimeType, input.Filename)
-	r := model.RawResource{
+	r := domainresource.NewUploadedResource(domainresource.NewUploadedResourceSpec{
 		OwnerID:        input.UserID,
 		OrgID:          input.OrgID,
 		FolderID:       folderID,
-		Type:           resType,
 		Name:           input.Filename,
 		MimeType:       mimeType,
 		Size:           input.Size,
-		FilePath:       "",
 		StorageBackend: s.store.Backend(),
-	}
+	})
 	if err := s.repo.CreateResource(ctx, &r); err != nil {
 		return model.RawResource{}, err
 	}

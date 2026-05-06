@@ -19,6 +19,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 )
 
 func (h *Service) completeResourceSinkTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User, value canvasPortValue) map[string]canvasPortValue {
@@ -167,19 +168,16 @@ func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uin
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	resType := mimeToType(mimeType, name)
 	key := fmt.Sprintf("canvas/%d/%d_%s", ownerID, time.Now().UnixNano(), filepath.Base(name))
-	r := model.RawResource{
+	r := domainresource.NewStoredGeneratedResource(domainresource.NewStoredGeneratedResourceSpec{
 		OwnerID:        ownerID,
 		OrgID:          orgID,
-		Type:           resType,
 		Name:           name,
 		MimeType:       mimeType,
 		Size:           int64(len(data)),
-		FilePath:       "pending",
 		StorageBackend: h.store.Backend(),
 		StorageKey:     key,
-	}
+	})
 	if err := h.canvasRepo().CreateResource(ctx, &r); err != nil {
 		return nil, fmt.Errorf("create resource record: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
 )
 
@@ -25,7 +26,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 		if err := txRepo.syncEntityRelationsForKind(ctx, kind, id); err != nil {
 			return err
 		}
-		if kind == "asset_slot" {
+		if kind == domainworkflow.EntityKindAssetSlot {
 			bindingIDs, err := txRepo.writeAssetSlotCandidates(ctx, id, values["candidates"], projectID, sourceType, meta)
 			if err != nil {
 				return err
@@ -37,7 +38,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 
 		bindingIDsByPort := map[string][]uint{}
 		for portID, value := range values {
-			if kind == "asset_slot" && portID == "candidates" {
+			if kind == domainworkflow.EntityKindAssetSlot && portID == "candidates" {
 				continue
 			}
 			field, ok := EntityFieldForPort(kind, portID)
@@ -187,23 +188,23 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 func (r *gormRepository) syncEntityRelationsForKind(ctx context.Context, kind string, id uint) error {
 	db := r.db.WithContext(ctx)
 	switch kind {
-	case "segment":
+	case domainworkflow.EntityKindSegment:
 		item := model.Segment{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
-	case "scene_moment":
+	case domainworkflow.EntityKindSceneMoment:
 		item := model.SceneMoment{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
-	case "creative_reference":
+	case domainworkflow.EntityKindCreativeReference:
 		item := model.CreativeReference{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
-	case "asset_slot":
+	case domainworkflow.EntityKindAssetSlot:
 		item := model.AssetSlot{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
-	case "content_unit":
+	case domainworkflow.EntityKindContentUnit:
 		item := model.ContentUnit{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)

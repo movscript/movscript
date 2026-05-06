@@ -34,6 +34,24 @@ func TestBuildListSpecExpandsImageType(t *testing.T) {
 	}
 }
 
+func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
+	job := NewQueuedJob(NewQueuedJobSpec{
+		UserID:        1,
+		ModelConfigID: 2,
+		JobType:       ai.CapabilityImage,
+		Prompt:        "draw",
+	})
+	if job.Status != StatusPending {
+		t.Fatalf("status = %q, want %s", job.Status, StatusPending)
+	}
+	if job.MaxAttempts != DefaultMaxAttempts {
+		t.Fatalf("max attempts = %d, want %d", job.MaxAttempts, DefaultMaxAttempts)
+	}
+	if job.UserID != 1 || job.ModelConfigID != 2 || job.Prompt != "draw" {
+		t.Fatalf("unexpected job: %+v", job)
+	}
+}
+
 func TestCountInputResources(t *testing.T) {
 	result := CountInputResources([]model.RawResource{
 		{Type: "image"},

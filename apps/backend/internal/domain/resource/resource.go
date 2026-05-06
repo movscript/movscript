@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type PageInput struct {
@@ -22,6 +24,26 @@ type ListFilters struct {
 	Keyword string
 }
 
+type NewUploadedResourceSpec struct {
+	OwnerID        uint
+	OrgID          *uint
+	FolderID       *uint
+	Name           string
+	MimeType       string
+	Size           int64
+	StorageBackend string
+}
+
+type NewStoredGeneratedResourceSpec struct {
+	OwnerID        uint
+	OrgID          *uint
+	Name           string
+	MimeType       string
+	Size           int64
+	StorageBackend string
+	StorageKey     string
+}
+
 func NormalizePage(input PageInput) PageSpec {
 	page := max(1, input.Page)
 	pageSize := max(1, input.PageSize)
@@ -32,6 +54,34 @@ func NormalizePage(input PageInput) PageSpec {
 		Page:     page,
 		PageSize: pageSize,
 		Offset:   (page - 1) * pageSize,
+	}
+}
+
+func NewUploadedResource(spec NewUploadedResourceSpec) model.RawResource {
+	return model.RawResource{
+		OwnerID:        spec.OwnerID,
+		OrgID:          spec.OrgID,
+		FolderID:       spec.FolderID,
+		Type:           MimeToType(spec.MimeType, spec.Name),
+		Name:           spec.Name,
+		MimeType:       spec.MimeType,
+		Size:           spec.Size,
+		FilePath:       "",
+		StorageBackend: spec.StorageBackend,
+	}
+}
+
+func NewStoredGeneratedResource(spec NewStoredGeneratedResourceSpec) model.RawResource {
+	return model.RawResource{
+		OwnerID:        spec.OwnerID,
+		OrgID:          spec.OrgID,
+		Type:           MimeToType(spec.MimeType, spec.Name),
+		Name:           spec.Name,
+		MimeType:       spec.MimeType,
+		Size:           spec.Size,
+		FilePath:       "pending",
+		StorageBackend: spec.StorageBackend,
+		StorageKey:     spec.StorageKey,
 	}
 }
 

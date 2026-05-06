@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
 )
 
@@ -52,35 +54,35 @@ func (s *Service) ListByProject(ctx context.Context, filter ListFilter) ([]Ref, 
 	kindFilter := strings.TrimSpace(filter.Kind)
 	refs := make([]Ref, 0)
 
-	if kindFilter == "" || kindFilter == "script_version" {
+	if kindFilter == "" || kindFilter == domainworkflow.EntityKindScriptVersion {
 		items, err := s.scriptVersionRefs(ctx, filter.ProjectID)
 		if err != nil {
 			return nil, err
 		}
 		refs = append(refs, items...)
 	}
-	if kindFilter == "" || kindFilter == "asset_slot" {
+	if kindFilter == "" || kindFilter == domainworkflow.EntityKindAssetSlot {
 		items, err := s.assetSlotRefs(ctx, filter.ProjectID, filter.ResourceURL)
 		if err != nil {
 			return nil, err
 		}
 		refs = append(refs, items...)
 	}
-	if kindFilter == "" || kindFilter == "content_unit" {
+	if kindFilter == "" || kindFilter == domainworkflow.EntityKindContentUnit {
 		items, err := s.contentUnitRefs(ctx, filter.ProjectID)
 		if err != nil {
 			return nil, err
 		}
 		refs = append(refs, items...)
 	}
-	if kindFilter == "" || kindFilter == "keyframe" {
+	if kindFilter == "" || kindFilter == domainworkflow.EntityKindKeyframe {
 		items, err := s.keyframeRefs(ctx, filter.ProjectID, filter.ResourceURL)
 		if err != nil {
 			return nil, err
 		}
 		refs = append(refs, items...)
 	}
-	if kindFilter == "" || kindFilter == "delivery_version" {
+	if kindFilter == "" || kindFilter == domainworkflow.EntityKindDeliveryVersion {
 		items, err := s.deliveryVersionRefs(ctx, filter.ProjectID)
 		if err != nil {
 			return nil, err
@@ -103,7 +105,7 @@ func (s *Service) scriptVersionRefs(ctx context.Context, projectID uint) ([]Ref,
 	for _, version := range versions {
 		id := version.ID
 		refs = append(refs, Ref{
-			Kind:          "script_version",
+			Kind:          domainworkflow.EntityKindScriptVersion,
 			ID:            version.ID,
 			Title:         fallbackTitle(version.Title, "未命名剧本版本"),
 			Subtitle:      version.SourceType,
@@ -126,10 +128,10 @@ func (s *Service) assetSlotRefs(ctx context.Context, projectID uint, resourceURL
 		id := slot.ID
 		resource := withResourceURL(slot.Resource, resourceURL)
 		if resource == nil {
-			resource = s.firstBoundResource(ctx, projectID, "asset_slot", slot.ID, resourceURL, "thumbnail", "final", "reference")
+			resource = s.firstBoundResource(ctx, projectID, domainresourcebinding.OwnerTypeAssetSlot, slot.ID, resourceURL, domainresourcebinding.RoleThumbnail, domainresourcebinding.RoleFinal, domainresourcebinding.RoleReference)
 		}
 		refs = append(refs, Ref{
-			Kind:          "asset_slot",
+			Kind:          domainworkflow.EntityKindAssetSlot,
 			ID:            slot.ID,
 			Title:         fallbackTitle(slot.Name, "未命名素材位"),
 			Subtitle:      slot.Kind,
@@ -152,7 +154,7 @@ func (s *Service) contentUnitRefs(ctx context.Context, projectID uint) ([]Ref, e
 	for _, unit := range units {
 		id := unit.ID
 		refs = append(refs, Ref{
-			Kind:          "content_unit",
+			Kind:          domainworkflow.EntityKindContentUnit,
 			ID:            unit.ID,
 			Title:         fallbackTitle(unit.Title, "内容单元 #"+strconv.Itoa(unit.Order)),
 			Subtitle:      unit.Description,
@@ -174,7 +176,7 @@ func (s *Service) keyframeRefs(ctx context.Context, projectID uint, resourceURL 
 	for _, keyframe := range keyframes {
 		id := keyframe.ID
 		refs = append(refs, Ref{
-			Kind:          "keyframe",
+			Kind:          domainworkflow.EntityKindKeyframe,
 			ID:            keyframe.ID,
 			Title:         fallbackTitle(keyframe.Title, "关键帧 #"+strconv.Itoa(keyframe.Order)),
 			Subtitle:      keyframe.Description,
@@ -197,7 +199,7 @@ func (s *Service) deliveryVersionRefs(ctx context.Context, projectID uint) ([]Re
 	for _, version := range versions {
 		id := version.ID
 		refs = append(refs, Ref{
-			Kind:          "delivery_version",
+			Kind:          domainworkflow.EntityKindDeliveryVersion,
 			ID:            version.ID,
 			Title:         fallbackTitle(version.Name, "交付版本"),
 			Subtitle:      version.Description,

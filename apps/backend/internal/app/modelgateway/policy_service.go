@@ -9,11 +9,12 @@ import (
 )
 
 type PolicyService struct {
+	db   *gorm.DB
 	repo repository
 }
 
 func NewPolicyService(db *gorm.DB) *PolicyService {
-	return &PolicyService{repo: &gormRepository{db: db}}
+	return &PolicyService{db: db, repo: &gormRepository{db: db}}
 }
 
 func (p *PolicyService) CanListChatModels(principal Principal) error {

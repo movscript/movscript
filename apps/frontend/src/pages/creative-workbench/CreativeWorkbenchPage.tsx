@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Check,
   Clipboard,
+  Loader2,
   Lightbulb,
   Lock,
   LockOpen,
@@ -15,6 +16,9 @@ import {
   Input,
   Textarea,
 } from '@movscript/ui'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
+import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntime'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import { cn } from '@/lib/utils'
@@ -145,6 +149,41 @@ function formatDate(ts: number) {
   return new Date(ts).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function buildCreativeWorkbenchAgentMessage(input: {
+  projectName?: string
+  title: string
+  fixedMaterial: string
+}) {
+  return [
+    '你是 MovScript 项目头脑风暴助手。',
+    '请先和用户多轮讨论、追问、收敛创意；不要急着改页面。',
+    '只有当用户明确要求“写入页面 / 应用 / 定稿 / 使用这个版本”时，才输出下面的 JSON 结论，页面会据此渲染故事素材。',
+    'JSON 结论不能包在 markdown 围栏里，格式为：',
+    '{"schema":"movscript.creative_workbench.material.v1","fixed_material":"整理后的故事素材正文"}',
+    '',
+    `[项目] ${input.projectName || '未命名项目'}`,
+    `[灵感标题] ${input.title || '未命名灵感'}`,
+    '',
+    '[当前故事素材]',
+    input.fixedMaterial || '暂无',
+  ].join('\n')
+}
+
+function parseCreativeMaterialConclusion(content: string): string | null {
+  const trimmed = content.trim()
+  if (!trimmed) return null
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!parsed || typeof parsed !== 'object') return null
+    const record = parsed as Record<string, unknown>
+    if (record.schema !== 'movscript.creative_workbench.material.v1') return null
+    const material = record.fixed_material ?? record.fixedMaterial ?? record.material
+    return typeof material === 'string' && material.trim() ? material.trim() : null
+  } catch {
+    return null
+  }
+}
+
 export default function CreativeWorkbenchPage() {
   const current = useProjectStore((s) => s.current)
   const projectId = current?.ID ?? 0
@@ -152,6 +191,7 @@ export default function CreativeWorkbenchPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [listLocked, setListLocked] = useState(false)
+  const [agentRequestId, setAgentRequestId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!projectId) return
@@ -219,6 +259,72 @@ export default function CreativeWorkbenchPage() {
     await navigator.clipboard.writeText(selected.fixedMaterial)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1200)
+  }
+
+  function brainstormWithAgent() {
+    if (!selected || !projectId) return
+    const requestId = `creative_workbench_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    const message = buildCreativeWorkbenchAgentMessage({
+      projectName: current?.name,
+      title: selected.title,
+      fixedMaterial: selected.fixedMaterial,
+    })
+
+    setAgentRequestId(requestId)
+    registerAgentPanelPageTool(requestId, (payload) => {
+      setAgentRequestId(null)
+      if (payload.status === 'error') {
+        toast.error(payload.error || '头脑风暴失败')
+        return
+      }
+      if (!payload.run || !payload.thread) {
+        toast.error('Agent 没有返回头脑风暴结果')
+        return
+      }
+      const content = formatLocalAgentAssistantContent(payload.run, payload.thread).trim()
+      const material = parseCreativeMaterialConclusion(content)
+      if (!material) {
+        return
+      }
+      setInsights((items) =>
+        items.map((item) =>
+          item.id === selected.id
+            ? {
+                ...item,
+                fixedMaterial: material,
+                collisionText: material,
+                status: 'draft',
+                conversation: [
+                  ...item.conversation,
+                  { id: nowId(), role: 'user', content: '请整理并发散当前故事素材', timestamp: Date.now() },
+                  { id: nowId(), role: 'assistant', content: material, timestamp: Date.now() },
+                ],
+                updatedAt: Date.now(),
+              }
+            : item,
+        ),
+      )
+      toast.success('头脑风暴结果已写入故事素材')
+    })
+
+    openAgentPanelDraft({
+      requestId,
+      message,
+      title: `头脑风暴: ${selected.title || current?.name || '故事素材'}`,
+      mode: 'create',
+      newConversation: true,
+      autoSend: true,
+      projectId,
+      clientInput: buildCommandFirstClientInput({
+        message,
+        labels: ['creative-workbench', 'brainstorm', 'page-tool-render'],
+        hints: {
+          projectId,
+          selection: { entityType: 'creative_insight', entityId: selected.id, label: selected.title },
+        },
+      }),
+      timeoutMs: 120_000,
+    })
   }
 
   if (!selected) {
@@ -320,6 +426,16 @@ export default function CreativeWorkbenchPage() {
                 title="删除灵感"
               >
                 <Trash2 size={14} />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={brainstormWithAgent}
+                disabled={!!agentRequestId || selected.status === 'locked'}
+              >
+                {agentRequestId ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                AI 发散
               </Button>
             </div>
           </div>

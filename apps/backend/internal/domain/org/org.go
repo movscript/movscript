@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
@@ -112,4 +113,23 @@ func OwnerMember(orgID uint, userID uint) model.OrganizationMember {
 
 func Member(orgID uint, userID uint, role string) model.OrganizationMember {
 	return model.OrganizationMember{OrgID: orgID, UserID: userID, Role: DefaultMemberRole(role)}
+}
+
+func NewInvitation(orgID uint, token string, role string, note string, createdBy uint, expiresAt time.Time) model.OrgInvitation {
+	return model.OrgInvitation{
+		OrgID:     orgID,
+		Token:     token,
+		Role:      DefaultMemberRole(role),
+		Note:      note,
+		CreatedBy: createdBy,
+		ExpiresAt: expiresAt,
+	}
+}
+
+func NewUserGroup(orgID uint, name string) model.UserGroup {
+	return model.UserGroup{OrgID: orgID, Name: strings.TrimSpace(name)}
+}
+
+func GroupMember(groupID uint, userID uint) model.UserGroupMember {
+	return model.UserGroupMember{GroupID: groupID, UserID: userID}
 }

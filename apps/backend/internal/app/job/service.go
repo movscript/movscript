@@ -133,24 +133,7 @@ func (s *Service) GetCredential(ctx context.Context, id uint) (model.AICredentia
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (model.Job, error) {
-	job := model.Job{
-		UserID:             input.UserID,
-		OrgID:              input.OrgID,
-		ModelConfigID:      input.ModelConfigID,
-		JobType:            input.JobType,
-		FeatureKey:         input.FeatureKey,
-		Status:             StatusPending,
-		MaxAttempts:        DefaultMaxAttempts,
-		Prompt:             input.Prompt,
-		ExtraParams:        input.ExtraParams,
-		AspectRatio:        input.AspectRatio,
-		Duration:           input.Duration,
-		RequestContext:     input.RequestContext,
-		InputResourceID:    input.InputResourceID,
-		InputResourceIDs:   input.InputResourceIDs,
-		UsageReservationID: input.UsageReservationID,
-		ProjectID:          input.ProjectID,
-	}
+	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input))
 	return s.repo.Create(ctx, job)
 }
 
@@ -278,10 +261,10 @@ func (s *Service) Retry(ctx context.Context, id uint, userID uint, orgID *uint) 
 	if err != nil {
 		return job, err
 	}
-	if job.Status == StatusSucceeded {
+	if job.Status == domainjob.StatusSucceeded {
 		return job, ErrSucceededJobCannotRetry
 	}
-	if job.Status == StatusRunning {
+	if job.Status == domainjob.StatusRunning {
 		return job, ErrRunningJobCannotRetry
 	}
 	return s.repo.Retry(ctx, &job, "manual retry requested")
@@ -296,11 +279,11 @@ func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint
 		return job, ErrOnlyVideoJobsCanCancel
 	}
 	switch job.Status {
-	case StatusCancelled:
+	case domainjob.StatusCancelled:
 		return job, nil
-	case StatusSucceeded, StatusFailed:
+	case domainjob.StatusSucceeded, domainjob.StatusFailed:
 		return job, ErrFinishedJobCannotCancel
-	case StatusPending, StatusRunning:
+	case domainjob.StatusPending, domainjob.StatusRunning:
 	default:
 		return job, ErrInvalidCancelStatus
 	}
@@ -315,7 +298,7 @@ func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint)
 	if err != nil {
 		return job, err
 	}
-	if job.Status == StatusCancelled {
+	if job.Status == domainjob.StatusCancelled {
 		return job, nil
 	}
 	if !s.ai.SupportsVideoTaskCancellation(job.ModelConfigID) {

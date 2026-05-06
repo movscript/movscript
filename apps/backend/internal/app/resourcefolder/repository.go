@@ -53,14 +53,14 @@ func (r *gormRepository) CreateFolder(ctx context.Context, ownerID uint, input C
 			return model.ResourceFolder{}, ErrForbidden
 		}
 	}
-	folder := model.ResourceFolder{
+	folder := domainresourcefolder.NewFolder(domainresourcefolder.NewFolderSpec{
 		OwnerID:        ownerID,
 		OrgID:          input.OrgID,
 		Name:           input.Name,
 		ParentID:       input.ParentID,
 		StorageBackend: input.StorageBackend,
 		IsShared:       input.IsShared,
-	}
+	})
 	if err := r.db.WithContext(ctx).Create(&folder).Error; err != nil {
 		return folder, err
 	}
@@ -122,11 +122,8 @@ func (r *gormRepository) GrantPermission(ctx context.Context, userID uint, orgID
 	if err != nil {
 		return model.ResourceFolderPermission{}, err
 	}
-	perm := input.Permission
-	if perm == "" {
-		perm = "read"
-	}
-	if perm != "read" && perm != "write" {
+	perm := domainresourcefolder.NormalizePermission(input.Permission)
+	if !domainresourcefolder.ValidPermission(perm) {
 		return model.ResourceFolderPermission{}, ErrConflict
 	}
 	if input.UserID == userID {
@@ -134,7 +131,7 @@ func (r *gormRepository) GrantPermission(ctx context.Context, userID uint, orgID
 	}
 	var existing model.ResourceFolderPermission
 	if r.db.WithContext(ctx).Where("folder_id = ? AND user_id = ?", folder.ID, input.UserID).First(&existing).Error != nil {
-		existing = model.ResourceFolderPermission{FolderID: folder.ID, UserID: input.UserID, Permission: perm}
+		existing = domainresourcefolder.NewPermission(folder.ID, input.UserID, perm)
 		if err := r.db.WithContext(ctx).Create(&existing).Error; err != nil {
 			return existing, err
 		}

@@ -4,6 +4,19 @@ import domainresourcebinding "github.com/movscript/movscript/internal/domain/res
 
 const EntitySemanticSchemaVersion = 1
 
+const (
+	EntityKindScript            = "script"
+	EntityKindSetting           = "setting"
+	EntityKindSegment           = "segment"
+	EntityKindSceneMoment       = "scene_moment"
+	EntityKindCreativeReference = "creative_reference"
+	EntityKindAssetSlot         = "asset_slot"
+	EntityKindContentUnit       = "content_unit"
+	EntityKindKeyframe          = "keyframe"
+	EntityKindScriptVersion     = "script_version"
+	EntityKindDeliveryVersion   = "delivery_version"
+)
+
 // EntitySchemaVersion is kept for compatibility with existing callers that
 // consume the workflow-facing projection.
 const EntitySchemaVersion = EntitySemanticSchemaVersion
@@ -168,7 +181,7 @@ type PortDef struct {
 func EntitySemanticSchemas() []EntitySemanticSchema {
 	schemas := []EntitySemanticSchema{
 		{
-			Kind: "script", LabelKey: "canvas.entityTypes.script", FallbackLabel: "Script",
+			Kind: EntityKindScript, LabelKey: "canvas.entityTypes.script", FallbackLabel: "Script",
 			Sections: []EntitySemanticSection{section("content", "details.contentManagement", "Content", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				resourceField("attachment", "details.attachments", "Attachment", "attachment", "reference", false),
@@ -195,7 +208,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			})},
 		},
 		{
-			Kind: "setting", LabelKey: "canvas.entityTypes.setting", FallbackLabel: "Setting",
+			Kind: EntityKindSetting, LabelKey: "canvas.entityTypes.setting", FallbackLabel: "Setting",
 			Sections: []EntitySemanticSection{section("identity", "canvas.entityTypes.setting", "Identity", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				resourceField("reference", "details.referenceAssets", "Reference", "reference", "reference", false),
@@ -212,7 +225,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			})},
 		},
 		{
-			Kind: "segment", LabelKey: "canvas.entityTypes.segment", FallbackLabel: "Segment",
+			Kind: EntityKindSegment, LabelKey: "canvas.entityTypes.segment", FallbackLabel: "Segment",
 			Sections: []EntitySemanticSection{section("segment", "entities.segments", "Segment", []EntitySemanticField{
 				textField("title", "shared.title", "Title", "input", false),
 				textField("kind", "shared.type", "Kind", "input", false),
@@ -226,7 +239,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			})},
 		},
 		{
-			Kind: "scene_moment", LabelKey: "canvas.entityTypes.scene_moment", FallbackLabel: "Scene Moment",
+			Kind: EntityKindSceneMoment, LabelKey: "canvas.entityTypes.scene_moment", FallbackLabel: "Scene Moment",
 			Sections: []EntitySemanticSection{section("scene_moment", "entities.sceneMoments", "Scene Moment", []EntitySemanticField{
 				textField("title", "shared.title", "Title", "input", false),
 				numberField("segment_id", "entities.segments", "Segment", false),
@@ -242,7 +255,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			})},
 		},
 		{
-			Kind: "creative_reference", LabelKey: "canvas.entityTypes.creative_reference", FallbackLabel: "Creative Reference",
+			Kind: EntityKindCreativeReference, LabelKey: "canvas.entityTypes.creative_reference", FallbackLabel: "Creative Reference",
 			Sections: []EntitySemanticSection{section("creative_reference", "canvas.entityTypes.creative_reference", "Creative Reference", []EntitySemanticField{
 				textField("name", "project.scripts.settingName", "Name", "input", false),
 				textField("kind", "shared.type", "Kind", "input", false),
@@ -256,7 +269,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			})},
 		},
 		{
-			Kind: "asset_slot", LabelKey: "canvas.entityTypes.assetSlot", FallbackLabel: "Asset Slot",
+			Kind: EntityKindAssetSlot, LabelKey: "canvas.entityTypes.assetSlot", FallbackLabel: "Asset Slot",
 			Sections: []EntitySemanticSection{section("asset_slot", "details.assetSlots", "Asset Slot", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				mediaField("image", "details.referenceImages", "Image", "image", "image", "final", true),
@@ -279,7 +292,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			})},
 		},
 		{
-			Kind: "content_unit", LabelKey: "canvas.entityTypes.contentUnit", FallbackLabel: "Content Unit",
+			Kind: EntityKindContentUnit, LabelKey: "canvas.entityTypes.contentUnit", FallbackLabel: "Content Unit",
 			Sections: []EntitySemanticSection{section("content_unit", "canvas.entityTypes.contentUnit", "Content Unit", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
 				mediaField("image", "canvas.outputTypes.image", "Image", "image", "image", "output", false),

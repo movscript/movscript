@@ -1,17 +1,19 @@
 package job
 
-import "time"
+import (
+	"time"
 
-// Job status constants match the jobs.status DB column values.
-const (
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusSucceeded = "succeeded"
-	StatusFailed    = "failed"
-	StatusCancelled = "cancelled"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 )
 
-const DefaultMaxAttempts = 3
+const (
+	StatusPending      = domainjob.StatusPending
+	StatusRunning      = domainjob.StatusRunning
+	StatusSucceeded    = domainjob.StatusSucceeded
+	StatusFailed       = domainjob.StatusFailed
+	StatusCancelled    = domainjob.StatusCancelled
+	DefaultMaxAttempts = domainjob.DefaultMaxAttempts
+)
 
 type ExecutionState string
 

@@ -153,7 +153,7 @@ func (s *EntityIOService) readComputedPorts(ctx context.Context, kind string, id
 		values[portID] = EntityPortValue{Type: field.ValueType, Text: text}
 	}
 	switch kind {
-	case "script":
+	case domainworkflow.EntityKindScript:
 		item, err := s.repo.LoadScriptComputedFields(ctx, id)
 		if err != nil {
 			return fmt.Errorf("script not found")
@@ -273,19 +273,19 @@ func (s *EntityIOService) ProjectID(ctx context.Context, kind string, id uint, f
 
 func entityTableName(kind string) (string, bool) {
 	switch kind {
-	case "script":
+	case domainworkflow.EntityKindScript:
 		return "scripts", true
-	case "setting":
+	case domainworkflow.EntityKindSetting:
 		return "settings", true
-	case "segment":
+	case domainworkflow.EntityKindSegment:
 		return "segments", true
-	case "scene_moment":
+	case domainworkflow.EntityKindSceneMoment:
 		return "scene_moments", true
-	case "creative_reference":
+	case domainworkflow.EntityKindCreativeReference:
 		return "creative_references", true
-	case "asset_slot":
+	case domainworkflow.EntityKindAssetSlot:
 		return "asset_slots", true
-	case "content_unit":
+	case domainworkflow.EntityKindContentUnit:
 		return "content_units", true
 	default:
 		return "", false

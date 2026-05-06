@@ -2,6 +2,32 @@ package resourcefolder
 
 import "testing"
 
+func TestNewFolderTrimsMutableText(t *testing.T) {
+	folder := NewFolder(NewFolderSpec{OwnerID: 1, Name: " Assets ", StorageBackend: " local "})
+	if folder.OwnerID != 1 || folder.Name != "Assets" || folder.StorageBackend != "local" {
+		t.Fatalf("unexpected folder: %+v", folder)
+	}
+}
+
+func TestNormalizeAndValidatePermission(t *testing.T) {
+	if got := NormalizePermission(""); got != PermissionRead {
+		t.Fatalf("permission = %q, want read", got)
+	}
+	if got := NormalizePermission(" Write "); got != PermissionWrite {
+		t.Fatalf("permission = %q, want write", got)
+	}
+	if !ValidPermission(PermissionRead) || !ValidPermission(PermissionWrite) || ValidPermission("admin") {
+		t.Fatal("unexpected permission validation result")
+	}
+}
+
+func TestNewPermissionAppliesDefault(t *testing.T) {
+	perm := NewPermission(1, 2, "")
+	if perm.FolderID != 1 || perm.UserID != 2 || perm.Permission != PermissionRead {
+		t.Fatalf("unexpected permission: %+v", perm)
+	}
+}
+
 func TestFolderInOrgScope(t *testing.T) {
 	var org uint = 3
 	if !FolderInOrgScope(&org, &org, 1, 2, false) {
