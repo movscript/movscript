@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
-	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 

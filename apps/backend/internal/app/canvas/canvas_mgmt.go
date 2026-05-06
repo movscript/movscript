@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/movscript/movscript/internal/app/entityrelation"
 	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 

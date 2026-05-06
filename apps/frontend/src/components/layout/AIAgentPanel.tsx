@@ -14,6 +14,10 @@ import { API_V1_BASE_URL } from '@/lib/config'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import {
+  formatLocalAgentAssistantContent,
+  LocalAgentWorkflowPanel,
+} from '@/components/agent/localRuntime'
+import {
   canStartLocalAgentFromClient,
   localAgentClient,
   type AgentHealth,
@@ -324,8 +328,6 @@ function compactResource(resource: RawResource): Pick<RawResource, 'ID' | 'name'
 function buildAgentClientInput(options: {
   message: string
   attachments: AgentAttachment[]
-  labels: string[]
-  project: Project | null
 }): AgentClientInput {
   const input = buildCommandFirstClientInput({
     message: options.message,
@@ -337,20 +339,7 @@ function buildAgentClientInput(options: {
       size: attachment.size,
       ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
     })),
-    labels: options.labels,
-    ...(options.project ? { hints: { projectId: options.project.ID } } : {}),
   })
-  if (options.project) {
-    input.uiSnapshot = {
-      ...(input.uiSnapshot ?? {}),
-      project: {
-        id: options.project.ID,
-        name: options.project.name,
-        status: options.project.status,
-        description: options.project.description,
-      },
-    }
-  }
   return input
 }
 
@@ -446,26 +435,6 @@ function buildDebugHttpRequests(options: {
   return requests
 }
 
-function formatLocalAgentAssistantContent(run: AgentRun, thread: LocalAgentThread) {
-  const assistant = thread.messages.find((item) => item.id === run.assistantMessageId)
-    ?? [...thread.messages].reverse().find((item) => item.role === 'assistant')
-  const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
-  const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
-  const content = assistant?.content
-    ?? (run.status === 'failed'
-      ? `运行失败：${run.error ?? 'unknown error'}`
-      : run.status === 'requires_action'
-        ? pendingInputs.length > 0
-          ? `需要补充信息后继续执行：\n${pendingInputs.map((request) => `- ${request.title}: ${request.question}`).join('\n')}`
-          : `需要确认后继续执行：\n${pendingApprovals.map((approval) => `- ${approval.toolName}: ${approval.reason}`).join('\n') || '- 等待工具调用确认'}`
-        : '本地 Agent Runtime 没有返回 assistant message。')
-
-  if (run.status !== 'completed_with_warnings' || !run.warnings?.length) return content
-  const missing = run.warnings.filter((warning) => !content.includes(warning))
-  if (missing.length === 0) return content
-  return `${content}\n\nWarnings:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
-}
-
 function LocalAgentWorkflow({
   run,
   approving = false,
@@ -479,213 +448,37 @@ function LocalAgentWorkflow({
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: { choiceIds?: string[]; text?: string }) => void
 }) {
-  if (!run) return null
-  const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
-  const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
-  const statusLabel = run.status === 'requires_action'
-    ? pendingInputs.length > 0 ? 'Waiting for input' : 'Waiting for approval'
-    : run.status.replace(/_/g, ' ')
-
   return (
-    <div className="mx-1 my-2 rounded-md border border-border bg-background/70 p-2.5 text-xs">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
-          <Workflow size={13} />
-          <span className="truncate">Agent workflow</span>
-        </div>
-        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'requires_action' ? 'warning' : run.status === 'in_progress' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
-          {statusLabel}
-        </Badge>
-      </div>
-
-      {pendingInputs.length > 0 && onAnswerInput && (
-        <div className="mb-2 rounded-md border border-sky-500/30 bg-sky-500/10 p-2">
-          <div className="mb-1.5 flex min-w-0 items-center gap-1.5 font-medium text-sky-800 dark:text-sky-300">
-            <ListChecks size={12} />
-            <span className="truncate">Input required</span>
-          </div>
-          <div className="space-y-2">
-            {pendingInputs.map((request) => (
-              <LocalAgentInputRequestCard
-                key={request.id}
-                request={request}
-                disabled={approving || !onAnswerInput}
-                onAnswer={(answer) => onAnswerInput?.(request.id, answer)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {pendingApprovals.length > 0 && (
-        <div className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300">
-              <ShieldCheck size={12} />
-              <span className="truncate">Approval required</span>
-            </div>
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              onClick={() => onReject?.(pendingApprovals.map((approval) => approval.id))}
-              disabled={approving || !onReject}
-              className="h-6 shrink-0 px-2 text-[10px] text-muted-foreground hover:text-destructive"
-            >
-              <X size={10} />
-              Reject
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              variant="secondary"
-              onClick={() => onApprove?.(pendingApprovals.map((approval) => approval.id))}
-              disabled={approving || !onApprove}
-              className="h-6 shrink-0 px-2 text-[10px]"
-            >
-              {approving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
-              Approve
-            </Button>
-          </div>
-          <div className="space-y-1">
-            {pendingApprovals.map((approval) => (
-              <div key={approval.id} className="rounded border border-amber-500/20 bg-background/60 px-2 py-1.5">
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-medium text-foreground">{approval.toolName}</span>
-                    {approval.risk && (
-                      <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
-                        {approval.risk}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => onReject?.([approval.id])}
-                      disabled={approving || !onReject}
-                      className="h-5 px-1.5 text-[9px] text-muted-foreground hover:text-destructive"
-                    >
-                      Reject
-                    </Button>
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="secondary"
-                      onClick={() => onApprove?.([approval.id])}
-                      disabled={approving || !onApprove}
-                      className="h-5 px-1.5 text-[9px]"
-                    >
-                      Approve
-                    </Button>
-                  </div>
+    <LocalAgentWorkflowPanel
+      run={run}
+      approving={approving}
+      onApprove={onApprove}
+      onReject={onReject}
+      onAnswerInput={onAnswerInput}
+      approvalDetails={(approval) => (
+        <>
+          {approval.permission && (
+            <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">permission: {approval.permission}</p>
+          )}
+          {approval.args && (
+            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 text-[9px] text-muted-foreground">
+              {safeJSONStringify(approval.args)}
+            </pre>
+          )}
+          {(() => {
+            const applyPreview = isDraftApplyPreview(approval.preview) ? approval.preview : null
+            return applyPreview ? (
+              <div className="mt-1 space-y-1">
+                <div className="rounded bg-amber-500/10 p-1.5 text-[9px] leading-relaxed text-amber-800 dark:text-amber-300">
+                  {applyPreview.review.sideEffect}
                 </div>
-                <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
-                {approval.permission && (
-                  <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">permission: {approval.permission}</p>
-                )}
-                {approval.args && (
-                  <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 text-[9px] text-muted-foreground">
-                    {safeJSONStringify(approval.args)}
-                  </pre>
-                )}
-                {(() => {
-                  const applyPreview = isDraftApplyPreview(approval.preview) ? approval.preview : null
-                  return applyPreview ? (
-                    <div className="mt-1 space-y-1">
-                      <div className="rounded bg-amber-500/10 p-1.5 text-[9px] leading-relaxed text-amber-800 dark:text-amber-300">
-                        {applyPreview.review.sideEffect}
-                      </div>
-                      <DraftDiff preview={applyPreview} />
-                    </div>
-                  ) : null
-                })()}
+                <DraftDiff preview={applyPreview} />
               </div>
-            ))}
-          </div>
-        </div>
+            ) : null
+          })()}
+        </>
       )}
-
-      <div className="space-y-1">
-        {run.steps.map((step) => (
-          <div key={step.id} className="flex items-start gap-2 text-[10px]">
-            <span className={cn('mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', workflowDotClass(step.status))}>
-              {step.status === 'in_progress' ? <Loader2 size={10} className="animate-spin" /> : step.status === 'completed' ? <Check size={10} /> : <X size={10} />}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate font-medium text-foreground">{workflowStepTitle(step)}</span>
-                <span className="shrink-0 text-muted-foreground/60">{step.type}</span>
-                {step.sandboxed && <Badge variant="outline" className="h-4 px-1 text-[9px]">sandbox</Badge>}
-              </div>
-              {step.error && <p className="text-destructive">{step.error}</p>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function LocalAgentInputRequestCard({
-  request,
-  disabled,
-  onAnswer,
-}: {
-  request: NonNullable<AgentRun['pendingInputRequests']>[number]
-  disabled?: boolean
-  onAnswer: (answer: { choiceIds?: string[]; text?: string }) => void
-}) {
-  const [text, setText] = useState('')
-  return (
-    <div className="rounded border border-sky-500/20 bg-background/70 px-2 py-1.5">
-      <div className="font-medium text-foreground">{request.title}</div>
-      {request.summary && <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{request.summary}</p>}
-      <p className="mt-1 text-[10px] leading-relaxed text-foreground">{request.question}</p>
-      {request.choices.length > 0 && (
-        <div className="mt-1.5 grid gap-1">
-          {request.choices.map((choice) => (
-            <Button
-              key={choice.id}
-              type="button"
-              size="xs"
-              variant="outline"
-              disabled={disabled}
-              onClick={() => onAnswer({ choiceIds: [choice.id] })}
-              className="h-auto justify-start whitespace-normal px-2 py-1 text-left text-[10px]"
-            >
-              <span className="min-w-0">
-                <span className="block font-medium">{choice.label}</span>
-                {choice.description && <span className="block text-[9px] leading-relaxed text-muted-foreground">{choice.description}</span>}
-              </span>
-            </Button>
-          ))}
-        </div>
-      )}
-      {(request.allowCustomAnswer || request.inputType === 'text') && (
-        <div className="mt-1.5 flex items-center gap-1">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={disabled}
-            placeholder="输入补充信息..."
-            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
-          <Button
-            type="button"
-            size="xs"
-            variant="secondary"
-            disabled={disabled || !text.trim()}
-            onClick={() => onAnswer({ text: text.trim() })}
-            className="h-7 px-2 text-[10px]"
-          >
-            Send
-          </Button>
-        </div>
-      )}
-    </div>
+    />
   )
 }
 
@@ -2063,28 +1856,33 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     const clientInput = buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
-      labels: contextLabels,
-      project: currentProject,
     })
-    const agentContext = buildAgentContext({
-      mode: settings.mode,
-      permissionMode: settings.permissionMode,
-      autoPlan: settings.autoPlan,
-      project: currentProject,
-      recentResources,
-      includeProjectContext: settings.includeProjectContext,
-      includeRecentResources: settings.includeRecentResources,
-    })
-    const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
-    const messages = [
-      { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
-      ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user' as const, content: enrichedUserContent },
-    ]
+    const useLocalRuntime = localRuntimeEnabled
+    const agentContext = useLocalRuntime
+      ? ''
+      : buildAgentContext({
+        mode: settings.mode,
+        permissionMode: settings.permissionMode,
+        autoPlan: settings.autoPlan,
+        project: currentProject,
+        recentResources,
+        includeProjectContext: settings.includeProjectContext,
+        includeRecentResources: settings.includeRecentResources,
+      })
+    const enrichedUserContent = useLocalRuntime
+      ? visibleUserContent
+      : `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
+    const messages = useLocalRuntime
+      ? [{ role: 'user' as const, content: enrichedUserContent }]
+      : [
+        { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
+        ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: enrichedUserContent },
+      ]
     const warnings: string[] = []
     let localRuntime: AgentSendDraft['localRuntime']
 
-    if (localRuntimeEnabled) {
+    if (useLocalRuntime) {
       const threadId = localAgentThreadIds[conv.id]
       localRuntime = {
         ...(threadId ? { threadId } : {}),
@@ -2122,7 +1920,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     return {
       id: makeTraceId(),
       createdAt: Date.now(),
-      route: localRuntimeEnabled ? 'local-runtime' : 'cloud-chat',
+      route: useLocalRuntime ? 'local-runtime' : 'cloud-chat',
       visibleUserContent,
       attachments: sentAttachments,
       model: {
@@ -2152,7 +1950,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         messages,
       },
       httpRequests: buildDebugHttpRequests({
-        route: localRuntimeEnabled ? 'local-runtime' : 'cloud-chat',
+        route: useLocalRuntime ? 'local-runtime' : 'cloud-chat',
         modelId,
         messages,
         ...(localRuntime ? { localRuntime } : {}),

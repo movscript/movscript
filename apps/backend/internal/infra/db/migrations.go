@@ -62,7 +62,7 @@ func RegisteredMigrations() []Migration {
 					&model.UsageReservation{},
 					&model.AuditLog{},
 				}
-				models = append(models, commercialMigrationModels()...)
+				models = append(models, editionMigrationModels()...)
 				if err := db.AutoMigrate(models...); err != nil {
 					return err
 				}
@@ -402,5 +402,5 @@ func allModels() []any {
 		&model.UserGroupMember{},
 		&model.OrgInvitation{},
 	}
-	return append(entities, commercialMigrationModels()...)
+	return append(entities, editionMigrationModels()...)
 }

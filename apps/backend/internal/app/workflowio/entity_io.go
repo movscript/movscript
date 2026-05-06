@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
-	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 

@@ -24,10 +24,13 @@ export type PreviewContentUnit = {
 
 export type PreviewKeyframe = {
   id: number
+  content_unit_id?: number | null
   order: number
   title: string
   description: string
   prompt: string
+  resource_id?: number | null
+  resource_url?: string
   has_asset: boolean
 }
 

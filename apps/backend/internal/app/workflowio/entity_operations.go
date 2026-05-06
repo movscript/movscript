@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 

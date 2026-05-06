@@ -21,6 +21,7 @@ var ErrSegmentProductionMismatch = errors.New("segment production does not match
 
 type Service struct {
 	db    *gorm.DB
+	repo  repository
 	cache cache.Cache
 }
 
@@ -58,7 +59,7 @@ func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
 	if c == nil {
 		c = cache.NewNoop()
 	}
-	return &Service{db: db, cache: c}
+	return &Service{db: db, repo: newRepository(db), cache: c}
 }
 
 func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {

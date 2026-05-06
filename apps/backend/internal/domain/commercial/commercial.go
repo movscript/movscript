@@ -113,7 +113,7 @@ type UsageResult struct {
 	ActualCost float64 `json:"actual_cost"`
 }
 
-type QuotaService interface {
+type UsageService interface {
 	Estimate(ctx context.Context, subject SubjectRef, req UsageRequest) (UsageEstimate, error)
 	Reserve(ctx context.Context, subject SubjectRef, estimate UsageEstimate) (Reservation, error)
 	Settle(ctx context.Context, reservationID uint, actual UsageResult) error

@@ -36,6 +36,7 @@ import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectHomePage from './pages/project-home/ProjectHomePage'
+import CreativeWorkbenchPage from './pages/creative-workbench/CreativeWorkbenchPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import SegmentsPage from './pages/segments/SegmentsPage'
@@ -299,6 +300,7 @@ export default function App() {
               <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
               <Route path="/delivery" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
               <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
+              <Route path="/creative-workbench" element={<ProjectGuard><CreativeWorkbenchPage /></ProjectGuard>} />
               <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
               <Route path="/workbench" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
               <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />

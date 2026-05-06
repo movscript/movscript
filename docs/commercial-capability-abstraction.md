@@ -90,14 +90,14 @@ type GatewayPolicyService interface {
 
 计量层负责回答“用了多少、扣多少、是否超额”。
 
-现有 `usage.go` 和 `infra/ai/billing.go` 已经具备雏形，建议把它们收束成统一接口：
+现有 `usage.go` 和 `infra/ai/billing.go` 已经具备雏形，建议把它们收束成统一的用量接口：
 
 ```go
-type QuotaService interface {
-    Estimate(ctx context.Context, subject SubjectRef, req UsageRequest) (UsageEstimate, error)
-    Reserve(ctx context.Context, subject SubjectRef, estimate UsageEstimate) (Reservation, error)
-    Settle(ctx context.Context, reservationID uint, actual UsageResult) error
-    Release(ctx context.Context, reservationID uint, reason string) error
+type UsageService interface {
+	Estimate(ctx context.Context, subject SubjectRef, req UsageRequest) (UsageEstimate, error)
+	Reserve(ctx context.Context, subject SubjectRef, estimate UsageEstimate) (Reservation, error)
+	Settle(ctx context.Context, reservationID uint, actual UsageResult) error
+	Release(ctx context.Context, reservationID uint, reason string) error
 }
 ```
 
@@ -200,7 +200,7 @@ type AuditSink interface {
 
 ### `apps/backend/internal/infra/ai/billing.go`
 
-这里应该逐步演进成 `QuotaService` 的底层实现。
+这里应该逐步演进成用量计量服务的底层实现。
 
 它现在已经在做：
 
@@ -222,11 +222,6 @@ type AuditSink interface {
 ```text
 Plan
 Entitlement
-Subscription
-Order
-Invoice
-PaymentIntent
-WalletSnapshot
 LicenseToken
 PolicyRule
 UsageLedger
@@ -237,10 +232,6 @@ AuditEvent
 
 - `Plan`：产品层级，如 free/team/enterprise。
 - `Entitlement`：某个 subject 实际拥有的能力集合。
-- `Subscription`：商业合同或订阅状态。
-- `WalletSnapshot`：账户余额与冻结金额快照。
-- `PaymentIntent`：收款渠道的一次支付意图。
-- `Order` / `Invoice`：交易单据与账单。
 - `LicenseToken`：私有部署或离线授权。
 - `PolicyRule`：模型路由、key、feature、预算规则。
 - `UsageLedger`：统一账本。
@@ -252,7 +243,7 @@ AuditEvent
 
 - `internal/app/entitlement`
 - `internal/app/policy`
-- `internal/app/billing`
+- `internal/app/usage`
 
 以及一个基础接口包：
 
@@ -266,8 +257,9 @@ AuditEvent
 
 - `movscript` 仓库构建社区版。
 - `enterprise` 仓库构建商业版。
-- `movscript` 仓库只保留商业能力的共享接口、共享数据模型字段和社区实现。
-- 社区版不创建 `user_quota`、`org_quota`、钱包、订单、支付、发票表。
+- `movscript` 仓库只保留共享抽象和社区实现。
+- 社区版不创建企业专用的计费和交易表。
+- 社区版不注册企业专用的计费和交易 HTTP 路由。
 - 新的商业实现、企业路由、企业部署脚本和商业授权逻辑应进入 `enterprise` 仓库的 MovScript overlay。
 
 因此，社区仓中的 `//go:build enterprise` 文件只作为迁移期遗留存在。后续不要继续在社区仓新增企业实现文件；如果需要新增商业能力，应先在社区仓补稳定接口或社区默认实现，再在 enterprise overlay 中实现商业版本。
@@ -313,7 +305,7 @@ go build -tags enterprise ./cmd/server
 
 由于 Go 的 `internal/` 规则，企业后端实现不能作为旁边独立 Go module 直接 import `apps/backend/internal/...`。企业实现要么以 overlay 方式进入同一个 module 编译，要么通过 RPC/进程级插件与社区 backend 通信。短期推荐 overlay，后续如果商业能力需要独立部署，再拆 RPC 边界。
 
-插件机制用于扩展商业模板、workflow、Hub 分发和企业 UI，不用于单独强制 license、扣费、预算、provider raw key 可见性等核心商业判断。这些判断必须落在 `EntitlementService`、`GatewayPolicyService`、`QuotaService` 和 `AuditSink` 一类后端接口上。
+插件机制用于扩展商业模板、workflow、Hub 分发和企业 UI，不用于单独强制 license、扣费、预算、provider raw key 可见性等核心判断。这些判断必须落在权益、策略、用量和审计接口上。
 
 ## 当前已落地的社区版切口
 
@@ -330,9 +322,9 @@ go build -tags enterprise ./cmd/server
 
 ### 第一阶段
 
-- 抽出 `EntitlementService`
-- 抽出 `GatewayPolicyService`
-- 抽出 `QuotaService`
+- 抽出权益接口
+- 抽出策略接口
+- 抽出用量接口
 - 保留本地实现
 
 ### 第二阶段
@@ -343,7 +335,7 @@ go build -tags enterprise ./cmd/server
 ### 第三阶段
 
 - 接入托管实现
-- 增加 subscription / license / entitlement storage
+- 增加企业授权和权益存储
 - 增加商业版管理页
 
 ## 关键原则

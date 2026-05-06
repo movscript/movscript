@@ -2,6 +2,6 @@
 
 package db
 
-func commercialMigrationModels() []any {
+func editionMigrationModels() []any {
 	return nil
 }

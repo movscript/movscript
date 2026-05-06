@@ -7,28 +7,15 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
 func (s *Service) LoadProjectItem(ctx context.Context, projectID uint, item any, id string) error {
-	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).First(item, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrNotFound
-		}
-		return err
-	}
-	return nil
+	return s.repo.LoadProjectItem(ctx, projectID, item, id)
 }
 
 func (s *Service) CreateItem(ctx context.Context, item any) error {
-	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if err := tx.Create(item).Error; err != nil {
-			return err
-		}
-		return entityrelation.SyncCoreEntityRelations(tx, item)
-	}); err != nil {
+	if err := s.repo.CreateItem(ctx, item); err != nil {
 		return err
 	}
 	s.bumpProgressVersion(ctx, projectIDOf(item))
@@ -39,19 +26,7 @@ func (s *Service) PatchItem(ctx context.Context, item any, updates map[string]an
 	if len(updates) == 0 {
 		return nil
 	}
-	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if err := tx.Model(item).Updates(updates).Error; err != nil {
-			return err
-		}
-		if err := tx.First(item).Error; err != nil {
-			return err
-		}
-		if err := tx.Save(item).Error; err != nil {
-			return err
-		}
-		return entityrelation.SyncCoreEntityRelations(tx, item)
-	}); err != nil {
+	if err := s.repo.PatchItem(ctx, item, updates); err != nil {
 		return err
 	}
 	s.bumpProgressVersion(ctx, projectIDOf(item))
@@ -59,18 +34,12 @@ func (s *Service) PatchItem(ctx context.Context, item any, updates map[string]an
 }
 
 func (s *Service) ReloadItem(ctx context.Context, item any) error {
-	return s.db.WithContext(ctx).First(item).Error
+	return s.repo.ReloadItem(ctx, item)
 }
 
 func (s *Service) DeleteItem(ctx context.Context, item any) error {
 	projectID := projectIDOf(item)
-	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if err := tx.Delete(item).Error; err != nil {
-			return err
-		}
-		return entityrelation.DeleteCoreEntityRelations(tx, item)
-	}); err != nil {
+	if err := s.repo.DeleteItem(ctx, item); err != nil {
 		return err
 	}
 	s.bumpProgressVersion(ctx, projectID)

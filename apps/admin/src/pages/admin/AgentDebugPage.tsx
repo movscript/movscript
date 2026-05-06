@@ -62,6 +62,7 @@ import {
 } from '@/lib/localAgentClient'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { LocalAgentWorkflowPanel } from '@/components/agent/localRuntime'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import type { PublicModel } from '@/types'
@@ -2702,7 +2703,6 @@ function DebugRunTimeline({
     )
   }
 
-  const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
   const orderedSteps = orderRunStepsChronologically(run.steps)
   const assistantMessage = findAssistantMessage(run, threadMessages)
 
@@ -2730,40 +2730,21 @@ function DebugRunTimeline({
           </div>
         )}
 
-        {pendingApprovals.length > 0 && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-semibold text-foreground">Approval Required</div>
-              <div className="flex items-center gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => onReject(pendingApprovals.map((approval) => approval.id))} disabled={approving}>
-                  {approving ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-                  Reject All
-                </Button>
-                <Button type="button" size="sm" onClick={() => onApprove(pendingApprovals.map((approval) => approval.id))} disabled={approving}>
-                  {approving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                  Approve All
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {pendingApprovals.map((approval) => (
-                <div key={approval.id} className="rounded-md border border-border bg-background p-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium text-foreground">{approval.toolName}</div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.permission ?? approval.status}</Badge>
-                      <Button type="button" size="xs" variant="outline" onClick={() => onReject([approval.id])} disabled={approving}>Reject</Button>
-                      <Button type="button" size="xs" onClick={() => onApprove([approval.id])} disabled={approving}>Approve</Button>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-muted-foreground">{approval.reason}</p>
-                  {approval.args && <CodeBlock value={safeJSONStringify(approval.args)} maxHeight="160px" className="mt-2" />}
-                  {approval.preview !== undefined && <CodeBlock value={safeJSONStringify(approval.preview)} maxHeight="220px" className="mt-2" />}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <LocalAgentWorkflowPanel
+          run={run}
+          approving={approving}
+          onApprove={onApprove}
+          onReject={onReject}
+          approvalDetails={(approval) => (
+            <>
+              {approval.permission && (
+                <p className="mt-1 text-[9px] text-muted-foreground/70">permission: {approval.permission}</p>
+              )}
+              {approval.args && <CodeBlock value={safeJSONStringify(approval.args)} maxHeight="160px" className="mt-2" />}
+              {approval.preview !== undefined && <CodeBlock value={safeJSONStringify(approval.preview)} maxHeight="220px" className="mt-2" />}
+            </>
+          )}
+        />
 
         <AgentActivityTrace run={run} threadMessages={threadMessages} />
 

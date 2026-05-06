@@ -3,6 +3,7 @@ package preview
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
@@ -49,12 +50,15 @@ type ContentUnit struct {
 }
 
 type Keyframe struct {
-	ID          uint   `json:"id"`
-	Order       int    `json:"order"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Prompt      string `json:"prompt"`
-	HasAsset    bool   `json:"has_asset"`
+	ID            uint   `json:"id"`
+	ContentUnitID *uint  `json:"content_unit_id,omitempty"`
+	Order         int    `json:"order"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	Prompt        string `json:"prompt"`
+	ResourceID    *uint  `json:"resource_id,omitempty"`
+	ResourceURL   string `json:"resource_url,omitempty"`
+	HasAsset      bool   `json:"has_asset"`
 }
 
 type MissingAsset struct {
@@ -203,15 +207,25 @@ func (s *Service) loadKeyframesForUnits(ctx context.Context, projectID uint, uni
 	}
 	for _, kf := range keyframes {
 		resp.Keyframes = append(resp.Keyframes, Keyframe{
-			ID:          kf.ID,
-			Order:       kf.Order,
-			Title:       kf.Title,
-			Description: kf.Description,
-			Prompt:      kf.Prompt,
-			HasAsset:    kf.ResourceID != nil,
+			ID:            kf.ID,
+			ContentUnitID: kf.ContentUnitID,
+			Order:         kf.Order,
+			Title:         kf.Title,
+			Description:   kf.Description,
+			Prompt:        kf.Prompt,
+			ResourceID:    kf.ResourceID,
+			ResourceURL:   previewResourceURL(kf.ResourceID),
+			HasAsset:      kf.ResourceID != nil,
 		})
 	}
 	return nil
+}
+
+func previewResourceURL(id *uint) string {
+	if id == nil || *id == 0 {
+		return ""
+	}
+	return "/api/v1/resources/" + strconv.FormatUint(uint64(*id), 10) + "/file"
 }
 
 func (s *Service) loadMissingAssetsForOwner(ctx context.Context, projectID uint, ownerType string, ownerID uint, resp *GenerateResponse) error {

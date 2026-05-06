@@ -28,6 +28,7 @@ import {
   Images,
   ListChecks,
   ListTodo,
+  Lightbulb,
   LogOut,
   Move,
   PanelLeftClose,
@@ -243,6 +244,7 @@ export function Sidebar() {
           {current && (
             <>
               <NavItem to="/project-home" icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to="/creative-workbench" icon={Lightbulb} label={t('sidebar.items.creativeWorkbench')} collapsed={collapsed} />
               <NavItem to="/scripts" icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
               <NavItem to="/production" icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
