@@ -3,6 +3,7 @@ import { useUserStore } from '@/store/userStore'
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
+export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 
 export interface AgentMessage {
   id: string
@@ -71,6 +72,7 @@ export type AgentTraceEventKind =
   | 'tool_call'
   | 'model_call'
   | 'approval'
+  | 'input'
   | 'assistant'
   | 'error'
 
@@ -190,6 +192,7 @@ export interface AgentRun {
   status: AgentRunStatus
   agentManifest?: AgentManifest
   pendingApprovals?: AgentApprovalRequest[]
+  pendingInputRequests?: AgentInputRequest[]
   policy: AgentRunPolicy
   metadata?: Record<string, unknown>
   createdAt: string
@@ -345,6 +348,31 @@ export interface AgentApprovalRequest {
   updatedAt: string
   approvedAt?: string
   rejectedAt?: string
+}
+
+export interface AgentInputChoice {
+  id: string
+  label: string
+  description?: string
+}
+
+export interface AgentInputRequest {
+  id: string
+  runId: string
+  title: string
+  summary?: string
+  question: string
+  inputType: 'choice' | 'text' | 'confirmation'
+  choices: AgentInputChoice[]
+  allowCustomAnswer: boolean
+  status: AgentInputRequestStatus
+  createdAt: string
+  updatedAt: string
+  answeredAt?: string
+  answer?: {
+    choiceIds?: string[]
+    text?: string
+  }
 }
 
 export interface AgentHealth {
@@ -653,6 +681,10 @@ export class LocalAgentClient {
 
   rejectRun(runId: string, input: { approvalIds?: string[] } = {}): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/reject`, input)
+  }
+
+  answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }): Promise<AgentRun> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/input`, input)
   }
 
   async waitForRun(runId: string, options: { timeoutMs?: number; pollMs?: number; onRunUpdate?: (run: AgentRun) => void } = {}): Promise<AgentRun> {

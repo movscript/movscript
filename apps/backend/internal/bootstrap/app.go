@@ -8,14 +8,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/ai"
-	"github.com/movscript/movscript/internal/auth"
-	"github.com/movscript/movscript/internal/config"
-	"github.com/movscript/movscript/internal/db"
-	"github.com/movscript/movscript/internal/job"
-	"github.com/movscript/movscript/internal/observability"
-	"github.com/movscript/movscript/internal/router"
-	"github.com/movscript/movscript/internal/storage"
+	hubapp "github.com/movscript/movscript/internal/app/hub"
+	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/auth"
+	"github.com/movscript/movscript/internal/infra/config"
+	"github.com/movscript/movscript/internal/infra/db"
+	"github.com/movscript/movscript/internal/infra/jobrunner"
+	"github.com/movscript/movscript/internal/infra/observability"
+	"github.com/movscript/movscript/internal/infra/storage"
+	"github.com/movscript/movscript/internal/interfaces/http/router"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +27,7 @@ type App struct {
 	Tokens    *auth.Manager
 	Registry  *ai.Registry
 	AIService *ai.AIService
-	Worker    *job.Worker
+	Worker    *jobrunner.Worker
 	Router    *gin.Engine
 }
 
@@ -61,6 +62,9 @@ func New() (*App, error) {
 		slog.String("endpoint", cfg.MinIOEndpoint),
 		slog.String("bucket", cfg.MinIOBucket),
 	)
+	if err := hubapp.NewService(database, store).Seed(context.Background()); err != nil {
+		return nil, fmt.Errorf("seed hub packages: %w", err)
+	}
 
 	tokens, err := auth.NewManager(cfg.AuthTokenSecret, time.Duration(cfg.AuthTokenTTLHours)*time.Hour)
 	if err != nil {
@@ -74,7 +78,7 @@ func New() (*App, error) {
 
 	registry := ai.NewRegistry(database, encKey)
 	aiService := ai.NewAIService(database, registry)
-	worker := job.NewWorker(database, aiService, store, encKey)
+	worker := jobrunner.NewWorker(database, aiService, store, encKey)
 
 	engine := router.New(router.Dependencies{
 		DB:            database,

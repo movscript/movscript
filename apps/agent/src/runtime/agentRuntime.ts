@@ -23,6 +23,7 @@ import { runAgentGraph } from './loop/agentGraph.js'
 import { buildPromptPreview } from './loop/contextBuilder.js'
 import type {
   AgentApprovalRequest,
+  AgentInputRequest,
   AgentMessage,
   AgentMessageRole,
   AgentRunPreview,
@@ -37,6 +38,7 @@ import type {
   AgentThread,
   AgentThreadSummary,
   ApproveRunInput,
+  AnswerRunInputRequestInput,
   CreateMessageInput,
   CreateRunInput,
   CreateToolRunInput,
@@ -62,6 +64,8 @@ import {
   type AgentRunRoundInfo,
 } from './input/normalizeRunInput.js'
 import { buildDebugContext, buildDebugTrace } from './debug/debugContext.js'
+import { parseAgentCommand } from './commands/commandRouter.js'
+import { renderDebugContextText } from './contextText.js'
 
 export type {
   AgentMessage,
@@ -72,6 +76,7 @@ export type {
   AgentRunStep,
   AgentRuntimeOptions,
   AgentApprovalRequest,
+  AgentInputRequest,
   AgentCapabilitiesResponse,
   AgentDebugContextPanel,
   AgentRunDebugTrace,
@@ -80,6 +85,7 @@ export type {
   AgentThread,
   AgentThreadSummary,
   ApproveRunInput,
+  AnswerRunInputRequestInput,
   CreateMessageInput,
   CreateRunInput,
   CreateToolRunInput,
@@ -257,6 +263,8 @@ export class AgentRuntime {
     if (clientInput) {
       run.metadata = { ...(run.metadata ?? {}), clientInput: clientInput as unknown as JSONValue }
     }
+    const initialUser = [...thread.messages].reverse().find((message) => message.role === 'user')
+    if (initialUser) run.metadata = { ...(run.metadata ?? {}), initialUserMessageId: initialUser.id }
     this.store.createRun(run)
     thread.lastRunStatus = run.status
     thread.updatedAt = now
@@ -304,6 +312,7 @@ export class AgentRuntime {
         forcedToolCall: toolCall as unknown as JSONValue,
         ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
         ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
+        initialUserMessageId: userMessage.id,
       },
     }
     this.store.createRun(run)
@@ -330,6 +339,7 @@ export class AgentRuntime {
       : undefined
     const message = explicitMessage ?? lastUser?.content
     if (!message) throw new Error('preview requires a message or a thread with a user message')
+    const command = parseAgentCommand(message)
 
     const now = isoNow()
     const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
@@ -361,6 +371,7 @@ export class AgentRuntime {
       warnings: [...capabilities.warnings],
       history: thread?.messages ?? [],
       userMessage: message,
+      command,
     })
     const warnings: string[] = [...capabilities.warnings]
 
@@ -379,6 +390,7 @@ export class AgentRuntime {
           manifest: agentManifest, skills, context: debugContext,
           tools: capabilities.resolvedTools, policy, memories,
           warnings, history: thread?.messages ?? [], userMessage: message,
+          command,
         })
         const modelTools = buildOpenAIChatTools(capabilities.resolvedTools)
         const modelResult = await callModel({
@@ -533,6 +545,61 @@ export class AgentRuntime {
     return run
   }
 
+  answerRunInputRequest(runId: string, input: AnswerRunInputRequestInput = {}): AgentRun {
+    const run = this.requireRun(runId)
+    if (run.status !== 'requires_action') throw new Error(`run ${runId} is not waiting for user input`)
+    const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
+    if (pendingInputs.length === 0) throw new Error(`run ${runId} has no pending user input request`)
+    const requestId = typeof input.requestId === 'string' && input.requestId.trim() ? input.requestId.trim() : undefined
+    const request = requestId
+      ? pendingInputs.find((item) => item.id === requestId)
+      : pendingInputs[0]
+    if (!request) throw new Error(`input request not found: ${requestId}`)
+
+    const choiceIds = normalizeStringArray(input.choiceIds).filter((choiceId) => request.choices.some((choice) => choice.id === choiceId))
+    const text = typeof input.text === 'string' && input.text.trim() ? input.text.trim() : undefined
+    if (choiceIds.length === 0 && !text) throw new Error('input answer requires choiceIds or text')
+
+    const now = isoNow()
+    run.pendingInputRequests = (run.pendingInputRequests ?? []).map((item) => {
+      if (item.id !== request.id) return item
+      return {
+        ...item,
+        status: 'answered',
+        answer: {
+          ...(choiceIds.length > 0 ? { choiceIds } : {}),
+          ...(text ? { text } : {}),
+        },
+        answeredAt: now,
+        updatedAt: now,
+      }
+    })
+    run.status = 'queued'
+    run.updatedAt = now
+    this.recordTraceEvent(run, {
+      kind: 'input',
+      title: 'User input received',
+      summary: request.title,
+      status: 'completed',
+      data: {
+        requestId: request.id,
+        choiceIds,
+        ...(text ? { text } : {}),
+      },
+    })
+
+    const thread = this.requireThread(run.threadId)
+    const answerMessage = this.createMessage(thread.id, 'user', formatInputAnswerMessage(request, choiceIds, text))
+    thread.messages.push(answerMessage)
+    thread.updatedAt = answerMessage.createdAt
+    thread.lastRunStatus = run.status
+    this.store.updateThread(thread)
+    this.store.updateRun(run)
+    this.rememberRunAuth(run.id, input.backendAuthToken)
+    void this.executeRun(run.id)
+    return run
+  }
+
   listMemories(query: MemoryQuery = {}): AgentMemory[] {
     return this.memoryStore.listMemories(query)
   }
@@ -617,8 +684,12 @@ export class AgentRuntime {
 
     try {
       const thread = this.requireThread(run.threadId)
-      const lastUser = [...thread.messages].reverse().find((m) => m.role === 'user')
+      const initialUserMessageId = typeof run.metadata?.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined
+      const lastUser = initialUserMessageId
+        ? thread.messages.find((m) => m.id === initialUserMessageId && m.role === 'user')
+        : [...thread.messages].reverse().find((m) => m.role === 'user')
       if (!lastUser) throw new Error('run requires at least one user message')
+      const command = parseAgentCommand(lastUser.content)
       const clientInput = normalizeClientInput(run.metadata?.clientInput ?? thread.metadata?.lastClientInput)
 
       this.recordTraceEvent(run, {
@@ -631,8 +702,30 @@ export class AgentRuntime {
       })
       this.store.updateRun(run)
 
-      await this.mcpClient.initialize()
-      const contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {})
+      let contextResult: JSONValue
+      let contextError: string | undefined
+      try {
+        await this.mcpClient.initialize()
+        contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {})
+      } catch (error) {
+        contextError = error instanceof Error ? error.message : String(error)
+        this.recordTraceEvent(run, {
+          kind: 'context',
+          title: 'Context pack failed',
+          summary: contextError,
+          status: command.name === 'inspect_context' ? 'blocked' : 'failed',
+          round: setupRound,
+          data: {
+            source: 'mcp_context_pack',
+            endpoint: 'movscript_get_context_pack',
+            error: contextError,
+            fallback: command.name === 'inspect_context' ? 'client_input_snapshot' : 'none',
+          },
+        })
+        this.store.updateRun(run)
+        if (command.name !== 'inspect_context') throw error
+        contextResult = buildFallbackContextResult(clientInput, contextError)
+      }
       const context = extractAgentContext(contextResult)
       if (typeof context.currentProjectId === 'number') {
         thread.projectId = context.currentProjectId
@@ -652,13 +745,14 @@ export class AgentRuntime {
       })
 
       const agentManifest = run.agentManifest ?? this.defaultAgentManifest
+      const contextWarnings = contextError ? [`Context pack unavailable: ${contextError}`] : []
       const capabilities = await resolveAgentCapabilities({
         mcpClient: this.mcpClient,
         manifest: agentManifest,
         currentProjectId: context.currentProjectId,
         registry: this.toolRegistry,
         pluginCatalog: this.pluginCatalogInfo,
-        warnings: this.pluginWarnings,
+        warnings: [...this.pluginWarnings, ...contextWarnings],
       })
       const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
       const debugContext = buildDebugContext(contextResult, memories, clientInput)
@@ -668,13 +762,20 @@ export class AgentRuntime {
 
       this.recordTraceEvent(run, {
         kind: 'context',
-        title: 'Runtime context resolved',
+        title: contextError ? 'Runtime context resolved from fallback' : 'Runtime context resolved',
         summary: debugContext.project
           ? `Project #${debugContext.project.id} ${debugContext.project.name ?? ''}`.trim()
-          : 'No project context selected.',
-        status: 'completed',
+          : contextError ? 'MCP context unavailable; using client input snapshot.' : 'No project context selected.',
+        status: contextError ? 'blocked' : 'completed',
         round: setupRound,
-        data: { route: debugContext.route, project: debugContext.project, selection: debugContext.selection, recentResourceCount: debugContext.recentResources.length, attachmentCount: debugContext.attachments.length },
+        data: {
+          route: debugContext.route,
+          project: debugContext.project,
+          selection: debugContext.selection,
+          recentResourceCount: debugContext.recentResources.length,
+          attachmentCount: debugContext.attachments.length,
+          ...(contextError ? { fallback: true, error: contextError } : {}),
+        },
       })
       this.recordTraceEvent(run, {
         kind: 'manifest',
@@ -705,8 +806,76 @@ export class AgentRuntime {
         ...(run.metadata ?? {}),
         debugTrace: buildDebugTrace(agentManifest, skills, capabilities.resolvedTools, []) as unknown as JSONValue,
         context: debugContext as unknown as JSONValue,
+        command: command as unknown as JSONValue,
       }
       this.store.updateRun(run)
+
+      if (command.name === 'inspect_context' && !run.metadata?.forcedToolCall) {
+        const localRound = buildRunRound(1, 'Runtime command', 'runtime_rule')
+        this.recordTraceEvent(run, {
+          kind: 'policy',
+          title: 'Command handled locally',
+          summary: `${command.rawName ?? '/inspect_context'} returns runtime context without calling the model gateway.`,
+          status: 'completed',
+          round: localRound,
+          data: {
+            command,
+            modelGatewayCalled: false,
+            reason: 'inspect_context is a deterministic runtime diagnostic command',
+          },
+        })
+
+        const finalRound = buildRunRound(999, 'Final response', 'final')
+        const finalContent = this.formatFinalAssistantContent(
+          lastUser.content,
+          '',
+          [],
+          [...capabilities.warnings],
+          memories,
+          run,
+        )
+        const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
+        thread.messages.push(assistant)
+        thread.updatedAt = assistant.createdAt
+
+        const step = this.createStep(run, 'message', finalRound)
+        step.status = 'completed'
+        step.result = { messageId: assistant.id, localCommand: command.name }
+        step.completedAt = isoNow()
+        this.recordTraceEvent(run, {
+          kind: 'assistant',
+          title: 'Assistant message created',
+          summary: assistant.content.slice(0, 180),
+          status: 'completed',
+          round: finalRound,
+          stepId: step.id,
+          data: { messageId: assistant.id, chars: assistant.content.length, source: 'runtime_rule' },
+        })
+
+        run.assistantMessageId = assistant.id
+        run.warnings = capabilities.warnings.length > 0 ? [...capabilities.warnings] : undefined
+        run.metadata = {
+          ...(run.metadata ?? {}),
+          memoryIds: memories.map((m) => m.id),
+          writtenMemoryIds: [],
+        }
+        run.status = run.warnings && run.warnings.length > 0 ? 'completed_with_warnings' : 'completed'
+        run.completedAt = isoNow()
+        run.updatedAt = run.completedAt
+        this.recordTraceEvent(run, {
+          kind: 'run',
+          title: 'Run finished',
+          summary: `Run ${run.status}; no model gateway call was needed.`,
+          status: run.warnings && run.warnings.length > 0 ? 'info' : 'completed',
+          round: finalRound,
+          data: { status: run.status, warningCount: run.warnings?.length ?? 0, modelGatewayCalled: false },
+        })
+        thread.lastRunStatus = run.status
+        thread.updatedAt = run.updatedAt
+        this.store.updateThread(thread)
+        this.store.updateRun(run)
+        return
+      }
 
       // Resolve model config
       const { resolveRuntimeChatModelConfig } = await import('./model/modelConfig.js')
@@ -722,6 +891,8 @@ export class AgentRuntime {
         context: debugContext,
         memories,
         warnings: [...capabilities.warnings],
+        command,
+        ...(typeof run.metadata?.initialUserMessageId === 'string' ? { rootUserMessageId: run.metadata.initialUserMessageId } : {}),
         config: modelConfig,
         auth: this.getRunAuth(run.id),
         policy: run.policy,
@@ -764,15 +935,19 @@ export class AgentRuntime {
       if (loopResult.status === 'requires_action') {
         const now = isoNow()
         run.pendingApprovals = mergePendingApprovals(run.pendingApprovals ?? [], loopResult.pendingApprovals, now)
+        run.pendingInputRequests = mergePendingInputRequests(run.pendingInputRequests ?? [], loopResult.pendingInputRequests ?? [], now)
         run.warnings = loopResult.warnings.length > 0 ? loopResult.warnings : undefined
         run.status = 'requires_action'
         run.updatedAt = now
+        const pendingInputCount = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending').length
         this.recordTraceEvent(run, {
-          kind: 'approval',
-          title: 'Approval required',
-          summary: `${loopResult.pendingApprovals.length} tool action(s) paused the run.`,
+          kind: pendingInputCount > 0 && loopResult.pendingApprovals.length === 0 ? 'input' : 'approval',
+          title: pendingInputCount > 0 && loopResult.pendingApprovals.length === 0 ? 'User input required' : 'Approval required',
+          summary: pendingInputCount > 0 && loopResult.pendingApprovals.length === 0
+            ? `${pendingInputCount} user input request(s) paused the run.`
+            : `${loopResult.pendingApprovals.length} tool action(s) paused the run.`,
           status: 'blocked',
-          data: { approvals: loopResult.pendingApprovals },
+          data: { approvals: loopResult.pendingApprovals, inputRequests: run.pendingInputRequests },
         })
         this.store.updateRun(run)
         this.updateThreadRunStatus(run.threadId, run.status)
@@ -785,7 +960,8 @@ export class AgentRuntime {
 
       // completed
       const finalRound = buildRunRound(999, 'Final response', 'final')
-      const assistant = this.createMessage(thread.id, 'assistant', loopResult.finalContent || '（无内容）', run.id)
+      const finalContent = this.formatFinalAssistantContent(lastUser.content, loopResult.finalContent, loopResult.toolOutcomes, loopResult.warnings, memories, run)
+      const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
       thread.messages.push(assistant)
       thread.updatedAt = assistant.createdAt
 
@@ -966,10 +1142,150 @@ export class AgentRuntime {
     thread.updatedAt = isoNow()
     this.store.updateThread(thread)
   }
+
+  private formatFinalAssistantContent(
+    userMessage: string,
+    modelContent: string,
+    toolResults: ToolCallOutcome[],
+    warnings: string[],
+    memories: AgentMemory[],
+    run: AgentRun,
+  ): string {
+    const command = parseAgentCommand(userMessage)
+    if (command.name === 'inspect_context') {
+      const context = isRecord(run.metadata?.context) ? run.metadata.context : undefined
+      return JSON.stringify({
+        command: command.rawName ?? '/inspect_context',
+        runId: run.id,
+        threadId: run.threadId,
+        context,
+        contextText: isAgentDebugContextPanel(context) ? renderDebugContextText(context) : undefined,
+        memories: memories.map((memory) => ({
+          id: memory.id,
+          scope: memory.scope,
+          kind: memory.kind,
+          content: memory.content,
+        })),
+        labels: Array.isArray(context?.labels) ? context.labels : [],
+        warnings,
+      }, null, 2)
+    }
+
+    if (command.name === 'production_plan') {
+      return JSON.stringify({
+        command: command.rawName ?? '/production_plan',
+        runId: run.id,
+        threadId: run.threadId,
+        objective: command.payload || userMessage.trim(),
+        strategy: 'agentic_loop',
+        contextProfile: command.contextProfile,
+        steps: run.steps.map((step) => ({
+          id: step.id,
+          type: step.type,
+          status: step.status,
+          toolName: step.toolName,
+          sandboxed: step.sandboxed === true,
+        })),
+        warnings,
+        toolResults: toolResults.map((outcome) => ({
+          call: outcome.call,
+          ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
+        })),
+        pendingApprovals: (run.pendingApprovals ?? []).map((approval) => ({
+          id: approval.id,
+          toolName: approval.toolName,
+          status: approval.status,
+          reason: approval.reason,
+          risk: approval.risk,
+          permission: approval.permission,
+        })),
+        modelContent: modelContent || undefined,
+      }, null, 2)
+    }
+
+    return modelContent
+  }
 }
 
 function isMessageRole(value: unknown): value is AgentMessageRole {
   return value === 'system' || value === 'user' || value === 'assistant'
+}
+
+function isAgentDebugContextPanel(value: unknown): value is AgentDebugContextPanel {
+  return isRecord(value) && isRecord(value.route) && Array.isArray(value.projects) && Array.isArray(value.recentResources) && Array.isArray(value.attachments) && Array.isArray(value.memories) && Array.isArray(value.labels)
+}
+
+function buildFallbackContextResult(clientInput: NormalizedClientInput | undefined, error: string): JSONValue {
+  const ui = clientInput?.uiSnapshot
+  const snapshot: Record<string, JSONValue> = {
+    route: {
+      pathname: ui?.route?.pathname ?? '/',
+      ...(typeof ui?.route?.search === 'string' ? { search: ui.route.search } : {}),
+      ...(typeof ui?.route?.hash === 'string' ? { hash: ui.route.hash } : {}),
+    },
+    ...(ui?.project ? {
+      project: {
+        ...(typeof ui.project.id === 'number' ? { id: ui.project.id } : {}),
+        ...(typeof ui.project.name === 'string' ? { name: ui.project.name } : {}),
+        ...(typeof ui.project.status === 'string' ? { status: ui.project.status } : {}),
+        ...(typeof ui.project.description === 'string' ? { description: ui.project.description } : {}),
+      },
+    } : {}),
+    ...(typeof ui?.productionId === 'number' ? { productionId: ui.productionId } : {}),
+    selection: ui?.selection
+      ? {
+        ...(typeof ui.selection.entityType === 'string' ? { entityType: ui.selection.entityType } : {}),
+        ...((typeof ui.selection.entityId === 'number' || typeof ui.selection.entityId === 'string') ? { entityId: ui.selection.entityId } : {}),
+        ...(typeof ui.selection.label === 'string' ? { label: ui.selection.label } : {}),
+      }
+      : null,
+    recentResources: toJSONValue(ui?.recentResources ?? []),
+    projects: [],
+    contextSource: 'client_input_fallback',
+    contextError: error,
+  }
+  return {
+    content: [{
+      type: 'text',
+      text: JSON.stringify({ snapshot }, null, 2),
+    }],
+  }
+}
+
+function mergePendingInputRequests(existing: AgentInputRequest[], next: AgentInputRequest[], updatedAt: string): AgentInputRequest[] {
+  const pending = existing.filter((request) => request.status === 'pending')
+  const resolved = existing.filter((request) => request.status !== 'pending')
+  const merged = [...pending]
+  for (const request of next) {
+    const currentIndex = merged.findIndex((item) => item.title === request.title && item.question === request.question)
+    if (currentIndex >= 0) {
+      merged[currentIndex] = { ...merged[currentIndex], summary: request.summary, choices: request.choices, updatedAt }
+    } else {
+      merged.push(request)
+    }
+  }
+  return [...resolved, ...merged].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+function formatInputAnswerMessage(request: AgentInputRequest, choiceIds: string[], text?: string): string {
+  const choicesById = new Map(request.choices.map((choice) => [choice.id, choice]))
+  const selected = choiceIds
+    .map((choiceId) => choicesById.get(choiceId))
+    .filter((choice): choice is AgentInputRequest['choices'][number] => Boolean(choice))
+  const lines = [
+    '[用户补充信息]',
+    `标题：${request.title}`,
+    request.summary ? `简介：${request.summary}` : undefined,
+    `问题：${request.question}`,
+  ].filter((line): line is string => Boolean(line))
+  if (selected.length > 0) {
+    lines.push('选择：')
+    for (const choice of selected) {
+      lines.push(`- ${choice.label}${choice.description ? `：${choice.description}` : ''}`)
+    }
+  }
+  if (text) lines.push(`输入：${text}`)
+  return lines.join('\n')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

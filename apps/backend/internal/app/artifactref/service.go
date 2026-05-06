@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 

@@ -1,0 +1,187 @@
+package aiadmin
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/movscript/movscript/internal/app/dto"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/ai"
+	"gorm.io/gorm"
+)
+
+type PatchModelConfigInput struct {
+	ID                    string
+	ModelIDOverride       *string
+	IsEnabled             *bool
+	Priority              *int
+	CreditsInputPer1M     *float64
+	CreditsOutputPer1M    *float64
+	CreditsPerImage       *float64
+	CreditsPerSecond      *float64
+	CreditsPerCall        *float64
+	CustomDisplayName     *string
+	ShortName             *string
+	CustomCapabilities    *string
+	CustomBillingMode     *string
+	CustomAcceptsImage    *bool
+	CustomMaxInputImages  *int
+	CustomMaxInputVideos  *int
+	CustomImageEditField  *string
+	CustomSupportedParams *string
+}
+
+func (s *Service) ListModelConfigs(ctx context.Context, credentialID string) ([]model.AIModelConfig, error) {
+	cfgs := make([]model.AIModelConfig, 0)
+	err := s.db.WithContext(ctx).Where("credential_id = ?", credentialID).Find(&cfgs).Error
+	return cfgs, err
+}
+
+func (s *Service) CreateModelConfig(ctx context.Context, credentialID uint, input dto.AIModelConfigInput) (model.AIModelConfig, error) {
+	cfg := dto.NewAIModelConfig(input, credentialID)
+	if err := s.db.WithContext(ctx).Create(&cfg).Error; err != nil {
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+func (s *Service) UpdateModelConfig(ctx context.Context, id string, input dto.AIModelConfigInput) (model.AIModelConfig, error) {
+	cfg, err := s.GetModelConfig(ctx, id)
+	if err != nil {
+		return cfg, err
+	}
+	dto.ApplyAIModelConfigInput(&cfg, input)
+	if err := s.db.WithContext(ctx).Save(&cfg).Error; err != nil {
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+func (s *Service) DeleteModelConfig(ctx context.Context, id string) error {
+	return s.db.WithContext(ctx).Delete(&model.AIModelConfig{}, id).Error
+}
+
+func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigInput) (model.AIModelConfig, error) {
+	cfg, err := s.GetModelConfig(ctx, input.ID)
+	if err != nil {
+		return cfg, err
+	}
+	if input.ModelIDOverride != nil {
+		cfg.ModelIDOverride = *input.ModelIDOverride
+	}
+	if input.CustomDisplayName != nil {
+		cfg.CustomDisplayName = *input.CustomDisplayName
+	}
+	if input.ShortName != nil {
+		cfg.ShortName = *input.ShortName
+	}
+	if input.CustomCapabilities != nil {
+		cfg.CustomCapabilities = *input.CustomCapabilities
+	}
+	if input.CustomBillingMode != nil {
+		cfg.CustomBillingMode = *input.CustomBillingMode
+	}
+	if input.CustomAcceptsImage != nil {
+		cfg.CustomAcceptsImage = *input.CustomAcceptsImage
+	}
+	if input.CustomMaxInputImages != nil {
+		cfg.CustomMaxInputImages = *input.CustomMaxInputImages
+	}
+	if input.CustomMaxInputVideos != nil {
+		cfg.CustomMaxInputVideos = *input.CustomMaxInputVideos
+	}
+	if input.CustomImageEditField != nil {
+		cfg.CustomImageEditField = *input.CustomImageEditField
+	}
+	if input.CustomSupportedParams != nil {
+		cfg.CustomSupportedParams = *input.CustomSupportedParams
+	}
+	if input.IsEnabled != nil {
+		cfg.IsEnabled = *input.IsEnabled
+	}
+	if input.Priority != nil {
+		cfg.Priority = *input.Priority
+	}
+	if input.CreditsInputPer1M != nil {
+		cfg.CreditsInputPer1M = *input.CreditsInputPer1M
+	}
+	if input.CreditsOutputPer1M != nil {
+		cfg.CreditsOutputPer1M = *input.CreditsOutputPer1M
+	}
+	if input.CreditsPerImage != nil {
+		cfg.CreditsPerImage = *input.CreditsPerImage
+	}
+	if input.CreditsPerSecond != nil {
+		cfg.CreditsPerSecond = *input.CreditsPerSecond
+	}
+	if input.CreditsPerCall != nil {
+		cfg.CreditsPerCall = *input.CreditsPerCall
+	}
+	if err := s.db.WithContext(ctx).Save(&cfg).Error; err != nil {
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+func (s *Service) GetModelConfig(ctx context.Context, id string) (model.AIModelConfig, error) {
+	var cfg model.AIModelConfig
+	if err := s.db.WithContext(ctx).First(&cfg, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return cfg, ErrNotFound
+		}
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, error) {
+	cfg, err := s.GetModelConfig(ctx, id)
+	if err != nil {
+		return TestResult{}, err
+	}
+	cred, err := s.GetCredential(ctx, cfg.CredentialID)
+	if err != nil {
+		return TestResult{}, fmt.Errorf("credential not found: %w", err)
+	}
+	def := ai.ResolveModelDef(cfg.ModelDefID, cred.AdapterType, cfg.CustomDisplayName, cfg.CustomCapabilities, cfg.CustomBillingMode, cfg.CustomAcceptsImage, cfg.CustomMaxInputImages, cfg.CustomMaxInputVideos, cfg.CustomImageEditField, cfg.CustomSupportedParams)
+
+	hasText := false
+	for _, cap := range def.Capabilities {
+		if cap == "text" {
+			hasText = true
+			break
+		}
+	}
+	if !hasText {
+		return TestResult{
+			Success: true,
+			Message: "图像/视频模型跳过生成测试（避免计费），请通过凭据连接测试验证 key",
+		}, nil
+	}
+
+	provider, _, err := s.registry.BuildForConfig(cfg)
+	if err != nil {
+		return TestResult{Success: false, Message: err.Error()}, nil
+	}
+	modelID := ai.ResolveModelID(cfg.ModelIDOverride, def)
+	start := time.Now()
+	_, err = provider.TextGenerate(ctx, ai.TextRequest{
+		Model:     modelID,
+		Messages:  []ai.Message{{Role: "user", Content: "Hi"}},
+		MaxTokens: 1,
+	})
+	if err != nil {
+		return TestResult{Success: false, Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}, nil
+	}
+	return TestResult{Success: true, Message: "模型响应正常", LatencyMs: time.Since(start).Milliseconds()}, nil
+}
+
+func (s *Service) DebugModelConfig(ctx context.Context, id string) (ai.DebugCallResult, error) {
+	cfg, err := s.GetModelConfig(ctx, id)
+	if err != nil {
+		return ai.DebugCallResult{}, err
+	}
+	return s.registry.DebugCall(ctx, cfg), nil
+}

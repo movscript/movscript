@@ -42,11 +42,17 @@ export class MCPClient {
       params,
     }
 
-    const res = await fetch(this.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    let res: Response
+    try {
+      res = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`MCP request failed (${method} ${this.endpoint}): ${message}`)
+    }
 
     if (!res.ok) {
       throw new Error(`MCP HTTP ${res.status}: ${await res.text()}`)

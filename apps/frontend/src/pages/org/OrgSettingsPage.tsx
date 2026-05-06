@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Copy, Plus, Trash2, UserMinus } from 'lucide-react'
+import { Check, Copy, Plus, Trash2, UserMinus } from 'lucide-react'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { Button } from '@movscript/ui'
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
 import { translateApiError } from '@/lib/apiError'
-import type { OrganizationMember, OrgInvitation } from '@/types'
+import type { Organization, OrganizationMember, OrgInvitation } from '@/types'
 
 type Tab = 'members' | 'invitations' | 'settings'
 
@@ -155,6 +155,12 @@ function InvitationsTab({ orgId }: { orgId: number }) {
   const [inviteRole, setInviteRole] = useState('member')
   const [inviteNote, setInviteNote] = useState('')
   const [createError, setCreateError] = useState('')
+  const [copied, setCopied] = useState('')
+
+  const { data: org } = useQuery<Organization>({
+    queryKey: ['org', orgId],
+    queryFn: () => api.get(`/orgs/${orgId}`).then((r) => r.data),
+  })
 
   const { data: invitations = [], isLoading } = useQuery<OrgInvitation[]>({
     queryKey: ['org', orgId, 'invitations'],
@@ -180,7 +186,18 @@ function InvitationsTab({ orgId }: { orgId: number }) {
 
   function copyLink(token: string) {
     const url = `${window.location.origin}/invite/${token}`
-    navigator.clipboard.writeText(url).catch(() => {})
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(`link:${token}`)
+      window.setTimeout(() => setCopied(''), 1600)
+    }).catch(() => {})
+  }
+
+  function copyCode() {
+    if (!org?.join_code) return
+    navigator.clipboard.writeText(org.join_code).then(() => {
+      setCopied('code')
+      window.setTimeout(() => setCopied(''), 1600)
+    }).catch(() => {})
   }
 
   const roles = ['admin', 'member', 'viewer']
@@ -189,6 +206,18 @@ function InvitationsTab({ orgId }: { orgId: number }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">{t('org.code')}</p>
+          <p className="mt-1 font-mono text-sm text-foreground">{org?.join_code ?? t('common.loadingShort')}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('org.codeManagementHint')}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={copyCode} disabled={!org?.join_code}>
+          {copied === 'code' ? <Check size={13} /> : <Copy size={13} />}
+          {t('org.copyOrgCode')}
+        </Button>
+      </div>
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{t('org.invitationsCount', { count: invitations.length })}</p>
         <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -219,7 +248,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
                     onClick={() => copyLink(inv.token)}
                     title={t('org.copyInviteLink')}
                   >
-                    <Copy size={13} />
+                    {copied === `link:${inv.token}` ? <Check size={13} /> : <Copy size={13} />}
                   </Button>
                   <Button
                     variant="ghost"

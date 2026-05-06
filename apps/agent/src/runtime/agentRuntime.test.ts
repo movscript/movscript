@@ -77,6 +77,23 @@ function installDefaultModelFetch(): void {
       const draftId = userMsg.match(/\b(draft_[a-zA-Z0-9_-]+)\b/)?.[1]
       if (draftId) callsToMake.push({ id: 'call_apply_1', name: 'movscript_apply_draft', args: { draftId } })
     }
+    if (/选择|缺少上下文|ask user/i.test(userMsg) && !/用户补充信息/.test(userMsg) && toolNames.has('movscript_request_user_input')) {
+      callsToMake.push({
+        id: 'call_input_1',
+        name: 'movscript_request_user_input',
+        args: {
+          title: '选择目标内容',
+          summary: '当前请求没有说明要处理哪类项目内容。',
+          question: '你希望我先处理哪一类内容？',
+          inputType: 'choice',
+          choices: [
+            { id: 'script', label: '剧本', description: '先处理剧本文本和结构。' },
+            { id: 'asset', label: '素材', description: '先检查素材和引用。' },
+          ],
+          allowCustomAnswer: true,
+        },
+      })
+    }
 
     if (callsToMake.length > 0) {
       return new Response(JSON.stringify({
@@ -112,8 +129,10 @@ class FakeMCPClient {
   projectId: number | null = null
   userId: number | null = null
   failTools = new Set<string>()
+  failInitialize = false
 
   async initialize(): Promise<JSONValue> {
+    if (this.failInitialize) throw new Error('mcp offline')
     return { ok: true }
   }
 
@@ -394,10 +413,38 @@ test('run requiring approval pauses before tool execution and resumes after appr
   const resumed = await waitForRun(runtime, run.id)
   const draft = client.calls.find((call) => call.name === 'movscript_create_draft')
 
-  assert.equal(resumed.status, 'completed')
+  assert.ok(resumed.status === 'completed' || resumed.status === 'completed_with_warnings')
   assert.equal(draft, undefined)
   assert.equal(runtime.listDrafts({ projectId: 42 }).length, 1)
   assert.equal(resumed.pendingApprovals?.[0].status, 'approved')
+})
+
+test('run can request user input and resume after an answer', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '缺少上下文，请让我选择' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+
+  assert.equal(run.status, 'requires_action')
+  assert.equal(run.pendingInputRequests?.[0]?.title, '选择目标内容')
+  assert.equal(run.pendingInputRequests?.[0]?.choices[0]?.label, '剧本')
+  assert.equal(run.pendingApprovals?.length ?? 0, 0)
+
+  const answered = runtime.answerRunInputRequest(run.id, {
+    requestId: run.pendingInputRequests![0].id,
+    choiceIds: ['script'],
+    text: '优先处理第一场。',
+  })
+  assert.equal(answered.status, 'queued')
+  const resumed = await waitForRun(runtime, run.id)
+  const finalThread = runtime.getThread(thread.id)
+
+  assert.equal(resumed.status, 'completed')
+  assert.equal(resumed.pendingInputRequests?.[0]?.status, 'answered')
+  assert.equal(resumed.pendingInputRequests?.[0]?.answer?.choiceIds?.[0], 'script')
+  assert.ok(finalThread?.messages.some((message) => message.role === 'user' && /用户补充信息/.test(message.content) && /剧本/.test(message.content)))
 })
 
 test('run requiring approval can be rejected without executing the tool', async () => {
@@ -858,6 +905,35 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
   }
 })
 
+test('inspect_context returns fallback diagnostics when MCP context pack is unavailable', async () => {
+  const client = new FakeMCPClient()
+  client.failInitialize = true
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread()
+  runtime.addMessage(thread.id, {
+    role: 'user',
+    content: '/inspect_context',
+    clientInput: {
+      message: '/inspect_context',
+      uiSnapshot: {
+        route: { pathname: '/agent/debug' },
+        project: { id: 42, name: 'Fallback Project' },
+      },
+    },
+  })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const finalThread = runtime.getThread(thread.id)
+  const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+  const parsed = JSON.parse(assistant?.content ?? '{}')
+
+  assert.equal(run.status, 'completed_with_warnings')
+  assert.equal(parsed.context.project.id, 42)
+  assert.match(parsed.warnings.join('\n'), /Context pack unavailable: mcp offline/)
+  assert.equal(run.traceEvents?.some((event) => event.title === 'Context pack failed'), true)
+  assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
+})
+
 test('production orchestrate requests include productionId in runtime context', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-context-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
@@ -904,9 +980,9 @@ test('production orchestrate requests include productionId in runtime context', 
       },
     })
 
-    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('Runtime context JSON'))
+    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('Current runtime context'))
     assert.ok(contextMessage)
-    assert.match(String(contextMessage?.content ?? ''), /"productionId":4/)
+    assert.match(String(contextMessage?.content ?? ''), /Active production reference: production#4/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath

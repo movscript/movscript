@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/model"
-	"github.com/movscript/movscript/internal/pluginkit"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/pluginkit"
 	"gorm.io/gorm"
 )
 

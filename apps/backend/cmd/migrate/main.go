@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/movscript/movscript/internal/config"
-	"github.com/movscript/movscript/internal/db"
+	"github.com/movscript/movscript/internal/infra/config"
+	"github.com/movscript/movscript/internal/infra/db"
 )
 
 func main() {

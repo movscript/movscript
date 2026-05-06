@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 )
 
 func (s *Service) ListProductions(ctx context.Context, filter ProductionFilter) ([]model.Production, error) {

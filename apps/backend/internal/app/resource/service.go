@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/movscript/movscript/internal/media"
-	"github.com/movscript/movscript/internal/model"
-	"github.com/movscript/movscript/internal/storage"
+	"github.com/movscript/movscript/internal/domain/media"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
 )
 

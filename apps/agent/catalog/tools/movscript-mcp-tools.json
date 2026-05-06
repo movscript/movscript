@@ -27,6 +27,19 @@
       }
     },
     {
+      "name": "movscript_list_projects",
+      "description": "List all visible projects as numbered Markdown summaries.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_projects",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
       "name": "movscript_read_entity",
       "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, setting, asset_slot, segment, scene_moment, storyboard_script, storyboard_line, content_unit, keyframe, preview_timeline, and delivery_version.",
       "permission": "project.read",
@@ -74,6 +87,19 @@
       "requiresApprovalByDefault": false,
       "defaultGrant": {
         "name": "movscript_list_drafts",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_request_user_input",
+      "description": "Pause the current agent run and ask the user for missing context, a choice, confirmation, or free-form input. Use this when the next step would be a guess.",
+      "permission": "agent.input",
+      "risk": "ui",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_request_user_input",
         "mode": "allow",
         "approval": "never"
       }

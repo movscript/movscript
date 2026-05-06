@@ -1,7 +1,7 @@
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
 import type { MCPClient } from '../../mcpClient.js'
 import type { AgentManifest } from '../manifest/agentManifest.js'
-import type { AgentApprovalRequest, AgentDebugContextPanel, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../types.js'
+import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../types.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentDraftStore } from '../store/draftStore.js'
 import type { BackendApplyClient } from '../store/backendApplyClient.js'
@@ -13,6 +13,7 @@ import { callModel } from './modelClient.js'
 import { executeTool } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { buildApplyDraftPreview } from '../store/draftApply.js'
+import type { AgentCommandRuntime } from '../commands/commandRouter.js'
 
 export interface AgentGraphInput {
   run: AgentRun
@@ -23,6 +24,8 @@ export interface AgentGraphInput {
   context: AgentDebugContextPanel
   memories: AgentMemory[]
   warnings: string[]
+  command?: AgentCommandRuntime
+  rootUserMessageId?: string
   config: ConfiguredRuntimeModelConfig
   auth: RuntimeModelAuthContext
   policy: AgentRunPolicy
@@ -47,6 +50,7 @@ type AgentGraphState = {
   status?: AgentRunStatus
   error?: string
   pendingApprovals?: AgentApprovalRequest[]
+  pendingInputRequests?: AgentInputRequest[]
   requestedCalls: ToolCall[]
   modelContent?: string | null
 }
@@ -86,6 +90,10 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopRe
       default: () => undefined,
     }),
     pendingApprovals: Annotation<AgentApprovalRequest[] | undefined>({
+      reducer: (_left, right) => right,
+      default: () => undefined,
+    }),
+    pendingInputRequests: Annotation<AgentInputRequest[] | undefined>({
       reducer: (_left, right) => right,
       default: () => undefined,
     }),
@@ -135,6 +143,7 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopRe
     return {
       status: 'requires_action',
       pendingApprovals: result.pendingApprovals ?? [],
+      pendingInputRequests: result.pendingInputRequests ?? [],
       messages: result.history,
       toolOutcomes: result.toolOutcomes,
       warnings: result.warnings,
@@ -152,7 +161,9 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopRe
 async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {
   const currentRoundIndex = state.roundIndex
   const roundLabel = `Model turn ${currentRoundIndex}`
-  const lastUser = [...input.threadMessages].reverse().find((message) => message.role === 'user')
+  const lastUser = input.rootUserMessageId
+    ? input.threadMessages.find((message) => message.id === input.rootUserMessageId && message.role === 'user')
+    : [...input.threadMessages].reverse().find((message) => message.role === 'user')
   if (!lastUser) {
     return { status: 'failed', error: 'run requires at least one user message' }
   }
@@ -164,7 +175,23 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     }
   }
 
-  const promptHistory: AgentMessage[] = input.threadMessages.filter((message) => message.id !== lastUser.id && message.role !== 'system')
+  const rootIndex = input.threadMessages.findIndex((message) => message.id === lastUser.id)
+  const supplementalUserMessages = rootIndex >= 0
+    ? input.threadMessages.slice(rootIndex + 1).filter((message) => message.role === 'user')
+    : []
+  const effectiveUserMessage = supplementalUserMessages.length > 0
+    ? [
+      lastUser.content,
+      '',
+      '[后续用户补充]',
+      ...supplementalUserMessages.map((message) => message.content),
+    ].join('\n')
+    : lastUser.content
+  const promptHistory: AgentMessage[] = input.threadMessages.filter((message, index) => (
+    message.role !== 'system'
+    && message.id !== lastUser.id
+    && (rootIndex < 0 || index <= rootIndex || message.role !== 'user')
+  ))
 
   if (currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0) {
     const forcedToolCalls = input.forcedToolCalls.map(normalizeToolCall)
@@ -201,7 +228,8 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     memories: input.memories,
     warnings: state.warnings,
     history: promptHistory,
-    userMessage: lastUser.content,
+    userMessage: effectiveUserMessage,
+    ...(input.command ? { command: input.command } : {}),
   })
   const messages = [
     ...baseMessages.slice(0, -1),
@@ -274,6 +302,29 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     }
   }
 
+  const inputCalls = state.requestedCalls.filter((call) => call.name === 'movscript_request_user_input')
+  if (inputCalls.length > 0) {
+    const pendingInputRequests = inputCalls.map((call) => buildInputRequest(input.run.id, call.args ?? {}))
+    input.onTrace({
+      kind: 'input',
+      title: 'User input required',
+      summary: pendingInputRequests.map((request) => request.title).join(', '),
+      status: 'blocked',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'model',
+      data: { inputRequests: pendingInputRequests },
+    })
+    return {
+      pendingApprovals: [],
+      status: 'requires_action',
+      warnings: [],
+      finalContent: state.modelContent ?? getLastAssistantContent(state.history),
+      requestedCalls: [],
+      pendingInputRequests,
+    }
+  }
+
   const policyResult = applyToolPolicy(state.requestedCalls.slice(0, remaining), {
     currentProjectId: input.context.project?.id,
     manifest: input.manifest,
@@ -329,6 +380,52 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     requestedCalls: policyResult.toolCalls,
     warnings: policyResult.warnings,
   }
+}
+
+function buildInputRequest(runId: string, args: Record<string, JSONValue>): AgentInputRequest {
+  const now = new Date().toISOString()
+  const choices = normalizeChoices(args.choices)
+  const inputType = args.inputType === 'text' || args.inputType === 'confirmation' || args.inputType === 'choice'
+    ? args.inputType
+    : choices.length > 0 ? 'choice' : 'text'
+  return {
+    id: makeId('input'),
+    runId,
+    title: normalizeText(args.title) ?? normalizeText(args.header) ?? '需要补充信息',
+    ...(normalizeText(args.summary) ?? normalizeText(args.description) ? { summary: normalizeText(args.summary) ?? normalizeText(args.description) } : {}),
+    question: normalizeText(args.question) ?? '请补充必要信息后继续。',
+    inputType,
+    choices,
+    allowCustomAnswer: args.allowCustomAnswer !== false,
+    status: 'pending',
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function normalizeChoices(value: JSONValue | undefined): AgentInputRequest['choices'] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index) => {
+    if (typeof item === 'string' && item.trim()) {
+      return [{ id: `choice_${index + 1}`, label: item.trim() }]
+    }
+    if (!isJSONRecord(item)) return []
+    const label = normalizeText(item.label)
+    if (!label) return []
+    return [{
+      id: normalizeText(item.id) ?? `choice_${index + 1}`,
+      label,
+      ...(normalizeText(item.description) ? { description: normalizeText(item.description) } : {}),
+    }]
+  })
+}
+
+function normalizeText(value: JSONValue | undefined): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function isJSONRecord(value: JSONValue): value is Record<string, JSONValue> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {

@@ -13,6 +13,7 @@ import type {
   ResolvedToolCatalog,
   ToolCall,
   ToolCallOutcome,
+  AgentInputRequest,
 } from '../types.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentDraftStore } from '../store/draftStore.js'
@@ -63,7 +64,7 @@ export interface AgentLoopInput {
 
 export type AgentLoopResult =
   | { status: 'completed'; finalContent: string; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
-  | { status: 'requires_action'; pendingApprovals: AgentApprovalRequest[]; messages: RuntimeModelChatMessage[]; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
+  | { status: 'requires_action'; pendingApprovals: AgentApprovalRequest[]; pendingInputRequests?: AgentInputRequest[]; messages: RuntimeModelChatMessage[]; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
   | { status: 'failed'; error: string }
 
 export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResult> {
@@ -358,7 +359,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
         const toolCallId = matchedModelCall?.id ?? call.id ?? `call_${toolCallCount}`
         turnResults.push({
           toolCall: matchedModelCall ?? { id: toolCallId, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args ?? {}) } },
-          content: JSON.stringify({ result: execResult.result ?? null, call: { name: call.name, args: call.args } }),
+          content: formatToolMessageContent(call, execResult.result),
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -383,7 +384,7 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
         const toolCallId = matchedModelCall?.id ?? call.id ?? `call_${toolCallCount}`
         turnResults.push({
           toolCall: matchedModelCall ?? { id: toolCallId, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args ?? {}) } },
-          content: JSON.stringify({ error: message, call: { name: call.name, args: call.args } }),
+          content: `## Tool Error\n- Tool: ${call.name}\n- Error: ${message}`,
         })
       }
     }
@@ -417,6 +418,44 @@ export async function runAgentLoop(input: AgentLoopInput): Promise<AgentLoopResu
     toolOutcomes,
     warnings,
   }
+}
+
+function formatToolMessageContent(call: ToolCall, result: JSONValue | undefined): string {
+  const contentText = extractMCPText(result)
+  if (contentText) return `## Tool Result\n- Tool: ${call.name}\n\n${contentText}`
+  return `## Tool Result\n- Tool: ${call.name}\n\n${renderMarkdownValue(result ?? null)}`
+}
+
+function extractMCPText(value: JSONValue | undefined): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const content = value.content
+  if (!Array.isArray(content)) return undefined
+  const text = content
+    .flatMap((item) => item && typeof item === 'object' && !Array.isArray(item) && typeof item.text === 'string' ? [item.text] : [])
+    .join('\n\n')
+    .trim()
+  return text || undefined
+}
+
+function renderMarkdownValue(value: JSONValue): string {
+  if (value === null) return 'null'
+  if (typeof value !== 'object') return String(value)
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '- none'
+    return value.map((item, index) => `${index + 1}. ${renderInlineMarkdownValue(item)}`).join('\n')
+  }
+  const lines: string[] = []
+  for (const [key, item] of Object.entries(value)) {
+    lines.push(`- ${key}: ${renderInlineMarkdownValue(item)}`)
+  }
+  return lines.length > 0 ? lines.join('\n') : '- none'
+}
+
+function renderInlineMarkdownValue(value: JSONValue): string {
+  if (value === null) return 'null'
+  if (typeof value !== 'object') return String(value)
+  if (Array.isArray(value)) return value.length === 0 ? 'none' : value.map(renderInlineMarkdownValue).join('; ')
+  return Object.entries(value).map(([key, item]) => `${key}=${renderInlineMarkdownValue(item)}`).join(', ')
 }
 
 function toToolCall(tc: RuntimeModelChatToolCall): ToolCall {

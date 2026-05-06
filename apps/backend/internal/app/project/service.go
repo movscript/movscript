@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 
@@ -54,9 +54,13 @@ type ProjectRole struct {
 	UserID uint
 }
 
-func (s *Service) List(ctx context.Context) ([]model.Project, error) {
+func (s *Service) List(ctx context.Context, orgID *uint) ([]model.Project, error) {
 	projects := make([]model.Project, 0)
-	err := s.db.WithContext(ctx).Preload("Owner").Find(&projects).Error
+	query := s.db.WithContext(ctx).Preload("Owner")
+	if orgID != nil {
+		query = query.Where("org_id = ?", *orgID)
+	}
+	err := query.Find(&projects).Error
 	return projects, err
 }
 
@@ -115,11 +119,12 @@ func (s *Service) ForceSetOwner(ctx context.Context, projectID uint, ownerID uin
 	return updated, err
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint) (model.Project, error) {
+func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (model.Project, error) {
 	project := model.Project{
 		Name:          input.Name,
 		Description:   input.Description,
 		OwnerID:       ownerID,
+		OrgID:         orgID,
 		TotalEpisodes: input.TotalEpisodes,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -134,9 +139,13 @@ func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint) (
 	return project, err
 }
 
-func (s *Service) Get(ctx context.Context, id uint) (model.Project, error) {
+func (s *Service) Get(ctx context.Context, id uint, orgID *uint) (model.Project, error) {
 	var project model.Project
-	if err := s.db.WithContext(ctx).Preload("Owner").Preload("Members.User").First(&project, id).Error; err != nil {
+	query := s.db.WithContext(ctx).Preload("Owner").Preload("Members.User").Where("id = ?", id)
+	if orgID != nil {
+		query = query.Where("org_id = ?", *orgID)
+	}
+	if err := query.First(&project).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return project, ErrProjectNotFound
 		}
@@ -181,9 +190,13 @@ func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, 
 	return ProjectRole{Role: member.Role, UserID: userID}, nil
 }
 
-func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model.Project, error) {
+func (s *Service) Update(ctx context.Context, id uint, input UpdateInput, orgID *uint) (model.Project, error) {
 	var project model.Project
-	if err := s.db.WithContext(ctx).First(&project, id).Error; err != nil {
+	query := s.db.WithContext(ctx).Where("id = ?", id)
+	if orgID != nil {
+		query = query.Where("org_id = ?", *orgID)
+	}
+	if err := query.First(&project).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return project, ErrProjectNotFound
 		}
@@ -195,14 +208,21 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model
 	return project, s.db.WithContext(ctx).Save(&project).Error
 }
 
-func (s *Service) Delete(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Delete(&model.Project{}, id).Error
+func (s *Service) Delete(ctx context.Context, id uint, orgID *uint) error {
+	query := s.db.WithContext(ctx).Where("id = ?", id)
+	if orgID != nil {
+		query = query.Where("org_id = ?", *orgID)
+	}
+	return query.Delete(&model.Project{}).Error
 }
 
-func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInput) (model.ProjectMember, error) {
+func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInput, orgID *uint) (model.ProjectMember, error) {
 	role := input.Role
 	if role == "" {
 		role = "viewer"
+	}
+	if _, err := s.Get(ctx, projectID, orgID); err != nil {
+		return model.ProjectMember{}, err
 	}
 	member := model.ProjectMember{ProjectID: projectID, UserID: input.UserID, Role: role}
 	if err := s.db.WithContext(ctx).Create(&member).Error; err != nil {
@@ -214,21 +234,30 @@ func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInp
 	return member, nil
 }
 
-func (s *Service) RemoveMember(ctx context.Context, projectID uint, memberID uint) error {
+func (s *Service) RemoveMember(ctx context.Context, projectID uint, memberID uint, orgID *uint) error {
+	if _, err := s.Get(ctx, projectID, orgID); err != nil {
+		return err
+	}
 	return s.db.WithContext(ctx).
 		Where("project_id = ? AND id = ?", projectID, memberID).
 		Delete(&model.ProjectMember{}).Error
 }
 
-func (s *Service) ListMembers(ctx context.Context, projectID uint) ([]model.ProjectMember, error) {
+func (s *Service) ListMembers(ctx context.Context, projectID uint, orgID *uint) ([]model.ProjectMember, error) {
 	members := make([]model.ProjectMember, 0)
+	if _, err := s.Get(ctx, projectID, orgID); err != nil {
+		return members, err
+	}
 	err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Preload("User").Find(&members).Error
 	return members, err
 }
 
-func (s *Service) Progress(ctx context.Context, projectID uint) (Progress, error) {
+func (s *Service) Progress(ctx context.Context, projectID uint, orgID *uint) (Progress, error) {
 	var progress Progress
 	db := s.db.WithContext(ctx)
+	if _, err := s.Get(ctx, projectID, orgID); err != nil {
+		return progress, err
+	}
 	if err := db.Model(&model.ScriptVersion{}).Where("project_id = ?", projectID).Count(&progress.Scripts).Error; err != nil {
 		return progress, err
 	}

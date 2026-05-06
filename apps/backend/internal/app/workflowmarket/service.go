@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/canvasruntime"
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 

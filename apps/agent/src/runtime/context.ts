@@ -33,6 +33,7 @@ export function extractCurrentProductionId(result: JSONValue): number | undefine
 
 export function parseToolResult(result: JSONValue): unknown {
   if (!isRecord(result)) return result
+  if (result.data !== undefined) return result.data
   const content = result.content
   if (!Array.isArray(content)) return result
   const first = content[0]

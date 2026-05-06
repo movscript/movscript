@@ -11,6 +11,7 @@ export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
+export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 
 export interface AgentMessage {
   id: string
@@ -79,6 +80,7 @@ export type AgentTraceEventKind =
   | 'tool_call'
   | 'model_call'
   | 'approval'
+  | 'input'
   | 'assistant'
   | 'error'
 
@@ -108,6 +110,7 @@ export interface AgentRun {
   status: AgentRunStatus
   agentManifest?: AgentManifest
   pendingApprovals?: AgentApprovalRequest[]
+  pendingInputRequests?: AgentInputRequest[]
   policy: AgentRunPolicy
   metadata?: Record<string, JSONValue>
   createdAt: string
@@ -159,12 +162,45 @@ export interface AgentApprovalRequest {
   rejectedAt?: string
 }
 
+export interface AgentInputChoice {
+  id: string
+  label: string
+  description?: string
+}
+
+export interface AgentInputRequest {
+  id: string
+  runId: string
+  title: string
+  summary?: string
+  question: string
+  inputType: 'choice' | 'text' | 'confirmation'
+  choices: AgentInputChoice[]
+  allowCustomAnswer: boolean
+  status: AgentInputRequestStatus
+  createdAt: string
+  updatedAt: string
+  answeredAt?: string
+  answer?: {
+    choiceIds?: string[]
+    text?: string
+  }
+}
+
 export interface AgentDebugContextPanel {
   route: {
     pathname: string
     search?: string
     hash?: string
   }
+  projects: Array<{
+    id: number
+    name: string
+    description?: string
+    status?: string
+    totalEpisodes?: number
+  }>
+  projectsError?: string
   project?: {
     id: number
     name?: string
@@ -422,6 +458,13 @@ export interface ApproveRunInput {
 
 export interface RejectRunInput {
   approvalIds?: unknown
+}
+
+export interface AnswerRunInputRequestInput {
+  requestId?: unknown
+  choiceIds?: unknown
+  text?: unknown
+  backendAuthToken?: unknown
 }
 
 export interface UpdateThreadInput {

@@ -144,19 +144,25 @@ function listResources(): MCPResource[] {
       uri: 'movscript://ui/current-route',
       name: 'Current route',
       description: 'Current MovScript route in the Electron renderer.',
-      mimeType: 'application/json',
+      mimeType: 'text/markdown',
     },
     {
       uri: 'movscript://ui/current-selection',
       name: 'Current selection',
       description: 'Current selected entity, when a page has reported one.',
-      mimeType: 'application/json',
+      mimeType: 'text/markdown',
     },
     {
       uri: 'movscript://project/current',
       name: 'Current project',
       description: 'Current MovScript project summary.',
-      mimeType: 'application/json',
+      mimeType: 'text/markdown',
+    },
+    {
+      uri: 'movscript://projects',
+      name: 'Projects',
+      description: 'All visible MovScript projects.',
+      mimeType: 'text/markdown',
     },
   ]
 
@@ -179,7 +185,7 @@ function listResources(): MCPResource[] {
 }
 
 function resource(uri: string, name: string): MCPResource {
-  return { uri, name, mimeType: 'application/json' }
+  return { uri, name, mimeType: 'text/markdown' }
 }
 
 async function readResource(uri: string): Promise<MCPJSONValue> {
@@ -191,6 +197,9 @@ async function readResource(uri: string): Promise<MCPJSONValue> {
   }
   if (uri === 'movscript://project/current') {
     return resourceContent(uri, contextSnapshot.project)
+  }
+  if (uri === 'movscript://projects') {
+    return resourceContent(uri, await listProjects({}))
   }
 
   const match = uri.match(/^movscript:\/\/project\/(\d+)\/([a-z-]+)$/)
@@ -213,10 +222,11 @@ function resourceContent(uri: string, value: unknown): MCPJSONValue {
     contents: [
       {
         uri,
-        mimeType: 'application/json',
-        text: JSON.stringify(value ?? null, null, 2),
+        mimeType: 'text/markdown',
+        text: renderMarkdown(value ?? null),
       },
     ],
+    data: toMCPJSONValue(value ?? null),
   }
 }
 
@@ -249,6 +259,15 @@ function listTools(): MCPTool[] {
       name: 'movscript_get_context_pack',
       description: 'Return the current route, project, user, selection, and available resources.',
       inputSchema: objectSchema({}),
+    },
+    {
+      name: 'movscript_list_projects',
+      description: 'List all visible projects as numbered Markdown summaries.',
+      inputSchema: objectSchema(
+        {
+          limit: { type: 'number' },
+        }
+      ),
     },
     {
       name: 'movscript_read_entity',
@@ -393,11 +412,9 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
 
   switch (name) {
     case 'movscript_get_context_pack':
-      return toolText({
-        snapshot: contextSnapshot,
-        resources: listResources(),
-        draftCount: drafts.size,
-      })
+      return toolText(await getContextPack())
+    case 'movscript_list_projects':
+      return toolText(await listProjects(args))
     case 'movscript_read_entity':
       return toolText(await readEntity(args))
     case 'movscript_search_entities':
@@ -420,6 +437,36 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(proposeProductionEntities(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
+  }
+}
+
+async function getContextPack(): Promise<unknown> {
+  try {
+    const projectsResult = await listProjects({})
+    const projects = isRecord(projectsResult) && Array.isArray(projectsResult.projects) ? projectsResult.projects : []
+    return {
+      snapshot: contextSnapshot,
+      projects,
+      resources: listResources(),
+      draftCount: drafts.size,
+    }
+  } catch (error) {
+    return {
+      snapshot: contextSnapshot,
+      projects: [],
+      projectsError: error instanceof Error ? error.message : String(error),
+      resources: listResources(),
+      draftCount: drafts.size,
+    }
+  }
+}
+
+async function listProjects(args: Record<string, unknown>): Promise<unknown> {
+  const limit = getOptionalNumber(args, 'limit') ?? 100
+  const projects = await backendList('/projects')
+  return {
+    count: projects.length,
+    projects: projects.slice(0, limit).map(summarizeProject),
   }
 }
 
@@ -977,6 +1024,20 @@ function summarizeResource(data: unknown): unknown {
   return data.map(summarizeEntity)
 }
 
+function summarizeProject(item: any): unknown {
+  if (!item || typeof item !== 'object') return item
+  const id = typeof item.id === 'number' ? item.id : typeof item.ID === 'number' ? item.ID : undefined
+  return {
+    ...(id !== undefined ? { id } : {}),
+    ...(typeof item.name === 'string' ? { name: truncateLongText(item.name) } : {}),
+    ...(typeof item.description === 'string' ? { description: truncateLongText(item.description) } : {}),
+    ...(typeof item.status === 'string' ? { status: item.status } : {}),
+    ...(typeof item.total_episodes === 'number' ? { totalEpisodes: item.total_episodes } : typeof item.totalEpisodes === 'number' ? { totalEpisodes: item.totalEpisodes } : {}),
+    ...(typeof item.CreatedAt === 'string' ? { CreatedAt: item.CreatedAt } : {}),
+    ...(typeof item.UpdatedAt === 'string' ? { UpdatedAt: item.UpdatedAt } : {}),
+  }
+}
+
 function summarizeEntity(item: any): unknown {
   if (!item || typeof item !== 'object') return item
   const summary: Record<string, unknown> = {}
@@ -1022,10 +1083,103 @@ function toolText(value: unknown): MCPJSONValue {
     content: [
       {
         type: 'text',
-        text: JSON.stringify(value ?? null, null, 2),
+        text: renderMarkdown(value ?? null),
       },
     ],
+    data: toMCPJSONValue(value ?? null),
   }
+}
+
+function renderMarkdown(value: unknown): string {
+  if (value === null || value === undefined) return '无数据。'
+  if (typeof value !== 'object') return String(value)
+  if (Array.isArray(value)) return renderMarkdownArray(value)
+
+  if (isRecord(value) && Array.isArray(value.projects)) {
+    const lines = ['## 项目列表']
+    if (value.projects.length === 0) {
+      lines.push('没有可见项目。')
+    } else {
+      lines.push(...value.projects.map((project, index) => formatProjectLine(project, index)))
+    }
+    if (typeof value.count === 'number') lines.push('', `共 ${value.count} 个项目。`)
+    return lines.join('\n')
+  }
+
+  if (isRecord(value) && isRecord(value.snapshot)) {
+    const lines = ['## 当前上下文']
+    lines.push(renderMarkdownObject(value.snapshot))
+    if (Array.isArray(value.projects)) {
+      lines.push('', '## 项目列表')
+      if (value.projects.length === 0) {
+        lines.push(typeof value.projectsError === 'string' ? `项目列表不可用：${value.projectsError}` : '没有可见项目。')
+      } else {
+        lines.push(...value.projects.map((project, index) => formatProjectLine(project, index)))
+      }
+    }
+    if (typeof value.draftCount === 'number') lines.push('', `本地草稿数量：${value.draftCount}`)
+    return lines.join('\n')
+  }
+
+  return renderMarkdownObject(value as Record<string, unknown>)
+}
+
+function renderMarkdownArray(items: unknown[]): string {
+  if (items.length === 0) return '没有条目。'
+  return items.map((item, index) => `${index + 1}. ${renderInlineMarkdownValue(item)}`).join('\n')
+}
+
+function renderMarkdownObject(value: Record<string, unknown>): string {
+  const lines: string[] = []
+  for (const [key, item] of Object.entries(value)) {
+    if (item === undefined) continue
+    if (Array.isArray(item)) {
+      lines.push(`### ${key}`)
+      lines.push(renderMarkdownArray(item))
+    } else if (isRecord(item)) {
+      lines.push(`### ${key}`)
+      lines.push(renderMarkdownObject(item))
+    } else {
+      lines.push(`- ${key}: ${renderInlineMarkdownValue(item)}`)
+    }
+  }
+  return lines.length > 0 ? lines.join('\n') : '无数据。'
+}
+
+function formatProjectLine(project: unknown, index: number): string {
+  if (!isRecord(project)) return `${index + 1}. 项目${index + 1}的名字${String(project)}`
+  const name = typeof project.name === 'string' && project.name.trim() ? project.name.trim() : `未命名项目 ${index + 1}`
+  const details = [
+    typeof project.description === 'string' && project.description.trim() ? project.description.trim() : undefined,
+    typeof project.status === 'string' && project.status.trim() ? `状态：${project.status.trim()}` : undefined,
+    typeof project.totalEpisodes === 'number' ? `集数：${project.totalEpisodes}` : undefined,
+  ].filter(Boolean).join('；')
+  const id = typeof project.id === 'number' ? `（project#${project.id}）` : ''
+  return `${index + 1}. 项目${index + 1}的名字${name}${details ? `，${details}` : ''}${id}`
+}
+
+function renderInlineMarkdownValue(value: unknown): string {
+  if (value === null || value === undefined) return '无'
+  if (typeof value !== 'object') return String(value)
+  if (Array.isArray(value)) return value.length === 0 ? '无' : value.map(renderInlineMarkdownValue).join('；')
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => `${key}=${renderInlineMarkdownValue(item)}`)
+      .join('，')
+  }
+  return String(value)
+}
+
+function toMCPJSONValue(value: unknown): MCPJSONValue {
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  if (Array.isArray(value)) return value.map(toMCPJSONValue)
+  if (!isRecord(value)) return String(value)
+  const obj: Record<string, MCPJSONValue> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== undefined) obj[key] = toMCPJSONValue(item)
+  }
+  return obj
 }
 
 function makeResult(id: string | number | null, result: unknown): JSONRPCResponse {

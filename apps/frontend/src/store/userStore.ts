@@ -10,25 +10,26 @@ interface UserStore {
   currentOrgID: number | null
   setSession: (session: AuthSession | null) => void
   setCurrentUser: (u: User | null) => void
+  setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => void
   setCurrentOrg: (orgId: number | null) => void
 }
 
 export interface AuthSession {
   user: User
-  token: string
-  expires_at: string
+  token?: string
+  expires_at?: string
   org_memberships?: OrgMembership[]
 }
 
-function resolveInitialOrg(memberships: OrgMembership[]): number | null {
-  if (memberships.length === 0) return null
-  // Single org or only personal orgs → auto-select
-  const nonPersonal = memberships.filter((m) => !m.is_personal)
-  if (nonPersonal.length <= 1) {
-    return memberships[0].org_id
+function visibleMemberships(memberships: OrgMembership[]): OrgMembership[] {
+  return memberships.filter((m) => !m.is_personal)
+}
+
+function resolveInitialOrg(memberships: OrgMembership[], preferredOrgId?: number | null): number | null {
+  if (preferredOrgId && memberships.some((m) => m.org_id === preferredOrgId)) {
+    return preferredOrgId
   }
-  // Multiple non-personal orgs → require explicit selection
-  return null
+  return memberships.find((m) => m.is_personal)?.org_id ?? memberships[0]?.org_id ?? null
 }
 
 export const useUserStore = create<UserStore>()(
@@ -47,8 +48,8 @@ export const useUserStore = create<UserStore>()(
         const memberships = session.org_memberships ?? []
         set({
           currentUser: session.user,
-          token: session.token,
-          tokenExpiresAt: session.expires_at,
+          token: session.token ?? null,
+          tokenExpiresAt: session.expires_at ?? null,
           orgMemberships: memberships,
           currentOrgID: resolveInitialOrg(memberships),
         })
@@ -60,6 +61,10 @@ export const useUserStore = create<UserStore>()(
         orgMemberships: u ? state.orgMemberships : [],
         currentOrgID: u ? state.currentOrgID : null,
       })),
+      setOrgMemberships: (memberships, preferredOrgId) => set({
+        orgMemberships: memberships,
+        currentOrgID: resolveInitialOrg(memberships, preferredOrgId),
+      }),
       setCurrentOrg: (orgId) => set({ currentOrgID: orgId }),
     }),
     {

@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -21,14 +22,26 @@ import (
 var (
 	ErrAPIKeyNotFound        = errors.New("gateway api key not found")
 	ErrMonthlyBudgetExceeded = errors.New("gateway monthly budget exceeded")
+	ErrRateLimitExceeded     = errors.New("gateway rate limit exceeded")
+	ErrInsufficientScope     = errors.New("gateway key is not allowed to use requested scope")
+	ErrModelNotAllowed       = errors.New("gateway key is not allowed to use this model")
+	ErrProjectNotAllowed     = errors.New("gateway key is not allowed to use this project scope")
+	ErrModelNotFound         = errors.New("gateway model not found")
+	ErrUnsupportedParameter  = errors.New("unsupported gateway request parameter")
+	ErrModelUnavailable      = errors.New("gateway model unavailable")
 )
 
 type Service struct {
 	db *gorm.DB
+	ai *ai.AIService
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
+	var svc *ai.AIService
+	if len(aiService) > 0 {
+		svc = aiService[0]
+	}
+	return &Service{db: db, ai: svc}
 }
 
 type CreateAPIKeyInput struct {
@@ -60,6 +73,42 @@ type CreateAPIKeyResult struct {
 type Principal struct {
 	User *model.User
 	Key  *model.GatewayAPIKey
+}
+
+type ChatInput struct {
+	Principal   Principal
+	Model       string
+	Text        ai.TextRequest
+	ProjectID   *uint
+	RequireChat bool
+}
+
+type ChatResult struct {
+	ModelConfigID uint
+	ResponseModel string
+	Response      ai.TextResponse
+}
+
+type ChatStreamResult struct {
+	ModelConfigID uint
+	ResponseModel string
+	Events        <-chan ai.TextStreamEvent
+}
+
+type ModelNotFoundError struct {
+	Message string
+}
+
+func (e ModelNotFoundError) Error() string {
+	return e.Message
+}
+
+func (e ModelNotFoundError) Unwrap() error {
+	return ErrModelNotFound
+}
+
+func IsInsufficientQuota(err error) bool {
+	return errors.Is(err, ai.ErrInsufficientQuota)
 }
 
 func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint) ([]model.GatewayAPIKey, error) {
@@ -177,6 +226,91 @@ func (s *Service) EnforceKeyLimits(ctx context.Context, key *model.GatewayAPIKey
 	return nil
 }
 
+func (s *Service) ListChatModels(_ context.Context, principal Principal) ([]ai.PublicModel, error) {
+	if err := ensureChatScope(principal, "list"); err != nil {
+		return nil, err
+	}
+	return s.ai.GetModelsByCapability(ai.CapabilityText)
+}
+
+func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, error) {
+	modelConfigID, responseModel, textReq, err := s.prepareChat(ctx, input)
+	if err != nil {
+		return ChatResult{}, err
+	}
+	resp, err := s.ai.CallTextWithBilling(ctx, input.Principal.User.ID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
+	if err != nil {
+		return ChatResult{}, err
+	}
+	return ChatResult{ModelConfigID: modelConfigID, ResponseModel: responseModel, Response: resp}, nil
+}
+
+func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStreamResult, error) {
+	modelConfigID, responseModel, textReq, err := s.prepareChat(ctx, input)
+	if err != nil {
+		return ChatStreamResult{}, err
+	}
+	events, err := s.ai.CallTextStreamWithBilling(ctx, input.Principal.User.ID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
+	if err != nil {
+		return ChatStreamResult{}, err
+	}
+	return ChatStreamResult{ModelConfigID: modelConfigID, ResponseModel: responseModel, Events: events}, nil
+}
+
+func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, string, ai.TextRequest, error) {
+	if err := ensureChatScope(input.Principal, "call"); err != nil {
+		return 0, "", ai.TextRequest{}, err
+	}
+	modelConfigID, responseModel, err := s.ResolveTextModel(ctx, input.Model)
+	if err != nil {
+		return 0, responseModel, ai.TextRequest{}, err
+	}
+	if input.Principal.Key != nil && !KeyAllowsModel(input.Principal.Key, modelConfigID) {
+		return 0, responseModel, ai.TextRequest{}, ErrModelNotAllowed
+	}
+	if input.Principal.Key != nil && !KeyAllowsProject(input.Principal.Key, input.ProjectID) {
+		return 0, responseModel, ai.TextRequest{}, ErrProjectNotAllowed
+	}
+
+	textReq := input.Text
+	if _, err := s.ai.PreflightText(modelConfigID, &textReq); err != nil {
+		return 0, responseModel, ai.TextRequest{}, wrapErr(ErrUnsupportedParameter, err)
+	}
+	if input.Principal.Key != nil {
+		estimate, err := s.ai.EstimateTextCost(modelConfigID, textReq)
+		if err != nil {
+			return 0, responseModel, ai.TextRequest{}, err
+		}
+		if err := s.EnforceKeyLimits(ctx, input.Principal.Key, estimate.Cost); err != nil {
+			return 0, responseModel, ai.TextRequest{}, err
+		}
+	}
+	return modelConfigID, responseModel, textReq, nil
+}
+
+func (s *Service) ResolveTextModel(_ context.Context, modelID string) (uint, string, error) {
+	models, err := s.ai.GetModelsByCapability(ai.CapabilityText)
+	if err != nil {
+		return 0, strings.TrimSpace(modelID), err
+	}
+	defaultID, _, defaultErr := s.ai.GetAnyTextModel()
+	id, responseModel, err := ResolveTextModel(models, modelID, defaultID, defaultErr)
+	if err != nil {
+		return id, responseModel, ModelNotFoundError{Message: err.Error()}
+	}
+	return id, responseModel, nil
+}
+
+func ensureChatScope(principal Principal, action string) error {
+	if principal.Key == nil || KeyAllowsScope(principal.Key, "model:chat") {
+		return nil
+	}
+	if action == "list" {
+		return fmt.Errorf("%w: list chat models", ErrInsufficientScope)
+	}
+	return fmt.Errorf("%w: call chat models", ErrInsufficientScope)
+}
+
 func (s *Service) consumeRateLimit(ctx context.Context, keyID uint, limit int) error {
 	now := time.Now().UTC()
 	window := now.Truncate(time.Minute)
@@ -197,7 +331,7 @@ func (s *Service) consumeRateLimit(ctx context.Context, keyID uint, limit int) e
 			return tx.Create(&counter).Error
 		}
 		if counter.RequestCount >= limit {
-			return fmt.Errorf("gateway rate limit exceeded: %d requests per minute", limit)
+			return fmt.Errorf("%w: %d requests per minute", ErrRateLimitExceeded, limit)
 		}
 		return tx.Model(&counter).UpdateColumn("request_count", gorm.Expr("request_count + 1")).Error
 	})
@@ -250,4 +384,11 @@ func mustJSONString(value any) string {
 		return "[]"
 	}
 	return string(data)
+}
+
+func wrapErr(base error, err error) error {
+	if err == nil {
+		return base
+	}
+	return fmt.Errorf("%w: %w", base, err)
 }

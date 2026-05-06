@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/movscript/movscript/internal/ai"
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
 
@@ -65,6 +65,10 @@ func (s *Service) List(ctx context.Context) ([]Response, error) {
 		out[i] = s.toResp(ctx, f)
 	}
 	return out, nil
+}
+
+func (s *Service) ListDefs(_ context.Context) []ai.FeatureDef {
+	return ai.FeatureCatalog
 }
 
 func (s *Service) Update(ctx context.Context, key string, input UpdateInput) (Response, error) {

@@ -3,6 +3,7 @@ export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
 
 export interface AppSettings {
   apiBaseURL: string
+  showDeveloperTools: boolean
 }
 
 export function trimTrailingSlash(value: string): string {

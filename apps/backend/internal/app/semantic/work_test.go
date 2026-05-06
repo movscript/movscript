@@ -3,7 +3,7 @@ package semantic
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 )
 
 func TestWorkItemInputKeepsAssignmentRejectsTargetChange(t *testing.T) {

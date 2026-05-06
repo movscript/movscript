@@ -61,6 +61,7 @@ import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { Avatar, AvatarFallback } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
@@ -154,11 +155,13 @@ export function Sidebar() {
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const orgMemberships = useUserStore((s) => s.orgMemberships)
   const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
+  const showDeveloperTools = useAppSettingsStore((s) => s.settings.showDeveloperTools)
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   const currentMembership = orgMemberships.find((m) => m.org_id === currentOrgID)
   const isOrgAdmin = currentMembership && ['owner', 'admin'].includes(currentMembership.role)
+  const canOpenDeveloperTools = showDeveloperTools || currentUser?.system_role === 'super_admin'
   const nonPersonalOrgs = orgMemberships.filter((m) => !m.is_personal)
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/lib/clientPlugins').ClientPluginManifest[]>([])
@@ -304,10 +307,12 @@ export function Sidebar() {
           {isOrgAdmin && (
             <NavItem to="/org/settings" icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />
           )}
+          {canOpenDeveloperTools && (
+            <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
+          )}
           {currentUser?.system_role === 'super_admin' && (
             <>
               <NavItem to="/admin" icon={ShieldCheck} label={t('sidebar.items.admin')} collapsed={collapsed} />
-              <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
             </>
           )}
         </Section>
@@ -337,7 +342,7 @@ export function Sidebar() {
       {currentUser && (
         <div className={cn('border-t border-sidebar-border shrink-0', collapsed ? 'px-1.5 py-2' : 'px-2 py-2')}>
           {/* Org switcher row */}
-          {!collapsed && currentMembership && (
+          {!collapsed && currentMembership && nonPersonalOrgs.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors mb-0.5">

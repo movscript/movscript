@@ -11,6 +11,7 @@ import {
   Copy,
   Database,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   FileJson,
   Loader2,
@@ -60,6 +61,7 @@ import {
   type RuntimeModelTestResult,
 } from '@/lib/localAgentClient'
 import { publicModelLabel } from '@/lib/modelDisplay'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import type { PublicModel } from '@/types'
@@ -101,6 +103,8 @@ interface AgentDebugCommandSpec {
   label: string
   agentFunction: string
   command: string
+  contextProfile?: string
+  outputContractSummary?: string
   endpoint: string
   outputMode: string
   description: string
@@ -257,7 +261,7 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
       'apps/frontend/src/components/layout/AIAgentPanel.tsx',
       'apps/frontend/src/mcp/MCPContextBridge.tsx',
     ],
-    runtimeArtifacts: ['uiSnapshot', 'attachments', 'route', 'current project', 'selection'],
+    runtimeArtifacts: ['command message', 'attachments', 'optional ui hints'],
     debugVisibility: ['Agent Debug preview input', 'Context tab', 'Executed run input snapshot'],
   },
   {
@@ -315,16 +319,17 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
 const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
   {
     command: '/production_plan',
-    intent: '对当前输入的剧本或项目上下文进行编排，返回机器可读计划。',
+    intent: '对输入的剧本、制作目标或自然语言需求进行编排；runtime 自行读取项目/制作上下文。',
     inputContract: {
       command: '/production_plan',
-      payload: 'script text, project context, selected entity, or natural language goal',
-      uiSnapshot: '{ route, project, selection, recentResources }',
+      payload: 'script text, production goal, entity hint, or natural language goal',
+      contextProfile: 'production_context',
+      uiSnapshot: 'optional hints only',
     },
     runtimeFlow: [
-      'capture frontend clientInput',
+      'send command message',
       'resolve MCP context pack and memories',
-      'compile agentic-loop prompt',
+      'read project/production context as needed',
       'agent selects tool calls and policy gates approvals',
       'assistant returns JSON summary for the run',
     ],
@@ -336,7 +341,7 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
       warnings: ['string'],
       pendingApprovals: ['approval request'],
     },
-    currentSupport: 'Supported by agentic loop preview/execute flow. /project_plan remains a compatibility alias.',
+    currentSupport: 'Primary command for planning. /project_plan remains a compatibility alias.',
   },
   {
     command: '/draft',
@@ -344,6 +349,7 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
     inputContract: {
       command: '/draft',
       payload: 'draft goal, entity hint, or script fragment',
+      contextProfile: 'selected_entity',
     },
     runtimeFlow: ['infer draft kind', 'optionally read project structure/entity', 'call movscript_create_draft', 'return draft id in assistant message'],
     outputContract: {
@@ -355,18 +361,64 @@ const AGENT_INTERACTION_COMMANDS: AgentInteractionCommand[] = [
   },
   {
     command: '/inspect_context',
-    intent: '查看当前 route/project/selection/resources/memories 的 runtime 输入上下文。',
+    intent: '查看 agent runtime 自行解析到的 project/selection/resources/memories 上下文。',
     inputContract: {
       command: '/inspect_context',
       payload: 'optional question about current context',
+      contextProfile: 'minimal',
     },
-    runtimeFlow: ['capture uiSnapshot', 'call movscript_get_context_pack', 'load memories', 'render Context tab/Raw JSON'],
+    runtimeFlow: ['send command message', 'call movscript_get_context_pack', 'load memories', 'render Context tab/Raw JSON'],
     outputContract: {
       context: 'AgentDebugContextPanel',
       memories: 'memory refs',
       labels: 'string[]',
     },
     currentSupport: 'Visible in Agent Debug Context and Raw tabs; explicit command remains a frontend/runtime convention.',
+  },
+  {
+    command: '/search',
+    intent: '按关键词搜索项目实体，适合用户只知道名称或描述、不知道实体 ID 的情况。',
+    inputContract: {
+      command: '/search',
+      payload: 'keyword or natural language query',
+      contextProfile: 'minimal',
+    },
+    runtimeFlow: ['send command message', 'resolve context pack', 'call movscript_search_entities', 'summarize results'],
+    outputContract: {
+      results: 'search result summary',
+      toolResults: 'raw step JSON in debug timeline',
+    },
+    currentSupport: 'Supported by command router and runtime tool policy.',
+  },
+  {
+    command: '/read_entity',
+    intent: '读取一个指定实体；实体类型和 ID 直接写在命令里。',
+    inputContract: {
+      command: '/read_entity',
+      payload: 'entityType #entityId',
+      contextProfile: 'selected_entity',
+    },
+    runtimeFlow: ['send command message', 'resolve context pack', 'call movscript_read_entity', 'summarize entity content'],
+    outputContract: {
+      entity: 'entity summary',
+      toolResults: 'raw entity JSON in debug timeline',
+    },
+    currentSupport: 'Supported by command router and runtime tool policy.',
+  },
+  {
+    command: '/list_drafts',
+    intent: '列出本地 Agent 草稿，方便审阅和继续应用。',
+    inputContract: {
+      command: '/list_drafts',
+      payload: 'optional filter text',
+      contextProfile: 'minimal',
+    },
+    runtimeFlow: ['send command message', 'resolve context pack', 'call movscript_list_drafts', 'summarize drafts'],
+    outputContract: {
+      drafts: 'local draft list summary',
+      toolResults: 'raw draft JSON in debug timeline',
+    },
+    currentSupport: 'Supported by command router and runtime tool policy.',
   },
 ]
 
@@ -376,15 +428,19 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'Inspect Context',
     agentFunction: 'movscript_get_context_pack + AgentDebugContextPanel',
     command: '/inspect_context',
+    contextProfile: 'minimal',
+    outputContractSummary: 'JSON: context, contextText, memories, labels, warnings',
     endpoint: 'POST /runs through clientInput.message',
     outputMode: 'assistant text: JSON',
-    description: '输出当前 route、project、selection、resources、attachments 和 memories，前端只负责渲染 JSON。',
+    description: '输出 runtime 自行解析的 context、attachments 和 memories，前端只负责渲染 JSON。',
   },
   {
     id: 'production_plan',
     label: 'Production Plan',
     agentFunction: 'agentic loop + tool policy',
     command: '/production_plan 第一场：主角在雨夜进入废弃剧院',
+    contextProfile: 'production_context',
+    outputContractSummary: 'JSON: objective, strategy, steps, warnings, toolResults, pendingApprovals',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text: JSON',
     description: '编排当前输入和项目上下文，返回可机器读取的步骤、工具调用、告警和审批项。',
@@ -394,6 +450,8 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'Search Entities',
     agentFunction: 'movscript_search_entities',
     command: '/search 主角',
+    contextProfile: 'minimal',
+    outputContractSummary: 'Text summary + raw search result step',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + raw step JSON',
     description: '按关键词检索项目实体；调试页会展示实际 tool args/result/error。',
@@ -403,6 +461,8 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'Project Structure',
     agentFunction: 'movscript_read_project_structure',
     command: '/project_structure',
+    contextProfile: 'project_structure',
+    outputContractSummary: 'Text summary + raw project structure step',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + structure JSON',
     description: '单独读取项目结构摘要，方便调试剧本、设定、语义生产实体、素材位和管线节点的上下文入口。',
@@ -412,6 +472,8 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'Read Entity',
     agentFunction: 'movscript_read_entity',
     command: '/read_entity script #1',
+    contextProfile: 'selected_entity',
+    outputContractSummary: 'Text summary + raw entity step',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + raw step JSON',
     description: '读取指定项目实体；实体类型和 ID 直接写在命令中。',
@@ -421,6 +483,8 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'Create Draft',
     agentFunction: 'movscript_create_draft',
     command: '/draft 写一版第一场镜头草稿',
+    contextProfile: 'selected_entity',
+    outputContractSummary: 'Text summary + local draft JSON step',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + local draft JSON',
     description: '创建本地草稿，不直接写正式项目实体。',
@@ -430,6 +494,8 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'List Drafts',
     agentFunction: 'movscript_list_drafts',
     command: '/list_drafts',
+    contextProfile: 'minimal',
+    outputContractSummary: 'Text summary + draft list step',
     endpoint: 'POST /runs/preview or POST /runs',
     outputMode: 'assistant text summary + draft list JSON',
     description: '列出当前项目的本地 Agent 草稿，适合不打开专用草稿 UI 时调试。',
@@ -439,6 +505,8 @@ const AGENT_DEBUG_COMMANDS: AgentDebugCommandSpec[] = [
     label: 'Apply Draft',
     agentFunction: 'movscript_apply_draft',
     command: '/apply_draft draft_xxx to script #1 field content',
+    contextProfile: 'minimal',
+    outputContractSummary: 'Approval request + before/after preview + final summary',
     endpoint: 'POST /runs then POST /runs/:id/approve',
     outputMode: 'approval request + assistant text summary',
     description: '走审批链应用草稿；调试页会展示 pending approval、before/after preview 和结果。',
@@ -488,7 +556,7 @@ export default function AgentDebugPage() {
   const [approvingRun, setApprovingRun] = useState(false)
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState('workbench')
-  const [rightTab, setRightTab] = useState('history')
+  const [statusCollapsed, setStatusCollapsed] = useState(false)
 
   const health = useQuery<AgentHealth>({
     queryKey: ['local-agent-debug-health', localAgentClient.baseURL],
@@ -547,33 +615,16 @@ export default function AgentDebugPage() {
   const preview = useMutation<AgentRunPreview, Error>({
     mutationFn: async () => {
       await localAgentClient.ensureRunning()
+      const message = previewMessage.trim() || t('agents.debug.defaultPreviewMessage')
       return localAgentClient.previewRun({
-        clientInput: {
-          message: previewMessage.trim() || t('agents.debug.defaultPreviewMessage'),
-          uiSnapshot: {
-            ...(currentProject ? {
-              project: {
-                id: currentProject.ID,
-                name: currentProject.name,
-                status: currentProject.status,
-                description: currentProject.description,
-              },
-            } : {}),
-            route: typeof window !== 'undefined'
-              ? { pathname: window.location.pathname, search: window.location.search, hash: window.location.hash }
-              : undefined,
-          },
-        },
+        clientInput: buildCommandFirstClientInput({ message }),
       })
     },
   })
   const executeRun = useMutation<AgentRun, Error, string | undefined>({
     mutationFn: async (messageOverride) => {
       const message = messageOverride?.trim() || previewMessage.trim() || t('agents.debug.defaultPreviewMessage')
-      const route = typeof window !== 'undefined'
-        ? { pathname: window.location.pathname, search: window.location.search, hash: window.location.hash }
-        : undefined
-      setRightTab('run')
+      setActiveTab('run')
       setDebugRun(null)
       setDebugRunError(null)
       setDebugThreadMessages([])
@@ -581,34 +632,13 @@ export default function AgentDebugPage() {
       setDebugRunInput({
         message,
         startedAt: new Date().toISOString(),
-        ...(route ? { route } : {}),
-        ...(currentProject ? {
-          project: {
-            id: currentProject.ID,
-            name: currentProject.name,
-            status: currentProject.status,
-          },
-        } : {}),
       })
       await localAgentClient.ensureRunning()
+      const clientInput = buildCommandFirstClientInput({ message })
       const result = await localAgentClient.runMessage({
-        message,
+        message: clientInput.message,
         title: 'Agent debug run',
-        projectId: currentProject?.ID,
-        clientInput: {
-          message,
-          uiSnapshot: {
-            ...(currentProject ? {
-              project: {
-                id: currentProject.ID,
-                name: currentProject.name,
-                status: currentProject.status,
-                description: currentProject.description,
-              },
-            } : {}),
-            route,
-          },
-        },
+        clientInput,
       }, {
         timeoutMs: 45_000,
         pollMs: 400,
@@ -758,7 +788,7 @@ export default function AgentDebugPage() {
     setSelectedHistoryRunId(run.id)
     setDebugRunInput(buildInputSnapshotFromRun(run))
     setDebugRunError(null)
-    setRightTab('run')
+    setActiveTab('run')
     try {
       const thread = await localAgentClient.getThread(run.threadId)
       setDebugThreadMessages(thread.messages.map((message) => ({
@@ -811,9 +841,64 @@ export default function AgentDebugPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)_340px] overflow-hidden">
-        <aside className="overflow-y-auto border-r border-border bg-muted/10 p-4">
+      <div className={cn(
+        'grid min-h-0 flex-1 overflow-hidden',
+        statusCollapsed ? 'grid-cols-[56px_minmax(0,1fr)]' : 'grid-cols-[300px_minmax(0,1fr)]',
+      )}>
+        <aside className={cn(
+          'min-w-0 border-r border-border bg-muted/10',
+          statusCollapsed ? 'overflow-hidden p-2' : 'overflow-y-auto p-4',
+        )}>
+          {statusCollapsed ? (
+            <div className="flex h-full flex-col items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setStatusCollapsed(false)}
+                title="Expand status sidebar"
+              >
+                <ChevronRight size={15} />
+              </Button>
+              <div
+                className={cn(
+                  'h-2.5 w-2.5 rounded-full',
+                  health.data?.ok ? 'bg-emerald-500' : health.isFetching ? 'bg-amber-500' : 'bg-destructive',
+                )}
+                title={health.data?.ok ? t('agents.debug.status.runtimeOnline') : health.isFetching ? t('agents.debug.status.checking') : t('agents.debug.status.runtimeOffline')}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  health.refetch()
+                  inspect.refetch()
+                  capabilities.refetch()
+                }}
+                disabled={health.isFetching || inspect.isFetching || capabilities.isFetching}
+                title={t('agents.debug.actions.refresh')}
+              >
+                <RefreshCw size={14} className={cn((health.isFetching || inspect.isFetching || capabilities.isFetching) && 'animate-spin')} />
+              </Button>
+            </div>
+          ) : (
           <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Status</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setStatusCollapsed(true)}
+                title="Collapse status sidebar"
+              >
+                <ChevronLeft size={14} />
+              </Button>
+            </div>
             <Panel title={t('agents.debug.panels.runtime')} icon={<Activity size={14} />}>
               <div className="space-y-2 text-xs">
                 <KeyValue label={t('agents.debug.fields.baseUrl')} value={localAgentClient.baseURL} />
@@ -946,6 +1031,7 @@ export default function AgentDebugPage() {
               </Panel>
             )}
           </div>
+          )}
         </aside>
 
         <main className="min-w-0 overflow-y-auto p-6">
@@ -962,6 +1048,8 @@ export default function AgentDebugPage() {
               <TabsTrigger value="prompt" className="gap-1.5 text-xs"><FileJson size={12} /> {t('agents.debug.tabs.prompt')}</TabsTrigger>
               <TabsTrigger value="context" className="gap-1.5 text-xs"><Database size={12} /> {t('agents.debug.tabs.context')}</TabsTrigger>
               <TabsTrigger value="plan" className="gap-1.5 text-xs"><ShieldCheck size={12} /> {t('agents.debug.tabs.runs')}</TabsTrigger>
+              <TabsTrigger value="history" className="gap-1.5 text-xs"><Activity size={12} /> History</TabsTrigger>
+              <TabsTrigger value="run" className="gap-1.5 text-xs"><Play size={12} /> Current Run</TabsTrigger>
               <TabsTrigger value="raw" className="gap-1.5 text-xs"><TerminalSquare size={12} /> {t('agents.debug.tabs.raw')}</TabsTrigger>
             </TabsList>
 
@@ -977,10 +1065,10 @@ export default function AgentDebugPage() {
                 debugRunning={executeRun.isPending}
                 onDebugMessageChange={setPreviewMessage}
                 onExecuteDebugRun={(message) => {
-                  setRightTab('run')
+                  setActiveTab('run')
                   executeRun.mutate(message)
                 }}
-                onOpenDebugRun={() => setRightTab('run')}
+                onOpenDebugRun={() => setActiveTab('run')}
               />
             </TabsContent>
 
@@ -1040,25 +1128,7 @@ export default function AgentDebugPage() {
               />
             </TabsContent>
 
-            <TabsContent value="raw" className="mt-0">
-              <CodeBlock value={rawPayload} maxHeight="70vh" />
-            </TabsContent>
-          </Tabs>
-        </main>
-
-        <aside className="min-w-0 overflow-hidden border-l border-border bg-muted/10 p-4">
-          <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full min-h-0 flex-col">
-            <TabsList className="grid h-auto w-full grid-cols-2 rounded-md border border-border bg-background p-1">
-              <TabsTrigger value="history" className="gap-1.5 text-xs">
-                <Activity size={12} />
-                History
-              </TabsTrigger>
-              <TabsTrigger value="run" className="gap-1.5 text-xs">
-                <Play size={12} />
-                Current Run
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="history" className="mt-3 min-h-0 flex-1">
+            <TabsContent value="history" className="mt-0 h-[calc(100vh-220px)] min-h-[520px] max-h-[760px]">
               <RunHistoryPanel
                 runs={runHistory.data?.runs ?? []}
                 loading={runHistory.isFetching}
@@ -1069,7 +1139,8 @@ export default function AgentDebugPage() {
                 compact
               />
             </TabsContent>
-            <TabsContent value="run" className="mt-3 min-h-0 flex-1">
+
+            <TabsContent value="run" className="mt-0 h-[calc(100vh-220px)] min-h-[520px] max-h-[760px]">
               <RightRunPanel
                 input={debugRunInput}
                 run={debugRun}
@@ -1078,8 +1149,13 @@ export default function AgentDebugPage() {
                 onOpenTimeline={() => setActiveTab('plan')}
               />
             </TabsContent>
+
+            <TabsContent value="raw" className="mt-0">
+              <CodeBlock value={rawPayload} maxHeight="70vh" />
+            </TabsContent>
           </Tabs>
-        </aside>
+        </main>
+
       </div>
     </div>
   )
@@ -1097,8 +1173,9 @@ interface WorkbenchSession {
 
 interface WorkbenchRunState {
   run: AgentRun | null
-  threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>
+  threadMessages: Array<{ id: string; role: string; content: string; createdAt: string; runId?: string }>
   running: boolean
+  loadingThread?: boolean
   error: string | null
 }
 
@@ -1164,6 +1241,7 @@ function WorkbenchTab({
   const [message, setMessage] = useState(debugMessage)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [inputTab, setInputTab] = useState<'message' | 'tool' | 'skills' | 'context'>('message')
+  const [runRailOpen, setRunRailOpen] = useState(true)
 
   const availableTools = capabilities?.resolvedTools?.available ?? inspect?.registeredTools?.map((t) => ({ name: t.name, description: t.description })) ?? []
 
@@ -1182,19 +1260,55 @@ function WorkbenchTab({
     })
   }
 
+  async function loadThreadState(threadId: string, options: { force?: boolean } = {}) {
+    const existing = runStates[threadId]
+    if (!options.force && existing?.threadMessages.length) return
+    setRunState(threadId, { loadingThread: true, error: null })
+    try {
+      const [thread, runsResult] = await Promise.all([
+        localAgentClient.getThread(threadId),
+        localAgentClient.listRuns().catch(() => ({ runs: [] as AgentRun[] })),
+      ])
+      const latestRun = runsResult.runs
+        .filter((run) => run.threadId === threadId)
+        .sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())[0] ?? null
+      setRunState(threadId, {
+        run: latestRun,
+        threadMessages: thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt, runId: m.runId })),
+        loadingThread: false,
+        error: null,
+      })
+      setSessions((prev) => prev.map((s) => s.threadId === threadId ? {
+        ...s,
+        title: thread.title ?? s.title,
+        messageCount: thread.messages.length,
+        lastRunStatus: latestRun?.status ?? s.lastRunStatus,
+      } : s))
+    } catch (err) {
+      setRunState(threadId, { loadingThread: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   async function loadSessions() {
     setLoadingSessions(true)
     try {
+      await localAgentClient.ensureRunning()
       const { threads } = await localAgentClient.listThreads()
-      setSessions(threads.map((t) => ({
+      const nextSessions = threads.map((t) => ({
         threadId: t.id,
         title: t.title ?? t.id.slice(0, 12),
         createdAt: t.createdAt,
         lastRunStatus: t.lastRunStatus,
         messageCount: t.messageCount,
-      })))
-    } catch {
-      // ignore
+      }))
+      setSessions(nextSessions)
+      if ((!activeThreadId || !nextSessions.some((session) => session.threadId === activeThreadId)) && nextSessions.length > 0) {
+        setActiveThreadId(nextSessions[0].threadId)
+      }
+    } catch (err) {
+      if (activeThreadId) {
+        setRunState(activeThreadId, { error: err instanceof Error ? err.message : String(err) })
+      }
     } finally {
       setLoadingSessions(false)
     }
@@ -1202,11 +1316,18 @@ function WorkbenchTab({
 
   useEffect(() => { loadSessions() }, [])
 
+  useEffect(() => {
+    if (!activeThreadId) return
+    loadThreadState(activeThreadId)
+  }, [activeThreadId])
+
   async function createSession() {
+    await localAgentClient.ensureRunning()
     const thread = await localAgentClient.createThread({ title: `Session ${new Date().toLocaleTimeString()}` })
     const session: WorkbenchSession = { threadId: thread.id, title: thread.title ?? thread.id.slice(0, 12), createdAt: thread.createdAt, messageCount: 0 }
     setSessions((prev) => [session, ...prev])
     setActiveThreadId(thread.id)
+    setRunState(thread.id, { run: null, threadMessages: [], running: false, loadingThread: false, error: null })
   }
 
   async function deleteSession(threadId: string) {
@@ -1268,7 +1389,7 @@ function WorkbenchTab({
       setRunState(activeThreadId, {
         run: finalRun,
         running: false,
-        threadMessages: thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt })),
+        threadMessages: thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt, runId: m.runId })),
       })
       setSessions((prev) => prev.map((s) => s.threadId === activeThreadId ? { ...s, messageCount: thread.messages.length } : s))
     } catch (err) {
@@ -1280,15 +1401,14 @@ function WorkbenchTab({
 
   async function sendMessage() {
     if (!message.trim() || !activeThreadId) return
-    const snapshot = parseContextSnapshot()
-    if (!snapshot) return
+    const clientInput = buildCommandFirstClientInput({ message: message.trim() })
     setSendingMessage(true)
     setRunState(activeThreadId, { running: true, error: null })
     try {
       const result = await localAgentClient.runMessage({
         threadId: activeThreadId,
-        message: message.trim(),
-        clientInput: { message: message.trim(), uiSnapshot: snapshot },
+        message: clientInput.message,
+        clientInput,
       }, {
         timeoutMs: 60_000,
         pollMs: 400,
@@ -1298,7 +1418,7 @@ function WorkbenchTab({
       setRunState(activeThreadId, {
         run: result.run,
         running: false,
-        threadMessages: result.thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt })),
+        threadMessages: result.thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt, runId: m.runId })),
       })
       setSessions((prev) => prev.map((s) => s.threadId === activeThreadId ? { ...s, messageCount: result.thread.messages.length, lastRunStatus: result.run.status } : s))
       setMessage('')
@@ -1366,7 +1486,7 @@ function WorkbenchTab({
                     <div className="truncate text-[11px] font-medium text-foreground">{session.title}</div>
                     <div className="mt-0.5 flex items-center gap-1.5">
                       <span className="text-[10px] text-muted-foreground">{session.messageCount} msg</span>
-                      {(state?.running) && <Loader2 size={9} className="animate-spin text-blue-500" />}
+                      {(state?.running || state?.loadingThread) && <Loader2 size={9} className="animate-spin text-blue-500" />}
                       {session.lastRunStatus === 'completed' && !state?.running && <span className="text-[9px] text-emerald-600">done</span>}
                       {session.lastRunStatus === 'failed' && !state?.running && <span className="text-[9px] text-destructive">failed</span>}
                     </div>
@@ -1421,14 +1541,38 @@ function WorkbenchTab({
           </div>
 
           {/* Output area */}
-          <ScrollArea className="min-h-0 flex-1 p-3">
-            <WorkbenchRunOutput state={activeRunState} />
-          </ScrollArea>
+          <WorkbenchRunOutput
+            state={activeRunState}
+            runRailOpen={runRailOpen}
+            onRunRailOpenChange={setRunRailOpen}
+          />
 
           {/* Input area — always visible, content switches by inputTab */}
           <div className="shrink-0 border-t border-border bg-background/95 p-3">
             {inputTab === 'message' && (
               <div className="space-y-2">
+                <div className="rounded-md border border-border bg-muted/20 p-2">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase text-muted-foreground">Available Commands</span>
+                    <span className="text-[10px] text-muted-foreground">Click to insert</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {AGENT_DEBUG_COMMANDS.filter((item) => item.command.startsWith('/')).slice(0, 8).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setMessage(item.command)
+                          onDebugMessageChange(item.command)
+                        }}
+                        className="rounded border border-border bg-background px-2 py-1 font-mono text-[10px] text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5"
+                        title={`${item.label}: ${item.description}`}
+                      >
+                        {item.command.split(/\s+/, 1)[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <Textarea
                   value={message}
                   onChange={(e) => {
@@ -1444,7 +1588,7 @@ function WorkbenchTab({
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0 text-[11px] text-muted-foreground">
-                    {debugRunInput ? `Latest debug input: ${debugRunInput.message.slice(0, 80)}` : 'Execute Debug Run uses this message and the current workbench context.'}
+                    {debugRunInput ? `Latest debug input: ${debugRunInput.message.slice(0, 80)}` : 'Session Run sends only the command message; runtime resolves context through tools.'}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1562,7 +1706,7 @@ function WorkbenchTab({
             {inputTab === 'context' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-muted-foreground">uiSnapshot sent with every run</span>
+                  <span className="text-[11px] text-muted-foreground">Optional manual uiSnapshot for tool workbench runs</span>
                   <Button type="button" size="xs" variant="ghost" onClick={() => setContextJson(buildContextDefault(currentProject))}>
                     Reset
                   </Button>
@@ -1584,76 +1728,262 @@ function WorkbenchTab({
   )
 }
 
-function WorkbenchRunOutput({ state }: { state: WorkbenchRunState | null }) {
-  if (!state) return <p className="text-center text-xs text-muted-foreground py-8">No run yet for this session.</p>
+function WorkbenchRunOutput({
+  state,
+  runRailOpen,
+  onRunRailOpenChange,
+}: {
+  state: WorkbenchRunState | null
+  runRailOpen: boolean
+  onRunRailOpenChange: (open: boolean) => void
+}) {
+  if (!state) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center p-8 text-center text-xs text-muted-foreground">
+        No run yet for this session.
+      </div>
+    )
+  }
 
-  const { run, threadMessages, running, error } = state
+  const { run, threadMessages, running, loadingThread, error } = state
   const orderedSteps = run ? orderRunStepsChronologically(run.steps) : []
-  const assistantMessage = run
-    ? threadMessages.find((m) => m.id === run.assistantMessageId) ?? [...threadMessages].reverse().find((m) => m.role === 'assistant')
-    : [...threadMessages].reverse().find((m) => m.role === 'assistant')
+  const userMessage = [...threadMessages].reverse().find((m) => m.role === 'user')
+  const traceEvents = run ? normalizeTraceEvents(run, threadMessages) : []
+  const setupEvents = traceEvents.filter((event) => ['run', 'message', 'context', 'memory', 'manifest', 'skill', 'tool_catalog', 'policy', 'prompt'].includes(event.kind))
+  const modelEvents = traceEvents.filter((event) => event.kind === 'model_call')
+  const toolEvents = traceEvents.filter((event) => event.kind === 'tool_call' || event.kind === 'approval')
+  const assistantEvents = traceEvents.filter((event) => event.kind === 'assistant' || event.kind === 'error')
+  const toolSteps = orderedSteps.filter((step) => step.type === 'tool_call')
+  const messageSteps = orderedSteps.filter((step) => step.type === 'message')
 
   return (
-    <div className="space-y-3">
-      {/* Thread messages */}
-      {threadMessages.length > 0 && (
-        <div className="space-y-2">
-          {threadMessages.map((msg) => (
-            <div key={msg.id} className={cn('rounded-md border p-3', msg.role === 'user' ? 'border-border bg-muted/10' : 'border-primary/20 bg-primary/5')}>
-              <div className="mb-1 flex items-center gap-2">
-                <Badge variant={msg.role === 'user' ? 'secondary' : 'outline'} className="text-[9px]">{msg.role}</Badge>
-                <span className="text-[10px] text-muted-foreground">{formatTime(msg.createdAt)}</span>
-              </div>
-              <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">{msg.content}</p>
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <MessageSquare size={14} className="text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">完整对话</h3>
+              <Badge variant={runStatusTone(run?.status, running, error)} className="text-[9px]">
+                {run?.status ?? (running ? 'running' : loadingThread ? 'loading' : 'idle')}
+              </Badge>
             </div>
-          ))}
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {threadMessages.length} 条消息 · {userMessage ? `最近输入 ${formatTime(userMessage.createdAt)}` : '暂无用户输入'}
+            </p>
+          </div>
+          <Button type="button" size="xs" variant="outline" onClick={() => onRunRailOpenChange(!runRailOpen)}>
+            {runRailOpen ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+            {runRailOpen ? '隐藏节点' : '运行节点'}
+          </Button>
         </div>
-      )}
 
-      {/* Running indicator */}
-      {running && !run && (
-        <div className="flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-700 dark:text-blue-300">
-          <Loader2 size={13} className="animate-spin" />
-          Running...
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{error}</div>
-      )}
-
-      {/* Run steps */}
-      {run && orderedSteps.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="text-[10px] font-semibold uppercase text-muted-foreground">Steps ({orderedSteps.length})</div>
-          {orderedSteps.map((step, i) => (
-            <div key={step.id} className="grid grid-cols-[24px_minmax(0,1fr)] gap-2 rounded-md border border-border bg-background p-2">
-              <div className={cn('flex h-6 w-6 items-center justify-center rounded-full border text-[9px]', stepDotClass(step.status))}>
-                {step.status === 'in_progress' ? <Loader2 size={11} className="animate-spin" /> : step.status === 'completed' ? <Check size={11} /> : <X size={11} />}
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 p-4">
+            {loadingThread && threadMessages.length === 0 && (
+              <div className="flex items-center justify-center gap-2 rounded-md border border-border bg-muted/10 p-6 text-xs text-muted-foreground">
+                <Loader2 size={13} className="animate-spin" />
+                正在加载历史会话...
               </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground">#{i + 1}</span>
-                  <span className="text-xs font-medium text-foreground">{stepTitle(step)}</span>
-                  <Badge variant={step.status === 'failed' ? 'destructive' : step.status === 'completed' ? 'success' : 'secondary'} className="text-[8px]">{step.status}</Badge>
-                  {step.toolName && <Badge variant="outline" className="text-[8px]">{step.toolName}</Badge>}
-                </div>
-                {step.args && <CodeBlock value={safeJSONStringify(step.args)} maxHeight="140px" className="mt-1.5" />}
-                {step.result !== undefined && <CodeBlock value={safeJSONStringify(step.result)} maxHeight="200px" className="mt-1.5" />}
-                {step.error && <p className="mt-1 rounded border border-destructive/30 bg-destructive/10 p-1.5 text-[11px] text-destructive">{step.error}</p>}
+            )}
+            {threadMessages.length === 0 && !loadingThread ? (
+              <EmptyState text="这个 session 还没有会话消息。发送一条消息后，这里会按文本对话框展示完整的人和大模型对话。" />
+            ) : (
+              threadMessages.map((message) => (
+                <WorkbenchMessageBubble key={message.id} message={message} activeRunId={run?.id} />
+              ))
+            )}
+            {running && (
+              <div className="flex items-center gap-2 self-center rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300">
+                <Loader2 size={12} className="animate-spin" />
+                Agent 正在运行
               </div>
+            )}
+            {error && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{error}</div>
+            )}
+          </div>
+        </ScrollArea>
+      </main>
+
+      {runRailOpen ? (
+        <aside className="flex w-[390px] shrink-0 flex-col overflow-hidden border-l border-border bg-muted/10">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Activity size={13} className="text-muted-foreground" />
+                <h3 className="text-xs font-semibold text-foreground">运行节点</h3>
+              </div>
+              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{run?.id ?? '还没有运行记录'}</p>
             </div>
-          ))}
-        </div>
-      )}
+            <Button type="button" size="xs" variant="ghost" onClick={() => onRunRailOpenChange(false)}>
+              <ChevronRight size={12} />
+            </Button>
+          </div>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="space-y-3 p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="Run" value={run?.status ?? (running ? 'running' : 'idle')} tone={run?.status === 'failed' || error ? 'warning' : run?.status === 'completed' ? 'success' : 'neutral'} />
+                <Metric label="Command" value={getWorkbenchCommandLabel(userMessage?.content)} />
+                <Metric label="Model Calls" value={String(groupModelHTTPCalls(modelEvents).length)} tone={modelEvents.some((event) => event.status === 'failed') ? 'warning' : 'neutral'} />
+                <Metric label="Tool Steps" value={String(toolSteps.length)} />
+              </div>
 
-      {/* Empty state */}
-      {!running && !error && !run && threadMessages.length === 0 && (
-        <p className="py-8 text-center text-xs text-muted-foreground">Fire a tool or send a message to see results here.</p>
+              {!run ? (
+                <EmptyState text="当前 session 还没有 run。历史消息会先显示在左侧；发送消息或执行工具后，这里会记录节点。" />
+              ) : (
+                <>
+                  <WorkbenchCollapsibleSection title="系统准备" badge={String(setupEvents.length)}>
+                    <WorkbenchEventList events={setupEvents} empty="No setup events recorded yet." />
+                  </WorkbenchCollapsibleSection>
+                  <WorkbenchCollapsibleSection title="发送给模型" badge={String(groupModelHTTPCalls(modelEvents).length)}>
+                    {modelEvents.length === 0 ? (
+                      <div className="rounded-md border border-border bg-muted/10 p-3 text-xs leading-relaxed text-muted-foreground">
+                        No model gateway call was recorded. Runtime commands such as <code className="font-mono">/inspect_context</code> can be answered locally after context preparation.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {groupModelHTTPCalls(modelEvents).map((call, index) => (
+                          <ModelHTTPCallPanel key={call.id} call={call} index={index} />
+                        ))}
+                      </div>
+                    )}
+                  </WorkbenchCollapsibleSection>
+                  <WorkbenchCollapsibleSection title="工具与策略" badge={String(toolEvents.length + toolSteps.length)}>
+                    {toolEvents.length === 0 && toolSteps.length === 0 ? (
+                      <EmptyState text="No tool calls or approval events were needed for this run." />
+                    ) : (
+                      <div className="space-y-2">
+                        <WorkbenchEventList events={toolEvents} empty="No tool events recorded." />
+                        {toolSteps.map((step, index) => (
+                          <WorkbenchStepCard key={step.id} step={step} index={index} />
+                        ))}
+                      </div>
+                    )}
+                  </WorkbenchCollapsibleSection>
+                  <WorkbenchCollapsibleSection title="最终处理" badge={String(assistantEvents.length + messageSteps.length)}>
+                    <div className="space-y-2">
+                      <WorkbenchEventList events={assistantEvents} empty="No assistant or error events recorded yet." />
+                      {messageSteps.map((step, index) => (
+                        <WorkbenchStepCard key={step.id} step={step} index={index} />
+                      ))}
+                    </div>
+                  </WorkbenchCollapsibleSection>
+                </>
+              )}
+            </div>
+          </ScrollArea>
+        </aside>
+      ) : (
+        <div className="flex w-10 shrink-0 justify-center border-l border-border bg-muted/10 py-3">
+          <Button type="button" size="xs" variant="ghost" className="h-8 w-8 p-0" onClick={() => onRunRailOpenChange(true)} title="显示运行节点">
+            <ChevronLeft size={13} />
+          </Button>
+        </div>
       )}
     </div>
   )
+}
+
+function WorkbenchMessageBubble({
+  message,
+  activeRunId,
+}: {
+  message: { id: string; role: string; content: string; createdAt: string; runId?: string }
+  activeRunId?: string
+}) {
+  const role = message.role === 'user' ? '用户' : message.role === 'assistant' ? '大模型' : '系统'
+  const isUser = message.role === 'user'
+  const isAssistant = message.role === 'assistant'
+  return (
+    <div className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}>
+      <div className={cn('max-w-[78%] rounded-lg border px-3 py-2 shadow-sm', isUser
+        ? 'border-primary/30 bg-primary/10 text-foreground'
+        : isAssistant
+          ? 'border-border bg-card text-foreground'
+          : 'border-dashed border-border bg-muted/20 text-muted-foreground',
+      )}>
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5">
+            <Badge variant={isUser ? 'secondary' : isAssistant ? 'outline' : 'warning'} className="text-[9px]">{role}</Badge>
+            {activeRunId && message.runId === activeRunId ? <Badge variant="secondary" className="text-[8px]">run reply</Badge> : null}
+          </div>
+          <span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(message.createdAt)}</span>
+        </div>
+        <p className="whitespace-pre-wrap break-words text-xs leading-relaxed">{message.content || '（空消息）'}</p>
+      </div>
+    </div>
+  )
+}
+
+function WorkbenchCollapsibleSection({ title, badge, children }: { title: string; badge: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-md border border-border bg-background">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <ChevronRight size={13} className="shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+          <span className="truncate text-xs font-semibold text-foreground">{title}</span>
+        </div>
+        <Badge variant="outline" className="text-[9px]">{badge}</Badge>
+      </summary>
+      <div className="border-t border-border p-2">
+        {children}
+      </div>
+    </details>
+  )
+}
+
+function WorkbenchSection({ title, badge, children }: { title: string; badge: string; children: ReactNode }) {
+  return (
+    <section className="rounded-md border border-border bg-background p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-foreground">{title}</h3>
+        <Badge variant="outline" className="text-[9px]">{badge}</Badge>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function WorkbenchEventList({ events, empty }: { events: AgentTraceEvent[]; empty: string }) {
+  if (events.length === 0) return <EmptyState text={empty} />
+  return (
+    <div className="space-y-1.5">
+      {events.map((event, index) => (
+        <TraceEventRow key={event.id} event={event} index={index} compact />
+      ))}
+    </div>
+  )
+}
+
+function WorkbenchStepCard({ step, index }: { step: AgentRun['steps'][number]; index: number }) {
+  return (
+    <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-2 rounded-md border border-border bg-background p-2">
+      <div className={cn('flex h-6 w-6 items-center justify-center rounded-full border text-[9px]', stepDotClass(step.status))}>
+        {step.status === 'in_progress' ? <Loader2 size={11} className="animate-spin" /> : step.status === 'completed' ? <Check size={11} /> : <X size={11} />}
+      </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">#{index + 1}</span>
+          <span className="text-xs font-medium text-foreground">{stepTitle(step)}</span>
+          <Badge variant={step.status === 'failed' ? 'destructive' : step.status === 'completed' ? 'success' : 'secondary'} className="text-[8px]">{step.status}</Badge>
+          <Badge variant="outline" className="text-[8px]">{step.type}</Badge>
+          {step.roundSource && <Badge variant="secondary" className="text-[8px]">{step.roundSource}</Badge>}
+          {step.toolName && <Badge variant="outline" className="text-[8px]">{step.toolName}</Badge>}
+        </div>
+        {step.args && <CodeBlock value={safeJSONStringify(step.args)} maxHeight="140px" className="mt-1.5" />}
+        {step.result !== undefined && <CodeBlock value={safeJSONStringify(step.result)} maxHeight="200px" className="mt-1.5" />}
+        {step.error && <p className="mt-1 rounded border border-destructive/30 bg-destructive/10 p-1.5 text-[11px] text-destructive">{step.error}</p>}
+      </div>
+    </div>
+  )
+}
+
+function getWorkbenchCommandLabel(message?: string) {
+  if (!message) return 'none'
+  const trimmed = message.trim()
+  if (!trimmed.startsWith('/')) return 'chat'
+  return trimmed.split(/\s+/, 1)[0] || 'command'
 }
 
 // ─── End Workbench ─────────────────────────────────────────────────────────────
@@ -1801,6 +2131,10 @@ function CommandsTab({ commands, onUse }: { commands: AgentDebugCommandSpec[]; o
                 </Button>
               </div>
               <p className="mt-2 leading-relaxed text-muted-foreground">{item.description}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.contextProfile && <Badge variant="secondary" className="text-[9px]">context: {item.contextProfile}</Badge>}
+                <Badge variant="secondary" className="text-[9px]">message-driven</Badge>
+              </div>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <div>
                   <div className="mb-1 text-[10px] uppercase text-muted-foreground">Command</div>
@@ -1813,6 +2147,14 @@ function CommandsTab({ commands, onUse }: { commands: AgentDebugCommandSpec[]; o
                   </div>
                 </div>
               </div>
+              {item.outputContractSummary && (
+                <div className="mt-3">
+                  <div className="mb-1 text-[10px] uppercase text-muted-foreground">Output Contract</div>
+                  <div className="rounded-md border border-border bg-muted/20 px-2 py-2 text-[11px] text-foreground">
+                    {item.outputContractSummary}
+                  </div>
+                </div>
+              )}
               {item.requestShape && (
                 <div className="mt-3">
                   <div className="mb-1 text-[10px] uppercase text-muted-foreground">Tool Run Payload</div>

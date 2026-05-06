@@ -3,7 +3,7 @@ package chat
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/ai"
+	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 type Service struct {

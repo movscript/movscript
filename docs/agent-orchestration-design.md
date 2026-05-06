@@ -44,7 +44,7 @@ Production（制作）
 - `AgentDraftStatus`: `draft | accepted | rejected | applied | superseded`
 - `BackendApplyClient` 支持 PATCH 到后端（仅更新已有实体）
 
-**后端数据模型（`apps/backend/internal/model/`）：**
+**后端数据模型（`apps/backend/internal/domain/model/`）：**
 - `CreativeReference` — 项目级，`ProjectID` 无 `ProductionID`，天然跨制作共享
 - `CreativeReferenceState` — 情节级状态快照（服装/情绪/道具）
 - `CreativeReferenceUsage` — 记录哪个情节用了哪个材料、用哪个状态
@@ -225,8 +225,8 @@ agent 分析出"这个情节涉及人物小明"
 | `apps/agent/src/runtime/store/draftStore.ts` | Draft 存储，含 AgentDraftKind |
 | `apps/agent/src/runtime/store/backendApplyClient.ts` | 后端写入客户端，含 FIELD_ALLOWLIST |
 | `apps/agent/src/runtime/store/draftApply.ts` | Draft 应用逻辑 |
-| `apps/backend/internal/model/semantic_creative.go` | CreativeReference / State / Usage 模型 |
-| `apps/backend/internal/model/semantic_production.go` | AssetSlot / CandidateDecision 模型 |
-| `apps/backend/internal/model/semantic_structure.go` | Segment / SceneMoment / ContentUnit 模型 |
-| `apps/backend/internal/model/setting.go` | Setting（旧版创作材料，已被 CreativeReference 替代） |
+| `apps/backend/internal/domain/model/semantic_creative.go` | CreativeReference / State / Usage 模型 |
+| `apps/backend/internal/domain/model/semantic_production.go` | AssetSlot / CandidateDecision 模型 |
+| `apps/backend/internal/domain/model/semantic_structure.go` | Segment / SceneMoment / ContentUnit 模型 |
+| `apps/backend/internal/domain/model/setting.go` | Setting（旧版创作材料，已被 CreativeReference 替代） |
 | `apps/frontend/src/pages/production/ProductionOrchestratePage.tsx` | 前端制作编排页面 |

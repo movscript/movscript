@@ -366,6 +366,13 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    const runInputMatch = url.pathname.match(/^\/runs\/([^/]+)\/input$/)
+    if (runInputMatch && req.method === 'POST') {
+      const body = await readJSON(req)
+      writeJSON(res, 202, agentRuntime.answerRunInputRequest(runInputMatch[1], withRequestAuth(normalizeOptionalObject(body, 'input answer body'), req)))
+      return
+    }
+
     if (req.method === 'GET' && url.pathname === '/memories') {
       writeJSON(res, 200, { memories: agentRuntime.listMemories(normalizeMemoryQuery(url)) })
       return

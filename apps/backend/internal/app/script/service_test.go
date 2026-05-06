@@ -3,7 +3,7 @@ package script
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 )
 
 func TestNormalizeDefaultsUsesRawSourceAsCanonicalInput(t *testing.T) {

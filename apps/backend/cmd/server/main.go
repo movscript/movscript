@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/movscript/movscript/internal/bootstrap"
-	"github.com/movscript/movscript/internal/observability"
+	"github.com/movscript/movscript/internal/infra/observability"
 )
 
 func main() {

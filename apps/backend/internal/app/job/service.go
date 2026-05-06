@@ -2,11 +2,13 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
-	jobrunner "github.com/movscript/movscript/internal/job"
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
 
@@ -19,14 +21,43 @@ var (
 	ErrFinishedJobCannotCancel    = errors.New("finished jobs cannot be cancelled")
 	ErrInvalidCancelStatus        = errors.New("job cannot be cancelled from current status")
 	ErrRunningJobMustCancelDelete = errors.New("running jobs must be cancelled before deletion")
+	ErrUnsupportedProviderCancel  = errors.New("this provider does not support video task cancellation")
+	ErrProviderCancellationFailed = errors.New("provider cancellation failed")
+	ErrInvalidJobType             = errors.New("invalid job type")
+	ErrJobTypeRequired            = errors.New("job_type is required")
+	ErrCredentialNotFound         = errors.New("credential not found")
+	ErrLoadInputResources         = errors.New("failed to load input resources")
+	ErrReserveQuota               = errors.New("failed to reserve job quota")
+	ErrCreateJob                  = errors.New("failed to create job")
 )
+
+type InvalidJobTypeError struct {
+	JobType string
+}
+
+func (e InvalidJobTypeError) Error() string {
+	return "invalid job_type: " + e.JobType
+}
+
+func (e InvalidJobTypeError) Unwrap() error {
+	return ErrInvalidJobType
+}
+
+func IsInsufficientQuota(err error) bool {
+	return errors.Is(err, ai.ErrInsufficientQuota)
+}
 
 type Service struct {
 	db *gorm.DB
+	ai *ai.AIService
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
+	var svc *ai.AIService
+	if len(aiService) > 0 {
+		svc = aiService[0]
+	}
+	return &Service{db: db, ai: svc}
 }
 
 type ListFilter struct {
@@ -71,6 +102,21 @@ type CreateInput struct {
 	InputResourceIDs   string
 	UsageReservationID *uint
 	ProjectID          *uint
+}
+
+type EnqueueInput struct {
+	UserID           uint
+	ModelConfigID    uint
+	JobType          string
+	FeatureKey       string
+	Prompt           string
+	ExtraParams      string
+	AspectRatio      string
+	Duration         int
+	InputResourceID  *uint
+	InputResourceIDs []uint
+	ProjectID        *uint
+	CreatedAt        time.Time
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
@@ -196,8 +242,8 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.Job, err
 		ModelConfigID:      input.ModelConfigID,
 		JobType:            input.JobType,
 		FeatureKey:         input.FeatureKey,
-		Status:             jobrunner.StatusPending,
-		MaxAttempts:        jobrunner.DefaultMaxAttempts,
+		Status:             StatusPending,
+		MaxAttempts:        DefaultMaxAttempts,
 		Prompt:             input.Prompt,
 		ExtraParams:        input.ExtraParams,
 		AspectRatio:        input.AspectRatio,
@@ -214,25 +260,140 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.Job, err
 	return job, nil
 }
 
+func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (model.Job, error) {
+	if s.ai == nil {
+		return model.Job{}, errors.New("ai service is required")
+	}
+	if input.JobType == "" {
+		return model.Job{}, ErrJobTypeRequired
+	}
+	switch input.JobType {
+	case ai.CapabilityImage, ai.CapabilityImageEdit,
+		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+	default:
+		return model.Job{}, InvalidJobTypeError{JobType: input.JobType}
+	}
+
+	allIDs := MergeIDs(input.InputResourceIDs, input.InputResourceID)
+	inputResources, err := s.LoadInputResources(ctx, allIDs)
+	if err != nil {
+		return model.Job{}, wrapErr(ErrLoadInputResources, err)
+	}
+
+	preflight, err := s.ai.PreflightGeneration(ai.GenerationPreflightRequest{
+		ModelConfigID: input.ModelConfigID,
+		OutputType:    input.JobType,
+		ExtraParams:   input.ExtraParams,
+		AspectRatio:   input.AspectRatio,
+		Duration:      input.Duration,
+		ImageCount:    inputResources.ImageCount,
+		VideoCount:    inputResources.VideoCount,
+	})
+	if err != nil {
+		return model.Job{}, err
+	}
+
+	cred, err := s.GetCredential(ctx, preflight.Config.CredentialID)
+	if err != nil {
+		return model.Job{}, ErrCredentialNotFound
+	}
+
+	inputResourceIDsJSON := ""
+	if len(allIDs) > 0 {
+		b, _ := json.Marshal(allIDs)
+		inputResourceIDsJSON = string(b)
+	}
+	var legacyInputID *uint
+	if len(allIDs) > 0 {
+		legacyInputID = &allIDs[0]
+	}
+
+	createdAt := input.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+	requestContext := BuildContextSnapshot(ContextSnapshotInput{
+		Model:          preflight.Config,
+		Credential:     cred,
+		JobType:        input.JobType,
+		FeatureKey:     input.FeatureKey,
+		Prompt:         input.Prompt,
+		ExtraParams:    input.ExtraParams,
+		AspectRatio:    input.AspectRatio,
+		Duration:       input.Duration,
+		InputResources: OrderedResources(inputResources.Resources, allIDs),
+		CreatedAt:      createdAt,
+	})
+
+	estimate, err := s.estimateJobCost(input.ModelConfigID, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
+	if err != nil {
+		return model.Job{}, err
+	}
+	reservation, err := s.ai.ReserveQuota(ctx, input.UserID, input.ModelConfigID, estimate, ai.BillingContext{ProjectID: input.ProjectID})
+	if err != nil {
+		if errors.Is(err, ai.ErrInsufficientQuota) {
+			return model.Job{}, err
+		}
+		return model.Job{}, wrapErr(ErrReserveQuota, err)
+	}
+
+	job, err := s.Create(ctx, CreateInput{
+		UserID:             input.UserID,
+		ModelConfigID:      input.ModelConfigID,
+		JobType:            input.JobType,
+		FeatureKey:         input.FeatureKey,
+		Prompt:             input.Prompt,
+		ExtraParams:        input.ExtraParams,
+		AspectRatio:        input.AspectRatio,
+		Duration:           input.Duration,
+		RequestContext:     requestContext,
+		InputResourceID:    legacyInputID,
+		InputResourceIDs:   inputResourceIDsJSON,
+		UsageReservationID: &reservation.ID,
+		ProjectID:          input.ProjectID,
+	})
+	if err != nil {
+		_ = s.ai.ReleaseReservation(ctx, reservation.ID, "gen job create failed")
+		return model.Job{}, wrapErr(ErrCreateJob, err)
+	}
+	_ = s.ai.SetReservationJob(ctx, reservation.ID, job.ID)
+	return job, nil
+}
+
+func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
+	kind, imageReq, videoReq, err := CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
+	if err != nil {
+		return ai.UsageEstimate{}, err
+	}
+	switch kind {
+	case "image":
+		return s.ai.EstimateImageCost(modelConfigID, imageReq)
+	case "video":
+		return s.ai.EstimateVideoCost(modelConfigID, videoReq)
+	default:
+		return ai.UsageEstimate{}, err
+	}
+}
+
 func (s *Service) Retry(ctx context.Context, id uint, userID uint) (model.Job, error) {
 	job, err := s.getOwned(ctx, id, userID)
 	if err != nil {
 		return job, err
 	}
-	if job.Status == jobrunner.StatusSucceeded {
+	if job.Status == StatusSucceeded {
 		return job, ErrSucceededJobCannotRetry
 	}
-	if job.Status == jobrunner.StatusRunning {
+	if job.Status == StatusRunning {
 		return job, ErrRunningJobCannotRetry
 	}
 
 	now := time.Now()
 	maxAttempts := job.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = jobrunner.DefaultMaxAttempts
+		maxAttempts = DefaultMaxAttempts
 	}
 	if err := s.db.WithContext(ctx).Model(&job).Updates(map[string]any{
-		"status":                jobrunner.StatusPending,
+		"status":                StatusPending,
 		"attempt_count":         0,
 		"max_attempts":          maxAttempts,
 		"error_msg":             "",
@@ -247,7 +408,7 @@ func (s *Service) Retry(ctx context.Context, id uint, userID uint) (model.Job, e
 	}).Error; err != nil {
 		return job, err
 	}
-	jobrunner.MarkRetryScheduled(s.db.WithContext(ctx), &job, "manual retry requested")
+	MarkRetryScheduled(s.db.WithContext(ctx), &job, "manual retry requested")
 	return s.reload(ctx, job.ID)
 }
 
@@ -260,13 +421,49 @@ func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint
 		return job, ErrOnlyVideoJobsCanCancel
 	}
 	switch job.Status {
-	case jobrunner.StatusCancelled:
+	case StatusCancelled:
 		return job, nil
-	case jobrunner.StatusSucceeded, jobrunner.StatusFailed:
+	case StatusSucceeded, StatusFailed:
 		return job, ErrFinishedJobCannotCancel
-	case jobrunner.StatusPending, jobrunner.StatusRunning:
+	case StatusPending, StatusRunning:
 	default:
 		return job, ErrInvalidCancelStatus
+	}
+	return job, nil
+}
+
+func (s *Service) Cancel(ctx context.Context, id uint, userID uint) (model.Job, error) {
+	if s.ai == nil {
+		return model.Job{}, errors.New("ai service is required")
+	}
+	job, err := s.ValidateCancellation(ctx, id, userID)
+	if err != nil {
+		return job, err
+	}
+	if job.Status == StatusCancelled {
+		return job, nil
+	}
+	if !s.ai.SupportsVideoTaskCancellation(job.ModelConfigID) {
+		return job, ErrUnsupportedProviderCancel
+	}
+
+	providerStatus := ai.VideoStatusCancelled
+	message := "cancelled by user"
+	if job.ProviderTaskID != "" {
+		resp, err := s.ai.CallVideoCancel(ctx, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind)
+		if err != nil {
+			return job, wrapErr(ErrProviderCancellationFailed, err)
+		}
+		providerStatus = FirstNonEmpty(resp.Status, ai.VideoStatusCancelled)
+		message = FirstNonEmpty(resp.Message, message)
+	}
+
+	job, err = s.MarkCancelled(ctx, id, userID, providerStatus, message)
+	if err != nil {
+		return job, err
+	}
+	if job.UsageReservationID != nil {
+		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, "cancelled by user")
 	}
 	return job, nil
 }
@@ -278,7 +475,7 @@ func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, provi
 	}
 	now := time.Now()
 	if err := s.db.WithContext(ctx).Model(&job).Updates(map[string]any{
-		"status":               jobrunner.StatusCancelled,
+		"status":               StatusCancelled,
 		"provider_task_status": providerStatus,
 		"error_msg":            message,
 		"next_run_at":          nil,
@@ -296,10 +493,10 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint) (model.Job, 
 		return job, false, err
 	}
 	releaseReservation := false
-	if job.Status == jobrunner.StatusPending {
+	if job.Status == StatusPending {
 		now := time.Now()
 		if err := s.db.WithContext(ctx).Model(&job).Updates(map[string]any{
-			"status":            jobrunner.StatusCancelled,
+			"status":            StatusCancelled,
 			"error_msg":         "cancelled by user",
 			"finished_at":       &now,
 			"next_run_at":       nil,
@@ -308,12 +505,30 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint) (model.Job, 
 			return job, false, err
 		}
 		releaseReservation = job.UsageReservationID != nil
-	} else if job.Status == jobrunner.StatusRunning {
+	} else if job.Status == StatusRunning {
 		return job, false, ErrRunningJobMustCancelDelete
 	} else if err := s.db.WithContext(ctx).Delete(&job).Error; err != nil {
 		return job, false, err
 	}
 	return job, releaseReservation, nil
+}
+
+func (s *Service) DeleteAndRelease(ctx context.Context, id uint, userID uint) error {
+	job, releaseReservation, err := s.Delete(ctx, id, userID)
+	if err != nil {
+		return err
+	}
+	if releaseReservation && job.UsageReservationID != nil && s.ai != nil {
+		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, "cancelled by user")
+	}
+	return nil
+}
+
+func wrapErr(base error, err error) error {
+	if err == nil {
+		return base
+	}
+	return fmt.Errorf("%w: %w", base, err)
 }
 
 func (s *Service) getOwned(ctx context.Context, id uint, userID uint) (model.Job, error) {

@@ -3,7 +3,7 @@ package job
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type Response struct {

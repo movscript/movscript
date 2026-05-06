@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 

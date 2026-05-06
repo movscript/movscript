@@ -91,6 +91,14 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
+    name: 'movscript_list_projects',
+    description: 'List all visible projects as Markdown-friendly project summaries.',
+    permission: 'project.read',
+    risk: 'read',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+  },
+  {
     name: 'movscript_create_draft',
     description: 'Create a local draft artifact without writing project entities.',
     permission: 'draft.write',
@@ -106,6 +114,15 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     risk: 'read',
     source: 'runtime',
     projectScoped: true,
+    requiresApprovalByDefault: false,
+  },
+  {
+    name: 'movscript_request_user_input',
+    description: 'Pause the agent run and ask the user for missing context, a choice, confirmation, or free-form input before continuing.',
+    permission: 'agent.input',
+    risk: 'ui',
+    source: 'runtime',
+    projectScoped: false,
     requiresApprovalByDefault: false,
   },
   {

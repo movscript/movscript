@@ -25,6 +25,12 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
   const route = isRecord(snapshot) && isRecord(snapshot.route) ? snapshot.route : undefined
   const user = isRecord(snapshot) && isRecord(snapshot.user) ? snapshot.user : undefined
   const selection = isRecord(snapshot) && isRecord(snapshot.selection) ? snapshot.selection : undefined
+  const projects = normalizeDebugProjects(isRecord(parsed) ? parsed.projects : isRecord(snapshot) ? snapshot.projects : undefined)
+  const projectsError = isRecord(parsed) && typeof parsed.projectsError === 'string'
+    ? parsed.projectsError
+    : isRecord(snapshot) && typeof snapshot.projectsError === 'string'
+      ? snapshot.projectsError
+      : undefined
   const ui = clientInput?.uiSnapshot
   const uiProject = ui?.project
   const uiProductionId = typeof ui?.productionId === 'number' ? ui.productionId : undefined
@@ -36,6 +42,8 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
       ...(typeof route?.search === 'string' ? { search: route.search } : typeof ui?.route?.search === 'string' ? { search: ui.route.search } : {}),
       ...(typeof route?.hash === 'string' ? { hash: route.hash } : typeof ui?.route?.hash === 'string' ? { hash: ui.route.hash } : {}),
     },
+    projects,
+    ...(projectsError ? { projectsError } : {}),
     ...((project || uiProject) && mergedProjectId !== undefined ? {
       project: {
         id: mergedProjectId,
@@ -64,6 +72,32 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
     memories: memories.map((m) => ({ id: m.id, scope: m.scope, kind: m.kind, content: m.content })),
     labels: ui?.labels ?? [],
   }
+}
+
+export function normalizeDebugProjects(value: unknown): AgentDebugContextPanel['projects'] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const id = typeof item.id === 'number' ? item.id : typeof item.ID === 'number' ? item.ID : undefined
+    const name = typeof item.name === 'string' && item.name.trim()
+      ? item.name.trim()
+      : typeof item.title === 'string' && item.title.trim()
+        ? item.title.trim()
+        : undefined
+    if (id === undefined || !name) return []
+    const totalEpisodes = typeof item.totalEpisodes === 'number'
+      ? item.totalEpisodes
+      : typeof item.total_episodes === 'number'
+        ? item.total_episodes
+        : undefined
+    return [{
+      id,
+      name,
+      ...(typeof item.description === 'string' && item.description.trim() ? { description: item.description.trim() } : {}),
+      ...(typeof item.status === 'string' && item.status.trim() ? { status: item.status.trim() } : {}),
+      ...(typeof totalEpisodes === 'number' ? { totalEpisodes } : {}),
+    }]
+  })
 }
 
 export function buildDebugTrace(

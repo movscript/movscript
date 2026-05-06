@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/movscript/movscript/internal/crypto"
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/crypto"
 	"gorm.io/gorm"
 )
 

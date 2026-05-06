@@ -3,8 +3,8 @@ package modelgateway
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/ai"
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
 

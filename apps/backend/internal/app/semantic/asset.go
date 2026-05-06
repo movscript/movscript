@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/movscript/movscript/internal/model"
-	"github.com/movscript/movscript/internal/workflow"
+	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/domain/workflow"
 )
 
 type AssetSlotFilter struct {

@@ -105,6 +105,14 @@ function OrgAdminGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function OrgGuard({ children }: { children: React.ReactNode }) {
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const memberships = useUserStore((s) => s.orgMemberships)
+  const currentMembership = memberships.find((m) => m.org_id === currentOrgID)
+  if (!currentMembership) return <Navigate to="/projects" replace />
+  return <>{children}</>
+}
+
 function Padded({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-auto p-6">{children}</div>
 }
@@ -163,17 +171,18 @@ export default function App() {
         <Route path="/app/settings" element={<AppSettingsPage />} />
         {/* All other pages use the shell layout */}
         <Route path="*" element={
-          <div className="flex h-screen bg-background text-foreground">
-            <RedirectListener />
-            <Sidebar />
-            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-              <Header />
-              <main className="flex-1 min-h-0 overflow-hidden flex">
-                <div className="flex-1 min-w-0 overflow-hidden">
-                  <RouteErrorBoundary>
-                    <Routes>
-                      <Route path="/" element={<Navigate to="/projects" replace />} />
-                      <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
+          <OrgGuard>
+            <div className="flex h-screen bg-background text-foreground">
+              <RedirectListener />
+              <Sidebar />
+              <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                <Header />
+                <main className="flex-1 min-h-0 overflow-hidden flex">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <RouteErrorBoundary>
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/projects" replace />} />
+                        <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
 
                       {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
                       <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
@@ -236,12 +245,13 @@ export default function App() {
                       <Route path="/admin/debug" element={<AdminGuard><Padded><DebugPage /></Padded></AdminGuard>} />
                       <Route path="/admin/ui-preview" element={<AdminGuard><Padded><UIPreviewPage /></Padded></AdminGuard>} />
                       <Route path="/admin/ai-config" element={<Navigate to="/admin" replace />} />
-                    </Routes>
-                  </RouteErrorBoundary>
-                </div>
-              </main>
+                      </Routes>
+                    </RouteErrorBoundary>
+                  </div>
+                </main>
+              </div>
             </div>
-          </div>
+          </OrgGuard>
         } />
       </Routes>
     </AppRouter>

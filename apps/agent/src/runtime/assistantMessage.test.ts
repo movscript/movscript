@@ -134,6 +134,7 @@ function makeRun(): AgentRun {
     metadata: {
       context: {
         route: { pathname: '/agent/debug' },
+        projects: [{ id: 42, name: 'Demo' }],
         project: { id: 42, name: 'Demo' },
         selection: null,
         recentResources: [],

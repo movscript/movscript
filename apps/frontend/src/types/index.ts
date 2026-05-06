@@ -191,6 +191,7 @@ export interface Organization {
   ID: number
   name: string
   slug: string
+  join_code?: string
   is_personal: boolean
   created_by: number
   CreatedAt: string

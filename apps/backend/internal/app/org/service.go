@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/model"
+	"github.com/movscript/movscript/internal/domain/model"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -17,6 +18,7 @@ var (
 	ErrNotFound       = errors.New("organization not found")
 	ErrForbidden      = errors.New("organization permission denied")
 	ErrConflict       = errors.New("organization conflict")
+	ErrInvalidCode    = errors.New("organization code invalid")
 	ErrInviteNotFound = errors.New("invitation not found")
 	ErrInviteUsed     = errors.New("invitation already used")
 	ErrInviteExpired  = errors.New("invitation expired")
@@ -28,6 +30,16 @@ type Service struct {
 
 func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
+}
+
+func IsDuplicateKey(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "UNIQUE constraint failed") ||
+		strings.Contains(msg, "unique_violation")
 }
 
 type CreateInput struct {
@@ -80,7 +92,11 @@ func (s *Service) List(ctx context.Context, userID uint) ([]OrgWithRole, error) 
 func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (model.Organization, error) {
 	var org model.Organization
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		org = model.Organization{Name: input.Name, Slug: input.Slug, CreatedBy: ownerID}
+		code, err := generateUniqueJoinCode(tx)
+		if err != nil {
+			return err
+		}
+		org = model.Organization{Name: input.Name, Slug: input.Slug, JoinCode: code, CreatedBy: ownerID}
 		if err := tx.Create(&org).Error; err != nil {
 			return err
 		}
@@ -263,6 +279,28 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 	return inv.OrgID, err
 }
 
+func (s *Service) JoinByCode(ctx context.Context, token string, user model.User) (uint, error) {
+	code := normalizeJoinCode(token)
+	if code == "" {
+		return 0, ErrInvalidCode
+	}
+	var org model.Organization
+	if err := s.db.WithContext(ctx).Where("join_code = ? AND is_personal = ?", code, false).First(&org).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidCode
+		}
+		return 0, err
+	}
+	member := model.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "member"}
+	if err := s.db.WithContext(ctx).Create(&member).Error; err != nil {
+		if IsDuplicateKey(err) {
+			return org.ID, nil
+		}
+		return 0, err
+	}
+	return org.ID, nil
+}
+
 func (s *Service) ListGroups(ctx context.Context, orgID uint) ([]model.UserGroup, error) {
 	var groups []model.UserGroup
 	if err := s.db.WithContext(ctx).Preload("Members.User").Where("org_id = ?", orgID).Find(&groups).Error; err != nil {
@@ -341,6 +379,52 @@ func generateInviteToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+func GenerateJoinCode() (string, error) {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	b := make([]byte, 10)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	out := make([]byte, len(b))
+	for i, v := range b {
+		out[i] = alphabet[int(v)%len(alphabet)]
+	}
+	return string(out), nil
+}
+
+func generateUniqueJoinCode(db *gorm.DB) (string, error) {
+	for i := 0; i < 8; i++ {
+		code, err := GenerateJoinCode()
+		if err != nil {
+			return "", err
+		}
+		var count int64
+		if err := db.Model(&model.Organization{}).Where("join_code = ?", code).Count(&count).Error; err != nil {
+			return "", err
+		}
+		if count == 0 {
+			return code, nil
+		}
+	}
+	return "", ErrConflict
+}
+
+func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
+	if strings.TrimSpace(org.JoinCode) != "" {
+		return nil
+	}
+	code, err := generateUniqueJoinCode(db)
+	if err != nil {
+		return err
+	}
+	org.JoinCode = code
+	return db.Model(org).Update("join_code", code).Error
+}
+
+func normalizeJoinCode(value string) string {
+	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", ""))
+}
+
 func CreatePersonalOrg(db *gorm.DB, user *model.User) error {
 	slug := user.Username
 	var count int64
@@ -351,6 +435,7 @@ func CreatePersonalOrg(db *gorm.DB, user *model.User) error {
 	org := model.Organization{
 		Name:       user.Username,
 		Slug:       slug,
+		JoinCode:   "",
 		IsPersonal: true,
 		CreatedBy:  user.ID,
 	}
