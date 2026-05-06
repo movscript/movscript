@@ -139,13 +139,13 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
 export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
   {
     value: 'script',
-    title: '理解确认工作台',
-    shortTitle: '理解',
+    title: '剧本拆分工作台',
+    shortTitle: '拆分',
     href: '/workbench/script',
     icon: BookOpenCheck,
-    purpose: '只处理 AI 对剧本的理解是否成立。',
-    decision: '确认、拆分、合并或忽略剧本结构候选。',
-    output: '稳定的情景、人物、地点、道具和叙事证据。',
+    purpose: '把总稿拆成可独立使用的分集剧本。',
+    decision: '识别分集边界、调整标题、合并或忽略片段。',
+    output: '多份可直接创建和复用的分集脚本。',
   },
   {
     value: 'preview',

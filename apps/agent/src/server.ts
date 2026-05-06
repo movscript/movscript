@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
-import { ChatRuntime } from './chatRuntime.js'
 import { MCPClient } from './mcpClient.js'
 import { AgentRuntime, loadAgentPluginCatalog } from './runtime/agentRuntime.js'
 import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from './runtime/store/fileStore.js'
@@ -31,7 +30,6 @@ const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
 const productionSemanticFallbackClient = new ProductionPreviewSemanticFallbackClient()
 const pluginCatalog = loadAgentPluginCatalog()
 const client = new MCPClient({ endpoint: mcpEndpoint })
-const chatRuntime = new ChatRuntime({ mcpClient: client })
 const productionRuntime = new ProductionRuntime({
   store: new FileProductionStore(productionStatePath),
   semanticFallbackClient: productionSemanticFallbackClient,
@@ -289,12 +287,6 @@ const server = createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && url.pathname === '/chat') {
-      const body = await readJSON(req)
-      writeJSON(res, 200, await chatRuntime.chat(normalizeChatBody(body), requestAuth(req)))
-      return
-    }
-
     if (req.method === 'POST' && url.pathname === '/threads') {
       const body = await readJSON(req)
       writeJSON(res, 201, agentRuntime.createThread(normalizeOptionalObject(body, 'thread body')))
@@ -450,16 +442,6 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
     ...(sourceEntityType ? { sourceEntityType } : {}),
     ...(sourceEntityId ? { sourceEntityId } : {}),
     ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
-  }
-}
-
-function normalizeChatBody(body: unknown): Parameters<ChatRuntime['chat']>[0] {
-  if (!isRecord(body)) throw new Error('chat body must be an object')
-  return {
-    ...(typeof body.message === 'string' ? { message: body.message } : {}),
-    ...(Array.isArray(body.messages) ? { messages: body.messages as Parameters<ChatRuntime['chat']>[0]['messages'] } : {}),
-    ...(typeof body.conversationId === 'string' ? { conversationId: body.conversationId } : {}),
-    ...(typeof body.includeContext === 'boolean' ? { includeContext: body.includeContext } : {}),
   }
 }
 

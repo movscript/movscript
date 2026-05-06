@@ -13,6 +13,12 @@ import (
 
 type repository interface {
 	AttachAssetSlotCandidate(ctx context.Context, input AttachAssetSlotCandidateInput) (AttachAssetSlotCandidateResult, error)
+	WriteEntityPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue, projectID uint, sourceType string, meta EntityWriteMeta) (EntityWriteResult, error)
+	FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (model.ResourceBinding, bool, error)
+	FirstBindingByRole(ctx context.Context, ownerType string, ownerID uint, role string) (model.ResourceBinding, bool, error)
+	LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (map[string]any, error)
+	LoadScriptComputedFields(ctx context.Context, id uint) (model.Script, error)
+	ListAssetSlotCandidates(ctx context.Context, assetSlotID uint) ([]model.AssetSlotCandidate, error)
 }
 
 type gormRepository struct {

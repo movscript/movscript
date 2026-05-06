@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { runRuntimeMessage } from '@/lib/runtimeChat'
+import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntime'
 import type { RawResource } from '@/types'
 import {
   ArrowLeft, Wand2, Loader2, Bot,
@@ -18,11 +21,12 @@ import {
   CardFooter,
 } from '@movscript/ui'
 import { cn } from '@/lib/utils'
-import { translateApiError } from '@/lib/apiError'
 import { useTranslation } from 'react-i18next'
 
 const HISTORY_KEY = 'tool_history_brainstorm'
 const MAX_HISTORY = 50
+const AI_SYSTEM_PROMPT = `你是头脑风暴助手，专注于把用户的模糊想法整理成可执行的创意方向。
+请用中文回答，输出要具体、可继续追问，并尽量给出可直接复用的素材或结构。`
 
 interface BrainstormEntry {
   id: string
@@ -165,20 +169,37 @@ export default function BrainstormPage() {
     setIsRunning(true)
 
     try {
-      const resp = await api.post('/ai/chat', {
-        model_config_id: selectedModelId,
-        messages: [{ role: 'user', content: prompt.trim() }],
-      }).then((r) => r.data as { content: string })
+      const userPrompt = prompt.trim()
+      const clientInput = buildCommandFirstClientInput({
+        message: userPrompt,
+        attachments: attachments.map((attachment) => ({
+          id: String(attachment.ID),
+          name: attachment.name,
+          type: attachment.type,
+          mimeType: attachment.mime_type,
+          size: attachment.size,
+          resourceId: attachment.ID,
+        })),
+      })
+      const { run, thread } = await runRuntimeMessage({
+        message: `${AI_SYSTEM_PROMPT}\n\n${userPrompt}`,
+        title: 'Brainstorm',
+        clientInput,
+        modelConfigId: selectedModelId,
+        timeoutMs: 60_000,
+        pollMs: 400,
+      })
+      const resp = formatLocalAgentAssistantContent(run, thread)
 
       setHistory((prev) =>
         prev.map((e) =>
           e.id === entryId
-            ? { ...e, status: 'done', result: resp.content }
+            ? { ...e, status: 'done', result: resp }
             : e
         )
       )
     } catch (err: any) {
-      const msg = translateApiError(err?.response?.data, 'tools.brainstorm.requestFailed')
+      const msg = err instanceof Error ? err.message : String(err)
       setHistory((prev) =>
         prev.map((e) =>
           e.id === entryId

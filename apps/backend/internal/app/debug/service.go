@@ -19,7 +19,7 @@ import (
 var ErrNotFound = errors.New("debug item not found")
 
 type Service struct {
-	db            *gorm.DB
+	repo          repository
 	encryptionKey []byte
 }
 
@@ -28,7 +28,7 @@ func NewService(db *gorm.DB, encryptionKey ...[]byte) *Service {
 	if len(encryptionKey) > 0 {
 		key = encryptionKey[0]
 	}
-	return &Service{db: db, encryptionKey: key}
+	return &Service{repo: &gormRepository{db: db}, encryptionKey: key}
 }
 
 type JobPage struct {
@@ -73,14 +73,7 @@ type JobDetail struct {
 }
 
 func (s *Service) GetCredential(ctx context.Context, id uint) (model.AICredential, error) {
-	var cred model.AICredential
-	if err := s.db.WithContext(ctx).First(&cred, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cred, ErrNotFound
-		}
-		return cred, err
-	}
-	return cred, nil
+	return s.repo.GetCredential(ctx, id)
 }
 
 func (s *Service) RawCall(ctx context.Context, input RawCallInput) RawCallResult {
@@ -180,21 +173,7 @@ func (s *Service) ProviderCall(ctx context.Context, input ProviderCallInput) ai.
 }
 
 func (s *Service) ListJobs(ctx context.Context, status string, limit, offset int) (JobPage, error) {
-	q := s.db.WithContext(ctx).Model(&model.Job{}).Preload("OutputResource")
-	if status != "" {
-		q = q.Where("status = ?", status)
-	}
-
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return JobPage{}, err
-	}
-
-	items := make([]model.Job, 0)
-	if err := q.Order("id DESC").Limit(limit).Offset(offset).Find(&items).Error; err != nil {
-		return JobPage{}, err
-	}
-	return JobPage{Items: items, Total: total}, nil
+	return s.repo.ListJobs(ctx, status, limit, offset)
 }
 
 func (s *Service) ListJobDetails(ctx context.Context, status string, limit, offset int) ([]JobDetail, int64, error) {
@@ -206,14 +185,7 @@ func (s *Service) ListJobDetails(ctx context.Context, status string, limit, offs
 }
 
 func (s *Service) GetJob(ctx context.Context, id string) (model.Job, error) {
-	var job model.Job
-	if err := s.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return job, ErrNotFound
-		}
-		return job, err
-	}
-	return job, nil
+	return s.repo.GetJob(ctx, id)
 }
 
 func (s *Service) GetJobDetail(ctx context.Context, id string) (JobDetail, error) {

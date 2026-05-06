@@ -4,8 +4,6 @@
 
 The desktop side exposes MovScript context through an MCP-shaped local endpoint. The service owns run lifecycle, the agentic loop, memory, tool metadata, manifest policy, approval gates, sandbox interception, local candidate/draft state, and optional model calls.
 
-The current implementation still contains legacy agent/chat API names while V3 production action APIs are introduced.
-
 ## Development
 
 Start the Electron app first if you need live MovScript context from:
@@ -60,13 +58,12 @@ curl http://127.0.0.1:28765/health
 | `GET` | `/drafts/:id` | Read one local draft/candidate artifact. |
 | `POST` | `/drafts/:id/apply-preview` | Build before/after review metadata for applying a draft. |
 | `POST` | `/drafts/:id/reject` | Mark a local draft rejected. |
-| `POST` | `/chat` | Legacy simple chat endpoint. |
-| `POST` | `/threads` | Legacy thread creation. |
-| `GET` | `/threads` | Legacy thread summaries. |
-| `GET` | `/threads/:id` | Read one legacy thread. |
-| `PATCH` | `/threads/:id` | Update legacy thread metadata. |
-| `POST` | `/threads/:id/messages` | Add legacy thread message. |
-| `POST` | `/runs` | Create and execute a legacy run. |
+| `POST` | `/threads` | Runtime thread creation. |
+| `GET` | `/threads` | Runtime thread summaries. |
+| `GET` | `/threads/:id` | Read one runtime thread. |
+| `PATCH` | `/threads/:id` | Update runtime thread metadata. |
+| `POST` | `/threads/:id/messages` | Add runtime thread message. |
+| `POST` | `/runs` | Create and execute a runtime run. |
 | `POST` | `/runs/preview` | Preview context, prompt, first tool calls, and approval gates without executing tools. |
 | `GET` | `/runs` | List runs. |
 | `GET` | `/runs/:id` | Read one run. |

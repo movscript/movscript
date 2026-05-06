@@ -3,10 +3,8 @@ package hub
 import (
 	"context"
 	"errors"
-	"strings"
 
 	domainhub "github.com/movscript/movscript/internal/domain/hub"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
 )
@@ -27,12 +25,12 @@ const (
 var ErrNotFound = errors.New("hub package not found")
 
 type Service struct {
-	db    *gorm.DB
+	repo  repository
 	store storage.Storage
 }
 
 func NewService(db *gorm.DB, store storage.Storage) *Service {
-	return &Service{db: db, store: store}
+	return &Service{repo: &gormRepository{db: db}, store: store}
 }
 
 type Package = domainhub.Package
@@ -45,29 +43,12 @@ type Download struct {
 }
 
 func (s *Service) Seed(ctx context.Context) error {
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&model.HubPackage{}).Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	for _, item := range domainhub.SeedPackages() {
-		row := domainhub.NewSeedPackageRow(item)
-		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.repo.Seed(ctx)
 }
 
 func (s *Service) List(ctx context.Context, admin bool) ([]Package, error) {
-	var rows []model.HubPackage
-	q := s.db.WithContext(ctx).Order("updated_at desc")
-	if !admin {
-		q = q.Where("status = ?", StatusPublished)
-	}
-	if err := q.Find(&rows).Error; err != nil {
+	rows, err := s.repo.List(ctx, admin)
+	if err != nil {
 		return nil, err
 	}
 	out := make([]Package, 0, len(rows))
@@ -78,11 +59,11 @@ func (s *Service) List(ctx context.Context, admin bool) ([]Package, error) {
 }
 
 func (s *Service) Download(ctx context.Context, id string) (Download, error) {
-	row, err := s.find(ctx, id, false)
+	row, err := s.repo.Find(ctx, id, false)
 	if err != nil {
 		return Download{}, err
 	}
-	_ = s.db.WithContext(ctx).Model(&row).UpdateColumn("downloads", gorm.Expr("downloads + 1")).Error
+	_ = s.repo.IncrementDownloads(ctx, row.ID)
 	item := domainhub.ToPackage(row)
 	return Download{
 		Item:        item,
@@ -90,19 +71,4 @@ func (s *Service) Download(ctx context.Context, id string) (Download, error) {
 		ContentType: domainhub.DefaultString(row.ContentType, "application/octet-stream"),
 		FileName:    domainhub.SafeFilename(row.FileName, row.PackageID+".movpkg"),
 	}, nil
-}
-
-func (s *Service) find(ctx context.Context, id string, admin bool) (model.HubPackage, error) {
-	var row model.HubPackage
-	q := s.db.WithContext(ctx).Where("package_id = ?", strings.TrimSpace(id))
-	if !admin {
-		q = q.Where("status = ?", StatusPublished)
-	}
-	if err := q.First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return model.HubPackage{}, ErrNotFound
-		}
-		return model.HubPackage{}, err
-	}
-	return row, nil
 }

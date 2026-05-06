@@ -33,7 +33,7 @@ var (
 )
 
 type Service struct {
-	db     *gorm.DB
+	repo   repository
 	ai     *ai.AIService
 	policy *PolicyService
 }
@@ -43,7 +43,7 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 	if len(aiService) > 0 {
 		svc = aiService[0]
 	}
-	return &Service{db: db, ai: svc, policy: NewPolicyService(db)}
+	return &Service{repo: &gormRepository{db: db}, ai: svc, policy: NewPolicyService(db)}
 }
 
 type CreateAPIKeyInput struct {
@@ -114,11 +114,8 @@ func IsInsufficientQuota(err error) bool {
 }
 
 func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint) ([]model.GatewayAPIKey, error) {
-	keys := make([]model.GatewayAPIKey, 0)
-	q := s.db.WithContext(ctx).Where("owner_user_id = ?", ownerUserID)
-	q = s.policy.ApplyAPIKeyOrgScope(ctx, q, orgID, ownerUserID)
-	err := q.Order("created_at desc").Find(&keys).Error
-	return keys, err
+	includeLegacy := orgID != nil && s.policy.IsPersonalOrg(ctx, *orgID)
+	return s.repo.ListAPIKeys(ctx, ownerUserID, orgID, includeLegacy)
 }
 
 func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (CreateAPIKeyResult, error) {
@@ -142,7 +139,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		IsEnabled:       true,
 	}
 	applyAPIKeyCommercialCreateFields(&key, input.Commercial)
-	if err := s.db.WithContext(ctx).Create(&key).Error; err != nil {
+	if err := s.repo.CreateAPIKey(ctx, &key); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
 	return CreateAPIKeyResult{Key: key, RawKey: rawKey}, nil
@@ -168,11 +165,11 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (mo
 	}
 	applyAPIKeyCommercialUpdateFields(updates, input.Commercial)
 	if len(updates) > 0 {
-		if err := s.db.WithContext(ctx).Model(&key).Updates(updates).Error; err != nil {
+		if err := s.repo.UpdateAPIKey(ctx, &key, updates); err != nil {
 			return key, err
 		}
 	}
-	if err := s.db.WithContext(ctx).First(&key, key.ID).Error; err != nil {
+	if err := s.repo.ReloadAPIKey(ctx, &key); err != nil {
 		return key, err
 	}
 	return key, nil
@@ -183,27 +180,27 @@ func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint, o
 	if err != nil {
 		return err
 	}
-	return s.db.WithContext(ctx).Delete(&key).Error
+	return s.repo.DeleteAPIKey(ctx, &key)
 }
 
 func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Principal, bool, error) {
-	var key model.GatewayAPIKey
 	hash := HashAPIKey(rawKey)
-	if err := s.db.WithContext(ctx).Where("key_hash = ? AND is_enabled = true", hash).First(&key).Error; err != nil {
+	key, err := s.repo.FindAPIKeyByHash(ctx, hash)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Principal{}, false, nil
 		}
 		return Principal{}, false, err
 	}
-	var user model.User
-	if err := s.db.WithContext(ctx).First(&user, key.OwnerUserID).Error; err != nil {
+	user, err := s.repo.FindUser(ctx, key.OwnerUserID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Principal{}, false, nil
 		}
 		return Principal{}, false, err
 	}
 	now := time.Now()
-	if err := s.db.WithContext(ctx).Model(&key).Update("last_used_at", &now).Error; err != nil {
+	if err := s.repo.TouchAPIKeyLastUsed(ctx, &key, now); err != nil {
 		return Principal{}, false, err
 	}
 	key.LastUsedAt = &now

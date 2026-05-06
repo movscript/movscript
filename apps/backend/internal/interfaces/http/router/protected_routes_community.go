@@ -10,7 +10,6 @@ import (
 
 func registerGatewayProtectedRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/entitlement", h.entitlement.GetCurrent)
-	protected.POST("/ai/chat", h.chat.Chat)
 	protected.GET("/model-gateway/models", h.modelGateway.ListModels)
 	protected.GET("/model-gateway/api-keys", h.modelGateway.ListAPIKeys)
 	protected.POST("/model-gateway/api-keys", h.modelGateway.CreateAPIKey)

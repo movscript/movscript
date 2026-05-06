@@ -10,6 +10,7 @@ const titleKeys: Record<string, string> = {
   '/projects': 'header.titles.projects',
   '/project-home': 'header.titles.projectHome',
   '/creation': 'header.titles.creation',
+  '/workbench': 'header.titles.workbench',
   '/workbench/script': 'header.titles.workbenchScript',
   '/workbench/production-plan': 'header.titles.workbenchPreview',
   '/workbench/preview': 'header.titles.workbenchPreview',

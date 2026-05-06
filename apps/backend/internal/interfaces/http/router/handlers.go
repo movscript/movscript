@@ -23,7 +23,6 @@ type handlers struct {
 	models           *handler.ModelsHandler
 	feature          *handler.FeatureHandler
 	jobs             *handler.JobHandler
-	chat             *handler.ChatHandler
 	modelGateway     *handler.ModelGatewayHandler
 	debug            *handler.DebugHandler
 	plugin           *handler.PluginHandler
@@ -65,7 +64,6 @@ func newHandlers(deps Dependencies) handlers {
 		models:           handler.NewModelsHandler(aiService, cacheStore),
 		feature:          handler.NewFeatureHandler(db),
 		jobs:             handler.NewJobHandler(db, aiService),
-		chat:             handler.NewChatHandler(aiService),
 		modelGateway:     handler.NewModelGatewayHandler(db, aiService),
 		debug:            handler.NewDebugHandler(db, deps.EncryptionKey),
 		plugin:           handler.NewPluginHandler(db),

@@ -256,6 +256,7 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
+              <NavItem to="/workbench" icon={Blocks} label={t('sidebar.items.workbench')} collapsed={collapsed} />
               <NavItem to="/creative-workbench" icon={Lightbulb} label={t('sidebar.items.creativeWorkbench')} collapsed={collapsed} />
               <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
               <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />

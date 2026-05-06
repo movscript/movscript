@@ -1,42 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import {
-  Bot,
   Check,
   Clipboard,
-  FileText,
   Lightbulb,
-  Loader2,
   Lock,
   LockOpen,
-  MessageSquareText,
   Plus,
-  Send,
   Sparkles,
   Trash2,
-  WandSparkles,
 } from 'lucide-react'
 import {
-  AgentChatMessage,
-  AgentComposer,
-  AgentComposerField,
-  AgentComposerSubmit,
-  AgentComposerToolbar,
-  AgentThread,
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   Input,
-  ScrollArea,
   Textarea,
 } from '@movscript/ui'
-import { api } from '@/lib/api'
-import { translateApiError } from '@/lib/apiError'
-import { ModelSelector } from '@/components/shared/ModelSelector'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import { cn } from '@/lib/utils'
@@ -80,16 +58,6 @@ const DEFAULT_MATERIAL = `故事内核：
 分集钩子：
 
 后续编排注意：`
-
-const AI_SYSTEM_PROMPT = `你是剧集创意开发顾问。用户会提供一个未定型的灵感、已有对撞记录和当前固定素材。
-请用中文输出，目标是帮助用户把灵感沉淀为后续分集编排可以直接引用的故事素材。
-输出必须包含：
-1. 创意诊断：这条灵感现在最有价值的戏剧张力是什么
-2. 追问方向：3-5 个值得继续和创作者对撞的问题
-3. 可固定素材：按“故事内核、类型方向、主角与欲望、核心冲突、关键人物关系、关键场景、分集钩子、后续编排注意”整理
-保持具体，避免空泛评价。`
-
-const DEFAULT_COLLISION_PROMPT = '请基于当前材料继续追问，并整理一版可以固定到故事素材里的内容。'
 
 function storageKey(projectId: number) {
   return `movscript-creative-workbench:${projectId}`
@@ -177,41 +145,13 @@ function formatDate(ts: number) {
   return new Date(ts).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function splitTags(input: string) {
-  return input
-    .split(/[,，\s]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 8)
-}
-
-function extractFixedMaterial(text: string) {
-  const marker = '可固定素材'
-  const idx = text.lastIndexOf(marker)
-  const sliced = idx >= 0 ? text.slice(idx + marker.length) : text
-  return sliced
-    .replace(/^[\s:：\-—\n]+/, '')
-    .replace(/^按[^\n]*整理[\s:：\-—\n]*/u, '')
-    .trim()
-}
-
-function buildCollisionText(messages: CreativeInsightMessage[]) {
-  return messages
-    .filter((message) => message.role === 'assistant' && message.content.trim())
-    .map((message) => `${formatDate(message.timestamp)} AI 对撞\n${message.content}`)
-    .join('\n\n---\n')
-}
-
 export default function CreativeWorkbenchPage() {
   const current = useProjectStore((s) => s.current)
   const projectId = current?.ID ?? 0
   const [insights, setInsights] = useState<CreativeInsight[]>(() => (projectId ? loadInsights(projectId, current?.name) : []))
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
   const [listLocked, setListLocked] = useState(false)
-  const [collisionDialogOpen, setCollisionDialogOpen] = useState(false)
-  const [collisionInput, setCollisionInput] = useState('')
 
   useEffect(() => {
     if (!projectId) return
@@ -265,80 +205,13 @@ export default function CreativeWorkbenchPage() {
     setSelectedId(nextItems[0]?.id ?? null)
   }
 
-  const runCollision = useMutation({
-    mutationFn: async ({ insight, prompt }: { insight: CreativeInsight; prompt: string }) => {
-      if (!selectedModelId) throw new Error('missing input')
-      const userPrompt = [
-        `项目：${current?.name ?? '未命名项目'}`,
-        `灵感标题：${insight.title}`,
-        `标签：${insight.tags.join('、') || '无'}`,
-        '',
-        '原始灵感：',
-        insight.rawIdea || '暂无',
-        '',
-        '已有对话历史：',
-        insight.conversation.length > 0
-          ? insight.conversation.map((message) => `${message.role === 'user' ? '用户' : 'AI'}：${message.content}`).join('\n\n')
-          : (insight.collisionText || '暂无'),
-        '',
-        '当前固定素材：',
-        insight.fixedMaterial || '暂无',
-        '',
-        '本轮用户输入：',
-        prompt || DEFAULT_COLLISION_PROMPT,
-      ].join('\n')
-      const resp = await api.post('/ai/chat', {
-        model_config_id: selectedModelId,
-        messages: [
-          { role: 'system', content: AI_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-      }).then((r) => r.data as { content: string })
-      return resp.content
-    },
-    onSuccess: (content, variables) => {
-      const timestamp = Date.now()
-      setInsights((items) => items.map((item) => {
-        if (item.id !== variables.insight.id) return item
-        const nextConversation: CreativeInsightMessage[] = [
-          ...(item.conversation ?? []),
-          {
-            id: nowId(),
-            role: 'user',
-            content: variables.prompt || DEFAULT_COLLISION_PROMPT,
-            timestamp,
-          },
-          {
-            id: nowId(),
-            role: 'assistant',
-            content,
-            timestamp,
-          },
-        ]
-        return {
-          ...item,
-          conversation: nextConversation,
-          collisionText: buildCollisionText(nextConversation),
-          updatedAt: timestamp,
-        }
-      })
-      )
-      setCollisionInput('')
-      toast.success('AI 对撞已写入记录')
-    },
-    onError: (err: any) => {
-      toast.error(translateApiError(err?.response?.data, 'AI 对撞失败'))
-    },
-  })
-
-  function freezeFromCollision() {
-    if (!selected?.collisionText.trim()) {
-      toast.info('先写入一些对撞记录，再固定素材')
+  function lockMaterial() {
+    if (!selected?.fixedMaterial.trim()) {
+      toast.info('先写入故事素材，再固定')
       return
     }
-    const material = extractFixedMaterial(selected.collisionText)
-    updateSelected({ fixedMaterial: material || selected.fixedMaterial, status: 'locked' })
-    toast.success('灵感素材已固定')
+    updateSelected({ status: 'locked' })
+    toast.success('故事素材已固定')
   }
 
   async function copyMaterial() {
@@ -346,18 +219,6 @@ export default function CreativeWorkbenchPage() {
     await navigator.clipboard.writeText(selected.fixedMaterial)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1200)
-  }
-
-  function runInsightCollision(prompt: string) {
-    if (!selected || !selectedModelId || !selected.rawIdea.trim() || runCollision.isPending) return
-    setCollisionDialogOpen(true)
-    runCollision.mutate({ insight: selected, prompt: prompt.trim() || DEFAULT_COLLISION_PROMPT })
-  }
-
-  function submitCollisionPrompt() {
-    const prompt = collisionInput.trim()
-    if (!prompt) return
-    runInsightCollision(prompt)
   }
 
   if (!selected) {
@@ -368,99 +229,8 @@ export default function CreativeWorkbenchPage() {
     )
   }
 
-  const canRun = !!selectedModelId && !!selected.rawIdea.trim() && !runCollision.isPending
-  const assistantMessages = selected.conversation.filter((message) => message.role === 'assistant')
-  const lastAssistantMessage = assistantMessages[assistantMessages.length - 1]
-
   return (
     <div className="flex h-full min-h-0 bg-background">
-      <Dialog open={collisionDialogOpen} onOpenChange={setCollisionDialogOpen}>
-        <DialogContent className="flex h-[min(760px,calc(100vh-48px))] max-w-4xl flex-col gap-0 p-0" closeLabel="关闭对撞对话">
-          <DialogHeader className="border-b border-border px-4 py-3">
-            <div className="flex items-start justify-between gap-3 pr-8">
-              <div className="min-w-0">
-                <DialogTitle className="truncate text-base">{selected.title || '未命名灵感'}</DialogTitle>
-                <DialogDescription className="mt-1">
-                  灵感对撞会保存在当前条目中，并同步到固定素材提取记录。
-                </DialogDescription>
-              </div>
-              <Badge variant={runCollision.isPending ? 'secondary' : 'outline'} className="shrink-0">
-                {runCollision.isPending ? '运行中' : `${selected.conversation.length} 条消息`}
-              </Badge>
-            </div>
-          </DialogHeader>
-
-          <ScrollArea className="min-h-0 flex-1">
-            <AgentThread className="px-4 py-4">
-              {selected.rawIdea.trim() ? (
-                <AgentChatMessage role="user" avatar="我" author="原始灵感" time={formatDate(selected.updatedAt)}>
-                  <div className="whitespace-pre-wrap break-words">{selected.rawIdea}</div>
-                </AgentChatMessage>
-              ) : (
-                <div className="rounded-md border border-dashed border-border bg-muted/20 p-4 text-center text-xs text-muted-foreground">
-                  先在工作台左侧写入原始灵感，再开始对撞。
-                </div>
-              )}
-
-              {selected.conversation.map((message) => (
-                <AgentChatMessage
-                  key={message.id}
-                  role={message.role}
-                  avatar={message.role === 'user' ? '我' : <Bot size={13} />}
-                  author={message.role === 'user' ? '你' : 'MovScript Agent'}
-                  time={formatDate(message.timestamp)}
-                >
-                  <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                </AgentChatMessage>
-              ))}
-
-              {runCollision.isPending && (
-                <AgentChatMessage role="assistant" avatar={<Bot size={13} />} author="MovScript Agent">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 size={13} className="animate-spin" />
-                    正在推演
-                  </span>
-                </AgentChatMessage>
-              )}
-            </AgentThread>
-          </ScrollArea>
-
-          <div className="shrink-0 border-t border-border p-3">
-            <AgentComposer
-              onSubmit={(event) => {
-                event.preventDefault()
-                submitCollisionPrompt()
-              }}
-            >
-              <AgentComposerField
-                value={collisionInput}
-                onChange={(event) => setCollisionInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    submitCollisionPrompt()
-                  }
-                }}
-                placeholder="继续追问、要求改写、指定类型方向或让 AI 整理可固定素材。"
-                disabled={runCollision.isPending}
-                minRows={2}
-              />
-              <AgentComposerToolbar>
-                <div className="flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-                  {!selectedModelId ? '先选择文本模型' : !selected.rawIdea.trim() ? '先写入原始灵感' : 'Enter 发送，Shift+Enter 换行'}
-                </div>
-                <AgentComposerSubmit
-                  disabled={!selectedModelId || !selected.rawIdea.trim() || !collisionInput.trim() || runCollision.isPending}
-                  label="发送"
-                >
-                  {runCollision.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                </AgentComposerSubmit>
-              </AgentComposerToolbar>
-            </AgentComposer>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-card">
         <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-3">
           <div className="min-w-0">
@@ -513,7 +283,7 @@ export default function CreativeWorkbenchPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.title || '未命名灵感'}</p>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                        {item.rawIdea || '还没有记录原始灵感'}
+                        {item.fixedMaterial || '还没有故事素材'}
                       </p>
                       <div className="mt-2 flex items-center gap-1.5">
                         <span className="text-[10px] text-muted-foreground">{formatDate(item.updatedAt)}</span>
@@ -528,8 +298,8 @@ export default function CreativeWorkbenchPage() {
         </div>
       </aside>
 
-      <main className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_360px] overflow-hidden">
-        <section className="flex min-w-0 flex-col overflow-hidden">
+      <main className="flex min-w-0 flex-1 overflow-hidden">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
             <div className="min-w-0">
               <Input
@@ -537,10 +307,9 @@ export default function CreativeWorkbenchPage() {
                 onChange={(event) => updateSelected({ title: event.target.value })}
                 className="h-9 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0"
               />
-              <p className="text-xs text-muted-foreground">把模糊的创作冲动，沉淀为分集编排可引用的素材。</p>
+              <p className="text-xs text-muted-foreground">把故事素材整理成可直接引用的版本。</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <ModelSelector capability="text" value={selectedModelId} onChange={setSelectedModelId} />
               <Button
                 type="button"
                 variant="outline"
@@ -555,120 +324,37 @@ export default function CreativeWorkbenchPage() {
             </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-2 overflow-hidden">
-            <div className="flex min-w-0 flex-col border-r border-border">
-              <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <FileText size={14} className="text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">原始灵感</h2>
-                </div>
-                <Badge variant="outline">{selected.rawIdea.trim().length} 字</Badge>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb size={14} className="text-muted-foreground" />
+                <h2 className="text-sm font-semibold">故事素材</h2>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-3 p-5">
-                <Textarea
-                  value={selected.rawIdea}
-                  onChange={(event) => updateSelected({ rawIdea: event.target.value })}
-                  placeholder="写下一句话、一个人物、一个场景、一个冲突，或者任何还没有成型的故事冲动。"
-                  className="min-h-[260px] flex-1 resize-none text-sm leading-6"
-                />
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">标签</p>
-                  <Input
-                    value={selected.tags.join('，')}
-                    onChange={(event) => updateSelected({ tags: splitTags(event.target.value) })}
-                    placeholder="类型、人物、题材、情绪"
-                  />
-                </div>
-              </div>
+              <Badge variant="outline">{selected.fixedMaterial.trim().length} 字</Badge>
             </div>
-
-            <div className="flex min-w-0 flex-col">
-              <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <MessageSquareText size={14} className="text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">AI 对撞记录</h2>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-2"
-                  disabled={!canRun}
-                  onClick={() => runInsightCollision(DEFAULT_COLLISION_PROMPT)}
-                >
-                  {runCollision.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />}
-                  对撞
+            <div className="flex min-h-0 flex-1 flex-col gap-3 p-5">
+              <Textarea
+                value={selected.fixedMaterial}
+                onChange={(event) => updateSelected({ fixedMaterial: event.target.value, status: 'draft' })}
+                placeholder="写下故事内核、类型方向、主角与欲望、核心冲突、关键人物关系、关键场景、分集钩子等内容。"
+                className="min-h-[420px] flex-1 resize-none text-sm leading-6"
+              />
+              <p className="text-xs leading-5 text-muted-foreground">
+                这就是当前项目唯一需要直接编辑的内容。
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="gap-2" onClick={lockMaterial}>
+                  <Lock size={14} />
+                  固定
                 </Button>
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-3 p-5">
-                <button
-                  type="button"
-                  onClick={() => setCollisionDialogOpen(true)}
-                  className="flex min-h-[320px] flex-1 flex-col rounded-md border border-border bg-background p-4 text-left transition-colors hover:bg-muted/30"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <MessageSquareText size={15} className="text-primary" />
-                      <span className="text-sm font-semibold text-foreground">打开对撞对话</span>
-                    </div>
-                    <Badge variant="secondary">{selected.conversation.length} 条</Badge>
-                  </div>
-                  <div className="mt-4 flex-1 rounded-md border border-dashed border-border bg-muted/20 p-3">
-                    {lastAssistantMessage ? (
-                      <>
-                        <p className="text-xs font-medium text-muted-foreground">{formatDate(lastAssistantMessage.timestamp)} 最新回复</p>
-                        <p className="mt-2 line-clamp-[12] whitespace-pre-wrap text-sm leading-6 text-foreground">
-                          {lastAssistantMessage.content}
-                        </p>
-                      </>
-                    ) : (
-                      <div className="flex h-full min-h-[220px] items-center justify-center text-center text-xs leading-5 text-muted-foreground">
-                        还没有对撞记录。打开对话后，可以像使用 AI 助手一样追问、推演和沉淀素材。
-                      </div>
-                    )}
-                  </div>
-                </button>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  {!selectedModelId ? '先选择文本模型。' : !selected.rawIdea.trim() ? '先写入原始灵感。' : '对撞结果会以对话形式保存，并同步为可固定素材记录。'}
-                </p>
+                <Button type="button" className="gap-2" onClick={copyMaterial}>
+                  {copied ? <Check size={14} /> : <Clipboard size={14} />}
+                  {copied ? '已复制' : '复制'}
+                </Button>
               </div>
             </div>
           </div>
         </section>
-
-        <aside className="flex min-w-0 flex-col overflow-hidden border-l border-border bg-card">
-          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Bot size={14} className="text-primary" />
-              <h2 className="text-sm font-semibold">固定故事素材</h2>
-            </div>
-            <Badge variant={selected.status === 'locked' ? 'success' : 'secondary'}>
-              {selected.status === 'locked' ? '已固定' : '草稿'}
-            </Badge>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-            <Textarea
-              value={selected.fixedMaterial}
-              onChange={(event) => updateSelected({ fixedMaterial: event.target.value, status: 'draft' })}
-              className="min-h-[360px] flex-1 resize-none text-sm leading-6"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="outline" className="gap-2" onClick={freezeFromCollision}>
-                <Lock size={14} />
-                固定
-              </Button>
-              <Button type="button" className="gap-2" onClick={copyMaterial}>
-                {copied ? <Check size={14} /> : <Clipboard size={14} />}
-                {copied ? '已复制' : '复制'}
-              </Button>
-            </div>
-            <div className="rounded-md border border-border bg-background p-3">
-              <p className="text-xs font-medium text-foreground">编排引用</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                固定后的文字可直接复制到分集编排、剧本创建或右侧 AI 助手中，作为本项目的前置创意素材。
-              </p>
-            </div>
-          </div>
-        </aside>
       </main>
     </div>
   )

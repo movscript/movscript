@@ -58,6 +58,10 @@ func (p *PolicyService) ApplyAPIKeyOrgScope(ctx context.Context, q *gorm.DB, org
 	return p.applyAPIKeyOrgScope(ctx, q, orgID, ownerUserID)
 }
 
+func (p *PolicyService) IsPersonalOrg(ctx context.Context, orgID uint) bool {
+	return p.isPersonalOrg(ctx, orgID)
+}
+
 func (p *PolicyService) EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error {
 	if projectID == nil || p.db == nil {
 		return nil

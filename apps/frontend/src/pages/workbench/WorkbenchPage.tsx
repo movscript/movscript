@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowRight,
@@ -18,13 +18,16 @@ import {
   Image,
   Layers,
   ListChecks,
+  Loader2,
   LockKeyhole,
   PackageCheck,
   Play,
   RefreshCw,
   Route,
+  ScrollText,
   Settings2,
   ShieldCheck,
+  Scissors,
   SquareStack,
   Target,
   Upload,
@@ -36,8 +39,11 @@ import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelatio
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
+import { toast } from '@/store/toastStore'
 import type { Canvas, CanvasStage, Job } from '@/types'
+import type { Script } from '@/types'
 import { Badge, Button, Card, Progress } from '@movscript/ui'
+import { Input, Label, Textarea } from '@movscript/ui'
 import {
   listSemanticEntities,
   semanticEntityConfig,
@@ -1361,6 +1367,227 @@ interface PreviewWorkTask {
   blocker?: string
 }
 
+interface ScriptSplitDraft {
+  id: string
+  order: number
+  title: string
+  summary: string
+  content: string
+  start: number
+  end: number
+  existingScriptId: number | null
+  action: 'create' | 'update'
+}
+
+interface ScriptSplitResult {
+  sourceTitle: string
+  sourceScriptId: number | null
+  createdCount: number
+  updatedCount: number
+  episodeCount: number
+  savedScripts?: Script[]
+}
+
+interface ParsedEpisodeHeading {
+  order: number
+  title: string
+  seriesTitle?: string
+}
+
+function normalizeScriptType(value?: string) {
+  const type = String(value ?? '').trim().toLowerCase()
+  if (!type || type === 'uncategorized' || type === 'main' || type === 'source' || type === 'raw') return 'main'
+  if (type === 'episode' || type === 'episodes' || type === 'ep') return 'episode'
+  return type
+}
+
+function scriptTypeLabel(value?: string) {
+  const type = normalizeScriptType(value)
+  if (type === 'main') return '总稿'
+  if (type === 'episode') return '分集'
+  return type || '未分类'
+}
+
+function inferSourceScriptTitle(text: string) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const episodeHeading = lines.map(parseEpisodeHeading).find(Boolean)
+  if (episodeHeading?.seriesTitle) return `${episodeHeading.seriesTitle} 总稿`
+
+  const firstNonEpisodeLine = lines.find((line) => !parseEpisodeHeading(line))
+  if (!firstNonEpisodeLine) return '剧本总稿'
+
+  const cleaned = firstNonEpisodeLine
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^《(.+?)》\s*/, '$1 ')
+    .replace(/^【\s*/, '')
+    .replace(/\s*】$/, '')
+    .trim()
+
+  return summarizeText(cleaned || '剧本总稿', 32)
+}
+
+function splitScriptIntoEpisodeDrafts(text: string): ScriptSplitDraft[] {
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
+  const segments: Array<{ heading: ParsedEpisodeHeading; lines: string[]; startLine: number; endLine: number }> = []
+  let active: { heading: ParsedEpisodeHeading; lines: string[]; startLine: number; endLine: number } | null = null
+
+  lines.forEach((line, index) => {
+    const heading = parseEpisodeHeading(line)
+    if (heading) {
+      if (active) segments.push(active)
+      active = { heading, lines: [line], startLine: index + 1, endLine: index + 1 }
+      return
+    }
+    if (active) {
+      active.lines.push(line)
+      active.endLine = index + 1
+    }
+  })
+  if (active) segments.push(active)
+
+  if (segments.length === 0) {
+    const content = text.trim()
+    return [{
+      id: 'episode-1',
+      order: 1,
+      title: inferEpisodeTitle(content, 0),
+      summary: summarizeText(content, 120),
+      content,
+      start: 1,
+      end: lines.length,
+      existingScriptId: null,
+      action: 'create',
+    }]
+  }
+
+  return segments.map((segment, index) => {
+    const content = segment.lines.join('\n').trim()
+    const bodyWithoutHeading = segment.lines.slice(1).join('\n').trim()
+    const order = segment.heading.order || index + 1
+    return {
+      id: `episode-${order}-${index}`,
+      order,
+      title: segment.heading.title || inferEpisodeTitle(content, index),
+      summary: summarizeText(bodyWithoutHeading || content, 120),
+      content,
+      start: segment.startLine,
+      end: segment.endLine,
+      existingScriptId: null,
+      action: 'create',
+    }
+  })
+}
+
+function parseEpisodeHeading(line: string): ParsedEpisodeHeading | null {
+  const normalized = line
+    .trim()
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^[>*\-•]\s*/, '')
+    .replace(/^【\s*/, '')
+    .replace(/\s*】$/, '')
+    .trim()
+
+  const cnMatch = normalized.match(/^(?:《([^》]+)》\s*)?第\s*([0-9零〇一二三四五六七八九十百千万两]+)\s*[集话回](?:\s*[：:\-—]\s*(.+)|\s+(.+))?$/)
+  if (cnMatch) {
+    const order = parseEpisodeNumber(cnMatch[2])
+    if (!order) return null
+    const subtitle = firstText(cnMatch[3], cnMatch[4])
+    const label = `第${order}集`
+    return {
+      order,
+      title: subtitle ? `${label} ${subtitle}` : label,
+      seriesTitle: cnMatch[1]?.trim(),
+    }
+  }
+
+  const epMatch = normalized.match(/^(?:《([^》]+)》\s*)?(?:EP|E|Episode)\s*0*([0-9]+)(?:\s*[：:\-—]\s*(.+)|\s+(.+))?$/i)
+  if (epMatch) {
+    const order = Number(epMatch[2])
+    if (!Number.isFinite(order) || order <= 0) return null
+    const subtitle = firstText(epMatch[3], epMatch[4])
+    const label = `EP${String(order).padStart(2, '0')}`
+    return {
+      order,
+      title: subtitle ? `${label} ${subtitle}` : label,
+      seriesTitle: epMatch[1]?.trim(),
+    }
+  }
+
+  return null
+}
+
+function parseEpisodeNumber(value: string) {
+  const token = String(value ?? '').trim()
+  if (/^\d+$/.test(token)) return Number(token)
+
+  const digitMap: Record<string, number> = {
+    零: 0,
+    〇: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  }
+  const unitMap: Record<string, number> = { 十: 10, 百: 100, 千: 1000, 万: 10000 }
+  let total = 0
+  let section = 0
+  let number = 0
+
+  for (const char of token) {
+    if (char in digitMap) {
+      number = digitMap[char]
+      continue
+    }
+    const unit = unitMap[char]
+    if (!unit) continue
+    if (unit === 10000) {
+      total += (section + number) * unit
+      section = 0
+      number = 0
+      continue
+    }
+    section += (number || 1) * unit
+    number = 0
+  }
+
+  return total + section + number
+}
+
+function inferEpisodeTitle(content: string, index: number) {
+  const firstLine = content.split(/\r?\n/).map((line) => line.trim()).find(Boolean)
+  const heading = firstLine ? parseEpisodeHeading(firstLine) : null
+  if (heading) return heading.title
+  const fallback = firstLine ? summarizeText(firstLine.replace(/^#{1,6}\s*/, ''), 24) : ''
+  return fallback ? `第${index + 1}集 ${fallback}` : `第${index + 1}集`
+}
+
+function findMatchingScript(scripts: Script[], title: string, scriptType: string, parentScriptId?: number | null) {
+  const titleKey = normalizeScriptTitleKey(title)
+  const type = normalizeScriptType(scriptType)
+  return scripts.find((script) => {
+    if (normalizeScriptTitleKey(script.title) !== titleKey) return false
+    if (normalizeScriptType(script.script_type) !== type) return false
+    if (parentScriptId === undefined) return true
+    return Number(script.parent_script_id ?? 0) === Number(parentScriptId ?? 0)
+  }) ?? null
+}
+
+function normalizeScriptTitleKey(value: string) {
+  return String(value ?? '').replace(/\s+/g, '').trim().toLowerCase()
+}
+
+function summarizeText(text: string, maxLength: number): string {
+  const compact = text.replace(/\s+/g, ' ').trim()
+  if (compact.length <= maxLength) return compact
+  return `${compact.slice(0, Math.max(1, maxLength - 3))}...`
+}
+
 interface PreviewAssetGap {
   name: string
   owner: string
@@ -1754,6 +1981,18 @@ function EmptyWorkbenchState({ title, text }: { title: string; text: string }) {
   )
 }
 
+function WorkbenchMiniStat({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <Badge variant="outline">{value}</Badge>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
+    </div>
+  )
+}
+
 type CanvasWorkbenchKind = 'assets' | 'production'
 
 const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
@@ -1915,7 +2154,402 @@ function ScenarioWorkspace({ category, generationKind }: { category: WorkbenchCa
   )
 }
 
+function ScriptSplitWorkbench() {
+  const project = useProjectStore((s) => s.current)
+  const projectId = project?.ID
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [sourceTitle, setSourceTitle] = useState('')
+  const [sourceText, setSourceText] = useState('')
+  const [saveSourceScript, setSaveSourceScript] = useState(true)
+  const [drafts, setDrafts] = useState<ScriptSplitDraft[]>([])
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
+  const [result, setResult] = useState<ScriptSplitResult | null>(null)
+
+  const { data: scripts = [], isLoading: scriptsLoading } = useQuery<Script[]>({
+    queryKey: ['workbench-script-scripts', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),
+    enabled: !!projectId,
+  })
+
+  const sortedScripts = useMemo(
+    () => scripts.slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID),
+    [scripts],
+  )
+  const mainScripts = useMemo(
+    () => sortedScripts.filter((script) => normalizeScriptType(script.script_type) === 'main'),
+    [sortedScripts],
+  )
+  const episodeScripts = useMemo(
+    () => sortedScripts.filter((script) => normalizeScriptType(script.script_type) === 'episode'),
+    [sortedScripts],
+  )
+  const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0] ?? null
+
+  function syncDrafts(nextDrafts: ScriptSplitDraft[]) {
+    setDrafts(nextDrafts)
+    setSelectedDraftId(nextDrafts[0]?.id ?? null)
+  }
+
+  function handleSplit() {
+    const normalized = sourceText.trim()
+    if (!normalized) {
+      toast.info('先粘贴剧本文本')
+      return
+    }
+    const baseTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
+    const nextDrafts = splitScriptIntoEpisodeDrafts(normalized).map((draft) => {
+      const existing = findMatchingScript(sortedScripts, draft.title, 'episode')
+      const action: ScriptSplitDraft['action'] = existing ? 'update' : 'create'
+      return {
+        ...draft,
+        action,
+        existingScriptId: existing?.ID ?? null,
+      }
+    })
+    syncDrafts(nextDrafts)
+    setResult({
+      sourceTitle: baseTitle,
+      sourceScriptId: null,
+      createdCount: 0,
+      updatedCount: 0,
+      episodeCount: nextDrafts.length,
+    })
+  }
+
+  function updateDraft(id: string, patch: Partial<ScriptSplitDraft>) {
+    setDrafts((current) => current.map((draft) => (draft.id === id ? { ...draft, ...patch } : draft)))
+  }
+
+  async function upsertScript(payload: {
+    title: string
+    description?: string
+    content: string
+    raw_source: string
+    summary?: string
+    script_type: string
+    source_type: string
+    order?: number
+    parent_script_id?: number | null
+  }) {
+    if (!projectId) throw new Error('请先选择项目')
+    const existing = findMatchingScript(sortedScripts, payload.title, payload.script_type)
+    const body = {
+      title: payload.title,
+      description: payload.description ?? '',
+      content: payload.content,
+      raw_source: payload.raw_source,
+      summary: payload.summary ?? '',
+      script_type: payload.script_type,
+      source_type: payload.source_type,
+      order: payload.order ?? 0,
+      parent_script_id: payload.parent_script_id ?? null,
+    }
+    if (existing) {
+      return api.put<Script>(`/projects/${projectId}/scripts/${existing.ID}`, body).then((r) => r.data)
+    }
+    return api.post<Script>(`/projects/${projectId}/scripts`, body).then((r) => r.data)
+  }
+
+  const createAll = useMutation({
+    mutationFn: async () => {
+      if (!projectId) throw new Error('请先选择项目')
+      const normalized = sourceText.trim()
+      if (!normalized) throw new Error('请先粘贴剧本文本')
+
+      const nextDrafts = drafts.length > 0 ? drafts : splitScriptIntoEpisodeDrafts(normalized)
+      if (nextDrafts.length === 0) throw new Error('没有可拆分的剧本内容')
+
+      let sourceScriptId: number | null = null
+      const sourceScriptTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
+
+      if (saveSourceScript) {
+        const sourceScript = await upsertScript({
+          title: sourceScriptTitle,
+          description: `自动拆分为 ${nextDrafts.length} 集`,
+          content: normalized,
+          raw_source: normalized,
+          summary: `自动拆分为 ${nextDrafts.length} 集`,
+          script_type: 'main',
+          source_type: 'raw',
+          order: 0,
+          parent_script_id: null,
+        })
+        sourceScriptId = sourceScript.ID
+      }
+
+      let createdCount = 0
+      let updatedCount = 0
+      const createdScripts: Script[] = []
+      for (const draft of nextDrafts) {
+        const saved = await upsertScript({
+          title: draft.title,
+          description: draft.summary,
+          content: draft.content,
+          raw_source: draft.content,
+          summary: draft.summary,
+          script_type: 'episode',
+          source_type: 'adapted',
+          order: draft.order,
+          parent_script_id: sourceScriptId,
+        })
+        createdScripts.push(saved)
+        if (draft.existingScriptId) updatedCount += 1
+        else createdCount += 1
+      }
+
+      return {
+        sourceTitle: sourceScriptTitle,
+        sourceScriptId,
+        createdCount,
+        updatedCount,
+        episodeCount: createdScripts.length,
+      } satisfies ScriptSplitResult
+    },
+    onSuccess: (next) => {
+      setResult(next)
+      queryClient.invalidateQueries({ queryKey: ['scripts', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
+      toast.success(`已处理 ${next.episodeCount} 集剧本`)
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : '剧本拆分失败')
+    },
+  })
+
+  const recentScripts = useMemo(() => sortedScripts.slice(0, 8), [sortedScripts])
+  const selectedAction = selectedDraft ? (selectedDraft.action === 'update' ? '将更新已有剧本' : '将创建新剧本') : '先拆分，再批量创建'
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <header className="shrink-0 border-b border-border bg-background px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ScrollText size={14} />
+              <span>剧本工作台</span>
+              <ChevronRight size={13} />
+              <span>总稿拆分</span>
+            </div>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">总剧本拆成多份剧本</h1>
+            <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
+              把一份多集总稿拆成多个剧本，自动识别集标题后批量创建为独立剧本，并保留一份总稿作为来源。
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate('/scripts')}>
+              <FileText size={14} />
+              剧本管理
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={handleSplit} disabled={!sourceText.trim() || createAll.isPending}>
+              <Scissors size={14} />
+              自动拆分
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <main className="min-w-0 flex-1 overflow-y-auto bg-muted/20 p-5">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+            <section className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">总稿输入</p>
+                  <p className="mt-1 text-xs text-muted-foreground">支持「第 1 集 / 第1集 / EP01」之类的集标题。</p>
+                </div>
+                <Badge variant="outline">{sourceText.length} 字</Badge>
+              </div>
+              <div className="mt-4 grid gap-4">
+                <div>
+                  <Label className="mb-1 text-xs text-muted-foreground">总稿标题</Label>
+                  <Input
+                    value={sourceTitle}
+                    onChange={(event) => setSourceTitle(event.target.value)}
+                    placeholder="例如：XX 剧集总稿"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1 text-xs text-muted-foreground">剧本文本</Label>
+                  <Textarea
+                    className="min-h-[420px] resize-none font-mono text-xs leading-relaxed"
+                    value={sourceText}
+                    onChange={(event) => setSourceText(event.target.value)}
+                    placeholder="把总剧本贴在这里。工作台会按集标题拆分成多个剧本。"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={saveSourceScript}
+                      onChange={(event) => setSaveSourceScript(event.target.checked)}
+                      className="h-4 w-4 rounded border-border text-foreground"
+                    />
+                    同步保存总稿
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSourceText(''); setSourceTitle(''); syncDrafts([]); setResult(null) }}>
+                      清空
+                    </Button>
+                    <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={!sourceText.trim() || createAll.isPending}>
+                      {createAll.isPending ? '创建中' : '创建剧本'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">拆分结果</p>
+                  <p className="mt-1 text-xs text-muted-foreground">先拆分，再确认每一集的标题和正文。</p>
+                </div>
+                <Badge variant={drafts.length > 0 ? 'success' : 'outline'}>{drafts.length || 0} 集</Badge>
+              </div>
+              <div className="mt-4 space-y-3">
+                {drafts.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-border bg-background px-4 py-10 text-center text-xs text-muted-foreground">
+                    还没有拆分结果
+                  </div>
+                ) : (
+                  drafts.map((draft) => {
+                    const active = selectedDraftId === draft.id
+                    return (
+                      <button
+                        key={draft.id}
+                        type="button"
+                        onClick={() => setSelectedDraftId(draft.id)}
+                        className={cn(
+                          'w-full rounded-md border px-3 py-3 text-left transition-colors',
+                          active ? 'border-primary/50 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-foreground">第 {draft.order} 集</span>
+                              <Badge variant={draft.action === 'update' ? 'warning' : 'outline'}>
+                                {draft.action === 'update' ? '更新已有' : '新建'}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">{draft.summary || '暂无摘要'}</p>
+                          </div>
+                          <span className="text-[11px] tabular-nums text-muted-foreground">{draft.content.length} 字</span>
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+
+              {selectedDraft && (
+                <div className="mt-4 rounded-md border border-border bg-background p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">当前选中</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedAction}</p>
+                    </div>
+                    <Badge variant={selectedDraft.action === 'update' ? 'warning' : 'success'}>{selectedDraft.action === 'update' ? '更新' : '创建'}</Badge>
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <Label className="mb-1 text-xs text-muted-foreground">剧本标题</Label>
+                      <Input
+                        value={selectedDraft.title}
+                        onChange={(event) => updateDraft(selectedDraft.id, { title: event.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1 text-xs text-muted-foreground">正文</Label>
+                      <Textarea
+                        className="min-h-52 resize-none font-mono text-xs leading-relaxed"
+                        value={selectedDraft.content}
+                        onChange={(event) => updateDraft(selectedDraft.id, { content: event.target.value, summary: summarizeText(event.target.value, 120) })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+        </main>
+
+        <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-card p-4">
+          <section className="mb-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">拆分概览</p>
+              {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本</Badge>}
+            </div>
+            <div className="mt-3 grid gap-2">
+              <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitle.trim() || '未命名总稿'} />
+              <WorkbenchMiniStat label="拆分集数" value={drafts.length || '0'} detail="自动识别出来的分集数量" />
+              <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
+              <WorkbenchMiniStat label="已有分集剧本" value={episodeScripts.length} detail="当前项目内的分集脚本数量" />
+            </div>
+          </section>
+
+          {result && (
+            <section className="mb-4 rounded-md border border-border bg-background p-3">
+              <p className="text-sm font-semibold text-foreground">最近一次结果</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">总稿</p>
+                  <p className="mt-1 truncate text-foreground">{result.sourceTitle}</p>
+                </div>
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">集数</p>
+                  <p className="mt-1 text-foreground">{result.episodeCount}</p>
+                </div>
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">创建</p>
+                  <p className="mt-1 text-foreground">{result.createdCount}</p>
+                </div>
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">更新</p>
+                  <p className="mt-1 text-foreground">{result.updatedCount}</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/scripts')}>
+                <ArrowRight size={13} />
+                去剧本管理
+              </Button>
+            </section>
+          )}
+
+          <section className="mb-4">
+            <p className="text-sm font-semibold text-foreground">最近剧本</p>
+            <div className="mt-3 space-y-2">
+              {sortedScripts.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-xs text-muted-foreground">
+                  当前项目还没有剧本
+                </div>
+              ) : (
+                recentScripts.map((script) => (
+                  <div key={script.ID} className="rounded-md border border-border bg-background px-3 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{script.title}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {normalizeScriptType(script.script_type)} · {script.content ? script.content.length : 0} 字
+                        </p>
+                      </div>
+                      <Badge variant="outline">#{script.ID}</Badge>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
 function CategoryContent({ category }: { category: WorkbenchCategory }) {
+  if (category === 'script') return <ScriptSplitWorkbench />
   if (category === 'assets') return <AssetPreparationWorkbench />
   if (category === 'production') return <ContentGenerationWorkbench />
   if (category === 'reference-relations') return <ReferenceRelationsPage embedded initialView="graph" />

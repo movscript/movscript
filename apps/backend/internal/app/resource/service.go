@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
 	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
@@ -27,7 +26,7 @@ var (
 )
 
 type Service struct {
-	db    *gorm.DB
+	repo  repository
 	store storage.Storage
 	cache cache.Cache
 }
@@ -42,7 +41,7 @@ func NewService(db *gorm.DB, store storage.Storage, cacheStore ...cache.Cache) *
 	if c == nil {
 		c = cache.NewNoop()
 	}
-	return &Service{db: db, store: store, cache: c}
+	return &Service{repo: &gormRepository{db: db}, store: store, cache: c}
 }
 
 type ListInput struct {
@@ -92,35 +91,15 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResourc
 		}
 		return cached.Resources, cached.Page, nil
 	}
-	q, err := s.listQuery(ctx, input)
-	if err != nil {
-		return nil, nil, err
-	}
-	q = applyListFilters(q, input)
-	if input.Page > 0 || input.PageSize > 0 {
-		page := domainresource.NormalizePage(domainresource.PageInput{Page: input.Page, PageSize: input.PageSize})
-		var total int64
-		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Count(&total).Error; err != nil {
-			return nil, nil, err
-		}
-		resources := make([]model.RawResource, 0)
-		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(page.PageSize).Offset(page.Offset).Find(&resources).Error; err != nil {
-			return nil, nil, err
-		}
-		resultPage := &Page{Total: total, Items: resources, Page: page.Page, PageSize: page.PageSize}
-		_ = s.cache.SetJSON(ctx, cacheKey, cachedListResult{Resources: resources, Page: resultPage}, listCacheTTL)
-		return resources, resultPage, nil
-	}
-	resources := make([]model.RawResource, 0)
-	err = q.Order("created_at desc").Find(&resources).Error
+	resources, page, err := s.repo.List(ctx, input)
 	if err == nil {
-		_ = s.cache.SetJSON(ctx, cacheKey, cachedListResult{Resources: resources}, listCacheTTL)
+		_ = s.cache.SetJSON(ctx, cacheKey, cachedListResult{Resources: resources, Page: page}, listCacheTTL)
 	}
-	return resources, nil, err
+	return resources, page, err
 }
 
 func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResource, error) {
-	folderID, err := s.uploadFolderID(ctx, input.UserID, input.OrgID, input.FolderID)
+	folderID, err := s.repo.UploadFolderID(ctx, input.UserID, input.OrgID, input.FolderID)
 	if err != nil {
 		return model.RawResource{}, err
 	}
@@ -137,7 +116,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 		FilePath:       "",
 		StorageBackend: s.store.Backend(),
 	}
-	if err := s.db.WithContext(ctx).Create(&r).Error; err != nil {
+	if err := s.repo.CreateResource(ctx, &r); err != nil {
 		return model.RawResource{}, err
 	}
 
@@ -155,10 +134,10 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 	}
 
 	if err := s.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
-		s.db.WithContext(ctx).Delete(&r)
+		_ = s.repo.DeleteResourceRecord(ctx, &r)
 		return model.RawResource{}, err
 	}
-	if err := s.db.WithContext(ctx).Model(&r).Updates(map[string]any{
+	if err := s.repo.UpdateResourceRecord(ctx, &r, map[string]any{
 		"file_path":       key,
 		"storage_key":     key,
 		"storage_backend": s.store.Backend(),
@@ -166,7 +145,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 		"name":            r.Name,
 		"mime_type":       r.MimeType,
 		"size":            r.Size,
-	}).Error; err != nil {
+	}); err != nil {
 		return model.RawResource{}, err
 	}
 	r.StorageKey = key
@@ -176,57 +155,18 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 }
 
 func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error) {
-	var r model.RawResource
-	if err := s.db.WithContext(ctx).First(&r, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return r, ErrNotFound
-		}
-		return r, err
-	}
-	if !resourceInOrgScope(r.OrgID, orgID, r.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
-		return r, ErrForbidden
-	}
-	if r.OwnerID == userID {
-		return r, nil
-	}
-	allowed := r.IsShared
-	if !allowed && r.FolderID != nil {
-		var folder model.ResourceFolder
-		if s.db.WithContext(ctx).First(&folder, *r.FolderID).Error == nil {
-			allowed = folder.IsShared
-		}
-	}
-	if !allowed {
-		return r, ErrForbidden
-	}
-	return r, nil
+	return s.repo.GetVisible(ctx, id, userID, orgID)
 }
 
 func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) error {
-	var r model.RawResource
-	if err := s.db.WithContext(ctx).First(&r, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrNotFound
-		}
+	r, err := s.repo.GetOwned(ctx, id, userID, orgID)
+	if err != nil {
 		return err
-	}
-	if r.OwnerID != userID || !resourceInOrgScope(r.OrgID, orgID, r.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
-		return ErrForbidden
 	}
 	if r.StorageKey != "" {
 		_ = s.store.Delete(ctx, r.StorageKey)
 	}
-	var bindings []model.ResourceBinding
-	if err := s.db.WithContext(ctx).Select("id").Where("resource_id = ?", r.ID).Find(&bindings).Error; err != nil {
-		return err
-	}
-	bindingSvc := resourcebinding.NewService(s.db)
-	for i := range bindings {
-		if err := bindingSvc.Delete(ctx, bindings[i].ID); err != nil {
-			return err
-		}
-	}
-	if err := s.db.WithContext(ctx).Delete(&r).Error; err != nil {
+	if err := s.repo.DeleteResourceAndBindings(ctx, r); err != nil {
 		return err
 	}
 	s.bumpListVersion(ctx, userID, orgID)
@@ -234,18 +174,9 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint)
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResource, error) {
-	var r model.RawResource
-	if err := s.db.WithContext(ctx).First(&r, input.ID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return r, ErrNotFound
-		}
+	r, err := s.repo.GetOwned(ctx, input.ID, input.UserID, input.OrgID)
+	if err != nil {
 		return r, err
-	}
-	if r.OwnerID != input.UserID {
-		return r, ErrForbidden
-	}
-	if !resourceInOrgScope(r.OrgID, input.OrgID, r.OwnerID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID)) {
-		return r, ErrForbidden
 	}
 	updates := map[string]any{}
 	if input.IsShared != nil {
@@ -255,7 +186,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResou
 		if *input.FolderID == 0 {
 			updates["folder_id"] = nil
 		} else {
-			folderID, err := s.uploadFolderID(ctx, input.UserID, input.OrgID, strconv.FormatUint(uint64(*input.FolderID), 10))
+			folderID, err := s.repo.UploadFolderID(ctx, input.UserID, input.OrgID, strconv.FormatUint(uint64(*input.FolderID), 10))
 			if err != nil {
 				return r, err
 			}
@@ -269,115 +200,15 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResou
 		updates["name"] = input.Name
 	}
 	if len(updates) > 0 {
-		if err := s.db.WithContext(ctx).Model(&r).Updates(updates).Error; err != nil {
+		if err := s.repo.UpdateResourceRecord(ctx, &r, updates); err != nil {
 			return r, err
 		}
 	}
-	if err := s.db.WithContext(ctx).First(&r, r.ID).Error; err != nil {
+	if err := s.repo.ReloadResource(ctx, &r); err != nil {
 		return r, err
 	}
 	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
-}
-
-func (s *Service) listQuery(ctx context.Context, input ListInput) (*gorm.DB, error) {
-	if input.Shared {
-		return s.sharedListQuery(ctx, input)
-	}
-	q := s.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id = ?", input.UserID)
-	q = applyOrgScope(q, input.OrgID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID))
-	switch input.FolderID {
-	case "", "all":
-	case "root", "0":
-		q = q.Where("folder_id IS NULL")
-	default:
-		q = q.Where("folder_id = ?", input.FolderID)
-	}
-	return q, nil
-}
-
-func (s *Service) sharedListQuery(ctx context.Context, input ListInput) (*gorm.DB, error) {
-	if input.FolderID != "" {
-		var folder model.ResourceFolder
-		if err := s.db.WithContext(ctx).First(&folder, input.FolderID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, ErrFolderNotFound
-			}
-			return nil, err
-		}
-		if !resourceInOrgScope(folder.OrgID, input.OrgID, folder.OwnerID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID)) {
-			return nil, ErrForbidden
-		}
-		if folder.OwnerID != input.UserID && !folder.IsShared {
-			return nil, ErrForbidden
-		}
-		return s.db.WithContext(ctx).Model(&model.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), nil
-	}
-	q := s.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id != ? AND is_shared = true", input.UserID).Preload("Owner")
-	return applyOrgScope(q, input.OrgID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID)), nil
-}
-
-func (s *Service) uploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error) {
-	if folderIDValue == "" || folderIDValue == "0" {
-		return nil, nil
-	}
-	var folder model.ResourceFolder
-	if err := s.db.WithContext(ctx).First(&folder, folderIDValue).Error; err != nil {
-		return nil, nil
-	}
-	if !resourceInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
-		return nil, ErrForbidden
-	}
-	if folder.OwnerID != userID {
-		if !folder.IsShared {
-			return nil, ErrForbidden
-		}
-		var perm model.ResourceFolderPermission
-		if s.db.WithContext(ctx).Where("folder_id = ? AND user_id = ? AND permission = ?", folder.ID, userID, "write").
-			First(&perm).Error != nil {
-			return nil, ErrForbidden
-		}
-	}
-	fid := folder.ID
-	return &fid, nil
-}
-
-func (s *Service) includeLegacyPersonal(ctx context.Context, orgID *uint) bool {
-	if orgID == nil {
-		return true
-	}
-	var org model.Organization
-	if err := s.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
-		return false
-	}
-	return org.IsPersonal
-}
-
-func applyOrgScope(q *gorm.DB, orgID *uint, userID uint, includeLegacy bool) *gorm.DB {
-	if orgID == nil {
-		return q.Where("org_id IS NULL")
-	}
-	if includeLegacy {
-		return q.Where("org_id = ? OR (org_id IS NULL AND owner_id = ?)", *orgID, userID)
-	}
-	return q.Where("org_id = ?", *orgID)
-}
-
-func resourceInOrgScope(resourceOrgID, currentOrgID *uint, ownerID uint, userID uint, includeLegacy bool) bool {
-	return domainresource.InOrgScope(resourceOrgID, currentOrgID, ownerID, userID, includeLegacy)
-}
-
-func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
-	filters := domainresource.ParseListFilters(input.Type, input.Query)
-	if len(filters.Types) == 1 {
-		q = q.Where("type = ?", filters.Types[0])
-	} else if len(filters.Types) > 1 {
-		q = q.Where("type IN ?", filters.Types)
-	}
-	if filters.Keyword != "" {
-		q = q.Where("LOWER(name) LIKE ?", "%"+filters.Keyword+"%")
-	}
-	return q
 }
 
 type cachedListResult struct {

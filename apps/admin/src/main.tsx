@@ -2,18 +2,22 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { Bot, Bug, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound } from 'lucide-react'
+import { Bot, Bug, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, Sun, UsersRound } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Button } from '@movscript/ui'
 import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage, UsageLogsPage, UserManagementPage } from '@admin/pages/admin/AdminPage'
 import AgentDebugPage from '@admin/pages/admin/AgentDebugPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
 import { UIPreviewPage } from '@admin/pages/admin/UIPreviewPage'
 import { Toaster } from '@/components/ui/Toaster'
+import { initTheme, useTheme } from '@/hooks/useTheme'
 import '@/i18n'
 import './styles.css'
+
+initTheme()
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -88,7 +92,10 @@ function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground p-6">
+    <main className="relative min-h-screen bg-background text-foreground p-6">
+      <div className="absolute right-6 top-6">
+        <ThemeToggleButton />
+      </div>
       <div className="mx-auto grid min-h-screen w-full max-w-5xl items-center gap-6 lg:grid-cols-2">
         <form onSubmit={submit} className="rounded-lg border border-border bg-card p-6 shadow-sm">
           <div className="mb-6">
@@ -215,6 +222,24 @@ function resolveLoginRedirect(state: unknown): string {
   return from
 }
 
+function ThemeToggleButton() {
+  const { theme, toggleTheme } = useTheme()
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={toggleTheme}
+      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+      title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+      aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+    >
+      {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+    </Button>
+  )
+}
+
 function AdminShell({ children }: { children: React.ReactNode }) {
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const user = useUserStore((s) => s.currentUser)
@@ -225,9 +250,12 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-background text-foreground">
       <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-sidebar">
-        <div className="flex h-12 items-center gap-2 border-b border-border px-4">
-          <ShieldCheck size={17} />
-          <span className="text-sm font-semibold">Movscript Admin</span>
+        <div className="flex h-12 items-center justify-between gap-2 border-b border-border px-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={17} />
+            <span className="text-sm font-semibold">Movscript Admin</span>
+          </div>
+          <ThemeToggleButton />
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {navItems.map((item) => (

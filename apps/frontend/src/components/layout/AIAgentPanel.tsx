@@ -9,7 +9,7 @@ import {
   Trash2, RefreshCw, History, Database, Save, FolderOpen,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { translateApiError } from '@/lib/apiError'
+import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
@@ -29,7 +29,6 @@ import {
   type AgentMemory,
   type AgentMemoryKind,
   type AgentMemoryScope,
-  type AgentManifest,
   type AgentRun,
   type AgentRunPreview,
   type AgentThread as LocalAgentThread,
@@ -277,7 +276,6 @@ interface AgentSendDraft {
     threadId?: string
     title: string
     clientInput?: AgentClientInput
-    agentManifest?: AgentManifest
     diagnosticCommand?: boolean
     preview?: AgentRunPreview
     previewError?: string
@@ -323,6 +321,8 @@ function compactResource(resource: RawResource): Pick<RawResource, 'ID' | 'name'
 function buildAgentClientInput(options: {
   message: string
   attachments: AgentAttachment[]
+  projectId?: number
+  labels?: string[]
 }): AgentClientInput {
   const input = buildCommandFirstClientInput({
     message: options.message,
@@ -334,6 +334,8 @@ function buildAgentClientInput(options: {
       size: attachment.size,
       ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
     })),
+    labels: options.labels,
+    hints: options.projectId ? { projectId: options.projectId } : undefined,
   })
   return input
 }
@@ -410,7 +412,6 @@ function buildDebugHttpRequests(options: {
       body: {
         threadId: resolvedThreadId,
         ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
-        ...(options.localRuntime?.agentManifest ? { agentManifest: options.localRuntime.agentManifest } : {}),
       },
     },
     {
@@ -682,7 +683,7 @@ function AgentDebugPreviewDialog({
                   <div className="grid gap-2 md:grid-cols-3">
                     <DebugSummaryItem label="Thread" value={draft.localRuntime.threadId ?? 'new thread'} />
                     <DebugSummaryItem label="Mode" value={draft.localRuntime.diagnosticCommand ? 'diagnostic' : 'conversation'} />
-                    <DebugSummaryItem label="Manifest" value={draft.localRuntime.agentManifest?.name ?? 'default'} />
+                    <DebugSummaryItem label="Manifest" value="default" />
                   </div>
                 )}
                 {draft.localRuntime?.previewError && (
@@ -1582,7 +1583,19 @@ function ProjectRequirementPanel({
 
 // ── Chat view ─────────────────────────────────────────────────────────────────
 
-function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string; onBack: () => void }) {
+function ChatView({
+  conv,
+  userId,
+  onBack,
+  externalDraft,
+  onExternalDraftConsumed,
+}: {
+  conv: Conversation
+  userId: string
+  onBack: () => void
+  externalDraft?: string
+  onExternalDraftConsumed?: () => void
+}) {
   const { t } = useTranslation()
   const {
     settings,
@@ -1598,14 +1611,8 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     queryFn: () => api.get('/projects').then((r) => r.data),
   })
   const { data: textModels = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', 'assistant_chat'],
-    queryFn: async () => {
-      try {
-        return await api.get('/models?feature=assistant_chat').then((r) => r.data)
-      } catch {
-        return await api.get('/models?capability=text').then((r) => r.data)
-      }
-    },
+    queryKey: ['models', 'text'],
+    queryFn: () => api.get('/models?capability=text').then((r) => r.data),
   })
   const { data: resourcesData } = useQuery<RawResource[] | { items: RawResource[] }>({
     queryKey: ['resources', 'agent-panel'],
@@ -1649,6 +1656,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [conv.messages, loading, activeLocalRun])
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
+  useEffect(() => {
+    if (!externalDraft) return
+    setInput(externalDraft)
+    window.setTimeout(() => inputRef.current?.focus(), 0)
+    onExternalDraftConsumed?.()
+  }, [externalDraft, onExternalDraftConsumed])
 
   // Auto-clear stale modelId
   useEffect(() => {
@@ -1663,7 +1676,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
   const activeModel = textModels.find((m) => m.id === modelId)
   const contextLabels = [
-    localRuntimeEnabled ? 'Local Runtime' : null,
+    'Local Runtime',
     settings.includeProjectContext && currentProject ? currentProject.name : null,
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     attachments.length > 0 ? t('agents.chat.attachmentsCount', { count: attachments.length }) : null,
@@ -1837,6 +1850,8 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     const clientInput = buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
+      projectId: currentProject?.ID,
+      labels: contextLabels,
     })
     const agentContext = buildAgentContext({
       mode: settings.mode,
@@ -1989,7 +2004,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         title: draft.localRuntime?.title ?? conv.title,
       }, {
         onRunUpdate: setActiveLocalRun,
-        agentManifest: draft.localRuntime?.agentManifest,
       })
       if (!draft.localRuntime?.diagnosticCommand) {
         setLocalAgentThreadIds((cur) => {
@@ -2082,9 +2096,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       <AgentHeader>
         <AgentHeaderContent>
           <AgentTitle>{conv.title}</AgentTitle>
-          <AgentSubtitle>
-            {localRuntimeEnabled ? 'Local Agent Runtime' : t('agents.chat.aiAssistant')}
-          </AgentSubtitle>
+          <AgentSubtitle>Local Agent Runtime</AgentSubtitle>
         </AgentHeaderContent>
         <AgentHeaderActions>
           <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
@@ -2123,15 +2135,13 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             </AgentEmpty>
           )}
           {conv.messages.map((m) => <MessageBubble key={m.id} msg={m} />)}
-          {localRuntimeEnabled && (
-            <LocalAgentWorkflow
-              run={activeLocalRun}
-              approving={approvingLocalRun}
-              onApprove={approveActiveLocalRun}
-              onReject={rejectActiveLocalRun}
-              onAnswerInput={answerActiveLocalRunInput}
-            />
-          )}
+          <LocalAgentWorkflow
+            run={activeLocalRun}
+            approving={approvingLocalRun}
+            onApprove={approveActiveLocalRun}
+            onReject={rejectActiveLocalRun}
+            onAnswerInput={answerActiveLocalRunInput}
+          />
           {loading && (
             <AgentChatMessage
               role="assistant"
@@ -2148,53 +2158,38 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       </AgentBody>
 
       <div className="px-3 py-2.5 shrink-0 space-y-2">
-        <div className="flex gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            variant={localRuntimeEnabled ? 'secondary' : 'outline'}
-            onClick={() => setLocalRuntimeEnabled(!localRuntimeEnabled)}
-            className="h-8 px-2 text-[10px]"
-            title="Local Agent Runtime"
-          >
-            <Bot size={11} />
-            Local
-          </Button>
-        </div>
-        {localRuntimeEnabled && (
-          <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
-            <div className="flex items-center justify-between gap-2 text-[10px]">
-              <span className={cn('font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
-                {localAgentOnline ? 'Local Runtime online' : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting Local Runtime' : 'Checking Local Runtime') : 'Local Runtime offline')}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => startLocalAgent()}
-                disabled={checkingLocalAgent || startingLocalAgent}
-                className="h-5 px-1 text-[10px] text-muted-foreground"
-              >
-                {checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting' : 'Checking') : (canAutoStartLocalAgent ? 'Start' : 'Refresh')}
-              </Button>
-            </div>
-            {!localAgentOnline && (
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
-                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
-              </p>
-            )}
-            {localAgentErrorMessage && (
-              <p className="line-clamp-2 text-[10px] leading-relaxed text-destructive">
-                {localAgentErrorMessage}
-              </p>
-            )}
-            {localAgentThreadIds[conv.id] && (
-              <p className="truncate text-[10px] text-muted-foreground/70">
-                Thread: <code className="rounded bg-muted px-1 py-0.5">{localAgentThreadIds[conv.id]}</code>
-              </p>
-            )}
+        <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
+          <div className="flex items-center justify-between gap-2 text-[10px]">
+            <span className={cn('font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
+              {localAgentOnline ? 'Local Runtime online' : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting Local Runtime' : 'Checking Local Runtime') : 'Local Runtime offline')}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => startLocalAgent()}
+              disabled={checkingLocalAgent || startingLocalAgent}
+              className="h-5 px-1 text-[10px] text-muted-foreground"
+            >
+              {checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting' : 'Checking') : (canAutoStartLocalAgent ? 'Start' : 'Refresh')}
+            </Button>
           </div>
-        )}
+          {!localAgentOnline && (
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
+              {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
+            </p>
+          )}
+          {localAgentErrorMessage && (
+            <p className="line-clamp-2 text-[10px] leading-relaxed text-destructive">
+              {localAgentErrorMessage}
+            </p>
+          )}
+          {localAgentThreadIds[conv.id] && (
+            <p className="truncate text-[10px] text-muted-foreground/70">
+              Thread: <code className="rounded bg-muted px-1 py-0.5">{localAgentThreadIds[conv.id]}</code>
+            </p>
+          )}
+        </div>
         <ProjectRequirementPanel
           project={currentProject}
           projects={projects}
@@ -2287,7 +2282,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             ))}
           </div>
         )}
-        {localRuntimeEnabled && showContext && (
+        {showContext && (
           <>
             <DraftPanel
               project={currentProject}
@@ -2396,13 +2391,7 @@ function ConversationList({
   onRestoreLocalThread: (threadId: string) => Promise<void>
 }) {
   const { t, i18n } = useTranslation()
-  const [localRuntimeEnabled] = useState(() => {
-    try {
-      return localStorage.getItem(LOCAL_AGENT_MODE_KEY) !== 'false'
-    } catch {
-      return true
-    }
-  })
+  const localRuntimeEnabled = true
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
   const { data: localThreads = [], isFetching: fetchingLocalThreads, refetch: refetchLocalThreads } = useQuery<AgentThreadSummary[]>({
     queryKey: ['local-agent-threads', localAgentClient.baseURL],
@@ -2474,35 +2463,33 @@ function ConversationList({
             ))}
           </AgentSidebarSection>
         )}
-        {localRuntimeEnabled && (
-          <AgentSidebarSection>
-            <div className="mb-1 flex items-center justify-between px-1">
-              <AgentSidebarTitle className="px-0">
-                <span className="inline-flex items-center gap-1"><History size={11} /> Local Runtime</span>
-              </AgentSidebarTitle>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => refetchLocalThreads()}
-                className="h-5 px-1 text-[10px] text-muted-foreground"
-              >
-                <RefreshCw size={10} className={fetchingLocalThreads ? 'animate-spin' : ''} />
-              </Button>
-            </div>
-            {localThreads.length === 0 ? (
-              <p className="px-1 text-[10px] text-muted-foreground">No local runtime threads found.</p>
-            ) : localThreads.map((thread) => (
-              <AgentConversationItem
-                key={thread.id}
-                onClick={() => restoreThread(thread.id)}
-                title={localThreadTitle(thread)}
-                description={`${thread.messageCount} messages${thread.projectId ? ` · project #${thread.projectId}` : ''}`}
-                meta={restoringThreadId === thread.id ? 'Restoring' : formatAgentDate(thread.updatedAt, i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US')}
-              />
-            ))}
-          </AgentSidebarSection>
-        )}
+        <AgentSidebarSection>
+          <div className="mb-1 flex items-center justify-between px-1">
+            <AgentSidebarTitle className="px-0">
+              <span className="inline-flex items-center gap-1"><History size={11} /> Local Runtime</span>
+            </AgentSidebarTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => refetchLocalThreads()}
+              className="h-5 px-1 text-[10px] text-muted-foreground"
+            >
+              <RefreshCw size={10} className={fetchingLocalThreads ? 'animate-spin' : ''} />
+            </Button>
+          </div>
+          {localThreads.length === 0 ? (
+            <p className="px-1 text-[10px] text-muted-foreground">No local runtime threads found.</p>
+          ) : localThreads.map((thread) => (
+            <AgentConversationItem
+              key={thread.id}
+              onClick={() => restoreThread(thread.id)}
+              title={localThreadTitle(thread)}
+              description={`${thread.messageCount} messages${thread.projectId ? ` · project #${thread.projectId}` : ''}`}
+              meta={restoringThreadId === thread.id ? 'Restoring' : formatAgentDate(thread.updatedAt, i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US')}
+            />
+          ))}
+        </AgentSidebarSection>
         </ScrollArea>
       </AgentBody>
     </AgentMain>
@@ -2521,6 +2508,7 @@ function BuiltinChat({ userId }: { userId: string }) {
     addMessage,
     updateConversationTitle,
   } = useAgentStore()
+  const [externalDrafts, setExternalDrafts] = useState<Record<string, string>>({})
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
@@ -2544,9 +2532,33 @@ function BuiltinChat({ userId }: { userId: string }) {
     }
     const ids = { ...readLocalAgentThreadIds(), [convId]: thread.id }
     writeLocalAgentThreadIds(ids)
-    try { localStorage.setItem(LOCAL_AGENT_MODE_KEY, 'true') } catch {}
     setActiveConversation(userId, convId)
   }
+
+  useEffect(() => {
+    const pending = consumeAgentPanelDraft()
+    if (!pending?.message?.trim()) return
+    const convId = getActiveConversationId(userId) ?? createConversation(userId)
+    if (pending.title) updateConversationTitle(userId, convId, pending.title)
+    if (pending.mode) useAgentStore.getState().updateSettings({ mode: pending.mode })
+    setActiveConversation(userId, convId)
+    setExternalDrafts((current) => ({ ...current, [convId]: pending.message }))
+  }, [createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
+
+  useEffect(() => {
+    function handleDraft(event: Event) {
+      const detail = (event as CustomEvent<AgentPanelDraftPayload>).detail
+      if (!detail?.message?.trim()) return
+      const convId = getActiveConversationId(userId) ?? createConversation(userId)
+      if (detail.title) updateConversationTitle(userId, convId, detail.title)
+      if (detail.mode) useAgentStore.getState().updateSettings({ mode: detail.mode })
+      setActiveConversation(userId, convId)
+      setExternalDrafts((current) => ({ ...current, [convId]: detail.message }))
+    }
+
+    window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
+    return () => window.removeEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
+  }, [createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
 
   return (
     <AgentShell density="compact" className="ai-agent-panel-shell">
@@ -2555,6 +2567,14 @@ function BuiltinChat({ userId }: { userId: string }) {
           conv={activeConv}
           userId={userId}
           onBack={() => setActiveConversation(userId, null)}
+          externalDraft={externalDrafts[activeConv.id]}
+          onExternalDraftConsumed={() => {
+            setExternalDrafts((current) => {
+              const next = { ...current }
+              delete next[activeConv.id]
+              return next
+            })
+          }}
         />
       ) : (
         <ConversationList
@@ -2572,7 +2592,6 @@ function BuiltinChat({ userId }: { userId: string }) {
 // ── AIAgentPanel ──────────────────────────────────────────────────────────────
 
 const PANEL_OPEN_KEY = 'ai-panel-open'
-const LOCAL_AGENT_MODE_KEY = 'ai-panel-local-agent-runtime'
 const LOCAL_AGENT_THREAD_IDS_KEY = 'ai-panel-local-agent-thread-ids'
 const AGENT_DEBUG_PREVIEW_KEY = 'ai-panel-debug-preview'
 
@@ -2608,6 +2627,16 @@ export function AIAgentPanel() {
   })
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
+
+  useEffect(() => {
+    function handleDraft() {
+      setOpen(true)
+      try { localStorage.setItem(PANEL_OPEN_KEY, 'true') } catch {}
+    }
+
+    window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
+    return () => window.removeEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
+  }, [])
 
   function toggleOpen() {
     setOpen((v) => {

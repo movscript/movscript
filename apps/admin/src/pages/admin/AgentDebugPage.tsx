@@ -151,14 +151,17 @@ const AI_FUNCTIONS: AIFunctionDebugSpec[] = [
     surface: '/tools/brainstorm',
     frontendEntry: 'apps/frontend/src/pages/tools/BrainstormPage.tsx',
     trigger: 'generate()',
-    endpoint: 'backend: POST /ai/chat',
+    endpoint: 'local runtime: POST /model-config, POST /threads, POST /runs, GET /runs/:id',
     requestShape: {
-      model_config_id: 'selectedModelId',
-      messages: [{ role: 'user', content: 'prompt.trim()' }],
+      clientInput: {
+        message: 'AI_SYSTEM_PROMPT + "\\n\\n" + prompt.trim()',
+        attachments: 'selected resources as metadata refs',
+      },
+      agentManifest: 'default local runtime manifest',
     },
-    executionTrace: ['frontend prompt', 'backend AI service', 'provider chat/completions', 'content response'],
-    currentVisibility: ['local page history status/result/error'],
-    missingVisibility: ['request inspector', 'provider endpoint/debug info', 'latency', 'usage/cost', 'raw response'],
+    executionTrace: ['sync runtime model config', 'create local thread', 'append user message', 'agentic loop', 'model HTTP call', 'assistant message'],
+    currentVisibility: ['local page history status/result/error', 'runtime thread/run history', 'model HTTP call trace'],
+    missingVisibility: ['per-feature latency summary'],
   },
   {
     id: 'tool_generation_jobs',
@@ -1172,17 +1175,6 @@ function WorkbenchTab({
     if (activeThreadId === threadId) setActiveThreadId(null)
   }
 
-  function buildManifestOverride(): AgentManifest | undefined {
-    if (!useSkillOverride) return undefined
-    const base = inspect?.defaultAgentManifest
-    if (!base) return undefined
-    const overriddenSkills = (base.skills ?? []).map((skill) => ({
-      ...skill,
-      enabled: skillOverrides[skill.id] ?? skill.enabled,
-    }))
-    return { ...base, skills: overriddenSkills }
-  }
-
   function parseContextSnapshot() {
     try {
       const parsed = JSON.parse(contextJson)
@@ -1213,7 +1205,6 @@ function WorkbenchTab({
         threadId: activeThreadId,
         title: `Tool: ${selectedTool}`,
         toolCall: { name: selectedTool, args },
-        agentManifest: buildManifestOverride(),
         clientInput: { message: `fire tool ${selectedTool}`, uiSnapshot: snapshot },
       })
       setRunState(activeThreadId, { run, running: true })
@@ -1249,7 +1240,6 @@ function WorkbenchTab({
       }, {
         timeoutMs: 60_000,
         pollMs: 400,
-        agentManifest: buildManifestOverride(),
         onRunUpdate: (r) => setRunState(activeThreadId, { run: r }),
       })
       setRunState(activeThreadId, {
