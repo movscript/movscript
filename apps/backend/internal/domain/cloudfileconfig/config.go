@@ -2,6 +2,9 @@ package cloudfileconfig
 
 import (
 	"encoding/json"
+	"strings"
+
+	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -10,12 +13,30 @@ const (
 	TypeTOS = "tos"
 )
 
+type NewConfigSpec struct {
+	Name       string
+	ConfigType string
+	ConfigJSON string
+	Priority   int
+	IsEnabled  bool
+}
+
 func ValidConfigType(t string) bool {
 	switch t {
 	case TypeS3, TypeOSS, TypeTOS:
 		return true
 	}
 	return false
+}
+
+func NewConfig(spec NewConfigSpec) model.CloudFileConfig {
+	return model.CloudFileConfig{
+		Name:       strings.TrimSpace(spec.Name),
+		ConfigType: strings.TrimSpace(spec.ConfigType),
+		ConfigJSON: spec.ConfigJSON,
+		Priority:   spec.Priority,
+		IsEnabled:  spec.IsEnabled,
+	}
 }
 
 func IsSensitiveConfigKey(k string) bool {

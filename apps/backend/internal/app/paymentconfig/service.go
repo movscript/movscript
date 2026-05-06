@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainpaymentconfig "github.com/movscript/movscript/internal/domain/paymentconfig"
@@ -65,27 +64,19 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.PaymentC
 	if !domainpaymentconfig.ValidConfigType(input.ConfigType) || !domainpaymentconfig.ValidMode(input.Mode) {
 		return model.PaymentConfig{}, ErrInvalidConfig
 	}
-	mode := strings.TrimSpace(input.Mode)
-	if mode == "" {
-		mode = domainpaymentconfig.ModeSandbox
-	}
-	currency := strings.ToUpper(strings.TrimSpace(input.Currency))
-	if currency == "" {
-		currency = "CNY"
-	}
 	encJSON, err := s.encryptConfig(input.Config)
 	if err != nil {
 		return model.PaymentConfig{}, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
 	}
-	cfg := model.PaymentConfig{
+	cfg := domainpaymentconfig.NewConfig(domainpaymentconfig.NewConfigSpec{
 		Name:       input.Name,
 		ConfigType: input.ConfigType,
-		Mode:       mode,
-		Currency:   currency,
+		Mode:       input.Mode,
+		Currency:   input.Currency,
 		ConfigJSON: encJSON,
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
-	}
+	})
 	if err := s.repo.CreateConfig(ctx, &cfg); err != nil {
 		return model.PaymentConfig{}, err
 	}
@@ -102,21 +93,14 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.PaymentC
 		cfg.Name = *input.Name
 	}
 	if input.Mode != nil {
-		mode := strings.TrimSpace(*input.Mode)
+		mode := domainpaymentconfig.NormalizeMode(*input.Mode)
 		if !domainpaymentconfig.ValidMode(mode) {
 			return cfg, ErrInvalidConfig
-		}
-		if mode == "" {
-			mode = domainpaymentconfig.ModeSandbox
 		}
 		cfg.Mode = mode
 	}
 	if input.Currency != nil {
-		currency := strings.ToUpper(strings.TrimSpace(*input.Currency))
-		if currency == "" {
-			currency = "CNY"
-		}
-		cfg.Currency = currency
+		cfg.Currency = domainpaymentconfig.NormalizeCurrency(*input.Currency)
 	}
 	if input.Config != nil {
 		merged := s.mergeConfigUpdate(cfg.ConfigJSON, input.Config)

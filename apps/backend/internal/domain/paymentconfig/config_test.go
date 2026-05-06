@@ -23,6 +23,17 @@ func TestValidMode(t *testing.T) {
 	}
 }
 
+func TestNewConfigNormalizesDefaults(t *testing.T) {
+	cfg := NewConfig(NewConfigSpec{
+		Name:       " Stripe ",
+		ConfigType: TypeStripe,
+		ConfigJSON: "{}",
+	})
+	if cfg.Name != "Stripe" || cfg.ConfigType != TypeStripe || cfg.Mode != ModeSandbox || cfg.Currency != DefaultCurrency || cfg.ConfigJSON != "{}" {
+		t.Fatalf("unexpected config: %+v", cfg)
+	}
+}
+
 func TestMergeConfigUpdatePreservesMaskedSensitiveValues(t *testing.T) {
 	existing := map[string]any{
 		"secret_key": "sk_live_old",

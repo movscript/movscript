@@ -2971,7 +2971,7 @@ export function AIAgentPanel() {
   return (
     <div className={cn(
       'ai-agent-panel h-full min-w-0 shrink-0 bg-background flex flex-col overflow-hidden transition-all duration-200',
-      open ? 'w-[clamp(280px,40vw,420px)]' : 'w-11'
+      open ? 'w-[420px]' : 'w-11'
     )}>
       <div className="flex items-center h-11 border-b border-border shrink-0 px-2.5 gap-2">
         <button

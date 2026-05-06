@@ -171,7 +171,7 @@ function LegacyAgentDebugRedirect() {
 
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const shell = (
-    <div className="flex h-dvh w-dvw overflow-hidden bg-background text-foreground">
+    <div className="fixed inset-0 flex overflow-hidden bg-background text-foreground">
       <RedirectListener />
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

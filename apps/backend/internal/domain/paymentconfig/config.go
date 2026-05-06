@@ -1,6 +1,11 @@
 package paymentconfig
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+
+	"github.com/movscript/movscript/internal/domain/model"
+)
 
 const (
 	TypeAlipay  = "alipay"
@@ -8,7 +13,19 @@ const (
 	TypeStripe  = "stripe"
 	ModeSandbox = "sandbox"
 	ModeLive    = "live"
+
+	DefaultCurrency = "CNY"
 )
+
+type NewConfigSpec struct {
+	Name       string
+	ConfigType string
+	Mode       string
+	Currency   string
+	ConfigJSON string
+	Priority   int
+	IsEnabled  bool
+}
 
 func ValidConfigType(t string) bool {
 	switch t {
@@ -24,6 +41,34 @@ func ValidMode(mode string) bool {
 		return true
 	}
 	return false
+}
+
+func NormalizeMode(mode string) string {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		return ModeSandbox
+	}
+	return mode
+}
+
+func NormalizeCurrency(currency string) string {
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		return DefaultCurrency
+	}
+	return currency
+}
+
+func NewConfig(spec NewConfigSpec) model.PaymentConfig {
+	return model.PaymentConfig{
+		Name:       strings.TrimSpace(spec.Name),
+		ConfigType: strings.TrimSpace(spec.ConfigType),
+		Mode:       NormalizeMode(spec.Mode),
+		Currency:   NormalizeCurrency(spec.Currency),
+		ConfigJSON: spec.ConfigJSON,
+		Priority:   spec.Priority,
+		IsEnabled:  spec.IsEnabled,
+	}
 }
 
 func IsSensitiveConfigKey(k string) bool {
