@@ -127,6 +127,20 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                 <EmptyBlock title="暂无段落结构" detail="需要先补充制作项和关键帧，预演才能形成可观看的剧情树。" />
               ) : (
                 <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUnitId(null)}
+                    className={cn(
+                      'w-full rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/60',
+                      selectedUnitId === null ? 'border-primary ring-1 ring-primary' : 'border-border',
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Film size={14} className="text-muted-foreground" />
+                      <span className="text-sm font-semibold text-foreground">整集剧情流</span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">从上到下查看全部真实剧情画面。</p>
+                  </button>
                   {storyNodes.map((node, index) => (
                     <StoryTreeNode
                       key={node.unit.id}
