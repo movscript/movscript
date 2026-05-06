@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -37,10 +37,16 @@ import {
 
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { api } from '@/lib/api'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { localAgentClient, type AgentManifest } from '@/lib/localAgentClient'
+import { publicModelLabel } from '@/lib/modelDisplay'
+import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
+import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { cn } from '@/lib/utils'
+import { useAgentStore } from '@/store/agentStore'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Canvas, CanvasStage, Job } from '@/types'
+import type { Canvas, CanvasStage, Job, PublicModel } from '@/types'
 import type { Script } from '@/types'
 import { Badge, Button, Card, Progress } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
@@ -1385,13 +1391,65 @@ interface ScriptSplitResult {
   createdCount: number
   updatedCount: number
   episodeCount: number
+  agentRunId?: string
   savedScripts?: Script[]
+}
+
+interface ScriptSplitAgentEpisode {
+  order?: unknown
+  title?: unknown
+  summary?: unknown
+  content?: unknown
+  start?: unknown
+  end?: unknown
+  action?: unknown
+  existing_script_id?: unknown
+  existingScriptId?: unknown
+}
+
+interface ScriptSplitAgentResult {
+  schema?: unknown
+  source_title?: unknown
+  sourceTitle?: unknown
+  source_summary?: unknown
+  sourceSummary?: unknown
+  source_script?: {
+    title?: unknown
+    summary?: unknown
+    content?: unknown
+  }
+  episode_drafts?: unknown
+  episodes?: unknown
+  warnings?: unknown
+  confidence?: unknown
 }
 
 interface ParsedEpisodeHeading {
   order: number
   title: string
   seriesTitle?: string
+}
+
+const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
+  schema: 'movscript.agent.current',
+  id: 'script-split-agent',
+  version: '1.0.0',
+  name: '剧本拆分 Agent',
+  description: '把多集总稿拆分为可写入 MovScript 的总稿和分集剧本草稿。',
+  soul: [
+    '你是 MovScript 的剧本拆分专用 Agent 会话。',
+    '你的任务是把用户提供的一份总稿拆成多个独立分集剧本草稿。',
+    '必须优先依据剧本里的明确集标题、场次边界、叙事段落和上下文；不要编造原文没有的剧情。',
+    '如果文本只有一集或没有明确分集标题，也要返回一个 episode_drafts 项。',
+    '已有剧本清单只用于判断 action 和 existing_script_id；不要直接调用写入工具。',
+    '输出必须是一个 machine-readable JSON 对象，不能包含 markdown 或解释文字。',
+  ].join('\n'),
+  skills: [],
+  permissions: ['project.read'],
+  tools: [
+    { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
+    { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
+  ],
 }
 
 function normalizeScriptType(value?: string) {
@@ -1424,58 +1482,6 @@ function inferSourceScriptTitle(text: string) {
     .trim()
 
   return summarizeText(cleaned || '剧本总稿', 32)
-}
-
-function splitScriptIntoEpisodeDrafts(text: string): ScriptSplitDraft[] {
-  const lines = text.replace(/\r\n/g, '\n').split('\n')
-  const segments: Array<{ heading: ParsedEpisodeHeading; lines: string[]; startLine: number; endLine: number }> = []
-  let active: { heading: ParsedEpisodeHeading; lines: string[]; startLine: number; endLine: number } | null = null
-
-  lines.forEach((line, index) => {
-    const heading = parseEpisodeHeading(line)
-    if (heading) {
-      if (active) segments.push(active)
-      active = { heading, lines: [line], startLine: index + 1, endLine: index + 1 }
-      return
-    }
-    if (active) {
-      active.lines.push(line)
-      active.endLine = index + 1
-    }
-  })
-  if (active) segments.push(active)
-
-  if (segments.length === 0) {
-    const content = text.trim()
-    return [{
-      id: 'episode-1',
-      order: 1,
-      title: inferEpisodeTitle(content, 0),
-      summary: summarizeText(content, 120),
-      content,
-      start: 1,
-      end: lines.length,
-      existingScriptId: null,
-      action: 'create',
-    }]
-  }
-
-  return segments.map((segment, index) => {
-    const content = segment.lines.join('\n').trim()
-    const bodyWithoutHeading = segment.lines.slice(1).join('\n').trim()
-    const order = segment.heading.order || index + 1
-    return {
-      id: `episode-${order}-${index}`,
-      order,
-      title: segment.heading.title || inferEpisodeTitle(content, index),
-      summary: summarizeText(bodyWithoutHeading || content, 120),
-      content,
-      start: segment.startLine,
-      end: segment.endLine,
-      existingScriptId: null,
-      action: 'create',
-    }
-  })
 }
 
 function parseEpisodeHeading(line: string): ParsedEpisodeHeading | null {
@@ -1578,6 +1584,12 @@ function findMatchingScript(scripts: Script[], title: string, scriptType: string
   }) ?? null
 }
 
+function findScriptByIdAndType(scripts: Script[], scriptId: number | null | undefined, scriptType: string) {
+  if (!scriptId) return null
+  const type = normalizeScriptType(scriptType)
+  return scripts.find((script) => script.ID === scriptId && normalizeScriptType(script.script_type) === type) ?? null
+}
+
 function normalizeScriptTitleKey(value: string) {
   return String(value ?? '').replace(/\s+/g, '').trim().toLowerCase()
 }
@@ -1586,6 +1598,111 @@ function summarizeText(text: string, maxLength: number): string {
   const compact = text.replace(/\s+/g, ' ').trim()
   if (compact.length <= maxLength) return compact
   return `${compact.slice(0, Math.max(1, maxLength - 3))}...`
+}
+
+function buildScriptSplitAgentMessage(input: {
+  projectId: number
+  sourceTitle: string
+  sourceText: string
+  scripts: Script[]
+}) {
+  const existingEpisodes = input.scripts
+    .filter((script) => normalizeScriptType(script.script_type) === 'episode')
+    .slice(0, 120)
+    .map((script) => ({
+      id: script.ID,
+      title: script.title,
+      order: script.order,
+      summary: script.summary || script.description || '',
+    }))
+  return [
+    '请把下面这份总稿拆分为 MovScript 分集剧本。',
+    '',
+    '[项目]',
+    `projectId: ${input.projectId}`,
+    '',
+    '[总稿标题]',
+    input.sourceTitle,
+    '',
+    '[已有分集剧本，用于判断 create/update]',
+    JSON.stringify(existingEpisodes, null, 2),
+    '',
+    '[输出要求]',
+    '返回 schema=movscript.script_split_analysis.v1 的 JSON。',
+    'episode_drafts 中每一集必须包含 order、title、summary、content、start、end、action、existing_script_id。',
+    'start/end 用原文字符偏移，无法精确时用估算位置。',
+    '如果标题与已有分集高度一致，action=update 并填写 existing_script_id；否则 action=create 且 existing_script_id=null。',
+    '',
+    '[总稿正文]',
+    input.sourceText,
+  ].join('\n')
+}
+
+function parseScriptSplitAgentContent(content: string, scripts: Script[], fallbackText: string): ScriptSplitDraft[] {
+  const parsed = parseJSONFromAssistantContent(content) as ScriptSplitAgentResult | undefined
+  if (!parsed || typeof parsed !== 'object') throw new Error('Agent 没有返回有效 JSON')
+  if (parsed.schema !== 'movscript.script_split_analysis.v1') throw new Error('Agent 返回的 schema 不匹配')
+  const rawEpisodes = Array.isArray(parsed.episode_drafts)
+    ? parsed.episode_drafts
+    : Array.isArray(parsed.episodes)
+      ? parsed.episodes
+      : []
+  const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(episode as ScriptSplitAgentEpisode, index, scripts, fallbackText))
+  if (drafts.length === 0) throw new Error('Agent 没有返回可写入的分集草稿')
+  return drafts
+}
+
+function parseJSONFromAssistantContent(content: string): unknown {
+  const trimmed = content.trim()
+  if (!trimmed) return undefined
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
+    if (fenced) return JSON.parse(fenced[1])
+    const start = trimmed.indexOf('{')
+    const end = trimmed.lastIndexOf('}')
+    if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1))
+    throw new Error('无法解析 Agent JSON 输出')
+  }
+}
+
+function normalizeAgentEpisodeDraft(
+  episode: ScriptSplitAgentEpisode,
+  index: number,
+  scripts: Script[],
+  fallbackText: string,
+): ScriptSplitDraft[] {
+  if (!episode || typeof episode !== 'object') return []
+  const content = stringValue(episode.content).trim()
+  if (!content) return []
+  const title = stringValue(episode.title).trim() || inferEpisodeTitle(content, index)
+  const existingId = numberValue(episode.existing_script_id ?? episode.existingScriptId)
+  const existing = existingId
+    ? findScriptByIdAndType(scripts, existingId, 'episode') ?? findMatchingScript(scripts, title, 'episode')
+    : findMatchingScript(scripts, title, 'episode')
+  const action = episode.action === 'update' || existing ? 'update' : 'create'
+  return [{
+    id: `agent-episode-${numberValue(episode.order) ?? index + 1}-${index}`,
+    order: numberValue(episode.order) ?? index + 1,
+    title,
+    summary: stringValue(episode.summary).trim() || summarizeText(content, 120),
+    content,
+    start: numberValue(episode.start) ?? Math.max(1, fallbackText.indexOf(content.slice(0, Math.min(24, content.length))) + 1),
+    end: numberValue(episode.end) ?? Math.max(content.length, fallbackText.indexOf(content.slice(0, Math.min(24, content.length))) + content.length),
+    existingScriptId: existing?.ID ?? null,
+    action,
+  }]
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return undefined
 }
 
 interface PreviewAssetGap {
@@ -2157,19 +2274,29 @@ function ScenarioWorkspace({ category, generationKind }: { category: WorkbenchCa
 function ScriptSplitWorkbench() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const agentSettings = useAgentStore((s) => s.settings)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [sourceTitle, setSourceTitle] = useState('')
   const [sourceText, setSourceText] = useState('')
+  const [sourceFileName, setSourceFileName] = useState('')
+  const [sourceFileError, setSourceFileError] = useState('')
+  const [importingFile, setImportingFile] = useState(false)
   const [saveSourceScript, setSaveSourceScript] = useState(true)
   const [drafts, setDrafts] = useState<ScriptSplitDraft[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [result, setResult] = useState<ScriptSplitResult | null>(null)
+  const [lastAgentRunId, setLastAgentRunId] = useState<string | null>(null)
 
   const { data: scripts = [], isLoading: scriptsLoading } = useQuery<Script[]>({
     queryKey: ['workbench-script-scripts', projectId],
     queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),
     enabled: !!projectId,
+  })
+  const { data: textModels = [] } = useQuery<PublicModel[]>({
+    queryKey: ['models', 'text'],
+    queryFn: () => api.get('/models?capability=text').then((r) => r.data),
   })
 
   const sortedScripts = useMemo(
@@ -2185,36 +2312,116 @@ function ScriptSplitWorkbench() {
     [sortedScripts],
   )
   const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0] ?? null
+  const sourceTitleLabel = sourceTitle.trim() || sourceFileName || '未命名总稿'
+  const modelId = agentSettings.modelId ?? textModels[0]?.id ?? null
+  const activeModel = textModels.find((model) => model.id === modelId)
 
   function syncDrafts(nextDrafts: ScriptSplitDraft[]) {
     setDrafts(nextDrafts)
     setSelectedDraftId(nextDrafts[0]?.id ?? null)
   }
 
-  function handleSplit() {
-    const normalized = sourceText.trim()
-    if (!normalized) {
-      toast.info('先粘贴剧本文本')
-      return
-    }
+  function resetAgentDrafts() {
+    syncDrafts([])
+    setResult(null)
+    setLastAgentRunId(null)
+  }
+
+  function handleSourceTextChange(text: string) {
+    setSourceText(text)
+    resetAgentDrafts()
+  }
+
+  async function runScriptSplitAgent(normalized: string) {
+    if (!projectId) throw new Error('请先选择项目')
+    if (!modelId) throw new Error('请先在右侧 Agent 面板选择一个文本模型')
     const baseTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
-    const nextDrafts = splitScriptIntoEpisodeDrafts(normalized).map((draft) => {
-      const existing = findMatchingScript(sortedScripts, draft.title, 'episode')
-      const action: ScriptSplitDraft['action'] = existing ? 'update' : 'create'
-      return {
-        ...draft,
-        action,
-        existingScriptId: existing?.ID ?? null,
-      }
-    })
-    syncDrafts(nextDrafts)
-    setResult({
+    await localAgentClient.ensureRunning()
+    await syncRuntimeModelConfig(modelId, activeModel ? publicModelLabel(activeModel) : undefined)
+    const message = buildScriptSplitAgentMessage({
+      projectId,
       sourceTitle: baseTitle,
-      sourceScriptId: null,
-      createdCount: 0,
-      updatedCount: 0,
-      episodeCount: nextDrafts.length,
+      sourceText: normalized,
+      scripts: sortedScripts,
     })
+    const clientInput = buildCommandFirstClientInput({
+      message,
+      labels: ['script-split-workbench', 'structured-output'],
+      hints: {
+        projectId,
+        selection: null,
+      },
+    })
+    const { run, thread } = await localAgentClient.runMessage({
+      message,
+      title: `剧本拆分: ${baseTitle}`,
+      projectId,
+      clientInput,
+    }, {
+      timeoutMs: 120_000,
+      agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
+    })
+    if (run.status !== 'completed' && run.status !== 'completed_with_warnings') {
+      throw new Error(run.error || `Agent 运行未完成：${run.status}`)
+    }
+    const assistant = thread.messages.find((message) => message.id === run.assistantMessageId)
+      ?? [...thread.messages].reverse().find((message) => message.role === 'assistant')
+    if (!assistant?.content) throw new Error('Agent 没有返回拆分结果')
+    return {
+      baseTitle,
+      drafts: parseScriptSplitAgentContent(assistant.content, sortedScripts, normalized),
+      runId: run.id,
+    }
+  }
+
+  async function handleImportFile(file?: File) {
+    if (!file) return
+    setImportingFile(true)
+    setSourceFileError('')
+    try {
+      const text = await readScriptDocument(file)
+      const normalized = text.trim()
+      if (!normalized) throw new Error('文件里没有可拆分的文本')
+      setSourceText(text)
+      setSourceFileName(file.name)
+      setSourceTitle((current) => current.trim() || scriptDocumentTitleFromName(file.name))
+      resetAgentDrafts()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '读取文档失败'
+      setSourceFileError(message)
+      toast.error(message)
+    } finally {
+      setImportingFile(false)
+    }
+  }
+
+  const splitWithAgent = useMutation({
+    mutationFn: async () => {
+      if (!projectId) throw new Error('请先选择项目')
+      const normalized = sourceText.trim()
+      if (!normalized) throw new Error('请先粘贴剧本文本')
+      return runScriptSplitAgent(normalized)
+    },
+    onSuccess: (next) => {
+      syncDrafts(next.drafts)
+      setLastAgentRunId(next.runId)
+      setResult({
+        sourceTitle: next.baseTitle,
+        sourceScriptId: null,
+        createdCount: 0,
+        updatedCount: 0,
+        episodeCount: next.drafts.length,
+        agentRunId: next.runId,
+      })
+      toast.success(`Agent 已拆分出 ${next.drafts.length} 集`)
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Agent 拆分失败')
+    },
+  })
+
+  function handleSplit() {
+    splitWithAgent.mutate()
   }
 
   function updateDraft(id: string, patch: Partial<ScriptSplitDraft>) {
@@ -2222,6 +2429,7 @@ function ScriptSplitWorkbench() {
   }
 
   async function upsertScript(payload: {
+    existingScriptId?: number | null
     title: string
     description?: string
     content: string
@@ -2233,7 +2441,9 @@ function ScriptSplitWorkbench() {
     parent_script_id?: number | null
   }) {
     if (!projectId) throw new Error('请先选择项目')
-    const existing = findMatchingScript(sortedScripts, payload.title, payload.script_type)
+    const existing = payload.existingScriptId
+      ? findScriptByIdAndType(sortedScripts, payload.existingScriptId, payload.script_type)
+      : findMatchingScript(sortedScripts, payload.title, payload.script_type)
     const body = {
       title: payload.title,
       description: payload.description ?? '',
@@ -2257,7 +2467,15 @@ function ScriptSplitWorkbench() {
       const normalized = sourceText.trim()
       if (!normalized) throw new Error('请先粘贴剧本文本')
 
-      const nextDrafts = drafts.length > 0 ? drafts : splitScriptIntoEpisodeDrafts(normalized)
+      let agentRunId = lastAgentRunId ?? undefined
+      let nextDrafts = drafts
+      if (nextDrafts.length === 0) {
+        const agentResult = await runScriptSplitAgent(normalized)
+        nextDrafts = agentResult.drafts
+        agentRunId = agentResult.runId
+        syncDrafts(nextDrafts)
+        setLastAgentRunId(agentResult.runId)
+      }
       if (nextDrafts.length === 0) throw new Error('没有可拆分的剧本内容')
 
       let sourceScriptId: number | null = null
@@ -2265,6 +2483,7 @@ function ScriptSplitWorkbench() {
 
       if (saveSourceScript) {
         const sourceScript = await upsertScript({
+          existingScriptId: null,
           title: sourceScriptTitle,
           description: `自动拆分为 ${nextDrafts.length} 集`,
           content: normalized,
@@ -2282,7 +2501,11 @@ function ScriptSplitWorkbench() {
       let updatedCount = 0
       const createdScripts: Script[] = []
       for (const draft of nextDrafts) {
+        const existing = draft.existingScriptId
+          ? findScriptByIdAndType(sortedScripts, draft.existingScriptId, 'episode')
+          : findMatchingScript(sortedScripts, draft.title, 'episode')
         const saved = await upsertScript({
+          existingScriptId: existing?.ID ?? null,
           title: draft.title,
           description: draft.summary,
           content: draft.content,
@@ -2294,7 +2517,7 @@ function ScriptSplitWorkbench() {
           parent_script_id: sourceScriptId,
         })
         createdScripts.push(saved)
-        if (draft.existingScriptId) updatedCount += 1
+        if (existing) updatedCount += 1
         else createdCount += 1
       }
 
@@ -2304,6 +2527,7 @@ function ScriptSplitWorkbench() {
         createdCount,
         updatedCount,
         episodeCount: createdScripts.length,
+        agentRunId,
       } satisfies ScriptSplitResult
     },
     onSuccess: (next) => {
@@ -2337,17 +2561,41 @@ function ScriptSplitWorkbench() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()} disabled={importingFile}>
+              {importingFile ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              {importingFile ? '导入中' : '导入文档'}
+            </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate('/scripts')}>
               <FileText size={14} />
               剧本管理
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={handleSplit} disabled={!sourceText.trim() || createAll.isPending}>
-              <Scissors size={14} />
-              自动拆分
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={handleSplit}
+              disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}
+            >
+              {splitWithAgent.isPending ? <Loader2 size={14} className="animate-spin" /> : <Scissors size={14} />}
+              {splitWithAgent.isPending ? 'Agent 拆分中' : 'Agent 拆分'}
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}>
+              {createAll.isPending ? '写入中' : '拆分并写入'}
             </Button>
           </div>
         </div>
       </header>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept={SCRIPT_DOCUMENT_ACCEPT}
+        onChange={(event) => {
+          void handleImportFile(event.target.files?.[0])
+          event.currentTarget.value = ''
+        }}
+      />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <main className="min-w-0 flex-1 overflow-y-auto bg-muted/20 p-5">
@@ -2356,7 +2604,7 @@ function ScriptSplitWorkbench() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">总稿输入</p>
-                  <p className="mt-1 text-xs text-muted-foreground">支持「第 1 集 / 第1集 / EP01」之类的集标题。</p>
+                  <p className="mt-1 text-xs text-muted-foreground">复用现有本地 Agent Runtime，输出结构化分集草稿后再写入剧本。</p>
                 </div>
                 <Badge variant="outline">{sourceText.length} 字</Badge>
               </div>
@@ -2368,14 +2616,15 @@ function ScriptSplitWorkbench() {
                     onChange={(event) => setSourceTitle(event.target.value)}
                     placeholder="例如：XX 剧集总稿"
                   />
+                  <p className="mt-1 text-[11px] text-muted-foreground">来源: {sourceTitleLabel}</p>
                 </div>
                 <div>
                   <Label className="mb-1 text-xs text-muted-foreground">剧本文本</Label>
                   <Textarea
                     className="min-h-[420px] resize-none font-mono text-xs leading-relaxed"
                     value={sourceText}
-                    onChange={(event) => setSourceText(event.target.value)}
-                    placeholder="把总剧本贴在这里。工作台会按集标题拆分成多个剧本。"
+                    onChange={(event) => handleSourceTextChange(event.target.value)}
+                    placeholder="把总剧本贴在这里，或先导入 `.docx` / `.txt` 文档。工作台会按集标题拆分成多个剧本。"
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
@@ -2389,14 +2638,24 @@ function ScriptSplitWorkbench() {
                     同步保存总稿
                   </label>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSourceText(''); setSourceTitle(''); syncDrafts([]); setResult(null) }}>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSourceText(''); setSourceTitle(''); setSourceFileName(''); setSourceFileError(''); resetAgentDrafts() }}>
                       清空
                     </Button>
-                    <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={!sourceText.trim() || createAll.isPending}>
-                      {createAll.isPending ? '创建中' : '创建剧本'}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleSplit}
+                      disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}
+                    >
+                      {splitWithAgent.isPending ? 'Agent 拆分中' : 'Agent 拆分'}
+                    </Button>
+                    <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}>
+                      {createAll.isPending ? '写入中' : '写入剧本'}
                     </Button>
                   </div>
                 </div>
+                {sourceFileError && <p className="text-xs text-destructive">{sourceFileError}</p>}
               </div>
             </section>
 
@@ -2483,11 +2742,12 @@ function ScriptSplitWorkbench() {
               {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本</Badge>}
             </div>
             <div className="mt-3 grid gap-2">
-              <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitle.trim() || '未命名总稿'} />
-              <WorkbenchMiniStat label="拆分集数" value={drafts.length || '0'} detail="自动识别出来的分集数量" />
-              <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
-              <WorkbenchMiniStat label="已有分集剧本" value={episodeScripts.length} detail="当前项目内的分集脚本数量" />
-            </div>
+                <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitleLabel} />
+                <WorkbenchMiniStat label="拆分集数" value={drafts.length || '0'} detail="自动识别出来的分集数量" />
+                <WorkbenchMiniStat label="Agent" value={lastAgentRunId ? '已运行' : '待运行'} detail={lastAgentRunId ? `run ${lastAgentRunId}` : '使用现有本地 Agent 会话'} />
+                <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
+                <WorkbenchMiniStat label="已有分集剧本" value={episodeScripts.length} detail="当前项目内的分集脚本数量" />
+              </div>
           </section>
 
           {result && (
@@ -2510,6 +2770,12 @@ function ScriptSplitWorkbench() {
                   <p className="text-muted-foreground">更新</p>
                   <p className="mt-1 text-foreground">{result.updatedCount}</p>
                 </div>
+                {result.agentRunId && (
+                  <div className="col-span-2 rounded-md border border-border px-2 py-2">
+                    <p className="text-muted-foreground">Agent Run</p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-foreground">{result.agentRunId}</p>
+                  </div>
+                )}
               </div>
               <Button variant="outline" size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/scripts')}>
                 <ArrowRight size={13} />

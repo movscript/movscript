@@ -2,26 +2,13 @@ package semantic
 
 import (
 	"context"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 func (s *Service) ListWorkItems(ctx context.Context, filter WorkItemFilter) ([]model.WorkItem, error) {
-	items := make([]model.WorkItem, 0)
-	q := s.db.WithContext(ctx).Preload("Assignee").Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	if targetType := strings.TrimSpace(filter.TargetType); targetType != "" {
-		q = q.Where("target_type = ?", targetType)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("status, priority desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListWorkItems(ctx, filter)
 }
 
 func (s *Service) CreateWorkItem(ctx context.Context, projectID uint, auth WorkAuth, input WorkItemInput) (model.WorkItem, error) {
@@ -77,16 +64,7 @@ func (s *Service) PatchWorkItem(ctx context.Context, projectID uint, id string, 
 }
 
 func (s *Service) ListWorkReviews(ctx context.Context, filter WorkReviewFilter) ([]model.WorkReview, error) {
-	items := make([]model.WorkReview, 0)
-	q := s.db.WithContext(ctx).Preload("Reviewer").Where("project_id = ?", filter.ProjectID)
-	if filter.WorkItemID > 0 {
-		q = q.Where("work_item_id = ?", filter.WorkItemID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("work_item_id, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListWorkReviews(ctx, filter)
 }
 
 func (s *Service) CreateWorkReview(ctx context.Context, projectID uint, auth WorkAuth, input WorkReviewInput) (model.WorkReview, error) {
@@ -137,13 +115,7 @@ func (s *Service) PatchWorkReview(ctx context.Context, projectID uint, id string
 }
 
 func (s *Service) ListWorkDependencies(ctx context.Context, filter WorkDependencyFilter) ([]model.WorkDependency, error) {
-	items := make([]model.WorkDependency, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.WorkItemID > 0 {
-		q = q.Where("work_item_id = ?", filter.WorkItemID)
-	}
-	err := q.Order("work_item_id, id").Find(&items).Error
-	return items, err
+	return s.repo.ListWorkDependencies(ctx, filter)
 }
 
 func (s *Service) CreateWorkDependency(ctx context.Context, projectID uint, auth WorkAuth, input WorkDependencyInput) (model.WorkDependency, error) {

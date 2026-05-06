@@ -16,6 +16,9 @@ import {
 import {
   PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
 } from './production/orchestrationContract.js'
+import {
+  SCRIPT_SPLIT_RUNTIME_CONTRACT,
+} from './runtime/contracts/scriptSplitContract.js'
 import type { JSONValue } from './types.js'
 
 const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
@@ -36,6 +39,7 @@ const productionRuntime = new ProductionRuntime({
 })
 const runtimeContractResolver = new StaticAgentRuntimeContractResolver([
   PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+  SCRIPT_SPLIT_RUNTIME_CONTRACT,
 ])
 
 const agentRuntime = new AgentRuntime({

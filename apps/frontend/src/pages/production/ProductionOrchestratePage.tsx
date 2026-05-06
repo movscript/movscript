@@ -231,6 +231,21 @@ interface ProposalDraftContent {
   proposedAt?: string
 }
 
+interface ProposalSimulationResult {
+  acceptedNodes: number
+  rejectedNodes: number
+  unresolvedNodes: number
+  counts: {
+    segments_created: number
+    scene_moments_created: number
+    content_units_created: number
+    asset_slots_created: number
+    creative_references_created: number
+    creative_reference_usages: number
+  }
+  actions: { create: number; reuse: number; update: number }
+}
+
 type CandidateStatus =
   | 'pending'            // no conflict, awaiting user review
   | 'accepted'           // user accepted
@@ -1028,6 +1043,14 @@ export default function ProductionOrchestratePage() {
     return <ContentUnitRow key={unit.ID} unit={unit} segments={allSegments} sceneMoments={allSceneMoments} {...sharedEntityProps} />
   }
 
+  const candidateWorkbench = (
+    <CandidateWorkbench
+      candidates={candidates}
+      onClear={handleClearCandidates}
+      renderCandidate={renderCandidateRow}
+    />
+  )
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {/* Header */}
@@ -1058,6 +1081,18 @@ export default function ProductionOrchestratePage() {
           <div className="flex items-center gap-2">
             {isFetching && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
             {!proposalPreviewDraft && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">UI 预览</Badge>}
+            <Button
+              size="sm"
+              variant={aiPanelOpen ? 'secondary' : 'default'}
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => {
+                if (aiPanelOpen) setAIPanelOpen(false)
+                else handleContextPrimaryAction()
+              }}
+            >
+              <Wand2 size={13} />
+              {aiPanelOpen ? '收起 AI' : '触发 AI'}
+            </Button>
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => refetch()}>
               <RefreshCw size={13} />
               刷新
@@ -1093,11 +1128,35 @@ export default function ProductionOrchestratePage() {
           )}
         </main>
 
-        <ProposalReviewSidebar
-          projectId={projectId}
-          proposalDraft={activeProposalDraft}
-          previewOnly={!proposalPreviewDraft}
-        />
+        <aside className="relative w-[420px] shrink-0 overflow-hidden border-l border-border bg-card">
+          <div className={cn('absolute inset-0 transition-all duration-200', aiPanelOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-full opacity-0')}>
+            <AgentChatSidebar
+              projectId={projectId}
+              production={selectedProduction ? { ...selectedProduction, script_version_id: selectedProduction.script_version_id, name: selectedProduction.name } : undefined}
+              selectedSegment={selectedSegment}
+              segments={allSegments}
+              sceneMoments={allSceneMoments}
+              creativeReferences={allCreativeReferences}
+              assetSlots={allAssetSlots}
+              contentUnits={allContentUnits}
+              guideCounts={guideCounts}
+              pendingCounts={guidePendingCounts}
+              orchestrationPrompt={orchestrationPrompt}
+              onOrchestrationPromptChange={setOrchestrationPrompt}
+              candidateWorkbench={candidateWorkbench}
+              onClose={() => setAIPanelOpen(false)}
+              onResult={() => undefined}
+              onProposalDraft={(draft) => setProposalPreviewDraft(draft)}
+            />
+          </div>
+          <div className={cn('absolute inset-0 transition-all duration-200', aiPanelOpen ? 'pointer-events-none -translate-x-full opacity-0' : 'translate-x-0 opacity-100')}>
+            <ProposalReviewSidebar
+              projectId={projectId}
+              proposalDraft={activeProposalDraft}
+              previewOnly={!proposalPreviewDraft}
+            />
+          </div>
+        </aside>
       </div>
 
       {/* CRUD dialogs */}
@@ -3870,6 +3929,7 @@ function AgentChatSidebar({
   candidateWorkbench,
   onClose,
   onResult,
+  onProposalDraft,
 }: {
   projectId?: number
   production?: SemanticEntityRecord & { script_version_id?: number; name?: string }
@@ -3886,6 +3946,7 @@ function AgentChatSidebar({
   candidateWorkbench: ReactNode
   onClose: () => void
   onResult: (result: AIAnalysisResult) => void
+  onProposalDraft: (draft: ProposalDraftContent) => void
 }) {
   const scriptVersionId = Number(production?.script_version_id) || 0
 
@@ -3992,6 +4053,7 @@ function AgentChatSidebar({
       const proposalResult = await tryReadProposalDraft(client, projectId, productionId)
       if (proposalResult.kind === 'tree' && proposalResult.draft) {
         setProposalDraft(proposalResult.draft)
+        onProposalDraft(proposalResult.draft)
         setPhase('proposal')
         return
       }
@@ -4476,6 +4538,7 @@ function ProposalReviewPanel({
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState('')
   const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
+  const [simulationResult, setSimulationResult] = useState<ProposalSimulationResult | null>(null)
   const [expandedSegments, setExpandedSegments] = useState<Set<string>>(() => new Set(['demo_segment_existing', 'demo_segment_new']))
   const [nodeDecisions, setNodeDecisions] = useState<Record<string, 'accepted' | 'rejected'>>({})
 
@@ -4505,21 +4568,97 @@ function ProposalReviewPanel({
   }
 
   function setNodeDecision(key: string, decision: 'accepted' | 'rejected') {
+    setSimulationResult(null)
     setNodeDecisions((prev) => ({ ...prev, [key]: decision }))
   }
 
   function acceptAllNodes() {
+    setSimulationResult(null)
     setNodeDecisions(Object.fromEntries(reviewNodes.map((node) => [node.key, 'accepted'])))
   }
 
   function resetNodeDecisions() {
+    setSimulationResult(null)
+    setApplyError('')
     setNodeDecisions({})
   }
 
-  async function handleAccept() {
+  function buildAcceptedProposal() {
+    const acceptedSegments = segments.flatMap((segment, index) => {
+      const segmentKey = nodeDecisionKey('segment', segment.client_id ?? String(index))
+      if (nodeDecisions[segmentKey] !== 'accepted') return []
+      return [{
+        ...segment,
+        scene_moments: (segment.scene_moments ?? []).filter((moment, momentIndex) =>
+          nodeDecisions[nodeDecisionKey('scene_moment', moment.client_id ?? `${segment.client_id ?? String(index)}-${momentIndex}`)] === 'accepted'
+        ),
+      }]
+    })
+    return { segments: acceptedSegments }
+  }
+
+  function buildSimulationResult() {
+    const proposal = buildAcceptedProposal()
+    const counts = {
+      segments_created: 0,
+      scene_moments_created: 0,
+      content_units_created: 0,
+      asset_slots_created: 0,
+      creative_references_created: 0,
+      creative_reference_usages: 0,
+    }
+    const actions = { create: 0, reuse: 0, update: 0 }
+    const addAction = (action?: string) => {
+      if (action === 'reuse') actions.reuse += 1
+      else if (action === 'update') actions.update += 1
+      else actions.create += 1
+    }
+
+    for (const segment of proposal.segments) {
+      addAction(segment.action)
+      if (segment.action === 'create') counts.segments_created += 1
+      for (const moment of segment.scene_moments ?? []) {
+        addAction(moment.action)
+        if (moment.action === 'create') counts.scene_moments_created += 1
+        for (const reference of moment.creative_references ?? []) {
+          addAction(reference.action)
+          counts.creative_reference_usages += 1
+          if (reference.action === 'create') counts.creative_references_created += 1
+        }
+        for (const slot of moment.asset_slots ?? []) {
+          addAction(slot.action)
+          if (slot.action === 'create') counts.asset_slots_created += 1
+        }
+        for (const unit of moment.content_units ?? []) {
+          addAction(unit.action)
+          if (unit.action === 'create') counts.content_units_created += 1
+        }
+      }
+    }
+
+    return {
+      acceptedNodes: reviewNodes.filter((node) => nodeDecisions[node.key] === 'accepted').length,
+      rejectedNodes: reviewNodes.filter((node) => nodeDecisions[node.key] === 'rejected').length,
+      unresolvedNodes: Math.max(0, reviewNodes.length - reviewNodes.filter((node) => nodeDecisions[node.key] === 'accepted' || nodeDecisions[node.key] === 'rejected').length),
+      counts,
+      actions,
+    }
+  }
+
+  function handleSimulate() {
+    setApplyError('')
+    setSimulationResult(buildSimulationResult())
+  }
+
+  async function handleApply() {
     if (!projectId) return
     if (previewOnly) {
-      toast.info('当前使用示例提案，Agent 接入后会写入真实分集生产包。')
+      handleSimulate()
+      return
+    }
+    const proposal = buildAcceptedProposal()
+    if (proposal.segments.length === 0) {
+      setApplyError('请至少接受一个段落后再写入项目')
       return
     }
     setApplying(true)
@@ -4528,7 +4667,7 @@ function ProposalReviewPanel({
       const result = await applyProductionProposal(projectId, {
         production_id: proposalDraft.productionId,
         analysis_scope: proposalDraft.analysisScope ?? 'production',
-        proposal: proposalDraft.proposal,
+        proposal,
       })
       setAppliedCounts(result.counts as unknown as Record<string, number>)
     } catch (err) {
@@ -4566,6 +4705,39 @@ function ProposalReviewPanel({
         </div>
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAccepted}>
           完成
+        </Button>
+      </div>
+    )
+  }
+
+  if (simulationResult) {
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <Eye size={13} className="shrink-0 text-emerald-500" />
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">模拟写入已生成</p>
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-emerald-700/80 dark:text-emerald-300/80">
+            本次预览仅基于当前接受/拒绝决策计算，不会提交到项目。
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] text-emerald-700 dark:text-emerald-300">
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">已接受 {simulationResult.acceptedNodes}</span>
+            <span className="rounded bg-rose-500/10 px-1.5 py-1">已拒绝 {simulationResult.rejectedNodes}</span>
+            <span className="rounded bg-muted px-1.5 py-1">未审 {simulationResult.unresolvedNodes}</span>
+            <span className="rounded bg-muted px-1.5 py-1">创建 {simulationResult.actions.create}</span>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">段落 +{simulationResult.counts.segments_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{simulationResult.counts.scene_moments_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">制作项 +{simulationResult.counts.content_units_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">资料 +{simulationResult.counts.creative_references_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材 +{simulationResult.counts.asset_slots_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">引用 +{simulationResult.counts.creative_reference_usages}</span>
+          </div>
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSimulationResult(null)}>
+          返回审阅
         </Button>
       </div>
     )
@@ -4672,24 +4844,24 @@ function ProposalReviewPanel({
                     </span>
                   )}
                 </button>
-                {expanded && smCount > 0 && (
+                {(expanded || smCount === 0) && (
                   <div className="border-t border-border bg-muted/20">
-                    {(seg.summary || seg.rationale) && (
-                      <div className="border-b border-border/50 px-6 py-2">
+                    <div className="border-b border-border/50 px-6 py-2">
+                      {(seg.summary || seg.rationale) && (
                         <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">{seg.rationale || seg.summary}</p>
-                        {seg.action === 'update' && Boolean(seg.before?.title) && (
-                          <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">原标题：{String(seg.before?.title)}</p>
-                        )}
-                        <div className="mt-2 flex gap-1.5">
-                          <Button size="sm" variant={decision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('segment', key), 'accepted')}>
-                            接受段落
-                          </Button>
-                          <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('segment', key), 'rejected')}>
-                            拒绝段落
-                          </Button>
-                        </div>
+                      )}
+                      {seg.action === 'update' && Boolean(seg.before?.title) && (
+                        <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">原标题：{String(seg.before?.title)}</p>
+                      )}
+                      <div className="mt-2 flex gap-1.5">
+                        <Button size="sm" variant={decision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('segment', key), 'accepted')}>
+                          接受段落
+                        </Button>
+                        <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('segment', key), 'rejected')}>
+                          拒绝段落
+                        </Button>
                       </div>
-                    )}
+                    </div>
                     {(seg.scene_moments ?? []).map((sm, j) => {
                       const smKey = sm.client_id ?? String(j)
                       const cuCount = sm.content_units?.length ?? 0
@@ -4760,11 +4932,11 @@ function ProposalReviewPanel({
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className={cn('grid gap-2', previewOnly ? 'grid-cols-2' : 'grid-cols-3')}>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 flex-1 text-xs"
+          className="h-7 text-xs"
           disabled={applying}
           onClick={previewOnly ? resetNodeDecisions : onDiscard}
         >
@@ -4772,13 +4944,25 @@ function ProposalReviewPanel({
         </Button>
         <Button
           size="sm"
-          className="h-7 flex-1 gap-1.5 text-xs"
-          disabled={applying || !projectId}
-          onClick={handleAccept}
+          variant="outline"
+          className="h-7 gap-1.5 text-xs"
+          disabled={applying}
+          onClick={handleSimulate}
         >
-          {applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-          {previewOnly ? '模拟写入' : '写入项目'}
+          <Eye size={11} />
+          模拟写入
         </Button>
+        {!previewOnly && (
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            disabled={applying || !projectId}
+            onClick={handleApply}
+          >
+            {applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            写入项目
+          </Button>
+        )}
       </div>
     </div>
   )

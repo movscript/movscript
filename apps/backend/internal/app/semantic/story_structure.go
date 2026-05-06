@@ -2,27 +2,12 @@ package semantic
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 func (s *Service) ListSegments(ctx context.Context, filter SegmentFilter) ([]model.Segment, error) {
-	items := make([]model.Segment, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	if filter.TextBlockID > 0 {
-		q = q.Where("text_block_id = ?", filter.TextBlockID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order(`production_id, text_block_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListSegments(ctx, filter)
 }
 
 func (s *Service) CreateSegment(ctx context.Context, projectID uint, input CreateSegmentInput) (model.Segment, error) {
@@ -86,16 +71,7 @@ func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, i
 }
 
 func (s *Service) ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]model.ProductionTextBlock, error) {
-	items := make([]model.ProductionTextBlock, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order(`production_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListProductionTextBlocks(ctx, filter)
 }
 
 func (s *Service) CreateProductionTextBlock(ctx context.Context, projectID uint, input CreateProductionTextBlockInput) (model.ProductionTextBlock, error) {
@@ -165,13 +141,7 @@ func (s *Service) PatchProductionTextBlock(ctx context.Context, projectID uint, 
 }
 
 func (s *Service) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]model.SceneMoment, error) {
-	items := make([]model.SceneMoment, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.SegmentID > 0 {
-		q = q.Where("segment_id = ?", filter.SegmentID)
-	}
-	err := q.Order(`segment_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListSceneMoments(ctx, filter)
 }
 
 func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input CreateSceneMomentInput) (model.SceneMoment, error) {
@@ -233,28 +203,5 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 }
 
 func (s *Service) resolveSegmentOwners(ctx context.Context, projectID uint, productionID *uint, textBlockID *uint) (*uint, *uint, error) {
-	if productionID != nil {
-		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
-			return nil, nil, err
-		}
-	}
-	if textBlockID == nil {
-		return productionID, nil, nil
-	}
-
-	var block model.ProductionTextBlock
-	if err := s.db.WithContext(ctx).Select("id, project_id, production_id").First(&block, *textBlockID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, ErrTextBlockNotFound
-		}
-		return nil, nil, err
-	}
-	if block.ProjectID != projectID {
-		return nil, nil, ErrOwnerWrongProject
-	}
-	if productionID != nil && *productionID != block.ProductionID {
-		return nil, nil, ErrSegmentProductionMismatch
-	}
-	resolvedProductionID := block.ProductionID
-	return &resolvedProductionID, textBlockID, nil
+	return s.repo.ResolveSegmentOwners(ctx, projectID, productionID, textBlockID)
 }

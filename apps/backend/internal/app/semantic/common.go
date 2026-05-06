@@ -2,12 +2,9 @@ package semantic
 
 import (
 	"context"
-	"errors"
 	"reflect"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	"gorm.io/gorm"
 )
 
 func (s *Service) LoadProjectItem(ctx context.Context, projectID uint, item any, id string) error {
@@ -73,54 +70,15 @@ func projectIDOf(item any) uint {
 }
 
 func (s *Service) ensureProductionInProject(ctx context.Context, projectID uint, productionID uint) error {
-	if productionID == 0 {
-		return ErrOwnerNotFound
-	}
-	var production model.Production
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&production, productionID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if production.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureProductionInProject(ctx, projectID, productionID)
 }
 
 func (s *Service) ensureProductionTextBlockInProject(ctx context.Context, projectID uint, blockID uint) error {
-	if blockID == 0 {
-		return ErrOwnerNotFound
-	}
-	var block model.ProductionTextBlock
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&block, blockID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if block.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureProductionTextBlockInProject(ctx, projectID, blockID)
 }
 
 func (s *Service) ensureSegmentInProject(ctx context.Context, projectID uint, segmentID uint) error {
-	if segmentID == 0 {
-		return ErrOwnerNotFound
-	}
-	var segment model.Segment
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&segment, segmentID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if segment.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureSegmentInProject(ctx, projectID, segmentID)
 }
 
 func (s *Service) validateProductionOwners(ctx context.Context, projectID uint, scriptVersionID *uint, previewTimelineID *uint) error {
@@ -189,71 +147,19 @@ func (s *Service) EnsurePreviewTimelineInProject(ctx context.Context, projectID 
 }
 
 func (s *Service) ensureScriptVersionInProject(ctx context.Context, projectID uint, scriptVersionID uint) error {
-	if scriptVersionID == 0 {
-		return ErrOwnerNotFound
-	}
-	var item model.ScriptVersion
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, scriptVersionID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureScriptVersionInProject(ctx, projectID, scriptVersionID)
 }
 
 func (s *Service) ensurePreviewTimelineInProject(ctx context.Context, projectID uint, previewTimelineID uint) error {
-	if previewTimelineID == 0 {
-		return ErrOwnerNotFound
-	}
-	var item model.PreviewTimeline
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, previewTimelineID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsurePreviewTimelineInProject(ctx, projectID, previewTimelineID)
 }
 
 func (s *Service) ensureSceneMomentInProject(ctx context.Context, projectID uint, sceneMomentID uint) error {
-	if sceneMomentID == 0 {
-		return ErrOwnerNotFound
-	}
-	var item model.SceneMoment
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, sceneMomentID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureSceneMomentInProject(ctx, projectID, sceneMomentID)
 }
 
 func (s *Service) ensureContentUnitInProject(ctx context.Context, projectID uint, contentUnitID uint) error {
-	if contentUnitID == 0 {
-		return ErrOwnerNotFound
-	}
-	var item model.ContentUnit
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, contentUnitID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureContentUnitInProject(ctx, projectID, contentUnitID)
 }
 
 func fallbackString(value string, fallback string) string {

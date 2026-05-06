@@ -2,22 +2,12 @@ package semantic
 
 import (
 	"context"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
 
 func (s *Service) ListProductions(ctx context.Context, filter ProductionFilter) ([]model.Production, error) {
-	items := make([]model.Production, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	if sourceType := strings.TrimSpace(filter.SourceType); sourceType != "" {
-		q = q.Where("source_type = ?", sourceType)
-	}
-	err := q.Order("updated_at desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListProductions(ctx, filter)
 }
 
 func (s *Service) CreateProduction(ctx context.Context, projectID uint, input ProductionInput) (model.Production, error) {
@@ -74,19 +64,7 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 }
 
 func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]model.ContentUnit, error) {
-	items := make([]model.ContentUnit, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	if filter.SegmentID > 0 {
-		q = q.Where("segment_id = ?", filter.SegmentID)
-	}
-	if filter.SceneMomentID > 0 {
-		q = q.Where("scene_moment_id = ?", filter.SceneMomentID)
-	}
-	err := q.Order(`segment_id, scene_moment_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListContentUnits(ctx, filter)
 }
 
 func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (model.ContentUnit, error) {
@@ -118,19 +96,7 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 }
 
 func (s *Service) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]model.Keyframe, error) {
-	items := make([]model.Keyframe, 0)
-	q := s.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	if filter.SceneMomentID > 0 {
-		q = q.Where("scene_moment_id = ?", filter.SceneMomentID)
-	}
-	if filter.ContentUnitID > 0 {
-		q = q.Where("content_unit_id = ?", filter.ContentUnitID)
-	}
-	err := q.Order(`content_unit_id, scene_moment_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListKeyframes(ctx, filter)
 }
 
 func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input KeyframeInput) (model.Keyframe, error) {
@@ -188,13 +154,7 @@ func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, 
 }
 
 func (s *Service) ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]model.PreviewTimeline, error) {
-	items := make([]model.PreviewTimeline, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	err := q.Order("is_primary desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListPreviewTimelines(ctx, filter)
 }
 
 func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, input PreviewTimelineInput) (model.PreviewTimeline, error) {
@@ -244,20 +204,7 @@ func (s *Service) PatchPreviewTimeline(ctx context.Context, projectID uint, id s
 }
 
 func (s *Service) ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]model.PreviewTimelineItem, error) {
-	items := make([]model.PreviewTimelineItem, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.PreviewTimelineID > 0 {
-		q = q.Where("preview_timeline_id = ?", filter.PreviewTimelineID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	order := `preview_timeline_id, "order", id`
-	if filter.PreviewTimelineID > 0 {
-		order = `"order", id`
-	}
-	err := q.Order(order).Find(&items).Error
-	return items, err
+	return s.repo.ListPreviewTimelineItems(ctx, filter)
 }
 
 func (s *Service) CreatePreviewTimelineItem(ctx context.Context, projectID uint, timelineID uint, input PreviewTimelineItemInput) (model.PreviewTimelineItem, error) {

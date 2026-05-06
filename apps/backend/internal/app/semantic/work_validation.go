@@ -2,11 +2,9 @@ package semantic
 
 import (
 	"context"
-	"errors"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	"gorm.io/gorm"
 )
 
 func (s *Service) validateWorkItemInput(ctx context.Context, projectID uint, input WorkItemInput) error {
@@ -90,34 +88,9 @@ func ApplyWorkItemUpdates(item *model.WorkItem, updates map[string]any) {
 }
 
 func (s *Service) ensureUserInProject(ctx context.Context, projectID, userID uint) error {
-	if userID == 0 {
-		return ErrInvalidInput{Err: errors.New("user id is required")}
-	}
-	var count int64
-	s.db.WithContext(ctx).Model(&model.Project{}).Where("id = ? AND owner_id = ?", projectID, userID).Count(&count)
-	if count > 0 {
-		return nil
-	}
-	s.db.WithContext(ctx).Model(&model.ProjectMember{}).Where("project_id = ? AND user_id = ?", projectID, userID).Count(&count)
-	if count == 0 {
-		return ErrInvalidInput{Err: errors.New("执行成员不属于当前项目")}
-	}
-	return nil
+	return s.repo.EnsureUserInProject(ctx, projectID, userID)
 }
 
 func (s *Service) ensureJobInProject(ctx context.Context, projectID, jobID uint) error {
-	if jobID == 0 {
-		return ErrInvalidInput{Err: errors.New("source job id is required")}
-	}
-	var job model.Job
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&job, jobID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if job.ProjectID == nil || *job.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureJobInProject(ctx, projectID, jobID)
 }

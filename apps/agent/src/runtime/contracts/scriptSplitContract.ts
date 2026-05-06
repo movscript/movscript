@@ -1,0 +1,41 @@
+import type { AgentRuntimeContract } from './runtimeContract.js'
+
+export const SCRIPT_SPLIT_RUNTIME_CONTRACT_ID = 'script-split-agent'
+
+export const SCRIPT_SPLIT_RUNTIME_CONTRACT: AgentRuntimeContract = {
+  id: SCRIPT_SPLIT_RUNTIME_CONTRACT_ID,
+  matches: (manifest) => manifest.id === SCRIPT_SPLIT_RUNTIME_CONTRACT_ID,
+  structuredContract: [
+    'Return only one valid JSON object matching schema movscript.script_split_analysis.v1.',
+    'Do not wrap the JSON in markdown fences, prose, or code blocks.',
+    'Output shape:',
+    '{',
+    '  "schema": "movscript.script_split_analysis.v1",',
+    '  "source_title": string,',
+    '  "source_summary": string,',
+    '  "source_script": {',
+    '    "title": string,',
+    '    "summary": string,',
+    '    "content": string,',
+    '    "source_type": "raw"',
+    '  },',
+    '  "episode_drafts": [',
+    '    {',
+    '      "order": number,',
+    '      "title": string,',
+    '      "summary": string,',
+    '      "content": string,',
+    '      "start": number,',
+    '      "end": number,',
+    '      "action": "create" | "update",',
+    '      "existing_script_id": number | null,',
+    '      "rationale": string',
+    '    }',
+    '  ],',
+    '  "warnings": string[],',
+    '  "confidence": number',
+    '}',
+  ].join('\n'),
+  requiresConfiguredModel: true,
+  requiresStructuredJSON: true,
+}

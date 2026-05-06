@@ -3,7 +3,6 @@ package semantic
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
@@ -73,16 +72,7 @@ type StoryboardLineInput struct {
 }
 
 func (s *Service) ListStoryboardScripts(ctx context.Context, filter StoryboardScriptFilter) ([]model.StoryboardScript, error) {
-	items := make([]model.StoryboardScript, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.ScriptVersionID > 0 {
-		q = q.Where("script_version_id = ?", filter.ScriptVersionID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("is_primary desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListStoryboardScripts(ctx, filter)
 }
 
 func (s *Service) CreateStoryboardScript(ctx context.Context, projectID uint, input StoryboardScriptInput) (model.StoryboardScript, error) {
@@ -133,16 +123,7 @@ func (s *Service) PatchStoryboardScript(ctx context.Context, projectID uint, id 
 }
 
 func (s *Service) ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]model.StoryboardVersion, error) {
-	items := make([]model.StoryboardVersion, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.StoryboardScriptID > 0 {
-		q = q.Where("storyboard_script_id = ?", filter.StoryboardScriptID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("storyboard_script_id, version_number desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListStoryboardVersions(ctx, filter)
 }
 
 func (s *Service) CreateStoryboardVersion(ctx context.Context, projectID uint, input StoryboardVersionInput) (model.StoryboardVersion, error) {
@@ -192,19 +173,7 @@ func (s *Service) PatchStoryboardVersion(ctx context.Context, projectID uint, id
 }
 
 func (s *Service) ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]model.StoryboardLine, error) {
-	items := make([]model.StoryboardLine, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.StoryboardScriptID > 0 {
-		q = q.Where("storyboard_script_id = ?", filter.StoryboardScriptID)
-	}
-	if filter.StoryboardVersionID > 0 {
-		q = q.Where("storyboard_version_id = ?", filter.StoryboardVersionID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order(`storyboard_script_id, storyboard_version_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListStoryboardLines(ctx, filter)
 }
 
 func (s *Service) CreateStoryboardLine(ctx context.Context, projectID uint, input StoryboardLineInput) (model.StoryboardLine, error) {
@@ -285,11 +254,5 @@ func storyboardLineFromInput(projectID uint, input StoryboardLineInput) model.St
 }
 
 func (s *Service) nextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int {
-	var maxVersion int
-	s.db.WithContext(ctx).
-		Model(&model.StoryboardVersion{}).
-		Where("project_id = ? AND storyboard_script_id = ?", projectID, storyboardScriptID).
-		Select("COALESCE(MAX(version_number), 0)").
-		Scan(&maxVersion)
-	return maxVersion + 1
+	return s.repo.NextStoryboardVersionNumber(ctx, projectID, storyboardScriptID)
 }

@@ -70,34 +70,7 @@ func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
 }
 
 func (s *Service) ListRelations(ctx context.Context, filter RelationFilter) ([]model.EntityRelation, error) {
-	items := make([]model.EntityRelation, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if category := strings.TrimSpace(filter.Category); category != "" {
-		q = q.Where("category = ?", category)
-	}
-	if relationType := strings.TrimSpace(filter.Type); relationType != "" {
-		q = q.Where("type = ?", relationType)
-	}
-	if sourceType := strings.TrimSpace(filter.SourceType); sourceType != "" {
-		q = q.Where("source_type = ?", sourceType)
-	}
-	if filter.SourceID > 0 {
-		q = q.Where("source_id = ?", filter.SourceID)
-	}
-	if targetType := strings.TrimSpace(filter.TargetType); targetType != "" {
-		q = q.Where("target_type = ?", targetType)
-	}
-	if filter.TargetID > 0 {
-		q = q.Where("target_id = ?", filter.TargetID)
-	}
-	if source := strings.TrimSpace(filter.Source); source != "" {
-		q = q.Where("source = ?", source)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("category, type, source_type, source_id, \"order\", target_type, target_id, id").Find(&items).Error
-	return items, err
+	return s.repo.ListRelations(ctx, filter)
 }
 
 func (s *Service) ListRelationsByEntity(ctx context.Context, projectID uint, entityType string, entityID uint, category string, relationType string) ([]model.EntityRelation, error) {

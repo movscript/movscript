@@ -14,6 +14,9 @@ import type { ApplyDraftReview } from './store/draftApply.js'
 import {
   PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
 } from '../production/orchestrationContract.js'
+import {
+  SCRIPT_SPLIT_RUNTIME_CONTRACT,
+} from './contracts/scriptSplitContract.js'
 import { StaticAgentRuntimeContractResolver } from './contracts/runtimeContract.js'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
@@ -1116,6 +1119,108 @@ test('production orchestration analyzer uses JSON mode and structured tool schem
     await createAndWaitForRun(runtime, thread.id)
 
     assert.equal(requests.length > 0, true)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
+test('script split agent session uses existing runtime with JSON contract', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-script-split-json-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  const requests: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 22, model: 'model_config:22' })
+
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      requests.push(body)
+      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+      const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
+      assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
+      assert.match(systemText, /Runtime structured contract/)
+      assert.match(systemText, /movscript\.script_split_analysis\.v1/)
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              schema: 'movscript.script_split_analysis.v1',
+              source_title: '雨夜总稿',
+              source_summary: '两集短剧总稿。',
+              source_script: {
+                title: '雨夜总稿',
+                summary: '两集短剧总稿。',
+                content: '第1集 雨夜\n便利店相遇。\n\n第2集 旧信\n旧信浮出水面。',
+                source_type: 'raw',
+              },
+              episode_drafts: [
+                {
+                  order: 1,
+                  title: '第1集 雨夜',
+                  summary: '便利店相遇。',
+                  content: '第1集 雨夜\n便利店相遇。',
+                  start: 1,
+                  end: 13,
+                  action: 'create',
+                  existing_script_id: null,
+                  rationale: '首个集标题。',
+                },
+                {
+                  order: 2,
+                  title: '第2集 旧信',
+                  summary: '旧信浮出水面。',
+                  content: '第2集 旧信\n旧信浮出水面。',
+                  start: 16,
+                  end: 30,
+                  action: 'create',
+                  existing_script_id: null,
+                  rationale: '第二个集标题。',
+                },
+              ],
+              warnings: [],
+              confidence: 0.9,
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      contractResolver: new StaticAgentRuntimeContractResolver([
+        SCRIPT_SPLIT_RUNTIME_CONTRACT,
+      ]),
+    })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请拆分：第1集 雨夜\n便利店相遇。\n\n第2集 旧信\n旧信浮出水面。' }] })
+    const run = await createAndWaitForRun(runtime, thread.id, {
+      agentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        id: 'script-split-agent',
+        name: '剧本拆分 Agent',
+        soul: '输出必须是一个 machine-readable JSON 对象。',
+        permissions: ['project.read'],
+        tools: [
+          { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
+          { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
+        ],
+      },
+    })
+    const finalThread = runtime.getThread(thread.id)
+    const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+    const parsed = JSON.parse(assistant?.content ?? '{}') as { schema?: string; episode_drafts?: unknown[] }
+
+    assert.equal(run.status, 'completed')
+    assert.equal(requests.length, 1)
+    assert.equal(run.metadata?.runtimeContractId, 'script-split-agent')
+    assert.equal(parsed.schema, 'movscript.script_split_analysis.v1')
+    assert.equal(parsed.episode_drafts?.length, 2)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
