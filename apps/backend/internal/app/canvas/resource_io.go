@@ -22,7 +22,7 @@ import (
 )
 
 func (h *Service) completeResourceSinkTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User, value canvasPortValue) map[string]canvasPortValue {
-	h.db.Model(task).Update("status", "running")
+	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 	value.Normalize()
 	if value.ResourceID != nil && *value.ResourceID > 0 {
 		outputs := map[string]canvasPortValue{
@@ -30,10 +30,7 @@ func (h *Service) completeResourceSinkTask(ctx context.Context, task *model.Canv
 			"": value,
 		}
 		h.updateTaskOutputValues(task, outputs)
-		h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": *value.ResourceID})
-		nd.Status = "done"
-		nd.ResourceID = value.ResourceID
-		nd.TaskID = &task.ID
+		_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, value.ResourceID))
 		if task.CanvasRunID == nil {
 			h.updateNodeData(node, nd)
 		}
@@ -58,10 +55,7 @@ func (h *Service) completeResourceSinkTask(ctx context.Context, task *model.Canv
 		"": outputValue,
 	}
 	h.updateTaskOutputValues(task, outputs)
-	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
-	nd.Status = "done"
-	nd.ResourceID = &r.ID
-	nd.TaskID = &task.ID
+	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -186,14 +180,14 @@ func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uin
 		StorageBackend: h.store.Backend(),
 		StorageKey:     key,
 	}
-	if err := h.db.Create(&r).Error; err != nil {
+	if err := h.canvasRepo().CreateResource(ctx, &r); err != nil {
 		return nil, fmt.Errorf("create resource record: %w", err)
 	}
 	if err := h.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
-		h.db.Delete(&r)
+		_ = h.canvasRepo().DeleteResource(ctx, &r)
 		return nil, fmt.Errorf("store resource: %w", err)
 	}
-	h.db.Model(&r).Update("file_path", "stored:"+key)
+	_ = h.canvasRepo().UpdateResource(ctx, &r, map[string]any{"file_path": "stored:" + key})
 	r.FilePath = "stored:" + key
 	return &r, nil
 }

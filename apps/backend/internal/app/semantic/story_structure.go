@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 func (s *Service) ListSegments(ctx context.Context, filter SegmentFilter) ([]model.Segment, error) {
@@ -15,19 +16,19 @@ func (s *Service) CreateSegment(ctx context.Context, projectID uint, input Creat
 	if err != nil {
 		return model.Segment{}, err
 	}
-	item := model.Segment{
+	item := domainsemantic.NewSegment(domainsemantic.SegmentSpec{
 		ProjectID:       projectID,
 		ProductionID:    productionID,
 		TextBlockID:     textBlockID,
 		ParentSegmentID: input.ParentSegmentID,
-		Kind:            fallbackString(input.Kind, "section"),
+		Kind:            input.Kind,
 		Order:           input.Order,
 		Title:           input.Title,
 		Summary:         input.Summary,
 		Content:         input.Content,
-		Status:          fallbackString(input.Status, "draft"),
+		Status:          input.Status,
 		MetadataJSON:    input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -83,19 +84,19 @@ func (s *Service) CreateProductionTextBlock(ctx context.Context, projectID uint,
 			return model.ProductionTextBlock{}, err
 		}
 	}
-	item := model.ProductionTextBlock{
+	item := domainsemantic.NewProductionTextBlock(domainsemantic.ProductionTextBlockSpec{
 		ProjectID:     projectID,
 		ProductionID:  input.ProductionID,
 		ParentBlockID: input.ParentBlockID,
-		Kind:          fallbackString(input.Kind, "section"),
+		Kind:          input.Kind,
 		Order:         input.Order,
 		Title:         input.Title,
 		Content:       input.Content,
 		Summary:       input.Summary,
-		SourceType:    fallbackString(input.SourceType, "manual"),
-		Status:        fallbackString(input.Status, "draft"),
+		SourceType:    input.SourceType,
+		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -150,7 +151,7 @@ func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input C
 			return model.SceneMoment{}, err
 		}
 	}
-	item := model.SceneMoment{
+	item := domainsemantic.NewSceneMoment(domainsemantic.SceneMomentSpec{
 		ProjectID:     projectID,
 		SegmentID:     input.SegmentID,
 		Order:         input.Order,
@@ -161,9 +162,9 @@ func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input C
 		ConditionText: input.ConditionText,
 		ActionText:    input.ActionText,
 		Mood:          input.Mood,
-		Status:        fallbackString(input.Status, "draft"),
+		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

@@ -36,6 +36,17 @@ export type { AgentMemory, AgentMemoryKind, AgentMemoryScope, MemoryQuery, Creat
 
 // Manifest types
 export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from './manifest/agentManifest.js'
+export type {
+  AgentUpdateCandidate,
+  AgentUpdateChannel,
+  AgentUpdateDecision,
+  AgentUpdateEvaluation,
+  AgentUpdateKind,
+  AgentUpdatePolicy,
+  AgentUpdatePolicyRule,
+  AgentUpdateSeverity,
+  AgentUpdateState,
+} from './updates/updatePolicy.js'
 
 // Tool types
 export type { RegisteredTool, ToolRiskLevel } from './tools/toolRegistry.js'
@@ -78,3 +89,12 @@ export {
 
 // Model config
 export { RuntimeModelConfigStore, resolveRuntimeModelConfigPath, resolveRuntimeChatModelConfig } from './model/modelConfig.js'
+
+// Dynamic update policy
+export {
+  DEFAULT_AGENT_UPDATE_POLICY,
+  buildAgentUpdateState,
+  evaluateAgentUpdateCandidate,
+  normalizeAgentUpdateCandidate,
+  normalizeAgentUpdatePolicy,
+} from './updates/updatePolicy.js'

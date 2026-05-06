@@ -99,7 +99,7 @@ ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; 
     broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
     await startBackend('spawn', broadcastBackendStatus)
   } else if (settings?.launchMode === 'cloud') {
-    await stopBackend(broadcastBackendStatus)
+    await stopBackend(broadcastBackendStatus, { terminate: true })
   }
   if (!settings?.apiBaseURL) return
   setMCPAPIBaseURL(settings.apiBaseURL)

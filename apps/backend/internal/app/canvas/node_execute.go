@@ -38,7 +38,7 @@ func (h *Service) ExecuteCanvasNode(ctx context.Context, user *model.User, cv mo
 		outputValue := firstCanvasInputValue(inputs)
 		if canvasruntime.PortValueEmpty(outputValue) {
 			if task != nil {
-				_ = h.canvasRepo().UpdateTask(ctx, task, map[string]any{"status": "running"})
+				_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 				h.failTask(task, node, nd, "output node has no upstream value")
 			}
 			return nil
@@ -56,7 +56,7 @@ func (h *Service) ExecuteCanvasNode(ctx context.Context, user *model.User, cv mo
 		}
 		outputValue := firstCanvasInputValue(inputs)
 		if canvasruntime.PortValueEmpty(outputValue) {
-			_ = h.canvasRepo().UpdateTask(ctx, task, map[string]any{"status": "running"})
+			_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 			h.failTask(task, node, nd, "resource sink has no upstream value")
 			return nil
 		}
@@ -113,13 +113,13 @@ func (h *Service) ExecuteCanvasNode(ctx context.Context, user *model.User, cv mo
 		}
 	}
 	if node.Type == "canvas" && nd.ExecutableSpec == nil {
-		_ = h.canvasRepo().UpdateTask(ctx, task, map[string]any{"status": "running"})
+		_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 		return h.completeCanvasReferenceTask(ctx, task, node, nd, user, inputs)
 	}
 
 	h.executeTask(user, node, task, nd, inputs)
 
-	if updated, err := h.canvasRepo().FindTask(ctx, task.ID); err == nil && updated.Status == "done" {
+	if updated, err := h.canvasRepo().FindTask(ctx, task.ID); err == nil && updated.Status == canvasruntime.CanvasTaskStatusDone {
 		if outputs := canvasruntime.DecodePortOutputs(updated.OutputValues); len(outputs) > 0 {
 			return outputs
 		}
@@ -137,19 +137,11 @@ func (h *Service) ExecuteCanvasNode(ctx context.Context, user *model.User, cv mo
 }
 
 func (h *Service) completeInlineValueTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, outputs map[string]canvasPortValue) {
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"status": "running"})
+	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
 	h.updateTaskOutputValues(task, outputs)
 	primary := firstCanvasOutputResource(outputs)
-	updates := map[string]any{"status": "done"}
-	if primary != nil {
-		updates["resource_id"] = *primary
-		nd.ResourceID = primary
-	} else {
-		nd.ResourceID = nil
-	}
+	updates := canvasruntime.CompleteCanvasTask(task, &nd, primary)
 	_ = h.canvasRepo().UpdateTask(context.Background(), task, updates)
-	nd.Status = "done"
-	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}

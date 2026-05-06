@@ -71,19 +71,20 @@ func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, owne
 			return err
 		}
 		if err := tx.Model(&model.ProjectMember{}).
-			Where("project_id = ? AND user_id <> ? AND role = ?", project.ID, ownerID, "owner").
-			Update("role", "director").Error; err != nil {
+			Where("project_id = ? AND user_id <> ? AND role = ?", project.ID, ownerID, domainproject.RoleOwner).
+			Update("role", domainproject.RoleDirector).Error; err != nil {
 			return err
 		}
 
 		result := tx.Model(&model.ProjectMember{}).
 			Where("project_id = ? AND user_id = ?", project.ID, ownerID).
-			Update("role", "owner")
+			Update("role", domainproject.RoleOwner)
 		if result.Error != nil {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
-			if err := tx.Create(&model.ProjectMember{ProjectID: project.ID, UserID: ownerID, Role: "owner"}).Error; err != nil {
+			member := domainproject.OwnerMember(project.ID, ownerID)
+			if err := tx.Create(&member).Error; err != nil {
 				return err
 			}
 		}

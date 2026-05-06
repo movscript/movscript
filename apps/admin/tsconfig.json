@@ -20,7 +20,8 @@
       "@movscript/tokens": ["../../packages/tokens/src/index.ts"],
       "@movscript/ui": ["../../packages/ui/src/index.ts"],
       "@/*": ["../frontend/src/*"],
-      "@admin/*": ["./src/*"]
+      "@admin/*": ["./src/*"],
+      "@admin-edition": ["./src/edition/enterprise.tsx", "./src/edition/community.tsx"]
     }
   },
   "include": ["src", "../frontend/src/vite-env.d.ts", "../frontend/src/lib", "../frontend/src/store", "../frontend/src/types", "../frontend/src/i18n", "../frontend/src/components/ui", "../frontend/src/components/canvas"]

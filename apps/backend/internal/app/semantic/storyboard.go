@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 type StoryboardScriptFilter struct {
@@ -81,15 +82,15 @@ func (s *Service) CreateStoryboardScript(ctx context.Context, projectID uint, in
 			return model.StoryboardScript{}, err
 		}
 	}
-	item := model.StoryboardScript{
+	item := domainsemantic.NewStoryboardScript(domainsemantic.StoryboardScriptSpec{
 		ProjectID:       projectID,
 		ScriptVersionID: input.ScriptVersionID,
-		Name:            fallbackString(input.Name, "Storyboard Script"),
+		Name:            input.Name,
 		Description:     input.Description,
-		Status:          fallbackString(input.Status, "draft"),
+		Status:          input.Status,
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -134,17 +135,17 @@ func (s *Service) CreateStoryboardVersion(ctx context.Context, projectID uint, i
 	if versionNumber == 0 {
 		versionNumber = s.nextStoryboardVersionNumber(ctx, projectID, input.StoryboardScriptID)
 	}
-	item := model.StoryboardVersion{
+	item := domainsemantic.NewStoryboardVersion(domainsemantic.StoryboardVersionSpec{
 		ProjectID:          projectID,
 		StoryboardScriptID: input.StoryboardScriptID,
 		ParentVersionID:    input.ParentVersionID,
 		VersionNumber:      versionNumber,
 		Title:              fallbackString(input.Title, "Storyboard v"+strconv.Itoa(versionNumber)),
-		Source:             fallbackString(input.Source, "manual"),
-		Status:             fallbackString(input.Status, "draft"),
+		Source:             input.Source,
+		Status:             input.Status,
 		SnapshotJSON:       input.SnapshotJSON,
 		MetadataJSON:       input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -235,22 +236,22 @@ func (s *Service) validateStoryboardLineOwners(ctx context.Context, projectID ui
 }
 
 func storyboardLineFromInput(projectID uint, input StoryboardLineInput) model.StoryboardLine {
-	return model.StoryboardLine{
+	return domainsemantic.NewStoryboardLine(domainsemantic.StoryboardLineSpec{
 		ProjectID:           projectID,
 		StoryboardScriptID:  input.StoryboardScriptID,
 		StoryboardVersionID: input.StoryboardVersionID,
 		SegmentID:           input.SegmentID,
 		SceneMomentID:       input.SceneMomentID,
 		Order:               input.Order,
-		Kind:                fallbackString(input.Kind, "beat"),
+		Kind:                input.Kind,
 		Title:               input.Title,
 		Description:         input.Description,
 		Dialogue:            input.Dialogue,
 		VisualIntent:        input.VisualIntent,
 		DurationSec:         input.DurationSec,
-		Status:              fallbackString(input.Status, "draft"),
+		Status:              input.Status,
 		MetadataJSON:        input.MetadataJSON,
-	}
+	})
 }
 
 func (s *Service) nextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int {

@@ -76,8 +76,8 @@ func (h *Service) readCanvasTextInputs(ctx context.Context, resourcePtrs []*uint
 	if len(ids) == 0 {
 		return nil
 	}
-	var resources []model.RawResource
-	if err := h.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
+	resources, err := h.canvasRepo().FindResources(ctx, ids)
+	if err != nil {
 		return nil
 	}
 	byID := make(map[uint]model.RawResource, len(resources))
@@ -125,8 +125,8 @@ func (h *Service) loadCanvasInputResources(ctx context.Context, nd nodeData, ups
 		return nil, nil
 	}
 
-	var resources []model.RawResource
-	if err := h.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
+	resources, err := h.canvasRepo().FindResources(ctx, ids)
+	if err != nil {
 		return nil, nil
 	}
 	byID := make(map[uint]model.RawResource, len(resources))

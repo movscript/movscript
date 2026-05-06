@@ -89,6 +89,7 @@ const server = createServer(async (req, res) => {
           toolCount: pluginCatalog.tools.length,
           warnings: pluginCatalog.warnings,
         },
+        updates: context.updates,
       })
       return
     }

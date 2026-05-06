@@ -7,6 +7,13 @@ type Role struct {
 	UserID uint
 }
 
+const (
+	RoleOwner      = "owner"
+	RoleDirector   = "director"
+	RoleSuperAdmin = "super_admin"
+	RoleViewer     = "viewer"
+)
+
 func NewProject(name string, description string, totalEpisodes int, ownerID uint, orgID *uint) model.Project {
 	return model.Project{
 		Name:          name,
@@ -18,7 +25,7 @@ func NewProject(name string, description string, totalEpisodes int, ownerID uint
 }
 
 func OwnerMember(projectID uint, userID uint) model.ProjectMember {
-	return model.ProjectMember{ProjectID: projectID, UserID: userID, Role: "owner"}
+	return model.ProjectMember{ProjectID: projectID, UserID: userID, Role: RoleOwner}
 }
 
 func NewMember(projectID uint, userID uint, role string) model.ProjectMember {
@@ -27,7 +34,7 @@ func NewMember(projectID uint, userID uint, role string) model.ProjectMember {
 
 func DefaultMemberRole(role string) string {
 	if role == "" {
-		return "viewer"
+		return RoleViewer
 	}
 	return role
 }
@@ -36,15 +43,15 @@ func ResolveSystemRole(projectID uint, userID uint, systemRole string) (Role, bo
 	if projectID == 0 {
 		return Role{}, false
 	}
-	if systemRole == "super_admin" {
-		return Role{Role: "super_admin", UserID: userID}, true
+	if systemRole == RoleSuperAdmin {
+		return Role{Role: RoleSuperAdmin, UserID: userID}, true
 	}
 	return Role{}, false
 }
 
 func ResolveOwnerRole(ownerID uint, userID uint) (Role, bool) {
 	if ownerID == userID {
-		return Role{Role: "owner", UserID: userID}, true
+		return Role{Role: RoleOwner, UserID: userID}, true
 	}
 	return Role{}, false
 }

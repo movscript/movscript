@@ -10,11 +10,8 @@ import (
 )
 
 func (h *Service) failTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, errMsg string) {
-	task.Status = "failed"
-	task.Error = errMsg
+	canvasruntime.FailCanvasTask(task, &nd, errMsg)
 	_ = h.canvasRepo().SaveTask(context.Background(), task)
-	nd.Status = "failed"
-	nd.Error = errMsg
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -52,30 +49,9 @@ func (h *Service) updateRunStatus(runID *uint) {
 	if len(tasks) == 0 {
 		return
 	}
-	active := false
-	failed := false
-	for _, task := range tasks {
-		switch task.Status {
-		case "pending", "running":
-			active = true
-		case "failed":
-			failed = true
-		}
+	if !canvasruntime.ApplyCanvasRunTaskStatus(&run, tasks, time.Now()) {
+		return
 	}
-	status := "done"
-	if active {
-		status = "running"
-	} else {
-		if failed {
-			status = "failed"
-			run.Error = canvasruntime.CanvasRunTaskFailureSummary(tasks)
-		} else {
-			run.Error = ""
-		}
-		t := time.Now()
-		run.FinishedAt = &t
-	}
-	run.Status = status
 	_ = h.saveCanvasRunWithRelations(&run)
 }
 

@@ -19,7 +19,7 @@ func (h *Service) StartNode(ctx context.Context, user *model.User, cv model.Canv
 		NodeID:       node.NodeID,
 		NodeLabel:    node.Label,
 		NodeType:     node.Type,
-		Status:       "pending",
+		Status:       canvasruntime.CanvasTaskStatusPending,
 		InputValues:  canvasruntime.MarshalPortInputs(inputs),
 	}
 	if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
@@ -48,14 +48,13 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 	now := time.Now()
 	run := model.CanvasRun{
 		CanvasID:          cv.ID,
-		Status:            "running",
 		InputValues:       rawInputValues,
 		GraphSnapshot:     snapshot,
 		SnapshotHash:      snapshotHash,
 		SnapshotNodeCount: snapshotNodeCount,
 		SnapshotEdgeCount: snapshotEdgeCount,
-		StartedAt:         &now,
 	}
+	canvasruntime.StartCanvasRun(&run, now)
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, nil, err
 	}
@@ -72,7 +71,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 			NodeID:       node.NodeID,
 			NodeLabel:    node.Label,
 			NodeType:     node.Type,
-			Status:       "pending",
+			Status:       canvasruntime.CanvasTaskStatusPending,
 		}
 		if err := h.canvasRepo().CreateTask(context.Background(), &task); err != nil {
 			return run, tasks, err
@@ -81,9 +80,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 	}
 
 	if len(tasks) == 0 {
-		finishedAt := time.Now()
-		run.Status = "done"
-		run.FinishedAt = &finishedAt
+		canvasruntime.CompleteCanvasRun(&run, time.Now())
 		if err := h.saveCanvasRunWithRelations(&run); err != nil {
 			return run, tasks, err
 		}

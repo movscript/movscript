@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, UsersRound, Gauge, Coins, ArrowUpRight, Settings2, Route, FolderKanban, ScrollText, HardDrive, CloudUpload, Bot } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
+import { editionOverviewCards, editionSectionCards } from '@admin-edition'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -1800,106 +1801,11 @@ export function ModelManagementPage() {
   )
 }
 
-// ── Tab 2: 用户管理 ────────────────────────────────────────────────────────────
-
-interface UserWithQuota {
+export interface AdminUser {
   ID: number
   username: string
   system_role: string
-  balance: number
-}
-
-export function UserManagementPage() {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [quotaDialog, setQuotaDialog] = useState<UserWithQuota | null>(null)
-  const [newBalance, setNewBalance] = useState('')
-
-  const { data: users = [] } = useQuery<UserWithQuota[]>({
-    queryKey: ['admin', 'users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
-  })
-
-  const setQuota = useMutation({
-    mutationFn: ({ id, balance }: { id: number; balance: number }) =>
-      api.put(`/admin/users/${id}/quota`, { balance }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin', 'users'] }); setQuotaDialog(null) },
-  })
-
-  return (
-    <div className="space-y-4 max-w-2xl">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{t('admin.users.title')}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.users.description')}</p>
-      </div>
-
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-card border-b border-border">
-            <tr>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.users.username')}</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.users.role')}</th>
-              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.users.creditsBalance')}</th>
-              <th className="px-4 py-2.5"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {users.map((u) => (
-              <tr key={u.ID} className="hover:bg-card">
-                <td className="px-4 py-3 font-medium">{u.username}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">
-                  {u.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
-                </td>
-                <td className="px-4 py-3 text-right font-mono tabular-nums text-sm">
-                  {u.balance.toFixed(2)}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => { setQuotaDialog(u); setNewBalance(String(u.balance)) }}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {t('admin.users.recharge')}
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.users.empty')}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {quotaDialog && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-          <div className="bg-background rounded-xl shadow-2xl w-80 p-5 space-y-4">
-            <h3 className="text-sm font-semibold">{t('admin.users.setBalanceTitle', { username: quotaDialog.username })}</h3>
-            <div>
-              <Label className="text-xs text-muted-foreground block mb-1">{t('admin.users.newBalance')}</Label>
-              <Input
-                type="number" min="0" step="1"
-                value={newBalance}
-                onChange={(e) => setNewBalance(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setQuota.mutate({ id: quotaDialog.ID, balance: Number(newBalance) })}
-                disabled={setQuota.isPending}
-                className="flex-1"
-              >
-                {t('common.save')}
-              </Button>
-              <Button variant="outline" onClick={() => setQuotaDialog(null)}>
-                {t('common.cancel')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+  CreatedAt?: string
 }
 
 // ── Tab 3: 项目 Owner 管理 ────────────────────────────────────────────────────
@@ -1925,9 +1831,9 @@ export function ProjectOwnerManagementPage() {
     queryKey: ['admin', 'projects'],
     queryFn: () => api.get('/admin/projects').then((r) => r.data),
   })
-  const { data: users = [] } = useQuery<UserWithQuota[]>({
-    queryKey: ['admin', 'users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
+  const { data: users = [] } = useQuery<AdminUser[]>({
+    queryKey: ['users', 'admin-owner-picker'],
+    queryFn: () => api.get('/users').then((r) => r.data),
   })
 
   const forceSetOwner = useMutation({
@@ -2033,160 +1939,6 @@ export function ProjectOwnerManagementPage() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-// ── Tab 4: 用量日志 ────────────────────────────────────────────────────────────
-
-export function UsageLogsPage() {
-  const { t, i18n } = useTranslation()
-  const [page, setPage] = useState(1)
-  const [modelFilter, setModelFilter] = useState('')
-  const [providerFilter, setProviderFilter] = useState('')
-  const [userFilter, setUserFilter] = useState('')
-  const pageSize = 50
-
-  const { data } = useQuery<{ total: number; items: UsageLog[] }>({
-    queryKey: ['admin', 'usage-logs', page, modelFilter, providerFilter, userFilter],
-    queryFn: () => api.get('/admin/usage-logs', {
-      params: {
-        page,
-        page_size: pageSize,
-        model_config_id: modelFilter || undefined,
-        provider_id: providerFilter || undefined,
-        user_id: userFilter || undefined,
-      },
-    }).then((r) => r.data),
-  })
-
-  const { data: credentials = [] } = useQuery<AICredential[]>({
-    queryKey: ['admin', 'credentials'],
-    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
-  })
-
-  const { data: users = [] } = useQuery<UserWithQuota[]>({
-    queryKey: ['admin', 'users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
-  })
-
-  const items = data?.items ?? []
-  const total = data?.total ?? 0
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const models = credentials.flatMap(cred => (cred.models ?? []).map(model => ({ ...model, providerName: cred.display_name })))
-  const providerById = new Map(credentials.map(c => [c.ID, c.display_name]))
-
-  function formatDate(s: string) {
-    return new Date(s).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-  }
-
-  function modelName(log: UsageLog): string {
-    const cfg = log.ai_model_config
-    if (cfg) return cfg.short_name || cfg.custom_display_name || cfg.model_def_id
-    return String(log.ai_model_config_id)
-  }
-
-  function providerName(log: UsageLog): string {
-    const credentialId = log.ai_model_config?.credential_id
-    return credentialId ? providerById.get(credentialId) ?? String(credentialId) : '—'
-  }
-
-  function usageDetail(log: UsageLog): string {
-    if (log.input_tokens > 0 || log.output_tokens > 0) {
-      return `${log.input_tokens.toLocaleString()} / ${log.output_tokens.toLocaleString()}`
-    }
-    if (log.duration_sec > 0) return `${log.duration_sec}s`
-    if (log.image_count > 0) return `×${log.image_count}`
-    return '—'
-  }
-
-  const opLabel: Record<string, string> = {
-    text: t('admin.logs.operations.text'),
-    image: t('admin.logs.operations.image'),
-    video: t('admin.logs.operations.video'),
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{t('admin.logs.title')}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.logs.total', { total })}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
-        <select
-          value={providerFilter}
-          onChange={e => { setProviderFilter(e.target.value); setModelFilter(''); setPage(1) }}
-          className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-        >
-          <option value="">{t('admin.logs.allProviders')}</option>
-          {credentials.map(cred => (
-            <option key={cred.ID} value={cred.ID}>{cred.display_name}</option>
-          ))}
-        </select>
-        <select
-          value={modelFilter}
-          onChange={e => { setModelFilter(e.target.value); setPage(1) }}
-          className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-        >
-          <option value="">{t('admin.logs.allModels')}</option>
-          {models
-            .filter(model => !providerFilter || String(model.credential_id) === providerFilter)
-            .map(model => (
-              <option key={model.ID} value={model.ID}>
-                {(model.short_name || model.custom_display_name || model.model_def_id)} · {model.providerName}
-              </option>
-            ))}
-        </select>
-        <select
-          value={userFilter}
-          onChange={e => { setUserFilter(e.target.value); setPage(1) }}
-          className="px-3 py-1.5 text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-        >
-          <option value="">{t('admin.logs.allUsers')}</option>
-          {users.map(u => (
-            <option key={u.ID} value={u.ID}>{u.username}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-card border-b border-border">
-            <tr>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.time')}</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.user')}</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.provider')}</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.model')}</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.type')}</th>
-              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.logs.usage')}</th>
-              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('common.credits')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {items.map((log) => (
-              <tr key={log.ID} className="hover:bg-card text-xs">
-                <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(log.CreatedAt)}</td>
-                <td className="px-4 py-2.5">{log.user?.username ?? log.user_id}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{providerName(log)}</td>
-                <td className="px-4 py-2.5 text-foreground">{modelName(log)}</td>
-                <td className="px-4 py-2.5">{opLabel[log.operation_type] ?? log.operation_type}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{usageDetail(log)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{log.cost.toFixed(3)}</td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">{t('admin.logs.empty')}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-center gap-2 text-sm">
-        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>{t('admin.logs.previousPage')}</Button>
-        <span className="text-muted-foreground">{page} / {pageCount}</span>
-        <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>{t('admin.logs.nextPage')}</Button>
-      </div>
     </div>
   )
 }
@@ -2976,14 +2728,12 @@ export function CloudFileConfigPage() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type AdminSectionKey = 'models' | 'features' | 'users' | 'projects' | 'logs' | 'storage' | 'cloud-files'
+type AdminSectionKey = 'models' | 'features' | 'projects' | 'storage' | 'cloud-files'
 
 const adminSectionHref: Record<AdminSectionKey, string> = {
   models: '/models',
   features: '/features',
-  users: '/users',
   projects: '/projects',
-  logs: '/usage',
   storage: '/storage',
   'cloud-files': '/cloud-files',
 }
@@ -3005,14 +2755,6 @@ export default function AdminPage() {
   const currentUser = useUserStore((s) => s.currentUser)
   const navigate = useNavigate()
 
-  const { data: users = [] } = useQuery<UserWithQuota[]>({
-    queryKey: ['admin', 'users'],
-    queryFn: () => api.get('/admin/users').then((r) => r.data),
-  })
-  const { data: usageData } = useQuery<{ total: number; items: UsageLog[] }>({
-    queryKey: ['admin', 'usage-logs', 'overview'],
-    queryFn: () => api.get('/admin/usage-logs', { params: { page: 1, page_size: 200 } }).then((r) => r.data),
-  })
   const { data: credentials = [] } = useQuery<AICredential[]>({
     queryKey: ['admin', 'credentials'],
     queryFn: () => api.get('/admin/credentials').then((r) => r.data),
@@ -3022,38 +2764,9 @@ export default function AdminPage() {
     queryFn: () => api.get('/admin/projects').then((r) => r.data),
   })
 
-  const usageItems = usageData?.items ?? []
-  const totalTokens = usageItems.reduce((sum, log) => sum + log.input_tokens + log.output_tokens, 0)
-  const totalCost = usageItems.reduce((sum, log) => sum + log.cost, 0)
   const enabledModels = credentials.reduce((sum, cred) => sum + (cred.models ?? []).filter((model) => model.is_enabled).length, 0)
-  const now = Date.now()
-  const recentUsers = users.filter((user) => {
-    const createdAt = (user as UserWithQuota & { CreatedAt?: string }).CreatedAt
-    return createdAt ? now - new Date(createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000 : false
-  }).length
 
   const overviewCards = [
-    {
-      label: '用户增长',
-      value: users.length.toLocaleString(),
-      detail: `近 30 天新增 ${recentUsers.toLocaleString()}`,
-      icon: UsersRound,
-      href: '/users',
-    },
-    {
-      label: 'Token 使用',
-      value: totalTokens.toLocaleString(),
-      detail: `最近 ${usageItems.length.toLocaleString()} 条调用记录`,
-      icon: Gauge,
-      href: '/usage',
-    },
-    {
-      label: 'Credit 消耗',
-      value: totalCost.toFixed(2),
-      detail: `${usageData?.total ?? 0} 条总用量日志`,
-      icon: Coins,
-      href: '/usage',
-    },
     {
       label: '启用模型',
       value: enabledModels.toLocaleString(),
@@ -3061,17 +2774,17 @@ export default function AdminPage() {
       icon: Settings2,
       href: '/models',
     },
+    ...editionOverviewCards,
   ]
 
   const sectionCards = [
     { label: t('admin.tabs.models'), detail: '供应商凭证、模型启用、价格与参数配置。', icon: Settings2, href: '/models' },
     { label: t('admin.tabs.features'), detail: '功能到模型的路由、默认模型和系统提示词。', icon: Route, href: '/features' },
-    { label: t('admin.tabs.users'), detail: '用户额度、角色和余额管理。', icon: UsersRound, href: '/users' },
     { label: t('admin.tabs.projects'), detail: `当前 ${projects.length.toLocaleString()} 个项目，可强制调整 Owner。`, icon: FolderKanban, href: '/projects' },
-    { label: t('admin.tabs.logs'), detail: '按供应商、模型和用户筛选 AI 用量。', icon: ScrollText, href: '/usage' },
     { label: t('admin.tabs.storage'), detail: '内部资源存储后端状态和用户占用。', icon: HardDrive, href: '/storage' },
     { label: t('admin.tabs.cloudFiles'), detail: '公共对象中转和云文件存储配置。', icon: CloudUpload, href: '/cloud-files' },
     { label: 'Agent 调试', detail: '本地 Agent 运行时、工具、技能和上下文调试。', icon: Bot, href: '/agent-debug' },
+    ...editionSectionCards,
   ]
 
   if (currentUser?.system_role !== 'super_admin') {

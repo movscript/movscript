@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
@@ -275,6 +275,8 @@ interface TrackedCandidates {
 }
 
 type GuideCounts = Record<keyof TrackedCandidates, number>
+type ProposalNodeDecision = 'accepted' | 'rejected'
+type ProposalNodeDecisions = Record<string, ProposalNodeDecision>
 
 interface AnalysisTarget {
   scope: AnalysisScope
@@ -405,6 +407,7 @@ export default function ProductionOrchestratePage() {
   const [aiPanelOpen, setAIPanelOpen] = useState(false)
   const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
   const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
+  const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
 
   const queryKey = ['production-orchestrate', projectId] as const
   const scriptVersionsQueryKey = ['production-orchestrate-script-versions', projectId] as const
@@ -460,6 +463,9 @@ export default function ProductionOrchestratePage() {
     contentUnits: allContentUnits,
   }), [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, effectiveProductionId])
   const activeProposalDraft = proposalPreviewDraft ?? defaultProposalDraft
+  useEffect(() => {
+    setProposalNodeDecisions({})
+  }, [activeProposalDraft.proposedAt, activeProposalDraft.productionId])
   const allSegmentsById = useMemo(() => new Map(allSegments.map((segment) => [segment.ID, segment])), [allSegments])
   const lookup = useMemo(() => buildOrchestrationLookup({
     scriptText,
@@ -1115,6 +1121,7 @@ export default function ProductionOrchestratePage() {
               scriptVersionTitle={selectedScriptVersion?.title ?? ''}
               scriptTextLength={scriptText.length}
               proposalDraft={activeProposalDraft}
+              nodeDecisions={proposalNodeDecisions}
               baseline={{
                 segments: allSegments.length,
                 sceneMoments: allSceneMoments.length,
@@ -1144,6 +1151,8 @@ export default function ProductionOrchestratePage() {
               orchestrationPrompt={orchestrationPrompt}
               onOrchestrationPromptChange={setOrchestrationPrompt}
               candidateWorkbench={candidateWorkbench}
+              nodeDecisions={proposalNodeDecisions}
+              onNodeDecisionsChange={setProposalNodeDecisions}
               onClose={() => setAIPanelOpen(false)}
               onResult={() => undefined}
               onProposalDraft={(draft) => setProposalPreviewDraft(draft)}
@@ -1153,6 +1162,8 @@ export default function ProductionOrchestratePage() {
             <ProposalReviewSidebar
               projectId={projectId}
               proposalDraft={activeProposalDraft}
+              nodeDecisions={proposalNodeDecisions}
+              onNodeDecisionsChange={setProposalNodeDecisions}
               previewOnly={!proposalPreviewDraft}
             />
           </div>
@@ -1337,6 +1348,7 @@ function ProductionPackageWorkspace({
   scriptVersionTitle,
   scriptTextLength,
   proposalDraft,
+  nodeDecisions,
   baseline,
   isPreview,
   onRefresh,
@@ -1345,6 +1357,7 @@ function ProductionPackageWorkspace({
   scriptVersionTitle: string
   scriptTextLength: number
   proposalDraft: ProposalDraftContent
+  nodeDecisions: ProposalNodeDecisions
   baseline: {
     segments: number
     sceneMoments: number
@@ -1358,6 +1371,7 @@ function ProductionPackageWorkspace({
   const segments = proposalDraft.proposal?.segments ?? []
   const [selectedKey, setSelectedKey] = useState(() => segments[0]?.client_id ?? 'segment-0')
   const totals = useMemo(() => countProposalTotals(segments), [segments])
+  const decisionSummary = useMemo(() => countProposalDecisionSummary(segments, nodeDecisions), [nodeDecisions, segments])
   const actionCounts = useMemo(() => countProposalActions(segments), [segments])
   const selected = findProposalSelection(segments, selectedKey) ?? { kind: 'segment' as const, segment: segments[0], moment: undefined }
   const selectedSegment = selected.segment
@@ -1389,7 +1403,7 @@ function ProductionPackageWorkspace({
             </Button>
             <Button size="sm" className="h-8 gap-1.5 text-xs" disabled>
               <CheckCheck size={13} />
-              等待审阅决策
+              {decisionSummary.unresolved > 0 ? `待审 ${decisionSummary.unresolved}` : '审阅完成'}
             </Button>
           </div>
         </div>
@@ -1407,6 +1421,11 @@ function ProductionPackageWorkspace({
         <DecisionMetric icon={Route} label="提案情景" value={totals.sceneMoments} />
         <DecisionMetric icon={Film} label="制作项" value={totals.contentUnits} />
         <DecisionMetric icon={PackageCheck} label="素材缺口" value={totals.assetSlots} tone={totals.assetSlots > 0 ? 'warn' : 'muted'} />
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        <DecisionMetric icon={CheckCircle2} label="已接受" value={decisionSummary.accepted} tone={decisionSummary.accepted > 0 ? 'ok' : 'muted'} />
+        <DecisionMetric icon={X} label="已拒绝" value={decisionSummary.rejected} tone={decisionSummary.rejected > 0 ? 'warn' : 'muted'} />
+        <DecisionMetric icon={Info} label="未审" value={decisionSummary.unresolved} tone={decisionSummary.unresolved > 0 ? 'warn' : 'ok'} />
       </div>
 
       <div className="grid min-h-[520px] gap-4 xl:grid-cols-[1fr_420px]">
@@ -1434,6 +1453,7 @@ function ProductionPackageWorkspace({
                     segment={segment}
                     index={index}
                     selectedKey={selectedKey}
+                    nodeDecisions={nodeDecisions}
                     onSelect={setSelectedKey}
                   />
                 ))
@@ -1515,15 +1535,18 @@ function ProposalStructureSegment({
   segment,
   index,
   selectedKey,
+  nodeDecisions,
   onSelect,
 }: {
   segment: ProposalSegmentNode
   index: number
   selectedKey: string
+  nodeDecisions: ProposalNodeDecisions
   onSelect: (key: string) => void
 }) {
   const segmentKey = segment.client_id ?? `segment-${index}`
   const active = selectedKey === segmentKey
+  const decision = nodeDecisions[nodeDecisionKey('segment', segmentKey)]
   return (
     <div className="p-3">
       <button
@@ -1535,6 +1558,7 @@ function ProposalStructureSegment({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{segment.title || `剧本段落 ${index + 1}`}</span>
+            {decision && <DecisionBadge decision={decision} />}
             <span className="shrink-0 text-[10px] text-muted-foreground">{segment.scene_moments?.length ?? 0} 情景</span>
           </div>
           <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{segment.summary || segment.rationale || '暂无摘要'}</p>
@@ -1544,6 +1568,7 @@ function ProposalStructureSegment({
         {(segment.scene_moments ?? []).map((moment, momentIndex) => {
           const momentKey = moment.client_id ?? `${segmentKey}-moment-${momentIndex}`
           const momentActive = selectedKey === momentKey
+          const momentDecision = nodeDecisions[nodeDecisionKey('scene_moment', momentKey)]
           return (
             <button
               key={momentKey}
@@ -1553,6 +1578,7 @@ function ProposalStructureSegment({
             >
               <ActionBadge action={moment.action} compact />
               <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">{moment.title || `情景 ${momentIndex + 1}`}</span>
+              {momentDecision && <DecisionBadge decision={momentDecision} />}
               <span className="shrink-0 text-[10px] text-muted-foreground">{moment.content_units?.length ?? 0} 制作项</span>
             </button>
           )
@@ -3911,7 +3937,7 @@ function normalizeContentUnitType(value: string): string {
   return ['shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat'].includes(value) ? value : 'shot'
 }
 
-type AnalysisPhase = 'input' | 'running' | 'done' | 'error' | 'proposal'
+type AnalysisPhase = 'input' | 'running' | 'done' | 'retryable' | 'error' | 'proposal'
 
 function AgentChatSidebar({
   projectId,
@@ -3927,6 +3953,8 @@ function AgentChatSidebar({
   orchestrationPrompt,
   onOrchestrationPromptChange,
   candidateWorkbench,
+  nodeDecisions,
+  onNodeDecisionsChange,
   onClose,
   onResult,
   onProposalDraft,
@@ -3944,6 +3972,8 @@ function AgentChatSidebar({
   orchestrationPrompt: string
   onOrchestrationPromptChange: (value: string) => void
   candidateWorkbench: ReactNode
+  nodeDecisions: ProposalNodeDecisions
+  onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
   onClose: () => void
   onResult: (result: AIAnalysisResult) => void
   onProposalDraft: (draft: ProposalDraftContent) => void
@@ -3956,6 +3986,8 @@ function AgentChatSidebar({
     enabled: !!projectId && !!scriptVersionId,
   })
   const linkedVersion = allVersions?.find((v) => v.ID === scriptVersionId) ?? null
+  const linkedScriptText = (linkedVersion?.content || linkedVersion?.raw_source || '').trim()
+  const scopedLinkedScriptText = scopeScriptTextForProduction(linkedScriptText, production, linkedVersion?.title)
 
   const [manualMode, setManualMode] = useState(false)
   const [scriptText, setScriptText] = useState('')
@@ -3995,6 +4027,7 @@ function AgentChatSidebar({
     setRawAgentResponse('')
     setOutputResult(null)
     setProposalDraft(null)
+    onNodeDecisionsChange({})
 
     const client = agentClientRef.current
     const productionId = production?.ID ?? 0
@@ -4078,7 +4111,8 @@ function AgentChatSidebar({
         setRawAgentResponse(assistantMsg.content)
       }
 
-      throw new Error('分集编排未产出模型候选：Agent 没有写入候选草稿，也没有返回可解析的 JSON。已禁止本地分析兜底。')
+      setErrorMsg('模型这次没有返回可写入的结构化提案。下面保留了模型原始回复，请调整输入或直接重试。')
+      setPhase('retryable')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : '分析失败')
       setPhase('error')
@@ -4158,7 +4192,7 @@ function AgentChatSidebar({
   }
 
   return (
-    <aside className="flex w-[420px] shrink-0 flex-col border-l border-border bg-card">
+    <aside className="flex h-full min-h-0 w-[420px] shrink-0 flex-col border-l border-border bg-card">
       {/* Sidebar header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -4260,8 +4294,13 @@ function AgentChatSidebar({
                   <Badge variant="secondary" className="shrink-0 text-[10px]">已关联</Badge>
                 </div>
                 <p className="mt-2 line-clamp-3 font-mono text-[10px] leading-relaxed text-muted-foreground">
-                  {(linkedVersion.content || linkedVersion.raw_source).slice(0, 200)}…
+                  {scopedLinkedScriptText.text.slice(0, 200)}…
                 </p>
+                {scopedLinkedScriptText.scoped && (
+                  <p className="mt-2 rounded bg-primary/5 px-2 py-1.5 text-[10px] leading-4 text-primary">
+                    将发送第 {scopedLinkedScriptText.episodeOrder} 集分集文本：{scopedLinkedScriptText.text.length} 字符，原版本 {(linkedVersion.content || linkedVersion.raw_source).length} 字符。
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => setManualMode(true)}
@@ -4319,6 +4358,8 @@ function AgentChatSidebar({
           <ProposalReviewPanel
             projectId={projectId}
             proposalDraft={proposalDraft}
+            nodeDecisions={nodeDecisions}
+            onNodeDecisionsChange={onNodeDecisionsChange}
             onAccepted={() => { setPhase('input'); setProposalDraft(null) }}
             onDiscard={() => { setPhase('input'); setProposalDraft(null) }}
           />
@@ -4407,14 +4448,24 @@ function AgentChatSidebar({
               </div>
             )}
 
-            {/* Error bubble */}
-            {phase === 'error' && (
-              <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-800/50 dark:bg-rose-950/30">
-                <AlertCircle size={13} className="mt-0.5 shrink-0 text-rose-500" />
+            {/* Retryable / error bubble */}
+            {(phase === 'retryable' || phase === 'error') && (
+              <div className={cn(
+                'flex items-start gap-2 rounded-lg border p-3',
+                phase === 'retryable'
+                  ? 'border-amber-200 bg-amber-50/60 dark:border-amber-800/50 dark:bg-amber-950/30'
+                  : 'border-rose-200 bg-rose-50/60 dark:border-rose-800/50 dark:bg-rose-950/30',
+              )}>
+                <AlertCircle size={13} className={cn('mt-0.5 shrink-0', phase === 'retryable' ? 'text-amber-500' : 'text-rose-500')} />
                 <div className="flex flex-col gap-1.5 min-w-0">
-                  <p className="text-xs text-rose-700 dark:text-rose-300">{errorMsg}</p>
+                  <p className={cn('text-xs', phase === 'retryable' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300')}>{errorMsg}</p>
                   {rawAgentResponse && (
-                    <pre className="whitespace-pre-wrap break-all rounded bg-rose-100/60 p-2 text-[10px] text-rose-800 dark:bg-rose-900/30 dark:text-rose-200 max-h-48 overflow-y-auto">
+                    <pre className={cn(
+                      'whitespace-pre-wrap break-all rounded p-2 text-[10px] max-h-48 overflow-y-auto',
+                      phase === 'retryable'
+                        ? 'bg-amber-100/60 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100'
+                        : 'bg-rose-100/60 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200',
+                    )}>
                       {rawAgentResponse}
                     </pre>
                   )}
@@ -4456,11 +4507,12 @@ function AgentChatSidebar({
             {phase === 'input' && `${effectiveText.length} 字符`}
             {phase === 'running' && 'Agent 分析中…'}
             {phase === 'done' && '分析完成'}
+            {phase === 'retryable' && '需要重试'}
             {phase === 'error' && '分析失败'}
             {phase === 'proposal' && '待审提案'}
           </p>
           <div className="flex gap-2">
-            {phase === 'error' && (
+            {(phase === 'retryable' || phase === 'error') && (
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setPhase('input'); setRawAgentResponse('') }}>
                 重试
               </Button>
@@ -4491,14 +4543,18 @@ function AgentChatSidebar({
 function ProposalReviewSidebar({
   projectId,
   proposalDraft,
+  nodeDecisions,
+  onNodeDecisionsChange,
   previewOnly,
 }: {
   projectId?: number
   proposalDraft: ProposalDraftContent
+  nodeDecisions: ProposalNodeDecisions
+  onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
   previewOnly: boolean
 }) {
   return (
-    <aside className="flex w-[420px] shrink-0 flex-col border-l border-border bg-card">
+    <aside className="flex h-full min-h-0 w-[420px] shrink-0 flex-col border-l border-border bg-card">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -4513,6 +4569,8 @@ function ProposalReviewSidebar({
         <ProposalReviewPanel
           projectId={projectId}
           proposalDraft={proposalDraft}
+          nodeDecisions={nodeDecisions}
+          onNodeDecisionsChange={onNodeDecisionsChange}
           previewOnly={previewOnly}
           onAccepted={() => undefined}
           onDiscard={() => undefined}
@@ -4525,12 +4583,16 @@ function ProposalReviewSidebar({
 function ProposalReviewPanel({
   projectId,
   proposalDraft,
+  nodeDecisions,
+  onNodeDecisionsChange,
   previewOnly = false,
   onAccepted,
   onDiscard,
 }: {
   projectId?: number
   proposalDraft: ProposalDraftContent
+  nodeDecisions: ProposalNodeDecisions
+  onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
   previewOnly?: boolean
   onAccepted: () => void
   onDiscard: () => void
@@ -4540,8 +4602,6 @@ function ProposalReviewPanel({
   const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
   const [simulationResult, setSimulationResult] = useState<ProposalSimulationResult | null>(null)
   const [expandedSegments, setExpandedSegments] = useState<Set<string>>(() => new Set(['demo_segment_existing', 'demo_segment_new']))
-  const [nodeDecisions, setNodeDecisions] = useState<Record<string, 'accepted' | 'rejected'>>({})
-
   const segments = proposalDraft.proposal?.segments ?? []
   const totalSceneMoments = segments.reduce((s, seg) => s + (seg.scene_moments?.length ?? 0), 0)
   const totalContentUnits = segments.reduce((s, seg) =>
@@ -4569,18 +4629,18 @@ function ProposalReviewPanel({
 
   function setNodeDecision(key: string, decision: 'accepted' | 'rejected') {
     setSimulationResult(null)
-    setNodeDecisions((prev) => ({ ...prev, [key]: decision }))
+    onNodeDecisionsChange((prev) => ({ ...prev, [key]: decision }))
   }
 
   function acceptAllNodes() {
     setSimulationResult(null)
-    setNodeDecisions(Object.fromEntries(reviewNodes.map((node) => [node.key, 'accepted'])))
+    onNodeDecisionsChange(Object.fromEntries(reviewNodes.map((node) => [node.key, 'accepted'])))
   }
 
   function resetNodeDecisions() {
     setSimulationResult(null)
     setApplyError('')
-    setNodeDecisions({})
+    onNodeDecisionsChange({})
   }
 
   function buildAcceptedProposal() {
@@ -5013,6 +5073,17 @@ function collectProposalReviewNodes(segments: ProposalSegmentNode[]): ProposalRe
   })
 }
 
+function countProposalDecisionSummary(segments: ProposalSegmentNode[], decisions: ProposalNodeDecisions) {
+  const nodes = collectProposalReviewNodes(segments)
+  const accepted = nodes.filter((node) => decisions[node.key] === 'accepted').length
+  const rejected = nodes.filter((node) => decisions[node.key] === 'rejected').length
+  return {
+    accepted,
+    rejected,
+    unresolved: Math.max(0, nodes.length - accepted - rejected),
+  }
+}
+
 function countProposalActions(segments: ProposalSegmentNode[]) {
   const counts = { create: 0, reuse: 0, update: 0 }
   function add(action?: string) {
@@ -5396,7 +5467,9 @@ function getAnalysisText(target: AnalysisTarget, input: {
   assetSlots: AssetSlotRecord[]
   contentUnits: ContentUnitRecord[]
 }) {
-  const baseText = input.manualText.trim() || (input.linkedVersion?.content || input.linkedVersion?.raw_source || '').trim()
+  const linkedText = (input.linkedVersion?.content || input.linkedVersion?.raw_source || '').trim()
+  const scopedLinkedText = scopeScriptTextForProduction(linkedText, input.production, input.linkedVersion?.title).text
+  const baseText = input.manualText.trim() || scopedLinkedText
   if (target.scope === 'production') return baseText
 
   if (target.scope === 'segments') {
@@ -5520,6 +5593,101 @@ function getAnalysisText(target: AnalysisTarget, input: {
   }
 
   return baseText
+}
+
+function scopeScriptTextForProduction(
+  scriptText: string,
+  production?: (SemanticEntityRecord & { name?: string }) | null,
+  scriptVersionTitle?: string,
+) {
+  const text = scriptText.trim()
+  const episodeOrder = inferEpisodeOrderForProduction(production, scriptVersionTitle)
+  if (!text || !episodeOrder) return { text, scoped: false, episodeOrder: undefined as number | undefined }
+
+  const ranges = findEpisodeTextRanges(text)
+  const range = ranges.find((item) => item.order === episodeOrder)
+  if (!range) return { text, scoped: false, episodeOrder }
+
+  const scoped = text.slice(range.start, range.end).trim()
+  if (!scoped || scoped.length >= text.length * 0.85) return { text, scoped: false, episodeOrder }
+  return { text: scoped, scoped: true, episodeOrder }
+}
+
+function inferEpisodeOrderForProduction(
+  production?: (SemanticEntityRecord & { name?: string }) | null,
+  scriptVersionTitle?: string,
+) {
+  const candidates = [
+    String(production?.name ?? ''),
+    String(production?.title ?? ''),
+    String(production?.description ?? ''),
+    String(scriptVersionTitle ?? ''),
+  ]
+  for (const candidate of candidates) {
+    const order = parseEpisodeOrder(candidate)
+    if (order) return order
+  }
+  return undefined
+}
+
+function findEpisodeTextRanges(text: string): Array<{ order: number; start: number; end: number }> {
+  const ranges: Array<{ order: number; start: number; end: number }> = []
+  const headingPattern = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:《[^》]+》\s*)?(?:第\s*([0-9零〇一二三四五六七八九十百千万两]+)\s*[集话回]|(?:EP|E|Episode)\s*0*([0-9]+))(?:\s*[：:\-—]\s*.*)?/gi
+  let match: RegExpExecArray | null
+  while ((match = headingPattern.exec(text)) !== null) {
+    const token = match[1] || match[2]
+    const order = parseEpisodeOrder(token)
+    if (!order) continue
+    ranges.push({
+      order,
+      start: match.index + (match[0].startsWith('\n') ? 1 : 0),
+      end: text.length,
+    })
+  }
+  for (let index = 0; index < ranges.length - 1; index += 1) {
+    ranges[index].end = ranges[index + 1].start
+  }
+  return ranges
+}
+
+function parseEpisodeOrder(value: string) {
+  const text = String(value ?? '').trim()
+  const match = text.match(/第\s*([0-9零〇一二三四五六七八九十百千万两]+)\s*[集话回]/)
+    ?? text.match(/(?:EP|E|Episode)\s*0*([0-9]+)/i)
+  const token = match?.[1] ?? (/^[0-9零〇一二三四五六七八九十百千万两]+$/.test(text) ? text : '')
+  if (!token) return undefined
+  if (/^\d+$/.test(token)) {
+    const num = Number(token)
+    return Number.isFinite(num) && num > 0 ? num : undefined
+  }
+  return parseChineseEpisodeNumber(token) || undefined
+}
+
+function parseChineseEpisodeNumber(value: string) {
+  const digitMap: Record<string, number> = {
+    零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
+  }
+  const unitMap: Record<string, number> = { 十: 10, 百: 100, 千: 1000, 万: 10000 }
+  let total = 0
+  let section = 0
+  let number = 0
+  for (const char of value) {
+    if (char in digitMap) {
+      number = digitMap[char]
+      continue
+    }
+    const unit = unitMap[char]
+    if (!unit) continue
+    if (unit === 10000) {
+      total += (section + number) * unit
+      section = 0
+      number = 0
+      continue
+    }
+    section += (number || 1) * unit
+    number = 0
+  }
+  return total + section + number
 }
 
 function collectReferencesFromUnitsAndMoments(

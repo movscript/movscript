@@ -43,6 +43,7 @@ export interface RuntimeModelRequestSnapshot {
   body: {
     model: string
     messages: RuntimeModelChatMessage[]
+    stream?: boolean
     temperature?: number
     response_format?: { type: 'json_object' }
     tools?: RuntimeModelChatTool[]
@@ -230,7 +231,9 @@ export function buildBackendGatewayChatRequest(
   auth: RuntimeModelAuthContext = {},
   options: { temperature?: number; jsonMode?: boolean; tools?: RuntimeModelChatTool[]; toolChoice?: RuntimeModelToolChoice } = {},
 ): RuntimeModelRequestSnapshot {
+  const requestMessages = options.jsonMode ? ensureJSONModeMessages(messages) : messages
   const headers: Record<string, string> = {
+    Accept: 'text/event-stream',
     'Content-Type': 'application/json',
   }
   if (auth.backendAuthToken) {
@@ -242,13 +245,29 @@ export function buildBackendGatewayChatRequest(
     headers,
     body: {
       model: backendModelID(config.modelConfigId),
-      messages,
+      messages: requestMessages,
+      stream: true,
       ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
       ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
       ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
       ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
     },
   }
+}
+
+function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeModelChatMessage[] {
+  if (messages.some((message) => containsJSONKeyword(message.content ?? ''))) return messages
+  return [
+    {
+      role: 'system',
+      content: 'JSON mode is enabled. Return only a valid JSON object with no markdown fences.',
+    },
+    ...messages,
+  ]
+}
+
+function containsJSONKeyword(content: string): boolean {
+  return /\bjson\b/i.test(content)
 }
 
 export async function callBackendGatewayChat(request: RuntimeModelRequestSnapshot): Promise<string> {
@@ -284,9 +303,11 @@ export async function callBackendGatewayChatWithTrace(
     throw error
   }
   const responseText = await response.text()
-  const parsed = parseJSONResponse(responseText)
-  const assistantMessage = extractAssistantMessage(parsed)
-  const content = extractAssistantContent(parsed)
+  const contentType = response.headers.get('content-type') ?? ''
+  const parsedResult = parseGatewayResponse(responseText, contentType)
+  const parsed = parsedResult.parsedBody
+  const assistantMessage = parsedResult.assistantMessage
+  const content = parsedResult.content
   trace = {
     request: publicRequest,
     response: {
@@ -307,8 +328,8 @@ export async function callBackendGatewayChatWithTrace(
     onTrace?.({ phase: 'error', trace, error })
     throw new Error(error)
   }
-  if (parsed === undefined) {
-    const error = 'backend model gateway returned invalid JSON'
+  if (!parsedResult.ok) {
+    const error = parsedResult.error ?? 'backend model gateway returned invalid response'
     onTrace?.({ phase: 'error', trace, error })
     throw new Error(error)
   }
@@ -341,12 +362,124 @@ function isSensitiveHeaderName(key: string): boolean {
   ].includes(key.toLowerCase())
 }
 
+interface ParsedGatewayResponse {
+  ok: boolean
+  content?: string
+  assistantMessage: RuntimeModelChatMessage
+  parsedBody?: unknown
+  error?: string
+}
+
+function parseGatewayResponse(responseText: string, contentType: string): ParsedGatewayResponse {
+  const normalizedText = responseText.trimStart()
+  if (contentType.toLowerCase().includes('text/event-stream') || normalizedText.startsWith('data:') || responseText.includes('\ndata:')) {
+    return parseSSEChatResponse(responseText)
+  }
+  const parsed = parseJSONResponse(responseText)
+  return {
+    ok: parsed !== undefined,
+    parsedBody: parsed,
+    assistantMessage: extractAssistantMessage(parsed),
+    content: extractAssistantContent(parsed),
+    ...(parsed === undefined ? { error: 'backend model gateway returned invalid JSON' } : {}),
+  }
+}
+
 function parseJSONResponse(responseText: string): { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> } | undefined {
   try {
     return JSON.parse(responseText) as { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> }
   } catch {
     return undefined
   }
+}
+
+function parseSSEChatResponse(responseText: string): ParsedGatewayResponse {
+  const chunks: unknown[] = []
+  let content = ''
+  let finishReason = ''
+  let role = 'assistant'
+  const toolCallParts = new Map<number, { id?: string; type?: string; name?: string; arguments: string }>()
+
+  for (const eventData of readSSEDataBlocks(responseText)) {
+    if (eventData === '[DONE]') break
+    let chunk: {
+      choices?: Array<{
+        delta?: {
+          role?: string
+          content?: string
+          tool_calls?: Array<{
+            index?: number
+            id?: string
+            type?: string
+            function?: { name?: string; arguments?: string }
+          }>
+        }
+        finish_reason?: string
+      }>
+    }
+    try {
+      chunk = JSON.parse(eventData)
+    } catch {
+      continue
+    }
+    chunks.push(chunk)
+    const choice = chunk.choices?.[0]
+    const delta = choice?.delta
+    if (delta?.role) role = delta.role
+    if (delta?.content) content += delta.content
+    if (choice?.finish_reason) finishReason = choice.finish_reason
+    for (const toolDelta of delta?.tool_calls ?? []) {
+      const index = typeof toolDelta.index === 'number' ? toolDelta.index : toolCallParts.size
+      const current = toolCallParts.get(index) ?? { arguments: '' }
+      if (toolDelta.id) current.id = toolDelta.id
+      if (toolDelta.type) current.type = toolDelta.type
+      if (toolDelta.function?.name) current.name = (current.name ?? '') + toolDelta.function.name
+      if (toolDelta.function?.arguments) current.arguments += toolDelta.function.arguments
+      toolCallParts.set(index, current)
+    }
+  }
+
+  const toolCalls = Array.from(toolCallParts.entries())
+    .sort(([a], [b]) => a - b)
+    .flatMap(([, part]) => {
+      if (!part.id || !part.name) return []
+      return [{
+        id: part.id,
+        type: 'function' as const,
+        function: {
+          name: part.name,
+          arguments: part.arguments,
+        },
+      }]
+    })
+  const trimmed = content.trim()
+  const assistantMessage: RuntimeModelChatMessage = {
+    role: role === 'assistant' ? 'assistant' : 'assistant',
+    content: trimmed || null,
+    ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+  }
+  return {
+    ok: chunks.length > 0 || responseText.includes('[DONE]'),
+    parsedBody: { object: 'chat.completion.stream', choices: [{ message: assistantMessage, finish_reason: finishReason || undefined }] },
+    assistantMessage,
+    content: trimmed || (toolCalls.length > 0 ? JSON.stringify({ tool_calls: toolCalls }) : undefined),
+    ...(chunks.length === 0 && !responseText.includes('[DONE]') ? { error: 'backend model gateway returned invalid SSE' } : {}),
+  }
+}
+
+function readSSEDataBlocks(responseText: string): string[] {
+  const blocks = responseText.replace(/\r\n/g, '\n').split(/\n\n+/)
+  const out: string[] = []
+  for (const block of blocks) {
+    const lines = block.split('\n')
+    const dataLines = lines
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice('data:'.length).trimStart())
+    if (dataLines.length > 0) {
+      out.push(dataLines.join('\n').trim())
+    }
+  }
+  return out
 }
 
 function extractAssistantMessage(parsed: { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> } | undefined): RuntimeModelChatMessage {

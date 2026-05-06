@@ -22,10 +22,10 @@ func TestNormalizeBindingDefaults(t *testing.T) {
 	}
 	NormalizeBinding(&binding)
 
-	if binding.OwnerType != "asset_slot" {
+	if binding.OwnerType != OwnerTypeAssetSlot {
 		t.Fatalf("owner type = %q, want asset_slot", binding.OwnerType)
 	}
-	if binding.Role != "attachment" {
+	if binding.Role != RoleAttachment {
 		t.Fatalf("role = %q, want attachment", binding.Role)
 	}
 	if binding.Slot != "poster" {
@@ -34,10 +34,10 @@ func TestNormalizeBindingDefaults(t *testing.T) {
 	if binding.Version != 1 {
 		t.Fatalf("version = %d, want 1", binding.Version)
 	}
-	if binding.Status != "draft" {
+	if binding.Status != StatusDraft {
 		t.Fatalf("status = %q, want draft", binding.Status)
 	}
-	if binding.SourceType != "manual" {
+	if binding.SourceType != SourceTypeManual {
 		t.Fatalf("source type = %q, want manual", binding.SourceType)
 	}
 }
@@ -51,19 +51,19 @@ func TestNormalizeCreateInputDefaults(t *testing.T) {
 	}
 	NormalizeCreateInput(&input)
 
-	if input.OwnerType != "asset_slot" {
+	if input.OwnerType != OwnerTypeAssetSlot {
 		t.Fatalf("owner type = %q, want asset_slot", input.OwnerType)
 	}
-	if input.Role != "attachment" {
+	if input.Role != RoleAttachment {
 		t.Fatalf("role = %q, want attachment", input.Role)
 	}
 	if input.Version != 1 {
 		t.Fatalf("version = %d, want 1", input.Version)
 	}
-	if input.Status != "draft" {
+	if input.Status != StatusDraft {
 		t.Fatalf("status = %q, want draft", input.Status)
 	}
-	if input.SourceType != "manual" {
+	if input.SourceType != SourceTypeManual {
 		t.Fatalf("source type = %q, want manual", input.SourceType)
 	}
 }
@@ -74,10 +74,10 @@ func TestValidateCreateInputRejectsUnknownOwner(t *testing.T) {
 		ResourceID: 2,
 		OwnerType:  "unknown",
 		OwnerID:    3,
-		Role:       "attachment",
+		Role:       RoleAttachment,
 		Version:    1,
-		Status:     "draft",
-		SourceType: "manual",
+		Status:     StatusDraft,
+		SourceType: SourceTypeManual,
 	}
 	if err := ValidateCreateInput(input); err != ErrOwnerInvalidType {
 		t.Fatalf("error = %v, want ErrOwnerInvalidType", err)

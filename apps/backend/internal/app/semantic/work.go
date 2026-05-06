@@ -74,14 +74,14 @@ func (s *Service) CreateWorkReview(ctx context.Context, projectID uint, auth Wor
 	if err := s.validateWorkReviewInput(ctx, projectID, &input, auth.UserID, true); err != nil {
 		return model.WorkReview{}, err
 	}
-	item := model.WorkReview{
+	item := domainsemantic.NewWorkReview(domainsemantic.WorkReviewSpec{
 		ProjectID:    projectID,
 		WorkItemID:   input.WorkItemID,
 		ReviewerID:   input.ReviewerID,
-		Status:       fallbackString(input.Status, "pending"),
+		Status:       input.Status,
 		Comment:      input.Comment,
 		MetadataJSON: input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -125,12 +125,12 @@ func (s *Service) CreateWorkDependency(ctx context.Context, projectID uint, auth
 	if err := s.validateWorkDependencyInput(ctx, projectID, input); err != nil {
 		return model.WorkDependency{}, err
 	}
-	item := model.WorkDependency{
+	item := domainsemantic.NewWorkDependency(domainsemantic.WorkDependencySpec{
 		ProjectID:           projectID,
 		WorkItemID:          input.WorkItemID,
 		DependsOnWorkItemID: input.DependsOnWorkItemID,
-		DependencyType:      fallbackString(input.DependencyType, "blocks"),
-	}
+		DependencyType:      input.DependencyType,
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

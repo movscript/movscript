@@ -99,9 +99,6 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 	default:
 		return resp, ErrInvalidScope
 	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return resp, ErrNotFound
-	}
 	return resp, err
 }
 

@@ -7,6 +7,8 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"gorm.io/gorm"
 )
 
@@ -15,7 +17,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txDB := tx.Session(&gorm.Session{SkipHooks: true})
 		txRepo := &gormRepository{db: txDB}
-		txSvc := &EntityIOService{db: txDB, repo: txRepo}
+		txSvc := &EntityIOService{repo: txRepo}
 		oldValues, _ := txSvc.ReadPorts(ctx, kind, id)
 		if err := txRepo.writeEntityFields(ctx, kind, id, values); err != nil {
 			return err
@@ -58,7 +60,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 					Role:         field.Binding.Role,
 					Slot:         field.Binding.Slot,
 					IsPrimary:    field.Binding.IsPrimary,
-					Status:       "selected",
+					Status:       domainresourcebinding.StatusSelected,
 					SourceType:   sourceType,
 					CreatedByID:  uintPtrOrNil(meta.UserID),
 					MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d}`, meta.NodeID, meta.RunID),
@@ -123,14 +125,14 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 			ProductionID:             slot.ProductionID,
 			CreativeReferenceID:      slot.CreativeReferenceID,
 			CreativeReferenceStateID: slot.CreativeReferenceStateID,
-			OwnerType:                "asset_slot",
+			OwnerType:                domainresourcebinding.OwnerTypeAssetSlot,
 			OwnerID:                  &slotID,
 			Kind:                     slot.Kind,
 			Name:                     candidateSlotName(slot, resourceID),
 			Description:              slot.Description,
 			SlotKey:                  slot.SlotKey,
 			PromptHint:               slot.PromptHint,
-			Status:                   "candidate",
+			Status:                   domainsemantic.AssetSlotStatusCandidate,
 			Priority:                 slot.Priority,
 			ResourceID:               &resourceID,
 			MetadataJSON:             fmt.Sprintf(`{"source":"asset_slot_candidates","candidate_for_slot_id":%d}`, slotID),
@@ -146,7 +148,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 			AssetSlotID:          slotID,
 			CandidateAssetSlotID: candidateSlot.ID,
 			SourceType:           sourceType,
-			Status:               "candidate",
+			Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 			Note:                 "由素材槽候选集输入创建",
 		}
 		if meta.CanvasID != 0 {
@@ -161,12 +163,12 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 		binding := model.ResourceBinding{
 			ProjectID:    projectID,
 			ResourceID:   resourceID,
-			OwnerType:    "asset_slot",
+			OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
 			OwnerID:      candidateSlot.ID,
-			Role:         "candidate",
+			Role:         domainresourcebinding.RoleCandidate,
 			Slot:         "candidates",
 			IsPrimary:    true,
-			Status:       "selected",
+			Status:       domainresourcebinding.StatusSelected,
 			SourceType:   sourceType,
 			CreatedByID:  uintPtrOrNil(meta.UserID),
 			MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d,"asset_slot_id":%d}`, meta.NodeID, meta.RunID, slotID),

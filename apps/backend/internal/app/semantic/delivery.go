@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 type DeliveryVersionFilter struct {
@@ -90,17 +91,17 @@ func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, inp
 			return model.DeliveryVersion{}, err
 		}
 	}
-	item := model.DeliveryVersion{
+	item := domainsemantic.NewDeliveryVersion(domainsemantic.DeliveryVersionSpec{
 		ProjectID:         projectID,
 		ProductionID:      input.ProductionID,
 		PreviewTimelineID: input.PreviewTimelineID,
-		Name:              fallbackString(input.Name, "Delivery"),
+		Name:              input.Name,
 		Description:       input.Description,
-		Status:            fallbackString(input.Status, "draft"),
+		Status:            input.Status,
 		IsPrimary:         input.IsPrimary,
 		DurationSec:       input.DurationSec,
 		MetadataJSON:      input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -143,20 +144,20 @@ func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint
 	if err := s.validateDeliveryTimelineItemOwners(ctx, projectID, input); err != nil {
 		return model.DeliveryTimelineItem{}, err
 	}
-	item := model.DeliveryTimelineItem{
+	item := domainsemantic.NewDeliveryTimelineItem(domainsemantic.DeliveryTimelineItemSpec{
 		ProjectID:         projectID,
 		DeliveryVersionID: input.DeliveryVersionID,
 		ContentUnitID:     input.ContentUnitID,
 		AssetSlotID:       input.AssetSlotID,
 		ResourceID:        input.ResourceID,
-		Kind:              fallbackString(input.Kind, "video"),
+		Kind:              input.Kind,
 		Order:             input.Order,
 		StartSec:          input.StartSec,
 		DurationSec:       input.DurationSec,
 		Label:             input.Label,
-		Status:            fallbackString(input.Status, "draft"),
+		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -200,16 +201,16 @@ func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input 
 	if err := s.validateExportRecordOwners(ctx, projectID, input); err != nil {
 		return model.ExportRecord{}, err
 	}
-	item := model.ExportRecord{
+	item := domainsemantic.NewExportRecord(domainsemantic.ExportRecordSpec{
 		ProjectID:         projectID,
 		DeliveryVersionID: input.DeliveryVersionID,
 		ResourceID:        input.ResourceID,
-		Status:            fallbackString(input.Status, "pending"),
+		Status:            input.Status,
 		Format:            input.Format,
 		Preset:            input.Preset,
 		Error:             input.Error,
 		MetadataJSON:      input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -249,7 +250,7 @@ func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input 
 	if err := s.validateCanvasOutputOwners(ctx, projectID, input); err != nil {
 		return model.CanvasOutput{}, err
 	}
-	item := model.CanvasOutput{
+	item := domainsemantic.NewCanvasOutput(domainsemantic.CanvasOutputSpec{
 		ProjectID:    projectID,
 		CanvasID:     input.CanvasID,
 		CanvasRunID:  input.CanvasRunID,
@@ -257,13 +258,13 @@ func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input 
 		PortID:       input.PortID,
 		OwnerType:    input.OwnerType,
 		OwnerID:      input.OwnerID,
-		OutputType:   fallbackString(input.OutputType, "resource"),
+		OutputType:   input.OutputType,
 		ResourceID:   input.ResourceID,
 		TargetField:  input.TargetField,
 		ValueJSON:    input.ValueJSON,
-		Status:       fallbackString(input.Status, "pending"),
+		Status:       input.Status,
 		MetadataJSON: input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

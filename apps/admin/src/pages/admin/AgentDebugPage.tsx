@@ -1277,7 +1277,7 @@ function WorkbenchTab({
         </Button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)] overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-[240px_minmax(0,1fr)] overflow-hidden">
       {/* Sessions sidebar */}
       <div className="flex min-h-0 flex-col border-r border-border bg-muted/10">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -1302,16 +1302,24 @@ function WorkbenchTab({
               const state = runStates[session.threadId]
               return (
                 <div
+                  role="button"
+                  tabIndex={0}
                   key={session.threadId}
                   className={cn(
-                    'group flex cursor-pointer items-start justify-between gap-1 rounded-md border p-2 transition-colors',
+                    'group grid min-h-[78px] w-full cursor-pointer grid-cols-[minmax(0,1fr)_20px] items-start gap-2 rounded-md border p-2 text-left transition-colors',
                     isActive ? 'border-primary/50 bg-primary/5' : 'border-transparent hover:border-border hover:bg-muted/20',
                   )}
                   onClick={() => setActiveThreadId(session.threadId)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      setActiveThreadId(session.threadId)
+                    }
+                  }}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[11px] font-medium text-foreground">{session.title}</div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
+                    <div className="break-words text-[11px] font-medium leading-4 text-foreground" title={session.title}>{session.title}</div>
+                    <div className="mt-1.5 flex h-4 items-center gap-1.5 overflow-hidden">
                       <span className="text-[10px] text-muted-foreground">{session.messageCount} msg</span>
                       {(state?.running || state?.loadingThread) && <Loader2 size={9} className="animate-spin text-blue-500" />}
                       {session.lastRunStatus === 'completed' && !state?.running && <span className="text-[9px] text-emerald-600">done</span>}
@@ -1320,8 +1328,10 @@ function WorkbenchTab({
                   </div>
                   <button
                     type="button"
-                    className="mt-0.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
                     onClick={(e) => { e.stopPropagation(); deleteSession(session.threadId) }}
+                    title="Delete session"
+                    aria-label="Delete session"
                   >
                     <Trash2 size={11} className="text-muted-foreground hover:text-destructive" />
                   </button>

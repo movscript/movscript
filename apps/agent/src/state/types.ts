@@ -5,6 +5,7 @@ import type { RegisteredTool, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
+import type { AgentUpdateState } from '../updates/updatePolicy.js'
 
 export type { JSONValue, MCPResource, MCPTool } from '../types.js'
 
@@ -374,6 +375,7 @@ export interface AgentRunDebugTrace {
 
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
+  updates?: AgentUpdateState
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
@@ -405,6 +407,7 @@ export interface AgentRuntimeOptions {
   contractResolver?: AgentRuntimeContractResolver
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
+  updateState?: AgentUpdateState
 }
 
 export interface CreateThreadInput {

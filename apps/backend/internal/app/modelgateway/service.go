@@ -188,14 +188,14 @@ func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Princi
 	hash := HashAPIKey(rawKey)
 	key, err := s.repo.FindAPIKeyByHash(ctx, hash)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, ErrAPIKeyNotFound) {
 			return Principal{}, false, nil
 		}
 		return Principal{}, false, err
 	}
 	user, err := s.repo.FindUser(ctx, key.OwnerUserID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, ErrAPIKeyNotFound) {
 			return Principal{}, false, nil
 		}
 		return Principal{}, false, err

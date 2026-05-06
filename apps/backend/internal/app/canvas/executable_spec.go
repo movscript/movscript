@@ -202,15 +202,12 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 		return
 	}
 
-	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
+	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
 	value := canvasruntime.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
 	})
-	nd.Status = "done"
-	nd.ResourceID = &r.ID
-	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -235,11 +232,7 @@ func (h *Service) executeHTTPPluginSpec(ctx context.Context, user *model.User, n
 		return
 	}
 
-	var tool model.PluginTool
-	err := h.db.Preload("Plugin").
-		Joins("JOIN plugins ON plugins.id = plugin_tools.plugin_id").
-		Where("plugin_tools.tool_key = ? AND plugin_tools.enabled = ? AND plugins.enabled = ? AND plugins.deleted_at IS NULL", spec.PluginToolKey, true, true).
-		First(&tool).Error
+	tool, err := h.canvasRepo().FindEnabledPluginTool(ctx, spec.PluginToolKey)
 	if err != nil {
 		h.failTask(task, node, nd, "plugin tool not found")
 		return

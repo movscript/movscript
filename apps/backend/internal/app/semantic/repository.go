@@ -9,6 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/app/workflowio"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"gorm.io/gorm"
 )
 
@@ -202,19 +203,19 @@ func (r *gormRepository) CreateScriptVersion(ctx context.Context, projectID uint
 	if err != nil {
 		return model.ScriptVersion{}, err
 	}
-	item := model.ScriptVersion{
+	item := domainsemantic.NewScriptVersion(domainsemantic.ScriptVersionSpec{
 		ProjectID:       projectID,
 		ScriptID:        input.ScriptID,
 		ParentVersionID: input.ParentVersionID,
 		VersionNumber:   input.VersionNumber,
 		Title:           fallbackString(input.Title, script.Title),
-		SourceType:      fallbackString(input.SourceType, "raw"),
+		SourceType:      input.SourceType,
 		Content:         fallbackString(input.Content, script.Content),
 		RawSource:       fallbackString(input.RawSource, script.RawSource),
 		Summary:         input.Summary,
-		Status:          fallbackString(input.Status, "draft"),
+		Status:          input.Status,
 		CreatedByID:     createdByID,
-	}
+	})
 	if item.VersionNumber == 0 {
 		item.VersionNumber = r.NextScriptVersionNumber(ctx, projectID, input.ScriptID)
 	}
@@ -761,29 +762,19 @@ func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, i
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		next := *item
 		ApplyWorkItemUpdates(&next, updates)
-		next.ResultType = fallbackString(next.ResultType, "none")
-		if next.ResultType == "none" {
-			next.ApplyStatus = "not_applicable"
-			next.AppliedAt = ""
-			next.ApplyError = ""
-		} else {
-			next.ApplyStatus = "pending"
-			next.ApplyError = ""
-		}
+		PrepareWorkItemResultApplication(&next)
 		if err := tx.Save(&next).Error; err != nil {
 			return err
 		}
 		if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
 			return err
 		}
-		if next.ResultType != "none" {
+		if next.ResultType != domainsemantic.WorkItemResultNone {
 			applyErr = applyWorkItemResult(tx, projectID, next, actorID, now)
 			if applyErr != nil {
 				return applyErr
 			}
-			next.ApplyStatus = "applied"
-			next.AppliedAt = now
-			next.ApplyError = ""
+			MarkWorkItemResultApplied(&next, now)
 			if err := tx.Save(&next).Error; err != nil {
 				return err
 			}
@@ -796,8 +787,7 @@ func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, i
 	if err != nil {
 		if applyErr != nil {
 			failed := *item
-			failed.ApplyStatus = "failed"
-			failed.ApplyError = applyErr.Error()
+			MarkWorkItemResultApplyFailed(&failed, applyErr.Error())
 			_ = saveCoreEntityWithRelations(r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}), &failed)
 			return failed, ErrInvalidInput{Err: applyErr}
 		}

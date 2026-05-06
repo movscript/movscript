@@ -125,24 +125,24 @@ func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input Ass
 	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.LockedAssetSlotID); err != nil {
 		return model.AssetSlot{}, err
 	}
-	item := model.AssetSlot{
+	item := domainsemantic.NewAssetSlot(domainsemantic.AssetSlotSpec{
 		ProjectID:                projectID,
 		ProductionID:             input.ProductionID,
 		CreativeReferenceID:      input.CreativeReferenceID,
 		CreativeReferenceStateID: input.CreativeReferenceStateID,
 		OwnerType:                input.OwnerType,
 		OwnerID:                  input.OwnerID,
-		Kind:                     fallbackString(input.Kind, "image"),
+		Kind:                     input.Kind,
 		Name:                     input.Name,
 		Description:              input.Description,
 		SlotKey:                  input.SlotKey,
 		PromptHint:               input.PromptHint,
-		Status:                   fallbackString(input.Status, "missing"),
-		Priority:                 fallbackString(input.Priority, "normal"),
+		Status:                   input.Status,
+		Priority:                 input.Priority,
 		ResourceID:               input.ResourceID,
 		LockedAssetSlotID:        input.LockedAssetSlotID,
 		MetadataJSON:             input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -214,16 +214,16 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 	if err := s.ensureAssetSlotInProject(ctx, projectID, input.CandidateAssetSlotID); err != nil {
 		return model.AssetSlotCandidate{}, err
 	}
-	item := model.AssetSlotCandidate{
+	item := domainsemantic.NewAssetSlotCandidate(domainsemantic.AssetSlotCandidateSpec{
 		ProjectID:            projectID,
 		AssetSlotID:          input.AssetSlotID,
 		CandidateAssetSlotID: input.CandidateAssetSlotID,
-		SourceType:           fallbackString(input.SourceType, "manual"),
+		SourceType:           input.SourceType,
 		SourceID:             input.SourceID,
 		Score:                input.Score,
-		Status:               fallbackString(input.Status, "candidate"),
+		Status:               input.Status,
 		Note:                 input.Note,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -266,7 +266,7 @@ func (s *Service) CreateCandidateDecision(ctx context.Context, projectID uint, i
 	if err := s.validateCandidateDecisionOwners(ctx, projectID, input); err != nil {
 		return model.CandidateDecision{}, err
 	}
-	item := model.CandidateDecision{
+	item := domainsemantic.NewCandidateDecision(domainsemantic.CandidateDecisionSpec{
 		ProjectID:         projectID,
 		CandidateType:     input.CandidateType,
 		CandidateID:       input.CandidateID,
@@ -274,14 +274,14 @@ func (s *Service) CreateCandidateDecision(ctx context.Context, projectID uint, i
 		TargetType:        input.TargetType,
 		TargetID:          input.TargetID,
 		Decision:          input.Decision,
-		Status:            fallbackString(input.Status, "recorded"),
+		Status:            input.Status,
 		Reason:            input.Reason,
 		Note:              input.Note,
-		Source:            fallbackString(input.Source, "manual"),
+		Source:            input.Source,
 		DecidedByID:       input.DecidedByID,
 		AppliedAt:         input.AppliedAt,
 		MetadataJSON:      input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -327,7 +327,7 @@ func (s *Service) CreateReviewEvent(ctx context.Context, projectID uint, input R
 	if err := s.validateScopedOwner(ctx, projectID, input.SubjectType, input.SubjectID); err != nil {
 		return model.ReviewEvent{}, err
 	}
-	item := model.ReviewEvent{
+	item := domainsemantic.NewReviewEvent(domainsemantic.ReviewEventSpec{
 		ProjectID:       projectID,
 		SubjectType:     input.SubjectType,
 		SubjectID:       input.SubjectID,
@@ -337,10 +337,10 @@ func (s *Service) CreateReviewEvent(ctx context.Context, projectID uint, input R
 		ToStatus:        input.ToStatus,
 		Comment:         input.Comment,
 		Reason:          input.Reason,
-		Source:          fallbackString(input.Source, "manual"),
+		Source:          input.Source,
 		ActorID:         input.ActorID,
 		MetadataJSON:    input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

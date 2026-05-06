@@ -137,6 +137,13 @@ func RegisteredMigrations() []Migration {
 				return createJobRunnerIndexes(db)
 			},
 		},
+		{
+			Version: "000009",
+			Name:    "add_payment_configs",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&model.PaymentConfig{})
+			},
+		},
 	}
 }
 
@@ -432,6 +439,7 @@ func allModels() []any {
 		&model.GatewayAPIKey{},
 		&model.GatewayRateLimitCounter{},
 		&model.CloudFileConfig{},
+		&model.PaymentConfig{},
 		&model.AuditLog{},
 		&model.StoryboardScript{},
 		&model.StoryboardVersion{},

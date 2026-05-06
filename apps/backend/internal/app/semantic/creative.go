@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 type CreativeReferenceFilter struct {
@@ -95,7 +96,7 @@ func (s *Service) ListCreativeReferences(ctx context.Context, filter CreativeRef
 }
 
 func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, input CreativeReferenceInput) (model.CreativeReference, error) {
-	item := model.CreativeReference{
+	item := domainsemantic.NewCreativeReference(domainsemantic.CreativeReferenceSpec{
 		ProjectID:        projectID,
 		SourceScriptID:   input.SourceScriptID,
 		SourceAnalysisID: input.SourceAnalysisID,
@@ -105,11 +106,11 @@ func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, i
 		Alias:            input.Alias,
 		Description:      input.Description,
 		Content:          input.Content,
-		Importance:       fallbackString(input.Importance, "supporting"),
-		Status:           fallbackString(input.Status, "draft"),
+		Importance:       input.Importance,
+		Status:           input.Status,
 		ProfileJSON:      input.ProfileJSON,
 		TagsJSON:         input.TagsJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -151,7 +152,7 @@ func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID ui
 	if err := s.ensureCreativeReferenceInProject(ctx, projectID, input.CreativeReferenceID); err != nil {
 		return model.CreativeReferenceState{}, err
 	}
-	item := model.CreativeReferenceState{
+	item := domainsemantic.NewCreativeReferenceState(domainsemantic.CreativeReferenceStateSpec{
 		ProjectID:           projectID,
 		CreativeReferenceID: input.CreativeReferenceID,
 		ScopeType:           input.ScopeType,
@@ -162,10 +163,10 @@ func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID ui
 		Emotion:             input.Emotion,
 		Costume:             input.Costume,
 		Props:               input.Props,
-		Status:              fallbackString(input.Status, "draft"),
+		Status:              input.Status,
 		TagsJSON:            input.TagsJSON,
 		MetadataJSON:        input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -210,7 +211,7 @@ func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID ui
 	if err := s.validateCreativeReferenceUsageOwners(ctx, projectID, input); err != nil {
 		return model.CreativeReferenceUsage{}, err
 	}
-	item := model.CreativeReferenceUsage{
+	item := domainsemantic.NewCreativeReferenceUsage(domainsemantic.CreativeReferenceUsageSpec{
 		ProjectID:                projectID,
 		OwnerType:                input.OwnerType,
 		OwnerID:                  input.OwnerID,
@@ -219,10 +220,10 @@ func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID ui
 		Role:                     input.Role,
 		Order:                    input.Order,
 		Evidence:                 input.Evidence,
-		Source:                   fallbackString(input.Source, "manual"),
-		Status:                   fallbackString(input.Status, "draft"),
+		Source:                   input.Source,
+		Status:                   input.Status,
 		MetadataJSON:             input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -265,21 +266,21 @@ func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint
 	if err := s.validateCreativeRelationshipOwners(ctx, projectID, input); err != nil {
 		return model.CreativeRelationship{}, err
 	}
-	item := model.CreativeRelationship{
+	item := domainsemantic.NewCreativeRelationship(domainsemantic.CreativeRelationshipSpec{
 		ProjectID:                 projectID,
 		SourceCreativeReferenceID: input.SourceCreativeReferenceID,
 		TargetCreativeReferenceID: input.TargetCreativeReferenceID,
 		ScopeType:                 input.ScopeType,
 		ScopeID:                   input.ScopeID,
-		Category:                  fallbackString(input.Category, "relationship"),
+		Category:                  input.Category,
 		Type:                      input.Type,
 		Label:                     input.Label,
 		Description:               input.Description,
-		Source:                    fallbackString(input.Source, "manual"),
-		Status:                    fallbackString(input.Status, "draft"),
+		Source:                    input.Source,
+		Status:                    input.Status,
 		Evidence:                  input.Evidence,
 		MetadataJSON:              input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

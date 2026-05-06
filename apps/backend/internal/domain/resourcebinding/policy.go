@@ -12,6 +12,45 @@ var (
 	ErrOwnerInvalidType = errors.New("resource binding owner type is invalid")
 )
 
+const (
+	OwnerTypeScript                 = "script"
+	OwnerTypeScriptVersion          = "script_version"
+	OwnerTypeSegment                = "segment"
+	OwnerTypeSceneMoment            = "scene_moment"
+	OwnerTypeContentUnit            = "content_unit"
+	OwnerTypeKeyframe               = "keyframe"
+	OwnerTypePreviewTimeline        = "preview_timeline"
+	OwnerTypeCreativeReference      = "creative_reference"
+	OwnerTypeCreativeReferenceState = "creative_reference_state"
+	OwnerTypeAssetSlot              = "asset_slot"
+	OwnerTypeDeliveryVersion        = "delivery_version"
+	OwnerTypeCanvas                 = "canvas"
+
+	RoleReference  = "reference"
+	RoleInput      = "input"
+	RoleOutput     = "output"
+	RoleDraft      = "draft"
+	RoleFinal      = "final"
+	RoleThumbnail  = "thumbnail"
+	RoleAttachment = "attachment"
+	RoleSource     = "source"
+	RoleSettingDoc = "setting_doc"
+	RoleCandidate  = "candidate"
+
+	StatusDraft    = "draft"
+	StatusSelected = "selected"
+	StatusRejected = "rejected"
+	StatusApproved = "approved"
+	StatusArchived = "archived"
+
+	SourceTypeUpload = "upload"
+	SourceTypeJob    = "job"
+	SourceTypeCanvas = "canvas"
+	SourceTypeImport = "import"
+	SourceTypeManual = "manual"
+	SourceTypeLegacy = "legacy"
+)
+
 type Filter struct {
 	ProjectID  uint
 	OwnerType  string
@@ -70,9 +109,9 @@ func NormalizeSourceType(value string) string {
 
 func ValidOwnerType(value string) bool {
 	switch value {
-	case "script", "script_version", "segment", "scene_moment", "content_unit", "keyframe", "preview_timeline",
-		"creative_reference", "creative_reference_state", "asset_slot",
-		"delivery_version", "canvas":
+	case OwnerTypeScript, OwnerTypeScriptVersion, OwnerTypeSegment, OwnerTypeSceneMoment, OwnerTypeContentUnit, OwnerTypeKeyframe, OwnerTypePreviewTimeline,
+		OwnerTypeCreativeReference, OwnerTypeCreativeReferenceState, OwnerTypeAssetSlot,
+		OwnerTypeDeliveryVersion, OwnerTypeCanvas:
 		return true
 	default:
 		return false
@@ -81,7 +120,7 @@ func ValidOwnerType(value string) bool {
 
 func ValidRole(value string) bool {
 	switch value {
-	case "reference", "input", "output", "draft", "final", "thumbnail", "attachment", "source", "setting_doc":
+	case RoleReference, RoleInput, RoleOutput, RoleDraft, RoleFinal, RoleThumbnail, RoleAttachment, RoleSource, RoleSettingDoc, RoleCandidate:
 		return true
 	default:
 		return false
@@ -90,7 +129,7 @@ func ValidRole(value string) bool {
 
 func ValidStatus(value string) bool {
 	switch value {
-	case "draft", "selected", "rejected", "approved", "archived":
+	case StatusDraft, StatusSelected, StatusRejected, StatusApproved, StatusArchived:
 		return true
 	default:
 		return false
@@ -99,7 +138,7 @@ func ValidStatus(value string) bool {
 
 func ValidSourceType(value string) bool {
 	switch value {
-	case "upload", "job", "canvas", "import", "manual", "legacy":
+	case SourceTypeUpload, SourceTypeJob, SourceTypeCanvas, SourceTypeImport, SourceTypeManual, SourceTypeLegacy:
 		return true
 	default:
 		return false
@@ -110,7 +149,7 @@ func NormalizeBinding(binding *model.ResourceBinding) {
 	binding.OwnerType = NormalizeOwnerType(binding.OwnerType)
 	binding.Role = NormalizeRole(binding.Role)
 	if binding.Role == "" {
-		binding.Role = "attachment"
+		binding.Role = RoleAttachment
 	}
 	binding.Slot = strings.TrimSpace(binding.Slot)
 	if binding.Version <= 0 {
@@ -118,11 +157,11 @@ func NormalizeBinding(binding *model.ResourceBinding) {
 	}
 	binding.Status = NormalizeStatus(binding.Status)
 	if binding.Status == "" {
-		binding.Status = "draft"
+		binding.Status = StatusDraft
 	}
 	binding.SourceType = NormalizeSourceType(binding.SourceType)
 	if binding.SourceType == "" {
-		binding.SourceType = "manual"
+		binding.SourceType = SourceTypeManual
 	}
 	binding.MetadataJSON = strings.TrimSpace(binding.MetadataJSON)
 }
@@ -131,7 +170,7 @@ func NormalizeCreateInput(input *CreateInput) {
 	input.OwnerType = NormalizeOwnerType(input.OwnerType)
 	input.Role = NormalizeRole(input.Role)
 	if input.Role == "" {
-		input.Role = "attachment"
+		input.Role = RoleAttachment
 	}
 	input.Slot = strings.TrimSpace(input.Slot)
 	if input.Version <= 0 {
@@ -139,11 +178,11 @@ func NormalizeCreateInput(input *CreateInput) {
 	}
 	input.Status = NormalizeStatus(input.Status)
 	if input.Status == "" {
-		input.Status = "draft"
+		input.Status = StatusDraft
 	}
 	input.SourceType = NormalizeSourceType(input.SourceType)
 	if input.SourceType == "" {
-		input.SourceType = "manual"
+		input.SourceType = SourceTypeManual
 	}
 	input.MetadataJSON = strings.TrimSpace(input.MetadataJSON)
 }

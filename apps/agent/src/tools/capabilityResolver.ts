@@ -27,6 +27,7 @@ export async function resolveAgentCapabilities(options: {
   includeResources?: boolean
   pluginCatalog?: AgentCapabilitiesResponse['pluginCatalog']
   warnings?: string[]
+  updates?: AgentCapabilitiesResponse['updates']
 }): Promise<AgentCapabilitiesResponse> {
   const registry = options.registry ?? DEFAULT_TOOL_REGISTRY
   const warnings: string[] = [...(options.warnings ?? [])]
@@ -51,6 +52,7 @@ export async function resolveAgentCapabilities(options: {
 
   return {
     defaultAgentManifest: options.manifest,
+    ...(options.updates ? { updates: options.updates } : {}),
     ...(options.pluginCatalog ? { pluginCatalog: options.pluginCatalog } : {}),
     mcp: {
       connected,

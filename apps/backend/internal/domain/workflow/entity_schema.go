@@ -1,5 +1,7 @@
 package workflow
 
+import domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+
 const EntitySemanticSchemaVersion = 1
 
 // EntitySchemaVersion is kept for compatibility with existing callers that
@@ -603,7 +605,7 @@ func candidateResourceField(id string, labelKey string, fallback string) EntityS
 		Layout: EntityFieldLayout{Width: "full", NestedKind: "asset_slot", Relation: "children"},
 		IO:     FieldIO{Readable: true, Writable: true, MaxCount: 12},
 		Binding: &FieldBindingMap{
-			Role:     "candidate",
+			Role:     domainresourcebinding.RoleCandidate,
 			Slot:     id,
 			Multiple: true,
 		},

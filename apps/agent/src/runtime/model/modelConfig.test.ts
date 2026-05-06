@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
-import { RuntimeModelConfigStore } from './modelConfig.js'
+import { buildBackendGatewayChatRequest, RuntimeModelConfigStore } from './modelConfig.js'
 
 test('runtime model config saves only backend model config routing fields', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
@@ -67,12 +67,14 @@ test('runtime model config test uses backend gateway and hides auth from the pub
       assert.equal(url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
       assert.equal(init?.method, 'POST')
       assert.deepEqual(init?.headers, {
+        Accept: 'text/event-stream',
         Authorization: 'Bearer user-token',
         'Content-Type': 'application/json',
       })
       assert.equal(typeof init?.body, 'string')
       const body = JSON.parse(init?.body as string) as Record<string, unknown>
       assert.equal(body.model, 'model_config:9')
+      assert.equal(body.stream, true)
       assert.ok(Array.isArray(body.messages))
       return new Response(JSON.stringify({
         choices: [{ message: { content: 'connection ok' } }],
@@ -93,4 +95,62 @@ test('runtime model config test uses backend gateway and hides auth from the pub
     globalThis.fetch = originalFetch
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('backend gateway JSON mode request includes ASCII JSON instruction when missing', () => {
+  const request = buildBackendGatewayChatRequest(
+    {
+      provider: 'backend-model-config',
+      modelConfigId: 12,
+      model: 'model_config:12',
+      useForChat: true,
+      useForPlanner: true,
+      updatedAt: new Date(0).toISOString(),
+    },
+    [
+      {
+        role: 'system',
+        content: '输出结构化对象，不要使用 markdown。',
+      },
+      {
+        role: 'user',
+        content: '分析这个剧本。',
+      },
+    ],
+    {},
+    { jsonMode: true },
+  )
+
+  assert.equal(request.body.response_format?.type, 'json_object')
+  assert.equal(request.body.messages[0]?.role, 'system')
+  assert.match(request.body.messages[0]?.content ?? '', /\bJSON\b/)
+  assert.equal(request.body.messages[1]?.content, '输出结构化对象，不要使用 markdown。')
+})
+
+test('backend gateway JSON mode request does not duplicate an existing JSON instruction', () => {
+  const request = buildBackendGatewayChatRequest(
+    {
+      provider: 'backend-model-config',
+      modelConfigId: 12,
+      model: 'model_config:12',
+      useForChat: true,
+      useForPlanner: true,
+      updatedAt: new Date(0).toISOString(),
+    },
+    [
+      {
+        role: 'system',
+        content: 'Return only valid JSON.',
+      },
+      {
+        role: 'user',
+        content: 'Analyze this script.',
+      },
+    ],
+    {},
+    { jsonMode: true },
+  )
+
+  assert.equal(request.body.messages.length, 2)
+  assert.equal(request.body.messages[0]?.content, 'Return only valid JSON.')
 })

@@ -2,13 +2,18 @@ package canvas
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
+	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"gorm.io/gorm"
 )
 
@@ -50,6 +55,14 @@ type repository interface {
 	GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (model.CanvasRun, model.Canvas, error)
 	FailRunNotFound(ctx context.Context, runID uint, finishedAt *time.Time) error
 	ListRunTasksOrdered(ctx context.Context, runID uint) ([]model.CanvasTask, error)
+	FindResources(ctx context.Context, ids []uint) ([]model.RawResource, error)
+	CreateResource(ctx context.Context, resource *model.RawResource) error
+	DeleteResource(ctx context.Context, resource *model.RawResource) error
+	UpdateResource(ctx context.Context, resource *model.RawResource, updates map[string]any) error
+	CreateResourceBinding(ctx context.Context, binding model.ResourceBinding) error
+	AttachGeneratedAssetSlotCandidate(ctx context.Context, input AttachGeneratedAssetSlotCandidateInput) error
+	ListCanvasOutputTargets(ctx context.Context, filter CanvasOutputTargetFilter) ([]model.CanvasOutput, error)
+	FindEnabledPluginTool(ctx context.Context, toolKey string) (model.PluginTool, error)
 }
 
 type gormRepository struct {
@@ -436,7 +449,7 @@ func (r *gormRepository) CanvasOrgID(ctx context.Context, canvasID uint) (*uint,
 
 func (r *gormRepository) LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (model.CanvasTask, bool, error) {
 	var task model.CanvasTask
-	err := r.db.WithContext(ctx).Where("canvas_node_id = ? AND status = ?", canvasNodeID, "done").Order("id desc").First(&task).Error
+	err := r.db.WithContext(ctx).Where("canvas_node_id = ? AND status = ?", canvasNodeID, canvasruntime.CanvasTaskStatusDone).Order("id desc").First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return task, false, nil
@@ -448,7 +461,7 @@ func (r *gormRepository) LatestDoneTaskForNode(ctx context.Context, canvasNodeID
 
 func (r *gormRepository) LatestCompletedRun(ctx context.Context, canvasID uint) (model.CanvasRun, error) {
 	var run model.CanvasRun
-	err := r.db.WithContext(ctx).Where("canvas_id = ? AND status = ?", canvasID, "done").Order("id desc").First(&run).Error
+	err := r.db.WithContext(ctx).Where("canvas_id = ? AND status = ?", canvasID, canvasruntime.CanvasRunStatusDone).Order("id desc").First(&run).Error
 	return run, err
 }
 
@@ -497,7 +510,7 @@ func (r *gormRepository) GetCanvasForRunExecution(ctx context.Context, canvasID 
 
 func (r *gormRepository) FailRunNotFound(ctx context.Context, runID uint, finishedAt *time.Time) error {
 	return r.db.WithContext(ctx).Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
-		"status":      "failed",
+		"status":      canvasruntime.CanvasRunStatusFailed,
 		"error":       "run not found",
 		"finished_at": finishedAt,
 	}).Error
@@ -509,4 +522,281 @@ func (r *gormRepository) ListRunTasksOrdered(ctx context.Context, runID uint) ([
 		return nil, err
 	}
 	return tasks, nil
+}
+
+func (r *gormRepository) FindResources(ctx context.Context, ids []uint) ([]model.RawResource, error) {
+	resources := make([]model.RawResource, 0)
+	if len(ids) == 0 {
+		return resources, nil
+	}
+	err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&resources).Error
+	return resources, err
+}
+
+func (r *gormRepository) CreateResource(ctx context.Context, resource *model.RawResource) error {
+	return r.db.WithContext(ctx).Create(resource).Error
+}
+
+func (r *gormRepository) DeleteResource(ctx context.Context, resource *model.RawResource) error {
+	return r.db.WithContext(ctx).Delete(resource).Error
+}
+
+func (r *gormRepository) UpdateResource(ctx context.Context, resource *model.RawResource, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(resource).Updates(updates).Error
+}
+
+type AttachGeneratedAssetSlotCandidateInput struct {
+	CanvasID       uint
+	CanvasRunID    uint
+	ProjectID      uint
+	UserID         uint
+	EntityKind     string
+	EntityID       uint
+	ResourceID     uint
+	BindingSlot    string
+	BindingMeta    string
+	CandidateNote  string
+	CandidateNode  string
+	SourceSlotID   uint
+	CandidateSlot  *model.AssetSlot
+	OutputTarget   *model.CanvasOutput
+	OutputValueRaw string
+}
+
+type CanvasOutputTargetFilter struct {
+	ProjectID    uint
+	CanvasID     uint
+	PortID       string
+	CanvasNodeID string
+	OutputType   string
+	Statuses     []string
+}
+
+func (r *gormRepository) CreateResourceBinding(ctx context.Context, binding model.ResourceBinding) error {
+	return resourcebinding.NewService(r.db).CreateBinding(ctx, &binding)
+}
+
+func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, input AttachGeneratedAssetSlotCandidateInput) error {
+	if input.ProjectID == 0 || input.ResourceID == 0 {
+		return nil
+	}
+	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	var candidateSlot model.AssetSlot
+	if input.CandidateSlot != nil {
+		candidateSlot = *input.CandidateSlot
+	} else if input.EntityID > 0 {
+		if err := db.First(&candidateSlot, input.EntityID).Error; err != nil || candidateSlot.ProjectID != input.ProjectID {
+			return nil
+		}
+	}
+
+	var sourceSlot model.AssetSlot
+	sourceSlotID := input.SourceSlotID
+	if sourceSlotID == 0 {
+		if candidateSlot.OwnerType != "asset_slot" || candidateSlot.OwnerID == nil || *candidateSlot.OwnerID == 0 {
+			return nil
+		}
+		sourceSlotID = *candidateSlot.OwnerID
+	}
+	if err := db.First(&sourceSlot, sourceSlotID).Error; err != nil || sourceSlot.ProjectID != input.ProjectID {
+		return nil
+	}
+	if candidateSlot.ID == 0 {
+		err := db.
+			Where("project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", input.ProjectID, "asset_slot", sourceSlot.ID, input.ResourceID).
+			Order("id asc").
+			First(&candidateSlot).Error
+		if err != nil {
+			name := strings.TrimSpace(sourceSlot.Name)
+			if name == "" {
+				name = fmt.Sprintf("素材位 #%d", sourceSlot.ID)
+			}
+			candidateSlot = model.AssetSlot{
+				ProjectID:                input.ProjectID,
+				ProductionID:             sourceSlot.ProductionID,
+				CreativeReferenceID:      sourceSlot.CreativeReferenceID,
+				CreativeReferenceStateID: sourceSlot.CreativeReferenceStateID,
+				OwnerType:                "asset_slot",
+				OwnerID:                  &sourceSlot.ID,
+				Kind:                     canvasruntime.FirstNonEmptyString(sourceSlot.Kind, "image"),
+				Name:                     name + " · 生成候选",
+				Description:              canvasruntime.FirstNonEmptyString(sourceSlot.Description, sourceSlot.PromptHint),
+				SlotKey:                  sourceSlot.SlotKey,
+				PromptHint:               sourceSlot.PromptHint,
+				Status:                   domainsemantic.AssetSlotStatusCandidate,
+				Priority:                 canvasruntime.FirstNonEmptyString(sourceSlot.Priority, "normal"),
+				ResourceID:               &input.ResourceID,
+				MetadataJSON:             input.BindingMeta,
+			}
+			if err := db.Create(&candidateSlot).Error; err != nil {
+				return nil
+			}
+			if err := entityrelation.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
+				return nil
+			}
+		}
+	}
+	if candidateSlot.ResourceID == nil {
+		candidateSlot.ResourceID = &input.ResourceID
+	}
+	if candidateSlot.Status == "" || candidateSlot.Status == "missing" {
+		candidateSlot.Status = domainsemantic.AssetSlotStatusCandidate
+	}
+	if err := db.Save(&candidateSlot).Error; err != nil {
+		return nil
+	}
+	sourceID := input.CanvasRunID
+	slot := strings.TrimSpace(input.BindingSlot)
+	if slot == "" {
+		slot = "result"
+	}
+	meta := input.BindingMeta
+	if strings.TrimSpace(meta) == "" {
+		meta = "{}"
+	}
+	var existingBinding model.ResourceBinding
+	if err := db.
+		Where("project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?", input.ProjectID, input.ResourceID, domainresourcebinding.OwnerTypeAssetSlot, candidateSlot.ID, domainresourcebinding.RoleOutput, slot, 1).
+		First(&existingBinding).Error; err != nil {
+		_ = r.CreateResourceBinding(ctx, model.ResourceBinding{
+			ProjectID:    input.ProjectID,
+			ResourceID:   input.ResourceID,
+			OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
+			OwnerID:      candidateSlot.ID,
+			Role:         domainresourcebinding.RoleOutput,
+			Slot:         slot,
+			Status:       domainresourcebinding.StatusSelected,
+			SourceType:   domainresourcebinding.SourceTypeCanvas,
+			SourceID:     &sourceID,
+			IsPrimary:    true,
+			MetadataJSON: meta,
+			CreatedByID:  &input.UserID,
+		})
+	}
+	var existing model.AssetSlotCandidate
+	err := db.
+		Where("project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", input.ProjectID, sourceSlot.ID, candidateSlot.ID).
+		First(&existing).Error
+	if err != nil {
+		existing = model.AssetSlotCandidate{
+			ProjectID:            input.ProjectID,
+			AssetSlotID:          sourceSlot.ID,
+			CandidateAssetSlotID: candidateSlot.ID,
+			SourceType:           domainresourcebinding.SourceTypeCanvas,
+			SourceID:             &sourceID,
+			Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
+			Note:                 canvasruntime.FirstNonEmptyString(input.CandidateNote, "由素材生成画布写回"),
+		}
+		if err := db.Create(&existing).Error; err != nil {
+			return nil
+		}
+		if err := entityrelation.SyncCoreEntityRelations(db, &existing); err != nil {
+			return nil
+		}
+	} else {
+		existing.SourceType = domainresourcebinding.SourceTypeCanvas
+		existing.SourceID = &sourceID
+		domainsemantic.NormalizeAssetSlotCandidate(&existing)
+		if err := db.Save(&existing).Error; err != nil {
+			return nil
+		}
+		if err := entityrelation.SyncCoreEntityRelations(db, &existing); err != nil {
+			return nil
+		}
+	}
+	if input.OutputTarget != nil {
+		target := *input.OutputTarget
+		canvasruntime.AttachCanvasOutput(&target, input.CanvasRunID, input.ResourceID, input.OutputValueRaw)
+		if err := db.Save(&target).Error; err != nil {
+			return nil
+		}
+		_ = entityrelation.SyncCoreEntityRelations(db, &target)
+	}
+	return nil
+}
+
+func (r *gormRepository) ListCanvasOutputTargets(ctx context.Context, filter CanvasOutputTargetFilter) ([]model.CanvasOutput, error) {
+	targets := make([]model.CanvasOutput, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ? AND canvas_id = ?", filter.ProjectID, filter.CanvasID)
+	if portID := strings.TrimSpace(filter.PortID); portID != "" {
+		q = q.Where("port_id = ?", portID)
+	}
+	if nodeID := strings.TrimSpace(filter.CanvasNodeID); nodeID != "" {
+		q = q.Where("canvas_node_id = ?", nodeID)
+	}
+	if outputType := strings.TrimSpace(filter.OutputType); outputType != "" {
+		q = q.Where("output_type = ?", outputType)
+	}
+	if len(filter.Statuses) > 0 {
+		q = q.Where("status IN ?", filter.Statuses)
+	}
+	err := q.Find(&targets).Error
+	return targets, err
+}
+
+func (r *gormRepository) FindEnabledPluginTool(ctx context.Context, toolKey string) (model.PluginTool, error) {
+	var tool model.PluginTool
+	err := r.db.WithContext(ctx).Preload("Plugin").
+		Joins("JOIN plugins ON plugins.id = plugin_tools.plugin_id").
+		Where("plugin_tools.tool_key = ? AND plugin_tools.enabled = ? AND plugins.enabled = ? AND plugins.deleted_at IS NULL", strings.TrimSpace(toolKey), true, true).
+		First(&tool).Error
+	return tool, err
+}
+
+func saveCanvasWithRelations(db *gorm.DB, cv *model.Canvas) error {
+	db = db.Session(&gorm.Session{SkipHooks: true})
+	if err := db.Save(cv).Error; err != nil {
+		return err
+	}
+	return entityrelation.SyncCoreEntityRelations(db, cv)
+}
+
+func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *model.Canvas) error {
+	var slot model.AssetSlot
+	if err := tx.First(&slot, *cv.RefID).Error; err != nil {
+		return err
+	}
+	title := strings.TrimSpace(slot.Name)
+	if title == "" {
+		title = fmt.Sprintf("素材位 #%d", slot.ID)
+	}
+	data, _ := json.Marshal(map[string]any{
+		"source":        "manual",
+		"label":         title,
+		"entityKind":    "asset_slot",
+		"entityId":      slot.ID,
+		"entityTitle":   title,
+		"assetSlotKind": slot.Kind,
+		"textContent":   title,
+		"inputPorts": []map[string]any{
+			{"id": "candidates", "type": assetSlotCanvasPortType(slot.Kind), "label": "候选集", "maxCount": 12},
+			{"id": "candidate_item", "type": assetSlotCanvasPortType(slot.Kind), "label": "单个候选"},
+		},
+		"outputPorts": []map[string]any{
+			{"id": "reference", "type": "resource", "label": "参考图"},
+			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
+			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
+		},
+	})
+	return tx.Create(&model.CanvasNode{
+		CanvasID: cv.ID,
+		NodeID:   "asset-slot-target",
+		Type:     "entity_card",
+		Label:    title,
+		PosX:     520,
+		PosY:     180,
+		Data:     string(data),
+	}).Error
+}
+
+func assetSlotCanvasPortType(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "image", "video", "audio", "text":
+		return strings.ToLower(strings.TrimSpace(kind))
+	default:
+		return "resource"
+	}
 }

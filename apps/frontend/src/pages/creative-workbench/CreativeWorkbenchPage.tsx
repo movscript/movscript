@@ -236,7 +236,7 @@ export default function CreativeWorkbenchPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Lightbulb size={15} className="text-amber-500" />
-              <h1 className="truncate text-sm font-semibold text-foreground">创意工作台</h1>
+              <h1 className="truncate text-sm font-semibold text-foreground">头脑风暴</h1>
             </div>
             <p className="mt-1 truncate text-xs text-muted-foreground">
               {current?.name}{listLocked ? ' · 列表已锁定' : ''}

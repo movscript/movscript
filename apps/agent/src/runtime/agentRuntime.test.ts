@@ -1110,6 +1110,12 @@ test('production orchestration analyzer uses JSON mode and structured tool schem
         ...DEFAULT_AGENT_MANIFEST,
         id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
         soul: '输出JSON',
+        permissions: ['project.read', 'draft.read', 'draft.write'],
+        tools: [
+          { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
+          { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
+          { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
+        ],
       },
       contractResolver: new StaticAgentRuntimeContractResolver([
         PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
@@ -1119,6 +1125,162 @@ test('production orchestration analyzer uses JSON mode and structured tool schem
     await createAndWaitForRun(runtime, thread.id)
 
     assert.equal(requests.length > 0, true)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
+test('production orchestration analyzer only forces JSON mode on finalization when tools are available', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-final-json-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  const requests: Array<Record<string, unknown>> = []
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 23, model: 'model_config:23' })
+
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      requests.push(body)
+      if (requests.length === 1) {
+        assert.equal(body.response_format, undefined)
+        assert.ok(Array.isArray(body.tools))
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: '我需要先读取制作上下文。',
+              tool_calls: [{
+                id: 'call_read_context',
+                type: 'function',
+                function: { name: 'movscript_read_production_context', arguments: JSON.stringify({ projectId: 42, productionId: 4 }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (requests.length === 2) {
+        assert.equal(body.response_format, undefined)
+        assert.ok(Array.isArray(body.tools))
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: '已读取上下文，准备生成最终提案。',
+            },
+            finish_reason: 'stop',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+
+      assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
+      assert.equal(body.tools, undefined)
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              schema: 'movscript.production_orchestration_analysis.v1',
+              mode: 'analysis_only',
+              production_id: 4,
+              creative_source: { source_type: 'script', entity_type: 'script', entity_id: 10, title: 'Demo script', version: 'v1', summary: 'demo' },
+              stages: {
+                extraction: { characters: [], locations: [], props: [], story_moments: [] },
+                canonicalization: { references: [], aliases: [] },
+                relations: { usages: [], dependencies: [] },
+                validation: { confidence: 1, warnings: [], unresolved: [] },
+              },
+              proposal: {
+                kind: 'production_proposal',
+                action_policy: {
+                  confirmed_entities: 'preserve',
+                  draft_entities: 'supersede_same_scope',
+                  creative_references: 'reuse_project_level_when_possible',
+                },
+                segments: [],
+              },
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      defaultAgentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
+        soul: '输出JSON',
+        permissions: ['project.read', 'draft.read', 'draft.write'],
+        tools: [
+          { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
+          { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
+          { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
+        ],
+      },
+      contractResolver: new StaticAgentRuntimeContractResolver([
+        PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+      ]),
+    })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
+    const run = await createAndWaitForRun(runtime, thread.id)
+    const finalThread = runtime.getThread(thread.id)
+    const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+    const parsed = JSON.parse(assistant?.content ?? '{}') as { schema?: string }
+
+    assert.equal(run.status, 'completed')
+    assert.equal(requests.length, 3)
+    assert.equal(parsed.schema, 'movscript.production_orchestration_analysis.v1')
+    assert.equal(client.calls.some((call) => call.name === 'movscript_read_production_context'), true)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
+test('production orchestration analyzer surfaces model gateway errors as retryable assistant content', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-retryable-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 24, model: 'model_config:24' })
+
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      error: {
+        message: 'openai chat stream HTTP 400: Response input messages must contain the word json',
+        type: 'server_error',
+      },
+    }), { status: 502, headers: { 'content-type': 'application/json' } })) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      defaultAgentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
+        soul: '输出JSON',
+      },
+      contractResolver: new StaticAgentRuntimeContractResolver([
+        PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+      ]),
+    })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
+    const run = await createAndWaitForRun(runtime, thread.id)
+    const finalThread = runtime.getThread(thread.id)
+    const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+
+    assert.equal(run.status, 'completed_with_warnings')
+    assert.match(run.warnings?.join('\n') ?? '', /模型调用未完成/)
+    assert.match(assistant?.content ?? '', /没有产出可用于写入的结构化 JSON/)
+    assert.match(assistant?.content ?? '', /请重试/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1144,6 +1306,8 @@ test('script split agent session uses existing runtime with JSON contract', asyn
       assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
       assert.match(systemText, /Runtime structured contract/)
       assert.match(systemText, /movscript\.script_split_analysis\.v1/)
+      assert.match(systemText, /global_settings/)
+      assert.match(systemText, /global_context/)
       return new Response(JSON.stringify({
         choices: [{
           message: {
@@ -1157,12 +1321,31 @@ test('script split agent session uses existing runtime with JSON contract', asyn
                 content: '第1集 雨夜\n便利店相遇。\n\n第2集 旧信\n旧信浮出水面。',
                 source_type: 'raw',
               },
+              global_settings: {
+                story_world: '现代都市雨夜悬疑。',
+                core_rules: ['旧信是母亲线索。'],
+                character_relationships: ['林夏与顾言因旧伞线索重新相遇。'],
+                key_characters: ['林夏', '顾言'],
+                key_locations: ['便利店', '旧巷'],
+                key_props: ['旧伞', '旧信'],
+                continuity_notes: ['旧伞在两集中都必须保持破损状态。'],
+              },
               episode_drafts: [
                 {
                   order: 1,
                   title: '第1集 雨夜',
                   summary: '便利店相遇。',
                   content: '第1集 雨夜\n便利店相遇。',
+                  global_context: {
+                    story_world: '现代都市雨夜悬疑。',
+                    core_rules: ['旧信是母亲线索。'],
+                    character_relationships: ['林夏与顾言因旧伞线索重新相遇。'],
+                    key_characters: ['林夏', '顾言'],
+                    key_locations: ['便利店'],
+                    key_props: ['旧伞'],
+                    continuity_notes: ['旧伞必须保持破损状态。'],
+                    episode_relevance: ['旧伞第一次出现，影响道具设计和后续线索。'],
+                  },
                   start: 1,
                   end: 13,
                   action: 'create',
@@ -1174,6 +1357,16 @@ test('script split agent session uses existing runtime with JSON contract', asyn
                   title: '第2集 旧信',
                   summary: '旧信浮出水面。',
                   content: '第2集 旧信\n旧信浮出水面。',
+                  global_context: {
+                    story_world: '现代都市雨夜悬疑。',
+                    core_rules: ['旧信是母亲线索。'],
+                    character_relationships: ['林夏与顾言因旧伞线索重新相遇。'],
+                    key_characters: ['林夏', '顾言'],
+                    key_locations: ['旧巷'],
+                    key_props: ['旧伞', '旧信'],
+                    continuity_notes: ['旧伞延续上一集破损状态。'],
+                    episode_relevance: ['旧信露出，影响本集编排的关键道具特写。'],
+                  },
                   start: 16,
                   end: 30,
                   action: 'create',

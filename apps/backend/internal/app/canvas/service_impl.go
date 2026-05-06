@@ -15,8 +15,7 @@ type canvasPortValue = canvasruntime.PortValue
 type canvasPortInputMap = canvasruntime.PortInputMap
 
 func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"status": "running"})
-	nd.Status = "running"
+	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -125,15 +124,12 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 		return
 	}
 
-	_ = h.canvasRepo().UpdateTask(ctx, task, map[string]any{"status": "done", "resource_id": r.ID})
+	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
 	value := canvasruntime.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
 	})
-	nd.Status = "done"
-	nd.ResourceID = &r.ID
-	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -142,14 +138,11 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 
 func (h *Service) completeInlineTextTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, text string) {
 	value := canvasPortValue{Type: "text", Text: text}
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"status": "done"})
+	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.CompleteCanvasTask(task, &nd, nil))
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
 	})
-	nd.Status = "done"
-	nd.ResourceID = nil
-	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}

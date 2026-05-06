@@ -15,23 +15,11 @@ func (h *Service) ExecuteWorkflowRun(user *model.User, canvasID uint, runID uint
 }
 
 func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model.User, canvasID uint, runID uint, order []string) {
-	var run model.CanvasRun
-	if err := h.db.First(&run, runID).Error; err != nil {
+	run, cv, err := h.canvasRepo().GetCanvasForRunExecution(ctx, canvasID, runID)
+	if err != nil {
 		finishedAt := time.Now()
-		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{"status": "failed", "error": "run not found", "finished_at": &finishedAt})
+		_ = h.canvasRepo().FailRunNotFound(ctx, runID, &finishedAt)
 		return
-	}
-
-	cv, snapshotErr := canvasruntime.CanvasFromRunSnapshot(canvasID, run.GraphSnapshot)
-	if snapshotErr != nil {
-		if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
-			finishedAt := time.Now()
-			run.Status = "failed"
-			run.Error = "canvas not found"
-			run.FinishedAt = &finishedAt
-			_ = h.saveCanvasRunWithRelations(&run)
-			return
-		}
 	}
 
 	upstream := map[string][]model.CanvasEdge{}
@@ -42,8 +30,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
-	var runTasks []model.CanvasTask
-	h.db.Where("canvas_run_id = ?", runID).Order("id asc").Find(&runTasks)
+	runTasks, _ := h.canvasRepo().ListRunTasksOrdered(ctx, runID)
 	taskMap := map[string]*model.CanvasTask{}
 	for i := range runTasks {
 		if strings.TrimSpace(runTasks[i].NodeID) == "" {
@@ -127,10 +114,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 	}
 	if len(workflowOutputs) > 0 {
 		if err := h.persistWorkflowOutputsToResources(ctx, user, cv, runID, workflowOutputs); err != nil {
-			finishedAt := time.Now()
-			run.Status = "failed"
-			run.Error = err.Error()
-			run.FinishedAt = &finishedAt
+			canvasruntime.FailCanvasRun(&run, err.Error(), time.Now())
 			_ = h.saveCanvasRunWithRelations(&run)
 			return
 		}

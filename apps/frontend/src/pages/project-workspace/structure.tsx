@@ -139,7 +139,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
 export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
   {
     value: 'script',
-    title: '剧本拆分工作台',
+    title: '剧本拆分',
     shortTitle: '拆分',
     href: '/workbench/script',
     icon: BookOpenCheck,

@@ -57,12 +57,18 @@ func (r *gormRepository) DeleteAPIKey(ctx context.Context, key *model.GatewayAPI
 func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (model.GatewayAPIKey, error) {
 	var key model.GatewayAPIKey
 	err := r.db.WithContext(ctx).Where("key_hash = ? AND is_enabled = true", hash).First(&key).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return key, ErrAPIKeyNotFound
+	}
 	return key, err
 }
 
 func (r *gormRepository) FindUser(ctx context.Context, id uint) (model.User, error) {
 	var user model.User
 	err := r.db.WithContext(ctx).First(&user, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return user, ErrAPIKeyNotFound
+	}
 	return user, err
 }
 

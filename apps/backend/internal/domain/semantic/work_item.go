@@ -38,6 +38,26 @@ type WorkItemResultPayload struct {
 	AssetSlotCandidateID uint   `json:"asset_slot_candidate_id"`
 }
 
+const (
+	WorkItemResultNone                   = "none"
+	WorkItemResultStatusChange           = "status_change"
+	WorkItemResultLockAssetCandidate     = "lock_asset_candidate"
+	WorkItemResultAcceptKeyframe         = "accept_keyframe"
+	WorkItemResultApproveDeliveryVersion = "approve_delivery_version"
+
+	WorkItemStatusTodo      = "todo"
+	WorkItemStatusRunning   = "running"
+	WorkItemStatusBlocked   = "blocked"
+	WorkItemStatusReview    = "review"
+	WorkItemStatusDone      = "done"
+	WorkItemStatusCancelled = "cancelled"
+
+	WorkItemApplyStatusNotApplicable = "not_applicable"
+	WorkItemApplyStatusPending       = "pending"
+	WorkItemApplyStatusApplied       = "applied"
+	WorkItemApplyStatusFailed        = "failed"
+)
+
 func NewWorkItem(projectID uint, patch WorkItemPatch) model.WorkItem {
 	return model.WorkItem{
 		ProjectID:      projectID,
@@ -47,12 +67,12 @@ func NewWorkItem(projectID uint, patch WorkItemPatch) model.WorkItem {
 		Kind:           FallbackString(patch.Kind, "human"),
 		Title:          patch.Title,
 		Description:    patch.Description,
-		Status:         FallbackString(patch.Status, "todo"),
+		Status:         FallbackString(patch.Status, WorkItemStatusTodo),
 		Priority:       FallbackString(patch.Priority, "normal"),
 		AssigneeID:     patch.AssigneeID,
 		SourceJobID:    patch.SourceJobID,
 		SourceCanvasID: patch.SourceCanvasID,
-		ResultType:     FallbackString(patch.ResultType, "none"),
+		ResultType:     FallbackString(patch.ResultType, WorkItemResultNone),
 		ResultJSON:     patch.ResultJSON,
 		ApplyStatus:    InitialWorkItemApplyStatus(patch.ResultType),
 		AppliedAt:      patch.AppliedAt,
@@ -68,13 +88,13 @@ func ValidateWorkItemPatch(patch WorkItemPatch) error {
 	if !ValidWorkItemKind(FallbackString(patch.Kind, "human")) {
 		return errors.New("任务类型无效")
 	}
-	if !ValidWorkItemStatus(FallbackString(patch.Status, "todo")) {
+	if !ValidWorkItemStatus(FallbackString(patch.Status, WorkItemStatusTodo)) {
 		return errors.New("任务状态无效")
 	}
 	if !ValidWorkItemPriority(FallbackString(patch.Priority, "normal")) {
 		return errors.New("任务优先级无效")
 	}
-	if !ValidWorkItemResultType(FallbackString(patch.ResultType, "none")) {
+	if !ValidWorkItemResultType(FallbackString(patch.ResultType, WorkItemResultNone)) {
 		return errors.New("任务结果类型无效")
 	}
 	if strings.TrimSpace(patch.ResultJSON) != "" && !ValidJSONObject(patch.ResultJSON) {
@@ -130,7 +150,7 @@ func sameUintPtr(a, b *uint) bool {
 
 func ValidWorkItemResultType(resultType string) bool {
 	switch resultType {
-	case "none", "status_change", "lock_asset_candidate", "accept_keyframe", "approve_delivery_version":
+	case WorkItemResultNone, WorkItemResultStatusChange, WorkItemResultLockAssetCandidate, WorkItemResultAcceptKeyframe, WorkItemResultApproveDeliveryVersion:
 		return true
 	default:
 		return false
@@ -148,7 +168,7 @@ func ValidWorkItemKind(kind string) bool {
 
 func ValidWorkItemStatus(status string) bool {
 	switch status {
-	case "todo", "running", "blocked", "review", "done", "cancelled":
+	case WorkItemStatusTodo, WorkItemStatusRunning, WorkItemStatusBlocked, WorkItemStatusReview, WorkItemStatusDone, WorkItemStatusCancelled:
 		return true
 	default:
 		return false
@@ -223,24 +243,47 @@ func TruthyFilter(value string) bool {
 }
 
 func InitialWorkItemApplyStatus(resultType string) string {
-	if FallbackString(resultType, "none") == "none" {
-		return "not_applicable"
+	if FallbackString(resultType, WorkItemResultNone) == WorkItemResultNone {
+		return WorkItemApplyStatusNotApplicable
 	}
-	return "pending"
+	return WorkItemApplyStatusPending
 }
 
 func ApplyStatusForWorkItemPatch(item model.WorkItem, patch WorkItemPatch) string {
 	resultType := FallbackString(patch.ResultType, item.ResultType)
-	if resultType == "none" {
-		return "not_applicable"
+	if resultType == WorkItemResultNone {
+		return WorkItemApplyStatusNotApplicable
 	}
 	if resultType != item.ResultType || strings.TrimSpace(patch.ResultJSON) != strings.TrimSpace(item.ResultJSON) {
-		return "pending"
+		return WorkItemApplyStatusPending
 	}
-	if item.ApplyStatus == "" || item.ApplyStatus == "not_applicable" {
-		return "pending"
+	if item.ApplyStatus == "" || item.ApplyStatus == WorkItemApplyStatusNotApplicable {
+		return WorkItemApplyStatusPending
 	}
 	return item.ApplyStatus
+}
+
+func PrepareWorkItemResultApplication(item *model.WorkItem) {
+	item.ResultType = FallbackString(item.ResultType, WorkItemResultNone)
+	if item.ResultType == WorkItemResultNone {
+		item.ApplyStatus = WorkItemApplyStatusNotApplicable
+		item.AppliedAt = ""
+		item.ApplyError = ""
+		return
+	}
+	item.ApplyStatus = WorkItemApplyStatusPending
+	item.ApplyError = ""
+}
+
+func MarkWorkItemResultApplied(item *model.WorkItem, appliedAt string) {
+	item.ApplyStatus = WorkItemApplyStatusApplied
+	item.AppliedAt = appliedAt
+	item.ApplyError = ""
+}
+
+func MarkWorkItemResultApplyFailed(item *model.WorkItem, errMsg string) {
+	item.ApplyStatus = WorkItemApplyStatusFailed
+	item.ApplyError = errMsg
 }
 
 func ApplyWorkItemUpdates(item *model.WorkItem, updates map[string]any) {

@@ -47,6 +47,49 @@ export interface ChatMessageMeta {
   mode?: AgentWorkMode
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
+  localRunActivity?: ChatRunActivity
+}
+
+export interface ChatRunActivity {
+  runId: string
+  threadId: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  completedAt?: string
+  failedAt?: string
+  error?: string
+  warnings?: string[]
+  steps: ChatRunActivityStep[]
+  events: ChatRunActivityEvent[]
+}
+
+export interface ChatRunActivityStep {
+  id: string
+  type: 'tool_call' | 'message'
+  status: string
+  title?: string
+  toolName?: string
+  args?: unknown
+  result?: unknown
+  error?: string
+  sandboxed?: boolean
+  createdAt: string
+  completedAt?: string
+}
+
+export interface ChatRunActivityEvent {
+  id: string
+  kind: string
+  title: string
+  summary?: string
+  status: string
+  toolName?: string
+  stepId?: string
+  data?: unknown
+  createdAt: string
+  completedAt?: string
 }
 
 // Per-user conversation state

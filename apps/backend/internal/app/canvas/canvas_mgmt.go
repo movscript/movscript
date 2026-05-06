@@ -10,7 +10,6 @@ import (
 	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 var (
@@ -252,51 +251,4 @@ func (h *Service) ensureProjectInOrg(ctx context.Context, projectID *uint, orgID
 
 func (h *Service) ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error) {
 	return h.canvasRepo().ListEntityWriteAudits(ctx, filter)
-}
-
-func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *model.Canvas) error {
-	var slot model.AssetSlot
-	if err := tx.First(&slot, *cv.RefID).Error; err != nil {
-		return err
-	}
-	title := strings.TrimSpace(slot.Name)
-	if title == "" {
-		title = fmt.Sprintf("素材位 #%d", slot.ID)
-	}
-	data, _ := json.Marshal(map[string]any{
-		"source":        "manual",
-		"label":         title,
-		"entityKind":    "asset_slot",
-		"entityId":      slot.ID,
-		"entityTitle":   title,
-		"assetSlotKind": slot.Kind,
-		"textContent":   title,
-		"inputPorts": []map[string]any{
-			{"id": "candidates", "type": assetSlotCanvasPortType(slot.Kind), "label": "候选集", "maxCount": 12},
-			{"id": "candidate_item", "type": assetSlotCanvasPortType(slot.Kind), "label": "单个候选"},
-		},
-		"outputPorts": []map[string]any{
-			{"id": "reference", "type": "resource", "label": "参考图"},
-			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
-			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
-		},
-	})
-	return tx.Create(&model.CanvasNode{
-		CanvasID: cv.ID,
-		NodeID:   "asset-slot-target",
-		Type:     "entity_card",
-		Label:    title,
-		PosX:     520,
-		PosY:     180,
-		Data:     string(data),
-	}).Error
-}
-
-func assetSlotCanvasPortType(kind string) string {
-	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "image", "video", "audio", "text":
-		return strings.ToLower(strings.TrimSpace(kind))
-	default:
-		return "resource"
-	}
 }

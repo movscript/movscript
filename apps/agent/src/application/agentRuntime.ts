@@ -114,7 +114,25 @@ export type {
 } from '../state/types.js'
 export type { AgentMemory, AgentMemoryKind, AgentMemoryScope, MemoryQuery } from '../memory/types.js'
 export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from '../manifest/agentManifest.js'
+export type {
+  AgentUpdateCandidate,
+  AgentUpdateChannel,
+  AgentUpdateDecision,
+  AgentUpdateEvaluation,
+  AgentUpdateKind,
+  AgentUpdatePolicy,
+  AgentUpdatePolicyRule,
+  AgentUpdateSeverity,
+  AgentUpdateState,
+} from '../updates/updatePolicy.js'
 export { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from '../manifest/agentManifest.js'
+export {
+  DEFAULT_AGENT_UPDATE_POLICY,
+  buildAgentUpdateState,
+  evaluateAgentUpdateCandidate,
+  normalizeAgentUpdateCandidate,
+  normalizeAgentUpdatePolicy,
+} from '../updates/updatePolicy.js'
 export { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 export { InMemoryAgentStore } from '../state/store.js'
 export {
@@ -145,6 +163,7 @@ export class AgentRuntime {
   private readonly contractResolver: AgentRuntimeContractResolver
   private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private readonly pluginWarnings: string[]
+  private readonly updateState?: AgentCapabilitiesResponse['updates']
   private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
 
   constructor(options: AgentRuntimeOptions) {
@@ -160,6 +179,7 @@ export class AgentRuntime {
     this.contractResolver = options.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
     this.pluginCatalogInfo = options.pluginCatalogInfo
     this.pluginWarnings = options.pluginWarnings ?? []
+    this.updateState = options.updateState
   }
 
   async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {
@@ -172,6 +192,7 @@ export class AgentRuntime {
       registry: this.toolRegistry,
       pluginCatalog: this.pluginCatalogInfo,
       warnings: this.pluginWarnings,
+      updates: this.updateState,
     })
   }
 
@@ -369,6 +390,7 @@ export class AgentRuntime {
       registry: this.toolRegistry,
       pluginCatalog: this.pluginCatalogInfo,
       warnings: this.pluginWarnings,
+      updates: this.updateState,
     })
     const debugContext = buildDebugContext(contextResult, memories, clientInput)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode !== false })
@@ -727,6 +749,7 @@ export class AgentRuntime {
         registry: this.toolRegistry,
         pluginCatalog: this.pluginCatalogInfo,
         warnings: [...this.pluginWarnings, ...contextWarnings],
+        updates: this.updateState,
       })
       const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
       const setup = buildRunSetupMetadata({

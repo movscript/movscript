@@ -7,6 +7,13 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 )
 
+const (
+	SystemRoleSuperAdmin = "super_admin"
+	SystemRoleUser       = "user"
+
+	UserStatusActive = "active"
+)
+
 func NormalizeEmail(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	if value == "" {
@@ -20,9 +27,9 @@ func NormalizeEmail(value string) string {
 
 func SystemRoleForNewUser(bootstrapSystemAdmin bool) string {
 	if bootstrapSystemAdmin {
-		return "super_admin"
+		return SystemRoleSuperAdmin
 	}
-	return "user"
+	return SystemRoleUser
 }
 
 func NewRegisteredUser(username string, passwordHash string, email string, bootstrapSystemAdmin bool, verifiedAt *int64) model.User {
@@ -30,7 +37,7 @@ func NewRegisteredUser(username string, passwordHash string, email string, boots
 		Username:     strings.TrimSpace(username),
 		PasswordHash: passwordHash,
 		SystemRole:   SystemRoleForNewUser(bootstrapSystemAdmin),
-		Status:       "active",
+		Status:       UserStatusActive,
 	}
 	if email != "" {
 		user.PrimaryEmail = &email

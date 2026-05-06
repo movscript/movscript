@@ -56,7 +56,10 @@ type ScriptInput struct {
 	AssigneeID             *uint  `json:"assignee_id"`
 	Summary                string `json:"summary"`
 	Characters             string `json:"characters"`
+	CharacterRelationships string `json:"character_relationships"`
 	CoreSettings           string `json:"core_settings"`
+	Background             string `json:"background"`
+	ScenesDesc             string `json:"scenes_desc"`
 	Hook                   string `json:"hook"`
 	PlotSummary            string `json:"plot_summary"`
 	ScriptPoints           string `json:"script_points"`
@@ -177,7 +180,10 @@ func ApplyScriptInput(s *model.Script, in ScriptInput) {
 	s.AssigneeID = in.AssigneeID
 	s.Summary = in.Summary
 	s.Characters = in.Characters
+	s.CharacterRelationships = in.CharacterRelationships
 	s.CoreSettings = in.CoreSettings
+	s.Background = in.Background
+	s.ScenesDesc = in.ScenesDesc
 	s.Hook = in.Hook
 	s.PlotSummary = in.PlotSummary
 	s.ScriptPoints = in.ScriptPoints
@@ -236,7 +242,7 @@ func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelat
 }
 
 var projectPatchFields = stringSet("name", "description", "total_episodes")
-var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "assignee_id", "summary", "characters", "core_settings", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
+var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "assignee_id", "summary", "characters", "character_relationships", "core_settings", "background", "scenes_desc", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
 
 func ProjectPatchUpdates(body map[string]any) map[string]any {
 	return allowPatchFields(body, projectPatchFields)

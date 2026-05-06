@@ -18,15 +18,8 @@ func (h *Service) completeCanvasReferenceTask(ctx context.Context, task *model.C
 		return nil
 	}
 
-	updates := map[string]any{"status": "done"}
-	if primaryOutput != nil {
-		updates["resource_id"] = *primaryOutput
-	}
-	h.db.Model(task).Updates(updates)
+	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, primaryOutput))
 	h.updateTaskOutputValues(task, outputs)
-	nd.Status = "done"
-	nd.ResourceID = primaryOutput
-	nd.TaskID = &task.ID
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -55,8 +48,8 @@ func (h *Service) loadReferencedWorkflowCanvas(nd nodeData, user *model.User) (m
 	if nd.ReferencedCanvasID == nil || *nd.ReferencedCanvasID == 0 {
 		return model.Canvas{}, fmt.Errorf("referenced workflow canvas is required")
 	}
-	var ref model.Canvas
-	if err := h.db.Preload("Nodes").Preload("Edges").First(&ref, *nd.ReferencedCanvasID).Error; err != nil {
+	ref, err := h.canvasRepo().GetCanvas(context.Background(), fmt.Sprint(*nd.ReferencedCanvasID))
+	if err != nil {
 		return model.Canvas{}, fmt.Errorf("referenced canvas not found")
 	}
 	if ref.OwnerID != user.ID && ref.Visibility != "public" {
@@ -69,8 +62,8 @@ func (h *Service) loadReferencedWorkflowCanvas(nd nodeData, user *model.User) (m
 }
 
 func (h *Service) resolveCanvasReferenceOutputs(ref model.Canvas, nd nodeData) (map[string]canvasPortValue, *uint, error) {
-	var latestRun model.CanvasRun
-	if err := h.db.Where("canvas_id = ? AND status = ?", ref.ID, "done").Order("id desc").First(&latestRun).Error; err != nil {
+	latestRun, err := h.canvasRepo().LatestCompletedRun(context.Background(), ref.ID)
+	if err != nil {
 		return nil, nil, fmt.Errorf("referenced workflow has no completed run")
 	}
 	return h.outputsForReferencedWorkflowRun(ref, nd, latestRun.ID)
@@ -95,14 +88,13 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 	now := time.Now()
 	run := model.CanvasRun{
 		CanvasID:          ref.ID,
-		Status:            "running",
 		InputValues:       rawInputValues,
 		GraphSnapshot:     snapshot,
 		SnapshotHash:      snapshotHash,
 		SnapshotNodeCount: snapshotNodeCount,
 		SnapshotEdgeCount: snapshotEdgeCount,
-		StartedAt:         &now,
 	}
+	canvasruntime.StartCanvasRun(&run, now)
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, err
 	}
@@ -118,18 +110,18 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 			NodeID:       node.NodeID,
 			NodeLabel:    node.Label,
 			NodeType:     node.Type,
-			Status:       "pending",
+			Status:       canvasruntime.CanvasTaskStatusPending,
 		}
-		if err := h.db.Create(&task).Error; err != nil {
+		if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 			return run, err
 		}
 	}
 
 	h.executeWorkflowRunWithContext(ctx, user, ref.ID, run.ID, plan.Order)
-	if err := h.db.First(&run, run.ID).Error; err != nil {
+	if run, err = h.canvasRepo().FindCanvasRun(ctx, run.ID); err != nil {
 		return run, err
 	}
-	if run.Status != "done" {
+	if run.Status != canvasruntime.CanvasRunStatusDone {
 		if strings.TrimSpace(run.Error) != "" {
 			return run, fmt.Errorf("referenced workflow failed: %s", run.Error)
 		}
@@ -217,8 +209,7 @@ func firstNonEmptyCanvasPortValue(values []canvasPortValue) (canvasPortValue, bo
 }
 
 func (h *Service) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData, runID uint) (map[string]canvasPortValue, *uint, error) {
-	var run model.CanvasRun
-	if err := h.db.Where("canvas_id = ? AND id = ?", ref.ID, runID).First(&run).Error; err == nil {
+	if run, ok, err := h.canvasRepo().FindRunInCanvas(context.Background(), ref.ID, runID); err == nil && ok {
 		if outputs, primaryOutput := h.canvasReferenceOutputsFromRun(run, nd); len(outputs) > 0 {
 			return outputs, primaryOutput, nil
 		}
@@ -231,19 +222,18 @@ func (h *Service) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData,
 		}
 	}
 	if len(outputNodes) == 0 {
-		h.db.Where("canvas_id = ? AND type = ?", ref.ID, "output").Order("id asc").Find(&outputNodes)
+		if nodes, err := h.canvasRepo().ListOutputNodes(context.Background(), ref.ID); err == nil {
+			outputNodes = nodes
+		}
 	}
 
-	var refTasks []model.CanvasTask
-	refTaskQuery := h.db.Where("canvas_run_id = ?", runID)
+	outputNodeIDs := make([]uint, 0, len(outputNodes))
 	if len(outputNodes) > 0 {
-		outputNodeIDs := make([]uint, 0, len(outputNodes))
 		for _, outputNode := range outputNodes {
 			outputNodeIDs = append(outputNodeIDs, outputNode.ID)
 		}
-		refTaskQuery = refTaskQuery.Where("canvas_node_id IN ?", outputNodeIDs)
 	}
-	refTaskQuery.Order("id asc").Find(&refTasks)
+	refTasks, _ := h.canvasRepo().ListTasksForRunAndNodes(context.Background(), runID, outputNodeIDs)
 
 	outputs := map[string]canvasPortValue{}
 	var primaryOutput *uint

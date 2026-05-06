@@ -9,12 +9,11 @@ import (
 )
 
 type PolicyService struct {
-	db   *gorm.DB
 	repo repository
 }
 
 func NewPolicyService(db *gorm.DB) *PolicyService {
-	return &PolicyService{db: db, repo: &gormRepository{db: db}}
+	return &PolicyService{repo: &gormRepository{db: db}}
 }
 
 func (p *PolicyService) CanListChatModels(principal Principal) error {
@@ -46,10 +45,6 @@ func (p *PolicyService) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserI
 	return p.repo.FindOwnedAPIKey(ctx, id, ownerUserID, orgID, includeLegacy)
 }
 
-func (p *PolicyService) ApplyAPIKeyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerUserID uint) *gorm.DB {
-	return p.applyAPIKeyOrgScope(ctx, q, orgID, ownerUserID)
-}
-
 func (p *PolicyService) IsPersonalOrg(ctx context.Context, orgID uint) bool {
 	return p.isPersonalOrg(ctx, orgID)
 }
@@ -76,16 +71,6 @@ func (p *PolicyService) ensureChatScope(principal Principal, action string) erro
 		return fmt.Errorf("%w: list chat models", ErrInsufficientScope)
 	}
 	return fmt.Errorf("%w: call chat models", ErrInsufficientScope)
-}
-
-func (p *PolicyService) applyAPIKeyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerUserID uint) *gorm.DB {
-	if orgID == nil {
-		return q.Where("org_id IS NULL")
-	}
-	if p.repo.IsPersonalOrg(ctx, *orgID) {
-		return q.Where("org_id = ? OR (org_id IS NULL AND owner_user_id = ?)", *orgID, ownerUserID)
-	}
-	return q.Where("org_id = ?", *orgID)
 }
 
 func (p *PolicyService) isPersonalOrg(ctx context.Context, orgID uint) bool {

@@ -17,6 +17,7 @@ import {
 import {
   SCRIPT_SPLIT_RUNTIME_CONTRACT,
 } from '../runtime/contracts/scriptSplitContract.js'
+import { buildAgentUpdateState } from '../runtime/updates/updatePolicy.js'
 
 const DEFAULT_AGENT_PORT = 28765
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
@@ -32,6 +33,7 @@ export interface AgentServerContext {
     productionStatePath: string
     modelConfigPath: string
   }
+  updates: ReturnType<typeof buildAgentUpdateState>
   client: MCPClient
   agentRuntime: AgentRuntime
   productionRuntime: ProductionRuntime
@@ -64,6 +66,7 @@ export interface AgentRuntimeCapabilities {
     provider: 'backend-model-config'
     path: string
   }
+  updates: ReturnType<typeof buildAgentUpdateState>
   backendApplyEnabled: boolean
   productionSemanticFallbackEnabled: boolean
 }
@@ -80,6 +83,26 @@ export function createAgentServerContext(): AgentServerContext {
   const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
   const productionSemanticFallbackClient = new ProductionPreviewSemanticFallbackClient()
   const pluginCatalog = loadAgentPluginCatalog()
+  const updateState = buildAgentUpdateState({
+    runtimeVersion: '0.1.0',
+    manifestVersion: pluginCatalog.manifest.version,
+    applied: [
+      {
+        id: pluginCatalog.manifest.id,
+        version: pluginCatalog.manifest.version,
+        kind: 'policy',
+        severity: 'normal',
+        source: 'builtin',
+        metadata: {
+          skills: pluginCatalog.skills.length,
+          tools: pluginCatalog.tools.length,
+        },
+      },
+    ],
+    warnings: [
+      'Remote update source is not configured; dynamic updates are limited to builtin and local catalog files.',
+    ],
+  })
   const client = new MCPClient({ endpoint: mcpEndpoint })
   const productionRuntime = new ProductionRuntime({
     store: new FileProductionStore(productionStatePath),
@@ -109,6 +132,7 @@ export function createAgentServerContext(): AgentServerContext {
       toolCount: pluginCatalog.tools.length,
     },
     pluginWarnings: pluginCatalog.warnings,
+    updateState,
   })
 
   return {
@@ -121,6 +145,7 @@ export function createAgentServerContext(): AgentServerContext {
       productionStatePath,
       modelConfigPath,
     },
+    updates: updateState,
     client,
     agentRuntime,
     productionRuntime,
@@ -141,6 +166,7 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
         'model-config',
         'runtime-capabilities',
         'backend-api-base-url-header',
+        'dynamic-update-policy',
         'drafts',
         'memories',
         'production-runtime',
@@ -171,13 +197,14 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
       provider: 'backend-model-config',
       path: paths.modelConfigPath,
     },
+    updates: context.updates,
     backendApplyEnabled: backendApplyClient.isEnabled(),
     productionSemanticFallbackEnabled: productionRuntime.isSemanticFallbackEnabled(),
   }
 }
 
 export function logAgentServerStartup(context: AgentServerContext): void {
-  const { port, mcpEndpoint, paths, backendApplyClient, productionRuntime, pluginCatalog } = context
+  const { port, mcpEndpoint, paths, backendApplyClient, productionRuntime, pluginCatalog, updates } = context
   console.info(`[agent] movscript-agent listening on http://127.0.0.1:${port}`)
   console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
   console.info(`[agent] state path ${paths.statePath}`)
@@ -187,6 +214,7 @@ export function logAgentServerStartup(context: AgentServerContext): void {
   console.info(`[agent] model config path ${paths.modelConfigPath}`)
   console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[agent] production semantic fallback ${productionRuntime.isSemanticFallbackEnabled() ? 'enabled' : 'disabled'}`)
+  console.info(`[agent] update policy ${updates.policy.channel} (${updates.current.policyVersion})`)
   console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
   console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
   for (const warning of pluginCatalog.warnings) console.warn(`[agent] plugin warning: ${warning}`)

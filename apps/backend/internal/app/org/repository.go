@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"gorm.io/gorm"
 )
 
@@ -61,11 +62,11 @@ func (r *gormRepository) Create(ctx context.Context, ownerID uint, input CreateI
 		if err != nil {
 			return err
 		}
-		org = model.Organization{Name: input.Name, Slug: input.Slug, JoinCode: code, IsPersonal: false, Plan: "team", Status: "trialing", CreatedBy: ownerID}
+		org = domainorg.NewTeamOrg(input.Name, input.Slug, code, ownerID)
 		if err := tx.Create(&org).Error; err != nil {
 			return err
 		}
-		member := model.OrganizationMember{OrgID: org.ID, UserID: ownerID, Role: "owner"}
+		member := domainorg.OwnerMember(org.ID, ownerID)
 		return tx.Create(&member).Error
 	})
 	return org, err
@@ -166,7 +167,7 @@ func (r *gormRepository) AcceptInvitation(ctx context.Context, inv model.OrgInvi
 		if tx.Where("org_id = ? AND user_id = ?", inv.OrgID, userID).First(&existing).Error == nil {
 			return nil
 		}
-		member := model.OrganizationMember{OrgID: inv.OrgID, UserID: userID, Role: inv.Role}
+		member := domainorg.Member(inv.OrgID, userID, inv.Role)
 		if err := tx.Create(&member).Error; err != nil {
 			return err
 		}
@@ -183,7 +184,7 @@ func (r *gormRepository) JoinByCode(ctx context.Context, code string, user model
 		}
 		return 0, err
 	}
-	member := model.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "member"}
+	member := domainorg.Member(org.ID, user.ID, domainorg.RoleMember)
 	if err := r.db.WithContext(ctx).Create(&member).Error; err != nil {
 		if IsDuplicateKey(err) {
 			return org.ID, nil

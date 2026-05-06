@@ -88,15 +88,60 @@ func TestApplyStatusForWorkItemPatchResetsWhenResultChanges(t *testing.T) {
 }
 
 func TestApplyWorkItemUpdatesCopiesResultFields(t *testing.T) {
-	item := model.WorkItem{ResultType: "none", ApplyStatus: "not_applicable"}
+	item := model.WorkItem{ResultType: WorkItemResultNone, ApplyStatus: WorkItemApplyStatusNotApplicable}
 	ApplyWorkItemUpdates(&item, map[string]any{
-		"status":       "done",
-		"result_type":  "status_change",
+		"status":       WorkItemStatusDone,
+		"result_type":  WorkItemResultStatusChange,
 		"result_json":  `{"status":"confirmed"}`,
-		"apply_status": "pending",
+		"apply_status": WorkItemApplyStatusPending,
 	})
-	if item.Status != "done" || item.ResultType != "status_change" || item.ApplyStatus != "pending" {
+	if item.Status != WorkItemStatusDone || item.ResultType != WorkItemResultStatusChange || item.ApplyStatus != WorkItemApplyStatusPending {
 		t.Fatalf("unexpected item after updates: %+v", item)
+	}
+}
+
+func TestPrepareWorkItemResultApplicationMarksNoneNotApplicable(t *testing.T) {
+	item := model.WorkItem{
+		ResultType:  "",
+		ApplyStatus: WorkItemApplyStatusApplied,
+		AppliedAt:   "2026-05-07T12:00:00Z",
+		ApplyError:  "old error",
+	}
+
+	PrepareWorkItemResultApplication(&item)
+
+	if item.ResultType != WorkItemResultNone {
+		t.Fatalf("result type = %q, want %q", item.ResultType, WorkItemResultNone)
+	}
+	if item.ApplyStatus != WorkItemApplyStatusNotApplicable || item.AppliedAt != "" || item.ApplyError != "" {
+		t.Fatalf("unexpected apply state: %+v", item)
+	}
+}
+
+func TestPrepareWorkItemResultApplicationMarksResultPending(t *testing.T) {
+	item := model.WorkItem{
+		ResultType:  WorkItemResultStatusChange,
+		ApplyStatus: WorkItemApplyStatusFailed,
+		ApplyError:  "old error",
+	}
+
+	PrepareWorkItemResultApplication(&item)
+
+	if item.ApplyStatus != WorkItemApplyStatusPending || item.ApplyError != "" {
+		t.Fatalf("unexpected apply state: %+v", item)
+	}
+}
+
+func TestMarkWorkItemResultAppliedAndFailed(t *testing.T) {
+	item := model.WorkItem{}
+	MarkWorkItemResultApplied(&item, "2026-05-07T12:00:00Z")
+	if item.ApplyStatus != WorkItemApplyStatusApplied || item.AppliedAt == "" || item.ApplyError != "" {
+		t.Fatalf("unexpected applied state: %+v", item)
+	}
+
+	MarkWorkItemResultApplyFailed(&item, "apply failed")
+	if item.ApplyStatus != WorkItemApplyStatusFailed || item.ApplyError != "apply failed" {
+		t.Fatalf("unexpected failed state: %+v", item)
 	}
 }
 

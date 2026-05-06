@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +26,8 @@ type OpenAIAdapter struct {
 	client  openai.Client
 	rawHTTP *http.Client // used only for non-SDK paths (video multipart)
 }
+
+var jsonWordPatternAI = regexp.MustCompile(`(?i)\bjson\b`)
 
 func NewOpenAIAdapter(baseURL, apiKey string) *OpenAIAdapter {
 	if baseURL == "" {
@@ -215,6 +218,10 @@ func buildOpenAIChatBody(req TextRequest, stream bool) (map[string]any, error) {
 		}
 		messages = append(messages, msg)
 	}
+	jsonMode := req.JSONMode && !isOSeriesModel(req.Model)
+	if jsonMode {
+		messages = ensureOpenAIJSONModeMessages(messages)
+	}
 
 	body := map[string]any{
 		"model":    req.Model,
@@ -234,7 +241,7 @@ func buildOpenAIChatBody(req TextRequest, stream bool) (map[string]any, error) {
 	if req.Temperature >= 0 && !isOSeriesModel(req.Model) {
 		body["temperature"] = req.Temperature
 	}
-	if req.JSONMode && !isOSeriesModel(req.Model) {
+	if jsonMode {
 		body["response_format"] = map[string]any{"type": "json_object"}
 	}
 	for k, v := range req.ExtraParams {
@@ -255,6 +262,23 @@ func buildOpenAIChatBody(req TextRequest, stream bool) (map[string]any, error) {
 		body["tool_choice"] = toolChoice
 	}
 	return body, nil
+}
+
+func ensureOpenAIJSONModeMessages(messages []map[string]any) []map[string]any {
+	for _, msg := range messages {
+		content, ok := msg["content"].(string)
+		if ok && containsJSONWordAI(content) {
+			return messages
+		}
+	}
+	return append([]map[string]any{{
+		"role":    "system",
+		"content": "JSON mode is enabled. Return only a valid JSON object with no markdown fences.",
+	}}, messages...)
+}
+
+func containsJSONWordAI(content string) bool {
+	return jsonWordPatternAI.MatchString(content)
 }
 
 func rawJSONPresentAI(raw json.RawMessage) bool {

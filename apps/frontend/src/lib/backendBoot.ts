@@ -65,7 +65,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
   const settings = useAppSettingsStore.getState().settings
   const initial = await api.getBackendStatus().catch(() => null)
   if (isBackendBootStatus(initial)) {
-    if (initial.state === 'ready') return
+    if (initial.state === 'ready' && await isLocalBackendHTTPReady(settings.apiBaseURL)) return
     if (initial.state === 'error') {
       throw new BackendBootError(initial.message || 'Local backend failed to start.', initial)
     }
@@ -77,7 +77,7 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
 
   const afterStart = await api.getBackendStatus().catch(() => null)
   if (isBackendBootStatus(afterStart)) {
-    if (afterStart.state === 'ready') return
+    if (afterStart.state === 'ready' && await isLocalBackendHTTPReady(settings.apiBaseURL)) return
     if (afterStart.state === 'error') {
       throw new BackendBootError(afterStart.message || 'Local backend failed to start.', afterStart)
     }
@@ -95,7 +95,9 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
     const off = api.onBackendStatus?.((next) => {
       if (!isBackendBootStatus(next)) return
       if (next.state === 'ready') {
-        finish(resolve)
+        void isLocalBackendHTTPReady(settings.apiBaseURL).then((ready) => {
+          if (ready) finish(resolve)
+        })
       } else if (next.state === 'error') {
         finish(() => reject(new BackendBootError(next.message || 'Local backend failed to start.', next)))
       }
@@ -104,4 +106,13 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
       finish(() => reject(new BackendBootError(`Timed out waiting for local backend at ${settings.apiBaseURL}.`)))
     }, timeoutMs)
   })
+}
+
+async function isLocalBackendHTTPReady(baseURL: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${normalizeAPIBaseURL(baseURL)}/health`, { cache: 'no-store' })
+    return response.ok
+  } catch {
+    return false
+  }
 }

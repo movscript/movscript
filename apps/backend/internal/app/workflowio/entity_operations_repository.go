@@ -8,6 +8,8 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"gorm.io/gorm"
 )
 
@@ -38,7 +40,7 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 	}
 	sourceType := strings.TrimSpace(input.SourceType)
 	if sourceType == "" {
-		sourceType = "canvas"
+		sourceType = domainresourcebinding.SourceTypeCanvas
 	}
 	slot := strings.TrimSpace(input.Slot)
 	if slot == "" {
@@ -72,14 +74,15 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 		if err != nil {
 			return err
 		}
-		if sourceSlot.Status == "" || sourceSlot.Status == "missing" || sourceSlot.Status == "draft" {
-			if err := txRepo.db.WithContext(ctx).Model(&sourceSlot).Update("status", "candidate").Error; err != nil {
+		beforeStatus := sourceSlot.Status
+		domainsemantic.MarkAssetSlotCandidate(&sourceSlot)
+		if sourceSlot.Status != beforeStatus {
+			if err := txRepo.db.WithContext(ctx).Model(&sourceSlot).Update("status", sourceSlot.Status).Error; err != nil {
 				return err
 			}
 			if err := entityrelation.SyncCoreEntityRelations(txRepo.db.WithContext(ctx), &sourceSlot); err != nil {
 				return err
 			}
-			sourceSlot.Status = "candidate"
 		}
 		if err := txRepo.createAssetSlotOperationAudit(ctx, sourceSlot.ID, "attach_candidate", map[string]any{
 			"resource_id":             input.ResourceID,
@@ -104,7 +107,7 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sourceSlot model.AssetSlot, resource model.RawResource, input AttachAssetSlotCandidateInput) (model.AssetSlot, error) {
 	var candidateSlot model.AssetSlot
 	err := r.db.WithContext(ctx).
-		Where("project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", input.ProjectID, "asset_slot", sourceSlot.ID, input.ResourceID).
+		Where("project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", input.ProjectID, domainresourcebinding.OwnerTypeAssetSlot, sourceSlot.ID, input.ResourceID).
 		Order("id asc").
 		First(&candidateSlot).Error
 	if err == nil {
@@ -124,14 +127,14 @@ func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sou
 		ProductionID:             sourceSlot.ProductionID,
 		CreativeReferenceID:      sourceSlot.CreativeReferenceID,
 		CreativeReferenceStateID: sourceSlot.CreativeReferenceStateID,
-		OwnerType:                "asset_slot",
+		OwnerType:                domainresourcebinding.OwnerTypeAssetSlot,
 		OwnerID:                  &ownerID,
 		Kind:                     resourceType,
 		Name:                     name + " · 生成候选",
 		Description:              firstNonEmpty(sourceSlot.Description, sourceSlot.PromptHint, resource.Name),
 		SlotKey:                  sourceSlot.SlotKey,
 		PromptHint:               sourceSlot.PromptHint,
-		Status:                   "candidate",
+		Status:                   domainsemantic.AssetSlotStatusCandidate,
 		Priority:                 firstNonEmpty(sourceSlot.Priority, "normal"),
 		ResourceID:               &input.ResourceID,
 		MetadataJSON:             operationMetadataJSON(input, "attach_candidate"),
@@ -149,7 +152,7 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 	var binding model.ResourceBinding
 	err := r.db.WithContext(ctx).Where(
 		"project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?",
-		input.ProjectID, input.ResourceID, "asset_slot", candidateSlot.ID, "output", slot, 1,
+		input.ProjectID, input.ResourceID, domainresourcebinding.OwnerTypeAssetSlot, candidateSlot.ID, domainresourcebinding.RoleOutput, slot, 1,
 	).First(&binding).Error
 	if err == nil {
 		return binding, nil
@@ -160,13 +163,13 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 	binding = model.ResourceBinding{
 		ProjectID:    input.ProjectID,
 		ResourceID:   input.ResourceID,
-		OwnerType:    "asset_slot",
+		OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
 		OwnerID:      candidateSlot.ID,
-		Role:         "output",
+		Role:         domainresourcebinding.RoleOutput,
 		Slot:         slot,
 		Version:      1,
 		IsPrimary:    true,
-		Status:       "selected",
+		Status:       domainresourcebinding.StatusSelected,
 		SourceType:   sourceType,
 		SourceID:     input.SourceID,
 		MetadataJSON: operationMetadataJSON(input, "attach_candidate"),
@@ -194,8 +197,10 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 		if strings.TrimSpace(input.Note) != "" {
 			updates["note"] = input.Note
 		}
-		if candidate.Status == "" || candidate.Status == "pending" {
-			updates["status"] = "candidate"
+		beforeStatus := candidate.Status
+		domainsemantic.NormalizeAssetSlotCandidate(&candidate)
+		if candidate.Status != beforeStatus {
+			updates["status"] = candidate.Status
 		}
 		if err := r.db.WithContext(ctx).Model(&candidate).Updates(updates).Error; err != nil {
 			return candidate, err
@@ -220,7 +225,7 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 		SourceType:           sourceType,
 		SourceID:             input.SourceID,
 		Score:                input.Score,
-		Status:               "candidate",
+		Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 		Note:                 note,
 	}
 	if err := r.db.WithContext(ctx).Create(&candidate).Error; err != nil {
@@ -248,7 +253,7 @@ func (r *gormRepository) createEntityResourceBinding(ctx context.Context, bindin
 			return err
 		}
 	}
-	if binding.OwnerType == "asset_slot" && binding.ResourceID != 0 && binding.Role != "candidate" {
+	if binding.OwnerType == domainresourcebinding.OwnerTypeAssetSlot && binding.ResourceID != 0 && binding.Role != domainresourcebinding.RoleCandidate {
 		update := db.Model(&model.AssetSlot{}).
 			Where("id = ? AND resource_id IS NULL", binding.OwnerID).
 			Update("resource_id", binding.ResourceID)
@@ -273,7 +278,7 @@ func (r *gormRepository) createAssetSlotOperationAudit(ctx context.Context, asse
 		CanvasRunID:  input.RunID,
 		CanvasNodeID: input.NodeID,
 		PortID:       portID,
-		EntityKind:   "asset_slot",
+		EntityKind:   domainresourcebinding.OwnerTypeAssetSlot,
 		EntityID:     assetSlotID,
 		UserID:       input.UserID,
 		NewValueJSON: string(raw),

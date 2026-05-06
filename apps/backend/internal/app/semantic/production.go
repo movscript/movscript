@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 func (s *Service) ListProductions(ctx context.Context, filter ProductionFilter) ([]model.Production, error) {
@@ -14,21 +15,18 @@ func (s *Service) CreateProduction(ctx context.Context, projectID uint, input Pr
 	if err := s.validateProductionOwners(ctx, projectID, input.ScriptVersionID, input.PreviewTimelineID); err != nil {
 		return model.Production{}, err
 	}
-	item := model.Production{
+	item := domainsemantic.NewProduction(domainsemantic.ProductionSpec{
 		ProjectID:         projectID,
 		ScriptVersionID:   input.ScriptVersionID,
 		PreviewTimelineID: input.PreviewTimelineID,
 		Name:              input.Name,
 		Description:       input.Description,
-		Status:            fallbackString(input.Status, "planning"),
-		SourceType:        fallbackString(input.SourceType, "direct"),
-		OwnerLabel:        fallbackString(input.OwnerLabel, "导演组"),
+		Status:            input.Status,
+		SourceType:        input.SourceType,
+		OwnerLabel:        input.OwnerLabel,
 		Progress:          input.Progress,
 		MetadataJSON:      input.MetadataJSON,
-	}
-	if item.Name == "" {
-		item.Name = "未命名制作"
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -103,7 +101,7 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 	if err := s.validateKeyframeOwners(ctx, projectID, input.ProductionID, input.SceneMomentID, input.ContentUnitID); err != nil {
 		return model.Keyframe{}, err
 	}
-	item := model.Keyframe{
+	item := domainsemantic.NewKeyframe(domainsemantic.KeyframeSpec{
 		ProjectID:     projectID,
 		ProductionID:  input.ProductionID,
 		SceneMomentID: input.SceneMomentID,
@@ -114,9 +112,9 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 		Description:   input.Description,
 		Prompt:        input.Prompt,
 		Order:         input.Order,
-		Status:        fallbackString(input.Status, "generated"),
+		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -161,16 +159,16 @@ func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, inp
 	if err := s.validatePreviewTimelineOwners(ctx, projectID, input.ProductionID); err != nil {
 		return model.PreviewTimeline{}, err
 	}
-	item := model.PreviewTimeline{
+	item := domainsemantic.NewPreviewTimeline(domainsemantic.PreviewTimelineSpec{
 		ProjectID:       projectID,
 		ProductionID:    input.ProductionID,
 		ScriptVersionID: input.ScriptVersionID,
-		Name:            fallbackString(input.Name, "Preview"),
-		Status:          fallbackString(input.Status, "draft"),
+		Name:            input.Name,
+		Status:          input.Status,
 		DurationSec:     input.DurationSec,
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
-	}
+	})
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -250,12 +248,12 @@ func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, 
 }
 
 func contentUnitFromInput(projectID uint, input ContentUnitInput) model.ContentUnit {
-	return model.ContentUnit{
+	return domainsemantic.NewContentUnit(domainsemantic.ContentUnitSpec{
 		ProjectID:        projectID,
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
-		Kind:             fallbackString(input.Kind, "shot"),
+		Kind:             input.Kind,
 		Order:            input.Order,
 		Title:            input.Title,
 		Description:      input.Description,
@@ -275,9 +273,9 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) model.ContentU
 		Stabilization:    input.Stabilization,
 		CameraParamsJSON: input.CameraParamsJSON,
 		CameraNotes:      input.CameraNotes,
-		Status:           fallbackString(input.Status, "draft"),
+		Status:           input.Status,
 		MetadataJSON:     input.MetadataJSON,
-	}
+	})
 }
 
 func contentUnitUpdates(input ContentUnitInput) map[string]any {
@@ -311,21 +309,21 @@ func contentUnitUpdates(input ContentUnitInput) map[string]any {
 }
 
 func previewTimelineItemFromInput(projectID uint, timelineID uint, input PreviewTimelineItemInput) model.PreviewTimelineItem {
-	return model.PreviewTimelineItem{
+	return domainsemantic.NewPreviewTimelineItem(domainsemantic.PreviewTimelineItemSpec{
 		ProjectID:         projectID,
 		PreviewTimelineID: timelineID,
 		SegmentID:         input.SegmentID,
 		SceneMomentID:     input.SceneMomentID,
 		ContentUnitID:     input.ContentUnitID,
 		KeyframeID:        input.KeyframeID,
-		Kind:              fallbackString(input.Kind, "keyframe"),
+		Kind:              input.Kind,
 		Order:             input.Order,
 		StartSec:          input.StartSec,
 		DurationSec:       input.DurationSec,
 		Label:             input.Label,
-		Status:            fallbackString(input.Status, "draft"),
+		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
-	}
+	})
 }
 
 func previewTimelineItemUpdates(input PreviewTimelineItemInput) map[string]any {

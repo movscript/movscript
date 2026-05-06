@@ -14,6 +14,7 @@ Frontend / Electron
 
 - 前端负责收集用户输入、当前 route/project/selection 快照，并展示 run、step、approval、draft。
 - `apps/agent` 负责 Thread/Run 生命周期、agentic loop、工具策略、sandbox、草稿、记忆和模型回复。
+- Agent 动态更新只覆盖 manifest、policy、prompt、tool catalog、skill catalog 等行为配置；runtime code 更新必须走签名应用更新器，详见 `docs/agent-dynamic-update-architecture.md`。
 - Go backend 负责正式项目实体、语义数据、资源和 model gateway。
 
 ## 核心概念
@@ -25,6 +26,7 @@ Frontend / Electron
 - Memory：本地记忆，按 global/project/thread 作用域加载和写入。
 - Manifest：定义 agent permissions、tools、skills。
 - Policy：定义审批模式、sandbox、工具调用上限和运行边界。
+- Update Policy：定义 agent 行为配置更新的分级、签名、审计和回滚要求。
 
 ## Run 流程
 

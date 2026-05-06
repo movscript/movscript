@@ -18,15 +18,19 @@ const (
 	StatusTrialing  = "trialing"
 	StatusPastDue   = "past_due"
 	StatusSuspended = "suspended"
+
+	RoleOwner  = "owner"
+	RoleAdmin  = "admin"
+	RoleMember = "member"
 )
 
 func IsAdminOrAbove(role string) bool {
-	return role == "owner" || role == "admin"
+	return role == RoleOwner || role == RoleAdmin
 }
 
 func DefaultMemberRole(role string) string {
 	if strings.TrimSpace(role) == "" {
-		return "member"
+		return RoleMember
 	}
 	return role
 }
@@ -98,6 +102,14 @@ func NewPersonalOrg(user model.User, slugExists bool) model.Organization {
 	}
 }
 
+func NewTeamOrg(name string, slug string, joinCode string, ownerID uint) model.Organization {
+	return model.Organization{Name: name, Slug: slug, JoinCode: joinCode, IsPersonal: false, Plan: PlanTeam, Status: StatusTrialing, CreatedBy: ownerID}
+}
+
 func OwnerMember(orgID uint, userID uint) model.OrganizationMember {
-	return model.OrganizationMember{OrgID: orgID, UserID: userID, Role: "owner"}
+	return model.OrganizationMember{OrgID: orgID, UserID: userID, Role: RoleOwner}
+}
+
+func Member(orgID uint, userID uint, role string) model.OrganizationMember {
+	return model.OrganizationMember{OrgID: orgID, UserID: userID, Role: DefaultMemberRole(role)}
 }

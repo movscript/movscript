@@ -9,7 +9,7 @@ import {
   Trash2, RefreshCw, History, Database, Save, FolderOpen,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
+import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
@@ -26,6 +26,7 @@ import {
   type AgentDraftApplyPreview,
   type AgentDraftKind,
   type AgentDraftStatus,
+  type AgentManifest,
   type AgentMemory,
   type AgentMemoryKind,
   type AgentMemoryScope,
@@ -71,6 +72,7 @@ import { useProjectStore } from '@/store/projectStore'
 import {
   useAgentStore,
   type ChatMessage,
+  type ChatRunActivity,
   type Conversation,
   type AgentAttachment,
   type AgentSettings,
@@ -275,7 +277,11 @@ interface AgentSendDraft {
   localRuntime?: {
     threadId?: string
     title: string
+    projectId?: number
     clientInput?: AgentClientInput
+    agentManifest?: AgentManifest
+    requestId?: string
+    timeoutMs?: number
     diagnosticCommand?: boolean
     preview?: AgentRunPreview
     previewError?: string
@@ -861,6 +867,221 @@ function workflowDotClass(status: string) {
   return 'border-blue-500/30 bg-blue-500/10 text-blue-700'
 }
 
+function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' {
+  if (status === 'completed') return 'success'
+  if (status === 'completed_with_warnings' || status === 'requires_action') return 'warning'
+  if (status === 'failed') return 'destructive'
+  if (status === 'in_progress' || status === 'queued') return 'secondary'
+  return 'outline'
+}
+
+function compactRunActivity(run: AgentRun): ChatRunActivity {
+  const toolStepIds = new Set(run.steps.filter((step) => step.type === 'tool_call').map((step) => step.id))
+  return {
+    runId: run.id,
+    threadId: run.threadId,
+    status: run.status,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    ...(run.startedAt ? { startedAt: run.startedAt } : {}),
+    ...(run.completedAt ? { completedAt: run.completedAt } : {}),
+    ...(run.failedAt ? { failedAt: run.failedAt } : {}),
+    ...(run.error ? { error: run.error } : {}),
+    ...(run.warnings?.length ? { warnings: run.warnings } : {}),
+    steps: run.steps
+      .filter((step) => step.type === 'tool_call')
+      .map((step) => ({
+        id: step.id,
+        type: step.type,
+        status: step.status,
+        ...(step.title ? { title: step.title } : {}),
+        ...(step.toolName ? { toolName: step.toolName } : {}),
+        ...(step.args ? { args: step.args } : {}),
+        ...(step.result !== undefined ? { result: step.result } : {}),
+        ...(step.error ? { error: step.error } : {}),
+        ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
+        createdAt: step.createdAt,
+        ...(step.completedAt ? { completedAt: step.completedAt } : {}),
+      })),
+    events: (run.traceEvents ?? [])
+      .filter((event) => (
+        event.kind === 'tool_call'
+        || event.kind === 'model_call'
+        || event.kind === 'context'
+        || event.kind === 'memory'
+        || event.kind === 'approval'
+        || event.kind === 'input'
+        || event.kind === 'assistant'
+        || event.kind === 'error'
+      ))
+      .filter((event) => event.kind !== 'tool_call' || !event.stepId || !toolStepIds.has(event.stepId))
+      .slice(-24)
+      .map((event) => ({
+        id: event.id,
+        kind: event.kind,
+        title: event.title,
+        status: event.status,
+        ...(event.summary ? { summary: event.summary } : {}),
+        ...(event.toolName ? { toolName: event.toolName } : {}),
+        ...(event.stepId ? { stepId: event.stepId } : {}),
+        ...(event.data !== undefined ? { data: event.data } : {}),
+        createdAt: event.createdAt,
+        ...(event.completedAt ? { completedAt: event.completedAt } : {}),
+      })),
+  }
+}
+
+function formatActivityTime(value: string | undefined, locale: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function durationLabel(start: string | undefined, end: string | undefined) {
+  if (!start || !end) return ''
+  const startMs = new Date(start).getTime()
+  const endMs = new Date(end).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return ''
+  const ms = endMs - startMs
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
+}
+
+function activitySummary(activity: ChatRunActivity) {
+  const toolCount = activity.steps.length
+  const completedCount = activity.steps.filter((step) => step.status === 'completed').length
+  if (toolCount > 0) return `${completedCount}/${toolCount} tools`
+  return activity.events.length > 0 ? `${activity.events.length} events` : 'no tool calls'
+}
+
+function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) {
+  const text = safeJSONStringify(value)
+  return (
+    <details className="mt-1 rounded border border-border/70 bg-muted/20">
+      <summary className="cursor-pointer px-2 py-1 text-[9px] font-medium text-muted-foreground">
+        {label}
+      </summary>
+      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 text-[9px] leading-relaxed text-muted-foreground">
+        {text}
+      </pre>
+    </details>
+  )
+}
+
+function RunActivityPanel({
+  activity,
+  run,
+  title = 'Activity',
+  defaultOpen = false,
+  className,
+}: {
+  activity?: ChatRunActivity
+  run?: AgentRun | null
+  title?: string
+  defaultOpen?: boolean
+  className?: string
+}) {
+  const { i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const data = activity ?? (run ? compactRunActivity(run) : undefined)
+  if (!data) return null
+
+  const items = [
+    ...data.steps.map((step) => ({
+      id: step.id,
+      kind: 'tool',
+      title: step.toolName ?? step.title ?? 'Tool call',
+      status: step.status,
+      time: formatActivityTime(step.createdAt, locale),
+      duration: durationLabel(step.createdAt, step.completedAt),
+      summary: step.error || (step.sandboxed ? 'sandboxed' : ''),
+      args: step.args,
+      result: step.result,
+      error: step.error,
+    })),
+    ...data.events.map((event) => ({
+      id: event.id,
+      kind: event.kind,
+      title: event.toolName ? `${event.title}: ${event.toolName}` : event.title,
+      status: event.status,
+      time: formatActivityTime(event.createdAt, locale),
+      duration: durationLabel(event.createdAt, event.completedAt),
+      summary: event.summary,
+      args: undefined,
+      result: event.data,
+      error: event.status === 'failed' || event.status === 'blocked' ? event.summary : undefined,
+    })),
+  ].sort((a, b) => {
+    const aTime = new Date((data.steps.find((step) => step.id === a.id)?.createdAt ?? data.events.find((event) => event.id === a.id)?.createdAt ?? '')).getTime()
+    const bTime = new Date((data.steps.find((step) => step.id === b.id)?.createdAt ?? data.events.find((event) => event.id === b.id)?.createdAt ?? '')).getTime()
+    return (Number.isFinite(aTime) ? aTime : 0) - (Number.isFinite(bTime) ? bTime : 0)
+  })
+
+  return (
+    <details
+      className={cn('mt-2 rounded-md border border-border bg-background/70 text-xs', className)}
+      open={defaultOpen}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 marker:hidden">
+        <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+          <Workflow size={12} />
+          <span className="truncate">{title}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Badge variant={runStatusVariant(data.status)} className="text-[9px] leading-4 px-1.5 py-0">
+            {data.status.replace(/_/g, ' ')}
+          </Badge>
+          <span className="text-[9px] text-muted-foreground">{activitySummary(data)}</span>
+        </span>
+      </summary>
+      <div className="space-y-1.5 border-t border-border/70 px-2.5 py-2">
+        {items.length === 0 ? (
+          <div className="rounded border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+            No tool calls were recorded for this run.
+          </div>
+        ) : items.map((item) => (
+          <div key={item.id} className="rounded border border-border/70 bg-background px-2 py-1.5">
+            <div className="flex min-w-0 items-start gap-1.5">
+              <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(item.status))} />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-[10px] font-medium text-foreground">{item.title}</span>
+                  <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(item.status))}>
+                    {item.status.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-1.5 text-[9px] text-muted-foreground">
+                  <span>{item.kind}</span>
+                  {item.time && <span>{item.time}</span>}
+                  {item.duration && <span>{item.duration}</span>}
+                </div>
+                {item.summary && (
+                  <p className={cn('mt-1 text-[10px] leading-relaxed', item.error ? 'text-destructive' : 'text-muted-foreground')}>
+                    {item.summary}
+                  </p>
+                )}
+                {item.args !== undefined && <ActivityJSONBlock label="Args" value={item.args} />}
+                {item.result !== undefined && <ActivityJSONBlock label={item.error ? 'Error data' : 'Result'} value={item.result} />}
+              </div>
+            </div>
+          </div>
+        ))}
+        {data.warnings?.length ? (
+          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+            {data.warnings.map((warning) => <div key={warning}>{warning}</div>)}
+          </div>
+        ) : null}
+        {data.error && (
+          <div className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-[10px] leading-relaxed text-destructive">
+            {data.error}
+          </div>
+        )}
+      </div>
+    </details>
+  )
+}
+
 // ── Message bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
@@ -909,6 +1130,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       )}
     >
       {isUser ? msg.content : <MarkdownContent text={msg.content} />}
+      {!isUser && msg.meta?.localRunActivity && (
+        <RunActivityPanel activity={msg.meta.localRunActivity} title="Tool activity" />
+      )}
       {msg.attachments && msg.attachments.length > 0 && (
         <div className={cn('mt-2 grid gap-1.5', msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
           {msg.attachments.map((attachment) => (
@@ -1593,7 +1817,7 @@ function ChatView({
   conv: Conversation
   userId: string
   onBack: () => void
-  externalDraft?: string
+  externalDraft?: AgentPanelDraftPayload
   onExternalDraftConsumed?: () => void
 }) {
   const { t } = useTranslation()
@@ -1622,7 +1846,13 @@ function ChatView({
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState<AgentAttachment[]>([])
   const [uploading, setUploading] = useState(false)
-  const [showContext, setShowContext] = useState(true)
+  const [showContext, setShowContextState] = useState(() => {
+    try {
+      return localStorage.getItem(AGENT_CONTEXT_VISIBLE_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
   const [activeLocalRun, setActiveLocalRun] = useState<AgentRun | null>(null)
   const [approvingLocalRun, setApprovingLocalRun] = useState(false)
   const [startingLocalAgent, setStartingLocalAgent] = useState(false)
@@ -1656,13 +1886,6 @@ function ChatView({
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [conv.messages, loading, activeLocalRun])
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
-  useEffect(() => {
-    if (!externalDraft) return
-    setInput(externalDraft)
-    window.setTimeout(() => inputRef.current?.focus(), 0)
-    onExternalDraftConsumed?.()
-  }, [externalDraft, onExternalDraftConsumed])
-
   // Auto-clear stale modelId
   useEffect(() => {
     if (textModels.length > 0 && settings.modelId !== null) {
@@ -1707,6 +1930,14 @@ function ChatView({
   function setDebugBeforeSend(next: boolean) {
     setDebugBeforeSendState(next)
     try { localStorage.setItem(AGENT_DEBUG_PREVIEW_KEY, String(next)) } catch {}
+  }
+
+  function setShowContext(next: boolean | ((current: boolean) => boolean)) {
+    setShowContextState((current) => {
+      const resolved = typeof next === 'function' ? next(current) : next
+      try { localStorage.setItem(AGENT_CONTEXT_VISIBLE_KEY, String(resolved)) } catch {}
+      return resolved
+    })
   }
 
   async function startLocalAgent() {
@@ -1766,7 +1997,7 @@ function ChatView({
         addMessage(userId, conv.id, {
           role: 'assistant',
           content,
-          meta: { contextLabels: [`run ${finalRun.status}`] },
+          meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
         })
       }
     } catch (e) {
@@ -1795,7 +2026,7 @@ function ChatView({
       addMessage(userId, conv.id, {
         role: 'assistant',
         content,
-        meta: { contextLabels: [`run ${rejectedRun.status}`] },
+        meta: { contextLabels: [`run ${rejectedRun.status}`], localRunActivity: compactRunActivity(rejectedRun) },
       })
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -1826,7 +2057,7 @@ function ChatView({
         addMessage(userId, conv.id, {
           role: 'assistant',
           content: formatLocalAgentAssistantContent(finalRun, thread),
-          meta: { contextLabels: [`run ${finalRun.status}`] },
+          meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
         })
       }
     } catch (e) {
@@ -1841,16 +2072,25 @@ function ChatView({
     }
   }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
 
-  const buildSendDraft = useCallback(async (options: { includeRuntimePreview?: boolean } = {}): Promise<AgentSendDraft> => {
-    const text = input.trim()
+  const buildSendDraft = useCallback(async (options: {
+    includeRuntimePreview?: boolean
+    message?: string
+    title?: string
+    projectId?: number
+    clientInput?: AgentClientInput
+    agentManifest?: AgentManifest
+    requestId?: string
+    timeoutMs?: number
+  } = {}): Promise<AgentSendDraft> => {
+    const text = (options.message ?? input).trim()
     const sentAttachments = attachments
     const visibleUserContent = text || t('agents.chat.attachmentOnlyMessage')
-    const runtimeMessage = normalizeAgentCommandMessage(visibleUserContent, settings.mode)
+    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
     const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
-    const clientInput = buildAgentClientInput({
+    const clientInput = options.clientInput ?? buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
-      projectId: currentProject?.ID,
+      projectId: options.projectId ?? currentProject?.ID,
       labels: contextLabels,
     })
     const agentContext = buildAgentContext({
@@ -1872,8 +2112,12 @@ function ChatView({
     const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
     const localRuntime: AgentSendDraft['localRuntime'] = {
       ...(threadId ? { threadId } : {}),
-      title: conv.title,
+      title: options.title ?? conv.title,
+      ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
       clientInput,
+      ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+      ...(options.requestId ? { requestId: options.requestId } : {}),
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
       diagnosticCommand,
     }
 
@@ -1888,12 +2132,14 @@ function ChatView({
           localRuntime.preview = await localAgentClient.previewRun({
             ...(threadId ? { threadId } : {}),
             clientInput,
+            ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
           })
         } catch (e) {
           if (!threadId) throw e
           warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
           localRuntime.preview = await localAgentClient.previewRun({
             clientInput,
+            ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
           })
         }
       } catch (e) {
@@ -1967,6 +2213,11 @@ function ChatView({
   const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {
     if (!draft.model.id) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
+      notifyAgentPanelRunSettled({
+        requestId: draft.localRuntime?.requestId,
+        status: 'error',
+        error: t('agents.chat.selectModelFirst'),
+      })
       return
     }
 
@@ -2002,7 +2253,10 @@ function ChatView({
         message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
         clientInput: draft.localRuntime?.clientInput,
         title: draft.localRuntime?.title ?? conv.title,
+        projectId: draft.localRuntime?.projectId,
       }, {
+        ...(draft.localRuntime?.agentManifest ? { agentManifest: draft.localRuntime.agentManifest } : {}),
+        ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
         onRunUpdate: setActiveLocalRun,
       })
       if (!draft.localRuntime?.diagnosticCommand) {
@@ -2016,13 +2270,24 @@ function ChatView({
       addMessage(userId, conv.id, {
         role: 'assistant',
         content,
-        meta: { contextLabels: [`run ${run.status}`] },
+        meta: { contextLabels: [`run ${run.status}`], localRunActivity: compactRunActivity(run) },
+      })
+      notifyAgentPanelRunSettled({
+        requestId: draft.localRuntime?.requestId,
+        status: 'completed',
+        run,
+        thread,
       })
     } catch (e: any) {
       const message = e instanceof Error ? e.message : String(e)
       addMessage(userId, conv.id, {
         role: 'assistant',
         content: `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
+      })
+      notifyAgentPanelRunSettled({
+        requestId: draft.localRuntime?.requestId,
+        status: 'error',
+        error: message,
       })
     } finally {
       setLoading(false)
@@ -2038,6 +2303,50 @@ function ChatView({
     localAgentOnline,
     refetchLocalAgentHealth,
     setLocalAgentThreadIds,
+  ])
+
+  useEffect(() => {
+    if (!externalDraft?.message?.trim()) return
+    setInput(externalDraft.message)
+    window.setTimeout(() => inputRef.current?.focus(), 0)
+    onExternalDraftConsumed?.()
+
+    if (!externalDraft.autoSend) return
+    if (loading || uploading || buildingSendDraft) {
+      const error = '当前 Agent 对话正在处理上一条请求，请稍后再试'
+      addMessage(userId, conv.id, { role: 'assistant', content: error })
+      notifyAgentPanelRunSettled({ requestId: externalDraft.requestId, status: 'error', error })
+      return
+    }
+
+    setBuildingSendDraft(true)
+    buildSendDraft({
+      message: externalDraft.message,
+      title: externalDraft.title,
+      projectId: externalDraft.projectId,
+      clientInput: externalDraft.clientInput,
+      agentManifest: externalDraft.agentManifest,
+      requestId: externalDraft.requestId,
+      timeoutMs: externalDraft.timeoutMs,
+    })
+      .then((draft) => commitSendDraft(draft))
+      .catch((e) => {
+        const message = e instanceof Error ? e.message : String(e)
+        addMessage(userId, conv.id, { role: 'assistant', content: `发送前调试构建失败：${message}` })
+        notifyAgentPanelRunSettled({ requestId: externalDraft.requestId, status: 'error', error: message })
+      })
+      .finally(() => setBuildingSendDraft(false))
+  }, [
+    externalDraft,
+    onExternalDraftConsumed,
+    loading,
+    uploading,
+    buildingSendDraft,
+    addMessage,
+    userId,
+    conv.id,
+    buildSendDraft,
+    commitSendDraft,
   ])
 
   const send = useCallback(async () => {
@@ -2142,6 +2451,11 @@ function ChatView({
             onReject={rejectActiveLocalRun}
             onAnswerInput={answerActiveLocalRunInput}
           />
+          {activeLocalRun && (
+            <div className="mx-1">
+              <RunActivityPanel run={activeLocalRun} title="Live tool activity" defaultOpen />
+            </div>
+          )}
           {loading && (
             <AgentChatMessage
               role="assistant"
@@ -2157,10 +2471,10 @@ function ChatView({
         </AgentThread>
       </AgentBody>
 
-      <div className="px-3 py-2.5 shrink-0 space-y-2">
+      <div className="min-w-0 shrink-0 space-y-2 px-3 py-2.5">
         <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
-          <div className="flex items-center justify-between gap-2 text-[10px]">
-            <span className={cn('font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
+          <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
+            <span className={cn('min-w-0 truncate font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
               {localAgentOnline ? 'Local Runtime online' : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting Local Runtime' : 'Checking Local Runtime') : 'Local Runtime offline')}
             </span>
             <Button
@@ -2226,15 +2540,15 @@ function ChatView({
                 {t('agents.chat.resourceContext')}
               </label>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
                 <input
                   type="checkbox"
                   checked={settings.autoPlan}
                   onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
                   className="h-3 w-3"
                 />
-                {t('agents.chat.autoPlan')}
+                <span className="truncate">{t('agents.chat.autoPlan')}</span>
               </label>
               {debugBeforeSend && (
                 <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
@@ -2245,7 +2559,7 @@ function ChatView({
                 value={settings.permissionMode}
                 onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
               >
-                <SelectTrigger size="sm" className="ml-auto h-7 w-28 text-[10px]">
+                <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -2294,7 +2608,7 @@ function ChatView({
                 addMessage(userId, conv.id, {
                   role: 'assistant',
                   content,
-                  meta: { contextLabels: [`run ${run.status}`, 'Draft apply'] },
+                  meta: { contextLabels: [`run ${run.status}`, 'Draft apply'], localRunActivity: compactRunActivity(run) },
                 })
               }}
             />
@@ -2329,7 +2643,7 @@ function ChatView({
             disabled={loading || buildingSendDraft}
           />
           <AgentComposerToolbar>
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
               <AgentComposerAction
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading || loading || buildingSendDraft}
@@ -2339,7 +2653,7 @@ function ChatView({
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
               </AgentComposerAction>
               {attachments.length > 0 && (
-                <Badge variant="secondary" className="text-[10px]">{t('agents.chat.attachmentsCount', { count: attachments.length })}</Badge>
+                <Badge variant="secondary" className="max-w-24 truncate text-[10px]">{t('agents.chat.attachmentsCount', { count: attachments.length })}</Badge>
               )}
               <Button
                 type="button"
@@ -2358,17 +2672,17 @@ function ChatView({
             </AgentComposerSubmit>
           </AgentComposerToolbar>
         </AgentComposer>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
             size="xs"
             onClick={() => setShowContext((v) => !v)}
-            className="h-6 px-1 text-[10px] text-muted-foreground"
+            className="h-6 shrink-0 px-1 text-[10px] text-muted-foreground"
           >
             <Eye size={10} /> {showContext ? t('agents.chat.hideContext') : t('agents.chat.showContext')}
           </Button>
-          <p className="text-[10px] text-muted-foreground/40 text-right">{t('agents.chat.inputHint')}</p>
+          <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">{t('agents.chat.inputHint')}</p>
         </div>
       </div>
     </AgentMain>
@@ -2508,7 +2822,7 @@ function BuiltinChat({ userId }: { userId: string }) {
     addMessage,
     updateConversationTitle,
   } = useAgentStore()
-  const [externalDrafts, setExternalDrafts] = useState<Record<string, string>>({})
+  const [externalDrafts, setExternalDrafts] = useState<Record<string, AgentPanelDraftPayload>>({})
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
@@ -2542,7 +2856,7 @@ function BuiltinChat({ userId }: { userId: string }) {
     if (pending.title) updateConversationTitle(userId, convId, pending.title)
     if (pending.mode) useAgentStore.getState().updateSettings({ mode: pending.mode })
     setActiveConversation(userId, convId)
-    setExternalDrafts((current) => ({ ...current, [convId]: pending.message }))
+    setExternalDrafts((current) => ({ ...current, [convId]: pending }))
   }, [createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
 
   useEffect(() => {
@@ -2553,7 +2867,7 @@ function BuiltinChat({ userId }: { userId: string }) {
       if (detail.title) updateConversationTitle(userId, convId, detail.title)
       if (detail.mode) useAgentStore.getState().updateSettings({ mode: detail.mode })
       setActiveConversation(userId, convId)
-      setExternalDrafts((current) => ({ ...current, [convId]: detail.message }))
+      setExternalDrafts((current) => ({ ...current, [convId]: detail }))
     }
 
     window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
@@ -2594,6 +2908,7 @@ function BuiltinChat({ userId }: { userId: string }) {
 const PANEL_OPEN_KEY = 'ai-panel-open'
 const LOCAL_AGENT_THREAD_IDS_KEY = 'ai-panel-local-agent-thread-ids'
 const AGENT_DEBUG_PREVIEW_KEY = 'ai-panel-debug-preview'
+const AGENT_CONTEXT_VISIBLE_KEY = 'ai-panel-context-visible'
 
 function readLocalAgentThreadIds(): Record<string, string> {
   try {

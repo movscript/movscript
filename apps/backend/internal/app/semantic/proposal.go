@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 type ProposalSegmentNode struct {
@@ -157,7 +158,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 					Order:        fallbackInt(segNode.Order, i+1),
 					Title:        segNode.Title,
 					Summary:      segNode.Summary,
-					Status:       fallbackString(segNode.Status, "draft"),
+					Status:       domainsemantic.ProposalDraftStatus(segNode.Status),
 				})
 				if err != nil {
 					return err
@@ -211,7 +212,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						LocationText: smNode.LocationText,
 						ActionText:   smNode.ActionText,
 						Mood:         smNode.Mood,
-						Status:       fallbackString(smNode.Status, "draft"),
+						Status:       domainsemantic.ProposalDraftStatus(smNode.Status),
 					})
 					if err != nil {
 						return err
@@ -241,7 +242,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						ref, err := txSvc.PatchCreativeReference(ctx, projectID, fmt.Sprint(*crNode.ID), CreativeReferenceInput{
 							Kind:   crNode.Kind,
 							Name:   crNode.Name,
-							Status: "draft",
+							Status: domainsemantic.ProposalDraftStatusValue,
 						})
 						if err != nil {
 							return err
@@ -252,7 +253,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 							Kind:       fallbackString(crNode.Kind, "character"),
 							Name:       crNode.Name,
 							Importance: "supporting",
-							Status:     "draft",
+							Status:     domainsemantic.ProposalDraftStatusValue,
 						})
 						if err != nil {
 							return err
@@ -275,7 +276,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 								Emotion:             crNode.State.Emotion,
 								Props:               crNode.State.Props,
 								VisualNotes:         crNode.State.VisualNotes,
-								Status:              "draft",
+								Status:              domainsemantic.ProposalDraftStatusValue,
 							})
 							if err != nil {
 								return err
@@ -289,7 +290,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 							CreativeReferenceStateID: stateID,
 							Role:                     crNode.Role,
 							Source:                   "agent_proposal",
-							Status:                   "draft",
+							Status:                   domainsemantic.ProposalDraftStatusValue,
 						})
 						if err != nil {
 							return err
@@ -349,7 +350,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						ShotSize:      cuNode.ShotSize,
 						CameraAngle:   cuNode.CameraAngle,
 						DurationSec:   cuNode.DurationSec,
-						Status:        fallbackString(cuNode.Status, "draft"),
+						Status:        domainsemantic.ProposalDraftStatus(cuNode.Status),
 					})
 					if err != nil {
 						return err
@@ -382,7 +383,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 							Name:         asNode.Name,
 							Description:  asNode.Description,
 							Priority:     asNode.Priority,
-							Status:       "draft",
+							Status:       domainsemantic.ProposalDraftStatusValue,
 						}); err != nil {
 							return err
 						}
@@ -401,7 +402,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						Name:         asNode.Name,
 						Description:  asNode.Description,
 						Priority:     fallbackString(asNode.Priority, "normal"),
-						Status:       "draft",
+						Status:       domainsemantic.ProposalDraftStatusValue,
 					})
 					if err != nil {
 						return err

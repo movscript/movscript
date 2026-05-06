@@ -38,7 +38,8 @@ import {
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { api } from '@/lib/api'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
-import { localAgentClient, type AgentManifest } from '@/lib/localAgentClient'
+import { AGENT_PANEL_RUN_SETTLED_EVENT, openAgentPanelDraft, type AgentPanelRunSettledPayload } from '@/lib/agentPanelBridge'
+import { type AgentManifest } from '@/lib/localAgentClient'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
@@ -1379,6 +1380,9 @@ interface ScriptSplitDraft {
   title: string
   summary: string
   content: string
+  bodyContent: string
+  globalContextText: string
+  globalContext: ScriptSplitGlobalContext
   start: number
   end: number
   existingScriptId: number | null
@@ -1400,11 +1404,24 @@ interface ScriptSplitAgentEpisode {
   title?: unknown
   summary?: unknown
   content?: unknown
+  global_context?: unknown
+  globalContext?: unknown
   start?: unknown
   end?: unknown
   action?: unknown
   existing_script_id?: unknown
   existingScriptId?: unknown
+}
+
+interface ScriptSplitGlobalContext {
+  storyWorld: string
+  coreRules: string[]
+  characterRelationships: string[]
+  keyCharacters: string[]
+  keyLocations: string[]
+  keyProps: string[]
+  continuityNotes: string[]
+  episodeRelevance: string[]
 }
 
 interface ScriptSplitAgentResult {
@@ -1418,6 +1435,8 @@ interface ScriptSplitAgentResult {
     summary?: unknown
     content?: unknown
   }
+  global_settings?: unknown
+  globalSettings?: unknown
   episode_drafts?: unknown
   episodes?: unknown
   warnings?: unknown
@@ -1441,6 +1460,8 @@ const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
     '你的任务是把用户提供的一份总稿拆成多个独立分集剧本草稿。',
     '必须优先依据剧本里的明确集标题、场次边界、叙事段落和上下文；不要编造原文没有的剧情。',
     '如果文本只有一集或没有明确分集标题，也要返回一个 episode_drafts 项。',
+    '必须抽取总稿级 global_settings，并在每一个 episode_drafts 项里重复一份本集可用的 global_context。',
+    'global_context 要包含故事世界、核心规则、人物关系、关键人物、关键场景、关键道具和连续性约束，保证后续编排只读取单集也能理解全局设定。',
     '已有剧本清单只用于判断 action 和 existing_script_id；不要直接调用写入工具。',
     '输出必须是一个 machine-readable JSON 对象，不能包含 markdown 或解释文字。',
   ].join('\n'),
@@ -1629,7 +1650,10 @@ function buildScriptSplitAgentMessage(input: {
     '',
     '[输出要求]',
     '返回 schema=movscript.script_split_analysis.v1 的 JSON。',
+    '必须包含 global_settings：story_world、core_rules、character_relationships、key_characters、key_locations、key_props、continuity_notes。',
     'episode_drafts 中每一集必须包含 order、title、summary、content、start、end、action、existing_script_id。',
+    'episode_drafts 中每一集还必须包含 global_context，字段同 global_settings，另加 episode_relevance，说明哪些全局设定会影响本集编排。',
+    '每集 content 必须能被单独拿去编排；请在正文开头保留“全局设定上下文”小节，再接该集正文。',
     'start/end 用原文字符偏移，无法精确时用估算位置。',
     '如果标题与已有分集高度一致，action=update 并填写 existing_script_id；否则 action=create 且 existing_script_id=null。',
     '',
@@ -1642,12 +1666,13 @@ function parseScriptSplitAgentContent(content: string, scripts: Script[], fallba
   const parsed = parseJSONFromAssistantContent(content) as ScriptSplitAgentResult | undefined
   if (!parsed || typeof parsed !== 'object') throw new Error('Agent 没有返回有效 JSON')
   if (parsed.schema !== 'movscript.script_split_analysis.v1') throw new Error('Agent 返回的 schema 不匹配')
+  const globalSettings = normalizeGlobalContext(parsed.global_settings ?? parsed.globalSettings)
   const rawEpisodes = Array.isArray(parsed.episode_drafts)
     ? parsed.episode_drafts
     : Array.isArray(parsed.episodes)
       ? parsed.episodes
       : []
-  const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(episode as ScriptSplitAgentEpisode, index, scripts, fallbackText))
+  const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(episode as ScriptSplitAgentEpisode, index, scripts, fallbackText, globalSettings))
   if (drafts.length === 0) throw new Error('Agent 没有返回可写入的分集草稿')
   return drafts
 }
@@ -1672,11 +1697,15 @@ function normalizeAgentEpisodeDraft(
   index: number,
   scripts: Script[],
   fallbackText: string,
+  globalSettings: ScriptSplitGlobalContext,
 ): ScriptSplitDraft[] {
   if (!episode || typeof episode !== 'object') return []
-  const content = stringValue(episode.content).trim()
-  if (!content) return []
-  const title = stringValue(episode.title).trim() || inferEpisodeTitle(content, index)
+  const rawContent = stringValue(episode.content).trim()
+  if (!rawContent) return []
+  const globalContext = mergeGlobalContext(globalSettings, normalizeGlobalContext(episode.global_context ?? episode.globalContext))
+  const globalContextText = formatGlobalContextForEpisode(globalContext)
+  const content = withGlobalContextSection(rawContent, globalContextText)
+  const title = stringValue(episode.title).trim() || inferEpisodeTitle(rawContent, index)
   const existingId = numberValue(episode.existing_script_id ?? episode.existingScriptId)
   const existing = existingId
     ? findScriptByIdAndType(scripts, existingId, 'episode') ?? findMatchingScript(scripts, title, 'episode')
@@ -1686,17 +1715,100 @@ function normalizeAgentEpisodeDraft(
     id: `agent-episode-${numberValue(episode.order) ?? index + 1}-${index}`,
     order: numberValue(episode.order) ?? index + 1,
     title,
-    summary: stringValue(episode.summary).trim() || summarizeText(content, 120),
+    summary: stringValue(episode.summary).trim() || summarizeText(rawContent, 120),
     content,
-    start: numberValue(episode.start) ?? Math.max(1, fallbackText.indexOf(content.slice(0, Math.min(24, content.length))) + 1),
-    end: numberValue(episode.end) ?? Math.max(content.length, fallbackText.indexOf(content.slice(0, Math.min(24, content.length))) + content.length),
+    bodyContent: rawContent,
+    globalContextText,
+    globalContext,
+    start: numberValue(episode.start) ?? Math.max(1, fallbackText.indexOf(rawContent.slice(0, Math.min(24, rawContent.length))) + 1),
+    end: numberValue(episode.end) ?? Math.max(rawContent.length, fallbackText.indexOf(rawContent.slice(0, Math.min(24, rawContent.length))) + rawContent.length),
     existingScriptId: existing?.ID ?? null,
     action,
   }]
 }
 
+function normalizeGlobalContext(value: unknown): ScriptSplitGlobalContext {
+  const record = isRecord(value) ? value : {}
+  return {
+    storyWorld: stringValue(record.story_world ?? record.storyWorld).trim(),
+    coreRules: stringArrayValue(record.core_rules ?? record.coreRules),
+    characterRelationships: stringArrayValue(record.character_relationships ?? record.characterRelationships),
+    keyCharacters: stringArrayValue(record.key_characters ?? record.keyCharacters),
+    keyLocations: stringArrayValue(record.key_locations ?? record.keyLocations),
+    keyProps: stringArrayValue(record.key_props ?? record.keyProps),
+    continuityNotes: stringArrayValue(record.continuity_notes ?? record.continuityNotes),
+    episodeRelevance: stringArrayValue(record.episode_relevance ?? record.episodeRelevance),
+  }
+}
+
+function mergeGlobalContext(base: ScriptSplitGlobalContext, episode: ScriptSplitGlobalContext): ScriptSplitGlobalContext {
+  return {
+    storyWorld: episode.storyWorld || base.storyWorld,
+    coreRules: mergeStringArrays(base.coreRules, episode.coreRules),
+    characterRelationships: mergeStringArrays(base.characterRelationships, episode.characterRelationships),
+    keyCharacters: mergeStringArrays(base.keyCharacters, episode.keyCharacters),
+    keyLocations: mergeStringArrays(base.keyLocations, episode.keyLocations),
+    keyProps: mergeStringArrays(base.keyProps, episode.keyProps),
+    continuityNotes: mergeStringArrays(base.continuityNotes, episode.continuityNotes),
+    episodeRelevance: episode.episodeRelevance,
+  }
+}
+
+function mergeStringArrays(...groups: string[][]): string[] {
+  const seen = new Set<string>()
+  const merged: string[] = []
+  for (const group of groups) {
+    for (const item of group) {
+      const key = item.replace(/\s+/g, ' ').trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      merged.push(item)
+    }
+  }
+  return merged
+}
+
+function formatGlobalContextForEpisode(context: ScriptSplitGlobalContext): string {
+  const lines: string[] = []
+  const appendList = (label: string, values: string[]) => {
+    if (values.length === 0) return
+    lines.push(`${label}:`)
+    values.forEach((value) => lines.push(`- ${value}`))
+  }
+  if (context.storyWorld) lines.push(`故事世界: ${context.storyWorld}`)
+  appendList('核心规则', context.coreRules)
+  appendList('人物关系', context.characterRelationships)
+  appendList('关键人物', context.keyCharacters)
+  appendList('关键场景', context.keyLocations)
+  appendList('关键道具', context.keyProps)
+  appendList('连续性约束', context.continuityNotes)
+  appendList('本集相关性', context.episodeRelevance)
+  return lines.join('\n').trim()
+}
+
+function withGlobalContextSection(content: string, globalContextText: string): string {
+  const trimmed = content.trim()
+  if (!globalContextText) return trimmed
+  if (/^#{0,6}\s*全局设定上下文\b/m.test(trimmed) || /^【全局设定上下文】/m.test(trimmed)) return trimmed
+  return ['【全局设定上下文】', globalContextText, '', '【本集正文】', trimmed].join('\n')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function stringArrayValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => stringValue(item).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(/\r?\n|[；;]/).map((item) => item.replace(/^[-*]\s*/, '').trim()).filter(Boolean)
+  }
+  return []
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -2336,7 +2448,6 @@ function ScriptSplitWorkbench() {
     if (!projectId) throw new Error('请先选择项目')
     if (!modelId) throw new Error('请先在右侧 Agent 面板选择一个文本模型')
     const baseTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
-    await localAgentClient.ensureRunning()
     await syncRuntimeModelConfig(modelId, activeModel ? publicModelLabel(activeModel) : undefined)
     const message = buildScriptSplitAgentMessage({
       projectId,
@@ -2352,26 +2463,68 @@ function ScriptSplitWorkbench() {
         selection: null,
       },
     })
-    const { run, thread } = await localAgentClient.runMessage({
-      message,
-      title: `剧本拆分: ${baseTitle}`,
-      projectId,
-      clientInput,
-    }, {
-      timeoutMs: 120_000,
-      agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
+    const requestId = `script_split_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+
+    return await new Promise<{ baseTitle: string; drafts: ScriptSplitDraft[]; runId: string }>((resolve, reject) => {
+      let settled = false
+      let timeout = 0
+      const cleanup = () => {
+        window.clearTimeout(timeout)
+        window.removeEventListener(AGENT_PANEL_RUN_SETTLED_EVENT, handleSettled)
+      }
+      const finish = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        fn()
+      }
+      timeout = window.setTimeout(() => {
+        finish(() => reject(new Error('Agent 对话运行超时，请在右侧对话框查看当前状态')))
+      }, 150_000)
+      const handleSettled = (event: Event) => {
+        const detail = (event as CustomEvent<AgentPanelRunSettledPayload>).detail
+        if (detail?.requestId !== requestId) return
+        if (detail.status === 'error') {
+          finish(() => reject(new Error(detail.error || 'Agent 拆分失败')))
+          return
+        }
+        const run = detail.run
+        const thread = detail.thread
+        if (!run || !thread) {
+          finish(() => reject(new Error('Agent 没有返回运行结果')))
+          return
+        }
+        if (run.status !== 'completed' && run.status !== 'completed_with_warnings') {
+          finish(() => reject(new Error(run.error || `Agent 运行未完成：${run.status}`)))
+          return
+        }
+        const assistant = thread.messages.find((message) => message.id === run.assistantMessageId)
+          ?? [...thread.messages].reverse().find((message) => message.role === 'assistant')
+        if (!assistant?.content) {
+          finish(() => reject(new Error('Agent 没有返回拆分结果')))
+          return
+        }
+        try {
+          const drafts = parseScriptSplitAgentContent(assistant.content, sortedScripts, normalized)
+          finish(() => resolve({ baseTitle, drafts, runId: run.id }))
+        } catch (error) {
+          finish(() => reject(error instanceof Error ? error : new Error(String(error))))
+        }
+      }
+
+      window.addEventListener(AGENT_PANEL_RUN_SETTLED_EVENT, handleSettled)
+      openAgentPanelDraft({
+        requestId,
+        message,
+        title: `剧本拆分: ${baseTitle}`,
+        mode: 'create',
+        autoSend: true,
+        projectId,
+        clientInput,
+        agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
+        timeoutMs: 120_000,
+      })
     })
-    if (run.status !== 'completed' && run.status !== 'completed_with_warnings') {
-      throw new Error(run.error || `Agent 运行未完成：${run.status}`)
-    }
-    const assistant = thread.messages.find((message) => message.id === run.assistantMessageId)
-      ?? [...thread.messages].reverse().find((message) => message.role === 'assistant')
-    if (!assistant?.content) throw new Error('Agent 没有返回拆分结果')
-    return {
-      baseTitle,
-      drafts: parseScriptSplitAgentContent(assistant.content, sortedScripts, normalized),
-      runId: run.id,
-    }
   }
 
   async function handleImportFile(file?: File) {
@@ -2435,6 +2588,15 @@ function ScriptSplitWorkbench() {
     content: string
     raw_source: string
     summary?: string
+    characters?: string
+    character_relationships?: string
+    core_settings?: string
+    background?: string
+    scenes_desc?: string
+    structured_characters?: string
+    structure_json?: string
+    entity_candidates?: string
+    relationship_candidates?: string
     script_type: string
     source_type: string
     order?: number
@@ -2450,6 +2612,15 @@ function ScriptSplitWorkbench() {
       content: payload.content,
       raw_source: payload.raw_source,
       summary: payload.summary ?? '',
+      characters: payload.characters ?? '',
+      character_relationships: payload.character_relationships ?? '',
+      core_settings: payload.core_settings ?? '',
+      background: payload.background ?? '',
+      scenes_desc: payload.scenes_desc ?? '',
+      structured_characters: payload.structured_characters ?? '',
+      structure_json: payload.structure_json ?? '',
+      entity_candidates: payload.entity_candidates ?? '',
+      relationship_candidates: payload.relationship_candidates ?? '',
       script_type: payload.script_type,
       source_type: payload.source_type,
       order: payload.order ?? 0,
@@ -2509,8 +2680,35 @@ function ScriptSplitWorkbench() {
           title: draft.title,
           description: draft.summary,
           content: draft.content,
-          raw_source: draft.content,
+          raw_source: draft.bodyContent || draft.content,
           summary: draft.summary,
+          characters: draft.globalContext.keyCharacters.join('\n'),
+          character_relationships: JSON.stringify(draft.globalContext.characterRelationships),
+          core_settings: draft.globalContextText,
+          background: draft.globalContext.storyWorld,
+          scenes_desc: draft.globalContext.keyLocations.join('\n'),
+          structured_characters: JSON.stringify(draft.globalContext.keyCharacters.map((name) => ({ name, scope: 'global' }))),
+          structure_json: JSON.stringify({
+            schema: 'movscript.script_split_episode_context.v1',
+            global_context: draft.globalContext,
+            episode: {
+              order: draft.order,
+              title: draft.title,
+              summary: draft.summary,
+              start: draft.start,
+              end: draft.end,
+            },
+          }),
+          entity_candidates: JSON.stringify([
+            ...draft.globalContext.keyCharacters.map((name) => ({ type: 'character', name, scope: 'global' })),
+            ...draft.globalContext.keyLocations.map((name) => ({ type: 'location', name, scope: 'global' })),
+            ...draft.globalContext.keyProps.map((name) => ({ type: 'prop', name, scope: 'global' })),
+          ]),
+          relationship_candidates: JSON.stringify(draft.globalContext.characterRelationships.map((description) => ({
+            type: 'character_relationship',
+            description,
+            scope: 'global',
+          }))),
           script_type: 'episode',
           source_type: 'adapted',
           order: draft.order,
@@ -2551,11 +2749,11 @@ function ScriptSplitWorkbench() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <ScrollText size={14} />
-              <span>剧本拆分工作台</span>
+              <span>剧本拆分</span>
               <ChevronRight size={13} />
               <span>总稿拆分</span>
             </div>
-            <h1 className="mt-1 text-lg font-semibold text-foreground">剧本拆分工作台</h1>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">剧本拆分</h1>
             <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
               把一份多集总稿拆成多个剧本，自动识别集标题后批量创建为独立剧本，并保留一份总稿作为来源。
             </p>

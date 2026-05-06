@@ -87,6 +87,18 @@ func ApplyWorkItemUpdates(item *model.WorkItem, updates map[string]any) {
 	domainsemantic.ApplyWorkItemUpdates(item, updates)
 }
 
+func PrepareWorkItemResultApplication(item *model.WorkItem) {
+	domainsemantic.PrepareWorkItemResultApplication(item)
+}
+
+func MarkWorkItemResultApplied(item *model.WorkItem, appliedAt string) {
+	domainsemantic.MarkWorkItemResultApplied(item, appliedAt)
+}
+
+func MarkWorkItemResultApplyFailed(item *model.WorkItem, errMsg string) {
+	domainsemantic.MarkWorkItemResultApplyFailed(item, errMsg)
+}
+
 func (s *Service) ensureUserInProject(ctx context.Context, projectID, userID uint) error {
 	return s.repo.EnsureUserInProject(ctx, projectID, userID)
 }

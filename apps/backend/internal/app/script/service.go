@@ -153,7 +153,7 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 			"summary":     item.Summary,
 		}
 		if version.Status == "" {
-			updates["status"] = "active"
+			updates["status"] = domainscript.ScriptVersionStatusActive
 		}
 		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, updates)
 	}
@@ -166,7 +166,7 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 		Content:       item.Content,
 		RawSource:     item.RawSource,
 		Summary:       item.Summary,
-		Status:        "active",
+		Status:        domainscript.ScriptVersionStatusActive,
 		CreatedByID:   createdByID,
 	}
 	if version.SourceType == "" {

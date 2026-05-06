@@ -2048,7 +2048,7 @@
           "description": "从单张参考图生成多角度视图。"
         },
         "brainstorm": {
-          "name": "头脑风暴",
+          "name": "AI生文",
           "description": "AI 多轮对话，辅助创意发散与剧本构思。"
         }
       },
@@ -2228,8 +2228,8 @@
       "projectHome": "首页",
       "projectPlan": "筹备总览",
       "creation": "首页",
-      "workbench": "剧本拆分工作台",
-      "workbenchScript": "剧本拆分工作台",
+      "workbench": "剧本拆分",
+      "workbenchScript": "剧本拆分",
       "workbenchPreview": "分集预演",
       "workbenchCreative": "资料确认",
       "workbenchAssets": "素材生成",
@@ -2308,7 +2308,7 @@
       "styleTransfer": "画风迁移",
       "multiAngle": "多角度",
       "videoEdit": "剪辑工具",
-      "brainstorm": "头脑风暴",
+      "brainstorm": "AI生文",
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",
@@ -2318,7 +2318,7 @@
       "creation": "处理台",
       "collaboration": "协作",
       "projectHome": "首页",
-      "creativeWorkbench": "创意工作台",
+      "creativeWorkbench": "头脑风暴",
       "projectProduction": "分集",
       "productionOrchestrate": "分集编排",
       "contentAreaProduction": "分集编排",
@@ -2341,8 +2341,8 @@
       "finalVideoLibrary": "成片库",
       "assetProductionWorkbench": "素材制作工作台",
       "contentProductionWorkbench": "内容制作工作台",
-      "workbench": "剧本拆分工作台",
-      "workbenchScript": "剧本拆分工作台",
+      "workbench": "剧本拆分",
+      "workbenchScript": "剧本拆分",
       "workbenchPreview": "分集预演",
       "workbenchCreative": "资料确认",
       "workbenchAssets": "素材生成",

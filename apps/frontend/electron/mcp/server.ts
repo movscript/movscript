@@ -695,11 +695,22 @@ async function readProductionContext(args: Record<string, unknown>): Promise<unk
   )
 
   let scriptText: string | undefined
+  let scriptSource: Record<string, unknown> | undefined
   if (includeScriptText && production?.script_version_id) {
     try {
       const scriptVersions = await backendList(`/projects/${projectId}/entities/script-versions`)
       const version = scriptVersions.find((v: any) => Number(v.ID ?? v.id) === Number(production.script_version_id))
-      scriptText = version?.content || version?.raw_source || undefined
+      const rawScriptText = version?.content || version?.raw_source || undefined
+      const scoped = scopeScriptTextForProduction(rawScriptText, production, version?.title)
+      scriptText = scoped.text
+      scriptSource = {
+        script_version_id: Number(production.script_version_id),
+        title: version?.title,
+        scoped: scoped.scoped,
+        episode_order: scoped.episodeOrder,
+        source_length: typeof rawScriptText === 'string' ? rawScriptText.length : 0,
+        sent_length: scoped.text?.length ?? 0,
+      }
     } catch {
       // script text is optional
     }
@@ -719,6 +730,7 @@ async function readProductionContext(args: Record<string, unknown>): Promise<unk
     creativeReferences: creativeReferences.map(summarizeProductionEntity),
     assetSlots: assetSlots.map(summarizeProductionEntity),
     contentUnits: productionContentUnits.map(summarizeProductionEntity),
+    ...(scriptSource ? { scriptSource } : {}),
     ...(scriptText !== undefined ? { scriptText: scriptText.length > 8000 ? scriptText.slice(0, 8000) + '...' : scriptText } : {}),
   }
 }
@@ -990,6 +1002,94 @@ function summarizeProductionEntity(item: any): unknown {
     if (item[key] !== undefined) summary[key] = truncateLongText(item[key])
   }
   return summary
+}
+
+function scopeScriptTextForProduction(rawScriptText: unknown, production: any, scriptVersionTitle?: unknown) {
+  const text = typeof rawScriptText === 'string' ? rawScriptText.trim() : ''
+  const episodeOrder = inferEpisodeOrderForProduction(production, scriptVersionTitle)
+  if (!text || !episodeOrder) return { text, scoped: false, episodeOrder: undefined as number | undefined }
+
+  const ranges = findEpisodeTextRanges(text)
+  const range = ranges.find((item) => item.order === episodeOrder)
+  if (!range) return { text, scoped: false, episodeOrder }
+
+  const scoped = text.slice(range.start, range.end).trim()
+  if (!scoped || scoped.length >= text.length * 0.85) return { text, scoped: false, episodeOrder }
+  return { text: scoped, scoped: true, episodeOrder }
+}
+
+function inferEpisodeOrderForProduction(production: any, scriptVersionTitle?: unknown) {
+  const candidates = [
+    String(production?.name ?? ''),
+    String(production?.title ?? ''),
+    String(production?.description ?? ''),
+    String(scriptVersionTitle ?? ''),
+  ]
+  for (const candidate of candidates) {
+    const order = parseEpisodeOrder(candidate)
+    if (order) return order
+  }
+  return undefined
+}
+
+function findEpisodeTextRanges(text: string): Array<{ order: number; start: number; end: number }> {
+  const ranges: Array<{ order: number; start: number; end: number }> = []
+  const headingPattern = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:《[^》]+》\s*)?(?:第\s*([0-9零〇一二三四五六七八九十百千万两]+)\s*[集话回]|(?:EP|E|Episode)\s*0*([0-9]+))(?:\s*[：:\-—]\s*.*)?/gi
+  let match: RegExpExecArray | null
+  while ((match = headingPattern.exec(text)) !== null) {
+    const token = match[1] || match[2]
+    const order = parseEpisodeOrder(token)
+    if (!order) continue
+    ranges.push({
+      order,
+      start: match.index + (match[0].startsWith('\n') ? 1 : 0),
+      end: text.length,
+    })
+  }
+  for (let index = 0; index < ranges.length - 1; index += 1) {
+    ranges[index].end = ranges[index + 1].start
+  }
+  return ranges
+}
+
+function parseEpisodeOrder(value: string) {
+  const text = String(value ?? '').trim()
+  const match = text.match(/第\s*([0-9零〇一二三四五六七八九十百千万两]+)\s*[集话回]/)
+    ?? text.match(/(?:EP|E|Episode)\s*0*([0-9]+)/i)
+  const token = match?.[1] ?? (/^[0-9零〇一二三四五六七八九十百千万两]+$/.test(text) ? text : '')
+  if (!token) return undefined
+  if (/^\d+$/.test(token)) {
+    const num = Number(token)
+    return Number.isFinite(num) && num > 0 ? num : undefined
+  }
+  return parseChineseEpisodeNumber(token) || undefined
+}
+
+function parseChineseEpisodeNumber(value: string) {
+  const digitMap: Record<string, number> = {
+    零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
+  }
+  const unitMap: Record<string, number> = { 十: 10, 百: 100, 千: 1000, 万: 10000 }
+  let total = 0
+  let section = 0
+  let number = 0
+  for (const char of value) {
+    if (char in digitMap) {
+      number = digitMap[char]
+      continue
+    }
+    const unit = unitMap[char]
+    if (!unit) continue
+    if (unit === 10000) {
+      total += (section + number) * unit
+      section = 0
+      number = 0
+      continue
+    }
+    section += (number || 1) * unit
+    number = 0
+  }
+  return total + section + number
 }
 
 function getArray(value: unknown): any[] {

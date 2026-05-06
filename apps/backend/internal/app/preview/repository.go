@@ -2,6 +2,7 @@ package preview
 
 import (
 	"context"
+	"errors"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
@@ -25,7 +26,7 @@ type gormRepository struct {
 func (r *gormRepository) GetSegment(ctx context.Context, projectID uint, segmentID uint) (model.Segment, error) {
 	var seg model.Segment
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, segmentID).First(&seg).Error; err != nil {
-		return seg, err
+		return seg, normalizeNotFound(err)
 	}
 	return seg, nil
 }
@@ -33,7 +34,7 @@ func (r *gormRepository) GetSegment(ctx context.Context, projectID uint, segment
 func (r *gormRepository) GetSceneMoment(ctx context.Context, projectID uint, momentID uint) (model.SceneMoment, error) {
 	var moment model.SceneMoment
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, momentID).First(&moment).Error; err != nil {
-		return moment, err
+		return moment, normalizeNotFound(err)
 	}
 	return moment, nil
 }
@@ -41,7 +42,7 @@ func (r *gormRepository) GetSceneMoment(ctx context.Context, projectID uint, mom
 func (r *gormRepository) GetSceneMomentByID(ctx context.Context, momentID uint) (model.SceneMoment, error) {
 	var moment model.SceneMoment
 	if err := r.db.WithContext(ctx).Where("id = ?", momentID).First(&moment).Error; err != nil {
-		return moment, err
+		return moment, normalizeNotFound(err)
 	}
 	return moment, nil
 }
@@ -49,7 +50,7 @@ func (r *gormRepository) GetSceneMomentByID(ctx context.Context, momentID uint) 
 func (r *gormRepository) GetContentUnit(ctx context.Context, projectID uint, unitID uint) (model.ContentUnit, error) {
 	var unit model.ContentUnit
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, unitID).First(&unit).Error; err != nil {
-		return unit, err
+		return unit, normalizeNotFound(err)
 	}
 	return unit, nil
 }
@@ -57,9 +58,16 @@ func (r *gormRepository) GetContentUnit(ctx context.Context, projectID uint, uni
 func (r *gormRepository) GetSegmentByID(ctx context.Context, segmentID uint) (model.Segment, error) {
 	var seg model.Segment
 	if err := r.db.WithContext(ctx).Where("id = ?", segmentID).First(&seg).Error; err != nil {
-		return seg, err
+		return seg, normalizeNotFound(err)
 	}
 	return seg, nil
+}
+
+func normalizeNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (r *gormRepository) ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]model.ContentUnit, error) {

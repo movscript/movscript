@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"golang.org/x/crypto/bcrypt"
@@ -98,8 +99,7 @@ func (s *Service) AddMember(ctx context.Context, caller model.OrganizationMember
 	if !IsAdminOrAbove(caller.Role) {
 		return model.OrganizationMember{}, ErrForbidden
 	}
-	role := domainorg.DefaultMemberRole(input.Role)
-	member := model.OrganizationMember{OrgID: caller.OrgID, UserID: input.UserID, Role: role}
+	member := domainorg.Member(caller.OrgID, input.UserID, input.Role)
 	return s.repo.CreateMember(ctx, member)
 }
 
@@ -195,7 +195,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 		if err != nil {
 			return 0, err
 		}
-		user = &model.User{Username: registration.Username, PasswordHash: string(hash), SystemRole: "user"}
+		createdUser := domainauth.NewRegisteredUser(registration.Username, string(hash), "", false, nil)
+		user = &createdUser
 		if err := s.repo.CreateUser(ctx, user); err != nil {
 			return 0, err
 		}
@@ -274,46 +275,6 @@ func GenerateJoinCode() (string, error) {
 	return domainorg.GenerateJoinCode()
 }
 
-func generateUniqueJoinCode(db *gorm.DB) (string, error) {
-	for i := 0; i < 8; i++ {
-		code, err := GenerateJoinCode()
-		if err != nil {
-			return "", err
-		}
-		var count int64
-		if err := db.Model(&model.Organization{}).Where("join_code = ?", code).Count(&count).Error; err != nil {
-			return "", err
-		}
-		if count == 0 {
-			return code, nil
-		}
-	}
-	return "", ErrConflict
-}
-
-func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
-	if strings.TrimSpace(org.JoinCode) != "" {
-		return nil
-	}
-	code, err := generateUniqueJoinCode(db)
-	if err != nil {
-		return err
-	}
-	org.JoinCode = code
-	return db.Model(org).Update("join_code", code).Error
-}
-
 func normalizeJoinCode(value string) string {
 	return domainorg.NormalizeJoinCode(value)
-}
-
-func CreatePersonalOrg(db *gorm.DB, user *model.User) error {
-	var count int64
-	db.Model(&model.Organization{}).Where("slug = ?", user.Username).Count(&count)
-	org := domainorg.NewPersonalOrg(*user, count > 0)
-	if err := db.Create(&org).Error; err != nil {
-		return err
-	}
-	member := domainorg.OwnerMember(org.ID, user.ID)
-	return db.Create(&member).Error
 }

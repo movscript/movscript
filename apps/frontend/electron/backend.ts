@@ -227,10 +227,23 @@ async function waitForBackendReady(baseURL: string, pid?: number): Promise<void>
   throw new Error(`Timed out waiting for ${baseURL}`)
 }
 
-export async function stopBackend(onStatus?: (status: BackendStatus) => void): Promise<void> {
+export async function stopBackend(
+  onStatus?: (status: BackendStatus) => void,
+  options: { terminate?: boolean } = {},
+): Promise<void> {
+  const pid = proc?.pid ?? readBackendPid()
   proc = null
-  const pid = readBackendPid()
   if (pid && isProcessRunning(pid)) {
+    if (options.terminate) {
+      try {
+        process.kill(pid)
+      } catch {
+        // If the process disappears between detection and termination, treat it as stopped.
+      }
+      clearBackendPid()
+      setBackendStatus({ state: 'stopped', baseURL: LOCAL_BACKEND_URL }, onStatus)
+      return
+    }
     setBackendStatus({ state: 'ready', baseURL: LOCAL_BACKEND_URL, pid, message: 'Local backend keeps running in the background' }, onStatus)
     return
   }

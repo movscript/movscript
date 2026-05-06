@@ -8,7 +8,6 @@ import (
 )
 
 type Service struct {
-	db        *gorm.DB
 	repo      repository
 	registry  *ai.Registry
 	svc       *ai.AIService
@@ -22,7 +21,6 @@ func NewService(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, entityIO 
 		entityIO = workflowio.NewEntityIOService(db)
 	}
 	return Service{
-		db:        db,
 		repo:      newRepository(db),
 		registry:  registry,
 		svc:       svc,
@@ -32,9 +30,4 @@ func NewService(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, entityIO 
 	}
 }
 
-func (h *Service) canvasRepo() repository {
-	if h.repo == nil && h.db != nil {
-		h.repo = newRepository(h.db)
-	}
-	return h.repo
-}
+func (h *Service) canvasRepo() repository { return h.repo }

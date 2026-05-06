@@ -6,6 +6,8 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 )
 
+const ScriptVersionStatusActive = "active"
+
 func NormalizeDefaults(item *model.Script) {
 	if item.ScriptType == "" {
 		item.ScriptType = "uncategorized"
