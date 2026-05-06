@@ -14,6 +14,13 @@ func TestValidConfigType(t *testing.T) {
 	}
 }
 
+func TestNewConfigTrimsNameAndType(t *testing.T) {
+	cfg := NewConfig(NewConfigSpec{Name: " S3 ", ConfigType: " s3 ", ConfigJSON: "{}"})
+	if cfg.Name != "S3" || cfg.ConfigType != TypeS3 || cfg.ConfigJSON != "{}" {
+		t.Fatalf("unexpected config: %+v", cfg)
+	}
+}
+
 func TestMergeConfigUpdatePreservesMaskedSensitiveValues(t *testing.T) {
 	existing := map[string]any{
 		"access_key_secret": "old-secret",

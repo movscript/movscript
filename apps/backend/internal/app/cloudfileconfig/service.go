@@ -64,13 +64,13 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.CloudFil
 	if err != nil {
 		return model.CloudFileConfig{}, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
 	}
-	cfg := model.CloudFileConfig{
+	cfg := domaincloudfileconfig.NewConfig(domaincloudfileconfig.NewConfigSpec{
 		Name:       input.Name,
 		ConfigType: input.ConfigType,
 		ConfigJSON: encJSON,
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
-	}
+	})
 	if err := s.repo.CreateConfig(ctx, &cfg); err != nil {
 		return model.CloudFileConfig{}, err
 	}
