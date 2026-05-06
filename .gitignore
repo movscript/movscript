@@ -36,3 +36,5 @@ Thumbs.db
 __pycache__
 .gocache
 .pnpm-store
+
+.gomodcache

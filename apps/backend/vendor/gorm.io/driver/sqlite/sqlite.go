@@ -7,7 +7,9 @@ import (
 
 	"gorm.io/gorm/callbacks"
 
-	_ "github.com/mattn/go-sqlite3"
+	gosqlite "github.com/glebarez/go-sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
@@ -16,7 +18,7 @@ import (
 )
 
 // DriverName is the default driver name for SQLite.
-const DriverName = "sqlite3"
+const DriverName = "sqlite"
 
 type Dialector struct {
 	DriverName string
@@ -24,18 +26,8 @@ type Dialector struct {
 	Conn       gorm.ConnPool
 }
 
-type Config struct {
-	DriverName string
-	DSN        string
-	Conn       gorm.ConnPool
-}
-
 func Open(dsn string) gorm.Dialector {
 	return &Dialector{DSN: dsn}
-}
-
-func New(config Config) gorm.Dialector {
-	return &Dialector{DSN: config.DSN, DriverName: config.DriverName, Conn: config.Conn}
 }
 
 func (dialector Dialector) Name() string {
@@ -241,6 +233,21 @@ func (dialectopr Dialector) SavePoint(tx *gorm.DB, name string) error {
 func (dialectopr Dialector) RollbackTo(tx *gorm.DB, name string) error {
 	tx.Exec("ROLLBACK TO SAVEPOINT " + name)
 	return nil
+}
+
+func (dialector Dialector) Translate(err error) error {
+	switch terr := err.(type) {
+	case *gosqlite.Error:
+		switch terr.Code() {
+		case sqlite3.SQLITE_CONSTRAINT_UNIQUE:
+			return gorm.ErrDuplicatedKey
+		case sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY:
+			return gorm.ErrDuplicatedKey
+		case sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY:
+			return gorm.ErrForeignKeyViolated
+		}
+	}
+	return err
 }
 
 func compareVersion(version1, version2 string) int {

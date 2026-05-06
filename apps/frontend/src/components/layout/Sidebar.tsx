@@ -244,7 +244,6 @@ export function Sidebar() {
           {current && (
             <>
               <NavItem to="/project-home" icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
-              <NavItem to="/creative-workbench" icon={Lightbulb} label={t('sidebar.items.creativeWorkbench')} collapsed={collapsed} />
               <NavItem to="/scripts" icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
               <NavItem to="/production" icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
               <NavItem to="/collaboration" icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
@@ -257,6 +256,7 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
+              <NavItem to="/creative-workbench" icon={Lightbulb} label={t('sidebar.items.creativeWorkbench')} collapsed={collapsed} />
               <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
               <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />

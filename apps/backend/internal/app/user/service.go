@@ -9,11 +9,11 @@ import (
 )
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 type ListFilter struct {
@@ -21,22 +21,12 @@ type ListFilter struct {
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]model.User, error) {
-	users := make([]model.User, 0)
-	q := s.db.WithContext(ctx)
-	if filter.Query != "" {
-		if s.db.Dialector.Name() == "postgres" {
-			q = q.Where("username ILIKE ?", "%"+filter.Query+"%").Limit(10)
-		} else {
-			q = q.Where("LOWER(username) LIKE LOWER(?)", "%"+filter.Query+"%").Limit(10)
-		}
-	}
-	err := q.Find(&users).Error
-	return users, err
+	return s.repo.ListUsers(ctx, filter)
 }
 
 func (s *Service) Create(ctx context.Context, input dto.UserCreateInput) (model.User, error) {
 	u := dto.NewUser(input)
-	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
+	if err := s.repo.CreateUser(ctx, &u); err != nil {
 		return u, err
 	}
 	return u, nil

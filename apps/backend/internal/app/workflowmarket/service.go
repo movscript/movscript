@@ -2,11 +2,9 @@ package workflowmarket
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 
-	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
@@ -30,11 +28,11 @@ type TemplateEdge = domainmarket.TemplateEdge
 type MarketItem = domainmarket.MarketItem
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 type InstallInput struct {
@@ -60,7 +58,7 @@ func (s *Service) InstallTemplate(ctx context.Context, ownerID uint, key string,
 	if name == "" {
 		name = tpl.Name
 	}
-	return s.createCanvasFromTemplate(ctx, ownerID, tpl, name, input.ProjectID, input.Stage)
+	return s.repo.CreateCanvasFromTemplate(ctx, ownerID, tpl, name, input.ProjectID, input.Stage)
 }
 
 func (s *Service) ListMarket(ctx context.Context, source string, query string) ([]MarketItem, error) {
@@ -76,11 +74,8 @@ func (s *Service) ListMarket(ctx context.Context, source string, query string) (
 		}
 	}
 	if source == "" || source == "public" {
-		var canvases []model.Canvas
-		if err := s.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
-			Where("canvas_type = ? AND visibility = ?", "workflow", "public").
-			Order("published_at DESC NULLS LAST, id DESC").
-			Find(&canvases).Error; err != nil {
+		canvases, err := s.repo.ListPublicCanvases(ctx)
+		if err != nil {
 			return nil, err
 		}
 		for _, cv := range canvases {
@@ -102,12 +97,8 @@ func (s *Service) GetByKey(ctx context.Context, key string, userID uint) (Market
 		}
 		return domainmarket.TemplateMarketItem(tpl), nil
 	}
-	var canvases []model.Canvas
-	if err := s.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
-		Where("canvas_type = ? AND workflow_key = ?", "workflow", key).
-		Where("owner_id = ? OR visibility = ?", userID, "public").
-		Order("id DESC").
-		Find(&canvases).Error; err != nil {
+	canvases, err := s.repo.FindWorkflowCanvasesByKey(ctx, key, userID)
+	if err != nil {
 		return MarketItem{}, err
 	}
 	if len(canvases) == 0 {
@@ -121,50 +112,6 @@ func (s *Service) GetByKey(ctx context.Context, key string, userID uint) (Market
 		}
 	}
 	return domainmarket.PublicCanvasMarketItem(selected), nil
-}
-
-func (s *Service) createCanvasFromTemplate(ctx context.Context, ownerID uint, tpl TemplateDef, name string, projectID *uint, stage string) (model.Canvas, error) {
-	tagsRaw, _ := json.Marshal(tpl.Tags)
-	cv := model.Canvas{
-		OwnerID:      ownerID,
-		Name:         name,
-		Description:  tpl.Description,
-		CanvasType:   "workflow",
-		ProjectID:    projectID,
-		Stage:        stage,
-		Visibility:   "private",
-		WorkflowKey:  "template:" + tpl.Key,
-		WorkflowTags: string(tagsRaw),
-	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if err := tx.Create(&cv).Error; err != nil {
-			return err
-		}
-		if err := entityrelation.SyncCoreEntityRelations(tx, &cv); err != nil {
-			return err
-		}
-		nodes := TemplateNodesForCanvas(cv.ID, tpl.Nodes)
-		edges := TemplateEdgesForCanvas(cv.ID, tpl.Edges)
-		if len(nodes) > 0 {
-			if err := tx.Create(&nodes).Error; err != nil {
-				return err
-			}
-		}
-		if len(edges) > 0 {
-			if err := tx.Create(&edges).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return model.Canvas{}, err
-	}
-	if err := s.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&cv, cv.ID).Error; err != nil {
-		return model.Canvas{}, err
-	}
-	return cv, nil
 }
 
 func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []model.CanvasNode {

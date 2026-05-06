@@ -16,11 +16,11 @@ var (
 )
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 type GenerateInput struct {
@@ -106,13 +106,13 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateRe
 }
 
 func (s *Service) loadSegmentPreview(ctx context.Context, projectID, segmentID uint, resp *GenerateResponse) error {
-	var seg model.Segment
-	if err := s.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, segmentID).First(&seg).Error; err != nil {
+	seg, err := s.repo.GetSegment(ctx, projectID, segmentID)
+	if err != nil {
 		return err
 	}
 	resp.Entity = EntitySummary{ID: seg.ID, Title: seg.Title, Description: seg.Summary}
 
-	units, err := s.contentUnits(ctx, projectID, "segment_id", segmentID)
+	units, err := s.repo.ListContentUnits(ctx, projectID, "segment_id", segmentID)
 	if err != nil {
 		return err
 	}
@@ -124,20 +124,19 @@ func (s *Service) loadSegmentPreview(ctx context.Context, projectID, segmentID u
 }
 
 func (s *Service) loadSceneMomentPreview(ctx context.Context, projectID, momentID uint, resp *GenerateResponse) error {
-	var moment model.SceneMoment
-	if err := s.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, momentID).First(&moment).Error; err != nil {
+	moment, err := s.repo.GetSceneMoment(ctx, projectID, momentID)
+	if err != nil {
 		return err
 	}
 	resp.Entity = EntitySummary{ID: moment.ID, Title: moment.Title, Description: moment.Description}
 
 	if moment.SegmentID != nil {
-		var seg model.Segment
-		if s.db.WithContext(ctx).Where("id = ?", *moment.SegmentID).First(&seg).Error == nil {
+		if seg, err := s.repo.GetSegmentByID(ctx, *moment.SegmentID); err == nil {
 			resp.Context.SegmentTitle = seg.Title
 		}
 	}
 
-	units, err := s.contentUnits(ctx, projectID, "scene_moment_id", momentID)
+	units, err := s.repo.ListContentUnits(ctx, projectID, "scene_moment_id", momentID)
 	if err != nil {
 		return err
 	}
@@ -149,22 +148,20 @@ func (s *Service) loadSceneMomentPreview(ctx context.Context, projectID, momentI
 }
 
 func (s *Service) loadContentUnitPreview(ctx context.Context, projectID, unitID uint, resp *GenerateResponse) error {
-	var unit model.ContentUnit
-	if err := s.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, unitID).First(&unit).Error; err != nil {
+	unit, err := s.repo.GetContentUnit(ctx, projectID, unitID)
+	if err != nil {
 		return err
 	}
 	resp.Entity = EntitySummary{ID: unit.ID, Title: unit.Title, Description: unit.Description}
 	resp.ContentUnits = contentUnitResponses([]model.ContentUnit{unit})
 
 	if unit.SegmentID != nil {
-		var seg model.Segment
-		if s.db.WithContext(ctx).Where("id = ?", *unit.SegmentID).First(&seg).Error == nil {
+		if seg, err := s.repo.GetSegmentByID(ctx, *unit.SegmentID); err == nil {
 			resp.Context.SegmentTitle = seg.Title
 		}
 	}
 	if unit.SceneMomentID != nil {
-		var moment model.SceneMoment
-		if s.db.WithContext(ctx).Where("id = ?", *unit.SceneMomentID).First(&moment).Error == nil {
+		if moment, err := s.repo.GetSceneMomentByID(ctx, *unit.SceneMomentID); err == nil {
 			resp.Context.SceneMomentTitle = moment.Title
 		}
 	}
@@ -173,13 +170,6 @@ func (s *Service) loadContentUnitPreview(ctx context.Context, projectID, unitID 
 		return err
 	}
 	return s.loadMissingAssetsForOwner(ctx, projectID, "content_unit", unitID, resp)
-}
-
-func (s *Service) contentUnits(ctx context.Context, projectID uint, field string, id uint) ([]model.ContentUnit, error) {
-	units := make([]model.ContentUnit, 0)
-	err := s.db.WithContext(ctx).Where("project_id = ? AND "+field+" = ?", projectID, id).
-		Order(`"order" asc, id asc`).Find(&units).Error
-	return units, err
 }
 
 func contentUnitResponses(units []model.ContentUnit) []ContentUnit {
@@ -201,8 +191,8 @@ func (s *Service) loadKeyframesForUnits(ctx context.Context, projectID uint, uni
 	for i, u := range units {
 		ids[i] = u.ID
 	}
-	keyframes := make([]model.Keyframe, 0)
-	if err := s.db.WithContext(ctx).Where("project_id = ? AND content_unit_id IN ?", projectID, ids).Order(`"order" asc, id asc`).Find(&keyframes).Error; err != nil {
+	keyframes, err := s.repo.ListKeyframesForUnits(ctx, projectID, ids)
+	if err != nil {
 		return err
 	}
 	for _, kf := range keyframes {
@@ -229,10 +219,8 @@ func previewResourceURL(id *uint) string {
 }
 
 func (s *Service) loadMissingAssetsForOwner(ctx context.Context, projectID uint, ownerType string, ownerID uint, resp *GenerateResponse) error {
-	slots := make([]model.AssetSlot, 0)
-	if err := s.db.WithContext(ctx).Where("project_id = ? AND owner_type = ? AND owner_id = ? AND status IN ?",
-		projectID, ownerType, ownerID, []string{"missing", "candidate"}).
-		Order("priority desc, id asc").Find(&slots).Error; err != nil {
+	slots, err := s.repo.ListMissingAssets(ctx, projectID, ownerType, ownerID)
+	if err != nil {
 		return err
 	}
 	for _, slot := range slots {

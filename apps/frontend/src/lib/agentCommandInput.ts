@@ -15,6 +15,10 @@ export function normalizeAgentCommandMessage(message: string, mode: AgentInputMo
   return trimmed
 }
 
+export function isDiagnosticAgentCommand(message: string): boolean {
+  return /^\/(context|memory)(?:\s|$)/i.test(message.trim())
+}
+
 export function buildCommandFirstClientInput(input: {
   message: string
   attachments?: AgentClientInput['attachments']

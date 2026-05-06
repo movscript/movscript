@@ -13,11 +13,11 @@ import (
 var ErrNotFound = errors.New("feature not found")
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 type Response = domainfeature.Response
@@ -35,8 +35,8 @@ type PromptInput struct {
 }
 
 func (s *Service) List(ctx context.Context) ([]Response, error) {
-	features := make([]model.FeatureConfig, 0)
-	if err := s.db.WithContext(ctx).Order("id").Find(&features).Error; err != nil {
+	features, err := s.repo.ListFeatures(ctx)
+	if err != nil {
 		return nil, err
 	}
 	out := make([]Response, len(features))
@@ -51,7 +51,7 @@ func (s *Service) ListDefs(_ context.Context) []ai.FeatureDef {
 }
 
 func (s *Service) Update(ctx context.Context, key string, input UpdateInput) (Response, error) {
-	f, err := s.find(ctx, key)
+	f, err := s.repo.GetFeature(ctx, key)
 	if err != nil {
 		return Response{}, err
 	}
@@ -67,14 +67,14 @@ func (s *Service) Update(ctx context.Context, key string, input UpdateInput) (Re
 	if input.AllowedRoles != nil {
 		f.AllowedRoles = domainfeature.EncodeRoles(input.AllowedRoles)
 	}
-	if err := s.db.WithContext(ctx).Save(&f).Error; err != nil {
+	if err := s.repo.SaveFeature(ctx, &f); err != nil {
 		return Response{}, err
 	}
 	return s.toResp(ctx, f), nil
 }
 
 func (s *Service) UpdatePrompt(ctx context.Context, key string, input PromptInput) (Response, error) {
-	f, err := s.find(ctx, key)
+	f, err := s.repo.GetFeature(ctx, key)
 	if err != nil {
 		return Response{}, err
 	}
@@ -84,50 +84,24 @@ func (s *Service) UpdatePrompt(ctx context.Context, key string, input PromptInpu
 	if input.MaxTokensOverride != nil {
 		f.MaxTokensOverride = *input.MaxTokensOverride
 	}
-	if err := s.db.WithContext(ctx).Save(&f).Error; err != nil {
+	if err := s.repo.SaveFeature(ctx, &f); err != nil {
 		return Response{}, err
 	}
 	return s.toResp(ctx, f), nil
 }
 
 func (s *Service) GetPublic(ctx context.Context, key string) (Response, error) {
-	f, err := s.find(ctx, key)
+	f, err := s.repo.GetFeature(ctx, key)
 	if err != nil {
 		return Response{}, err
 	}
 	return s.toResp(ctx, f), nil
 }
 
-func (s *Service) find(ctx context.Context, key string) (model.FeatureConfig, error) {
-	var f model.FeatureConfig
-	if err := s.db.WithContext(ctx).Where("feature_key = ?", ai.NormalizeFeatureKey(key)).First(&f).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return f, ErrNotFound
-		}
-		return f, err
-	}
-	return f, nil
-}
-
 func (s *Service) toResp(ctx context.Context, f model.FeatureConfig) Response {
 	rawIDs := domainfeature.DecodeUintIDs(f.AllowedModelIDs)
-	ids := s.filterExistingModelIDs(ctx, rawIDs)
+	ids := s.repo.FilterExistingModelIDs(ctx, rawIDs)
 	return domainfeature.BuildResponse(f, ids, featureDef(ai.GetFeatureDef(f.FeatureKey)))
-}
-
-func (s *Service) filterExistingModelIDs(ctx context.Context, ids []uint) []uint {
-	if len(ids) == 0 {
-		return []uint{}
-	}
-	var existing []uint
-	s.db.WithContext(ctx).Model(&model.AIModelConfig{}).
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.id IN ? AND ai_model_configs.deleted_at IS NULL AND ai_credentials.deleted_at IS NULL", ids).
-		Pluck("ai_model_configs.id", &existing)
-	if existing == nil {
-		return []uint{}
-	}
-	return existing
 }
 
 func featureDef(def *ai.FeatureDef) *domainfeature.Definition {

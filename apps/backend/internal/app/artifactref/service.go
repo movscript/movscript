@@ -15,11 +15,11 @@ const timeFormatRFC3339 = "2006-01-02T15:04:05Z07:00"
 type ResourceURLFunc func(id uint) string
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 type ListFilter struct {
@@ -95,8 +95,8 @@ func (s *Service) ListByProject(ctx context.Context, filter ListFilter) ([]Ref, 
 }
 
 func (s *Service) scriptVersionRefs(ctx context.Context, projectID uint) ([]Ref, error) {
-	versions := make([]model.ScriptVersion, 0)
-	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("updated_at desc").Find(&versions).Error; err != nil {
+	versions, err := s.repo.ListScriptVersions(ctx, projectID)
+	if err != nil {
 		return nil, err
 	}
 	refs := make([]Ref, 0, len(versions))
@@ -117,8 +117,8 @@ func (s *Service) scriptVersionRefs(ctx context.Context, projectID uint) ([]Ref,
 }
 
 func (s *Service) assetSlotRefs(ctx context.Context, projectID uint, resourceURL ResourceURLFunc) ([]Ref, error) {
-	slots := make([]model.AssetSlot, 0)
-	if err := s.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&slots).Error; err != nil {
+	slots, err := s.repo.ListAssetSlots(ctx, projectID)
+	if err != nil {
 		return nil, err
 	}
 	refs := make([]Ref, 0, len(slots))
@@ -144,8 +144,8 @@ func (s *Service) assetSlotRefs(ctx context.Context, projectID uint, resourceURL
 }
 
 func (s *Service) contentUnitRefs(ctx context.Context, projectID uint) ([]Ref, error) {
-	units := make([]model.ContentUnit, 0)
-	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("updated_at desc").Find(&units).Error; err != nil {
+	units, err := s.repo.ListContentUnits(ctx, projectID)
+	if err != nil {
 		return nil, err
 	}
 	refs := make([]Ref, 0, len(units))
@@ -166,8 +166,8 @@ func (s *Service) contentUnitRefs(ctx context.Context, projectID uint) ([]Ref, e
 }
 
 func (s *Service) keyframeRefs(ctx context.Context, projectID uint, resourceURL ResourceURLFunc) ([]Ref, error) {
-	keyframes := make([]model.Keyframe, 0)
-	if err := s.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&keyframes).Error; err != nil {
+	keyframes, err := s.repo.ListKeyframes(ctx, projectID)
+	if err != nil {
 		return nil, err
 	}
 	refs := make([]Ref, 0, len(keyframes))
@@ -189,8 +189,8 @@ func (s *Service) keyframeRefs(ctx context.Context, projectID uint, resourceURL 
 }
 
 func (s *Service) deliveryVersionRefs(ctx context.Context, projectID uint) ([]Ref, error) {
-	versions := make([]model.DeliveryVersion, 0)
-	if err := s.db.WithContext(ctx).Where("project_id = ?", projectID).Order("updated_at desc").Find(&versions).Error; err != nil {
+	versions, err := s.repo.ListDeliveryVersions(ctx, projectID)
+	if err != nil {
 		return nil, err
 	}
 	refs := make([]Ref, 0, len(versions))
@@ -211,17 +211,8 @@ func (s *Service) deliveryVersionRefs(ctx context.Context, projectID uint) ([]Re
 }
 
 func (s *Service) firstBoundResource(ctx context.Context, projectID uint, ownerType string, ownerID uint, resourceURL ResourceURLFunc, roles ...string) *model.RawResource {
-	var binding model.ResourceBinding
-	q := s.db.WithContext(ctx).Preload("Resource").
-		Where("project_id = ? AND owner_type = ? AND owner_id = ?", projectID, ownerType, ownerID).
-		Order("is_primary desc, sort_order, created_at")
-	if len(roles) > 0 {
-		q = q.Where("role IN ?", roles)
-	}
-	if err := q.First(&binding).Error; err != nil || binding.Resource == nil {
-		return nil
-	}
-	return withResourceURL(binding.Resource, resourceURL)
+	resource, _ := s.repo.FirstBoundResource(ctx, projectID, ownerType, ownerID, roles...)
+	return withResourceURL(resource, resourceURL)
 }
 
 func withResourceURL(resource *model.RawResource, resourceURL ResourceURLFunc) *model.RawResource {

@@ -1,5 +1,6 @@
 export {
   AgentBody,
+  AgentChatMessage,
   AgentComposer,
   AgentComposerAction,
   AgentComposerField,
@@ -51,6 +52,7 @@ export {
   AgentWorkSurface,
   AgentWorkTitleBlock,
   type AgentComposerActionProps,
+  type AgentChatMessageProps,
   type AgentComposerFieldProps,
   type AgentComposerSubmitProps,
   type AgentConversationItemProps,

@@ -29,6 +29,7 @@ import {
 import {
   Badge,
   Button,
+  AgentChatMessage,
   Input,
   Label,
   ScrollArea,
@@ -1731,24 +1732,35 @@ function WorkbenchMessageBubble({
   const role = message.role === 'user' ? '用户' : message.role === 'assistant' ? '大模型' : '系统'
   const isUser = message.role === 'user'
   const isAssistant = message.role === 'assistant'
+  const [copied, setCopied] = useState(false)
+
+  function copy() {
+    navigator.clipboard.writeText(message.content)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1200)
+  }
+
   return (
-    <div className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}>
-      <div className={cn('max-w-[78%] rounded-lg border px-3 py-2 shadow-sm', isUser
-        ? 'border-primary/30 bg-primary/10 text-foreground'
-        : isAssistant
-          ? 'border-border bg-card text-foreground'
-          : 'border-dashed border-border bg-muted/20 text-muted-foreground',
-      )}>
-        <div className="mb-1 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5">
-            <Badge variant={isUser ? 'secondary' : isAssistant ? 'outline' : 'warning'} className="text-[9px]">{role}</Badge>
-            {activeRunId && message.runId === activeRunId ? <Badge variant="secondary" className="text-[8px]">run reply</Badge> : null}
-          </div>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(message.createdAt)}</span>
+    <AgentChatMessage
+      role={isUser ? 'user' : isAssistant ? 'assistant' : 'system'}
+      avatar={isUser ? '我' : isAssistant ? <Bot size={13} /> : <TerminalSquare size={13} />}
+      author={role}
+      time={formatTime(message.createdAt)}
+      actions={(
+        <Button type="button" size="icon-xs" variant="ghost" onClick={copy} title="复制消息" aria-label="复制消息">
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+        </Button>
+      )}
+      footer={activeRunId && message.runId === activeRunId ? (
+        <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
+          <Badge variant="secondary" className="text-[8px]">run reply</Badge>
         </div>
-        <p className="whitespace-pre-wrap break-words text-xs leading-relaxed">{message.content || '（空消息）'}</p>
+      ) : null}
+    >
+      <div className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+        {message.content || '（空消息）'}
       </div>
-    </div>
+    </AgentChatMessage>
   )
 }
 

@@ -20,13 +20,13 @@ var (
 )
 
 type Service struct {
-	db            *gorm.DB
+	repo          repository
 	encryptionKey []byte
 }
 
 func NewService(db *gorm.DB, encryptionKeyHex string) *Service {
 	key, _ := hex.DecodeString(encryptionKeyHex)
-	return &Service{db: db, encryptionKey: key}
+	return &Service{repo: &gormRepository{db: db}, encryptionKey: key}
 }
 
 type CreateInput struct {
@@ -46,8 +46,8 @@ type UpdateInput struct {
 }
 
 func (s *Service) List(ctx context.Context) ([]model.CloudFileConfig, error) {
-	cfgs := make([]model.CloudFileConfig, 0)
-	if err := s.db.WithContext(ctx).Order("priority asc, id asc").Find(&cfgs).Error; err != nil {
+	cfgs, err := s.repo.ListConfigs(ctx)
+	if err != nil {
 		return nil, err
 	}
 	for i := range cfgs {
@@ -71,7 +71,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.CloudFil
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
 	}
-	if err := s.db.WithContext(ctx).Create(&cfg).Error; err != nil {
+	if err := s.repo.CreateConfig(ctx, &cfg); err != nil {
 		return model.CloudFileConfig{}, err
 	}
 	cfg.MaskedConfig = s.maskConfig(cfg.ConfigJSON)
@@ -79,11 +79,8 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.CloudFil
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateInput) (model.CloudFileConfig, error) {
-	var cfg model.CloudFileConfig
-	if err := s.db.WithContext(ctx).First(&cfg, input.ID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, ErrNotFound
-		}
+	cfg, err := s.repo.GetConfig(ctx, input.ID)
+	if err != nil {
 		return cfg, err
 	}
 	if input.Name != nil {
@@ -103,7 +100,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.CloudFil
 	if input.IsEnabled != nil {
 		cfg.IsEnabled = *input.IsEnabled
 	}
-	if err := s.db.WithContext(ctx).Save(&cfg).Error; err != nil {
+	if err := s.repo.SaveConfig(ctx, &cfg); err != nil {
 		return cfg, err
 	}
 	cfg.MaskedConfig = s.maskConfig(cfg.ConfigJSON)
@@ -111,7 +108,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.CloudFil
 }
 
 func (s *Service) Delete(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Delete(&model.CloudFileConfig{}, id).Error
+	return s.repo.DeleteConfig(ctx, id)
 }
 
 func (s *Service) encryptConfig(cfg map[string]any) (string, error) {

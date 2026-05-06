@@ -12,11 +12,11 @@ import (
 var ErrNotFound = errors.New("plugin not found")
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 type ImportResult struct {
@@ -43,13 +43,11 @@ type WorkflowContribution struct {
 }
 
 func (s *Service) List(ctx context.Context) ([]model.Plugin, error) {
-	plugins := make([]model.Plugin, 0)
-	err := s.db.WithContext(ctx).Preload("Tools").Order("id").Find(&plugins).Error
-	return plugins, err
+	return s.repo.ListPlugins(ctx)
 }
 
 func (s *Service) Import(ctx context.Context, req pluginkit.ImportRequest) (ImportResult, error) {
-	result, err := pluginkit.Import(s.db.WithContext(ctx), req)
+	result, err := s.repo.ImportPlugin(ctx, req)
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -57,14 +55,11 @@ func (s *Service) Import(ctx context.Context, req pluginkit.ImportRequest) (Impo
 }
 
 func (s *Service) SetEnabled(ctx context.Context, id uint, enabled bool) (model.Plugin, error) {
-	var plugin model.Plugin
-	if err := s.db.WithContext(ctx).First(&plugin, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return plugin, ErrNotFound
-		}
+	plugin, err := s.repo.GetPlugin(ctx, id)
+	if err != nil {
 		return plugin, err
 	}
-	if err := s.db.WithContext(ctx).Model(&plugin).Update("enabled", enabled).Error; err != nil {
+	if err := s.repo.SetEnabled(ctx, &plugin, enabled); err != nil {
 		return plugin, err
 	}
 	plugin.Enabled = enabled
@@ -72,27 +67,22 @@ func (s *Service) SetEnabled(ctx context.Context, id uint, enabled bool) (model.
 }
 
 func (s *Service) Delete(ctx context.Context, id uint) (model.Plugin, error) {
-	var plugin model.Plugin
-	_ = s.db.WithContext(ctx).First(&plugin, id).Error
-	if err := s.db.WithContext(ctx).Where("plugin_id = ?", id).Delete(&model.PluginTool{}).Error; err != nil {
+	plugin, err := s.repo.GetPlugin(ctx, id)
+	if err != nil {
 		return plugin, err
 	}
-	if err := s.db.WithContext(ctx).Delete(&model.Plugin{}, id).Error; err != nil {
+	if err := s.repo.DeletePlugin(ctx, id); err != nil {
 		return plugin, err
 	}
 	return plugin, nil
 }
 
 func (s *Service) ToolCatalog(ctx context.Context) ([]model.PluginTool, error) {
-	tools := make([]model.PluginTool, 0)
-	err := s.db.WithContext(ctx).Preload("Plugin").Joins("JOIN plugins ON plugins.id = plugin_tools.plugin_id").
-		Where("plugins.enabled = ? AND plugins.deleted_at IS NULL AND plugin_tools.enabled = ?", true, true).
-		Order("plugin_tools.tool_key").Find(&tools).Error
-	return tools, err
+	return s.repo.ToolCatalog(ctx)
 }
 
 func (s *Service) CardCatalog(ctx context.Context) ([]CardContribution, error) {
-	plugins, err := s.enabledPlugins(ctx)
+	plugins, err := s.repo.EnabledPlugins(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +100,7 @@ func (s *Service) CardCatalog(ctx context.Context) ([]CardContribution, error) {
 }
 
 func (s *Service) CanvasNodeCatalog(ctx context.Context) ([]CanvasNodeContribution, error) {
-	plugins, err := s.enabledPlugins(ctx)
+	plugins, err := s.repo.EnabledPlugins(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +118,7 @@ func (s *Service) CanvasNodeCatalog(ctx context.Context) ([]CanvasNodeContributi
 }
 
 func (s *Service) WorkflowCatalog(ctx context.Context) ([]WorkflowContribution, error) {
-	plugins, err := s.enabledPlugins(ctx)
+	plugins, err := s.repo.EnabledPlugins(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +133,6 @@ func (s *Service) WorkflowCatalog(ctx context.Context) ([]WorkflowContribution, 
 		}
 	}
 	return out, nil
-}
-
-func (s *Service) enabledPlugins(ctx context.Context) ([]model.Plugin, error) {
-	plugins := make([]model.Plugin, 0)
-	err := s.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&plugins).Error
-	return plugins, err
 }
 
 func parseStoredManifest(p model.Plugin) (*pluginkit.Manifest, bool) {

@@ -263,6 +263,39 @@ export const AgentMessageActions = React.forwardRef<HTMLDivElement, React.HTMLAt
 
 AgentMessageActions.displayName = "AgentMessageActions";
 
+export interface AgentChatMessageProps extends Omit<AgentMessageProps, "role"> {
+  role?: AgentMessageRole;
+  avatar?: React.ReactNode;
+  author?: React.ReactNode;
+  time?: React.ReactNode;
+  actions?: React.ReactNode;
+  footer?: React.ReactNode;
+  contentClassName?: string;
+}
+
+export const AgentChatMessage = React.forwardRef<HTMLDivElement, AgentChatMessageProps>(
+  ({ className, role = "assistant", avatar, author, time, actions, footer, contentClassName, children, selected, ...props }, ref) => {
+    return (
+      <AgentMessage ref={ref} role={role} selected={selected} className={cn("group", className)} {...props}>
+        <AgentMessageAvatar label={avatar} />
+        <AgentMessageBody>
+          {(author || time || actions) ? (
+            <AgentMessageMeta>
+              {author ? <span>{author}</span> : null}
+              {time ? <span>{time}</span> : null}
+              {actions ? <AgentMessageActions>{actions}</AgentMessageActions> : null}
+            </AgentMessageMeta>
+          ) : null}
+          <AgentMessageContent className={contentClassName}>{children}</AgentMessageContent>
+          {footer}
+        </AgentMessageBody>
+      </AgentMessage>
+    );
+  }
+);
+
+AgentChatMessage.displayName = "AgentChatMessage";
+
 export interface AgentToolCallProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   state?: AgentStepState;
   title?: React.ReactNode;

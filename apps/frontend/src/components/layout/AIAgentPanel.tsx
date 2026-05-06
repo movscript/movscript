@@ -12,7 +12,7 @@ import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
 import { API_V1_BASE_URL } from '@/lib/config'
 import { publicModelLabel } from '@/lib/modelDisplay'
-import { buildCommandFirstClientInput, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
+import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
@@ -37,6 +37,7 @@ import {
 } from '@/lib/localAgentClient'
 import {
   AgentBody,
+  AgentChatMessage,
   AgentComposer,
   AgentComposerAction,
   AgentComposerField,
@@ -48,12 +49,6 @@ import {
   AgentHeaderActions,
   AgentHeaderContent,
   AgentMain,
-  AgentMessage,
-  AgentMessageActions,
-  AgentMessageAvatar,
-  AgentMessageBody,
-  AgentMessageContent,
-  AgentMessageMeta,
   AgentShell,
   AgentSidebarSection,
   AgentSidebarTitle,
@@ -280,10 +275,10 @@ interface AgentSendDraft {
   httpRequests: DebugHttpRequest[]
   localRuntime?: {
     threadId?: string
-    projectId?: number
     title: string
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
+    diagnosticCommand?: boolean
     preview?: AgentRunPreview
     previewError?: string
   }
@@ -389,7 +384,6 @@ function buildDebugHttpRequests(options: {
       headers: { 'Content-Type': 'application/json' },
       body: {
         title: options.localRuntime?.title,
-        ...(options.localRuntime?.projectId ? { projectId: options.localRuntime.projectId } : {}),
       },
     }]
 
@@ -686,7 +680,7 @@ function AgentDebugPreviewDialog({
                 {draft.localRuntime && (
                   <div className="grid gap-2 md:grid-cols-3">
                     <DebugSummaryItem label="Thread" value={draft.localRuntime.threadId ?? 'new thread'} />
-                    <DebugSummaryItem label="Project" value={draft.localRuntime.projectId ? String(draft.localRuntime.projectId) : 'runtime context'} />
+                    <DebugSummaryItem label="Mode" value={draft.localRuntime.diagnosticCommand ? 'diagnostic' : 'conversation'} />
                     <DebugSummaryItem label="Manifest" value={draft.localRuntime.agentManifest?.name ?? 'default'} />
                   </div>
                 )}
@@ -881,50 +875,46 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   }
 
   return (
-    <AgentMessage role={isUser ? 'user' : 'assistant'} className="group">
-      <AgentMessageAvatar label={isUser ? '我' : <Bot size={13} />} />
-      <AgentMessageBody>
-        <AgentMessageMeta>
-          <span>{isUser ? 'You' : 'MovScript Agent'}</span>
-          <span>{time}</span>
-          <AgentMessageActions>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={copy}
-              aria-label="Copy message"
-              title="Copy message"
-            >
-              {copied ? <Check size={11} /> : <Copy size={11} />}
-            </Button>
-          </AgentMessageActions>
-        </AgentMessageMeta>
-        <AgentMessageContent>
-          {isUser ? msg.content : <MarkdownContent text={msg.content} />}
-          {msg.attachments && msg.attachments.length > 0 && (
-            <div className={cn('mt-2 grid gap-1.5', msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-              {msg.attachments.map((attachment) => (
-                <AttachmentPreview key={attachment.id} attachment={attachment} compact />
-              ))}
-            </div>
+    <AgentChatMessage
+      role={isUser ? 'user' : 'assistant'}
+      avatar={isUser ? '我' : <Bot size={13} />}
+      author={isUser ? 'You' : 'MovScript Agent'}
+      time={time}
+      actions={(
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          onClick={copy}
+          aria-label="Copy message"
+          title="Copy message"
+        >
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+        </Button>
+      )}
+      footer={msg.meta && (
+        <div className={cn('flex flex-wrap gap-1', isUser ? 'justify-end' : 'justify-start')}>
+          {msg.meta.mode && (
+            <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+              {msg.meta.mode}
+            </Badge>
           )}
-        </AgentMessageContent>
-        {msg.meta && (
-          <div className={cn('flex flex-wrap gap-1', isUser ? 'justify-end' : 'justify-start')}>
-            {msg.meta.mode && (
-              <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
-                {msg.meta.mode}
-              </Badge>
-            )}
-            {msg.meta.contextLabels?.map((label) => (
-              <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
-                {label}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </AgentMessageBody>
-    </AgentMessage>
+          {msg.meta.contextLabels?.map((label) => (
+            <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+              {label}
+            </Badge>
+          ))}
+        </div>
+      )}
+    >
+      {isUser ? msg.content : <MarkdownContent text={msg.content} />}
+      {msg.attachments && msg.attachments.length > 0 && (
+        <div className={cn('mt-2 grid gap-1.5', msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+          {msg.attachments.map((attachment) => (
+            <AttachmentPreview key={attachment.id} attachment={attachment} compact />
+          ))}
+        </div>
+      )}
+    </AgentChatMessage>
   )
 }
 
@@ -1853,6 +1843,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     const sentAttachments = attachments
     const visibleUserContent = text || t('agents.chat.attachmentOnlyMessage')
     const runtimeMessage = normalizeAgentCommandMessage(visibleUserContent, settings.mode)
+    const diagnosticCommand = localRuntimeEnabled && isDiagnosticAgentCommand(runtimeMessage)
     const clientInput = buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
@@ -1883,12 +1874,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     let localRuntime: AgentSendDraft['localRuntime']
 
     if (useLocalRuntime) {
-      const threadId = localAgentThreadIds[conv.id]
+      const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
       localRuntime = {
         ...(threadId ? { threadId } : {}),
-        ...(currentProject?.ID ? { projectId: currentProject.ID } : {}),
         title: conv.title,
         clientInput,
+        diagnosticCommand,
       }
 
       if (options.includeRuntimePreview) {
@@ -2013,20 +2004,21 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
           await refetchLocalAgentHealth()
         }
         const { run, thread } = await localAgentClient.runMessage({
-          threadId: draft.localRuntime?.threadId,
+          threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
           message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
           clientInput: draft.localRuntime?.clientInput,
           title: draft.localRuntime?.title ?? conv.title,
-          projectId: draft.localRuntime?.projectId,
         }, {
           onRunUpdate: setActiveLocalRun,
           agentManifest: draft.localRuntime?.agentManifest,
         })
-        setLocalAgentThreadIds((cur) => {
-          const next = { ...cur, [conv.id]: thread.id }
-          writeLocalAgentThreadIds(next)
-          return next
-        })
+        if (!draft.localRuntime?.diagnosticCommand) {
+          setLocalAgentThreadIds((cur) => {
+            const next = { ...cur, [conv.id]: thread.id }
+            writeLocalAgentThreadIds(next)
+            return next
+          })
+        }
         const content = formatLocalAgentAssistantContent(run, thread)
         addMessage(userId, conv.id, {
           role: 'assistant',
@@ -2179,15 +2171,15 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             />
           )}
           {loading && (
-            <AgentMessage role="assistant">
-              <AgentMessageAvatar label={<Bot size={13} />} />
-              <AgentMessageBody>
-                <AgentMessageMeta>{t('common.loading')}</AgentMessageMeta>
-                <AgentMessageContent className="inline-flex w-fit items-center gap-2">
-                  <Loader2 size={13} className="animate-spin" />
-                </AgentMessageContent>
-              </AgentMessageBody>
-            </AgentMessage>
+            <AgentChatMessage
+              role="assistant"
+              avatar={<Bot size={13} />}
+              author={t('common.loading')}
+            >
+              <span className="inline-flex w-fit items-center gap-2">
+                <Loader2 size={13} className="animate-spin" />
+              </span>
+            </AgentChatMessage>
           )}
           <div ref={bottomRef} />
         </AgentThread>
