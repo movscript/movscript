@@ -36,6 +36,8 @@ type Job struct {
 	DebugInfo           string     `json:"debug_info,omitempty"`      // JSON-encoded DebugCallResult (populated in debug mode)
 	ExecutionState      string     `json:"execution_state,omitempty"` // current worker state-machine state
 	StateTrace          string     `json:"state_trace,omitempty"`     // JSON-encoded []job.StateTraceEntry
+	LockedBy            string     `gorm:"index" json:"locked_by,omitempty"`
+	LeaseUntil          *time.Time `gorm:"index" json:"lease_until,omitempty"`
 	LastHeartbeatAt     *time.Time `json:"last_heartbeat_at,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	FinishedAt          *time.Time `json:"finished_at,omitempty"`

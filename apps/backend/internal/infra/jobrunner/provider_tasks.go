@@ -83,6 +83,8 @@ func (w *Worker) scheduleSubmittedProviderTask(job *model.Job, resp ai.VideoResp
 		"provider_task_kind":   resp.TaskKind,
 		"provider_task_status": status,
 		"next_run_at":          &nextRun,
+		"locked_by":            "",
+		"lease_until":          nil,
 		"finished_at":          nil,
 		"error_msg":            "",
 	}
@@ -104,6 +106,8 @@ func (w *Worker) scheduleProviderPoll(job *model.Job, message string, sm *jobSta
 		"status":      StatusPending,
 		"error_msg":   message,
 		"next_run_at": &nextRun,
+		"locked_by":   "",
+		"lease_until": nil,
 		"finished_at": nil,
 	}
 	result := w.db.Model(job).Where("status <> ?", StatusCancelled).Updates(updates)
@@ -130,6 +134,8 @@ func (w *Worker) markProviderTaskFailed(job *model.Job, resp ai.VideoResponse, e
 		"error_msg":            msg,
 		"finished_at":          &now,
 		"next_run_at":          nil,
+		"locked_by":            "",
+		"lease_until":          nil,
 		"last_heartbeat_at":    &now,
 	})
 	if job.UsageReservationID != nil {
@@ -147,6 +153,8 @@ func (w *Worker) markProviderTaskCancelled(job *model.Job, resp ai.VideoResponse
 		"error_msg":            msg,
 		"finished_at":          &now,
 		"next_run_at":          nil,
+		"locked_by":            "",
+		"lease_until":          nil,
 		"last_heartbeat_at":    &now,
 	})
 	if job.UsageReservationID != nil {
@@ -209,6 +217,8 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.Job, resp 
 		"output_resource_id":   resourceID,
 		"finished_at":          &now,
 		"next_run_at":          nil,
+		"locked_by":            "",
+		"lease_until":          nil,
 	}
 	if resp.TaskID != "" {
 		updates["provider_task_id"] = resp.TaskID
@@ -262,6 +272,8 @@ func (w *Worker) completeProviderResult(ctx context.Context, job *model.Job, res
 		"status":             StatusSucceeded,
 		"output_resource_id": resourceID,
 		"finished_at":        &now,
+		"locked_by":          "",
+		"lease_until":        nil,
 	}
 	if debugResult != nil {
 		if b, err := json.Marshal(debugResult); err == nil {

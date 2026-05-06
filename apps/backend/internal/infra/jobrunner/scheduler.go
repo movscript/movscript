@@ -13,26 +13,42 @@ import (
 
 // Start launches n worker goroutines. Cancel ctx to stop them gracefully.
 func (w *Worker) Start(ctx context.Context, n int) {
+	go w.reaperLoop(ctx)
 	for i := 0; i < n; i++ {
 		go w.loop(ctx)
 	}
 }
 
 func (w *Worker) loop(ctx context.Context) {
+	timer := time.NewTimer(0)
+	defer timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(2 * time.Second):
+		case <-timer.C:
 			w.processOne(ctx)
+			timer.Reset(2 * time.Second)
+		}
+	}
+}
+
+func (w *Worker) reaperLoop(ctx context.Context) {
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			w.requeueStaleRunningJobs(ctx)
+			timer.Reset(staleReaperInterval)
 		}
 	}
 }
 
 // processOne atomically claims one pending job and executes it.
 func (w *Worker) processOne(ctx context.Context) {
-	w.requeueStaleRunningJobs(ctx)
-
 	var job model.Job
 	var err error
 	if w.db.Dialector.Name() == "postgres" {
@@ -62,6 +78,8 @@ func (w *Worker) claimPostgresJob(job *model.Job) *gorm.DB {
 			finished_at=NULL,
 			next_run_at=NULL,
 			attempt_count=attempt_count + CASE WHEN COALESCE(provider_task_id, '') = '' THEN 1 ELSE 0 END,
+			locked_by=?,
+			lease_until=NOW() + (? * INTERVAL '1 second'),
 			last_heartbeat_at=NOW(),
 			error_msg='',
 			updated_at=NOW()
@@ -76,7 +94,7 @@ func (w *Worker) claimPostgresJob(job *model.Job) *gorm.DB {
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING *
-	`).Scan(job)
+	`, w.workerID, int(leaseDuration.Seconds())).Scan(job)
 }
 
 func (w *Worker) claimLocalJob(job *model.Job) error {
@@ -101,6 +119,8 @@ func (w *Worker) claimLocalJob(job *model.Job) error {
 			"started_at":        &now,
 			"finished_at":       nil,
 			"next_run_at":       nil,
+			"locked_by":         w.workerID,
+			"lease_until":       now.Add(leaseDuration),
 			"last_heartbeat_at": &now,
 			"error_msg":         "",
 			"updated_at":        now,
@@ -136,6 +156,8 @@ func (w *Worker) completeFailure(job *model.Job, err error) {
 			"status":            StatusPending,
 			"error_msg":         err.Error(),
 			"next_run_at":       &nextRun,
+			"locked_by":         "",
+			"lease_until":       nil,
 			"last_heartbeat_at": &now,
 			"finished_at":       nil,
 		})
@@ -149,6 +171,8 @@ func (w *Worker) completeFailure(job *model.Job, err error) {
 		"error_msg":         err.Error(),
 		"finished_at":       &now,
 		"next_run_at":       nil,
+		"locked_by":         "",
+		"lease_until":       nil,
 		"last_heartbeat_at": &now,
 	})
 	if job.UsageReservationID != nil {
@@ -184,13 +208,17 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
-	threshold := time.Now().Add(-staleRunningTimeout)
+	now := time.Now()
+	threshold := now.Add(-staleRunningTimeout)
 	var jobs []model.Job
 	if err := w.db.Where(`
 		status = ?
 		AND deleted_at IS NULL
-		AND (last_heartbeat_at IS NULL OR last_heartbeat_at < ?)
-	`, StatusRunning, threshold).
+		AND (
+			lease_until < ?
+			OR (lease_until IS NULL AND (last_heartbeat_at IS NULL OR last_heartbeat_at < ?))
+		)
+	`, StatusRunning, now, threshold).
 		Order("updated_at asc").
 		Limit(10).
 		Find(&jobs).Error; err != nil {
@@ -201,19 +229,24 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 		return
 	}
 
-	now := time.Now()
 	for i := range jobs {
 		job := &jobs[i]
 		if job.ProviderTaskID != "" {
 			nextRun := now.Add(videoPollInterval)
 			msg := fmt.Sprintf("worker heartbeat stale for %s; provider task will be polled again", staleRunningTimeout)
-			if err := w.db.Model(job).Updates(map[string]any{
+			result := w.staleJobUpdate(job, now, threshold, map[string]any{
 				"status":      StatusPending,
 				"error_msg":   msg,
 				"next_run_at": &nextRun,
+				"locked_by":   "",
+				"lease_until": nil,
 				"finished_at": nil,
-			}).Error; err != nil {
-				log.Printf("[job] stale provider task job #%d requeue failed: %v", job.ID, err)
+			})
+			if result.Error != nil {
+				log.Printf("[job] stale provider task job #%d requeue failed: %v", job.ID, result.Error)
+				continue
+			}
+			if result.RowsAffected == 0 {
 				continue
 			}
 			newJobStateMachine(w, job).finish(StateWaitingProviderTask, msg)
@@ -224,13 +257,19 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 		maxAttempts := effectiveMaxAttempts(job)
 		if job.AttemptCount < maxAttempts {
 			msg := fmt.Sprintf("worker heartbeat stale for %s; requeued", staleRunningTimeout)
-			if err := w.db.Model(job).Updates(map[string]any{
+			result := w.staleJobUpdate(job, now, threshold, map[string]any{
 				"status":      StatusPending,
 				"error_msg":   msg,
 				"next_run_at": &now,
+				"locked_by":   "",
+				"lease_until": nil,
 				"finished_at": nil,
-			}).Error; err != nil {
-				log.Printf("[job] stale job #%d requeue failed: %v", job.ID, err)
+			})
+			if result.Error != nil {
+				log.Printf("[job] stale job #%d requeue failed: %v", job.ID, result.Error)
+				continue
+			}
+			if result.RowsAffected == 0 {
 				continue
 			}
 			newJobStateMachine(w, job).finish(StateRetryScheduled, msg)
@@ -239,18 +278,36 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 		}
 
 		msg := fmt.Sprintf("worker heartbeat stale for %s; max attempts exhausted", staleRunningTimeout)
-		if err := w.db.Model(job).Updates(map[string]any{
+		result := w.staleJobUpdate(job, now, threshold, map[string]any{
 			"status":      StatusFailed,
 			"error_msg":   msg,
 			"finished_at": &now,
 			"next_run_at": nil,
-		}).Error; err != nil {
-			log.Printf("[job] stale job #%d fail update failed: %v", job.ID, err)
+			"locked_by":   "",
+			"lease_until": nil,
+		})
+		if result.Error != nil {
+			log.Printf("[job] stale job #%d fail update failed: %v", job.ID, result.Error)
+			continue
+		}
+		if result.RowsAffected == 0 {
 			continue
 		}
 		newJobStateMachine(w, job).fail(fmt.Errorf("%s", msg))
 		log.Printf("[job] stale running job #%d marked failed", job.ID)
 	}
+}
+
+func (w *Worker) staleJobUpdate(job *model.Job, now time.Time, threshold time.Time, updates map[string]any) *gorm.DB {
+	return w.db.Model(job).
+		Where(`
+			status = ?
+			AND (
+				lease_until < ?
+				OR (lease_until IS NULL AND (last_heartbeat_at IS NULL OR last_heartbeat_at < ?))
+			)
+		`, StatusRunning, now, threshold).
+		Updates(updates)
 }
 
 func (w *Worker) heartbeat(ctx context.Context, jobID uint) {
@@ -261,8 +318,19 @@ func (w *Worker) heartbeat(ctx context.Context, jobID uint) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			now := time.Now()
-			w.db.Model(&model.Job{}).Where("id = ? AND status = ?", jobID, StatusRunning).Update("last_heartbeat_at", &now)
+			_, _ = w.renewLease(jobID)
 		}
 	}
+}
+
+func (w *Worker) renewLease(jobID uint) (int64, error) {
+	now := time.Now()
+	leaseUntil := now.Add(leaseDuration)
+	result := w.db.Model(&model.Job{}).
+		Where("id = ? AND status = ? AND locked_by = ?", jobID, StatusRunning, w.workerID).
+		Updates(map[string]any{
+			"last_heartbeat_at": &now,
+			"lease_until":       &leaseUntil,
+		})
+	return result.RowsAffected, result.Error
 }

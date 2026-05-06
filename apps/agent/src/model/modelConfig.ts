@@ -33,6 +33,7 @@ export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { modelConfigId:
 
 export interface RuntimeModelAuthContext {
   backendAuthToken?: string
+  backendAPIBaseURL?: string
 }
 
 export interface RuntimeModelRequestSnapshot {
@@ -236,7 +237,7 @@ export function buildBackendGatewayChatRequest(
     headers.Authorization = `Bearer ${auth.backendAuthToken}`
   }
   return {
-    url: `${resolveBackendAPIBaseURL()}/model-gateway/chat/completions`,
+    url: `${resolveBackendAPIBaseURL(auth.backendAPIBaseURL)}/model-gateway/chat/completions`,
     method: 'POST',
     headers,
     body: {
@@ -403,8 +404,8 @@ function buildTestMessages(message: string): RuntimeModelChatMessage[] {
   ]
 }
 
-function resolveBackendAPIBaseURL(): string {
-  return normalizeBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || DEFAULT_BACKEND_API_BASE_URL)
+function resolveBackendAPIBaseURL(override?: string): string {
+  return normalizeBaseURL(override || process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || DEFAULT_BACKEND_API_BASE_URL)
 }
 
 function backendModelID(modelConfigId: number): string {

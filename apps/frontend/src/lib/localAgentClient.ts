@@ -1,4 +1,5 @@
 import { useUserStore } from '@/store/userStore'
+import { getAPIV1BaseURL } from '@/lib/config'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
@@ -788,7 +789,7 @@ export class LocalAgentClient {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'POST',
       headers: this.authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
+      body: JSON.stringify(this.withBackendContext(body)),
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
@@ -798,7 +799,7 @@ export class LocalAgentClient {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'PATCH',
       headers: this.authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
+      body: JSON.stringify(this.withBackendContext(body)),
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
@@ -816,6 +817,13 @@ export class LocalAgentClient {
   private authHeaders(base: Record<string, string> = {}): Record<string, string> {
     const token = useUserStore.getState().token
     return token ? { ...base, Authorization: `Bearer ${token}` } : base
+  }
+
+  private withBackendContext(body: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...body,
+      backendAPIBaseURL: getAPIV1BaseURL(),
+    }
   }
 }
 

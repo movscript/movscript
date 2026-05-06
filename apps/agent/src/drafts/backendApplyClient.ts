@@ -8,6 +8,7 @@ export interface BackendApplyClientOptions {
 export interface BackendApplyAuthContext {
   userId?: number | string
   backendAuthToken?: string
+  backendAPIBaseURL?: string
 }
 
 export interface BackendApplyResult {
@@ -63,11 +64,12 @@ export class BackendApplyClient {
   }
 
   async applyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    if (!this.baseURL) {
+    const baseURL = this.resolveBaseURL(auth)
+    if (!baseURL) {
       return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const request = buildPatchRequest(review)
-    const url = `${this.baseURL}${request.path}`
+    const url = `${baseURL}${request.path}`
     const headers = buildHeaders(auth)
 
     const response = await fetch(url, {
@@ -90,11 +92,12 @@ export class BackendApplyClient {
   }
 
   async applyProposal(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    if (!this.baseURL) {
+    const baseURL = this.resolveBaseURL(auth)
+    if (!baseURL) {
       return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const path = `/projects/${encodeURIComponent(String(projectId))}/entities/production-proposals/apply`
-    const url = `${this.baseURL}${path}`
+    const url = `${baseURL}${path}`
     const headers = buildHeaders(auth)
 
     const response = await fetch(url, {
@@ -117,11 +120,12 @@ export class BackendApplyClient {
   }
 
   async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    if (!this.baseURL) {
+    const baseURL = this.resolveBaseURL(auth)
+    if (!baseURL) {
       return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const path = `/projects/${encodeURIComponent(String(projectId))}/scripts`
-    const url = `${this.baseURL}${path}`
+    const url = `${baseURL}${path}`
     const headers = buildHeaders(auth)
 
     const response = await fetch(url, {
@@ -141,6 +145,10 @@ export class BackendApplyClient {
       payload,
       ...(parsed !== undefined ? { response: parsed } : {}),
     }
+  }
+
+  private resolveBaseURL(auth?: BackendApplyAuthContext): string | undefined {
+    return normalizeBaseURL(auth?.backendAPIBaseURL) ?? this.baseURL
   }
 }
 

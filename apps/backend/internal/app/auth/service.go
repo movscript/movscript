@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	orgapp "github.com/movscript/movscript/internal/app/org"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/domain/model"
 	tokenauth "github.com/movscript/movscript/internal/infra/auth"
@@ -23,10 +22,11 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidChallenge   = errors.New("invalid auth challenge")
 	ErrInvalidInput       = errors.New("invalid auth input")
+	ErrNotFound           = errors.New("auth item not found")
 )
 
 type Service struct {
-	db           *gorm.DB
+	repo         repository
 	tokens       *tokenauth.Manager
 	localAppMode bool
 }
@@ -36,7 +36,7 @@ func NewService(db *gorm.DB, tokens ...*tokenauth.Manager) *Service {
 	if len(tokens) > 0 {
 		manager = tokens[0]
 	}
-	return &Service{db: db, tokens: manager}
+	return &Service{repo: newRepository(db), tokens: manager}
 }
 
 func NewLocalService(db *gorm.DB, tokens ...*tokenauth.Manager) *Service {
@@ -119,12 +119,21 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 		return model.User{}, ErrInvalidInput
 	}
 
-	var existing model.User
-	if s.db.WithContext(ctx).Where("username = ?", input.Username).First(&existing).Error == nil {
+	usernameExists, err := s.repo.UsernameExists(ctx, input.Username)
+	if err != nil {
+		return model.User{}, err
+	}
+	if usernameExists {
 		return model.User{}, ErrConflict
 	}
-	if input.Email != "" && s.db.WithContext(ctx).Where("primary_email = ?", input.Email).First(&existing).Error == nil {
-		return model.User{}, ErrConflict
+	if input.Email != "" {
+		emailExists, err := s.repo.EmailExists(ctx, input.Email)
+		if err != nil {
+			return model.User{}, err
+		}
+		if emailExists {
+			return model.User{}, ErrConflict
+		}
 	}
 
 	var hash string
@@ -146,10 +155,9 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 		return model.User{}, err
 	}
 	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, bootstrapSystemAdmin, verifiedAt)
-	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
+	if err := s.repo.CreateUser(ctx, &u); err != nil {
 		return model.User{}, err
 	}
-	_ = orgapp.CreatePersonalOrg(s.db.WithContext(ctx), &u)
 	return u, nil
 }
 
@@ -160,8 +168,8 @@ func (s *Service) canBootstrapSystemAdmin(ctx context.Context, requested bool) (
 	if !s.localAppMode {
 		return false, ErrInvalidInput
 	}
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&model.User{}).Where("system_role = ?", "super_admin").Count(&count).Error; err != nil {
+	count, err := s.repo.SuperAdminCount(ctx)
+	if err != nil {
 		return false, err
 	}
 	return count == 0, nil
@@ -175,8 +183,7 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	if len(password) < 8 {
 		return model.User{}, ErrInvalidInput
 	}
-	var existing model.User
-	if err := s.db.WithContext(ctx).Where("system_role = ?", "super_admin").First(&existing).Error; err == nil {
+	if existing, err := s.repo.FindSuperAdmin(ctx); err == nil {
 		hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 		if err != nil {
 			return model.User{}, err
@@ -186,14 +193,15 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 		if displayName != "" && strings.TrimSpace(existing.DisplayName) == "" {
 			updates["display_name"] = displayName
 		}
-		if err := s.db.WithContext(ctx).Model(&existing).Updates(updates).Error; err != nil {
+		if err := s.repo.UpdateUser(ctx, existing.ID, updates); err != nil {
 			return model.User{}, err
 		}
-		if err := s.db.WithContext(ctx).First(&existing, existing.ID).Error; err != nil {
+		existing, err = s.repo.FindUserByID(ctx, existing.ID)
+		if err != nil {
 			return model.User{}, err
 		}
 		return existing, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, ErrNotFound) {
 		return model.User{}, err
 	}
 
@@ -201,20 +209,9 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	if displayName == "" {
 		displayName = "Local User"
 	}
-	username := localUsername(displayName)
-	for i := 0; ; i++ {
-		candidate := username
-		if i > 0 {
-			candidate = fmt.Sprintf("%s%d", username, i+1)
-		}
-		var count int64
-		if err := s.db.WithContext(ctx).Model(&model.User{}).Where("username = ?", candidate).Count(&count).Error; err != nil {
-			return model.User{}, err
-		}
-		if count == 0 {
-			username = candidate
-			break
-		}
+	username, err := s.repo.FindAvailableUsername(ctx, localUsername(displayName))
+	if err != nil {
+		return model.User{}, err
 	}
 
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
@@ -223,10 +220,9 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	}
 	u := domainauth.NewRegisteredUser(username, string(hashBytes), "", true, nil)
 	u.DisplayName = displayName
-	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
+	if err := s.repo.CreateUser(ctx, &u); err != nil {
 		return model.User{}, err
 	}
-	_ = orgapp.CreatePersonalOrg(s.db.WithContext(ctx), &u)
 	return u, nil
 }
 
@@ -251,15 +247,9 @@ func localUsername(displayName string) string {
 
 func (s *Service) Login(ctx context.Context, input LoginInput) (model.User, error) {
 	input.Username = strings.TrimSpace(input.Username)
-	var u model.User
-	query := s.db.WithContext(ctx)
 	email := normalizeEmail(input.Username)
-	if email != "" {
-		query = query.Where("username = ? OR primary_email = ?", input.Username, email)
-	} else {
-		query = query.Where("username = ?", input.Username)
-	}
-	if err := query.First(&u).Error; err != nil {
+	u, err := s.repo.FindUserForLogin(ctx, input.Username, email)
+	if err != nil {
 		return model.User{}, ErrInvalidCredentials
 	}
 	if strings.TrimSpace(u.PasswordHash) == "" {
@@ -272,17 +262,13 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (model.User, erro
 }
 
 func (s *Service) CurrentUser(ctx context.Context, userID uint) (model.User, error) {
-	var u model.User
-	if err := s.db.WithContext(ctx).First(&u, userID).Error; err != nil {
-		return model.User{}, err
-	}
-	return u, nil
+	return s.repo.FindUserByID(ctx, userID)
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileInput) (model.User, error) {
 	updates := domainauth.ProfileUpdates(domainauth.ProfileInput(input))
 	if len(updates) > 0 {
-		if err := s.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		if err := s.repo.UpdateUser(ctx, userID, updates); err != nil {
 			return model.User{}, err
 		}
 	}
@@ -313,7 +299,7 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 		CodeHash:  sha256Hex(code),
 		ExpiresAt: time.Now().UTC().Add(time.Duration(expiresIn) * time.Second),
 	}
-	if err := s.db.WithContext(ctx).Create(&challenge).Error; err != nil {
+	if err := s.repo.CreateChallenge(ctx, &challenge); err != nil {
 		return ChallengeStartResult{}, err
 	}
 	return ChallengeStartResult{
@@ -324,8 +310,7 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 }
 
 func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInput) (model.AuthChallenge, error) {
-	var challenge model.AuthChallenge
-	err := s.db.WithContext(ctx).Where("id = ?", input.ChallengeID).First(&challenge).Error
+	challenge, err := s.repo.FindChallenge(ctx, input.ChallengeID)
 	if err != nil {
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
@@ -333,11 +318,11 @@ func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInpu
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
 	if challenge.CodeHash != sha256Hex(strings.TrimSpace(input.Code)) {
-		_ = s.db.WithContext(ctx).Model(&challenge).UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
+		_ = s.repo.IncrementChallengeAttempts(ctx, &challenge)
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
 	now := time.Now().UTC()
-	if err := s.db.WithContext(ctx).Model(&challenge).Updates(map[string]any{"consumed_at": &now}).Error; err != nil {
+	if err := s.repo.ConsumeChallenge(ctx, &challenge, now); err != nil {
 		return model.AuthChallenge{}, err
 	}
 	challenge.ConsumedAt = &now
@@ -349,8 +334,8 @@ func (s *Service) LoginWithEmail(ctx context.Context, email string) (model.User,
 	if email == "" {
 		return model.User{}, ErrInvalidCredentials
 	}
-	var u model.User
-	if err := s.db.WithContext(ctx).Where("primary_email = ?", email).First(&u).Error; err != nil {
+	u, err := s.repo.FindUserByEmail(ctx, email)
+	if err != nil {
 		return model.User{}, ErrInvalidCredentials
 	}
 	return u, nil
@@ -372,7 +357,7 @@ func (s *Service) CreateSession(ctx context.Context, userID uint, ttl time.Durat
 		UserAgent: domainauth.Truncate(userAgent, 512),
 		IPAddress: domainauth.Truncate(ipAddress, 64),
 	}
-	if err := s.db.WithContext(ctx).Create(&session).Error; err != nil {
+	if err := s.repo.CreateSession(ctx, &session); err != nil {
 		return "", time.Time{}, err
 	}
 	return raw, expiresAt, nil
@@ -383,15 +368,12 @@ func (s *Service) UserForSession(ctx context.Context, raw string) (model.User, e
 	if raw == "" {
 		return model.User{}, ErrInvalidCredentials
 	}
-	var session model.AuthSession
-	err := s.db.WithContext(ctx).
-		Where("token_hash = ? AND revoked_at IS NULL AND expires_at > ?", sha256Hex(raw), time.Now().UTC()).
-		First(&session).Error
+	session, err := s.repo.FindActiveSession(ctx, sha256Hex(raw), time.Now().UTC())
 	if err != nil {
 		return model.User{}, ErrInvalidCredentials
 	}
 	now := time.Now().UTC()
-	_ = s.db.WithContext(ctx).Model(&session).Updates(map[string]any{"last_seen_at": &now}).Error
+	_ = s.repo.TouchSession(ctx, &session, now)
 	return s.CurrentUser(ctx, session.UserID)
 }
 
@@ -401,10 +383,7 @@ func (s *Service) RevokeSession(ctx context.Context, raw string) error {
 		return nil
 	}
 	now := time.Now().UTC()
-	return s.db.WithContext(ctx).
-		Model(&model.AuthSession{}).
-		Where("token_hash = ? AND revoked_at IS NULL", sha256Hex(raw)).
-		Update("revoked_at", &now).Error
+	return s.repo.RevokeSession(ctx, sha256Hex(raw), now)
 }
 
 func (s *Service) IssueCredential(ctx context.Context, input CredentialInput) (Credential, error) {
@@ -462,33 +441,5 @@ func sha256Hex(value string) string {
 }
 
 func (s *Service) OrgMemberships(ctx context.Context, userID uint) ([]OrgMembershipSummary, error) {
-	members := make([]model.OrganizationMember, 0)
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error; err != nil {
-		return nil, err
-	}
-	if len(members) == 0 {
-		var user model.User
-		if err := s.db.WithContext(ctx).First(&user, userID).Error; err == nil {
-			_ = orgapp.CreatePersonalOrg(s.db.WithContext(ctx), &user)
-			_ = s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error
-		}
-	}
-
-	memberships := make([]OrgMembershipSummary, 0, len(members))
-	for _, m := range members {
-		var org model.Organization
-		if s.db.WithContext(ctx).First(&org, m.OrgID).Error != nil {
-			continue
-		}
-		memberships = append(memberships, OrgMembershipSummary{
-			OrgID:      org.ID,
-			OrgName:    org.Name,
-			OrgSlug:    org.Slug,
-			IsPersonal: org.IsPersonal,
-			Plan:       org.Plan,
-			Status:     org.Status,
-			Role:       m.Role,
-		})
-	}
-	return memberships, nil
+	return s.repo.OrgMemberships(ctx, userID)
 }

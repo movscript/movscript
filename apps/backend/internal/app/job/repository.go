@@ -162,6 +162,8 @@ func (r *gormRepository) Retry(ctx context.Context, job *model.Job, message stri
 		"error_msg":             "",
 		"next_run_at":           &now,
 		"finished_at":           nil,
+		"locked_by":             "",
+		"lease_until":           nil,
 		"last_heartbeat_at":     nil,
 		"output_resource_id":    nil,
 		"provider_task_id":      "",
@@ -187,6 +189,8 @@ func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint
 		"error_msg":            message,
 		"next_run_at":          nil,
 		"finished_at":          &now,
+		"locked_by":            "",
+		"lease_until":          nil,
 		"last_heartbeat_at":    &now,
 	}).Error; err != nil {
 		return job, err
@@ -207,6 +211,8 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID
 			"error_msg":         "cancelled by user",
 			"finished_at":       &now,
 			"next_run_at":       nil,
+			"locked_by":         "",
+			"lease_until":       nil,
 			"last_heartbeat_at": &now,
 		}).Error; err != nil {
 			return job, false, err

@@ -157,6 +157,7 @@ async function callRuntimeTool(
         {
           ...(typeof appliedByUserId === 'number' || typeof appliedByUserId === 'string' ? { userId: appliedByUserId } : {}),
           ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
+          ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
         },
       )
     } catch (error) {
@@ -196,6 +197,7 @@ async function callRuntimeTool(
     const backendCreate = await backendApplyClient.createScript(projectId, payload, {
       ...(typeof userId === 'number' || typeof userId === 'string' ? { userId } : {}),
       ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
+      ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
     })
     return {
       status: backendCreate.performed ? 'created' : 'skipped',

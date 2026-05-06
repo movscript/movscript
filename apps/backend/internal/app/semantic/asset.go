@@ -118,21 +118,7 @@ type ReviewEventInput struct {
 }
 
 func (s *Service) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]model.AssetSlot, error) {
-	items := make([]model.AssetSlot, 0)
-	q := s.db.WithContext(ctx).Preload("Resource").Preload("LockedAssetSlot.Resource").Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
-		q = q.Where("owner_type = ?", ownerType)
-	} else if !truthyFilter(filter.IncludeInternal) {
-		q = q.Where("owner_type <> ? OR owner_type IS NULL OR owner_type = ''", "asset_slot")
-	}
-	err := q.Order("status, priority desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListAssetSlots(ctx, filter)
 }
 
 func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input AssetSlotInput) (model.AssetSlot, error) {
@@ -197,16 +183,7 @@ func (s *Service) PatchAssetSlot(ctx context.Context, projectID uint, id string,
 }
 
 func (s *Service) ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]model.AssetSlotCandidate, error) {
-	items := make([]model.AssetSlotCandidate, 0)
-	q := s.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").Where("project_id = ?", filter.ProjectID)
-	if filter.AssetSlotID > 0 {
-		q = q.Where("asset_slot_id = ?", filter.AssetSlotID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("asset_slot_id, score desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListAssetSlotCandidates(ctx, filter)
 }
 
 func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, input AssetSlotCandidateInput, userID uint) (model.AssetSlotCandidate, error) {
@@ -214,7 +191,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		return model.AssetSlotCandidate{}, err
 	}
 	if input.ResourceID != nil && *input.ResourceID > 0 {
-		result, err := workflowio.NewEntityIOService(s.db).AttachAssetSlotCandidate(ctx, workflowio.AttachAssetSlotCandidateInput{
+		result, err := s.repo.AttachAssetSlotCandidate(ctx, workflowio.AttachAssetSlotCandidateInput{
 			ProjectID:   projectID,
 			AssetSlotID: input.AssetSlotID,
 			ResourceID:  *input.ResourceID,
@@ -229,7 +206,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 			return model.AssetSlotCandidate{}, ErrInvalidInput{Err: err}
 		}
 		item := result.Candidate
-		if err := s.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").First(&item, item.ID).Error; err != nil {
+		if err := s.repo.ReloadAssetSlotCandidate(ctx, &item); err != nil {
 			return item, err
 		}
 		return item, nil
@@ -282,25 +259,7 @@ func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, i
 }
 
 func (s *Service) ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]model.CandidateDecision, error) {
-	items := make([]model.CandidateDecision, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if candidateType := strings.TrimSpace(filter.CandidateType); candidateType != "" {
-		q = q.Where("candidate_type = ?", candidateType)
-	}
-	if filter.CandidateID > 0 {
-		q = q.Where("candidate_id = ?", filter.CandidateID)
-	}
-	if candidateClientID := strings.TrimSpace(filter.CandidateClientID); candidateClientID != "" {
-		q = q.Where("candidate_client_id = ?", candidateClientID)
-	}
-	if decision := strings.TrimSpace(filter.Decision); decision != "" {
-		q = q.Where("decision = ?", decision)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListCandidateDecisions(ctx, filter)
 }
 
 func (s *Service) CreateCandidateDecision(ctx context.Context, projectID uint, input CandidateDecisionInput) (model.CandidateDecision, error) {
@@ -361,22 +320,7 @@ func (s *Service) PatchCandidateDecision(ctx context.Context, projectID uint, id
 }
 
 func (s *Service) ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]model.ReviewEvent, error) {
-	items := make([]model.ReviewEvent, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if subjectType := strings.TrimSpace(filter.SubjectType); subjectType != "" {
-		q = q.Where("subject_type = ?", subjectType)
-	}
-	if filter.SubjectID > 0 {
-		q = q.Where("subject_id = ?", filter.SubjectID)
-	}
-	if subjectClientID := strings.TrimSpace(filter.SubjectClientID); subjectClientID != "" {
-		q = q.Where("subject_client_id = ?", subjectClientID)
-	}
-	if eventType := strings.TrimSpace(filter.EventType); eventType != "" {
-		q = q.Where("event_type = ?", eventType)
-	}
-	err := q.Order("id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListReviewEvents(ctx, filter)
 }
 
 func (s *Service) CreateReviewEvent(ctx context.Context, projectID uint, input ReviewEventInput) (model.ReviewEvent, error) {

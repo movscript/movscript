@@ -127,7 +127,47 @@ func RegisteredMigrations() []Migration {
 				return nil
 			},
 		},
+		{
+			Version: "000008",
+			Name:    "add_jobrunner_leases",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&model.Job{}); err != nil {
+					return err
+				}
+				return createJobRunnerIndexes(db)
+			},
+		},
 	}
+}
+
+func createJobRunnerIndexes(db *gorm.DB) error {
+	if db.Dialector.Name() == "postgres" {
+		statements := []string{
+			`CREATE INDEX IF NOT EXISTS idx_jobs_runner_ready ON jobs (status, next_run_at, created_at) WHERE deleted_at IS NULL AND status = 'pending'`,
+			`CREATE INDEX IF NOT EXISTS idx_jobs_runner_stale ON jobs (status, lease_until, last_heartbeat_at, updated_at) WHERE deleted_at IS NULL AND status = 'running'`,
+		}
+		for _, stmt := range statements {
+			if err := db.Exec(stmt).Error; err != nil {
+				return fmt.Errorf("create jobrunner index: %w", err)
+			}
+		}
+		return nil
+	}
+
+	indexes := []struct {
+		name    string
+		columns string
+	}{
+		{name: "idx_jobs_runner_ready", columns: "status, next_run_at, created_at"},
+		{name: "idx_jobs_runner_stale", columns: "status, lease_until, last_heartbeat_at, updated_at"},
+	}
+	for _, idx := range indexes {
+		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON jobs (%s)", idx.name, idx.columns)
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("create jobrunner index %s: %w", idx.name, err)
+		}
+	}
+	return nil
 }
 
 func seedDefaultOrg(db *gorm.DB) error {

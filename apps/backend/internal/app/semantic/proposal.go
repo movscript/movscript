@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 type ProposalSegmentNode struct {
@@ -121,8 +120,8 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 		return nil, err
 	}
 	resp := &ApplyProductionProposalResponse{ProductionID: req.ProductionID}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		txSvc := NewService(tx)
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := &Service{repo: txRepo, cache: s.cache}
 
 		for i, segNode := range req.Proposal.Segments {
 			var segmentID uint
@@ -417,6 +416,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 	if err != nil {
 		return nil, err
 	}
+	s.bumpProgressVersion(ctx, projectID)
 	return resp, nil
 }
 

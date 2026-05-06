@@ -1,67 +1,26 @@
 #!/usr/bin/env node
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
-import { MCPClient } from './mcpClient.js'
-import { AgentRuntime, loadAgentPluginCatalog } from './runtime/agentRuntime.js'
-import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from './runtime/store/fileStore.js'
+import { AgentRuntime } from './runtime/agentRuntime.js'
 import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/store/draftStore.js'
-import { BackendApplyClient } from './runtime/store/backendApplyClient.js'
-import { FileAgentMemoryStore } from './runtime/memory/fileMemoryStore.js'
-import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtime/modelConfig.js'
-import { ProductionRuntime } from './production/runtime.js'
-import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
-import { ProductionPreviewSemanticFallbackClient } from './production/semanticFallbackClient.js'
 import {
-  StaticAgentRuntimeContractResolver,
-} from './runtime/contracts/runtimeContract.js'
-import {
-  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-} from './production/orchestrationContract.js'
-import {
-  SCRIPT_SPLIT_RUNTIME_CONTRACT,
-} from './runtime/contracts/scriptSplitContract.js'
+  createAgentServerContext,
+  getAgentRuntimeCapabilities,
+  logAgentServerStartup,
+} from './bootstrap/agentServerContext.js'
 import type { JSONValue } from './types.js'
 
-const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
-const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || 'http://127.0.0.1:18765/mcp'
-const statePath = resolveAgentStatePath()
-const memoryPath = resolveAgentMemoryPath(statePath)
-const draftPath = resolveAgentDraftPath(statePath)
-const productionStatePath = resolveProductionStatePath()
-const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
-const backendApplyClient = new BackendApplyClient()
-const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
-const productionSemanticFallbackClient = new ProductionPreviewSemanticFallbackClient()
-const pluginCatalog = loadAgentPluginCatalog()
-const client = new MCPClient({ endpoint: mcpEndpoint })
-const productionRuntime = new ProductionRuntime({
-  store: new FileProductionStore(productionStatePath),
-  semanticFallbackClient: productionSemanticFallbackClient,
-})
-const runtimeContractResolver = new StaticAgentRuntimeContractResolver([
-  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-  SCRIPT_SPLIT_RUNTIME_CONTRACT,
-])
-
-const agentRuntime = new AgentRuntime({
-  mcpClient: client,
-  store: new FileAgentStore(statePath),
-  draftStore: new FileAgentDraftStore(draftPath),
+const context = createAgentServerContext()
+const {
+  port,
+  mcpEndpoint,
+  paths,
+  client,
+  agentRuntime,
+  productionRuntime,
   backendApplyClient,
-  memoryStore: new FileAgentMemoryStore(memoryPath),
-  defaultAgentManifest: pluginCatalog.manifest,
-  skillCatalog: pluginCatalog.skills,
-  toolRegistry: pluginCatalog.registry,
-  contractResolver: runtimeContractResolver,
-  pluginCatalogInfo: {
-    skillsDir: pluginCatalog.skillsDir,
-    toolsDir: pluginCatalog.toolsDir,
-    builtinSkillsDir: pluginCatalog.builtinSkillsDir,
-    builtinToolsDir: pluginCatalog.builtinToolsDir,
-    skillCount: pluginCatalog.skills.length,
-    toolCount: pluginCatalog.tools.length,
-  },
-  pluginWarnings: pluginCatalog.warnings,
-})
+  modelConfigStore,
+  pluginCatalog,
+} = context
 
 const server = createServer(async (req, res) => {
   setHeaders(res)
@@ -77,26 +36,15 @@ const server = createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/health') {
       writeJSON(res, 200, {
+        ...getAgentRuntimeCapabilities(context),
         ok: true,
-        service: 'movscript-agent',
-        mode: 'server',
-        mcpEndpoint,
-        pluginCatalog: {
-          skillsDir: pluginCatalog.skillsDir,
-          toolsDir: pluginCatalog.toolsDir,
-          builtinSkillsDir: pluginCatalog.builtinSkillsDir,
-          builtinToolsDir: pluginCatalog.builtinToolsDir,
-          skillCount: pluginCatalog.skills.length,
-          toolCount: pluginCatalog.tools.length,
-          warnings: pluginCatalog.warnings,
-        },
-        draftPath,
-        productionStatePath,
-        modelConfigPath,
         modelConfig: modelConfigStore.getPublicConfig(),
-        backendApplyEnabled: backendApplyClient.isEnabled(),
-        productionSemanticFallbackEnabled: productionRuntime.isSemanticFallbackEnabled(),
       })
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/runtime/capabilities') {
+      writeJSON(res, 200, getAgentRuntimeCapabilities(context))
       return
     }
 
@@ -404,20 +352,7 @@ const server = createServer(async (req, res) => {
   }
 })
 
-server.listen(port, '127.0.0.1', () => {
-  console.info(`[agent] movscript-agent listening on http://127.0.0.1:${port}`)
-  console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
-  console.info(`[agent] state path ${statePath}`)
-  console.info(`[agent] memory path ${memoryPath}`)
-  console.info(`[agent] draft path ${draftPath}`)
-  console.info(`[agent] production state path ${productionStatePath}`)
-  console.info(`[agent] model config path ${modelConfigPath}`)
-  console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
-  console.info(`[agent] production semantic fallback ${productionRuntime.isSemanticFallbackEnabled() ? 'enabled' : 'disabled'}`)
-  console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
-  console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
-  for (const warning of pluginCatalog.warnings) console.warn(`[agent] plugin warning: ${warning}`)
-})
+server.listen(port, '127.0.0.1', () => logAgentServerStartup(context))
 
 function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
   if (!isRecord(body)) throw new Error('draft body must be an object')
@@ -521,19 +456,29 @@ function writeJSON(res: ServerResponse, status: number, value: unknown): void {
 function setHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Movscript-Backend-API-Base-URL')
 }
 
-function requestAuth(req: IncomingMessage): { backendAuthToken?: string } {
+function requestAuth(req: IncomingMessage): { backendAuthToken?: string; backendAPIBaseURL?: string } {
   const header = typeof req.headers.authorization === 'string' ? req.headers.authorization.trim() : ''
-  if (!header.toLowerCase().startsWith('bearer ')) return {}
+  const backendAPIBaseURL = headerValue(req, 'x-movscript-backend-api-base-url')
+  const auth: { backendAuthToken?: string; backendAPIBaseURL?: string } = {
+    ...(backendAPIBaseURL ? { backendAPIBaseURL } : {}),
+  }
+  if (!header.toLowerCase().startsWith('bearer ')) return auth
   const token = header.slice('Bearer '.length).trim()
-  return token ? { backendAuthToken: token } : {}
+  return token ? { ...auth, backendAuthToken: token } : auth
 }
 
-function withRequestAuth<T extends Record<string, unknown>>(body: T, req: IncomingMessage): T & { backendAuthToken?: string } {
+function withRequestAuth<T extends Record<string, unknown>>(body: T, req: IncomingMessage): T & { backendAuthToken?: string; backendAPIBaseURL?: string } {
   const auth = requestAuth(req)
-  return auth.backendAuthToken ? { ...body, backendAuthToken: auth.backendAuthToken } : body
+  return Object.keys(auth).length > 0 ? { ...body, ...auth } : body
+}
+
+function headerValue(req: IncomingMessage, name: string): string | undefined {
+  const raw = req.headers[name]
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

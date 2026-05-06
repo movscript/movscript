@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
+	"github.com/movscript/movscript/internal/app/workflowio"
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 
 type repository interface {
+	WithTx(ctx context.Context, fn func(repository) error) error
 	ListRelations(ctx context.Context, filter RelationFilter) ([]model.EntityRelation, error)
 	ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]model.ScriptVersion, error)
 	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (model.Script, error)
@@ -32,6 +35,21 @@ type repository interface {
 	ListWorkItems(ctx context.Context, filter WorkItemFilter) ([]model.WorkItem, error)
 	ListWorkReviews(ctx context.Context, filter WorkReviewFilter) ([]model.WorkReview, error)
 	ListWorkDependencies(ctx context.Context, filter WorkDependencyFilter) ([]model.WorkDependency, error)
+	CompleteWorkItem(ctx context.Context, projectID uint, item *model.WorkItem, updates map[string]any, actorID *uint) (model.WorkItem, error)
+	ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]model.DeliveryVersion, error)
+	ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]model.DeliveryTimelineItem, error)
+	ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]model.ExportRecord, error)
+	ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]model.CanvasOutput, error)
+	ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]model.AssetSlot, error)
+	ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]model.AssetSlotCandidate, error)
+	AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error)
+	ReloadAssetSlotCandidate(ctx context.Context, candidate *model.AssetSlotCandidate) error
+	ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]model.CandidateDecision, error)
+	ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]model.ReviewEvent, error)
+	ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]model.CreativeReference, error)
+	ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]model.CreativeReferenceState, error)
+	ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]model.CreativeReferenceUsage, error)
+	ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]model.CreativeRelationship, error)
 	LoadProjectItem(ctx context.Context, projectID uint, item any, id string) error
 	CreateItem(ctx context.Context, item any) error
 	PatchItem(ctx context.Context, item any, updates map[string]any) error
@@ -44,6 +62,12 @@ type repository interface {
 	EnsurePreviewTimelineInProject(ctx context.Context, projectID uint, previewTimelineID uint) error
 	EnsureSceneMomentInProject(ctx context.Context, projectID uint, sceneMomentID uint) error
 	EnsureContentUnitInProject(ctx context.Context, projectID uint, contentUnitID uint) error
+	EnsureCreativeReferenceInProject(ctx context.Context, projectID uint, referenceID uint) error
+	EnsureCreativeReferenceStateInProject(ctx context.Context, projectID uint, stateID uint) error
+	EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error
+	EnsureCanvasInProject(ctx context.Context, projectID uint, canvasID uint) error
+	EnsureCanvasRunInProject(ctx context.Context, projectID uint, runID uint) error
+	EnsureProjectScopedModelInProject(ctx context.Context, projectID uint, id uint, item any) error
 	EnsureUserInProject(ctx context.Context, projectID uint, userID uint) error
 	EnsureJobInProject(ctx context.Context, projectID uint, jobID uint) error
 }
@@ -54,6 +78,12 @@ type gormRepository struct {
 
 func newRepository(db *gorm.DB) repository {
 	return &gormRepository{db: db}
+}
+
+func (r *gormRepository) WithTx(ctx context.Context, fn func(repository) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(newRepository(tx))
+	})
 }
 
 func (r *gormRepository) ListRelations(ctx context.Context, filter RelationFilter) ([]model.EntityRelation, error) {
@@ -389,6 +419,138 @@ func (r *gormRepository) EnsureContentUnitInProject(ctx context.Context, project
 	return nil
 }
 
+func (r *gormRepository) EnsureCreativeReferenceInProject(ctx context.Context, projectID uint, referenceID uint) error {
+	if referenceID == 0 {
+		return ErrOwnerNotFound
+	}
+	var item model.CreativeReference
+	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, referenceID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOwnerNotFound
+		}
+		return err
+	}
+	if item.ProjectID != projectID {
+		return ErrOwnerWrongProject
+	}
+	return nil
+}
+
+func (r *gormRepository) EnsureCreativeReferenceStateInProject(ctx context.Context, projectID uint, stateID uint) error {
+	if stateID == 0 {
+		return ErrOwnerNotFound
+	}
+	var item model.CreativeReferenceState
+	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, stateID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOwnerNotFound
+		}
+		return err
+	}
+	if item.ProjectID != projectID {
+		return ErrOwnerWrongProject
+	}
+	return nil
+}
+
+func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error {
+	if ownerID == 0 {
+		return ErrOwnerNotFound
+	}
+	switch strings.TrimSpace(ownerType) {
+	case "project":
+		var item model.Project
+		if err := r.db.WithContext(ctx).Select("id").First(&item, ownerID).Error; err != nil {
+			return normalizeOwnerError(err)
+		}
+		if item.ID != projectID {
+			return ErrOwnerWrongProject
+		}
+		return nil
+	case "script_version":
+		return r.EnsureScriptVersionInProject(ctx, projectID, ownerID)
+	case "segment":
+		return r.EnsureSegmentInProject(ctx, projectID, ownerID)
+	case "scene_moment":
+		return r.EnsureSceneMomentInProject(ctx, projectID, ownerID)
+	case "production":
+		return r.EnsureProductionInProject(ctx, projectID, ownerID)
+	case "production_text_block":
+		return r.EnsureProductionTextBlockInProject(ctx, projectID, ownerID)
+	case "content_unit":
+		return r.EnsureContentUnitInProject(ctx, projectID, ownerID)
+	case "keyframe":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.Keyframe{})
+	case "preview_timeline":
+		return r.EnsurePreviewTimelineInProject(ctx, projectID, ownerID)
+	case "creative_reference":
+		return r.EnsureCreativeReferenceInProject(ctx, projectID, ownerID)
+	case "creative_reference_state":
+		return r.EnsureCreativeReferenceStateInProject(ctx, projectID, ownerID)
+	case "storyboard_script":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardScript{})
+	case "storyboard_version":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardVersion{})
+	case "storyboard_line":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardLine{})
+	case "asset_slot":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.AssetSlot{})
+	case "asset_slot_candidate":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.AssetSlotCandidate{})
+	case "candidate_decision":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.CandidateDecision{})
+	case "review_event":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.ReviewEvent{})
+	case "work_item":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.WorkItem{})
+	case "delivery_version":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.DeliveryVersion{})
+	case "canvas_output":
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.CanvasOutput{})
+	case "canvas":
+		return r.EnsureCanvasInProject(ctx, projectID, ownerID)
+	case "canvas_run":
+		return r.EnsureCanvasRunInProject(ctx, projectID, ownerID)
+	case "resource":
+		var item model.RawResource
+		return normalizeOwnerError(r.db.WithContext(ctx).Select("id").First(&item, ownerID).Error)
+	default:
+		return ErrOwnerInvalidType
+	}
+}
+
+func (r *gormRepository) EnsureCanvasInProject(ctx context.Context, projectID uint, canvasID uint) error {
+	var item model.Canvas
+	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, canvasID).Error; err != nil {
+		return normalizeOwnerError(err)
+	}
+	if item.ProjectID == nil || *item.ProjectID != projectID {
+		return ErrOwnerWrongProject
+	}
+	return nil
+}
+
+func (r *gormRepository) EnsureCanvasRunInProject(ctx context.Context, projectID uint, runID uint) error {
+	var item model.CanvasRun
+	if err := r.db.WithContext(ctx).Select("id, canvas_id").First(&item, runID).Error; err != nil {
+		return normalizeOwnerError(err)
+	}
+	return r.EnsureCanvasInProject(ctx, projectID, item.CanvasID)
+}
+
+func (r *gormRepository) EnsureProjectScopedModelInProject(ctx context.Context, projectID uint, id uint, item any) error {
+	var row struct {
+		ProjectID uint
+	}
+	if err := r.db.WithContext(ctx).Model(item).Select("project_id").Where("id = ?", id).First(&row).Error; err != nil {
+		return normalizeOwnerError(err)
+	}
+	if row.ProjectID != projectID {
+		return ErrOwnerWrongProject
+	}
+	return nil
+}
+
 func (r *gormRepository) EnsureUserInProject(ctx context.Context, projectID uint, userID uint) error {
 	if userID == 0 {
 		return ErrInvalidInput{Err: errors.New("user id is required")}
@@ -420,6 +582,13 @@ func (r *gormRepository) EnsureJobInProject(ctx context.Context, projectID uint,
 		return ErrOwnerWrongProject
 	}
 	return nil
+}
+
+func normalizeOwnerError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrOwnerNotFound
+	}
+	return err
 }
 
 func (r *gormRepository) ListProductions(ctx context.Context, filter ProductionFilter) ([]model.Production, error) {
@@ -582,5 +751,247 @@ func (r *gormRepository) ListWorkDependencies(ctx context.Context, filter WorkDe
 		q = q.Where("work_item_id = ?", filter.WorkItemID)
 	}
 	err := q.Order("work_item_id, id").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, item *model.WorkItem, updates map[string]any, actorID *uint) (model.WorkItem, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	var applyErr error
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
+		next := *item
+		ApplyWorkItemUpdates(&next, updates)
+		next.ResultType = fallbackString(next.ResultType, "none")
+		if next.ResultType == "none" {
+			next.ApplyStatus = "not_applicable"
+			next.AppliedAt = ""
+			next.ApplyError = ""
+		} else {
+			next.ApplyStatus = "pending"
+			next.ApplyError = ""
+		}
+		if err := tx.Save(&next).Error; err != nil {
+			return err
+		}
+		if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
+			return err
+		}
+		if next.ResultType != "none" {
+			applyErr = applyWorkItemResult(tx, projectID, next, actorID, now)
+			if applyErr != nil {
+				return applyErr
+			}
+			next.ApplyStatus = "applied"
+			next.AppliedAt = now
+			next.ApplyError = ""
+			if err := tx.Save(&next).Error; err != nil {
+				return err
+			}
+			if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if applyErr != nil {
+			failed := *item
+			failed.ApplyStatus = "failed"
+			failed.ApplyError = applyErr.Error()
+			_ = saveCoreEntityWithRelations(r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}), &failed)
+			return failed, ErrInvalidInput{Err: applyErr}
+		}
+		return *item, err
+	}
+	if err := r.db.WithContext(ctx).Preload("Assignee").First(item, item.ID).Error; err != nil {
+		return *item, err
+	}
+	return *item, nil
+}
+
+func (r *gormRepository) ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]model.DeliveryVersion, error) {
+	items := make([]model.DeliveryVersion, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.ProductionID > 0 {
+		q = q.Where("production_id = ?", filter.ProductionID)
+	}
+	err := q.Order("is_primary desc, id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]model.DeliveryTimelineItem, error) {
+	items := make([]model.DeliveryTimelineItem, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.DeliveryVersionID > 0 {
+		q = q.Where("delivery_version_id = ?", filter.DeliveryVersionID)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order(`delivery_version_id, "order", id`).Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]model.ExportRecord, error) {
+	items := make([]model.ExportRecord, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.DeliveryVersionID > 0 {
+		q = q.Where("delivery_version_id = ?", filter.DeliveryVersionID)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order("delivery_version_id, id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]model.CanvasOutput, error) {
+	items := make([]model.CanvasOutput, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.CanvasID > 0 {
+		q = q.Where("canvas_id = ?", filter.CanvasID)
+	}
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
+		q = q.Where("owner_type = ?", ownerType)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order("canvas_id, id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]model.AssetSlot, error) {
+	items := make([]model.AssetSlot, 0)
+	q := r.db.WithContext(ctx).Preload("Resource").Preload("LockedAssetSlot.Resource").Where("project_id = ?", filter.ProjectID)
+	if filter.ProductionID > 0 {
+		q = q.Where("production_id = ?", filter.ProductionID)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
+		q = q.Where("owner_type = ?", ownerType)
+	} else if !truthyFilter(filter.IncludeInternal) {
+		q = q.Where("owner_type <> ? OR owner_type IS NULL OR owner_type = ''", "asset_slot")
+	}
+	err := q.Order("status, priority desc, id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]model.AssetSlotCandidate, error) {
+	items := make([]model.AssetSlotCandidate, 0)
+	q := r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").Where("project_id = ?", filter.ProjectID)
+	if filter.AssetSlotID > 0 {
+		q = q.Where("asset_slot_id = ?", filter.AssetSlotID)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order("asset_slot_id, score desc, id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error) {
+	return workflowio.NewEntityIOService(r.db).AttachAssetSlotCandidate(ctx, input)
+}
+
+func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate *model.AssetSlotCandidate) error {
+	return r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").First(candidate, candidate.ID).Error
+}
+
+func (r *gormRepository) ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]model.CandidateDecision, error) {
+	items := make([]model.CandidateDecision, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if candidateType := strings.TrimSpace(filter.CandidateType); candidateType != "" {
+		q = q.Where("candidate_type = ?", candidateType)
+	}
+	if filter.CandidateID > 0 {
+		q = q.Where("candidate_id = ?", filter.CandidateID)
+	}
+	if candidateClientID := strings.TrimSpace(filter.CandidateClientID); candidateClientID != "" {
+		q = q.Where("candidate_client_id = ?", candidateClientID)
+	}
+	if decision := strings.TrimSpace(filter.Decision); decision != "" {
+		q = q.Where("decision = ?", decision)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order("id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]model.ReviewEvent, error) {
+	items := make([]model.ReviewEvent, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if subjectType := strings.TrimSpace(filter.SubjectType); subjectType != "" {
+		q = q.Where("subject_type = ?", subjectType)
+	}
+	if filter.SubjectID > 0 {
+		q = q.Where("subject_id = ?", filter.SubjectID)
+	}
+	if subjectClientID := strings.TrimSpace(filter.SubjectClientID); subjectClientID != "" {
+		q = q.Where("subject_client_id = ?", subjectClientID)
+	}
+	if eventType := strings.TrimSpace(filter.EventType); eventType != "" {
+		q = q.Where("event_type = ?", eventType)
+	}
+	err := q.Order("id desc").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]model.CreativeReference, error) {
+	items := make([]model.CreativeReference, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if kind := strings.TrimSpace(filter.Kind); kind != "" {
+		q = q.Where("kind = ?", kind)
+	}
+	err := q.Order("kind, name, id").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]model.CreativeReferenceState, error) {
+	items := make([]model.CreativeReferenceState, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.CreativeReferenceID > 0 {
+		q = q.Where("creative_reference_id = ?", filter.CreativeReferenceID)
+	}
+	err := q.Order("creative_reference_id, scope_type, scope_id, id").Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]model.CreativeReferenceUsage, error) {
+	items := make([]model.CreativeReferenceUsage, 0)
+	q := r.db.WithContext(ctx).Preload("CreativeReference").Preload("CreativeReferenceState").Where("project_id = ?", filter.ProjectID)
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
+		q = q.Where("owner_type = ?", ownerType)
+	}
+	if filter.OwnerID > 0 {
+		q = q.Where("owner_id = ?", filter.OwnerID)
+	}
+	if filter.CreativeReferenceID > 0 {
+		q = q.Where("creative_reference_id = ?", filter.CreativeReferenceID)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order(`owner_type, owner_id, "order", id`).Find(&items).Error
+	return items, err
+}
+
+func (r *gormRepository) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]model.CreativeRelationship, error) {
+	items := make([]model.CreativeRelationship, 0)
+	q := r.db.WithContext(ctx).Preload("SourceCreativeReference").Preload("TargetCreativeReference").Where("project_id = ?", filter.ProjectID)
+	if filter.CreativeReferenceID > 0 {
+		q = q.Where("source_creative_reference_id = ? OR target_creative_reference_id = ?", filter.CreativeReferenceID, filter.CreativeReferenceID)
+	}
+	if scopeType := strings.TrimSpace(filter.ScopeType); scopeType != "" {
+		q = q.Where("scope_type = ?", scopeType)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Order("scope_type, scope_id, id").Find(&items).Error
 	return items, err
 }

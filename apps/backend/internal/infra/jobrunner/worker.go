@@ -2,10 +2,13 @@ package jobrunner
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
@@ -22,6 +25,7 @@ type Worker struct {
 	store         storage.Storage
 	encryptionKey []byte
 	client        *http.Client
+	workerID      string
 }
 
 const (
@@ -31,6 +35,8 @@ const (
 	videoPollInterval   = 30 * time.Second
 	heartbeatInterval   = 15 * time.Second
 	staleRunningTimeout = 12 * time.Minute
+	staleReaperInterval = 45 * time.Second
+	leaseDuration       = 90 * time.Second
 )
 
 var errJobCancelled = errors.New("generation job cancelled")
@@ -42,7 +48,16 @@ func NewWorker(db *gorm.DB, aiService *ai.AIService, store storage.Storage, encr
 		store:         store,
 		encryptionKey: encryptionKey,
 		client:        &http.Client{Timeout: 10 * time.Minute},
+		workerID:      newWorkerID(),
 	}
+}
+
+func newWorkerID() string {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("%s-%d", firstNonEmpty(os.Getenv("HOSTNAME"), "worker"), time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%s-%s", firstNonEmpty(os.Getenv("HOSTNAME"), "worker"), hex.EncodeToString(b[:]))
 }
 
 // cloudupService loads enabled cloud file configs from DB and builds a cloudup.Service.

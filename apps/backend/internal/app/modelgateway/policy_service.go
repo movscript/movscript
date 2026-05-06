@@ -2,7 +2,6 @@ package modelgateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/movscript/movscript/internal/domain/model"
@@ -10,11 +9,11 @@ import (
 )
 
 type PolicyService struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewPolicyService(db *gorm.DB) *PolicyService {
-	return &PolicyService{db: db}
+	return &PolicyService{repo: &gormRepository{db: db}}
 }
 
 func (p *PolicyService) CanListChatModels(principal Principal) error {
@@ -42,16 +41,8 @@ func (p *PolicyService) EnforceKeyLimits(ctx context.Context, key *model.Gateway
 }
 
 func (p *PolicyService) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) (model.GatewayAPIKey, error) {
-	var key model.GatewayAPIKey
-	q := p.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID)
-	q = p.applyAPIKeyOrgScope(ctx, q, orgID, ownerUserID)
-	if err := q.First(&key).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return key, ErrAPIKeyNotFound
-		}
-		return key, err
-	}
-	return key, nil
+	includeLegacy := orgID != nil && p.repo.IsPersonalOrg(ctx, *orgID)
+	return p.repo.FindOwnedAPIKey(ctx, id, ownerUserID, orgID, includeLegacy)
 }
 
 func (p *PolicyService) ApplyAPIKeyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerUserID uint) *gorm.DB {
@@ -63,17 +54,14 @@ func (p *PolicyService) IsPersonalOrg(ctx context.Context, orgID uint) bool {
 }
 
 func (p *PolicyService) EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error {
-	if projectID == nil || p.db == nil {
+	if projectID == nil {
 		return nil
 	}
-	var project model.Project
-	if err := p.db.WithContext(ctx).Select("id, org_id").First(&project, *projectID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrProjectNotFound
-		}
+	projectOrgID, err := p.repo.FindProjectOrgID(ctx, *projectID)
+	if err != nil {
 		return err
 	}
-	if !sameOrg(project.OrgID, orgID) {
+	if !sameOrg(projectOrgID, orgID) {
 		return ErrProjectOutsideOrg
 	}
 	return nil
@@ -93,19 +81,12 @@ func (p *PolicyService) applyAPIKeyOrgScope(ctx context.Context, q *gorm.DB, org
 	if orgID == nil {
 		return q.Where("org_id IS NULL")
 	}
-	if p.isPersonalOrg(ctx, *orgID) {
+	if p.repo.IsPersonalOrg(ctx, *orgID) {
 		return q.Where("org_id = ? OR (org_id IS NULL AND owner_user_id = ?)", *orgID, ownerUserID)
 	}
 	return q.Where("org_id = ?", *orgID)
 }
 
 func (p *PolicyService) isPersonalOrg(ctx context.Context, orgID uint) bool {
-	if p.db == nil {
-		return false
-	}
-	var org model.Organization
-	if err := p.db.WithContext(ctx).Select("is_personal").First(&org, orgID).Error; err != nil {
-		return false
-	}
-	return org.IsPersonal
+	return p.repo.IsPersonalOrg(ctx, orgID)
 }

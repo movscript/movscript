@@ -24,3 +24,19 @@ func TestCommunityMigrationsDoNotCreateCommercialQuotaTables(t *testing.T) {
 		}
 	}
 }
+
+func TestJobRunnerIndexesCreated(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
+
+	for _, index := range []string{"idx_jobs_runner_ready", "idx_jobs_runner_stale"} {
+		if !db.Migrator().HasIndex("jobs", index) {
+			t.Fatalf("expected jobs index %q to exist", index)
+		}
+	}
+}

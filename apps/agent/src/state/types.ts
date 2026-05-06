@@ -427,6 +427,7 @@ export interface CreateRunInput {
   approvedToolNames?: unknown
   clientInput?: unknown
   backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
   sandboxMode?: unknown
 }
 
@@ -439,6 +440,7 @@ export interface CreateToolRunInput {
   approvedToolNames?: unknown
   clientInput?: unknown
   backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
   sandboxMode?: unknown
 }
 
@@ -449,6 +451,7 @@ export interface PreviewRunInput {
   approvedToolNames?: unknown
   clientInput?: unknown
   backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
   sandboxMode?: unknown
 }
 
@@ -456,6 +459,7 @@ export interface ApproveRunInput {
   approvedToolNames?: unknown
   approvalIds?: unknown
   backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
 }
 
 export interface RejectRunInput {
@@ -467,6 +471,7 @@ export interface AnswerRunInputRequestInput {
   choiceIds?: unknown
   text?: unknown
   backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
 }
 
 export interface UpdateThreadInput {

@@ -2,7 +2,6 @@ package semantic
 
 import (
 	"context"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
@@ -82,13 +81,7 @@ type CanvasOutputInput struct {
 }
 
 func (s *Service) ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]model.DeliveryVersion, error) {
-	items := make([]model.DeliveryVersion, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.ProductionID > 0 {
-		q = q.Where("production_id = ?", filter.ProductionID)
-	}
-	err := q.Order("is_primary desc, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListDeliveryVersions(ctx, filter)
 }
 
 func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, input DeliveryVersionInput) (model.DeliveryVersion, error) {
@@ -143,16 +136,7 @@ func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id s
 }
 
 func (s *Service) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]model.DeliveryTimelineItem, error) {
-	items := make([]model.DeliveryTimelineItem, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.DeliveryVersionID > 0 {
-		q = q.Where("delivery_version_id = ?", filter.DeliveryVersionID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order(`delivery_version_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListDeliveryTimelineItems(ctx, filter)
 }
 
 func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) (model.DeliveryTimelineItem, error) {
@@ -209,16 +193,7 @@ func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint,
 }
 
 func (s *Service) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]model.ExportRecord, error) {
-	items := make([]model.ExportRecord, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.DeliveryVersionID > 0 {
-		q = q.Where("delivery_version_id = ?", filter.DeliveryVersionID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("delivery_version_id, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListExportRecords(ctx, filter)
 }
 
 func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input ExportRecordInput) (model.ExportRecord, error) {
@@ -267,19 +242,7 @@ func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id stri
 }
 
 func (s *Service) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]model.CanvasOutput, error) {
-	items := make([]model.CanvasOutput, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.CanvasID > 0 {
-		q = q.Where("canvas_id = ?", filter.CanvasID)
-	}
-	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
-		q = q.Where("owner_type = ?", ownerType)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("canvas_id, id desc").Find(&items).Error
-	return items, err
+	return s.repo.ListCanvasOutputs(ctx, filter)
 }
 
 func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input CanvasOutputInput) (model.CanvasOutput, error) {

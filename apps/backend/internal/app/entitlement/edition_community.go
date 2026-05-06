@@ -7,13 +7,12 @@ import (
 	"errors"
 
 	"github.com/movscript/movscript/internal/domain/commercial"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/config"
 	"gorm.io/gorm"
 )
 
 type communityService struct {
-	db             *gorm.DB
+	repo           repository
 	deploymentMode commercial.DeploymentMode
 }
 
@@ -22,7 +21,7 @@ func newEditionService(db *gorm.DB, cfg *config.Config) commercial.EntitlementSe
 	if cfg != nil {
 		mode = commercial.DeploymentMode(cfg.DeploymentMode)
 	}
-	return &communityService{db: db, deploymentMode: mode}
+	return &communityService{repo: newRepository(db), deploymentMode: mode}
 }
 
 func (s *communityService) Resolve(ctx context.Context, subject commercial.SubjectRef) (commercial.EntitlementSnapshot, error) {
@@ -51,13 +50,13 @@ func (s *communityService) Resolve(ctx context.Context, subject commercial.Subje
 		},
 	}
 
-	if subject.OrgID == nil || s.db == nil {
+	if subject.OrgID == nil || s.repo == nil {
 		return snapshot, nil
 	}
 
-	var org model.Organization
-	if err := s.db.WithContext(ctx).Select("id, is_personal, plan, status").First(&org, *subject.OrgID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	org, err := s.repo.FindOrganization(ctx, *subject.OrgID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
 			return snapshot, nil
 		}
 		return snapshot, err

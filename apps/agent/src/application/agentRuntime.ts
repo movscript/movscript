@@ -62,6 +62,7 @@ import {
   normalizeApprovedToolNames,
   normalizeToolCall,
   normalizeBackendAuthToken,
+  normalizeBackendAPIBaseURL,
   normalizeDraftQuery,
   normalizeOptionalDraftKind,
   getApprovedToolNames,
@@ -144,7 +145,7 @@ export class AgentRuntime {
   private readonly contractResolver: AgentRuntimeContractResolver
   private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private readonly pluginWarnings: string[]
-  private readonly runAuth = new Map<string, string>()
+  private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -281,7 +282,7 @@ export class AgentRuntime {
     thread.lastRunStatus = run.status
     thread.updatedAt = now
     this.store.updateThread(thread)
-    this.rememberRunAuth(run.id, input.backendAuthToken)
+    this.rememberRunAuth(run.id, input)
     void this.executeRun(run.id)
     return run
   }
@@ -328,7 +329,7 @@ export class AgentRuntime {
     thread.lastRunStatus = run.status
     thread.updatedAt = now
     this.store.updateThread(thread)
-    this.rememberRunAuth(run.id, input.backendAuthToken)
+    this.rememberRunAuth(run.id, input)
     void this.executeRun(run.id)
     return run
   }
@@ -471,7 +472,7 @@ export class AgentRuntime {
     })
     this.store.updateRun(run)
     this.updateThreadRunStatus(run.threadId, run.status)
-    this.rememberRunAuth(run.id, input.backendAuthToken)
+    this.rememberRunAuth(run.id, input)
     void this.executeRun(run.id)
     return run
   }
@@ -566,7 +567,7 @@ export class AgentRuntime {
     thread.lastRunStatus = run.status
     this.store.updateThread(thread)
     this.store.updateRun(run)
-    this.rememberRunAuth(run.id, input.backendAuthToken)
+    this.rememberRunAuth(run.id, input)
     void this.executeRun(run.id)
     return run
   }
@@ -1046,13 +1047,20 @@ export class AgentRuntime {
   }
 
   private rememberRunAuth(runId: string, value: unknown): void {
-    const token = normalizeBackendAuthToken(value).backendAuthToken
-    if (token) this.runAuth.set(runId, token)
+    const record = isRecord(value) ? value : {}
+    const token = normalizeBackendAuthToken(record.backendAuthToken ?? value).backendAuthToken
+    const backendAPIBaseURL = normalizeBackendAPIBaseURL(record.backendAPIBaseURL).backendAPIBaseURL
+    const current = this.runAuth.get(runId) ?? {}
+    const next = {
+      ...current,
+      ...(token ? { backendAuthToken: token } : {}),
+      ...(backendAPIBaseURL ? { backendAPIBaseURL } : {}),
+    }
+    if (Object.keys(next).length > 0) this.runAuth.set(runId, next)
   }
 
-  private getRunAuth(runId: string): { backendAuthToken?: string } {
-    const token = this.runAuth.get(runId)
-    return token ? { backendAuthToken: token } : {}
+  private getRunAuth(runId: string): { backendAuthToken?: string; backendAPIBaseURL?: string } {
+    return this.runAuth.get(runId) ?? {}
   }
 
   private createStep(run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string): AgentRunStep {

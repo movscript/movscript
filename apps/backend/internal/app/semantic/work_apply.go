@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
@@ -12,58 +11,7 @@ import (
 )
 
 func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *model.WorkItem, updates map[string]any, actorID *uint) (model.WorkItem, error) {
-	now := time.Now().UTC().Format(time.RFC3339)
-	var applyErr error
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		next := *item
-		ApplyWorkItemUpdates(&next, updates)
-		next.ResultType = fallbackString(next.ResultType, "none")
-		if next.ResultType == "none" {
-			next.ApplyStatus = "not_applicable"
-			next.AppliedAt = ""
-			next.ApplyError = ""
-		} else {
-			next.ApplyStatus = "pending"
-			next.ApplyError = ""
-		}
-		if err := tx.Save(&next).Error; err != nil {
-			return err
-		}
-		if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
-			return err
-		}
-		if next.ResultType != "none" {
-			applyErr = applyWorkItemResult(tx, projectID, next, actorID, now)
-			if applyErr != nil {
-				return applyErr
-			}
-			next.ApplyStatus = "applied"
-			next.AppliedAt = now
-			next.ApplyError = ""
-			if err := tx.Save(&next).Error; err != nil {
-				return err
-			}
-			if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		if applyErr != nil {
-			failed := *item
-			failed.ApplyStatus = "failed"
-			failed.ApplyError = applyErr.Error()
-			_ = saveCoreEntityWithRelations(s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}), &failed)
-			return failed, ErrInvalidInput{Err: applyErr}
-		}
-		return *item, err
-	}
-	if err := s.db.WithContext(ctx).Preload("Assignee").First(item, item.ID).Error; err != nil {
-		return *item, err
-	}
-	return *item, nil
+	return s.repo.CompleteWorkItem(ctx, projectID, item, updates, actorID)
 }
 
 func applyWorkItemResult(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {

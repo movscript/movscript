@@ -9,7 +9,6 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
-	"gorm.io/gorm"
 )
 
 type CreateCredentialInput struct {
@@ -34,8 +33,8 @@ type UpdateCredentialInput struct {
 }
 
 func (s *Service) ListCredentials(ctx context.Context) ([]model.AICredential, error) {
-	creds := make([]model.AICredential, 0)
-	if err := s.db.WithContext(ctx).Preload("Models").Find(&creds).Error; err != nil {
+	creds, err := s.repo.ListCredentials(ctx)
+	if err != nil {
 		return nil, err
 	}
 	for i := range creds {
@@ -77,7 +76,7 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 	cred.EncryptedKey = encKey
 	cred.MaskedKey = masked
 
-	if err := s.db.WithContext(ctx).Create(&cred).Error; err != nil {
+	if err := s.repo.CreateCredential(ctx, &cred); err != nil {
 		return cred, err
 	}
 	return cred, nil
@@ -141,7 +140,7 @@ func (s *Service) UpdateCredential(ctx context.Context, input UpdateCredentialIn
 			cred.MaskedKey = masked
 		}
 	}
-	if err := s.db.WithContext(ctx).Save(&cred).Error; err != nil {
+	if err := s.repo.SaveCredential(ctx, &cred); err != nil {
 		return cred, err
 	}
 	s.applyMaskedKeys(&cred)
@@ -149,15 +148,12 @@ func (s *Service) UpdateCredential(ctx context.Context, input UpdateCredentialIn
 }
 
 func (s *Service) DeleteCredential(ctx context.Context, id string) error {
-	return s.db.WithContext(ctx).Delete(&model.AICredential{}, id).Error
+	return s.repo.DeleteCredential(ctx, id)
 }
 
 func (s *Service) GetCredential(ctx context.Context, id any) (model.AICredential, error) {
-	var cred model.AICredential
-	if err := s.db.WithContext(ctx).First(&cred, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cred, ErrNotFound
-		}
+	cred, err := s.repo.GetCredential(ctx, id)
+	if err != nil {
 		return cred, err
 	}
 	return cred, nil

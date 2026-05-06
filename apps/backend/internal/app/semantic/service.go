@@ -20,7 +20,6 @@ var ErrTextBlockNotFound = errors.New("production text block not found")
 var ErrSegmentProductionMismatch = errors.New("segment production does not match text block production")
 
 type Service struct {
-	db    *gorm.DB
 	repo  repository
 	cache cache.Cache
 }
@@ -59,7 +58,7 @@ func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
 	if c == nil {
 		c = cache.NewNoop()
 	}
-	return &Service{db: db, repo: newRepository(db), cache: c}
+	return &Service{repo: newRepository(db), cache: c}
 }
 
 func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {

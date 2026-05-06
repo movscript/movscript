@@ -23,6 +23,10 @@ export function normalizeBackendAuthToken(value: unknown): { backendAuthToken?: 
   return typeof value === 'string' && value.trim() ? { backendAuthToken: value.trim() } : {}
 }
 
+export function normalizeBackendAPIBaseURL(value: unknown): { backendAPIBaseURL?: string } {
+  return typeof value === 'string' && value.trim() ? { backendAPIBaseURL: value.trim().replace(/\/+$/, '') } : {}
+}
+
 export function normalizeDraftQuery(query: {
   projectId?: unknown
   kind?: unknown

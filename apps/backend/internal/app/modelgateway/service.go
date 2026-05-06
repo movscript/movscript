@@ -43,7 +43,8 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 	if len(aiService) > 0 {
 		svc = aiService[0]
 	}
-	return &Service{repo: &gormRepository{db: db}, ai: svc, policy: NewPolicyService(db)}
+	repo := &gormRepository{db: db}
+	return &Service{repo: repo, ai: svc, policy: &PolicyService{repo: repo}}
 }
 
 type CreateAPIKeyInput struct {

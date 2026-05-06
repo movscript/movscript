@@ -2,14 +2,12 @@ package aiadmin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
-	"gorm.io/gorm"
 )
 
 type PatchModelConfigInput struct {
@@ -34,14 +32,12 @@ type PatchModelConfigInput struct {
 }
 
 func (s *Service) ListModelConfigs(ctx context.Context, credentialID string) ([]model.AIModelConfig, error) {
-	cfgs := make([]model.AIModelConfig, 0)
-	err := s.db.WithContext(ctx).Where("credential_id = ?", credentialID).Find(&cfgs).Error
-	return cfgs, err
+	return s.repo.ListModelConfigs(ctx, credentialID)
 }
 
 func (s *Service) CreateModelConfig(ctx context.Context, credentialID uint, input dto.AIModelConfigInput) (model.AIModelConfig, error) {
 	cfg := dto.NewAIModelConfig(input, credentialID)
-	if err := s.db.WithContext(ctx).Create(&cfg).Error; err != nil {
+	if err := s.repo.CreateModelConfig(ctx, &cfg); err != nil {
 		return cfg, err
 	}
 	return cfg, nil
@@ -53,14 +49,14 @@ func (s *Service) UpdateModelConfig(ctx context.Context, id string, input dto.AI
 		return cfg, err
 	}
 	dto.ApplyAIModelConfigInput(&cfg, input)
-	if err := s.db.WithContext(ctx).Save(&cfg).Error; err != nil {
+	if err := s.repo.SaveModelConfig(ctx, &cfg); err != nil {
 		return cfg, err
 	}
 	return cfg, nil
 }
 
 func (s *Service) DeleteModelConfig(ctx context.Context, id string) error {
-	return s.db.WithContext(ctx).Delete(&model.AIModelConfig{}, id).Error
+	return s.repo.DeleteModelConfig(ctx, id)
 }
 
 func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigInput) (model.AIModelConfig, error) {
@@ -119,21 +115,14 @@ func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigIn
 	if input.CreditsPerCall != nil {
 		cfg.CreditsPerCall = *input.CreditsPerCall
 	}
-	if err := s.db.WithContext(ctx).Save(&cfg).Error; err != nil {
+	if err := s.repo.SaveModelConfig(ctx, &cfg); err != nil {
 		return cfg, err
 	}
 	return cfg, nil
 }
 
 func (s *Service) GetModelConfig(ctx context.Context, id string) (model.AIModelConfig, error) {
-	var cfg model.AIModelConfig
-	if err := s.db.WithContext(ctx).First(&cfg, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cfg, ErrNotFound
-		}
-		return cfg, err
-	}
-	return cfg, nil
+	return s.repo.GetModelConfig(ctx, id)
 }
 
 func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, error) {

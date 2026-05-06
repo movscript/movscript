@@ -2,11 +2,9 @@ package semantic
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 type CreativeReferenceFilter struct {
@@ -93,13 +91,7 @@ type CreativeRelationshipInput struct {
 }
 
 func (s *Service) ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]model.CreativeReference, error) {
-	items := make([]model.CreativeReference, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if kind := strings.TrimSpace(filter.Kind); kind != "" {
-		q = q.Where("kind = ?", kind)
-	}
-	err := q.Order("kind, name, id").Find(&items).Error
-	return items, err
+	return s.repo.ListCreativeReferences(ctx, filter)
 }
 
 func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, input CreativeReferenceInput) (model.CreativeReference, error) {
@@ -152,13 +144,7 @@ func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id
 }
 
 func (s *Service) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]model.CreativeReferenceState, error) {
-	items := make([]model.CreativeReferenceState, 0)
-	q := s.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.CreativeReferenceID > 0 {
-		q = q.Where("creative_reference_id = ?", filter.CreativeReferenceID)
-	}
-	err := q.Order("creative_reference_id, scope_type, scope_id, id").Find(&items).Error
-	return items, err
+	return s.repo.ListCreativeReferenceStates(ctx, filter)
 }
 
 func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID uint, input CreativeReferenceStateInput) (model.CreativeReferenceState, error) {
@@ -217,22 +203,7 @@ func (s *Service) PatchCreativeReferenceState(ctx context.Context, projectID uin
 }
 
 func (s *Service) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]model.CreativeReferenceUsage, error) {
-	items := make([]model.CreativeReferenceUsage, 0)
-	q := s.db.WithContext(ctx).Preload("CreativeReference").Preload("CreativeReferenceState").Where("project_id = ?", filter.ProjectID)
-	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
-		q = q.Where("owner_type = ?", ownerType)
-	}
-	if filter.OwnerID > 0 {
-		q = q.Where("owner_id = ?", filter.OwnerID)
-	}
-	if filter.CreativeReferenceID > 0 {
-		q = q.Where("creative_reference_id = ?", filter.CreativeReferenceID)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order(`owner_type, owner_id, "order", id`).Find(&items).Error
-	return items, err
+	return s.repo.ListCreativeReferenceUsages(ctx, filter)
 }
 
 func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID uint, input CreativeReferenceUsageInput) (model.CreativeReferenceUsage, error) {
@@ -287,19 +258,7 @@ func (s *Service) PatchCreativeReferenceUsage(ctx context.Context, projectID uin
 }
 
 func (s *Service) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]model.CreativeRelationship, error) {
-	items := make([]model.CreativeRelationship, 0)
-	q := s.db.WithContext(ctx).Preload("SourceCreativeReference").Preload("TargetCreativeReference").Where("project_id = ?", filter.ProjectID)
-	if filter.CreativeReferenceID > 0 {
-		q = q.Where("source_creative_reference_id = ? OR target_creative_reference_id = ?", filter.CreativeReferenceID, filter.CreativeReferenceID)
-	}
-	if scopeType := strings.TrimSpace(filter.ScopeType); scopeType != "" {
-		q = q.Where("scope_type = ?", scopeType)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	err := q.Order("scope_type, scope_id, id").Find(&items).Error
-	return items, err
+	return s.repo.ListCreativeRelationships(ctx, filter)
 }
 
 func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint, input CreativeRelationshipInput) (model.CreativeRelationship, error) {
@@ -388,140 +347,25 @@ func (s *Service) validateCreativeRelationshipOwners(ctx context.Context, projec
 }
 
 func (s *Service) ensureCreativeReferenceInProject(ctx context.Context, projectID uint, referenceID uint) error {
-	if referenceID == 0 {
-		return ErrOwnerNotFound
-	}
-	var item model.CreativeReference
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, referenceID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureCreativeReferenceInProject(ctx, projectID, referenceID)
 }
 
 func (s *Service) ensureCreativeReferenceStateInProject(ctx context.Context, projectID uint, stateID uint) error {
-	if stateID == 0 {
-		return ErrOwnerNotFound
-	}
-	var item model.CreativeReferenceState
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, stateID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrOwnerNotFound
-		}
-		return err
-	}
-	if item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureCreativeReferenceStateInProject(ctx, projectID, stateID)
 }
 
 func (s *Service) ensureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error {
-	if ownerID == 0 {
-		return ErrOwnerNotFound
-	}
-	switch strings.TrimSpace(ownerType) {
-	case "project":
-		var item model.Project
-		if err := s.db.WithContext(ctx).Select("id").First(&item, ownerID).Error; err != nil {
-			return normalizeOwnerError(err)
-		}
-		if item.ID != projectID {
-			return ErrOwnerWrongProject
-		}
-		return nil
-	case "script_version":
-		return s.ensureScriptVersionInProject(ctx, projectID, ownerID)
-	case "segment":
-		return s.ensureSegmentInProject(ctx, projectID, ownerID)
-	case "scene_moment":
-		return s.ensureSceneMomentInProject(ctx, projectID, ownerID)
-	case "production":
-		return s.ensureProductionInProject(ctx, projectID, ownerID)
-	case "production_text_block":
-		return s.ensureProductionTextBlockInProject(ctx, projectID, ownerID)
-	case "content_unit":
-		return s.ensureContentUnitInProject(ctx, projectID, ownerID)
-	case "keyframe":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.Keyframe{})
-	case "preview_timeline":
-		return s.ensurePreviewTimelineInProject(ctx, projectID, ownerID)
-	case "creative_reference":
-		return s.ensureCreativeReferenceInProject(ctx, projectID, ownerID)
-	case "creative_reference_state":
-		return s.ensureCreativeReferenceStateInProject(ctx, projectID, ownerID)
-	case "storyboard_script":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardScript{})
-	case "storyboard_version":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardVersion{})
-	case "storyboard_line":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardLine{})
-	case "asset_slot":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.AssetSlot{})
-	case "asset_slot_candidate":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.AssetSlotCandidate{})
-	case "candidate_decision":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.CandidateDecision{})
-	case "review_event":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.ReviewEvent{})
-	case "work_item":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.WorkItem{})
-	case "delivery_version":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.DeliveryVersion{})
-	case "canvas_output":
-		return s.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &model.CanvasOutput{})
-	case "canvas":
-		return s.ensureCanvasInProject(ctx, projectID, ownerID)
-	case "canvas_run":
-		return s.ensureCanvasRunInProject(ctx, projectID, ownerID)
-	case "resource":
-		var item model.RawResource
-		return normalizeOwnerError(s.db.WithContext(ctx).Select("id").First(&item, ownerID).Error)
-	default:
-		return ErrOwnerInvalidType
-	}
+	return s.repo.EnsureOwnerInProject(ctx, projectID, ownerType, ownerID)
 }
 
 func (s *Service) ensureCanvasInProject(ctx context.Context, projectID uint, canvasID uint) error {
-	var item model.Canvas
-	if err := s.db.WithContext(ctx).Select("id, project_id").First(&item, canvasID).Error; err != nil {
-		return normalizeOwnerError(err)
-	}
-	if item.ProjectID == nil || *item.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
+	return s.repo.EnsureCanvasInProject(ctx, projectID, canvasID)
 }
 
 func (s *Service) ensureCanvasRunInProject(ctx context.Context, projectID uint, runID uint) error {
-	var item model.CanvasRun
-	if err := s.db.WithContext(ctx).Select("id, canvas_id").First(&item, runID).Error; err != nil {
-		return normalizeOwnerError(err)
-	}
-	return s.ensureCanvasInProject(ctx, projectID, item.CanvasID)
+	return s.repo.EnsureCanvasRunInProject(ctx, projectID, runID)
 }
 
 func (s *Service) ensureProjectScopedModelInProject(ctx context.Context, projectID uint, id uint, item any) error {
-	var row struct {
-		ProjectID uint
-	}
-	if err := s.db.WithContext(ctx).Model(item).Select("project_id").Where("id = ?", id).First(&row).Error; err != nil {
-		return normalizeOwnerError(err)
-	}
-	if row.ProjectID != projectID {
-		return ErrOwnerWrongProject
-	}
-	return nil
-}
-
-func normalizeOwnerError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrOwnerNotFound
-	}
-	return err
+	return s.repo.EnsureProjectScopedModelInProject(ctx, projectID, id, item)
 }
