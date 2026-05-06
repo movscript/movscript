@@ -4045,6 +4045,10 @@ function AgentChatSidebar({
       [text.trim(), orchestrationPrompt.trim() ? `\n\n用户补充要求：\n${orchestrationPrompt.trim()}` : ''].filter(Boolean).join(''),
       productionId,
     )
+    const displayMessage = [
+      `请执行分集编排分析：${production?.name ?? `#${productionId}`}`,
+      `完整剧本文本已通过运行输入发送（${text.trim().length} 字符），面板仅展示摘要以避免冻结。`,
+    ].join('\n')
 
     try {
       setReceivedData({
@@ -4116,7 +4120,7 @@ function AgentChatSidebar({
 
       openAgentPanelDraft({
         requestId,
-        message: analysisPrompt,
+        message: displayMessage,
         title: `分集编排: ${production?.name ?? `#${productionId}`}`,
         mode: 'create',
         newConversation: true,

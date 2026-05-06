@@ -142,7 +142,7 @@ func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input Ass
 		ResourceID:               input.ResourceID,
 		LockedAssetSlotID:        input.LockedAssetSlotID,
 		MetadataJSON:             input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -223,7 +223,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		Score:                input.Score,
 		Status:               input.Status,
 		Note:                 input.Note,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

@@ -10,7 +10,7 @@ import type { AgentUpdateState } from '../updates/updatePolicy.js'
 export type { JSONValue, MCPResource, MCPTool } from '../types.js'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
-export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
+export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
@@ -120,6 +120,7 @@ export interface AgentRun {
   startedAt?: string
   completedAt?: string
   failedAt?: string
+  cancelledAt?: string
   error?: string
   warnings?: string[]
   assistantMessageId?: string
@@ -467,6 +468,10 @@ export interface ApproveRunInput {
 
 export interface RejectRunInput {
   approvalIds?: unknown
+}
+
+export interface CancelRunInput {
+  reason?: unknown
 }
 
 export interface AnswerRunInputRequestInput {

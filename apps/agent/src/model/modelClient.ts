@@ -20,6 +20,7 @@ export interface ModelCallInput {
   temperature?: number
   jsonMode?: boolean
   onTrace?: RuntimeModelTraceCallback
+  signal?: AbortSignal
 }
 
 export interface ModelCallResult {
@@ -52,6 +53,7 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
       method: request.method,
       headers: request.headers,
       body: JSON.stringify(request.body),
+      signal: input.signal,
     })
   } catch (error) {
     trace = { request: publicRequest, latencyMs: Date.now() - started }

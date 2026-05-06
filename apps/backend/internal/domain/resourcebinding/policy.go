@@ -3,8 +3,6 @@ package resourcebinding
 import (
 	"errors"
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 var (
@@ -60,6 +58,24 @@ type Filter struct {
 	ResourceID uint
 }
 
+type Binding struct {
+	ID           uint
+	ProjectID    uint
+	ResourceID   uint
+	OwnerType    string
+	OwnerID      uint
+	Role         string
+	Slot         string
+	SortOrder    int
+	Version      int
+	IsPrimary    bool
+	Status       string
+	SourceType   string
+	SourceID     *uint
+	MetadataJSON string
+	CreatedByID  *uint
+}
+
 type CreateInput struct {
 	ProjectID    uint
 	ResourceID   uint
@@ -107,6 +123,27 @@ func NormalizeSourceType(value string) string {
 	return strings.TrimSpace(strings.ToLower(value))
 }
 
+func Normalize(binding *Binding) {
+	binding.OwnerType = NormalizeOwnerType(binding.OwnerType)
+	binding.Role = NormalizeRole(binding.Role)
+	if binding.Role == "" {
+		binding.Role = RoleAttachment
+	}
+	binding.Slot = strings.TrimSpace(binding.Slot)
+	if binding.Version <= 0 {
+		binding.Version = 1
+	}
+	binding.Status = NormalizeStatus(binding.Status)
+	if binding.Status == "" {
+		binding.Status = StatusDraft
+	}
+	binding.SourceType = NormalizeSourceType(binding.SourceType)
+	if binding.SourceType == "" {
+		binding.SourceType = SourceTypeManual
+	}
+	binding.MetadataJSON = strings.TrimSpace(binding.MetadataJSON)
+}
+
 func ValidOwnerType(value string) bool {
 	switch value {
 	case OwnerTypeScript, OwnerTypeScriptVersion, OwnerTypeSegment, OwnerTypeSceneMoment, OwnerTypeContentUnit, OwnerTypeKeyframe, OwnerTypePreviewTimeline,
@@ -145,27 +182,6 @@ func ValidSourceType(value string) bool {
 	}
 }
 
-func NormalizeBinding(binding *model.ResourceBinding) {
-	binding.OwnerType = NormalizeOwnerType(binding.OwnerType)
-	binding.Role = NormalizeRole(binding.Role)
-	if binding.Role == "" {
-		binding.Role = RoleAttachment
-	}
-	binding.Slot = strings.TrimSpace(binding.Slot)
-	if binding.Version <= 0 {
-		binding.Version = 1
-	}
-	binding.Status = NormalizeStatus(binding.Status)
-	if binding.Status == "" {
-		binding.Status = StatusDraft
-	}
-	binding.SourceType = NormalizeSourceType(binding.SourceType)
-	if binding.SourceType == "" {
-		binding.SourceType = SourceTypeManual
-	}
-	binding.MetadataJSON = strings.TrimSpace(binding.MetadataJSON)
-}
-
 func NormalizeCreateInput(input *CreateInput) {
 	input.OwnerType = NormalizeOwnerType(input.OwnerType)
 	input.Role = NormalizeRole(input.Role)
@@ -187,9 +203,9 @@ func NormalizeCreateInput(input *CreateInput) {
 	input.MetadataJSON = strings.TrimSpace(input.MetadataJSON)
 }
 
-func NewBinding(input CreateInput) model.ResourceBinding {
+func New(input CreateInput) Binding {
 	NormalizeCreateInput(&input)
-	binding := model.ResourceBinding{
+	binding := Binding{
 		ProjectID:    input.ProjectID,
 		ResourceID:   input.ResourceID,
 		OwnerType:    input.OwnerType,

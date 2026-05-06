@@ -890,8 +890,14 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
   if (status === 'completed') return 'success'
   if (status === 'completed_with_warnings' || status === 'requires_action') return 'warning'
   if (status === 'failed') return 'destructive'
-  if (status === 'in_progress' || status === 'queued') return 'secondary'
+  if (status === 'in_progress' || status === 'queued' || status === 'cancelled') return 'secondary'
   return 'outline'
+}
+
+const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
+
+function isStoppableAgentRun(run: AgentRun | null | undefined) {
+  return !!run && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)
 }
 
 function compactRunActivity(run: AgentRun): ChatRunActivity {
@@ -1876,6 +1882,7 @@ function ChatView({
   })
   const [activeLocalRun, setActiveLocalRun] = useState<AgentRun | null>(null)
   const [approvingLocalRun, setApprovingLocalRun] = useState(false)
+  const [stoppingLocalRun, setStoppingLocalRun] = useState(false)
   const [startingLocalAgent, setStartingLocalAgent] = useState(false)
   const [localAgentStartError, setLocalAgentStartError] = useState<string | null>(null)
   const localRuntimeEnabled = true
@@ -1889,6 +1896,7 @@ function ChatView({
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
   const [localAgentThreadIds, setLocalAgentThreadIds] = useState<Record<string, string>>(() => readLocalAgentThreadIds())
+  const consumedExternalDraftIdsRef = useRef<Set<string>>(new Set())
   const threadRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -1935,6 +1943,7 @@ function ChatView({
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
+  const canStopLocalRun = isStoppableAgentRun(activeLocalRun)
   const createProject = useMutation({
     mutationFn: (payload: { name: string; description?: string }) => api.post('/projects', payload).then((r) => r.data as Project),
     onSuccess: (project) => {
@@ -2098,24 +2107,51 @@ function ChatView({
     }
   }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
 
-	  const buildSendDraft = useCallback(async (options: {
-	    includeRuntimePreview?: boolean
-	    message?: string
-	    displayMessage?: string
-	    title?: string
-	    projectId?: number
-	    clientInput?: AgentClientInput
-	    agentManifest?: AgentManifest
-	    requestId?: string
-	    timeoutMs?: number
-	    omitDebugArtifacts?: boolean
-	  } = {}): Promise<AgentSendDraft> => {
-	    const text = (options.message ?? input).trim()
-	    const sentAttachments = attachments
-	    const visibleText = (options.displayMessage ?? text).trim()
-	    const visibleUserContent = visibleText || t('agents.chat.attachmentOnlyMessage')
-	    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
-	    const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
+  const stopActiveLocalRun = useCallback(async () => {
+    const run = activeLocalRun
+    if (!isStoppableAgentRun(run) || stoppingLocalRun) return
+
+    setStoppingLocalRun(true)
+    try {
+      const cancelledRun = await localAgentClient.cancelRun(run.id, { reason: '用户停止了当前会话。' })
+      setActiveLocalRun(cancelledRun)
+      if (!loading) {
+        const thread = await localAgentClient.getThread(cancelledRun.threadId)
+        addMessage(userId, conv.id, {
+          role: 'assistant',
+          content: formatLocalAgentAssistantContent(cancelledRun, thread),
+          meta: { contextLabels: [`run ${cancelledRun.status}`], localRunActivity: compactRunActivity(cancelledRun) },
+        })
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, {
+        role: 'assistant',
+        content: `停止当前会话失败：${message}`,
+      })
+    } finally {
+      setStoppingLocalRun(false)
+    }
+  }, [activeLocalRun, stoppingLocalRun, loading, addMessage, conv.id, userId])
+
+  const buildSendDraft = useCallback(async (options: {
+    includeRuntimePreview?: boolean
+    message?: string
+    displayMessage?: string
+    title?: string
+    projectId?: number
+    clientInput?: AgentClientInput
+    agentManifest?: AgentManifest
+    requestId?: string
+    timeoutMs?: number
+    omitDebugArtifacts?: boolean
+  } = {}): Promise<AgentSendDraft> => {
+    const text = (options.message ?? input).trim()
+    const sentAttachments = attachments
+    const visibleText = (options.displayMessage ?? text).trim()
+    const visibleUserContent = visibleText || t('agents.chat.attachmentOnlyMessage')
+    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
+    const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
     const clientInput = options.clientInput ?? buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
@@ -2132,12 +2168,12 @@ function ChatView({
       includeRecentResources: settings.includeRecentResources,
     })
     const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
-	    const messages = [
-	      { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
-	      ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
-	      { role: 'user' as const, content: enrichedUserContent },
-	    ]
-	    const debugMessages = options.omitDebugArtifacts ? [] : messages
+    const messages = [
+      { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
+      ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user' as const, content: enrichedUserContent },
+    ]
+    const debugMessages = options.omitDebugArtifacts ? [] : messages
     const warnings: string[] = []
     const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
     const localRuntime: AgentSendDraft['localRuntime'] = {
@@ -2205,20 +2241,20 @@ function ChatView({
         ...(compactProject(currentProject) ? { project: compactProject(currentProject) } : {}),
         recentResources: recentResources.slice(0, 8).map(compactResource),
       },
-	      outbound: {
-	        systemPrompt,
-	        agentContext,
-	        enrichedUserContent,
-	        messages: debugMessages,
-	      },
-	      httpRequests: options.omitDebugArtifacts
-	        ? []
-	        : buildDebugHttpRequests({
-	          modelId,
-	          ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
-	          messages,
-	          localRuntime,
-	        }),
+      outbound: {
+        systemPrompt,
+        agentContext,
+        enrichedUserContent,
+        messages: debugMessages,
+      },
+      httpRequests: options.omitDebugArtifacts
+        ? []
+        : buildDebugHttpRequests({
+          modelId,
+          ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
+          messages,
+          localRuntime,
+        }),
       localRuntime,
       warnings,
     }
@@ -2307,7 +2343,7 @@ function ChatView({
       })
       notifyAgentPanelRunSettled({
         requestId: draft.localRuntime?.requestId,
-        status: 'completed',
+        status: run.status === 'cancelled' ? 'cancelled' : 'completed',
         run,
         thread,
       })
@@ -2340,7 +2376,10 @@ function ChatView({
 
   useEffect(() => {
     if (!externalDraft?.message?.trim()) return
-    setInput(externalDraft.message)
+    if (externalDraft.requestId && consumedExternalDraftIdsRef.current.has(externalDraft.requestId)) return
+    if (externalDraft.requestId) consumedExternalDraftIdsRef.current.add(externalDraft.requestId)
+
+    setInput(externalDraft.displayMessage ?? externalDraft.message)
     window.setTimeout(() => inputRef.current?.focus(), 0)
     onExternalDraftConsumed?.()
 
@@ -2355,12 +2394,14 @@ function ChatView({
     setBuildingSendDraft(true)
     buildSendDraft({
       message: externalDraft.message,
+      displayMessage: externalDraft.displayMessage,
       title: externalDraft.title,
       projectId: externalDraft.projectId,
       clientInput: externalDraft.clientInput,
       agentManifest: externalDraft.agentManifest,
       requestId: externalDraft.requestId,
       timeoutMs: externalDraft.timeoutMs,
+      omitDebugArtifacts: true,
     })
       .then((draft) => commitSendDraft(draft))
       .catch((e) => {
@@ -2444,6 +2485,19 @@ function ChatView({
           <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
             {loading || buildingSendDraft ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
           </AgentStatus>
+          {canStopLocalRun && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={stopActiveLocalRun}
+              disabled={stoppingLocalRun}
+              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+              title="Stop current session"
+            >
+              {stoppingLocalRun ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+              Stop
+            </Button>
+          )}
           <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label="Back">
             <ArrowLeft size={14} />
           </Button>
@@ -2486,7 +2540,7 @@ function ChatView({
           />
           {activeLocalRun && (
             <div className="mx-1">
-              <RunActivityPanel run={activeLocalRun} title="Live tool activity" defaultOpen />
+              <RunActivityPanel run={activeLocalRun} title="Live tool activity" />
             </div>
           )}
           {loading && (
@@ -2900,6 +2954,7 @@ function BuiltinChat({ userId }: { userId: string }) {
     function handleDraft(event: Event) {
       const detail = (event as CustomEvent<AgentPanelDraftPayload>).detail
       if (!detail?.message?.trim()) return
+      ;(detail as AgentPanelDraftPayload & { __handledByAgentPanel?: boolean }).__handledByAgentPanel = true
       const convId = detail.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
       if (detail.title) updateConversationTitle(userId, convId, detail.title)
       if (detail.mode) useAgentStore.getState().updateSettings({ mode: detail.mode })

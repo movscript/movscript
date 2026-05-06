@@ -2,7 +2,7 @@ import { useUserStore } from '@/store/userStore'
 import { getAPIV1BaseURL } from '@/lib/config'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
-export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed'
+export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 
@@ -201,6 +201,7 @@ export interface AgentRun {
   startedAt?: string
   completedAt?: string
   failedAt?: string
+  cancelledAt?: string
   error?: string
   warnings?: string[]
   assistantMessageId?: string
@@ -576,6 +577,7 @@ const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
   'completed_with_warnings',
   'requires_action',
   'failed',
+  'cancelled',
 ])
 
 export function canStartLocalAgentFromClient(): boolean {
@@ -694,6 +696,10 @@ export class LocalAgentClient {
 
   rejectRun(runId: string, input: { approvalIds?: string[] } = {}): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/reject`, input)
+  }
+
+  cancelRun(runId: string, input: { reason?: string } = {}): Promise<AgentRun> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/cancel`, input)
   }
 
   answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }): Promise<AgentRun> {

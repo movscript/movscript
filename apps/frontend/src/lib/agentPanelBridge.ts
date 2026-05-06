@@ -20,7 +20,7 @@ export interface AgentPanelDraftPayload {
 
 export interface AgentPanelRunSettledPayload {
   requestId?: string
-  status: 'completed' | 'error'
+  status: 'completed' | 'error' | 'cancelled'
   run?: AgentRun
   thread?: AgentThread
   error?: string
@@ -31,9 +31,14 @@ export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void 
 let pendingAgentPanelDraft: AgentPanelDraftPayload | null = null
 const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
 
+type DispatchableAgentPanelDraftPayload = AgentPanelDraftPayload & { __handledByAgentPanel?: boolean }
+
 export function openAgentPanelDraft(payload: AgentPanelDraftPayload) {
   pendingAgentPanelDraft = payload
   window.dispatchEvent(new CustomEvent<AgentPanelDraftPayload>(AGENT_PANEL_DRAFT_EVENT, { detail: payload }))
+  if ((payload as DispatchableAgentPanelDraftPayload).__handledByAgentPanel) {
+    pendingAgentPanelDraft = null
+  }
 }
 
 export function consumeAgentPanelDraft() {

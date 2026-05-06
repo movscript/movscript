@@ -277,6 +277,10 @@ export default function CreativeWorkbenchPage() {
         toast.error(payload.error || '头脑风暴失败')
         return
       }
+      if (payload.status === 'cancelled') {
+        toast.info('头脑风暴已停止')
+        return
+      }
       if (!payload.run || !payload.thread) {
         toast.error('Agent 没有返回头脑风暴结果')
         return

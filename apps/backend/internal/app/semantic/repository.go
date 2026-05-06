@@ -204,17 +204,20 @@ func (r *gormRepository) CreateScriptVersion(ctx context.Context, projectID uint
 		return model.ScriptVersion{}, err
 	}
 	item := domainsemantic.NewScriptVersion(domainsemantic.ScriptVersionSpec{
-		ProjectID:       projectID,
-		ScriptID:        input.ScriptID,
-		ParentVersionID: input.ParentVersionID,
-		VersionNumber:   input.VersionNumber,
-		Title:           fallbackString(input.Title, script.Title),
-		SourceType:      input.SourceType,
-		Content:         fallbackString(input.Content, script.Content),
-		RawSource:       fallbackString(input.RawSource, script.RawSource),
-		Summary:         input.Summary,
-		Status:          input.Status,
-		CreatedByID:     createdByID,
+		ProjectID:         projectID,
+		ScriptID:          input.ScriptID,
+		ParentVersionID:   input.ParentVersionID,
+		VersionNumber:     input.VersionNumber,
+		Title:             input.Title,
+		FallbackTitle:     script.Title,
+		SourceType:        input.SourceType,
+		Content:           input.Content,
+		FallbackContent:   script.Content,
+		RawSource:         input.RawSource,
+		FallbackRawSource: script.RawSource,
+		Summary:           input.Summary,
+		Status:            input.Status,
+		CreatedByID:       createdByID,
 	})
 	if item.VersionNumber == 0 {
 		item.VersionNumber = r.NextScriptVersionNumber(ctx, projectID, input.ScriptID)

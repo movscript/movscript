@@ -36,6 +36,8 @@ export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<Age
   const content = assistant?.content
     ?? (run.status === 'failed'
       ? `运行失败：${run.error ?? 'unknown error'}`
+      : run.status === 'cancelled'
+        ? '已停止当前会话。'
       : run.status === 'requires_action'
         ? pendingInputs.length > 0
           ? `需要补充信息后继续执行：\n${pendingInputs.map((request) => `- ${request.title}: ${request.question}`).join('\n')}`
@@ -123,6 +125,8 @@ export function LocalAgentWorkflowPanel({
   const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
   const statusLabel = run.status === 'requires_action'
     ? pendingInputs.length > 0 ? 'Waiting for input' : 'Waiting for approval'
+    : run.status === 'cancelled'
+      ? 'Cancelled'
     : run.status.replace(/_/g, ' ')
 
   return (
@@ -132,7 +136,7 @@ export function LocalAgentWorkflowPanel({
           <Workflow size={13} />
           <span className="truncate">{title}</span>
         </div>
-        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'requires_action' ? 'warning' : run.status === 'in_progress' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
+        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'requires_action' ? 'warning' : run.status === 'in_progress' || run.status === 'cancelled' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
           {statusLabel}
         </Badge>
       </div>

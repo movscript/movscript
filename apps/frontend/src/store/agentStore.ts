@@ -138,6 +138,52 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   permissionMode: 'ask',
 }
 
+const PERSISTED_MESSAGE_MAX_CHARS = 20_000
+
+function compactPersistedContent(content: string): string {
+  if (content.length <= PERSISTED_MESSAGE_MAX_CHARS) return content
+  return `${content.slice(0, PERSISTED_MESSAGE_MAX_CHARS)}\n...[truncated ${content.length - PERSISTED_MESSAGE_MAX_CHARS} chars from persisted chat history]`
+}
+
+function compactPersistedMessage(message: ChatMessage): ChatMessage {
+  return {
+    ...message,
+    content: compactPersistedContent(message.content),
+    meta: message.meta?.localRunActivity
+      ? {
+        ...message.meta,
+        localRunActivity: {
+          ...message.meta.localRunActivity,
+          steps: message.meta.localRunActivity.steps.map((step) => ({
+            ...step,
+            args: undefined,
+            result: undefined,
+          })),
+          events: message.meta.localRunActivity.events.map((event) => ({
+            ...event,
+            data: undefined,
+          })),
+        },
+      }
+      : message.meta,
+  }
+}
+
+function compactPersistedConversations(convsByUser: Record<string, UserConvState>): Record<string, UserConvState> {
+  return Object.fromEntries(
+    Object.entries(convsByUser).map(([userId, userState]) => [
+      userId,
+      {
+        ...userState,
+        conversations: userState.conversations.map((conversation) => ({
+          ...conversation,
+          messages: conversation.messages.map(compactPersistedMessage),
+        })),
+      },
+    ]),
+  )
+}
+
 export const useAgentStore = create<AgentStore>()(
   persist(
     (set, get) => ({
@@ -224,11 +270,16 @@ export const useAgentStore = create<AgentStore>()(
     }),
     {
       name: 'agent-store-v3',
+      partialize: (state) => ({
+        settings: state.settings,
+        convsByUser: compactPersistedConversations(state.convsByUser),
+      }),
       merge: (persisted, current) => {
         const state = persisted as Partial<AgentStore> | undefined
         return {
           ...current,
           ...state,
+          convsByUser: compactPersistedConversations(state?.convsByUser ?? current.convsByUser),
           settings: {
             ...DEFAULT_AGENT_SETTINGS,
             ...(state?.settings ?? {}),

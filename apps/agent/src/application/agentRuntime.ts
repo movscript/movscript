@@ -45,6 +45,7 @@ import type {
   AgentThread,
   AgentThreadSummary,
   ApproveRunInput,
+  CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
   CreateRunInput,
@@ -101,6 +102,7 @@ export type {
   AgentThread,
   AgentThreadSummary,
   ApproveRunInput,
+  CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
   CreateRunInput,
@@ -164,6 +166,7 @@ export class AgentRuntime {
   private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private readonly pluginWarnings: string[]
   private readonly updateState?: AgentCapabilitiesResponse['updates']
+  private readonly runControllers = new Map<string, AbortController>()
   private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
 
   constructor(options: AgentRuntimeOptions) {
@@ -304,7 +307,7 @@ export class AgentRuntime {
     thread.updatedAt = now
     this.store.updateThread(thread)
     this.rememberRunAuth(run.id, input)
-    void this.executeRun(run.id)
+    this.startRunExecution(run.id)
     return run
   }
 
@@ -351,7 +354,7 @@ export class AgentRuntime {
     thread.updatedAt = now
     this.store.updateThread(thread)
     this.rememberRunAuth(run.id, input)
-    void this.executeRun(run.id)
+    this.startRunExecution(run.id)
     return run
   }
 
@@ -495,7 +498,7 @@ export class AgentRuntime {
     this.store.updateRun(run)
     this.updateThreadRunStatus(run.threadId, run.status)
     this.rememberRunAuth(run.id, input)
-    void this.executeRun(run.id)
+    this.startRunExecution(run.id)
     return run
   }
 
@@ -537,6 +540,17 @@ export class AgentRuntime {
     this.store.updateThread(thread)
     this.store.updateRun(run)
     return run
+  }
+
+  cancelRun(runId: string, input: CancelRunInput = {}): AgentRun {
+    const run = this.requireRun(runId)
+    if (run.status === 'cancelled') return run
+    if (run.status === 'completed' || run.status === 'completed_with_warnings' || run.status === 'failed') {
+      throw new Error(`run ${runId} is already finished`)
+    }
+    const controller = this.runControllers.get(runId)
+    controller?.abort(createAbortError(typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : 'Run was cancelled.'))
+    return this.markRunCancelled(run, typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : undefined)
   }
 
   answerRunInputRequest(runId: string, input: AnswerRunInputRequestInput = {}): AgentRun {
@@ -590,7 +604,7 @@ export class AgentRuntime {
     this.store.updateThread(thread)
     this.store.updateRun(run)
     this.rememberRunAuth(run.id, input)
-    void this.executeRun(run.id)
+    this.startRunExecution(run.id)
     return run
   }
 
@@ -657,9 +671,21 @@ export class AgentRuntime {
     return this.memoryStore.deleteMemory(id)
   }
 
-  private async executeRun(runId: string): Promise<void> {
+  private startRunExecution(runId: string): void {
+    const controller = new AbortController()
+    this.runControllers.set(runId, controller)
+    void this.executeRun(runId, controller.signal).finally(() => {
+      if (this.runControllers.get(runId) === controller) {
+        this.runControllers.delete(runId)
+      }
+    })
+  }
+
+  private async executeRun(runId: string, signal?: AbortSignal): Promise<void> {
     const run = this.store.getRun(runId)
     if (!run) return
+    if (run.status === 'cancelled') return
+    this.throwIfRunCancelled(runId, signal)
 
     run.status = 'in_progress'
     run.startedAt = isoNow()
@@ -677,6 +703,7 @@ export class AgentRuntime {
     this.updateThreadRunStatus(run.threadId, run.status)
 
     try {
+      this.throwIfRunCancelled(run.id, signal)
       const thread = this.requireThread(run.threadId)
       const initialUserMessageId = typeof run.metadata?.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined
       const lastUser = initialUserMessageId
@@ -696,6 +723,7 @@ export class AgentRuntime {
       })
       this.store.updateRun(run)
 
+      this.throwIfRunCancelled(run.id, signal)
       let contextResult: JSONValue
       let contextError: string | undefined
       try {
@@ -810,6 +838,7 @@ export class AgentRuntime {
 
       run.metadata = setup.metadata
       this.store.updateRun(run)
+      this.throwIfRunCancelled(run.id, signal)
 
       if (isLocalDiagnosticCommand(command.name) && !run.metadata?.forcedToolCall) {
         const localRound = buildRunRound(1, 'Runtime command', 'runtime_rule')
@@ -910,6 +939,7 @@ export class AgentRuntime {
         registry: this.toolRegistry,
         contractResolver: this.contractResolver,
         memoryManager: this.memoryManager,
+        signal,
         ...(runtimeContract?.commandOverride
           ? { command: runtimeContract.commandOverride({ userMessage: lastUser.content, manifest: agentManifest }) }
           : {}),
@@ -944,6 +974,7 @@ export class AgentRuntime {
           this.store.updateRun(run)
         },
       })
+      this.throwIfRunCancelled(run.id, signal)
 
       if (loopResult.status === 'requires_action') {
         const now = isoNow()
@@ -964,6 +995,11 @@ export class AgentRuntime {
         })
         this.store.updateRun(run)
         this.updateThreadRunStatus(run.threadId, run.status)
+        return
+      }
+
+      if (loopResult.status === 'cancelled') {
+        this.markRunCancelled(run, loopResult.reason)
         return
       }
 
@@ -1032,6 +1068,10 @@ export class AgentRuntime {
       this.store.updateThread(thread)
       this.store.updateRun(run)
     } catch (error) {
+      if (this.isAbortError(error) || this.isRunCancelled(runId)) {
+        this.markRunCancelled(this.store.getRun(runId) ?? run)
+        return
+      }
       run.status = 'failed'
       run.error = error instanceof Error ? error.message : String(error)
       run.failedAt = isoNow()
@@ -1067,6 +1107,7 @@ export class AgentRuntime {
         this.store.updateRun(run)
       }
     }
+  }
   }
 
   private rememberRunAuth(runId: string, value: unknown): void {
@@ -1152,6 +1193,63 @@ export class AgentRuntime {
     return run
   }
 
+  private isRunCancelled(runId: string): boolean {
+    return this.store.getRun(runId)?.status === 'cancelled'
+  }
+
+  private throwIfRunCancelled(runId: string, signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : createAbortError(typeof signal.reason === 'string' ? signal.reason : undefined)
+    }
+    if (this.isRunCancelled(runId)) {
+      throw createAbortError('Run was cancelled.')
+    }
+  }
+
+  private markRunCancelled(run: AgentRun, reason?: string): AgentRun {
+    const current = this.store.getRun(run.id) ?? run
+    if (current.status === 'cancelled') return current
+    const now = isoNow()
+    current.pendingApprovals = (current.pendingApprovals ?? []).map((approval) => (
+      approval.status === 'pending'
+        ? { ...approval, status: 'rejected', rejectedAt: now, updatedAt: now }
+        : approval
+    ))
+    current.pendingInputRequests = (current.pendingInputRequests ?? []).map((request) => (
+      request.status === 'pending'
+        ? { ...request, status: 'cancelled', updatedAt: now }
+        : request
+    ))
+    current.status = 'cancelled'
+    current.cancelledAt = now
+    current.completedAt = now
+    current.updatedAt = now
+    current.warnings = Array.from(new Set([...(current.warnings ?? []), reason ?? '用户停止了当前会话。']))
+    this.recordTraceEvent(current, {
+      kind: 'run',
+      title: 'Run cancelled',
+      summary: reason ?? '用户停止了当前会话。',
+      status: 'info',
+      data: { reason: reason ?? '用户停止了当前会话。' },
+    })
+    const thread = this.store.getThread(current.threadId)
+    if (thread && !current.assistantMessageId) {
+      const assistant = this.createMessage(thread.id, 'assistant', `已停止当前会话。\n\n${reason ?? '用户停止了当前会话。'}`, current.id)
+      thread.messages.push(assistant)
+      thread.updatedAt = assistant.createdAt
+      thread.lastRunStatus = current.status
+      current.assistantMessageId = assistant.id
+      const step = this.createStep(current, 'message')
+      step.status = 'completed'
+      step.result = { messageId: assistant.id, cancelled: true }
+      step.completedAt = now
+      this.store.updateThread(thread)
+    }
+    this.store.updateRun(current)
+    this.updateThreadRunStatus(current.threadId, current.status)
+    return current
+  }
+
   private updateThreadRunStatus(threadId: string, status: AgentRun['status']): void {
     const thread = this.store.getThread(threadId)
     if (!thread) return
@@ -1184,6 +1282,10 @@ export class AgentRuntime {
     const store = this.memoryStore as { filePath?: unknown }
     return typeof store.filePath === 'string' ? store.filePath : undefined
   }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === 'AbortError'
+  }
 }
 
 function isMessageRole(value: unknown): value is AgentMessageRole {
@@ -1200,4 +1302,10 @@ function makeId(prefix: string): string {
 
 function isoNow(): string {
   return new Date().toISOString()
+}
+
+function createAbortError(message = 'Run was cancelled.'): Error {
+  const error = new Error(message)
+  error.name = 'AbortError'
+  return error
 }

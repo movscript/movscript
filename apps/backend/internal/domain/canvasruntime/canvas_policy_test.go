@@ -57,3 +57,27 @@ func TestAssetSlotCanvasPortType(t *testing.T) {
 		t.Fatalf("port type = %q, want resource", got)
 	}
 }
+
+func TestNewEntityWriteAuditTrimsStringFields(t *testing.T) {
+	audit := NewEntityWriteAudit(EntityWriteAuditSpec{
+		CanvasID:           1,
+		CanvasRunID:        2,
+		CanvasNodeID:       " node-a ",
+		PortID:             " output ",
+		EntityKind:         " asset_slot ",
+		EntityID:           3,
+		UserID:             4,
+		OldValueJSON:       " {} ",
+		NewValueJSON:       " {\"ok\":true} ",
+		ResourceBindingIDs: " [9] ",
+	})
+	if audit.CanvasID != 1 || audit.CanvasRunID != 2 || audit.EntityID != 3 || audit.UserID != 4 {
+		t.Fatalf("unexpected audit identity: %+v", audit)
+	}
+	if audit.CanvasNodeID != "node-a" || audit.PortID != "output" || audit.EntityKind != "asset_slot" {
+		t.Fatalf("unexpected trimmed fields: %+v", audit)
+	}
+	if audit.NewValueJSON != "{\"ok\":true}" || audit.ResourceBindingIDs != "[9]" {
+		t.Fatalf("unexpected json fields: %+v", audit)
+	}
+}

@@ -42,6 +42,39 @@ func TestNewAssetSlotAndCandidateApplyDefaults(t *testing.T) {
 	}
 }
 
+func TestAssetSlotModelMappingRoundTrip(t *testing.T) {
+	resourceID := uint(7)
+	slot := NewAssetSlot(AssetSlotSpec{
+		ProjectID:  1,
+		OwnerType:  "scene_moment",
+		Kind:       "video",
+		ResourceID: &resourceID,
+	})
+	modelSlot := slot.ToModel()
+	modelSlot.ID = 9
+	roundTrip := AssetSlotFromModel(modelSlot)
+	if roundTrip.ID != 9 || roundTrip.Kind != "video" || roundTrip.ResourceID == nil || *roundTrip.ResourceID != resourceID {
+		t.Fatalf("unexpected asset slot round-trip: %+v", roundTrip)
+	}
+}
+
+func TestAssetSlotCandidateModelMappingRoundTrip(t *testing.T) {
+	sourceID := uint(11)
+	candidate := NewAssetSlotCandidate(AssetSlotCandidateSpec{
+		ProjectID:            1,
+		AssetSlotID:          2,
+		CandidateAssetSlotID: 3,
+		SourceID:             &sourceID,
+		Score:                0.8,
+	})
+	modelCandidate := candidate.ToModel()
+	modelCandidate.ID = 12
+	roundTrip := AssetSlotCandidateFromModel(modelCandidate)
+	if roundTrip.ID != 12 || roundTrip.Score != 0.8 || roundTrip.SourceID == nil || *roundTrip.SourceID != sourceID {
+		t.Fatalf("unexpected asset slot candidate round-trip: %+v", roundTrip)
+	}
+}
+
 func TestNewDecisionReviewAndOutputsApplyDefaults(t *testing.T) {
 	decision := NewCandidateDecision(CandidateDecisionSpec{ProjectID: 1})
 	if decision.Status != "recorded" || decision.Source != CandidateDecisionSourceManual {
@@ -136,8 +169,13 @@ func TestNewProductionDeliveryAndScriptFactoriesApplyDefaults(t *testing.T) {
 		t.Fatalf("unexpected delivery timeline item defaults: %+v", item)
 	}
 
-	version := NewScriptVersion(ScriptVersionSpec{ProjectID: 1})
-	if version.SourceType != "raw" || version.Status != ProposalDraftStatusValue {
+	version := NewScriptVersion(ScriptVersionSpec{
+		ProjectID:         1,
+		FallbackTitle:     "Draft",
+		FallbackContent:   "content",
+		FallbackRawSource: "raw source",
+	})
+	if version.Title != "Draft" || version.Content != "content" || version.RawSource != "raw source" || version.SourceType != "raw" || version.Status != ProposalDraftStatusValue {
 		t.Fatalf("unexpected script version defaults: %+v", version)
 	}
 }

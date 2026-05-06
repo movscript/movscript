@@ -42,6 +42,22 @@ func TestNormalizeBindingDefaults(t *testing.T) {
 	}
 }
 
+func TestNormalizeDomainBindingDefaults(t *testing.T) {
+	binding := Binding{
+		OwnerType:    "Asset-Slot",
+		Slot:         " poster ",
+		MetadataJSON: " {} ",
+	}
+	Normalize(&binding)
+
+	if binding.OwnerType != OwnerTypeAssetSlot || binding.Role != RoleAttachment || binding.Slot != "poster" {
+		t.Fatalf("unexpected normalized identity: %+v", binding)
+	}
+	if binding.Version != 1 || binding.Status != StatusDraft || binding.SourceType != SourceTypeManual || binding.MetadataJSON != "{}" {
+		t.Fatalf("unexpected normalized defaults: %+v", binding)
+	}
+}
+
 func TestNormalizeCreateInputDefaults(t *testing.T) {
 	input := CreateInput{
 		ProjectID:  1,
@@ -68,11 +84,11 @@ func TestNormalizeCreateInputDefaults(t *testing.T) {
 	}
 }
 
-func TestNewBindingAppliesNormalizedCreateInput(t *testing.T) {
+func TestNewDomainBindingAppliesNormalizedCreateInput(t *testing.T) {
 	sortOrder := 4
 	sourceID := uint(5)
 	createdBy := uint(6)
-	binding := NewBinding(CreateInput{
+	binding := New(CreateInput{
 		ProjectID:    1,
 		ResourceID:   2,
 		OwnerType:    "Asset-Slot",
@@ -93,6 +109,38 @@ func TestNewBindingAppliesNormalizedCreateInput(t *testing.T) {
 	}
 	if binding.SourceID == nil || *binding.SourceID != sourceID || binding.CreatedByID == nil || *binding.CreatedByID != createdBy {
 		t.Fatalf("unexpected binding pointers: %+v", binding)
+	}
+}
+
+func TestNewBindingCompatibilityReturnsModel(t *testing.T) {
+	binding := NewBinding(CreateInput{ProjectID: 1, ResourceID: 2, OwnerType: "Asset-Slot", OwnerID: 3})
+	if binding.OwnerType != OwnerTypeAssetSlot || binding.Version != 1 {
+		t.Fatalf("unexpected compatibility model: %+v", binding)
+	}
+}
+
+func TestNewDomainBindingAndModelMapping(t *testing.T) {
+	sourceID := uint(5)
+	createdBy := uint(6)
+	binding := New(CreateInput{
+		ProjectID:   1,
+		ResourceID:  2,
+		OwnerType:   "Asset-Slot",
+		OwnerID:     3,
+		Role:        "Output",
+		SourceType:  "Canvas",
+		SourceID:    &sourceID,
+		CreatedByID: &createdBy,
+	})
+	modelBinding := binding.ToModel()
+	modelBinding.ID = 9
+	roundTrip := BindingFromModel(modelBinding)
+
+	if roundTrip.ID != 9 || roundTrip.OwnerType != OwnerTypeAssetSlot || roundTrip.Role != RoleOutput {
+		t.Fatalf("unexpected round-trip binding: %+v", roundTrip)
+	}
+	if roundTrip.SourceID == nil || *roundTrip.SourceID != sourceID || roundTrip.CreatedByID == nil || *roundTrip.CreatedByID != createdBy {
+		t.Fatalf("unexpected round-trip pointers: %+v", roundTrip)
 	}
 }
 

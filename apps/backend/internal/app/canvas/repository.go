@@ -629,7 +629,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 				Priority:                 canvasruntime.FirstNonEmptyString(sourceSlot.Priority, "normal"),
 				ResourceID:               &input.ResourceID,
 				MetadataJSON:             input.BindingMeta,
-			})
+			}).ToModel()
 			if err := db.Create(&candidateSlot).Error; err != nil {
 				return nil
 			}
@@ -660,7 +660,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 	if err := db.
 		Where("project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?", input.ProjectID, input.ResourceID, domainresourcebinding.OwnerTypeAssetSlot, candidateSlot.ID, domainresourcebinding.RoleOutput, slot, 1).
 		First(&existingBinding).Error; err != nil {
-		_ = r.CreateResourceBinding(ctx, domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
+		_ = r.CreateResourceBinding(ctx, domainresourcebinding.New(domainresourcebinding.CreateInput{
 			ProjectID:    input.ProjectID,
 			ResourceID:   input.ResourceID,
 			OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
@@ -673,7 +673,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 			IsPrimary:    true,
 			MetadataJSON: meta,
 			CreatedByID:  &input.UserID,
-		}))
+		}).ToModel())
 	}
 	var existing model.AssetSlotCandidate
 	err := db.
@@ -688,7 +688,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 			SourceID:             &sourceID,
 			Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 			Note:                 canvasruntime.FirstNonEmptyString(input.CandidateNote, "由素材生成画布写回"),
-		})
+		}).ToModel()
 		if err := db.Create(&existing).Error; err != nil {
 			return nil
 		}

@@ -2465,11 +2465,19 @@ function ScriptSplitWorkbench() {
       },
     })
     const requestId = `script_split_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    const displayMessage = [
+      `请拆分剧本《${baseTitle}》。`,
+      `完整正文已随本地运行输入发送（${normalized.length} 字符），对话面板仅展示摘要以避免卡顿。`,
+    ].join('\n')
 
     scriptSplitToolCleanupRef.current?.()
     scriptSplitToolCleanupRef.current = registerAgentPanelPageTool(requestId, (detail) => {
       if (detail.status === 'error') {
         toast.error(detail.error || 'Agent 拆分会话运行失败')
+        return
+      }
+      if (detail.status === 'cancelled') {
+        toast.info('Agent 拆分会话已停止')
         return
       }
       const run = detail.run
@@ -2498,7 +2506,7 @@ function ScriptSplitWorkbench() {
 
     openAgentPanelDraft({
       requestId,
-      message,
+      message: displayMessage,
       title: `剧本拆分: ${baseTitle}`,
       mode: 'create',
       newConversation: true,

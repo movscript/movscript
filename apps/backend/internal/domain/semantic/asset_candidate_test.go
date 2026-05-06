@@ -7,14 +7,14 @@ import (
 )
 
 func TestMarkAssetSlotCandidateOnlyMovesUnresolvedSlots(t *testing.T) {
-	slot := model.AssetSlot{Status: AssetSlotStatusMissing}
-	MarkAssetSlotCandidate(&slot)
+	slot := AssetSlot{Status: AssetSlotStatusMissing}
+	MarkSlotCandidate(&slot)
 	if slot.Status != AssetSlotStatusCandidate {
 		t.Fatalf("status = %q, want candidate", slot.Status)
 	}
 
-	locked := model.AssetSlot{Status: AssetSlotStatusLocked}
-	MarkAssetSlotCandidate(&locked)
+	locked := AssetSlot{Status: AssetSlotStatusLocked}
+	MarkSlotCandidate(&locked)
 	if locked.Status != AssetSlotStatusLocked {
 		t.Fatalf("locked slot status changed to %q", locked.Status)
 	}
@@ -23,13 +23,12 @@ func TestMarkAssetSlotCandidateOnlyMovesUnresolvedSlots(t *testing.T) {
 func TestMarkAssetSlotLockedToCandidateCopiesLockedResource(t *testing.T) {
 	resourceID := uint(42)
 	candidateSlotID := uint(9)
-	slot := model.AssetSlot{}
-	candidate := model.AssetSlotCandidate{
+	slot := AssetSlot{}
+	candidate := AssetSlotCandidate{
 		CandidateAssetSlotID: candidateSlotID,
-		CandidateAssetSlot:   &model.AssetSlot{ResourceID: &resourceID},
 	}
 
-	MarkAssetSlotLockedToCandidate(&slot, candidate)
+	LockSlotToCandidate(&slot, candidate, &resourceID)
 
 	if slot.Status != AssetSlotStatusLocked {
 		t.Fatalf("status = %q, want locked", slot.Status)
@@ -43,15 +42,34 @@ func TestMarkAssetSlotLockedToCandidateCopiesLockedResource(t *testing.T) {
 }
 
 func TestNormalizeAssetSlotCandidateKeepsDecisionStatuses(t *testing.T) {
-	candidate := model.AssetSlotCandidate{}
-	NormalizeAssetSlotCandidate(&candidate)
+	candidate := AssetSlotCandidate{}
+	NormalizeCandidate(&candidate)
 	if candidate.Status != AssetSlotCandidateStatusCandidate {
 		t.Fatalf("status = %q, want candidate", candidate.Status)
 	}
 
-	selected := model.AssetSlotCandidate{Status: AssetSlotCandidateStatusSelected}
-	NormalizeAssetSlotCandidate(&selected)
+	selected := AssetSlotCandidate{Status: AssetSlotCandidateStatusSelected}
+	NormalizeCandidate(&selected)
 	if selected.Status != AssetSlotCandidateStatusSelected {
 		t.Fatalf("selected status changed to %q", selected.Status)
+	}
+}
+
+func TestModelAssetCandidateAdaptersKeepBehavior(t *testing.T) {
+	resourceID := uint(42)
+	candidateSlotID := uint(9)
+	slot := model.AssetSlot{Status: AssetSlotStatusMissing}
+	MarkAssetSlotCandidate(&slot)
+	if slot.Status != AssetSlotStatusCandidate {
+		t.Fatalf("status = %q, want candidate", slot.Status)
+	}
+
+	candidate := model.AssetSlotCandidate{
+		CandidateAssetSlotID: candidateSlotID,
+		CandidateAssetSlot:   &model.AssetSlot{ResourceID: &resourceID},
+	}
+	MarkAssetSlotLockedToCandidate(&slot, candidate)
+	if slot.LockedAssetSlotID == nil || *slot.LockedAssetSlotID != candidateSlotID || slot.ResourceID == nil || *slot.ResourceID != resourceID {
+		t.Fatalf("unexpected locked model slot: %+v", slot)
 	}
 }

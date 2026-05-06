@@ -17,6 +17,7 @@ export interface AgentLoopTraceInput {
 export type AgentLoopResult =
   | { status: 'completed'; finalContent: string; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
   | { status: 'requires_action'; pendingApprovals: AgentApprovalRequest[]; pendingInputRequests?: AgentInputRequest[]; messages: RuntimeModelChatMessage[]; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
+  | { status: 'cancelled'; reason?: string }
   | { status: 'failed'; error: string }
 
 export { runAgentGraph as runAgentLoop } from './agentGraph.js'

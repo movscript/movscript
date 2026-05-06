@@ -26,10 +26,12 @@ export interface ToolExecutorOptions {
   registry: ToolRegistry
   memoryManager?: MemoryManager
   sandboxMode: boolean
+  signal?: AbortSignal
 }
 
 export async function executeTool(call: ToolCall, options: ToolExecutorOptions): Promise<ToolExecutionResult> {
   const { run, mcpClient, draftStore, backendApplyClient, registry, memoryManager, sandboxMode } = options
+  throwIfAborted(options.signal)
   const args = call.args ?? {}
 
   // Sandbox intercept for write/generate/destructive tools
@@ -47,13 +49,17 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
 
   // Runtime tools handled locally
   const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, sandboxMode)
+  throwIfAborted(options.signal)
   if (runtimeResult !== undefined) {
     return { call, result: runtimeResult, source: 'runtime' }
   }
 
   // MCP tools
+  throwIfAborted(options.signal)
   await mcpClient.initialize()
+  throwIfAborted(options.signal)
   const result = await mcpClient.callTool(call.name, args)
+  throwIfAborted(options.signal)
   return { call, result, source: 'mcp' }
 }
 
@@ -525,4 +531,13 @@ function normalizeMemoryKind(value: JSONValue | undefined): AgentMemoryKind | un
 
 function isRecord(value: unknown): value is Record<string, JSONValue> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return
+  const reason = signal.reason
+  if (reason instanceof Error) throw reason
+  const error = new Error(typeof reason === 'string' ? reason : 'Run was cancelled.')
+  error.name = 'AbortError'
+  throw error
 }

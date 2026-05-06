@@ -211,8 +211,28 @@ type AssetSlotSpec struct {
 	MetadataJSON             string
 }
 
-func NewAssetSlot(spec AssetSlotSpec) model.AssetSlot {
-	return model.AssetSlot{
+type AssetSlot struct {
+	ID                       uint
+	ProjectID                uint
+	ProductionID             *uint
+	CreativeReferenceID      *uint
+	CreativeReferenceStateID *uint
+	OwnerType                string
+	OwnerID                  *uint
+	Kind                     string
+	Name                     string
+	Description              string
+	SlotKey                  string
+	PromptHint               string
+	Status                   string
+	Priority                 string
+	ResourceID               *uint
+	LockedAssetSlotID        *uint
+	MetadataJSON             string
+}
+
+func NewAssetSlot(spec AssetSlotSpec) AssetSlot {
+	return AssetSlot{
 		ProjectID:                spec.ProjectID,
 		ProductionID:             spec.ProductionID,
 		CreativeReferenceID:      spec.CreativeReferenceID,
@@ -243,8 +263,20 @@ type AssetSlotCandidateSpec struct {
 	Note                 string
 }
 
-func NewAssetSlotCandidate(spec AssetSlotCandidateSpec) model.AssetSlotCandidate {
-	return model.AssetSlotCandidate{
+type AssetSlotCandidate struct {
+	ID                   uint
+	ProjectID            uint
+	AssetSlotID          uint
+	CandidateAssetSlotID uint
+	SourceType           string
+	SourceID             *uint
+	Score                float64
+	Status               string
+	Note                 string
+}
+
+func NewAssetSlotCandidate(spec AssetSlotCandidateSpec) AssetSlotCandidate {
+	return AssetSlotCandidate{
 		ProjectID:            spec.ProjectID,
 		AssetSlotID:          spec.AssetSlotID,
 		CandidateAssetSlotID: spec.CandidateAssetSlotID,
@@ -777,17 +809,20 @@ func NewWorkDependency(spec WorkDependencySpec) model.WorkDependency {
 }
 
 type ScriptVersionSpec struct {
-	ProjectID       uint
-	ScriptID        uint
-	ParentVersionID *uint
-	VersionNumber   int
-	Title           string
-	SourceType      string
-	Content         string
-	RawSource       string
-	Summary         string
-	Status          string
-	CreatedByID     *uint
+	ProjectID         uint
+	ScriptID          uint
+	ParentVersionID   *uint
+	VersionNumber     int
+	Title             string
+	FallbackTitle     string
+	SourceType        string
+	Content           string
+	FallbackContent   string
+	RawSource         string
+	FallbackRawSource string
+	Summary           string
+	Status            string
+	CreatedByID       *uint
 }
 
 func NewScriptVersion(spec ScriptVersionSpec) model.ScriptVersion {
@@ -796,10 +831,10 @@ func NewScriptVersion(spec ScriptVersionSpec) model.ScriptVersion {
 		ScriptID:        spec.ScriptID,
 		ParentVersionID: spec.ParentVersionID,
 		VersionNumber:   spec.VersionNumber,
-		Title:           spec.Title,
+		Title:           FallbackString(spec.Title, spec.FallbackTitle),
 		SourceType:      FallbackString(spec.SourceType, "raw"),
-		Content:         spec.Content,
-		RawSource:       spec.RawSource,
+		Content:         FallbackString(spec.Content, spec.FallbackContent),
+		RawSource:       FallbackString(spec.RawSource, spec.FallbackRawSource),
 		Summary:         spec.Summary,
 		Status:          SemanticDraftStatus(spec.Status),
 		CreatedByID:     spec.CreatedByID,

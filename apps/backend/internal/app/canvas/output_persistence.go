@@ -100,7 +100,7 @@ func (h *Service) bindWorkflowOutputResource(ctx context.Context, cv model.Canva
 		"value_type":    value.Type,
 	})
 	sourceID := runID
-	binding := domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
+	binding := domainresourcebinding.New(domainresourcebinding.CreateInput{
 		ProjectID:    *cv.ProjectID,
 		ResourceID:   *value.ResourceID,
 		OwnerType:    domainresourcebinding.OwnerTypeCanvas,
@@ -112,7 +112,7 @@ func (h *Service) bindWorkflowOutputResource(ctx context.Context, cv model.Canva
 		SourceID:     &sourceID,
 		MetadataJSON: string(metadata),
 		CreatedByID:  &userID,
-	})
+	}).ToModel()
 	_ = h.createBinding(ctx, binding)
 }
 

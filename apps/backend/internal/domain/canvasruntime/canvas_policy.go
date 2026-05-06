@@ -34,6 +34,19 @@ type AssetSlotTargetNodeInput struct {
 	FallbackLabel string
 }
 
+type EntityWriteAuditSpec struct {
+	CanvasID           uint
+	CanvasRunID        uint
+	CanvasNodeID       string
+	PortID             string
+	EntityKind         string
+	EntityID           uint
+	UserID             uint
+	OldValueJSON       string
+	NewValueJSON       string
+	ResourceBindingIDs string
+}
+
 func NormalizeCreateInput(input *CanvasCreateInput) error {
 	if input.CanvasType == "" {
 		input.CanvasType = "inspiration"
@@ -160,5 +173,20 @@ func AssetSlotCanvasPortType(kind string) string {
 		return strings.ToLower(strings.TrimSpace(kind))
 	default:
 		return "resource"
+	}
+}
+
+func NewEntityWriteAudit(spec EntityWriteAuditSpec) model.CanvasEntityWriteAudit {
+	return model.CanvasEntityWriteAudit{
+		CanvasID:           spec.CanvasID,
+		CanvasRunID:        spec.CanvasRunID,
+		CanvasNodeID:       strings.TrimSpace(spec.CanvasNodeID),
+		PortID:             strings.TrimSpace(spec.PortID),
+		EntityKind:         strings.TrimSpace(spec.EntityKind),
+		EntityID:           spec.EntityID,
+		UserID:             spec.UserID,
+		OldValueJSON:       strings.TrimSpace(spec.OldValueJSON),
+		NewValueJSON:       strings.TrimSpace(spec.NewValueJSON),
+		ResourceBindingIDs: strings.TrimSpace(spec.ResourceBindingIDs),
 	}
 }

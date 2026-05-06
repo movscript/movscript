@@ -317,6 +317,13 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    const runCancelMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel$/)
+    if (runCancelMatch && req.method === 'POST') {
+      const body = await readJSON(req)
+      writeJSON(res, 200, agentRuntime.cancelRun(runCancelMatch[1], normalizeOptionalObject(body, 'cancel body')))
+      return
+    }
+
     const runRejectMatch = url.pathname.match(/^\/runs\/([^/]+)\/reject$/)
     if (runRejectMatch && req.method === 'POST') {
       const body = await readJSON(req)

@@ -364,11 +364,14 @@
 }
 
 .ai-agent-panel-context-card {
-  max-height: 132px;
-  overflow-y: auto;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
 }
 
 .ai-agent-panel-context-stack {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 8px;
   padding-right: 2px;

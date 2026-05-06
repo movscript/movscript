@@ -39,6 +39,7 @@ export interface AgentGraphInput {
   memoryManager?: MemoryManager
   forcedToolCalls?: ToolCall[]
   approvedToolNames?: string[]
+  signal?: AbortSignal
   onTrace: (input: AgentLoopTraceInput) => void
   onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentLoopTraceInput['roundSource'], toolName?: string) => string
   onStepComplete: (stepId: string, result?: JSONValue, error?: string, sandboxed?: boolean) => void
@@ -60,6 +61,7 @@ type AgentGraphState = {
 }
 
 export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopResult> {
+  throwIfAborted(input.signal)
   const State = Annotation.Root({
     history: Annotation<RuntimeModelChatMessage[]>({
       reducer: (left, right) => left.concat(right),
@@ -130,7 +132,6 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopRe
     })
     .compile()
 
-  const thread = input.run.threadId
   const result = await graph.invoke(
     {
       history: [],
@@ -142,7 +143,9 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopRe
     { recursionLimit: Math.max(10, input.policy.maxIterations * 4 + 4) },
   ) as AgentGraphState
 
+  throwIfAborted(input.signal)
   if (result.error) return { status: 'failed', error: result.error }
+  if (result.status === 'cancelled') return { status: 'cancelled', reason: 'Run was cancelled.' }
   if (result.status === 'requires_action') {
     return {
       status: 'requires_action',
@@ -163,6 +166,7 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopRe
 }
 
 async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {
+  throwIfAborted(input.signal)
   const currentRoundIndex = state.roundIndex
   const roundLabel = `Model turn ${currentRoundIndex}`
   const lastUser = input.rootUserMessageId
@@ -251,6 +255,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     auth: input.auth,
     temperature: wantsStructuredJSON ? 0.1 : undefined,
     jsonMode: wantsStructuredJSON && tools.length === 0,
+    signal: input.signal,
     onTrace: (event) => {
       input.onTrace({
         kind: 'model_call',
@@ -264,6 +269,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       })
     },
   }).catch((error) => {
+    if (isAbortError(error) || input.signal?.aborted) throw error
     const message = error instanceof Error ? error.message : String(error)
     const finalContent = formatRecoverableModelError(message, wantsStructuredJSON)
     return {
@@ -276,6 +282,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       warnings: [`模型调用未完成：${message}`],
     }
   })
+  throwIfAborted(input.signal)
 
   input.onTrace({
     kind: 'model_call',
@@ -306,6 +313,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
         auth: input.auth,
         temperature: 0.1,
         jsonMode: true,
+        signal: input.signal,
         onTrace: (event) => {
           input.onTrace({
             kind: 'model_call',
@@ -319,6 +327,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
           })
         },
       }).catch((error) => {
+        if (isAbortError(error) || input.signal?.aborted) throw error
         const message = error instanceof Error ? error.message : String(error)
         return {
           ...modelResult,
@@ -383,6 +392,7 @@ function isValidJSONObjectContent(content: string | null): boolean {
 }
 
 async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {
+  throwIfAborted(input.signal)
   const currentRoundIndex = state.roundIndex
   const roundLabel = `Model turn ${currentRoundIndex}`
   const remaining = input.policy.maxToolCalls - state.toolCallCount
@@ -521,6 +531,7 @@ function isJSONRecord(value: JSONValue): value is Record<string, JSONValue> {
 }
 
 async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {
+  throwIfAborted(input.signal)
   const currentRoundIndex = state.roundIndex
   const roundLabel = `Model turn ${currentRoundIndex}`
   const effectiveRoundSource = currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0
@@ -531,6 +542,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   const warnings = [...state.warnings]
 
   for (const call of state.requestedCalls) {
+    throwIfAborted(input.signal)
     const stepId = input.onStepCreate('tool_call', currentRoundIndex, roundLabel, effectiveRoundSource, call.name)
     try {
       const execResult = await executeTool(call, {
@@ -541,7 +553,9 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         registry: input.registry,
         memoryManager: input.memoryManager,
         sandboxMode: input.policy.sandboxMode === true,
+        signal: input.signal,
       })
+      throwIfAborted(input.signal)
       toolOutcomes.push({ call, ...(execResult.error ? { error: execResult.error } : { result: execResult.result }) })
       input.onStepComplete(stepId, execResult.result, undefined, execResult.sandboxed)
       input.onTrace({
@@ -561,6 +575,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         content: JSON.stringify({ result: execResult.result ?? null, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
       })
     } catch (error) {
+      if (isAbortError(error) || input.signal?.aborted) throw error
       const message = error instanceof Error ? error.message : String(error)
       warnings.push(`${formatToolNameForDisplay(call.name)} 未完成：${message}`)
       toolOutcomes.push({ call, error: message })
@@ -663,4 +678,17 @@ function safeBuildDraftPreview(draftStore: AgentDraftStore, args: Record<string,
 
 function makeId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return
+  const reason = signal.reason
+  if (reason instanceof Error) throw reason
+  const error = new Error(typeof reason === 'string' ? reason : 'Run was cancelled.')
+  error.name = 'AbortError'
+  throw error
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
 }

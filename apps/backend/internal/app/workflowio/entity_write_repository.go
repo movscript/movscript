@@ -53,7 +53,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 					rid := resourceID
 					result.PrimaryResourceID = &rid
 				}
-				binding := domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
+				binding := domainresourcebinding.New(domainresourcebinding.CreateInput{
 					ProjectID:    projectID,
 					ResourceID:   resourceID,
 					OwnerType:    kind,
@@ -65,7 +65,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 					SourceType:   sourceType,
 					CreatedByID:  uintPtrOrNil(meta.UserID),
 					MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d}`, meta.NodeID, meta.RunID),
-				})
+				}).ToModel()
 				if meta.CanvasID != 0 {
 					binding.SourceID = &meta.CanvasID
 				}
@@ -137,7 +137,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 			Priority:                 slot.Priority,
 			ResourceID:               &resourceID,
 			MetadataJSON:             fmt.Sprintf(`{"source":"asset_slot_candidates","candidate_for_slot_id":%d}`, slotID),
-		})
+		}).ToModel()
 		if err := r.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 			return bindingIDs, err
 		}
@@ -151,7 +151,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 			SourceType:           sourceType,
 			Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 			Note:                 "由素材槽候选集输入创建",
-		})
+		}).ToModel()
 		if meta.CanvasID != 0 {
 			candidate.SourceID = &meta.CanvasID
 		}
@@ -161,7 +161,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 		if err := entityrelation.SyncCoreEntityRelations(r.db.WithContext(ctx), &candidate); err != nil {
 			return bindingIDs, err
 		}
-		binding := domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
+		binding := domainresourcebinding.New(domainresourcebinding.CreateInput{
 			ProjectID:    projectID,
 			ResourceID:   resourceID,
 			OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
@@ -173,7 +173,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 			SourceType:   sourceType,
 			CreatedByID:  uintPtrOrNil(meta.UserID),
 			MetadataJSON: fmt.Sprintf(`{"canvas_node_id":%q,"canvas_run_id":%d,"asset_slot_id":%d}`, meta.NodeID, meta.RunID, slotID),
-		})
+		}).ToModel()
 		if meta.CanvasID != 0 {
 			binding.SourceID = &meta.CanvasID
 		}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
@@ -146,7 +147,7 @@ func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sou
 		Priority:                 firstNonEmpty(sourceSlot.Priority, "normal"),
 		ResourceID:               &input.ResourceID,
 		MetadataJSON:             operationMetadataJSON(input, "attach_candidate"),
-	})
+	}).ToModel()
 	if err := r.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 		return candidateSlot, err
 	}
@@ -168,7 +169,7 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 	if err != gorm.ErrRecordNotFound {
 		return binding, err
 	}
-	binding = domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
+	binding = domainresourcebinding.New(domainresourcebinding.CreateInput{
 		ProjectID:    input.ProjectID,
 		ResourceID:   input.ResourceID,
 		OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
@@ -182,7 +183,7 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 		SourceID:     input.SourceID,
 		MetadataJSON: operationMetadataJSON(input, "attach_candidate"),
 		CreatedByID:  uintPtrOrNil(input.UserID),
-	})
+	}).ToModel()
 	if err := r.createEntityResourceBinding(ctx, &binding); err != nil {
 		return binding, err
 	}
@@ -235,7 +236,7 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 		Score:                input.Score,
 		Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 		Note:                 note,
-	})
+	}).ToModel()
 	if err := r.db.WithContext(ctx).Create(&candidate).Error; err != nil {
 		return candidate, err
 	}
@@ -281,7 +282,7 @@ func (r *gormRepository) createEntityResourceBinding(ctx context.Context, bindin
 
 func (r *gormRepository) createAssetSlotOperationAudit(ctx context.Context, assetSlotID uint, portID string, payload map[string]any, input AttachAssetSlotCandidateInput) error {
 	raw, _ := json.Marshal(payload)
-	audit := model.CanvasEntityWriteAudit{
+	audit := canvasruntime.NewEntityWriteAudit(canvasruntime.EntityWriteAuditSpec{
 		CanvasID:     input.CanvasID,
 		CanvasRunID:  input.RunID,
 		CanvasNodeID: input.NodeID,
@@ -290,7 +291,7 @@ func (r *gormRepository) createAssetSlotOperationAudit(ctx context.Context, asse
 		EntityID:     assetSlotID,
 		UserID:       input.UserID,
 		NewValueJSON: string(raw),
-	}
+	})
 	return r.db.WithContext(ctx).Create(&audit).Error
 }
 

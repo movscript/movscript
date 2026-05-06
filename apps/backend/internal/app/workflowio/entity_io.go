@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
@@ -545,7 +546,7 @@ func buildEntityWriteAudits(
 		if oldValue, ok := oldValues[portID]; ok {
 			oldValueJSON = mustMarshalString(entityPortValueAuditPayload(oldValue))
 		}
-		audits = append(audits, model.CanvasEntityWriteAudit{
+		audits = append(audits, canvasruntime.NewEntityWriteAudit(canvasruntime.EntityWriteAuditSpec{
 			CanvasID:           meta.CanvasID,
 			CanvasRunID:        meta.RunID,
 			CanvasNodeID:       meta.NodeID,
@@ -556,7 +557,7 @@ func buildEntityWriteAudits(
 			OldValueJSON:       oldValueJSON,
 			NewValueJSON:       newValueJSON,
 			ResourceBindingIDs: mustMarshalString(bindingIDsByPort[portID]),
-		})
+		}))
 	}
 	return audits
 }

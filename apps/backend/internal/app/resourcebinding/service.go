@@ -70,7 +70,8 @@ func (s *Service) Create(ctx context.Context, input CreateInput, userID uint) (m
 		return created, false, err
 	}
 
-	binding = domainbinding.NewBinding(input)
+	domainBinding := domainbinding.New(input)
+	binding = domainBinding.ToModel()
 	if err := s.repo.CreateBinding(ctx, &binding); err != nil {
 		return binding, false, err
 	}
