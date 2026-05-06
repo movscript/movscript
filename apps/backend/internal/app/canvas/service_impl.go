@@ -59,7 +59,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		resp, err := h.svc.CallText(ctx, user.ID, nd.ModelDbID, textReq)
+		resp, err := h.svc.CallTextWithBilling(ctx, user.ID, nd.ModelDbID, textReq, h.billingContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -72,11 +72,11 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
-		resp, err := h.svc.CallImage(ctx, user.ID, nd.ModelDbID, ai.ImageRequest{
+		resp, err := h.svc.CallImageWithBilling(ctx, user.ID, nd.ModelDbID, ai.ImageRequest{
 			Prompt:             nd.Prompt,
 			N:                  1,
 			InputImageDataList: imageData,
-		})
+		}, h.billingContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -99,7 +99,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]
 		}
-		resp, err := h.svc.CallVideo(ctx, user.ID, nd.ModelDbID, videoReq)
+		resp, err := h.svc.CallVideoWithBilling(ctx, user.ID, nd.ModelDbID, videoReq, h.billingContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -119,7 +119,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 		return
 	}
 
-	r, err := h.createCanvasResourceFromSource(ctx, user.ID, fmt.Sprintf("generated_%s_%d.%s", resType, task.ID, canvasExtFromMime(mimeType)), resultURL, mimeType)
+	r, err := h.createCanvasResourceFromSource(ctx, user.ID, h.orgIDForNode(ctx, node), fmt.Sprintf("generated_%s_%d.%s", resType, task.ID, canvasExtFromMime(mimeType)), resultURL, mimeType)
 	if err != nil {
 		h.failTask(task, node, nd, err.Error())
 		return
@@ -154,4 +154,30 @@ func (h *Service) completeInlineTextTask(task *model.CanvasTask, node *model.Can
 		h.updateNodeData(node, nd)
 	}
 	h.updateRunStatus(task.CanvasRunID)
+}
+
+func (h *Service) billingContextForNode(ctx context.Context, node *model.CanvasNode, task *model.CanvasTask) ai.BillingContext {
+	billing := ai.BillingContext{}
+	if task != nil {
+		billing.JobID = &task.ID
+	}
+	var cv model.Canvas
+	if node != nil && node.CanvasID != 0 {
+		if err := h.db.WithContext(ctx).Select("id, org_id, project_id").First(&cv, node.CanvasID).Error; err == nil {
+			billing.OrgID = cv.OrgID
+			billing.ProjectID = cv.ProjectID
+		}
+	}
+	return billing
+}
+
+func (h *Service) orgIDForNode(ctx context.Context, node *model.CanvasNode) *uint {
+	var cv model.Canvas
+	if node == nil || node.CanvasID == 0 {
+		return nil
+	}
+	if err := h.db.WithContext(ctx).Select("id, org_id").First(&cv, node.CanvasID).Error; err != nil {
+		return nil
+	}
+	return cv.OrgID
 }

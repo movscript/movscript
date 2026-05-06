@@ -6,6 +6,7 @@ type RawResource struct {
 	gorm.Model
 	OwnerID        uint            `gorm:"not null" json:"owner_id"`
 	Owner          User            `json:"owner,omitempty"`
+	OrgID          *uint           `gorm:"index" json:"org_id,omitempty"`
 	FolderID       *uint           `json:"folder_id,omitempty"`
 	Folder         *ResourceFolder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
 	Type           string          `gorm:"not null" json:"type"` // image | video | audio | text

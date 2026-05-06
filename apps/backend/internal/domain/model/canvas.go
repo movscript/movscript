@@ -9,6 +9,7 @@ import (
 type Canvas struct {
 	gorm.Model
 	OwnerID      uint         `gorm:"not null" json:"owner_id"`
+	OrgID        *uint        `gorm:"index" json:"org_id,omitempty"`
 	Owner        User         `json:"owner,omitempty"`
 	Name         string       `gorm:"not null" json:"name"`
 	Description  string       `gorm:"size:512" json:"description,omitempty"`

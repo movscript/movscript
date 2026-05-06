@@ -46,6 +46,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 
 	resp, err := h.service.Chat(c.Request.Context(), chatapp.Input{
 		UserID:        user.ID,
+		OrgID:         currentOrgID(c),
 		ModelConfigID: req.ModelConfigID,
 		Messages:      msgs,
 	})

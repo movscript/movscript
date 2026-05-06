@@ -380,3 +380,38 @@ func (h *OrgHandler) GetUsage(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"month": result.Month, "by_user": rows})
 }
+
+func (h *OrgHandler) AdminGetQuota(c *gin.Context) {
+	quota, err := h.service.GetQuota(c.Request.Context(), parseID(c.Param("id")))
+	if err != nil {
+		if err == orgapp.ErrNotFound {
+			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Internal("查询组织额度失败"))
+		return
+	}
+	c.JSON(http.StatusOK, quota)
+}
+
+func (h *OrgHandler) AdminSetQuota(c *gin.Context) {
+	var req struct {
+		MonthlyBudget float64 `json:"monthly_budget"`
+		Plan          *string `json:"plan"`
+		Status        *string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	quota, err := h.service.SetQuota(c.Request.Context(), parseID(c.Param("id")), orgapp.QuotaInput{MonthlyBudget: req.MonthlyBudget, Plan: req.Plan, Status: req.Status})
+	if err != nil {
+		if err == orgapp.ErrNotFound {
+			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Internal("设置组织额度失败"))
+		return
+	}
+	c.JSON(http.StatusOK, quota)
+}

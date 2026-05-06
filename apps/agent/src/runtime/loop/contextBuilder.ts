@@ -65,7 +65,8 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   const identityLines = [
     'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
     'Answer in the same language as the user unless they ask otherwise.',
-    'Use the runtime context, tool results, and memories when available.',
+    'Use the runtime context, tool results, and startup memories when available.',
+    'Startup memories are intentionally small. When older preferences, decisions, warnings, entity references, or draft notes may matter, call movscript_search_memories with a focused query instead of assuming all memories are present.',
     'When context is missing or ambiguous and guessing would affect the outcome, call movscript_request_user_input with a clear title, short summary, and 2-4 concrete choices or a free-form question.',
     'When reading context, decide from titles, summaries, labels, descriptions, and user-facing names first. Treat ids as references for tool calls, not as the primary meaning of the context.',
     'Do not claim you changed project data unless a tool result proves it.',
@@ -166,9 +167,46 @@ export function buildOpenAIChatTools(catalog: ResolvedToolCatalog): RuntimeModel
       ...(tool.description ? { description: tool.description } : {}),
       ...(tool.inputSchema !== undefined ? { parameters: tool.inputSchema } : {}),
       ...(tool.inputSchema === undefined && tool.name === 'movscript_request_user_input' ? { parameters: USER_INPUT_TOOL_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && tool.name === 'movscript_search_memories' ? { parameters: SEARCH_MEMORIES_TOOL_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && tool.name === 'movscript_create_script' ? { parameters: CREATE_SCRIPT_TOOL_SCHEMA } : {}),
     },
   }))
 }
+
+const SEARCH_MEMORIES_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    query: {
+      type: 'string',
+      description: 'Focused keywords or a short phrase to search in memory content.',
+    },
+    scope: {
+      type: 'string',
+      enum: ['global', 'project', 'thread'],
+      description: 'Optional scope filter. Omit to search visible global, current project, and current thread memories.',
+    },
+    kind: {
+      type: 'string',
+      enum: ['preference', 'fact', 'entity_ref', 'draft', 'decision', 'warning'],
+      description: 'Optional memory kind filter.',
+    },
+    projectId: {
+      type: 'number',
+      description: 'Optional project reference id. Defaults to the current project when available.',
+    },
+    threadId: {
+      type: 'string',
+      description: 'Optional thread reference id. Defaults to the current thread.',
+    },
+    limit: {
+      type: 'number',
+      minimum: 1,
+      maximum: 25,
+      description: 'Maximum number of memories to return.',
+    },
+  },
+} satisfies Record<string, unknown>
 
 const USER_INPUT_TOOL_SCHEMA = {
   type: 'object',
@@ -210,6 +248,36 @@ const USER_INPUT_TOOL_SCHEMA = {
     },
   },
   required: ['title', 'question'],
+} satisfies Record<string, unknown>
+
+const CREATE_SCRIPT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    projectId: { type: 'number', description: 'Current project id. The runtime fills this when a project is selected.' },
+    title: { type: 'string', description: 'Script title.' },
+    content: { type: 'string', description: 'Full script body or complete outline to save.' },
+    raw_source: { type: 'string', description: 'Original raw source text. Defaults to content.' },
+    description: { type: 'string' },
+    script_type: { type: 'string', description: 'User-facing category tag, such as short_drama, episode, outline, revised.' },
+    source_type: { type: 'string', enum: ['raw', 'adapted', 'revised'] },
+    summary: { type: 'string' },
+    characters: { type: 'string' },
+    core_settings: { type: 'string' },
+    hook: { type: 'string' },
+    plot_summary: { type: 'string' },
+    script_points: { type: 'string', description: 'JSON string or structured notes for key beats.' },
+    planned_scene_count: { type: 'number' },
+    planned_character_count: { type: 'number' },
+    time_text: { type: 'string' },
+    location_text: { type: 'string' },
+    structured_characters: { type: 'string', description: 'JSON string or structured notes for characters.' },
+    plot_beats: { type: 'string', description: 'JSON string or structured notes for plot beats.' },
+    atmosphere: { type: 'string' },
+    structure_json: { type: 'string', description: 'Full normalized structured script payload as JSON string when available.' },
+    order: { type: 'number' },
+  },
+  required: ['title', 'content'],
 } satisfies Record<string, unknown>
 
 // Re-export CompiledPromptPreview-compatible output for previewRun

@@ -150,6 +150,8 @@ func seedDefaultOrg(db *gorm.DB) error {
 		Name:       "Default",
 		Slug:       "default",
 		IsPersonal: false,
+		Plan:       "team",
+		Status:     "active",
 		CreatedBy:  owner.ID,
 	}
 	if err := db.Create(&org).Error; err != nil {

@@ -3,10 +3,10 @@ package script
 import (
 	"context"
 	"errors"
-	"strings"
 
 	dto "github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"gorm.io/gorm"
 )
 
@@ -135,24 +135,7 @@ func (s *Service) Patch(ctx context.Context, input PatchInput) (model.Script, er
 }
 
 func NormalizeDefaults(item *model.Script) {
-	if item.ScriptType == "" {
-		item.ScriptType = "uncategorized"
-	}
-	if item.SourceType == "" {
-		item.SourceType = "raw"
-	}
-	if item.Version == 0 {
-		item.Version = 1
-	}
-	if strings.TrimSpace(item.RawSource) == "" {
-		item.RawSource = item.Content
-	}
-	if strings.TrimSpace(item.Content) == "" {
-		item.Content = item.RawSource
-	}
-	if strings.TrimSpace(item.RawSource) != "" {
-		item.Content = item.RawSource
-	}
+	domainscript.NormalizeDefaults(item)
 }
 
 func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, createdByID *uint) error {

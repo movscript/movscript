@@ -37,6 +37,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 
 	job, err := h.service.EnqueueGeneration(c.Request.Context(), jobapp.EnqueueInput{
 		UserID:           user.ID,
+		OrgID:            currentOrgID(c),
 		ModelConfigID:    req.ModelConfigID,
 		JobType:          req.JobType,
 		FeatureKey:       req.FeatureKey,
@@ -60,6 +61,12 @@ func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, jobapp.ErrJobTypeRequired), errors.Is(err, jobapp.ErrInvalidJobType):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, jobapp.ErrProjectNotFound):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
+	case errors.Is(err, jobapp.ErrProjectOutsideOrg):
+		c.JSON(http.StatusForbidden, gin.H{"error": "project is outside current workspace"})
+	case errors.Is(err, jobapp.ErrResourceOutsideOrg):
+		c.JSON(http.StatusForbidden, gin.H{"error": "input resource is outside current workspace"})
 	case jobapp.IsInsufficientQuota(err):
 		c.JSON(http.StatusPaymentRequired, gin.H{"error": err.Error()})
 	case errors.Is(err, jobapp.ErrReserveQuota), errors.Is(err, jobapp.ErrCreateJob):

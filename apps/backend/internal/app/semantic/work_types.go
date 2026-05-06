@@ -1,5 +1,7 @@
 package semantic
 
+import domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+
 type WorkAuth struct {
 	Role   string
 	UserID uint
@@ -31,6 +33,27 @@ type WorkItemInput struct {
 	MetadataJSON   string `json:"metadata_json"`
 }
 
+func (input WorkItemInput) domainPatch() domainsemantic.WorkItemPatch {
+	return domainsemantic.WorkItemPatch{
+		ProductionID:   input.ProductionID,
+		TargetType:     input.TargetType,
+		TargetID:       input.TargetID,
+		Kind:           input.Kind,
+		Title:          input.Title,
+		Description:    input.Description,
+		Status:         input.Status,
+		Priority:       input.Priority,
+		AssigneeID:     input.AssigneeID,
+		SourceJobID:    input.SourceJobID,
+		SourceCanvasID: input.SourceCanvasID,
+		ResultType:     input.ResultType,
+		ResultJSON:     input.ResultJSON,
+		AppliedAt:      input.AppliedAt,
+		ApplyError:     input.ApplyError,
+		MetadataJSON:   input.MetadataJSON,
+	}
+}
+
 type WorkReviewFilter struct {
 	ProjectID  uint
 	WorkItemID uint
@@ -56,17 +79,6 @@ type WorkDependencyInput struct {
 	DependencyType      string `json:"dependency_type"`
 }
 
-type WorkItemResultPayload struct {
-	Status               string `json:"status"`
-	TargetStatus         string `json:"target_status"`
-	AssetSlotCandidateID uint   `json:"asset_slot_candidate_id"`
-}
-
 func IsWorkItemManagerRole(role string) bool {
-	switch role {
-	case "super_admin", "owner", "director":
-		return true
-	default:
-		return false
-	}
+	return domainsemantic.IsWorkItemManagerRole(role)
 }

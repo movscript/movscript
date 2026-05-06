@@ -463,11 +463,15 @@ function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']
   const scope = url.searchParams.get('scope')
   const threadId = url.searchParams.get('threadId')
   const kind = url.searchParams.get('kind')
+  const query = url.searchParams.get('query')
+  const limit = url.searchParams.get('limit')
   return {
     ...(scope === 'global' || scope === 'project' || scope === 'thread' ? { scope } : {}),
     ...(projectId !== null && Number.isFinite(Number(projectId)) ? { projectId: Number(projectId) } : {}),
     ...(threadId ? { threadId } : {}),
     ...(kind === 'preference' || kind === 'fact' || kind === 'entity_ref' || kind === 'draft' || kind === 'decision' || kind === 'warning' ? { kind } : {}),
+    ...(query ? { query } : {}),
+    ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
   }
 }
 

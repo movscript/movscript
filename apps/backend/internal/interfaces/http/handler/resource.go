@@ -38,6 +38,7 @@ func (h *ResourceHandler) List(c *gin.Context) {
 	}
 	resources, page, err := h.service.List(c.Request.Context(), appresource.ListInput{
 		UserID:   user.ID,
+		OrgID:    currentOrgID(c),
 		FolderID: c.Query("folder_id"),
 		Shared:   c.Query("shared") == "true",
 		Type:     c.Query("type"),
@@ -79,6 +80,7 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 
 	r, err := h.service.Upload(c.Request.Context(), appresource.UploadInput{
 		UserID:   user.ID,
+		OrgID:    currentOrgID(c),
 		FolderID: c.PostForm("folder_id"),
 		Filename: header.Filename,
 		MimeType: header.Header.Get("Content-Type"),
@@ -99,7 +101,7 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	r, err := h.service.GetVisible(c.Request.Context(), parseID(c.Param("id")), user.ID)
+	r, err := h.service.GetVisible(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c))
 	if err != nil {
 		h.writeResourceError(c, err)
 		return
@@ -179,7 +181,7 @@ func (h *ResourceHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	if err := h.service.Delete(c.Request.Context(), parseID(c.Param("id")), user.ID); err != nil {
+	if err := h.service.Delete(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c)); err != nil {
 		h.writeResourceError(c, err)
 		return
 	}
@@ -204,6 +206,7 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 	}
 	r, err := h.service.Update(c.Request.Context(), appresource.UpdateInput{
 		UserID:   user.ID,
+		OrgID:    currentOrgID(c),
 		ID:       parseID(c.Param("id")),
 		IsShared: body.IsShared,
 		FolderID: body.FolderID,

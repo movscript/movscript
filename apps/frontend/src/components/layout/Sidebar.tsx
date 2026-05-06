@@ -9,7 +9,6 @@ import {
   Atom,
   Badge,
   Blocks,
-  BookOpenText,
   Bot,
   BrainCircuit,
   Bug,
@@ -25,15 +24,12 @@ import {
   FolderArchive,
   FolderOpen,
   Gem,
-  GitFork,
   Hammer,
   Home,
   Images,
-  Lightbulb,
   ListChecks,
   ListTodo,
   LogOut,
-  MonitorCog,
   Move,
   PanelLeftClose,
   PanelLeftOpen,
@@ -45,11 +41,8 @@ import {
   Scissors,
   ScanSearch,
   ScrollText,
-  Send,
   Settings,
   Shapes,
-  ShieldCheck,
-  SlidersHorizontal,
   Terminal,
   Telescope,
   ToyBrick,
@@ -310,31 +303,7 @@ export function Sidebar() {
           {canOpenDeveloperTools && (
             <NavItem to="/agent/debug" icon={Bug} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
           )}
-          {currentUser?.system_role === 'super_admin' && (
-            <>
-              <NavItem to="/admin" icon={ShieldCheck} label={t('sidebar.items.admin')} collapsed={collapsed} />
-            </>
-          )}
         </Section>
-
-        {currentUser?.system_role === 'super_admin' && (
-          <>
-            <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
-            <Section title={t('sidebar.sections.unused')} defaultOpen={false} collapsed={collapsed}>
-              {current && (
-                <>
-                  <NavItem to="/workbench/script" icon={BookOpenText} label={t('sidebar.items.workbenchScript')} collapsed={collapsed} />
-                  <NavItem to="/workbench/creative" icon={Lightbulb} label={t('sidebar.items.workbenchCreative')} collapsed={collapsed} />
-                  <NavItem to="/workbench/delivery" icon={Send} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
-                  <NavItem to="/workbench/reference-relations" icon={GitFork} label={t('sidebar.items.workbenchReferenceRelations')} collapsed={collapsed} />
-                </>
-              )}
-              <NavItem to="/user" icon={CircleUserRound} label={t('sidebar.items.user')} collapsed={collapsed} />
-              <NavItem to="/admin/debug" icon={MonitorCog} label={t('sidebar.items.adminDebug')} collapsed={collapsed} />
-              <NavItem to="/admin/ui-preview" icon={SlidersHorizontal} label={t('sidebar.items.adminUiPreview')} collapsed={collapsed} />
-            </Section>
-          </>
-        )}
 
       </nav>
 
@@ -355,7 +324,7 @@ export function Sidebar() {
                 {orgMemberships.map((m) => (
                   <DropdownMenuItem
                     key={m.org_id}
-                    onClick={() => { setCurrentOrg(m.org_id); navigate('/projects') }}
+                    onClick={() => { setCurrentOrg(m.org_id); setCurrent(null); navigate('/projects') }}
                     className={cn(m.org_id === currentOrgID && 'font-medium')}
                   >
                     {m.is_personal ? <CircleUserRound size={13} className="mr-2 shrink-0" /> : <Building2 size={13} className="mr-2 shrink-0" />}

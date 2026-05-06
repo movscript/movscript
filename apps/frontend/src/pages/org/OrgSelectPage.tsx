@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Building2, KeyRound, Plus, ChevronRight } from 'lucide-react'
 import { useUserStore } from '@/store/userStore'
+import { useProjectStore } from '@/store/projectStore'
 import { api } from '@/lib/api'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -127,6 +128,7 @@ export default function OrgSelectPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { setCurrentOrg, setOrgMemberships, orgMemberships: memberships } = useUserStore()
+  const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const [showCreate, setShowCreate] = useState(false)
   const [showJoin, setShowJoin] = useState(false)
 
@@ -140,6 +142,7 @@ export default function OrgSelectPage() {
 
   function selectOrg(orgId: number) {
     setCurrentOrg(orgId)
+    setCurrentProject(null)
     navigate('/projects', { replace: true })
   }
 

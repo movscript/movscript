@@ -40,7 +40,7 @@ func (h *Service) persistWorkflowOutputsToResources(ctx context.Context, user *m
 					return fmt.Errorf("persist workflow output %q: %w", key, err)
 				}
 				name := canvasWorkflowOutputResourceName(cv, runID, key, value, ext)
-				resource, err := h.createCanvasResourceFromBytes(ctx, user.ID, name, data, mimeType)
+				resource, err := h.createCanvasResourceFromBytes(ctx, user.ID, cv.OrgID, name, data, mimeType)
 				if err != nil {
 					return fmt.Errorf("persist workflow output %q: %w", key, err)
 				}

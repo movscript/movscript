@@ -1,0 +1,66 @@
+package resource
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
+func MimeToType(mime, filename string) string {
+	switch {
+	case strings.HasPrefix(mime, "image/"):
+		return "image"
+	case strings.HasPrefix(mime, "video/"):
+		return "video"
+	case strings.HasPrefix(mime, "audio/"):
+		return "audio"
+	case strings.HasPrefix(mime, "text/"):
+		return "text"
+	case mime == "application/json", mime == "application/xml", mime == "application/yaml", mime == "application/x-yaml":
+		return "text"
+	}
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif":
+		return "image"
+	case ".mp4", ".mov", ".avi", ".webm":
+		return "video"
+	case ".mp3", ".wav", ".ogg", ".aac", ".flac":
+		return "audio"
+	case ".txt", ".md", ".json", ".csv", ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".xml", ".yaml", ".yml", ".log":
+		return "text"
+	}
+	return "file"
+}
+
+func GenerateStorageKey(resourceID uint, filename string) string {
+	ext := filepath.Ext(filename)
+	base := sanitizeName(strings.TrimSuffix(filename, ext))
+	return fmt.Sprintf("%d_%s%s", resourceID, base, ext)
+}
+
+func sanitizeName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
+}
+
+func InOrgScope(resourceOrgID, currentOrgID *uint, ownerID uint, userID uint, includeLegacy bool) bool {
+	if sameOrg(resourceOrgID, currentOrgID) {
+		return true
+	}
+	return includeLegacy && resourceOrgID == nil && ownerID == userID
+}
+
+func sameOrg(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}

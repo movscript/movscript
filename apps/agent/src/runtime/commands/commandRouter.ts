@@ -1,13 +1,7 @@
 export type AgentCommandName =
   | 'chat'
-  | 'inspect_context'
-  | 'production_plan'
-  | 'draft'
-  | 'search'
-  | 'project_structure'
-  | 'read_entity'
-  | 'list_drafts'
-  | 'apply_draft'
+  | 'context'
+  | 'memory'
 
 export type AgentContextProfile =
   | 'minimal'
@@ -33,107 +27,30 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
   const payload = firstToken.startsWith('/') ? trimmed.slice(firstToken.length).trim() : trimmed
 
   switch (firstToken) {
-    case '/inspect_context':
     case '/context':
       return {
-        name: 'inspect_context',
+        name: 'context',
         rawName: firstToken,
         payload,
         contextProfile: 'minimal',
-        outputMode: 'json',
-        requiredTools: ['movscript_get_context_pack'],
+        outputMode: 'natural',
+        requiredTools: [],
         systemContract: [
-          'This is an inspect-context command.',
-          'Return only the runtime context representation. Do not create drafts, search, navigate, or write data.',
+          'This is a runtime context diagnostic command.',
+          'Return only the text context that would be sent to the model gateway. Do not create drafts, search, navigate, write data, or call the model gateway.',
         ].join('\n'),
       }
-    case '/production_plan':
-    case '/project_plan':
+    case '/memory':
       return {
-        name: 'production_plan',
-        rawName: firstToken,
-        payload,
-        contextProfile: 'production_context',
-        outputMode: 'json',
-        requiredTools: [
-          'movscript_read_project_structure',
-          'movscript_list_productions',
-          'movscript_read_production_context',
-          'movscript_check_entity_conflicts',
-          'movscript_propose_production_entities',
-        ],
-        systemContract: [
-          'This is a production-planning command.',
-          'Plan with project and production context before proposing changes.',
-          'Return machine-readable JSON for the user-facing final answer.',
-          'Use draft/proposal tools for proposed changes; do not claim formal project writes unless a write tool succeeds.',
-        ].join('\n'),
-      }
-    case '/draft':
-      return {
-        name: 'draft',
-        rawName: firstToken,
-        payload,
-        contextProfile: 'selected_entity',
-        outputMode: 'natural',
-        requiredTools: ['movscript_create_draft', 'movscript_list_drafts'],
-        systemContract: [
-          'This is a draft command.',
-          'Create or update local draft artifacts only. Formal project data must not be changed.',
-          'Keep the final answer scoped to the draft created, its kind, and the next review action.',
-        ].join('\n'),
-      }
-    case '/search':
-      return {
-        name: 'search',
+        name: 'memory',
         rawName: firstToken,
         payload,
         contextProfile: 'minimal',
         outputMode: 'natural',
-        requiredTools: ['movscript_search_entities'],
-        systemContract: 'This is a search command. Search project entities before answering.',
-      }
-    case '/project_structure':
-      return {
-        name: 'project_structure',
-        rawName: firstToken,
-        payload,
-        contextProfile: 'project_structure',
-        outputMode: 'natural',
-        requiredTools: ['movscript_read_project_structure'],
-        systemContract: 'This is a project-structure command. Read the compact project structure before answering.',
-      }
-    case '/read_entity':
-      return {
-        name: 'read_entity',
-        rawName: firstToken,
-        payload,
-        contextProfile: 'selected_entity',
-        outputMode: 'natural',
-        requiredTools: ['movscript_read_entity'],
-        systemContract: 'This is a read-entity command. Read the exact entity when type and id are available.',
-      }
-    case '/list_drafts':
-      return {
-        name: 'list_drafts',
-        rawName: firstToken,
-        payload,
-        contextProfile: 'minimal',
-        outputMode: 'natural',
-        requiredTools: ['movscript_list_drafts'],
-        systemContract: 'This is a list-drafts command. List local drafts before answering.',
-      }
-    case '/apply_draft':
-      return {
-        name: 'apply_draft',
-        rawName: firstToken,
-        payload,
-        contextProfile: 'minimal',
-        outputMode: 'natural',
-        requiredTools: ['movscript_apply_draft'],
+        requiredTools: [],
         systemContract: [
-          'This is an apply-draft command.',
-          'Applying a draft is a write-risk action and must go through runtime approval when required.',
+          'This is a runtime memory diagnostic command.',
+          'Return only the memory files opened for this run. Do not include memory content, create drafts, search, navigate, write data, or call the model gateway.',
         ].join('\n'),
       }
     default:

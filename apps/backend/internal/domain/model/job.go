@@ -11,6 +11,7 @@ import (
 type Job struct {
 	gorm.Model
 	UserID              uint       `gorm:"not null" json:"user_id"`
+	OrgID               *uint      `gorm:"index" json:"org_id,omitempty"`
 	ModelConfigID       uint       `gorm:"not null" json:"model_config_id"`               // AIModelConfig.ID
 	JobType             string     `gorm:"not null" json:"job_type"`                      // image | image_edit | video | video_i2v | video_v2v
 	FeatureKey          string     `gorm:"index;default:''" json:"feature_key,omitempty"` // product feature/tool key, e.g. ref_image_gen

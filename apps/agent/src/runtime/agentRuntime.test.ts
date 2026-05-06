@@ -9,7 +9,7 @@ import { FileAgentStore } from './store/fileStore.js'
 import { FileAgentDraftStore, InMemoryAgentDraftStore } from './store/draftStore.js'
 import { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from './manifest/agentManifest.js'
-import { BackendApplyClient, type BackendApplyResult } from './store/backendApplyClient.js'
+import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from './store/backendApplyClient.js'
 import type { ApplyDraftReview } from './store/draftApply.js'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
@@ -34,7 +34,7 @@ function installDefaultModelFetch(): void {
     // Extract project id from system message
     const projectId = (() => {
       const sys = messages.find((m) => m.role === 'system')?.content ?? ''
-      const m = sys.match(/project: id=(\d+)/)
+      const m = sys.match(/project#(\d+)/)
       return m ? Number(m[1]) : undefined
     })()
 
@@ -67,6 +67,9 @@ function installDefaultModelFetch(): void {
     if ((/搜索|search/i.test(userMsg) || /主角|资料/i.test(userMsg)) && toolNames.has('movscript_search_entities')) {
       callsToMake.push({ id: 'call_search_1', name: 'movscript_search_entities', args: { query: userMsg.slice(0, 40), limit: 8, ...(projectId !== undefined ? { projectId } : {}) } })
     }
+    if (/记忆|memory|偏好|默认镜头风格/i.test(userMsg) && toolNames.has('movscript_search_memories')) {
+      callsToMake.push({ id: 'call_memory_1', name: 'movscript_search_memories', args: { query: userMsg.slice(0, 40), limit: 8, ...(projectId !== undefined ? { projectId } : {}) } })
+    }
     if (/草稿|draft/i.test(userMsg) && !/应用|apply/i.test(userMsg) && toolNames.has('movscript_create_draft')) {
       const draftContent = memoriesSection
         ? `用户请求：${userMsg}\n\n参考记忆：\n${memoriesSection}`
@@ -76,6 +79,20 @@ function installDefaultModelFetch(): void {
     if (/应用草稿|apply.*draft/i.test(userMsg) && toolNames.has('movscript_apply_draft')) {
       const draftId = userMsg.match(/\b(draft_[a-zA-Z0-9_-]+)\b/)?.[1]
       if (draftId) callsToMake.push({ id: 'call_apply_1', name: 'movscript_apply_draft', args: { draftId } })
+    }
+    if (/保存.*剧本|创建.*剧本|create.*script/i.test(userMsg) && toolNames.has('movscript_create_script')) {
+      callsToMake.push({
+        id: 'call_create_script_1',
+        name: 'movscript_create_script',
+        args: {
+          title: '雨夜便利店',
+          content: '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。',
+          summary: '一个外卖员在雨夜便利店卷入旧信和失踪案。',
+          hook: '一封没有寄出的信指向十年前同一场雨。',
+          script_type: 'short_drama',
+          ...(projectId !== undefined ? { projectId } : {}),
+        },
+      })
     }
     if (/选择|缺少上下文|ask user/i.test(userMsg) && !/用户补充信息/.test(userMsg) && toolNames.has('movscript_request_user_input')) {
       callsToMake.push({
@@ -196,7 +213,8 @@ class FakeMCPClient {
 }
 
 class FakeBackendApplyClient extends BackendApplyClient {
-  readonly calls: Array<{ review: ApplyDraftReview; userId?: number | string }> = []
+  readonly calls: Array<{ review: ApplyDraftReview; auth?: BackendApplyAuthContext }> = []
+  readonly createScriptCalls: Array<{ projectId: number; payload: Record<string, JSONValue>; auth?: BackendApplyAuthContext }> = []
   result: BackendApplyResult = {
     performed: true,
     method: 'PATCH',
@@ -208,9 +226,24 @@ class FakeBackendApplyClient extends BackendApplyClient {
     return true
   }
 
-  override async applyReview(review: ApplyDraftReview, userId?: number | string): Promise<BackendApplyResult> {
-    this.calls.push({ review, userId })
+  override async applyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    this.calls.push({ review, auth })
     return this.result
+  }
+
+  override async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    this.createScriptCalls.push({ projectId, payload, auth })
+    return {
+      performed: true,
+      method: 'POST',
+      url: `http://backend/api/v1/projects/${projectId}/scripts`,
+      payload,
+      response: {
+        id: 99,
+        project_id: projectId,
+        ...payload,
+      },
+    }
   }
 }
 
@@ -367,6 +400,36 @@ test('runtime draft tools are available without MCP tool discovery', async () =>
   assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.source, 'runtime')
   assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.source, 'runtime')
+  assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.requiresApproval, true)
+})
+
+test('create_script requires approval and creates a backend script after approval', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  client.userId = 7
+  const backendApplyClient = new FakeBackendApplyClient()
+  const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我创建并保存一个新剧本' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id, { backendAuthToken: 'secret-token' })
+
+  assert.equal(run.status, 'requires_action')
+  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_script')
+  assert.equal(backendApplyClient.createScriptCalls.length, 0)
+
+  runtime.approveRun(run.id, { backendAuthToken: 'secret-token' })
+  const resumed = await waitForRun(runtime, run.id)
+
+  assert.equal(resumed.status, 'completed')
+  assert.equal(backendApplyClient.createScriptCalls.length, 1)
+  assert.equal(backendApplyClient.createScriptCalls[0]?.projectId, 42)
+  assert.equal(backendApplyClient.createScriptCalls[0]?.payload.title, '雨夜便利店')
+  assert.equal(backendApplyClient.createScriptCalls[0]?.payload.raw_source, '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。')
+  assert.equal(backendApplyClient.createScriptCalls[0]?.payload.source_type, 'raw')
+  assert.equal(backendApplyClient.createScriptCalls[0]?.auth?.userId, 7)
+  assert.equal(backendApplyClient.createScriptCalls[0]?.auth?.backendAuthToken, 'secret-token')
+  assert.ok(resumed.steps.some((step) => step.toolName === 'movscript_create_script' && step.status === 'completed'))
 })
 
 test('run agentManifest limits tool execution', async () => {
@@ -570,7 +633,7 @@ test('apply_draft passes current context user id to backend apply client', async
   runtime.approveRun(waiting.id)
   await waitForRun(runtime, waiting.id)
 
-  assert.equal(backendApplyClient.calls[0].userId, 9)
+  assert.equal(backendApplyClient.calls[0].auth?.userId, 9)
 })
 
 test('apply_draft preview API returns before and after values', () => {
@@ -732,7 +795,7 @@ test('file store writes valid JSON atomically enough to recover state', () => {
   }
 })
 
-test('preference memories are written and loaded by the next run', async () => {
+test('preference memories are written and searchable by the next run', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const memoryStore = new InMemoryAgentMemoryStore()
@@ -750,8 +813,15 @@ test('preference memories are written and loaded by the next run', async () => {
   const finalThread = runtime.getThread(thread.id)
   const assistant = finalThread?.messages.find((message) => message.id === secondRun.assistantMessageId)
 
-  assert.ok((secondRun.metadata?.memoryIds as string[]).includes(preference.id))
-  assert.match(assistant?.content ?? '', /已参考 \d+ 条记忆/)
+  assert.equal((secondRun.metadata?.memoryIds as string[]).includes(preference.id), false)
+  assert.equal(runHasTool(secondRun, 'movscript_search_memories'), false)
+
+  runtime.addMessage(thread.id, { role: 'user', content: '搜索我的默认镜头风格记忆' })
+  const thirdRun = await createAndWaitForRun(runtime, thread.id)
+  const memoryStep = thirdRun.steps.find((step) => step.toolName === 'movscript_search_memories')
+
+  assert.match(assistant?.content ?? '', /已完成|当前/)
+  assert.match(JSON.stringify(memoryStep?.result ?? {}), /手持纪实/)
 })
 
 test('records backend model gateway HTTP request and response in run trace', async () => {
@@ -905,16 +975,16 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
   }
 })
 
-test('inspect_context returns fallback diagnostics when MCP context pack is unavailable', async () => {
+test('context command returns fallback diagnostics when MCP context pack is unavailable', async () => {
   const client = new FakeMCPClient()
   client.failInitialize = true
   const runtime = createTestRuntime({ mcpClient: client })
   const thread = runtime.createThread()
   runtime.addMessage(thread.id, {
     role: 'user',
-    content: '/inspect_context',
+    content: '/context',
     clientInput: {
-      message: '/inspect_context',
+      message: '/context',
       uiSnapshot: {
         route: { pathname: '/agent/debug' },
         project: { id: 42, name: 'Fallback Project' },
@@ -925,12 +995,38 @@ test('inspect_context returns fallback diagnostics when MCP context pack is unav
   const run = await createAndWaitForRun(runtime, thread.id)
   const finalThread = runtime.getThread(thread.id)
   const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-  const parsed = JSON.parse(assistant?.content ?? '{}')
 
   assert.equal(run.status, 'completed_with_warnings')
-  assert.equal(parsed.context.project.id, 42)
-  assert.match(parsed.warnings.join('\n'), /Context pack unavailable: mcp offline/)
+  assert.match(assistant?.content ?? '', /Model gateway messages:/)
+  assert.match(assistant?.content ?? '', /Title: Fallback Project/)
+  assert.match(assistant?.content ?? '', /Reference id: project#42/)
+  assert.match(assistant?.content ?? '', /Context pack unavailable: mcp offline/)
+  assert.throws(() => JSON.parse(assistant?.content ?? ''))
   assert.equal(run.traceEvents?.some((event) => event.title === 'Context pack failed'), true)
+  assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
+})
+
+test('memory command returns opened memory file refs without content or model gateway call', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const memoryStore = new InMemoryAgentMemoryStore()
+  const memory = memoryStore.createMemory({
+    scope: 'project',
+    projectId: 42,
+    kind: 'preference',
+    content: '默认镜头风格使用冷色低饱和。',
+  })
+  const runtime = createTestRuntime({ mcpClient: client, memoryStore })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '/memory 默认镜头风格' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const finalThread = runtime.getThread(thread.id)
+  const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+
+  assert.equal(run.status, 'completed')
+  assert.match(assistant?.content ?? '', /Opened memory files:/)
+  assert.match(assistant?.content ?? '', new RegExp(memory.id))
+  assert.doesNotMatch(assistant?.content ?? '', /默认镜头风格/)
   assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
 })
 
@@ -990,7 +1086,7 @@ test('production orchestrate requests include productionId in runtime context', 
   }
 })
 
-test('relevant memories are injected into create_draft content', async () => {
+test('agent can search memories before creating a draft', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const memoryStore = new InMemoryAgentMemoryStore()
@@ -1001,13 +1097,13 @@ test('relevant memories are injected into create_draft content', async () => {
     kind: 'preference',
     content: '默认镜头风格是手持纪实',
   })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个镜头草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '参考我的默认镜头风格记忆，帮我写一个镜头草稿' }] })
 
-  await createAndWaitForRun(runtime, thread.id)
-  const draft = client.calls.find((call) => call.name === 'movscript_create_draft')
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const memoryStep = run.steps.find((step) => step.toolName === 'movscript_search_memories')
 
-  assert.equal(draft, undefined)
-  assert.match(runtime.listDrafts({ projectId: 42 })[0]?.content ?? '', /默认镜头风格是手持纪实/)
+  assert.equal(memoryStep?.status, 'completed')
+  assert.match(JSON.stringify(memoryStep?.result ?? {}), /默认镜头风格是手持纪实/)
 })
 
 test('create_draft success writes draft memory', async () => {
@@ -1097,4 +1193,8 @@ function toolText(value: unknown): JSONValue {
       },
     ],
   }
+}
+
+function runHasTool(run: AgentRun, toolName: string): boolean {
+  return run.steps.some((step) => step.toolName === toolName)
 }

@@ -22,7 +22,7 @@ func (h *ResourceFolderHandler) List(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	folders, err := h.service.List(c.Request.Context(), user.ID, c.Query("shared") == "true")
+	folders, err := h.service.List(c.Request.Context(), user.ID, currentOrgID(c), c.Query("shared") == "true")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -46,7 +46,7 @@ func (h *ResourceFolderHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	folder, err := h.service.Create(c.Request.Context(), user.ID, appresourcefolder.CreateInput{Name: body.Name, ParentID: body.ParentID, StorageBackend: body.StorageBackend, IsShared: body.IsShared})
+	folder, err := h.service.Create(c.Request.Context(), user.ID, appresourcefolder.CreateInput{OrgID: currentOrgID(c), Name: body.Name, ParentID: body.ParentID, StorageBackend: body.StorageBackend, IsShared: body.IsShared})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -69,7 +69,7 @@ func (h *ResourceFolderHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	folder, err := h.service.Update(c.Request.Context(), user.ID, parseID(c.Param("id")), appresourcefolder.UpdateInput{Name: body.Name, StorageBackend: body.StorageBackend, IsShared: body.IsShared})
+	folder, err := h.service.Update(c.Request.Context(), user.ID, currentOrgID(c), parseID(c.Param("id")), appresourcefolder.UpdateInput{Name: body.Name, StorageBackend: body.StorageBackend, IsShared: body.IsShared})
 	if err != nil {
 		switch err {
 		case appresourcefolder.ErrNotFound:
@@ -90,7 +90,7 @@ func (h *ResourceFolderHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	if err := h.service.Delete(c.Request.Context(), user.ID, parseID(c.Param("id"))); err != nil {
+	if err := h.service.Delete(c.Request.Context(), user.ID, currentOrgID(c), parseID(c.Param("id"))); err != nil {
 		switch err {
 		case appresourcefolder.ErrNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -110,7 +110,7 @@ func (h *ResourceFolderHandler) ListPermissions(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	perms, err := h.service.ListPermissions(c.Request.Context(), user.ID, parseID(c.Param("id")))
+	perms, err := h.service.ListPermissions(c.Request.Context(), user.ID, currentOrgID(c), parseID(c.Param("id")))
 	if err != nil {
 		switch err {
 		case appresourcefolder.ErrNotFound:
@@ -139,7 +139,7 @@ func (h *ResourceFolderHandler) GrantPermission(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	perm, err := h.service.GrantPermission(c.Request.Context(), user.ID, parseID(c.Param("id")), appresourcefolder.PermissionInput{UserID: body.UserID, Permission: body.Permission})
+	perm, err := h.service.GrantPermission(c.Request.Context(), user.ID, currentOrgID(c), parseID(c.Param("id")), appresourcefolder.PermissionInput{UserID: body.UserID, Permission: body.Permission})
 	if err != nil {
 		switch err {
 		case appresourcefolder.ErrNotFound:
@@ -167,7 +167,7 @@ func (h *ResourceFolderHandler) RevokePermission(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
-	if err := h.service.RevokePermission(c.Request.Context(), user.ID, parseID(c.Param("id")), targetUserID); err != nil {
+	if err := h.service.RevokePermission(c.Request.Context(), user.ID, currentOrgID(c), parseID(c.Param("id")), targetUserID); err != nil {
 		switch err {
 		case appresourcefolder.ErrNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})

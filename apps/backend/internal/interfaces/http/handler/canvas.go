@@ -31,6 +31,7 @@ func (h *CanvasHandler) List(c *gin.Context) {
 	}
 	canvases, err := h.CanvasExecService.ListCanvases(c.Request.Context(), canvasservice.CanvasListFilter{
 		OwnerID:    user.ID,
+		OrgID:      currentOrgID(c),
 		ProjectID:  c.Query("project_id"),
 		Stage:      c.Query("stage"),
 		RefType:    strings.TrimSpace(c.Query("ref_type")),
@@ -65,6 +66,7 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 	}
 	input := canvasservice.CanvasCreateInput{
 		OwnerID:     user.ID,
+		OrgID:       currentOrgID(c),
 		Name:        req.Name,
 		Description: req.Description,
 		ProjectID:   req.ProjectID,
@@ -96,6 +98,14 @@ func (h *CanvasHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported ref_type"})
 			return
 		}
+		if errors.Is(err, canvasservice.ErrProjectNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
+			return
+		}
+		if errors.Is(err, canvasservice.ErrProjectOutsideOrg) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "project is outside current workspace"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -108,7 +118,7 @@ func (h *CanvasHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	cv, err := h.CanvasExecService.GetVisibleCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	cv, err := h.CanvasExecService.GetVisibleCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
 	if err != nil {
 		if errors.Is(err, canvasservice.ErrCanvasForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -135,7 +145,7 @@ func (h *CanvasHandler) Patch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cv, err := h.CanvasExecService.PatchCanvas(c.Request.Context(), c.Param("id"), user.ID, canvasservice.CanvasPatchInput{
+	cv, err := h.CanvasExecService.PatchCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c), canvasservice.CanvasPatchInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Tags:        req.Tags,
@@ -157,7 +167,7 @@ func (h *CanvasHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	if err := h.CanvasExecService.DeleteCanvas(c.Request.Context(), c.Param("id"), user.ID); err != nil {
+	if err := h.CanvasExecService.DeleteCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c)); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
@@ -181,7 +191,7 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cv, err := h.CanvasExecService.SaveCanvas(c.Request.Context(), c.Param("id"), user.ID, canvasservice.CanvasSaveInput{
+	cv, err := h.CanvasExecService.SaveCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c), canvasservice.CanvasSaveInput{
 		Name:       req.Name,
 		CanvasType: req.CanvasType,
 		Nodes:      req.Nodes,

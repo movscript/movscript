@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
 )
@@ -32,6 +33,7 @@ func NewService(db *gorm.DB, store storage.Storage) *Service {
 
 type ListInput struct {
 	UserID   uint
+	OrgID    *uint
 	FolderID string
 	Shared   bool
 	Type     string
@@ -49,6 +51,7 @@ type Page struct {
 
 type UploadInput struct {
 	UserID   uint
+	OrgID    *uint
 	FolderID string
 	Filename string
 	MimeType string
@@ -58,6 +61,7 @@ type UploadInput struct {
 
 type UpdateInput struct {
 	UserID   uint
+	OrgID    *uint
 	ID       uint
 	IsShared *bool
 	FolderID *uint
@@ -93,7 +97,7 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResourc
 }
 
 func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResource, error) {
-	folderID, err := s.uploadFolderID(ctx, input.UserID, input.FolderID)
+	folderID, err := s.uploadFolderID(ctx, input.UserID, input.OrgID, input.FolderID)
 	if err != nil {
 		return model.RawResource{}, err
 	}
@@ -101,6 +105,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 	resType := MimeToType(mimeType, input.Filename)
 	r := model.RawResource{
 		OwnerID:        input.UserID,
+		OrgID:          input.OrgID,
 		FolderID:       folderID,
 		Type:           resType,
 		Name:           input.Filename,
@@ -146,13 +151,16 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 	return r, nil
 }
 
-func (s *Service) GetVisible(ctx context.Context, id uint, userID uint) (model.RawResource, error) {
+func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error) {
 	var r model.RawResource
 	if err := s.db.WithContext(ctx).First(&r, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return r, ErrNotFound
 		}
 		return r, err
+	}
+	if !resourceInOrgScope(r.OrgID, orgID, r.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
+		return r, ErrForbidden
 	}
 	if r.OwnerID == userID {
 		return r, nil
@@ -170,7 +178,7 @@ func (s *Service) GetVisible(ctx context.Context, id uint, userID uint) (model.R
 	return r, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uint, userID uint) error {
+func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) error {
 	var r model.RawResource
 	if err := s.db.WithContext(ctx).First(&r, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -178,7 +186,7 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint) error {
 		}
 		return err
 	}
-	if r.OwnerID != userID {
+	if r.OwnerID != userID || !resourceInOrgScope(r.OrgID, orgID, r.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
 		return ErrForbidden
 	}
 	if r.StorageKey != "" {
@@ -201,6 +209,9 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResou
 	if r.OwnerID != input.UserID {
 		return r, ErrForbidden
 	}
+	if !resourceInOrgScope(r.OrgID, input.OrgID, r.OwnerID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID)) {
+		return r, ErrForbidden
+	}
 	updates := map[string]any{}
 	if input.IsShared != nil {
 		updates["is_shared"] = *input.IsShared
@@ -209,7 +220,14 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResou
 		if *input.FolderID == 0 {
 			updates["folder_id"] = nil
 		} else {
-			updates["folder_id"] = *input.FolderID
+			folderID, err := s.uploadFolderID(ctx, input.UserID, input.OrgID, strconv.FormatUint(uint64(*input.FolderID), 10))
+			if err != nil {
+				return r, err
+			}
+			if folderID == nil {
+				return r, ErrFolderNotFound
+			}
+			updates["folder_id"] = *folderID
 		}
 	}
 	if input.Name != "" {
@@ -231,6 +249,7 @@ func (s *Service) listQuery(ctx context.Context, input ListInput) (*gorm.DB, err
 		return s.sharedListQuery(ctx, input)
 	}
 	q := s.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id = ?", input.UserID)
+	q = applyOrgScope(q, input.OrgID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID))
 	switch input.FolderID {
 	case "", "all":
 	case "root", "0":
@@ -250,21 +269,28 @@ func (s *Service) sharedListQuery(ctx context.Context, input ListInput) (*gorm.D
 			}
 			return nil, err
 		}
+		if !resourceInOrgScope(folder.OrgID, input.OrgID, folder.OwnerID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID)) {
+			return nil, ErrForbidden
+		}
 		if folder.OwnerID != input.UserID && !folder.IsShared {
 			return nil, ErrForbidden
 		}
 		return s.db.WithContext(ctx).Model(&model.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), nil
 	}
-	return s.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id != ? AND is_shared = true", input.UserID).Preload("Owner"), nil
+	q := s.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id != ? AND is_shared = true", input.UserID).Preload("Owner")
+	return applyOrgScope(q, input.OrgID, input.UserID, s.includeLegacyPersonal(ctx, input.OrgID)), nil
 }
 
-func (s *Service) uploadFolderID(ctx context.Context, userID uint, folderIDValue string) (*uint, error) {
+func (s *Service) uploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error) {
 	if folderIDValue == "" || folderIDValue == "0" {
 		return nil, nil
 	}
 	var folder model.ResourceFolder
 	if err := s.db.WithContext(ctx).First(&folder, folderIDValue).Error; err != nil {
 		return nil, nil
+	}
+	if !resourceInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
+		return nil, ErrForbidden
 	}
 	if folder.OwnerID != userID {
 		if !folder.IsShared {
@@ -278,6 +304,31 @@ func (s *Service) uploadFolderID(ctx context.Context, userID uint, folderIDValue
 	}
 	fid := folder.ID
 	return &fid, nil
+}
+
+func (s *Service) includeLegacyPersonal(ctx context.Context, orgID *uint) bool {
+	if orgID == nil {
+		return true
+	}
+	var org model.Organization
+	if err := s.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
+		return false
+	}
+	return org.IsPersonal
+}
+
+func applyOrgScope(q *gorm.DB, orgID *uint, userID uint, includeLegacy bool) *gorm.DB {
+	if orgID == nil {
+		return q.Where("org_id IS NULL")
+	}
+	if includeLegacy {
+		return q.Where("org_id = ? OR (org_id IS NULL AND owner_id = ?)", *orgID, userID)
+	}
+	return q.Where("org_id = ?", *orgID)
+}
+
+func resourceInOrgScope(resourceOrgID, currentOrgID *uint, ownerID uint, userID uint, includeLegacy bool) bool {
+	return domainresource.InOrgScope(resourceOrgID, currentOrgID, ownerID, userID, includeLegacy)
 }
 
 func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
@@ -302,46 +353,9 @@ func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
 }
 
 func MimeToType(mime, filename string) string {
-	switch {
-	case strings.HasPrefix(mime, "image/"):
-		return "image"
-	case strings.HasPrefix(mime, "video/"):
-		return "video"
-	case strings.HasPrefix(mime, "audio/"):
-		return "audio"
-	case strings.HasPrefix(mime, "text/"):
-		return "text"
-	case mime == "application/json", mime == "application/xml", mime == "application/yaml", mime == "application/x-yaml":
-		return "text"
-	}
-	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif":
-		return "image"
-	case ".mp4", ".mov", ".avi", ".webm":
-		return "video"
-	case ".mp3", ".wav", ".ogg", ".aac", ".flac":
-		return "audio"
-	case ".txt", ".md", ".json", ".csv", ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".xml", ".yaml", ".yml", ".log":
-		return "text"
-	}
-	return "file"
+	return domainresource.MimeToType(mime, filename)
 }
 
 func GenerateStorageKey(resourceID uint, filename string) string {
-	ext := filepath.Ext(filename)
-	base := sanitizeName(strings.TrimSuffix(filename, ext))
-	return fmt.Sprintf("%d_%s%s", resourceID, base, ext)
-}
-
-func sanitizeName(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			b.WriteRune(r)
-		} else {
-			b.WriteRune('_')
-		}
-	}
-	return b.String()
+	return domainresource.GenerateStorageKey(resourceID, filename)
 }

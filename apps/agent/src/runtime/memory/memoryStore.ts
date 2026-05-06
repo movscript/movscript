@@ -11,10 +11,14 @@ export class InMemoryAgentMemoryStore implements AgentMemoryStore {
   private readonly memories = new Map<string, AgentMemory>()
 
   listMemories(query: MemoryQuery = {}): AgentMemory[] {
+    const limit = typeof query.limit === 'number' && Number.isFinite(query.limit)
+      ? Math.max(1, Math.min(100, Math.floor(query.limit)))
+      : undefined
     return Array.from(this.memories.values())
       .filter((memory) => matchesQuery(memory, query))
       .map((memory) => clone(memory))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, limit)
   }
 
   getMemory(id: string): AgentMemory | undefined {
@@ -55,6 +59,7 @@ export function matchesQuery(memory: AgentMemory, query: MemoryQuery): boolean {
   if (typeof query.projectId === 'number' && memory.projectId !== query.projectId) return false
   if (query.threadId && memory.threadId !== query.threadId) return false
   if (query.kind && memory.kind !== query.kind) return false
+  if (query.query && !memory.content.toLowerCase().includes(query.query.toLowerCase())) return false
   return true
 }
 

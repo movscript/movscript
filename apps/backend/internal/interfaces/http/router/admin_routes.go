@@ -37,6 +37,8 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.PUT("/users/:id/quota", h.ai.SetUserQuota)
 	admin.GET("/usage-logs", h.ai.ListUsageLogs)
 	admin.GET("/audit-logs", h.audit.List)
+	admin.GET("/orgs/:id/quota", h.org.AdminGetQuota)
+	admin.PUT("/orgs/:id/quota", h.org.AdminSetQuota)
 	admin.GET("/projects", h.projects.AdminList)
 	admin.PUT("/projects/:id/owner", h.projects.AdminForceSetOwner)
 

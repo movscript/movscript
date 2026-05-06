@@ -69,6 +69,36 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// RequireProjectInCurrentOrg aborts when :id does not belong to the current workspace.
+// It is intended for /projects/:id and nested project routes.
+func RequireProjectInCurrentOrg(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		m, ok := c.Get(ContextOrgMemberKey)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("无工作区信息"))
+			return
+		}
+		member := m.(*model.OrganizationMember)
+
+		projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+		if err != nil || projectID == 0 {
+			c.AbortWithStatusJSON(http.StatusBadRequest, apierr.InvalidInput("无效的项目 ID"))
+			return
+		}
+
+		var project model.Project
+		if err := db.Select("id, org_id").Where("id = ?", uint(projectID)).First(&project).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			return
+		}
+		if project.OrgID == nil || *project.OrgID != member.OrgID {
+			c.AbortWithStatusJSON(http.StatusForbidden, apierr.ForbiddenProject("项目不属于当前工作区"))
+			return
+		}
+		c.Next()
+	}
+}
+
 // InjectOrgMember loads the OrganizationMember for the current user + :orgId path param.
 // Sets ContextOrgMemberKey in gin context. Aborts with 403 if user is not a member.
 func InjectOrgMember(db *gorm.DB) gin.HandlerFunc {

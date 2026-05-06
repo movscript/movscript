@@ -70,6 +70,7 @@
       "description": "Create a local draft artifact for proposed scripts, settings, storyboard scripts or lines, content units, prompts, asset slots, segments, scene moments, or notes. This does not write formal project entities.",
       "permission": "draft.write",
       "risk": "draft",
+      "source": "runtime",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
@@ -83,6 +84,7 @@
       "description": "List local draft artifacts for the current or specified project. Use to review previous agent proposals.",
       "permission": "draft.read",
       "risk": "read",
+      "source": "runtime",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
@@ -92,10 +94,39 @@
       }
     },
     {
+      "name": "movscript_create_script",
+      "description": "Create a formal script entity in the current project after user approval. For brainstorming, first use movscript_create_draft; use this only when the user wants the generated script saved into the project.",
+      "permission": "project.write",
+      "risk": "write",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_create_script",
+        "mode": "allow",
+        "approval": "always"
+      }
+    },
+    {
+      "name": "movscript_search_memories",
+      "description": "Search local agent memories by query, scope, kind, project, or thread. Use when older user preferences, decisions, warnings, entity references, or draft notes may matter.",
+      "permission": "memory.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_search_memories",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
       "name": "movscript_request_user_input",
       "description": "Pause the current agent run and ask the user for missing context, a choice, confirmation, or free-form input. Use this when the next step would be a guess.",
       "permission": "agent.input",
       "risk": "ui",
+      "source": "runtime",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {

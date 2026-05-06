@@ -4,6 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Building2 } from 'lucide-react'
 import { useUserStore } from '@/store/userStore'
+import { useProjectStore } from '@/store/projectStore'
 import { api } from '@/lib/api'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -18,6 +19,7 @@ export default function InvitePage() {
   const currentUser = useUserStore((s) => s.currentUser)
   const setSession = useUserStore((s) => s.setSession)
   const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
+  const setCurrentProject = useProjectStore((s) => s.setCurrent)
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -39,7 +41,10 @@ export default function InvitePage() {
         setSession(data)
       }
       const orgId = data.org_id ?? invite?.org_id
-      if (orgId) setCurrentOrg(orgId)
+      if (orgId) {
+        setCurrentOrg(orgId)
+        setCurrentProject(null)
+      }
       navigate('/projects', { replace: true })
     },
     onError: (e: any) => setError(translateApiError(e.response?.data, t('invite.acceptFailed'))),

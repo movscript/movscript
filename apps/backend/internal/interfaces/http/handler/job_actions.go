@@ -18,7 +18,7 @@ func (h *JobHandler) Retry(c *gin.Context) {
 		return
 	}
 
-	job, err := h.service.Retry(c.Request.Context(), parseID(c.Param("id")), user.ID)
+	job, err := h.service.Retry(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c))
 	if err != nil {
 		h.writeJobActionError(c, err)
 		return
@@ -38,7 +38,7 @@ func (h *JobHandler) Cancel(c *gin.Context) {
 	id := parseID(c.Param("id"))
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 90*time.Second)
 	defer cancel()
-	job, err := h.service.Cancel(ctx, id, user.ID)
+	job, err := h.service.Cancel(ctx, id, user.ID, currentOrgID(c))
 	if err != nil {
 		h.writeJobActionError(c, err)
 		return
@@ -54,7 +54,7 @@ func (h *JobHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteAndRelease(c.Request.Context(), parseID(c.Param("id")), user.ID); err != nil {
+	if err := h.service.DeleteAndRelease(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c)); err != nil {
 		h.writeJobActionError(c, err)
 		return
 	}

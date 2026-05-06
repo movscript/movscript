@@ -26,11 +26,33 @@
       "version": "0.1.0",
       "enabled": true,
       "priority": 900,
-      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer movscript_create_draft. A draft is a local artifact and does not modify formal project entities. Use drafts for script ideas, setting notes, storyboard-line suggestions, content-unit plans, prompt drafts, asset-slot notes, review notes, and planning notes. Do not claim a draft has been applied to the project. If the user asks to update formal data, first create a draft or describe the intended change, then wait for explicit approval through the runtime approval flow.",
+      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer movscript_create_draft. A draft is a local artifact and does not modify formal project entities. Use drafts for script ideas, setting notes, storyboard-line suggestions, content-unit plans, prompt drafts, asset-slot notes, review notes, and planning notes. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
       "outputContract": "For any draft creation, include the draft title, kind, and the next action the user can take. Keep draft content actionable and scoped.",
       "toolHints": [
         "movscript_create_draft",
-        "movscript_list_drafts"
+        "movscript_list_drafts",
+        "movscript_create_script"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    },
+    {
+      "id": "movscript.intent.script-writing",
+      "name": "Script Writing",
+      "description": "Brainstorm, draft, revise, and save source scripts with the user.",
+      "version": "0.1.0",
+      "enabled": true,
+      "priority": 850,
+      "appliesWhen": "剧本,写剧本,新剧本,screenplay,script writing,故事大纲,短剧",
+      "instruction": "For script-writing requests, help the user shape premise, characters, conflict, structure, episode or scene beats, and tone. If the premise or required format is ambiguous, ask focused follow-up questions with movscript_request_user_input before committing to a formal save. Use movscript_create_draft for exploratory versions. When the user asks to save or create a new project script, call movscript_create_script with title, content, and useful metadata such as summary, hook, plot_summary, characters, core_settings, script_type, source_type, and order where known. Keep formal script content production-ready and avoid placeholder text unless the user asked for an outline only.",
+      "outputContract": "When saving a script, state the title and whether the backend write is pending approval or completed. When only drafting, make clear it is a local draft.",
+      "toolHints": [
+        "movscript_request_user_input",
+        "movscript_create_draft",
+        "movscript_create_script",
+        "movscript_read_project_structure",
+        "movscript_search_entities"
       ],
       "metadata": {
         "source": "builtin"

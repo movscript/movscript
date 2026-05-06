@@ -66,6 +66,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
     'project.write',
     'draft.read',
     'draft.write',
+    'memory.read',
     'agent.input',
     'ui.navigate',
   ],
@@ -78,8 +79,10 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
     { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_search_memories', mode: 'allow', approval: 'never' },
     { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
     { name: 'movscript_apply_draft', mode: 'allow', approval: 'always' },
+    { name: 'movscript_create_script', mode: 'allow', approval: 'always' },
     { name: 'movscript_open_entity', mode: 'allow', approval: 'never' },
   ],
 }

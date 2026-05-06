@@ -8,6 +8,7 @@ import (
 
 	dto "github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsetting "github.com/movscript/movscript/internal/domain/setting"
 	"gorm.io/gorm"
 )
 
@@ -209,20 +210,11 @@ func (s *Service) DeleteRelationship(ctx context.Context, id uint) error {
 }
 
 func normalizeSetting(item *model.Setting) {
-	item.Name = strings.TrimSpace(item.Name)
-	item.Status = strings.TrimSpace(item.Status)
-	if item.Status == "" {
-		item.Status = "default"
-	}
+	domainsetting.NormalizeSetting(item)
 }
 
 func normalizeRelationship(item *model.SettingRelationship) {
-	if item.Source == "" {
-		item.Source = "manual"
-	}
-	if item.Category == "" {
-		item.Category = "relationship"
-	}
+	domainsetting.NormalizeRelationship(item)
 }
 
 func (s *Service) validateRelationship(ctx context.Context, r *model.SettingRelationship) error {

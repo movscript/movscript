@@ -19,6 +19,8 @@ export interface MemoryQuery {
   projectId?: number
   threadId?: string
   kind?: AgentMemoryKind
+  query?: string
+  limit?: number
 }
 
 export interface CreateMemoryInput {

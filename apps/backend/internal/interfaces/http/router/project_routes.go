@@ -1,34 +1,42 @@
 package router
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/interfaces/http/middleware"
+	"gorm.io/gorm"
+)
 
-func registerProjectRoutes(protected *gin.RouterGroup, h handlers) {
+func registerProjectRoutes(protected *gin.RouterGroup, db *gorm.DB, h handlers) {
 	protected.GET("/projects", h.projects.List)
 	protected.POST("/projects", h.projects.Create)
-	protected.GET("/projects/:id", h.projects.Get)
-	protected.PUT("/projects/:id", h.projects.Update)
-	protected.DELETE("/projects/:id", h.projects.Delete)
-	protected.GET("/projects/:id/progress", h.projects.Progress)
-	protected.GET("/projects/:id/artifact-refs", h.artifactRefs.ListByProject)
-	protected.GET("/projects/:id/resource-bindings", h.resourceBindings.ListByProject)
-	protected.POST("/projects/:id/resource-bindings", h.resourceBindings.CreateByProject)
-	protected.GET("/projects/:id/entities/:ownerType/:ownerId/resources", h.resourceBindings.ListByEntity)
-	protected.GET("/projects/:id/members", h.projects.ListMembers)
-	protected.POST("/projects/:id/members", h.projects.AddMember)
-	protected.DELETE("/projects/:id/members/:memberId", h.projects.RemoveMember)
 
-	protected.GET("/projects/:id/settings", h.settings.List)
-	protected.POST("/projects/:id/settings", h.settings.Create)
-	protected.GET("/projects/:id/setting-refs", h.settings.ListRefs)
-	protected.POST("/projects/:id/setting-refs", h.settings.CreateRef)
-	protected.GET("/projects/:id/setting-relationships", h.settings.ListRelationships)
-	protected.POST("/projects/:id/setting-relationships", h.settings.CreateRelationship)
+	projectRoutes := protected.Group("/projects/:id", middleware.RequireProjectInCurrentOrg(db))
+	{
+		projectRoutes.GET("", h.projects.Get)
+		projectRoutes.PUT("", h.projects.Update)
+		projectRoutes.DELETE("", h.projects.Delete)
+		projectRoutes.GET("/progress", h.projects.Progress)
+		projectRoutes.GET("/artifact-refs", h.artifactRefs.ListByProject)
+		projectRoutes.GET("/resource-bindings", h.resourceBindings.ListByProject)
+		projectRoutes.POST("/resource-bindings", h.resourceBindings.CreateByProject)
+		projectRoutes.GET("/entities/:ownerType/:ownerId/resources", h.resourceBindings.ListByEntity)
+		projectRoutes.GET("/members", h.projects.ListMembers)
+		projectRoutes.POST("/members", h.projects.AddMember)
+		projectRoutes.DELETE("/members/:memberId", h.projects.RemoveMember)
 
-	protected.GET("/projects/:id/scripts", h.scripts.List)
-	protected.POST("/projects/:id/scripts", h.scripts.Create)
-	protected.GET("/projects/:id/scripts/:scriptId", h.scripts.Get)
-	protected.PUT("/projects/:id/scripts/:scriptId", h.scripts.Update)
-	protected.DELETE("/projects/:id/scripts/:scriptId", h.scripts.Delete)
+		projectRoutes.GET("/settings", h.settings.List)
+		projectRoutes.POST("/settings", h.settings.Create)
+		projectRoutes.GET("/setting-refs", h.settings.ListRefs)
+		projectRoutes.POST("/setting-refs", h.settings.CreateRef)
+		projectRoutes.GET("/setting-relationships", h.settings.ListRelationships)
+		projectRoutes.POST("/setting-relationships", h.settings.CreateRelationship)
+
+		projectRoutes.GET("/scripts", h.scripts.List)
+		projectRoutes.POST("/scripts", h.scripts.Create)
+		projectRoutes.GET("/scripts/:scriptId", h.scripts.Get)
+		projectRoutes.PUT("/scripts/:scriptId", h.scripts.Update)
+		projectRoutes.DELETE("/scripts/:scriptId", h.scripts.Delete)
+	}
 	protected.PATCH("/scripts/:id", h.scripts.Patch)
 
 	protected.PUT("/settings/:id", h.settings.Update)

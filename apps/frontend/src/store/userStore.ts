@@ -15,14 +15,18 @@ interface UserStore {
 }
 
 export interface AuthSession {
-  user: User
+  user: User | AuthUserPayload
   token?: string
   expires_at?: string
   org_memberships?: OrgMembership[]
 }
 
-function visibleMemberships(memberships: OrgMembership[]): OrgMembership[] {
-  return memberships.filter((m) => !m.is_personal)
+interface AuthUserPayload {
+  ID?: number
+  id?: number | string
+  username: string
+  system_role?: 'super_admin' | 'user'
+  systemRole?: 'super_admin' | 'user'
 }
 
 function resolveInitialOrg(memberships: OrgMembership[], preferredOrgId?: number | null): number | null {
@@ -30,6 +34,14 @@ function resolveInitialOrg(memberships: OrgMembership[], preferredOrgId?: number
     return preferredOrgId
   }
   return memberships.find((m) => m.is_personal)?.org_id ?? memberships[0]?.org_id ?? null
+}
+
+function normalizeUser(user: User | AuthUserPayload): User {
+  return {
+    ID: Number((user as AuthUserPayload).ID ?? (user as AuthUserPayload).id ?? 0),
+    username: user.username,
+    system_role: (user as AuthUserPayload).system_role ?? (user as AuthUserPayload).systemRole ?? 'user',
+  }
 }
 
 export const useUserStore = create<UserStore>()(
@@ -47,7 +59,7 @@ export const useUserStore = create<UserStore>()(
         }
         const memberships = session.org_memberships ?? []
         set({
-          currentUser: session.user,
+          currentUser: normalizeUser(session.user),
           token: session.token ?? null,
           tokenExpiresAt: session.expires_at ?? null,
           orgMemberships: memberships,

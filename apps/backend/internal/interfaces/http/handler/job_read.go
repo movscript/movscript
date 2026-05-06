@@ -53,6 +53,7 @@ func (h *JobHandler) List(c *gin.Context) {
 
 	result, err := h.service.List(c.Request.Context(), jobapp.ListFilter{
 		UserID:     user.ID,
+		OrgID:      currentOrgID(c),
 		ProjectID:  projectID,
 		Status:     c.Query("status"),
 		FeatureKey: c.Query("feature"),
@@ -82,7 +83,7 @@ func (h *JobHandler) Get(c *gin.Context) {
 		return
 	}
 
-	job, err := h.service.Get(c.Request.Context(), parseID(c.Param("id")), user.ID)
+	job, err := h.service.Get(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c))
 	if err != nil {
 		if errors.Is(err, jobapp.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	domaincloudfileconfig "github.com/movscript/movscript/internal/domain/cloudfileconfig"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/crypto"
 	"gorm.io/gorm"
@@ -126,16 +127,7 @@ func (s *Service) encryptConfig(cfg map[string]any) (string, error) {
 
 func (s *Service) mergeConfigUpdate(existingEncJSON string, incoming map[string]any) map[string]any {
 	existing := s.decryptConfig(existingEncJSON)
-	for k, v := range incoming {
-		if isSensitiveConfigKey(k) {
-			if text, ok := v.(string); ok && (text == "" || isMaskedSecret(text)) {
-				if old, exists := existing[k]; exists {
-					incoming[k] = old
-				}
-			}
-		}
-	}
-	return incoming
+	return domaincloudfileconfig.MergeConfigUpdate(existing, incoming)
 }
 
 func (s *Service) decryptConfig(encJSON string) map[string]any {
@@ -169,35 +161,9 @@ func (s *Service) maskConfig(encJSON string) string {
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return "{}"
 	}
-	for k, v := range m {
-		if isSensitiveConfigKey(k) {
-			if text, ok := v.(string); ok && len(text) > 4 {
-				m[k] = text[:4] + "****"
-			} else {
-				m[k] = "****"
-			}
-		}
-	}
-	b, _ := json.Marshal(m)
-	return string(b)
-}
-
-func isSensitiveConfigKey(k string) bool {
-	switch k {
-	case "api_key", "secret_key", "access_key", "access_key_id", "access_key_secret":
-		return true
-	}
-	return false
-}
-
-func isMaskedSecret(s string) bool {
-	return s == "****" || (len(s) >= 4 && s[len(s)-4:] == "****")
+	return domaincloudfileconfig.MaskConfig(m)
 }
 
 func ValidConfigType(t string) bool {
-	switch t {
-	case "s3", "oss", "tos":
-		return true
-	}
-	return false
+	return domaincloudfileconfig.ValidConfigType(t)
 }

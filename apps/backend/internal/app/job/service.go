@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
@@ -26,6 +27,9 @@ var (
 	ErrInvalidJobType             = errors.New("invalid job type")
 	ErrJobTypeRequired            = errors.New("job_type is required")
 	ErrCredentialNotFound         = errors.New("credential not found")
+	ErrProjectNotFound            = errors.New("project not found")
+	ErrProjectOutsideOrg          = errors.New("project is outside current org")
+	ErrResourceOutsideOrg         = errors.New("resource is outside current org")
 	ErrLoadInputResources         = errors.New("failed to load input resources")
 	ErrReserveQuota               = errors.New("failed to reserve job quota")
 	ErrCreateJob                  = errors.New("failed to create job")
@@ -62,6 +66,7 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 
 type ListFilter struct {
 	UserID     uint
+	OrgID      *uint
 	ProjectID  *uint
 	Status     string
 	FeatureKey string
@@ -90,6 +95,7 @@ type ResponseLookups struct {
 
 type CreateInput struct {
 	UserID             uint
+	OrgID              *uint
 	ModelConfigID      uint
 	JobType            string
 	FeatureKey         string
@@ -106,6 +112,7 @@ type CreateInput struct {
 
 type EnqueueInput struct {
 	UserID           uint
+	OrgID            *uint
 	ModelConfigID    uint
 	JobType          string
 	FeatureKey       string
@@ -121,6 +128,7 @@ type EnqueueInput struct {
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
 	q := s.db.WithContext(ctx).Model(&model.Job{}).Where("user_id = ?", filter.UserID)
+	q = s.applyOrgScope(ctx, q, filter.OrgID, filter.UserID)
 	if filter.ProjectID != nil {
 		q = q.Where("project_id = ?", *filter.ProjectID)
 	}
@@ -149,7 +157,7 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, erro
 	return ListResult{Items: jobs, Total: total}, nil
 }
 
-func (s *Service) Get(ctx context.Context, id uint, userID uint) (model.Job, error) {
+func (s *Service) Get(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
 	var job model.Job
 	if err := s.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -160,10 +168,13 @@ func (s *Service) Get(ctx context.Context, id uint, userID uint) (model.Job, err
 	if job.UserID != userID {
 		return job, ErrForbidden
 	}
+	if !s.inOrgScope(ctx, job.OrgID, orgID, job.UserID, userID) {
+		return job, ErrForbidden
+	}
 	return job, nil
 }
 
-func (s *Service) LoadInputResources(ctx context.Context, ids []uint) (InputResourcesResult, error) {
+func (s *Service) LoadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error) {
 	if len(ids) == 0 {
 		return InputResourcesResult{}, nil
 	}
@@ -171,8 +182,14 @@ func (s *Service) LoadInputResources(ctx context.Context, ids []uint) (InputReso
 	if err := s.db.WithContext(ctx).Where("id IN ?", ids).Find(&resources).Error; err != nil {
 		return InputResourcesResult{}, err
 	}
+	if len(resources) != len(ids) {
+		return InputResourcesResult{}, ErrResourceOutsideOrg
+	}
 	result := InputResourcesResult{Resources: resources}
 	for _, r := range resources {
+		if !s.inOrgScope(ctx, r.OrgID, orgID, r.OwnerID, userID) {
+			return InputResourcesResult{}, ErrResourceOutsideOrg
+		}
 		switch r.Type {
 		case "image":
 			result.ImageCount++
@@ -239,6 +256,7 @@ func (s *Service) GetCredential(ctx context.Context, id uint) (model.AICredentia
 func (s *Service) Create(ctx context.Context, input CreateInput) (model.Job, error) {
 	job := model.Job{
 		UserID:             input.UserID,
+		OrgID:              input.OrgID,
 		ModelConfigID:      input.ModelConfigID,
 		JobType:            input.JobType,
 		FeatureKey:         input.FeatureKey,
@@ -273,9 +291,12 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 	default:
 		return model.Job{}, InvalidJobTypeError{JobType: input.JobType}
 	}
+	if err := s.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
+		return model.Job{}, err
+	}
 
 	allIDs := MergeIDs(input.InputResourceIDs, input.InputResourceID)
-	inputResources, err := s.LoadInputResources(ctx, allIDs)
+	inputResources, err := s.LoadInputResources(ctx, allIDs, input.UserID, input.OrgID)
 	if err != nil {
 		return model.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
@@ -329,7 +350,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 	if err != nil {
 		return model.Job{}, err
 	}
-	reservation, err := s.ai.ReserveQuota(ctx, input.UserID, input.ModelConfigID, estimate, ai.BillingContext{ProjectID: input.ProjectID})
+	reservation, err := s.ai.ReserveQuota(ctx, input.UserID, input.ModelConfigID, estimate, ai.BillingContext{OrgID: input.OrgID, ProjectID: input.ProjectID})
 	if err != nil {
 		if errors.Is(err, ai.ErrInsufficientQuota) {
 			return model.Job{}, err
@@ -339,6 +360,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 
 	job, err := s.Create(ctx, CreateInput{
 		UserID:             input.UserID,
+		OrgID:              input.OrgID,
 		ModelConfigID:      input.ModelConfigID,
 		JobType:            input.JobType,
 		FeatureKey:         input.FeatureKey,
@@ -375,8 +397,8 @@ func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration i
 	}
 }
 
-func (s *Service) Retry(ctx context.Context, id uint, userID uint) (model.Job, error) {
-	job, err := s.getOwned(ctx, id, userID)
+func (s *Service) Retry(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+	job, err := s.getOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
 	}
@@ -412,8 +434,8 @@ func (s *Service) Retry(ctx context.Context, id uint, userID uint) (model.Job, e
 	return s.reload(ctx, job.ID)
 }
 
-func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint) (model.Job, error) {
-	job, err := s.getOwned(ctx, id, userID)
+func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+	job, err := s.getOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
 	}
@@ -432,11 +454,11 @@ func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint
 	return job, nil
 }
 
-func (s *Service) Cancel(ctx context.Context, id uint, userID uint) (model.Job, error) {
+func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
 	if s.ai == nil {
 		return model.Job{}, errors.New("ai service is required")
 	}
-	job, err := s.ValidateCancellation(ctx, id, userID)
+	job, err := s.ValidateCancellation(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
 	}
@@ -458,7 +480,7 @@ func (s *Service) Cancel(ctx context.Context, id uint, userID uint) (model.Job, 
 		message = FirstNonEmpty(resp.Message, message)
 	}
 
-	job, err = s.MarkCancelled(ctx, id, userID, providerStatus, message)
+	job, err = s.MarkCancelled(ctx, id, userID, orgID, providerStatus, message)
 	if err != nil {
 		return job, err
 	}
@@ -468,8 +490,8 @@ func (s *Service) Cancel(ctx context.Context, id uint, userID uint) (model.Job, 
 	return job, nil
 }
 
-func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, providerStatus string, message string) (model.Job, error) {
-	job, err := s.getOwned(ctx, id, userID)
+func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (model.Job, error) {
+	job, err := s.getOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
 	}
@@ -487,8 +509,8 @@ func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, provi
 	return s.reload(ctx, job.ID)
 }
 
-func (s *Service) Delete(ctx context.Context, id uint, userID uint) (model.Job, bool, error) {
-	job, err := s.getOwned(ctx, id, userID)
+func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, bool, error) {
+	job, err := s.getOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, false, err
 	}
@@ -513,8 +535,8 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint) (model.Job, 
 	return job, releaseReservation, nil
 }
 
-func (s *Service) DeleteAndRelease(ctx context.Context, id uint, userID uint) error {
-	job, releaseReservation, err := s.Delete(ctx, id, userID)
+func (s *Service) DeleteAndRelease(ctx context.Context, id uint, userID uint, orgID *uint) error {
+	job, releaseReservation, err := s.Delete(ctx, id, userID, orgID)
 	if err != nil {
 		return err
 	}
@@ -531,7 +553,7 @@ func wrapErr(base error, err error) error {
 	return fmt.Errorf("%w: %w", base, err)
 }
 
-func (s *Service) getOwned(ctx context.Context, id uint, userID uint) (model.Job, error) {
+func (s *Service) getOwned(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
 	var job model.Job
 	if err := s.db.WithContext(ctx).First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -540,6 +562,9 @@ func (s *Service) getOwned(ctx context.Context, id uint, userID uint) (model.Job
 		return job, err
 	}
 	if job.UserID != userID {
+		return job, ErrForbidden
+	}
+	if !s.inOrgScope(ctx, job.OrgID, orgID, job.UserID, userID) {
 		return job, ErrForbidden
 	}
 	return job, nil
@@ -553,6 +578,58 @@ func (s *Service) reload(ctx context.Context, id uint) (model.Job, error) {
 	return job, nil
 }
 
+func (s *Service) ensureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error {
+	if projectID == nil {
+		return nil
+	}
+	var project model.Project
+	if err := s.db.WithContext(ctx).Select("id, org_id").First(&project, *projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if !sameOrg(project.OrgID, orgID) {
+		return ErrProjectOutsideOrg
+	}
+	return nil
+}
+
+func (s *Service) applyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, userID uint) *gorm.DB {
+	if orgID == nil {
+		return q.Where("org_id IS NULL")
+	}
+	if s.includeLegacyPersonal(ctx, orgID) {
+		return q.Where("org_id = ? OR (org_id IS NULL AND user_id = ?)", *orgID, userID)
+	}
+	return q.Where("org_id = ?", *orgID)
+}
+
+func (s *Service) inOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool {
+	if sameOrg(entityOrgID, currentOrgID) {
+		return true
+	}
+	return s.includeLegacyPersonal(ctx, currentOrgID) && entityOrgID == nil && ownerID == userID
+}
+
+func (s *Service) includeLegacyPersonal(ctx context.Context, orgID *uint) bool {
+	if orgID == nil {
+		return true
+	}
+	var org model.Organization
+	if err := s.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
+		return false
+	}
+	return org.IsPersonal
+}
+
+func sameOrg(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
 func isVideoJob(jobType string) bool {
-	return jobType == "video" || jobType == "video_i2v" || jobType == "video_v2v"
+	return domainjob.IsVideoJob(jobType)
 }

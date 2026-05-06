@@ -20,49 +20,6 @@ export function buildAssistantContent(
   memories: AgentMemory[] = [],
   run?: AgentRun,
 ): string {
-  if (isInspectContextCommand(userMessage) && run) {
-    const context = isRecord(run.metadata?.context) ? run.metadata.context : undefined
-    return JSON.stringify({
-      command: '/inspect_context',
-      runId: run.id,
-      threadId: run.threadId,
-      context,
-      memories: memories.map(toMemoryRef),
-      labels: Array.isArray(context?.labels) ? context.labels : [],
-      warnings,
-    }, null, 2)
-  }
-
-  if (isProductionPlanCommand(userMessage) && run) {
-    return JSON.stringify({
-      command: '/production_plan',
-      runId: run.id,
-      threadId: run.threadId,
-      objective: userMessage.trim(),
-      strategy: 'agentic_loop',
-      steps: run.steps.map((step) => ({
-        id: step.id,
-        type: step.type,
-        status: step.status,
-        toolName: step.toolName,
-        sandboxed: step.sandboxed === true,
-      })),
-      warnings,
-      toolResults: toolResults.map((outcome) => ({
-        call: outcome.call,
-        ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
-      })),
-      pendingApprovals: (run.pendingApprovals ?? []).map((approval) => ({
-        id: approval.id,
-        toolName: approval.toolName,
-        status: approval.status,
-        reason: approval.reason,
-        risk: approval.risk,
-        permission: approval.permission,
-      })),
-    }, null, 2)
-  }
-
   const memoryCount = memories.length
   const memoryLine = memoryCount > 0 ? `已参考 ${memoryCount} 条记忆。` : undefined
   const memoryBlock = memoryCount > 0 ? `相关记忆：\n${formatMemoryBlock(memories, 5)}` : undefined
@@ -145,10 +102,6 @@ export async function buildConfiguredAssistantTurn(input: ConfiguredAssistantTur
     messages,
     tools = [],
   } = input
-  if (isInspectContextCommand(userMessage) || isProductionPlanCommand(userMessage)) {
-    return { content: buildAssistantContent(userMessage, toolResults, warnings, memories, run) }
-  }
-
   const config = resolveRuntimeChatFileModelConfig()
   const requiresModel = shouldRequireConfiguredModel(run)
   if (!config) {
@@ -326,15 +279,6 @@ function formatMemoryBlock(memories: AgentMemory[], limit: number): string {
     .join('\n')
 }
 
-function toMemoryRef(memory: AgentMemory): Record<string, JSONValue> {
-  return {
-    id: memory.id,
-    scope: memory.scope,
-    kind: memory.kind,
-    content: memory.content,
-  }
-}
-
 function shouldReturnStructuredJSON(run?: AgentRun): boolean {
   const soul = typeof run?.agentManifest?.soul === 'string' ? run.agentManifest.soul : ''
   const manifestId = typeof run?.agentManifest?.id === 'string' ? run.agentManifest.id : ''
@@ -343,16 +287,6 @@ function shouldReturnStructuredJSON(run?: AgentRun): boolean {
 
 function shouldRequireConfiguredModel(run?: AgentRun): boolean {
   return run?.agentManifest?.id === 'production-orchestrate-analyzer'
-}
-
-function isProductionPlanCommand(message: string): boolean {
-  const firstToken = message.trim().split(/\s+/, 1)[0]
-  return firstToken === '/production_plan' || firstToken === '/project_plan'
-}
-
-function isInspectContextCommand(message: string): boolean {
-  const firstToken = message.trim().split(/\s+/, 1)[0]
-  return firstToken === '/inspect_context' || firstToken === '/context'
 }
 
 function parseAssistantJSON(content: string): unknown {

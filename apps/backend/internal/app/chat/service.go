@@ -21,6 +21,7 @@ type Message struct {
 
 type Input struct {
 	UserID        uint
+	OrgID         *uint
 	ModelConfigID uint
 	Messages      []Message
 }
@@ -40,11 +41,11 @@ func (s *Service) Chat(ctx context.Context, input Input) (Response, error) {
 	for i, m := range input.Messages {
 		msgs[i] = ai.Message{Role: m.Role, Content: m.Content}
 	}
-	resp, err := s.ai.CallText(ctx, input.UserID, input.ModelConfigID, ai.TextRequest{
+	resp, err := s.ai.CallTextWithBilling(ctx, input.UserID, input.ModelConfigID, ai.TextRequest{
 		PromptName:  ai.FeatureBrainstorm,
 		Messages:    msgs,
 		Temperature: -1,
-	})
+	}, ai.BillingContext{OrgID: input.OrgID})
 	if err != nil {
 		return Response{}, err
 	}

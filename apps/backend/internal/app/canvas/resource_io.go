@@ -47,7 +47,7 @@ func (h *Service) completeResourceSinkTask(ctx context.Context, task *model.Canv
 		return nil
 	}
 	name := canvasResourceSinkName(node, nd, task.ID, ext)
-	r, err := h.createCanvasResourceFromBytes(ctx, user.ID, name, data, mimeType)
+	r, err := h.createCanvasResourceFromBytes(ctx, user.ID, h.orgIDForNode(ctx, node), name, data, mimeType)
 	if err != nil {
 		h.failTask(task, node, nd, err.Error())
 		return nil
@@ -118,7 +118,7 @@ func randomCanvasResourceNameToken(taskID uint) string {
 	return fmt.Sprintf("%d_%d", taskID, time.Now().UnixNano())
 }
 
-func (h *Service) createCanvasResourceFromSource(ctx context.Context, ownerID uint, name string, source string, mimeType string) (*model.RawResource, error) {
+func (h *Service) createCanvasResourceFromSource(ctx context.Context, ownerID uint, orgID *uint, name string, source string, mimeType string) (*model.RawResource, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return nil, fmt.Errorf("generated result is empty")
@@ -163,10 +163,10 @@ func (h *Service) createCanvasResourceFromSource(ctx context.Context, ownerID ui
 			return nil, fmt.Errorf("read generated result file: %w", err)
 		}
 	}
-	return h.createCanvasResourceFromBytes(ctx, ownerID, name, data, mimeType)
+	return h.createCanvasResourceFromBytes(ctx, ownerID, orgID, name, data, mimeType)
 }
 
-func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uint, name string, data []byte, mimeType string) (*model.RawResource, error) {
+func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uint, orgID *uint, name string, data []byte, mimeType string) (*model.RawResource, error) {
 	if h.store == nil {
 		return nil, fmt.Errorf("resource storage is not configured")
 	}
@@ -177,6 +177,7 @@ func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uin
 	key := fmt.Sprintf("canvas/%d/%d_%s", ownerID, time.Now().UnixNano(), filepath.Base(name))
 	r := model.RawResource{
 		OwnerID:        ownerID,
+		OrgID:          orgID,
 		Type:           resType,
 		Name:           name,
 		MimeType:       mimeType,

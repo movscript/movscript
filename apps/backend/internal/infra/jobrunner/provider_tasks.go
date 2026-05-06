@@ -14,6 +14,7 @@ import (
 
 func (w *Worker) billingContext(job *model.Job) ai.BillingContext {
 	return ai.BillingContext{
+		OrgID:         job.OrgID,
 		ProjectID:     job.ProjectID,
 		JobID:         &job.ID,
 		ReservationID: job.UsageReservationID,

@@ -64,9 +64,22 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
 export function renderMemoriesText(memories: AgentMemory[]): string {
   if (memories.length === 0) return 'No relevant memories.'
   return [
-    'Relevant memories:',
+    'Startup memories:',
     ...memories.slice(0, 12).map((memory) => `- [${memory.scope}/${memory.kind}] ${memory.content}`),
+    '',
+    'Use movscript_search_memories for more memory context when needed.',
   ].join('\n')
+}
+
+export function renderMemoryFilesText(memories: AgentMemory[], memoryStorePath?: string): string {
+  const lines = ['Opened memory files:']
+  if (memories.length === 0) return [...lines, '- none'].join('\n')
+  if (memoryStorePath) lines.push(`- ${memoryStorePath}`)
+  for (const memory of memories) {
+    const file = memoryFileLabel(memory, memoryStorePath)
+    if (!lines.includes(`- ${file}`)) lines.push(`- ${file}`)
+  }
+  return lines.join('\n')
 }
 
 export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
@@ -82,4 +95,14 @@ export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
     }
   }
   return lines.join('\n')
+}
+
+function memoryFileLabel(memory: AgentMemory, memoryStorePath?: string): string {
+  const scopePart = memory.scope === 'project' && typeof memory.projectId === 'number'
+    ? `project-${memory.projectId}`
+    : memory.scope === 'thread' && memory.threadId
+      ? `thread-${memory.threadId}`
+      : memory.scope
+  const entry = `${scopePart}/${memory.id}`
+  return memoryStorePath ? `${memoryStorePath}#${entry}` : entry
 }

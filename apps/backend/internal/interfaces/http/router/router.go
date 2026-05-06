@@ -47,7 +47,7 @@ func New(deps Dependencies) *gin.Engine {
 			registerRegistryRoutes(v1, h)
 			registerWorkflowRoutes(protected, h)
 			registerCanvasRoutes(protected, h)
-			registerProjectRoutes(protected, h)
+			registerProjectRoutes(protected, db, h)
 
 			registerSemanticEntityRoutes(protected, h)
 

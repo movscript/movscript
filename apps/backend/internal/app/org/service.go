@@ -2,14 +2,12 @@ package org
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -73,6 +71,12 @@ type UsageResult struct {
 	Rows  []UsageRow
 }
 
+type QuotaInput struct {
+	MonthlyBudget float64
+	Plan          *string
+	Status        *string
+}
+
 func (s *Service) List(ctx context.Context, userID uint) ([]OrgWithRole, error) {
 	var members []model.OrganizationMember
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error; err != nil {
@@ -96,7 +100,7 @@ func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (
 		if err != nil {
 			return err
 		}
-		org = model.Organization{Name: input.Name, Slug: input.Slug, JoinCode: code, CreatedBy: ownerID}
+		org = model.Organization{Name: input.Name, Slug: input.Slug, JoinCode: code, IsPersonal: false, Plan: "team", Status: "trialing", CreatedBy: ownerID}
 		if err := tx.Create(&org).Error; err != nil {
 			return err
 		}
@@ -136,10 +140,7 @@ func (s *Service) AddMember(ctx context.Context, caller model.OrganizationMember
 	if !IsAdminOrAbove(caller.Role) {
 		return model.OrganizationMember{}, ErrForbidden
 	}
-	role := input.Role
-	if role == "" {
-		role = "member"
-	}
+	role := domainorg.DefaultMemberRole(input.Role)
 	member := model.OrganizationMember{OrgID: caller.OrgID, UserID: input.UserID, Role: role}
 	if err := s.db.WithContext(ctx).Create(&member).Error; err != nil {
 		return member, err
@@ -186,10 +187,7 @@ func (s *Service) CreateInvitation(ctx context.Context, caller model.Organizatio
 	if err != nil {
 		return model.OrgInvitation{}, err
 	}
-	role := input.Role
-	if role == "" {
-		role = "member"
-	}
+	role := domainorg.DefaultMemberRole(input.Role)
 	inv := model.OrgInvitation{
 		OrgID:     caller.OrgID,
 		Token:     token,
@@ -353,6 +351,88 @@ func (s *Service) GetUsage(ctx context.Context, orgID uint) (UsageResult, error)
 	return UsageResult{Month: startOfMonth.Format("2006-01"), Rows: rows}, nil
 }
 
+func (s *Service) GetQuota(ctx context.Context, orgID uint) (model.OrgQuota, error) {
+	var org model.Organization
+	if err := s.db.WithContext(ctx).Select("id").First(&org, orgID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.OrgQuota{}, ErrNotFound
+		}
+		return model.OrgQuota{}, err
+	}
+	var quota model.OrgQuota
+	if err := s.db.WithContext(ctx).Where("org_id = ?", orgID).First(&quota).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.OrgQuota{OrgID: orgID, MonthlyBudget: 0}, nil
+		}
+		return model.OrgQuota{}, err
+	}
+	return quota, nil
+}
+
+func (s *Service) SetQuota(ctx context.Context, orgID uint, input QuotaInput) (model.OrgQuota, error) {
+	if input.MonthlyBudget < 0 {
+		input.MonthlyBudget = 0
+	}
+	var org model.Organization
+	if err := s.db.WithContext(ctx).Select("id").First(&org, orgID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.OrgQuota{}, ErrNotFound
+		}
+		return model.OrgQuota{}, err
+	}
+	orgUpdates := map[string]any{}
+	if input.Plan != nil {
+		orgUpdates["plan"] = normalizeOrgPlan(*input.Plan)
+	}
+	if input.Status != nil {
+		orgUpdates["status"] = normalizeOrgStatus(*input.Status)
+	}
+	if len(orgUpdates) > 0 {
+		if err := s.db.WithContext(ctx).Model(&org).Updates(orgUpdates).Error; err != nil {
+			return model.OrgQuota{}, err
+		}
+	}
+	var quota model.OrgQuota
+	err := s.db.WithContext(ctx).Where("org_id = ?", orgID).First(&quota).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.OrgQuota{}, err
+		}
+		quota = model.OrgQuota{OrgID: orgID, MonthlyBudget: input.MonthlyBudget}
+		if err := s.db.WithContext(ctx).Create(&quota).Error; err != nil {
+			return model.OrgQuota{}, err
+		}
+		return quota, nil
+	}
+	quota.MonthlyBudget = input.MonthlyBudget
+	if err := s.db.WithContext(ctx).Save(&quota).Error; err != nil {
+		return model.OrgQuota{}, err
+	}
+	return quota, nil
+}
+
+func normalizeOrgPlan(value string) string {
+	switch strings.TrimSpace(value) {
+	case "personal", "enterprise":
+		return strings.TrimSpace(value)
+	case "":
+		return "team"
+	default:
+		return "team"
+	}
+}
+
+func normalizeOrgStatus(value string) string {
+	switch strings.TrimSpace(value) {
+	case "active", "trialing", "past_due", "suspended":
+		return strings.TrimSpace(value)
+	case "":
+		return "active"
+	default:
+		return "active"
+	}
+}
+
 func (s *Service) CreatePersonalOrg(ctx context.Context, user *model.User) error {
 	return CreatePersonalOrg(s.db.WithContext(ctx), user)
 }
@@ -368,28 +448,15 @@ type RegistrationInput struct {
 }
 
 func IsAdminOrAbove(role string) bool {
-	return role == "owner" || role == "admin"
+	return domainorg.IsAdminOrAbove(role)
 }
 
 func generateInviteToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
+	return domainorg.GenerateInviteToken()
 }
 
 func GenerateJoinCode() (string, error) {
-	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	b := make([]byte, 10)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	out := make([]byte, len(b))
-	for i, v := range b {
-		out[i] = alphabet[int(v)%len(alphabet)]
-	}
-	return string(out), nil
+	return domainorg.GenerateJoinCode()
 }
 
 func generateUniqueJoinCode(db *gorm.DB) (string, error) {
@@ -422,26 +489,16 @@ func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
 }
 
 func normalizeJoinCode(value string) string {
-	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", ""))
+	return domainorg.NormalizeJoinCode(value)
 }
 
 func CreatePersonalOrg(db *gorm.DB, user *model.User) error {
-	slug := user.Username
 	var count int64
-	db.Model(&model.Organization{}).Where("slug = ?", slug).Count(&count)
-	if count > 0 {
-		slug = slug + "-" + fmt.Sprintf("%d", user.ID)
-	}
-	org := model.Organization{
-		Name:       user.Username,
-		Slug:       slug,
-		JoinCode:   "",
-		IsPersonal: true,
-		CreatedBy:  user.ID,
-	}
+	db.Model(&model.Organization{}).Where("slug = ?", user.Username).Count(&count)
+	org := domainorg.NewPersonalOrg(*user, count > 0)
 	if err := db.Create(&org).Error; err != nil {
 		return err
 	}
-	member := model.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "owner"}
+	member := domainorg.OwnerMember(org.ID, user.ID)
 	return db.Create(&member).Error
 }

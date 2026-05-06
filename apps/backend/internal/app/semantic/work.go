@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 func (s *Service) ListWorkItems(ctx context.Context, filter WorkItemFilter) ([]model.WorkItem, error) {
@@ -30,26 +31,7 @@ func (s *Service) CreateWorkItem(ctx context.Context, projectID uint, auth WorkA
 	if err := s.validateWorkItemInput(ctx, projectID, input); err != nil {
 		return model.WorkItem{}, err
 	}
-	item := model.WorkItem{
-		ProjectID:      projectID,
-		ProductionID:   input.ProductionID,
-		TargetType:     input.TargetType,
-		TargetID:       input.TargetID,
-		Kind:           fallbackString(input.Kind, "human"),
-		Title:          input.Title,
-		Description:    input.Description,
-		Status:         fallbackString(input.Status, "todo"),
-		Priority:       fallbackString(input.Priority, "normal"),
-		AssigneeID:     input.AssigneeID,
-		SourceJobID:    input.SourceJobID,
-		SourceCanvasID: input.SourceCanvasID,
-		ResultType:     fallbackString(input.ResultType, "none"),
-		ResultJSON:     input.ResultJSON,
-		ApplyStatus:    InitialWorkItemApplyStatus(input.ResultType),
-		AppliedAt:      input.AppliedAt,
-		ApplyError:     input.ApplyError,
-		MetadataJSON:   input.MetadataJSON,
-	}
+	item := domainsemantic.NewWorkItem(projectID, input.domainPatch())
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

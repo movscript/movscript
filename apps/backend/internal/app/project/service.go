@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainproject "github.com/movscript/movscript/internal/domain/project"
 	"gorm.io/gorm"
 )
 
@@ -120,19 +121,13 @@ func (s *Service) ForceSetOwner(ctx context.Context, projectID uint, ownerID uin
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (model.Project, error) {
-	project := model.Project{
-		Name:          input.Name,
-		Description:   input.Description,
-		OwnerID:       ownerID,
-		OrgID:         orgID,
-		TotalEpisodes: input.TotalEpisodes,
-	}
+	project := domainproject.NewProject(input.Name, input.Description, input.TotalEpisodes, ownerID, orgID)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&project).Error; err != nil {
 			return err
 		}
 		if project.OwnerID != 0 {
-			return tx.Create(&model.ProjectMember{ProjectID: project.ID, UserID: project.OwnerID, Role: "owner"}).Error
+			return tx.Create(domainproject.OwnerMember(project.ID, project.OwnerID)).Error
 		}
 		return nil
 	})
@@ -158,7 +153,7 @@ func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, 
 	if projectID == 0 {
 		return ProjectRole{}, ErrProjectNotFound
 	}
-	if systemRole == "super_admin" {
+	if resolved, ok := domainproject.ResolveSystemRole(projectID, userID, systemRole); ok {
 		var project model.Project
 		if err := s.db.WithContext(ctx).Select("id").First(&project, projectID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -166,7 +161,7 @@ func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, 
 			}
 			return ProjectRole{}, err
 		}
-		return ProjectRole{Role: "super_admin", UserID: userID}, nil
+		return ProjectRole{Role: resolved.Role, UserID: resolved.UserID}, nil
 	}
 
 	var project model.Project
@@ -176,8 +171,8 @@ func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, 
 		}
 		return ProjectRole{}, err
 	}
-	if project.OwnerID == userID {
-		return ProjectRole{Role: "owner", UserID: userID}, nil
+	if resolved, ok := domainproject.ResolveOwnerRole(project.OwnerID, userID); ok {
+		return ProjectRole{Role: resolved.Role, UserID: resolved.UserID}, nil
 	}
 
 	var member model.ProjectMember
@@ -217,14 +212,10 @@ func (s *Service) Delete(ctx context.Context, id uint, orgID *uint) error {
 }
 
 func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInput, orgID *uint) (model.ProjectMember, error) {
-	role := input.Role
-	if role == "" {
-		role = "viewer"
-	}
 	if _, err := s.Get(ctx, projectID, orgID); err != nil {
 		return model.ProjectMember{}, err
 	}
-	member := model.ProjectMember{ProjectID: projectID, UserID: input.UserID, Role: role}
+	member := domainproject.NewMember(projectID, input.UserID, input.Role)
 	if err := s.db.WithContext(ctx).Create(&member).Error; err != nil {
 		return member, err
 	}

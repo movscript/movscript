@@ -51,6 +51,7 @@ func KeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
 func BillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
 	ctx := ai.BillingContext{ProjectID: projectID}
 	if key != nil {
+		ctx.OrgID = key.OrgID
 		ctx.GatewayAPIKeyID = &key.ID
 	}
 	return ctx

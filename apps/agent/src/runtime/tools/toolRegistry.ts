@@ -59,7 +59,7 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     description,
     permission,
     risk,
-    source: 'plugin',
+    source: input.source === 'runtime' ? 'runtime' : 'plugin',
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
   }
@@ -117,6 +117,15 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
+    name: 'movscript_search_memories',
+    description: 'Search local agent memories by query, scope, kind, project, or thread. Use this when older preferences, decisions, warnings, entity references, or draft notes may matter.',
+    permission: 'memory.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+  },
+  {
     name: 'movscript_request_user_input',
     description: 'Pause the agent run and ask the user for missing context, a choice, confirmation, or free-form input before continuing.',
     permission: 'agent.input',
@@ -168,6 +177,15 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
   {
     name: 'movscript_apply_draft',
     description: 'Apply an approved local draft lifecycle marker and produce before/after review metadata.',
+    permission: 'project.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: true,
+    requiresApprovalByDefault: true,
+  },
+  {
+    name: 'movscript_create_script',
+    description: 'Create a formal script entity in the current project after user approval.',
     permission: 'project.write',
     risk: 'write',
     source: 'runtime',

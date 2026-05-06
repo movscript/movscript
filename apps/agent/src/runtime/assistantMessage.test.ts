@@ -27,29 +27,16 @@ test('assistant message describes successful and failed tool outcomes', () => {
   assert.match(content, /movscript\.create_draft 未完成：create failed/)
 })
 
-test('assistant message returns JSON for production plan commands from run steps', () => {
+test('assistant message no longer special-cases removed slash commands', () => {
   const content = buildAssistantContent('/production_plan 第一场', [
     {
       call: { name: 'movscript_read_project_structure', args: { limit: 50 } },
       result: toolText({ counts: { scripts: 1 } }),
     },
   ], [], [], makeRun())
-  const parsed = JSON.parse(content) as Record<string, any>
 
-  assert.equal(parsed.command, '/production_plan')
-  assert.equal(parsed.runId, 'run_test')
-  assert.equal(parsed.strategy, 'agentic_loop')
-  assert.equal(parsed.steps[0].toolName, 'movscript_read_project_structure')
-})
-
-test('assistant message returns JSON for inspect context commands', () => {
-  const content = buildAssistantContent('/inspect_context', [], ['warn'], [], makeRun())
-  const parsed = JSON.parse(content) as Record<string, any>
-
-  assert.equal(parsed.command, '/inspect_context')
-  assert.equal(parsed.context.project.id, 42)
-  assert.deepEqual(parsed.labels, ['debug'])
-  assert.deepEqual(parsed.warnings, ['warn'])
+  assert.throws(() => JSON.parse(content))
+  assert.match(content, /读取项目结构摘要/)
 })
 
 test('assistant message extracts tool calls from model JSON content', () => {

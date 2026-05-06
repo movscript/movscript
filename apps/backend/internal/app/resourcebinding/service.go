@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"gorm.io/gorm"
 )
 
@@ -389,24 +390,7 @@ func normalizeCreateInput(input *CreateInput) {
 }
 
 func normalizeBinding(binding *model.ResourceBinding) {
-	binding.OwnerType = NormalizeOwnerType(binding.OwnerType)
-	binding.Role = NormalizeRole(binding.Role)
-	if binding.Role == "" {
-		binding.Role = "attachment"
-	}
-	binding.Slot = strings.TrimSpace(binding.Slot)
-	if binding.Version <= 0 {
-		binding.Version = 1
-	}
-	binding.Status = NormalizeStatus(binding.Status)
-	if binding.Status == "" {
-		binding.Status = "draft"
-	}
-	binding.SourceType = NormalizeSourceType(binding.SourceType)
-	if binding.SourceType == "" {
-		binding.SourceType = "manual"
-	}
-	binding.MetadataJSON = strings.TrimSpace(binding.MetadataJSON)
+	domainbinding.NormalizeBinding(binding)
 }
 
 func validateCreateInput(input CreateInput) error {
@@ -474,59 +458,35 @@ func buildUpdates(input UpdateInput) (map[string]any, error) {
 }
 
 func NormalizeOwnerType(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	return strings.ReplaceAll(value, "-", "_")
+	return domainbinding.NormalizeOwnerType(value)
 }
 
 func NormalizeRole(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	return strings.ReplaceAll(value, "-", "_")
+	return domainbinding.NormalizeRole(value)
 }
 
 func NormalizeStatus(value string) string {
-	return strings.TrimSpace(strings.ToLower(value))
+	return domainbinding.NormalizeStatus(value)
 }
 
 func NormalizeSourceType(value string) string {
-	return strings.TrimSpace(strings.ToLower(value))
+	return domainbinding.NormalizeSourceType(value)
 }
 
 func ValidOwnerType(value string) bool {
-	switch value {
-	case "script", "script_version", "segment", "scene_moment", "content_unit", "keyframe", "preview_timeline",
-		"creative_reference", "creative_reference_state", "asset_slot",
-		"delivery_version", "canvas":
-		return true
-	default:
-		return false
-	}
+	return domainbinding.ValidOwnerType(value)
 }
 
 func ValidRole(value string) bool {
-	switch value {
-	case "reference", "input", "output", "draft", "final", "thumbnail", "attachment", "source", "setting_doc":
-		return true
-	default:
-		return false
-	}
+	return domainbinding.ValidRole(value)
 }
 
 func ValidStatus(value string) bool {
-	switch value {
-	case "draft", "selected", "rejected", "approved", "archived":
-		return true
-	default:
-		return false
-	}
+	return domainbinding.ValidStatus(value)
 }
 
 func ValidSourceType(value string) bool {
-	switch value {
-	case "upload", "job", "canvas", "import", "manual", "legacy":
-		return true
-	default:
-		return false
-	}
+	return domainbinding.ValidSourceType(value)
 }
 
 func ownerLookupError(err error) error {

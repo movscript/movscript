@@ -7,11 +7,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	orgapp "github.com/movscript/movscript/internal/app/org"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/domain/model"
 	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	"golang.org/x/crypto/bcrypt"
@@ -76,6 +76,8 @@ type OrgMembershipSummary struct {
 	OrgName    string `json:"org_name"`
 	OrgSlug    string `json:"org_slug"`
 	IsPersonal bool   `json:"is_personal"`
+	Plan       string `json:"plan"`
+	Status     string `json:"status"`
 	Role       string `json:"role"`
 }
 
@@ -125,22 +127,12 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 	if err := s.db.WithContext(ctx).Model(&model.User{}).Count(&count).Error; err != nil {
 		return model.User{}, err
 	}
-	role := "user"
-	if count == 0 {
-		role = "super_admin"
-	}
-
-	u := model.User{
-		Username:     input.Username,
-		PasswordHash: hash,
-		SystemRole:   role,
-		Status:       "active",
-	}
+	var verifiedAt *int64
 	if input.Email != "" {
-		u.PrimaryEmail = &input.Email
 		now := time.Now().UTC().Unix()
-		u.EmailVerifiedAt = &now
+		verifiedAt = &now
 	}
+	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, count, verifiedAt)
 	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
 		return model.User{}, err
 	}
@@ -179,16 +171,7 @@ func (s *Service) CurrentUser(ctx context.Context, userID uint) (model.User, err
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileInput) (model.User, error) {
-	updates := map[string]any{}
-	if input.DisplayName != nil {
-		updates["display_name"] = strings.TrimSpace(*input.DisplayName)
-	}
-	if input.AvatarURL != nil {
-		updates["avatar_url"] = strings.TrimSpace(*input.AvatarURL)
-	}
-	if input.Locale != nil {
-		updates["locale"] = strings.TrimSpace(*input.Locale)
-	}
+	updates := domainauth.ProfileUpdates(domainauth.ProfileInput(input))
 	if len(updates) > 0 {
 		if err := s.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
 			return model.User{}, err
@@ -277,8 +260,8 @@ func (s *Service) CreateSession(ctx context.Context, userID uint, ttl time.Durat
 		UserID:    userID,
 		TokenHash: sha256Hex(raw),
 		ExpiresAt: expiresAt,
-		UserAgent: truncate(userAgent, 512),
-		IPAddress: truncate(ipAddress, 64),
+		UserAgent: domainauth.Truncate(userAgent, 512),
+		IPAddress: domainauth.Truncate(ipAddress, 64),
 	}
 	if err := s.db.WithContext(ctx).Create(&session).Error; err != nil {
 		return "", time.Time{}, err
@@ -341,14 +324,7 @@ func (s *Service) IssueCredential(ctx context.Context, input CredentialInput) (C
 }
 
 func normalizeEmail(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "" {
-		return ""
-	}
-	if !regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`).MatchString(value) {
-		return ""
-	}
-	return value
+	return domainauth.NormalizeEmail(value)
 }
 
 func randomDigits(length int) (string, error) {
@@ -376,13 +352,6 @@ func sha256Hex(value string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func truncate(value string, max int) string {
-	if len(value) <= max {
-		return value
-	}
-	return value[:max]
-}
-
 func (s *Service) OrgMemberships(ctx context.Context, userID uint) ([]OrgMembershipSummary, error) {
 	members := make([]model.OrganizationMember, 0)
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error; err != nil {
@@ -407,6 +376,8 @@ func (s *Service) OrgMemberships(ctx context.Context, userID uint) ([]OrgMembers
 			OrgName:    org.Name,
 			OrgSlug:    org.Slug,
 			IsPersonal: org.IsPersonal,
+			Plan:       org.Plan,
+			Status:     org.Status,
 			Role:       m.Role,
 		})
 	}

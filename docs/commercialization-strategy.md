@@ -55,11 +55,14 @@ Movscript 已经具备商业化所需的关键骨架：
 | --- | --- | --- | --- |
 | Personal Local | 开源 | 免费 | 单人、本地项目、自带 API key |
 | Pro Individual | 开源核心 + 可选商业服务 | 低价订阅或一次性 | 个人云同步、高级模板、高级 agent |
-| Team Self-hosted | 开源核心 + 商业组织能力 | 按组织或席位收费 | 团队协作、统一模型、权限、额度、审计 |
+| Self-hosted Core | 开源核心 | 免费 | 自部署、自己的 key、核心生产闭环完整 |
 | Hosted Cloud | 商业托管服务 | 席位 + 用量 + 存储 | 免部署、托管 key、托管 worker、自动升级 |
-| Enterprise | 商业合同 | 年费 | SSO、私有部署、合规、专属支持 |
+| Self-hosted Enterprise | 开源核心 + 商业企业能力 | 年费或商业 license | 全功能私有部署、SSO、合规、专属支持 |
+| Enterprise Cloud | 商业合同 | 年费 + 用量 | SSO、合规、托管运维、专属支持 |
 
 ## 收费原则
+
+部署、存储、API key 和收费边界的详细设计见 [部署、存储、API Key 与商业边界](deployment-and-commercial-boundaries.md)。本节只记录商业判断。
 
 ### 个人不应成为主要收入来源
 
@@ -69,7 +72,7 @@ Movscript 已经具备商业化所需的关键骨架：
 
 - 只支持 personal organization。
 - 用户自己配置 provider key。
-- 本地运行，不提供托管 worker。
+- 本地运行，数据和任务不经过 Movscript 云端，不提供托管 worker、云同步和云存储。
 - 基础模板和基础 agent 能力。
 - 无团队审计、无组织成本中心、无 SSO。
 
@@ -86,6 +89,8 @@ Movscript 已经具备商业化所需的关键骨架：
 
 因此，非 personal organization 应成为商业化边界。可以允许小团队免费试用，但正式团队功能应该付费。
 
+自部署需要单独划线：Self-hosted Core 可以允许个人或小团队免费使用核心生产能力，但不应默认开放全套企业能力。全功能自部署应归入 Self-hosted Enterprise，通过商业 license、升级包和支持服务收费。
+
 ## Model Gateway 作为核心商业产品
 
 Movscript Model Gateway 应成为商业化主轴。
@@ -101,6 +106,13 @@ Movscript Model Gateway 应成为商业化主轴。
 - 失败、重试、debug trace 和脱敏由后端统一处理。
 
 短期可以先把现有 gateway 打磨成自托管团队能力；中长期再推出托管 gateway。
+
+需要明确区分两种 key：
+
+- `Provider Key`：上游模型厂商 key，由后端加密保存，用于调用 OpenAI、Gemini、Kling、Volcengine 等 provider。
+- `Gateway API Key`：Movscript 发给 agent、插件、外部工具或自动化脚本的访问凭证，用于进入 Movscript Model Gateway，并受 scope、模型、项目、rate limit 和 budget 控制。
+
+免费本地和免费自部署核心可以使用用户自己的 provider key，但不应内置或下发 Movscript 平台 key。只要调用使用 Movscript 平台 key，或经过 Movscript Cloud Gateway，就必须进入云端计费和限额。
 
 ## 与 Cursor 路线的差异
 
@@ -138,6 +150,21 @@ Movscript 可以借鉴 Cursor 的商业逻辑，但不必复制闭源路线。Mo
 
 商业能力抽象的接口边界和推荐分层，见 [商业能力抽象设计](commercial-capability-abstraction.md)。
 
+## 当前已落地的产品边界
+
+当前代码已经按“个人默认免费、团队 workspace 进入收费治理”的方向完成第一轮产品化收束：
+
+- 登录后默认进入 personal workspace，团队 workspace 作为高级协作入口显示。
+- protected API 会解析并校验当前 workspace membership，前端通过 `X-Org-ID` 传递当前 workspace。
+- project、resource、resource folder、canvas、job、gateway API key 已按当前 workspace 隔离。
+- 旧的未绑定 `org_id` 的个人数据只在 personal workspace 兼容展示和操作，不混入团队 workspace。
+- AI usage reservation 和 usage log 已写入 `org_id`，组织用量页按 organization 聚合。
+- chat、canvas、job、model gateway 这些主要 AI 消耗入口会把当前 workspace 写入 billing context。
+- 非 personal organization 可通过 `OrgQuota.monthly_budget` 做月度预算控制；super admin 可通过 admin API 设置组织预算。
+- Gateway API key 创建、列表、更新和删除按 workspace 隔离，项目级 key 会校验 project 属于当前 workspace。
+
+这不是最终商业版本，但已经具备 Team Self-hosted Beta 的核心收费边界：团队数据隔离、团队用量归集、团队预算控制和 API key 治理。
+
 短期优先做以下产品边界：
 
 1. 明确 `personal organization` 和 `paid organization` 的差异。
@@ -148,6 +175,8 @@ Movscript 可以借鉴 Cursor 的商业逻辑，但不必复制闭源路线。Mo
 6. 将 usage log 聚合到 organization、project、user、model、gateway key。
 7. 为 model gateway 增加组织预算和项目预算检查。
 8. 为 agent 和 plugin 调用统一走 gateway，并写入 usage/audit。
+9. 将桌面 App 的本地 backend 打包策略产品化，明确 `local_workspace`、`cloud_workspace`、`self_hosted_workspace` 三类 workspace。
+10. 明确免费自部署核心不使用 Movscript 平台 key、不使用 Movscript 云端 worker/storage/sync，也不做远程计量。
 
 中期推进：
 

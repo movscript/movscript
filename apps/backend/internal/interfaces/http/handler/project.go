@@ -23,14 +23,14 @@ func NewProjectHandler(db *gorm.DB) *ProjectHandler {
 }
 
 func currentOrgID(c *gin.Context) *uint {
+	if m, ok := c.Get(middleware.ContextOrgMemberKey); ok {
+		member := m.(*model.OrganizationMember)
+		return &member.OrgID
+	}
 	if raw := c.GetHeader("X-Org-ID"); raw != "" {
 		if id := parseID(raw); id != 0 {
 			return &id
 		}
-	}
-	if m, ok := c.Get(middleware.ContextOrgMemberKey); ok {
-		member := m.(*model.OrganizationMember)
-		return &member.OrgID
 	}
 	return nil
 }

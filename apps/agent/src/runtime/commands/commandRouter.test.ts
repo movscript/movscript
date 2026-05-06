@@ -2,17 +2,25 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseAgentCommand } from './commandRouter.js'
 
-test('parses explicit commands into context profile and output mode', () => {
-  const inspect = parseAgentCommand('/inspect_context')
-  assert.equal(inspect.name, 'inspect_context')
-  assert.equal(inspect.contextProfile, 'minimal')
-  assert.equal(inspect.outputMode, 'json')
+test('parses explicit agent diagnostic commands', () => {
+  const context = parseAgentCommand('/context')
+  assert.equal(context.name, 'context')
+  assert.equal(context.contextProfile, 'minimal')
+  assert.equal(context.outputMode, 'natural')
+  assert.equal(context.requiredTools.length, 0)
 
-  const production = parseAgentCommand('/production_plan 第一场')
-  assert.equal(production.name, 'production_plan')
-  assert.equal(production.contextProfile, 'production_context')
-  assert.equal(production.outputMode, 'json')
-  assert.ok(production.requiredTools.includes('movscript_read_production_context'))
+  const memory = parseAgentCommand('/memory')
+  assert.equal(memory.name, 'memory')
+  assert.equal(memory.contextProfile, 'minimal')
+  assert.equal(memory.outputMode, 'natural')
+  assert.equal(memory.requiredTools.length, 0)
+})
+
+test('removed business slash commands are parsed as chat text', () => {
+  const command = parseAgentCommand('/production_plan 第一场')
+  assert.equal(command.name, 'chat')
+  assert.equal(command.payload, '/production_plan 第一场')
+  assert.equal(command.outputMode, 'natural')
 })
 
 test('infers context profile for natural language production requests', () => {

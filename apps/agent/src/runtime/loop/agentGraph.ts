@@ -3,6 +3,7 @@ import type { MCPClient } from '../../mcpClient.js'
 import type { AgentManifest } from '../manifest/agentManifest.js'
 import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../types.js'
 import type { AgentMemory } from '../memory/types.js'
+import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentDraftStore } from '../store/draftStore.js'
 import type { BackendApplyClient } from '../store/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
@@ -33,6 +34,7 @@ export interface AgentGraphInput {
   draftStore: AgentDraftStore
   backendApplyClient: BackendApplyClient
   registry: ToolRegistry
+  memoryManager?: MemoryManager
   forcedToolCalls?: ToolCall[]
   approvedToolNames?: string[]
   onTrace: (input: AgentLoopTraceInput) => void
@@ -447,6 +449,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         draftStore: input.draftStore,
         backendApplyClient: input.backendApplyClient,
         registry: input.registry,
+        memoryManager: input.memoryManager,
         sandboxMode: input.policy.sandboxMode === true,
       })
       toolOutcomes.push({ call, ...(execResult.error ? { error: execResult.error } : { result: execResult.result }) })

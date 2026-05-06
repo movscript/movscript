@@ -2,10 +2,9 @@ package feature
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"time"
 
+	domainfeature "github.com/movscript/movscript/internal/domain/feature"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
@@ -21,27 +20,7 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-type Response struct {
-	ID                   uint           `json:"ID"`
-	FeatureKey           string         `json:"feature_key"`
-	DisplayName          string         `json:"display_name"`
-	Description          string         `json:"description"`
-	Capability           string         `json:"capability"`
-	IsEnabled            bool           `json:"is_enabled"`
-	IsInternal           bool           `json:"is_internal"`
-	IsToolFeature        bool           `json:"is_tool_feature"`
-	InputSlots           []ai.InputSlot `json:"input_slots"`
-	AllowedModelIDs      []uint         `json:"allowed_model_ids"`
-	DefaultModelID       *uint          `json:"default_model_id"`
-	AllowedRoles         []string       `json:"allowed_roles"`
-	DefaultSystemPrompt  string         `json:"default_system_prompt"`
-	SystemPromptOverride string         `json:"system_prompt_override"`
-	OutputSchema         string         `json:"output_schema"`
-	MaxTokens            int            `json:"max_tokens"`
-	MaxTokensOverride    int            `json:"max_tokens_override"`
-	CreatedAt            time.Time      `json:"CreatedAt"`
-	UpdatedAt            time.Time      `json:"UpdatedAt"`
-}
+type Response = domainfeature.Response
 
 type UpdateInput struct {
 	IsEnabled       *bool
@@ -80,19 +59,13 @@ func (s *Service) Update(ctx context.Context, key string, input UpdateInput) (Re
 		f.IsEnabled = *input.IsEnabled
 	}
 	if input.AllowedModelIDs != nil {
-		b, _ := json.Marshal(input.AllowedModelIDs)
-		f.AllowedModelIDs = string(b)
+		f.AllowedModelIDs = domainfeature.EncodeUintIDs(input.AllowedModelIDs)
 	}
 	if input.DefaultModelID != nil {
-		if *input.DefaultModelID == 0 {
-			f.DefaultModelID = nil
-		} else {
-			f.DefaultModelID = input.DefaultModelID
-		}
+		f.DefaultModelID = domainfeature.NormalizeDefaultModelID(input.DefaultModelID)
 	}
 	if input.AllowedRoles != nil {
-		b, _ := json.Marshal(input.AllowedRoles)
-		f.AllowedRoles = string(b)
+		f.AllowedRoles = domainfeature.EncodeRoles(input.AllowedRoles)
 	}
 	if err := s.db.WithContext(ctx).Save(&f).Error; err != nil {
 		return Response{}, err
@@ -137,60 +110,9 @@ func (s *Service) find(ctx context.Context, key string) (model.FeatureConfig, er
 }
 
 func (s *Service) toResp(ctx context.Context, f model.FeatureConfig) Response {
-	var rawIDs []uint
-	if f.AllowedModelIDs != "" && f.AllowedModelIDs != "[]" {
-		_ = json.Unmarshal([]byte(f.AllowedModelIDs), &rawIDs)
-	}
+	rawIDs := domainfeature.DecodeUintIDs(f.AllowedModelIDs)
 	ids := s.filterExistingModelIDs(ctx, rawIDs)
-
-	var allowedRoles []string
-	if f.AllowedRoles != "" && f.AllowedRoles != "[]" {
-		_ = json.Unmarshal([]byte(f.AllowedRoles), &allowedRoles)
-	}
-	if allowedRoles == nil {
-		allowedRoles = []string{}
-	}
-
-	def := ai.GetFeatureDef(f.FeatureKey)
-	defaultPrompt, outputSchema := "", ""
-	maxTokens := f.MaxTokensOverride
-	isInternal, isToolFeature := false, false
-	var inputSlots []ai.InputSlot
-	if def != nil {
-		defaultPrompt = def.SystemPrompt
-		outputSchema = def.OutputSchema
-		isInternal = def.IsInternal
-		isToolFeature = def.IsToolFeature
-		inputSlots = def.InputSlots
-		if maxTokens == 0 {
-			maxTokens = def.MaxTokens
-		}
-	}
-	if inputSlots == nil {
-		inputSlots = []ai.InputSlot{}
-	}
-
-	return Response{
-		ID:                   f.ID,
-		FeatureKey:           f.FeatureKey,
-		DisplayName:          f.DisplayName,
-		Description:          f.Description,
-		Capability:           f.Capability,
-		IsEnabled:            f.IsEnabled,
-		IsInternal:           isInternal,
-		IsToolFeature:        isToolFeature,
-		InputSlots:           inputSlots,
-		AllowedModelIDs:      ids,
-		DefaultModelID:       f.DefaultModelID,
-		AllowedRoles:         allowedRoles,
-		DefaultSystemPrompt:  defaultPrompt,
-		SystemPromptOverride: f.SystemPromptOverride,
-		OutputSchema:         outputSchema,
-		MaxTokens:            maxTokens,
-		MaxTokensOverride:    f.MaxTokensOverride,
-		CreatedAt:            f.CreatedAt,
-		UpdatedAt:            f.UpdatedAt,
-	}
+	return domainfeature.BuildResponse(f, ids, featureDef(ai.GetFeatureDef(f.FeatureKey)))
 }
 
 func (s *Service) filterExistingModelIDs(ctx context.Context, ids []uint) []uint {
@@ -206,4 +128,29 @@ func (s *Service) filterExistingModelIDs(ctx context.Context, ids []uint) []uint
 		return []uint{}
 	}
 	return existing
+}
+
+func featureDef(def *ai.FeatureDef) *domainfeature.Definition {
+	if def == nil {
+		return nil
+	}
+	slots := make([]domainfeature.InputSlot, 0, len(def.InputSlots))
+	for _, slot := range def.InputSlots {
+		slots = append(slots, domainfeature.InputSlot{
+			Key:         slot.Key,
+			Label:       slot.Label,
+			Accept:      slot.Accept,
+			Required:    slot.Required,
+			MaxCount:    slot.MaxCount,
+			RequiresCap: slot.RequiresCap,
+		})
+	}
+	return &domainfeature.Definition{
+		IsInternal:    def.IsInternal,
+		IsToolFeature: def.IsToolFeature,
+		InputSlots:    slots,
+		SystemPrompt:  def.SystemPrompt,
+		OutputSchema:  def.OutputSchema,
+		MaxTokens:     def.MaxTokens,
+	}
 }

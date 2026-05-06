@@ -29,7 +29,7 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
     memories: [],
     warnings: [],
     history: [],
-    userMessage: '/production_plan 第一场',
+    userMessage: '/context',
   })
 
   const systemMessages = built.messages.filter((message) => message.role === 'system')
@@ -39,5 +39,5 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
   assert.match(systemMessages[0].content ?? '', /Reference id:/)
   assert.match(systemMessages[0].content ?? '', /production#4/)
   assert.equal(systemMessages.some((message) => String(message.content).includes('Runtime context JSON')), false)
-  assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: json')))
+  assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
 })

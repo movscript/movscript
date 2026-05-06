@@ -79,7 +79,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		resp, err := h.svc.CallText(ctx, user.ID, modelDbID, textReq)
+		resp, err := h.svc.CallTextWithBilling(ctx, user.ID, modelDbID, textReq, h.billingContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -106,7 +106,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 		params = ai.NormalizeGenerationParams(preflight.NormalizedParams)
 		seed := int64PtrParam(params, "seed")
 		watermark := boolPtrParam(params, "watermark")
-		resp, err := h.svc.CallImage(ctx, user.ID, modelDbID, ai.ImageRequest{
+		resp, err := h.svc.CallImageWithBilling(ctx, user.ID, modelDbID, ai.ImageRequest{
 			Prompt:              prompt,
 			N:                   intParam(params, "n", 1),
 			Quality:             stringParam(params, "quality", ""),
@@ -123,7 +123,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 			OptimizePromptMode:  stringParam(params, "optimize_prompt_mode", ""),
 			InputImageDataList:  imageData,
 			EditOnly:            spec.Capability == "image_edit",
-		})
+		}, h.billingContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -180,7 +180,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]
 		}
-		resp, err := h.svc.CallVideo(ctx, user.ID, modelDbID, videoReq)
+		resp, err := h.svc.CallVideoWithBilling(ctx, user.ID, modelDbID, videoReq, h.billingContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -196,7 +196,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 		return
 	}
 
-	r, err := h.createCanvasResourceFromSource(ctx, user.ID, fmt.Sprintf("generated_%s_%d.%s", resType, task.ID, canvasExtFromMime(mimeType)), resultURL, mimeType)
+	r, err := h.createCanvasResourceFromSource(ctx, user.ID, h.orgIDForNode(ctx, node), fmt.Sprintf("generated_%s_%d.%s", resType, task.ID, canvasExtFromMime(mimeType)), resultURL, mimeType)
 	if err != nil {
 		h.failTask(task, node, nd, err.Error())
 		return
@@ -218,14 +218,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 }
 
 func MarshalParamsForPreflight(params map[string]any) string {
-	if len(params) == 0 {
-		return ""
-	}
-	b, err := json.Marshal(params)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return canvasruntime.MarshalParamsForPreflight(params)
 }
 
 type pluginHTTPRuntimeSpec struct {

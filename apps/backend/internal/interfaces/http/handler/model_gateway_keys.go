@@ -14,7 +14,7 @@ func (h *ModelGatewayHandler) ListAPIKeys(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
-	keys, err := h.service.ListAPIKeys(c.Request.Context(), user.ID)
+	keys, err := h.service.ListAPIKeys(c.Request.Context(), user.ID, currentOrgID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -35,6 +35,7 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 	}
 	result, err := h.service.CreateAPIKey(c.Request.Context(), modelgatewayapp.CreateAPIKeyInput{
 		OwnerUserID:     user.ID,
+		OrgID:           currentOrgID(c),
 		Name:            req.Name,
 		ProjectID:       req.ProjectID,
 		AllowedModelIDs: req.AllowedModelIDs,
@@ -43,7 +44,7 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		MonthlyBudget:   req.MonthlyBudget,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeGatewayAPIKeyError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{GatewayAPIKey: result.Key, Key: result.RawKey})
@@ -63,6 +64,7 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 	key, err := h.service.UpdateAPIKey(c.Request.Context(), modelgatewayapp.UpdateAPIKeyInput{
 		ID:              parseID(c.Param("id")),
 		OwnerUserID:     user.ID,
+		OrgID:           currentOrgID(c),
 		Name:            req.Name,
 		AllowedModelIDs: req.AllowedModelIDs,
 		AllowedScopes:   req.AllowedScopes,
@@ -83,7 +85,7 @@ func (h *ModelGatewayHandler) DeleteAPIKey(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
-	if err := h.service.DeleteAPIKey(c.Request.Context(), parseID(c.Param("id")), user.ID); err != nil {
+	if err := h.service.DeleteAPIKey(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c)); err != nil {
 		writeGatewayAPIKeyError(c, err)
 		return
 	}
@@ -93,6 +95,14 @@ func (h *ModelGatewayHandler) DeleteAPIKey(c *gin.Context) {
 func writeGatewayAPIKeyError(c *gin.Context, err error) {
 	if errors.Is(err, modelgatewayapp.ErrAPIKeyNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "api key not found"})
+		return
+	}
+	if errors.Is(err, modelgatewayapp.ErrProjectNotFound) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
+		return
+	}
+	if errors.Is(err, modelgatewayapp.ErrProjectOutsideOrg) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "project is outside current workspace"})
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

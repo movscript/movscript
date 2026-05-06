@@ -25,11 +25,15 @@ func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 }
 
 func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
+	orgID := uint(5)
 	projectID := uint(11)
-	key := &model.GatewayAPIKey{Model: gorm.Model{ID: 3}}
+	key := &model.GatewayAPIKey{Model: gorm.Model{ID: 3}, OrgID: &orgID}
 
 	ctx := BillingContext(key, &projectID)
 
+	if ctx.OrgID == nil || *ctx.OrgID != 5 {
+		t.Fatalf("expected org id 5, got %#v", ctx.OrgID)
+	}
 	if ctx.GatewayAPIKeyID == nil || *ctx.GatewayAPIKeyID != 3 {
 		t.Fatalf("expected gateway api key id 3, got %#v", ctx.GatewayAPIKeyID)
 	}

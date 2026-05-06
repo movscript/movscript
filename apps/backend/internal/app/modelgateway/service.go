@@ -21,6 +21,8 @@ import (
 
 var (
 	ErrAPIKeyNotFound        = errors.New("gateway api key not found")
+	ErrProjectNotFound       = errors.New("gateway project not found")
+	ErrProjectOutsideOrg     = errors.New("gateway project is outside current org")
 	ErrMonthlyBudgetExceeded = errors.New("gateway monthly budget exceeded")
 	ErrRateLimitExceeded     = errors.New("gateway rate limit exceeded")
 	ErrInsufficientScope     = errors.New("gateway key is not allowed to use requested scope")
@@ -46,6 +48,7 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 
 type CreateAPIKeyInput struct {
 	OwnerUserID     uint
+	OrgID           *uint
 	Name            string
 	ProjectID       *uint
 	AllowedModelIDs []uint
@@ -57,6 +60,7 @@ type CreateAPIKeyInput struct {
 type UpdateAPIKeyInput struct {
 	ID              uint
 	OwnerUserID     uint
+	OrgID           *uint
 	Name            *string
 	AllowedModelIDs []uint
 	AllowedScopes   []string
@@ -111,13 +115,18 @@ func IsInsufficientQuota(err error) bool {
 	return errors.Is(err, ai.ErrInsufficientQuota)
 }
 
-func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint) ([]model.GatewayAPIKey, error) {
+func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint) ([]model.GatewayAPIKey, error) {
 	keys := make([]model.GatewayAPIKey, 0)
-	err := s.db.WithContext(ctx).Where("owner_user_id = ?", ownerUserID).Order("created_at desc").Find(&keys).Error
+	q := s.db.WithContext(ctx).Where("owner_user_id = ?", ownerUserID)
+	q = s.applyAPIKeyOrgScope(ctx, q, orgID, ownerUserID)
+	err := q.Order("created_at desc").Find(&keys).Error
 	return keys, err
 }
 
 func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (CreateAPIKeyResult, error) {
+	if err := s.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
+		return CreateAPIKeyResult{}, err
+	}
 	scopes := input.AllowedScopes
 	if len(scopes) == 0 {
 		scopes = []string{"model:chat"}
@@ -128,6 +137,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		KeyPrefix:       KeyPrefix(rawKey),
 		KeyHash:         HashAPIKey(rawKey),
 		OwnerUserID:     input.OwnerUserID,
+		OrgID:           input.OrgID,
 		ProjectID:       input.ProjectID,
 		AllowedModelIDs: mustJSONString(input.AllowedModelIDs),
 		AllowedScopes:   mustJSONString(scopes),
@@ -142,7 +152,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 }
 
 func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (model.GatewayAPIKey, error) {
-	key, err := s.findOwnedAPIKey(ctx, input.ID, input.OwnerUserID)
+	key, err := s.findOwnedAPIKey(ctx, input.ID, input.OwnerUserID, input.OrgID)
 	if err != nil {
 		return key, err
 	}
@@ -176,8 +186,8 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (mo
 	return key, nil
 }
 
-func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint) error {
-	key, err := s.findOwnedAPIKey(ctx, id, ownerUserID)
+func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) error {
+	key, err := s.findOwnedAPIKey(ctx, id, ownerUserID, orgID)
 	if err != nil {
 		return err
 	}
@@ -347,15 +357,59 @@ func (s *Service) keyMonthlySpend(ctx context.Context, keyID uint) (float64, err
 	return total, err
 }
 
-func (s *Service) findOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint) (model.GatewayAPIKey, error) {
+func (s *Service) findOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) (model.GatewayAPIKey, error) {
 	var key model.GatewayAPIKey
-	if err := s.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&key).Error; err != nil {
+	q := s.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID)
+	q = s.applyAPIKeyOrgScope(ctx, q, orgID, ownerUserID)
+	if err := q.First(&key).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return key, ErrAPIKeyNotFound
 		}
 		return key, err
 	}
 	return key, nil
+}
+
+func (s *Service) applyAPIKeyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerUserID uint) *gorm.DB {
+	if orgID == nil {
+		return q.Where("org_id IS NULL")
+	}
+	if s.isPersonalOrg(ctx, *orgID) {
+		return q.Where("org_id = ? OR (org_id IS NULL AND owner_user_id = ?)", *orgID, ownerUserID)
+	}
+	return q.Where("org_id = ?", *orgID)
+}
+
+func (s *Service) ensureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error {
+	if projectID == nil {
+		return nil
+	}
+	var project model.Project
+	if err := s.db.WithContext(ctx).Select("id, org_id").First(&project, *projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if !sameOrg(project.OrgID, orgID) {
+		return ErrProjectOutsideOrg
+	}
+	return nil
+}
+
+func (s *Service) isPersonalOrg(ctx context.Context, orgID uint) bool {
+	var org model.Organization
+	if err := s.db.WithContext(ctx).Select("is_personal").First(&org, orgID).Error; err != nil {
+		return false
+	}
+	return org.IsPersonal
+}
+
+func sameOrg(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 func GenerateAPIKey() string {

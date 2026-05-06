@@ -10,6 +10,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,10 @@ var (
 
 type PortDef = canvasruntime.PortDef
 type nodeData = canvasruntime.NodeData
+type TemplateDef = domainmarket.TemplateDef
+type TemplateNode = domainmarket.TemplateNode
+type TemplateEdge = domainmarket.TemplateEdge
+type MarketItem = domainmarket.MarketItem
 
 type Service struct {
 	db *gorm.DB
@@ -31,51 +36,6 @@ type Service struct {
 
 func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
-}
-
-type TemplateDef struct {
-	Key         string         `json:"key"`
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Category    string         `json:"category,omitempty"`
-	Tags        []string       `json:"tags,omitempty"`
-	Inputs      []PortDef      `json:"inputs,omitempty"`
-	Outputs     []PortDef      `json:"outputs,omitempty"`
-	Nodes       []TemplateNode `json:"nodes,omitempty"`
-	Edges       []TemplateEdge `json:"edges,omitempty"`
-}
-
-type TemplateNode struct {
-	NodeID string
-	Type   string
-	Label  string
-	PosX   float64
-	PosY   float64
-	Data   map[string]any
-}
-
-type TemplateEdge struct {
-	EdgeID       string
-	Source       string
-	Target       string
-	SourceHandle string
-	TargetHandle string
-}
-
-type MarketItem struct {
-	Source      string     `json:"source"`
-	CanvasID    uint       `json:"canvas_id,omitempty"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	Description string     `json:"description,omitempty"`
-	Category    string     `json:"category,omitempty"`
-	Tags        []string   `json:"tags,omitempty"`
-	Inputs      []PortDef  `json:"inputs,omitempty"`
-	Outputs     []PortDef  `json:"outputs,omitempty"`
-	OwnerID     uint       `json:"owner_id,omitempty"`
-	NodeCount   int        `json:"node_count,omitempty"`
-	EdgeCount   int        `json:"edge_count,omitempty"`
-	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
 type InstallInput struct {
@@ -98,14 +58,14 @@ type CloneInput struct {
 
 func (s *Service) ListTemplates() []MarketItem {
 	items := make([]MarketItem, 0)
-	for _, tpl := range BuiltinTemplates() {
-		items = append(items, TemplateMarketItem(tpl))
+	for _, tpl := range domainmarket.BuiltinTemplates() {
+		items = append(items, domainmarket.TemplateMarketItem(tpl))
 	}
 	return items
 }
 
 func (s *Service) InstallTemplate(ctx context.Context, ownerID uint, key string, input InstallInput) (model.Canvas, error) {
-	tpl, ok := FindTemplate(key)
+	tpl, ok := domainmarket.FindTemplate(key)
 	if !ok {
 		return model.Canvas{}, ErrTemplateNotFound
 	}
@@ -121,9 +81,9 @@ func (s *Service) ListMarket(ctx context.Context, source string, query string) (
 	query = strings.ToLower(strings.TrimSpace(query))
 	items := make([]MarketItem, 0)
 	if source == "" || source == "template" {
-		for _, tpl := range BuiltinTemplates() {
-			item := TemplateMarketItem(tpl)
-			if MarketItemMatches(item, query) {
+		for _, tpl := range domainmarket.BuiltinTemplates() {
+			item := domainmarket.TemplateMarketItem(tpl)
+			if domainmarket.MarketItemMatches(item, query) {
 				items = append(items, item)
 			}
 		}
@@ -137,8 +97,8 @@ func (s *Service) ListMarket(ctx context.Context, source string, query string) (
 			return nil, err
 		}
 		for _, cv := range canvases {
-			item := PublicCanvasMarketItem(cv)
-			if MarketItemMatches(item, query) {
+			item := domainmarket.PublicCanvasMarketItem(cv)
+			if domainmarket.MarketItemMatches(item, query) {
 				items = append(items, item)
 			}
 		}
@@ -149,11 +109,11 @@ func (s *Service) ListMarket(ctx context.Context, source string, query string) (
 func (s *Service) GetByKey(ctx context.Context, key string, userID uint) (MarketItem, error) {
 	key = strings.TrimSpace(key)
 	if strings.HasPrefix(key, "template:") {
-		tpl, ok := FindTemplate(strings.TrimPrefix(key, "template:"))
+		tpl, ok := domainmarket.FindTemplate(strings.TrimPrefix(key, "template:"))
 		if !ok {
 			return MarketItem{}, ErrWorkflowNotFound
 		}
-		return TemplateMarketItem(tpl), nil
+		return domainmarket.TemplateMarketItem(tpl), nil
 	}
 	var canvases []model.Canvas
 	if err := s.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
@@ -173,7 +133,7 @@ func (s *Service) GetByKey(ctx context.Context, key string, userID uint) (Market
 			break
 		}
 	}
-	return PublicCanvasMarketItem(selected), nil
+	return domainmarket.PublicCanvasMarketItem(selected), nil
 }
 
 func (s *Service) Publish(ctx context.Context, id uint, userID uint, input PublishInput) (model.Canvas, error) {
@@ -188,10 +148,10 @@ func (s *Service) Publish(ctx context.Context, id uint, userID uint, input Publi
 	if workflowKey == "" {
 		workflowKey = fmt.Sprintf("user.%d.workflow.%d", userID, cv.ID)
 	}
-	if !ValidWorkflowKey(workflowKey) {
+	if !domainmarket.ValidWorkflowKey(workflowKey) {
 		return model.Canvas{}, ErrInvalidWorkflowKey
 	}
-	tagsRaw, _ := json.Marshal(CleanTags(input.Tags))
+	tagsRaw, _ := json.Marshal(domainmarket.CleanTags(input.Tags))
 	now := time.Now()
 	updates := map[string]any{
 		"visibility":    "public",
@@ -359,212 +319,23 @@ func (s *Service) cloneWorkflowCanvas(ctx context.Context, source model.Canvas, 
 	return cv, nil
 }
 
-func BuiltinTemplates() []TemplateDef {
-	return []TemplateDef{
-		{
-			Key:         "text-generation",
-			Name:        "Text Generation",
-			Description: "Reusable prompt-to-text workflow with one text input and one text output.",
-			Category:    "generation",
-			Tags:        []string{"text", "ai", "starter"},
-			Inputs:      []PortDef{{ID: "prompt", Label: "Prompt", Type: "text", Required: true}},
-			Outputs:     []PortDef{{ID: "text", Label: "Text", Type: "text"}},
-			Nodes: []TemplateNode{
-				{NodeID: "input-prompt", Type: "input", Label: "Prompt", PosX: 80, PosY: 160, Data: map[string]any{"source": "manual", "paramName": "prompt", "paramType": "text", "inputValue": ""}},
-				{NodeID: "generate-text", Type: "text", Label: "Generate Text", PosX: 340, PosY: 160, Data: map[string]any{"source": "ai", "prompt": "", "inputPorts": []PortDef{{ID: "prompt", Label: "Prompt", Type: "text", Required: true}}, "outputPorts": []PortDef{{ID: "text", Label: "Text", Type: "text"}}}},
-				{NodeID: "output-text", Type: "output", Label: "Text Output", PosX: 620, PosY: 160, Data: map[string]any{"source": "manual", "paramName": "text", "paramType": "text"}},
-			},
-			Edges: []TemplateEdge{
-				{EdgeID: "prompt-to-text", Source: "input-prompt", Target: "generate-text", SourceHandle: "value", TargetHandle: "prompt"},
-				{EdgeID: "text-to-output", Source: "generate-text", Target: "output-text", SourceHandle: "text", TargetHandle: "value"},
-			},
-		},
-		{
-			Key:         "image-generation",
-			Name:        "Image Generation",
-			Description: "Reusable prompt-to-image workflow with a typed image output.",
-			Category:    "generation",
-			Tags:        []string{"image", "ai", "starter"},
-			Inputs:      []PortDef{{ID: "prompt", Label: "Prompt", Type: "text", Required: true}},
-			Outputs:     []PortDef{{ID: "image", Label: "Image", Type: "image"}},
-			Nodes: []TemplateNode{
-				{NodeID: "input-prompt", Type: "input", Label: "Prompt", PosX: 80, PosY: 160, Data: map[string]any{"source": "manual", "paramName": "prompt", "paramType": "text", "inputValue": ""}},
-				{NodeID: "generate-image", Type: "image", Label: "Generate Image", PosX: 340, PosY: 160, Data: map[string]any{"source": "ai", "prompt": "", "inputPorts": []PortDef{{ID: "prompt", Label: "Prompt", Type: "text", Required: true}}, "outputPorts": []PortDef{{ID: "image", Label: "Image", Type: "image"}}}},
-				{NodeID: "output-image", Type: "output", Label: "Image Output", PosX: 620, PosY: 160, Data: map[string]any{"source": "manual", "paramName": "image", "paramType": "image"}},
-			},
-			Edges: []TemplateEdge{
-				{EdgeID: "prompt-to-image", Source: "input-prompt", Target: "generate-image", SourceHandle: "value", TargetHandle: "prompt"},
-				{EdgeID: "image-to-output", Source: "generate-image", Target: "output-image", SourceHandle: "image", TargetHandle: "value"},
-			},
-		},
-		{
-			Key:         "input-output",
-			Name:        "Input Output",
-			Description: "Minimal workflow shell for plugin authors to fork into custom reusable flows.",
-			Category:    "utility",
-			Tags:        []string{"starter", "utility"},
-			Inputs:      []PortDef{{ID: "input", Label: "Input", Type: "text"}},
-			Outputs:     []PortDef{{ID: "output", Label: "Output", Type: "resource"}},
-			Nodes: []TemplateNode{
-				{NodeID: "input", Type: "input", Label: "Input", PosX: 120, PosY: 160, Data: map[string]any{"source": "manual", "paramName": "input", "paramType": "text", "inputValue": ""}},
-				{NodeID: "output", Type: "output", Label: "Output", PosX: 460, PosY: 160, Data: map[string]any{"source": "manual", "paramName": "output", "paramType": "resource"}},
-			},
-			Edges: []TemplateEdge{{EdgeID: "input-output", Source: "input", Target: "output", SourceHandle: "value", TargetHandle: "value"}},
-		},
-	}
-}
-
-func FindTemplate(key string) (TemplateDef, bool) {
-	key = strings.TrimSpace(key)
-	for _, tpl := range BuiltinTemplates() {
-		if tpl.Key == key {
-			return tpl, true
-		}
-	}
-	return TemplateDef{}, false
-}
-
+func BuiltinTemplates() []TemplateDef             { return domainmarket.BuiltinTemplates() }
+func FindTemplate(key string) (TemplateDef, bool) { return domainmarket.FindTemplate(key) }
 func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []model.CanvasNode {
-	nodes := make([]model.CanvasNode, 0, len(defs))
-	for _, def := range defs {
-		raw, _ := json.Marshal(def.Data)
-		nodes = append(nodes, model.CanvasNode{
-			CanvasID: canvasID,
-			NodeID:   def.NodeID,
-			Type:     def.Type,
-			Label:    def.Label,
-			PosX:     def.PosX,
-			PosY:     def.PosY,
-			Data:     string(raw),
-		})
-	}
-	return nodes
+	return domainmarket.TemplateNodesForCanvas(canvasID, defs)
 }
-
 func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []model.CanvasEdge {
-	edges := make([]model.CanvasEdge, 0, len(defs))
-	for _, def := range defs {
-		edges = append(edges, model.CanvasEdge{
-			CanvasID:     canvasID,
-			EdgeID:       def.EdgeID,
-			Source:       def.Source,
-			Target:       def.Target,
-			SourceHandle: def.SourceHandle,
-			TargetHandle: def.TargetHandle,
-		})
-	}
-	return edges
+	return domainmarket.TemplateEdgesForCanvas(canvasID, defs)
 }
-
-func TemplateMarketItem(tpl TemplateDef) MarketItem {
-	return MarketItem{
-		Source:      "template",
-		Key:         "template:" + tpl.Key,
-		Name:        tpl.Name,
-		Description: tpl.Description,
-		Category:    tpl.Category,
-		Tags:        tpl.Tags,
-		Inputs:      tpl.Inputs,
-		Outputs:     tpl.Outputs,
-		NodeCount:   len(tpl.Nodes),
-		EdgeCount:   len(tpl.Edges),
-	}
-}
-
+func TemplateMarketItem(tpl TemplateDef) MarketItem { return domainmarket.TemplateMarketItem(tpl) }
 func PublicCanvasMarketItem(cv model.Canvas) MarketItem {
-	key := strings.TrimSpace(cv.WorkflowKey)
-	if key == "" {
-		key = fmt.Sprintf("canvas:%d", cv.ID)
-	}
-	return MarketItem{
-		Source:      "public",
-		CanvasID:    cv.ID,
-		Key:         key,
-		Name:        cv.Name,
-		Description: cv.Description,
-		Tags:        DecodeTags(cv.WorkflowTags),
-		Inputs:      CanvasWorkflowInputs(cv),
-		Outputs:     CanvasWorkflowOutputs(cv),
-		OwnerID:     cv.OwnerID,
-		NodeCount:   len(cv.Nodes),
-		EdgeCount:   len(cv.Edges),
-		PublishedAt: cv.PublishedAt,
-	}
+	return domainmarket.PublicCanvasMarketItem(cv)
 }
-
-func CanvasWorkflowInputs(cv model.Canvas) []PortDef {
-	ports := make([]PortDef, 0)
-	for _, node := range cv.Nodes {
-		if node.Type != "input" {
-			continue
-		}
-		var nd nodeData
-		_ = json.Unmarshal([]byte(node.Data), &nd)
-		id := strings.TrimSpace(nd.ParamName)
-		if id == "" {
-			id = node.NodeID
-		}
-		ports = append(ports, PortDef{ID: id, Label: node.Label, Type: firstNonEmptyString(nd.ParamType, "text")})
-	}
-	return ports
-}
-
-func CanvasWorkflowOutputs(cv model.Canvas) []PortDef {
-	ports := make([]PortDef, 0)
-	for _, node := range cv.Nodes {
-		if node.Type != "output" {
-			continue
-		}
-		var nd nodeData
-		_ = json.Unmarshal([]byte(node.Data), &nd)
-		id := strings.TrimSpace(nd.ParamName)
-		if id == "" {
-			id = node.NodeID
-		}
-		ports = append(ports, PortDef{ID: id, Label: node.Label, Type: firstNonEmptyString(nd.ParamType, "resource")})
-	}
-	return ports
-}
-
+func CanvasWorkflowInputs(cv model.Canvas) []PortDef  { return domainmarket.CanvasWorkflowInputs(cv) }
+func CanvasWorkflowOutputs(cv model.Canvas) []PortDef { return domainmarket.CanvasWorkflowOutputs(cv) }
 func MarketItemMatches(item MarketItem, query string) bool {
-	if query == "" {
-		return true
-	}
-	haystack := strings.ToLower(strings.Join(append([]string{item.Key, item.Name, item.Description, item.Category}, item.Tags...), " "))
-	return strings.Contains(haystack, query)
+	return domainmarket.MarketItemMatches(item, query)
 }
-
-func CleanTags(tags []string) []string {
-	out := make([]string, 0, len(tags))
-	seen := map[string]bool{}
-	for _, tag := range tags {
-		tag = strings.TrimSpace(tag)
-		if tag == "" || seen[tag] {
-			continue
-		}
-		seen[tag] = true
-		out = append(out, tag)
-	}
-	return out
-}
-
-func DecodeTags(raw string) []string {
-	var tags []string
-	if err := json.Unmarshal([]byte(raw), &tags); err != nil {
-		return nil
-	}
-	return CleanTags(tags)
-}
-
-func ValidWorkflowKey(key string) bool {
-	return strings.TrimSpace(key) != "" && !strings.ContainsAny(key, " \t\r\n/\\")
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
-}
+func CleanTags(tags []string) []string { return domainmarket.CleanTags(tags) }
+func DecodeTags(raw string) []string   { return domainmarket.DecodeTags(raw) }
+func ValidWorkflowKey(key string) bool { return domainmarket.ValidWorkflowKey(key) }

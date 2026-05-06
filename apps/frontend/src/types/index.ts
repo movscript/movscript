@@ -212,6 +212,8 @@ export interface OrgMembership {
   org_name: string
   org_slug: string
   is_personal: boolean
+  plan?: 'personal' | 'team' | 'enterprise' | string
+  status?: 'active' | 'trialing' | 'past_due' | 'suspended' | string
   role: 'owner' | 'admin' | 'member' | 'viewer'
 }
 

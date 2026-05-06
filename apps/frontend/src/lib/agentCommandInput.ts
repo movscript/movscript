@@ -12,9 +12,6 @@ export function normalizeAgentCommandMessage(message: string, mode: AgentInputMo
   const trimmed = message.trim()
   if (!trimmed) return trimmed
   if (trimmed.startsWith('/')) return trimmed
-  if (mode === 'plan') return `/production_plan ${trimmed}`
-  if (mode === 'create') return `/draft ${trimmed}`
-  if (mode === 'review') return `/project_structure ${trimmed}`
   return trimmed
 }
 

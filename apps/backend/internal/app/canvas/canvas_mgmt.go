@@ -18,10 +18,13 @@ var (
 	ErrRefIDRequired      = errors.New("ref_id is required when ref_type is set")
 	ErrUnsupportedRefType = errors.New("unsupported ref_type")
 	ErrCanvasForbidden    = errors.New("canvas forbidden")
+	ErrProjectNotFound    = errors.New("project not found")
+	ErrProjectOutsideOrg  = errors.New("project is outside current org")
 )
 
 type CanvasListFilter struct {
 	OwnerID    uint
+	OrgID      *uint
 	ProjectID  string
 	Stage      string
 	RefType    string
@@ -31,6 +34,7 @@ type CanvasListFilter struct {
 
 type CanvasCreateInput struct {
 	OwnerID     uint
+	OrgID       *uint
 	Name        string
 	Description string
 	ProjectID   *uint
@@ -79,6 +83,7 @@ type EntityWriteAuditPage struct {
 func (h *Service) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]model.Canvas, error) {
 	canvases := make([]model.Canvas, 0)
 	q := h.db.WithContext(ctx).Where("owner_id = ?", filter.OwnerID)
+	q = h.applyOrgScope(ctx, q, filter.OrgID, filter.OwnerID)
 	if pid := strings.TrimSpace(filter.ProjectID); pid != "" {
 		q = q.Where("project_id = ?", pid)
 	}
@@ -100,10 +105,11 @@ func (h *Service) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]
 	return canvases, nil
 }
 
-func (h *Service) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, projectID *uint, canvasType string, refType string, refID uint) (model.Canvas, bool, error) {
+func (h *Service) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (model.Canvas, bool, error) {
 	var existing model.Canvas
 	q := h.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
 		Where("owner_id = ? AND canvas_type = ? AND ref_type = ? AND ref_id = ?", ownerID, canvasType, refType, refID)
+	q = h.applyOrgScope(ctx, q, orgID, ownerID)
 	if projectID != nil {
 		q = q.Where("project_id = ?", *projectID)
 	} else {
@@ -140,8 +146,12 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (mo
 	if input.RefType != "" && !slices.Contains([]string{"script", "setting", "asset_slot", "content_unit"}, input.RefType) {
 		return model.Canvas{}, ErrUnsupportedRefType
 	}
+	if err := h.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
+		return model.Canvas{}, err
+	}
 	cv := model.Canvas{
 		OwnerID:     input.OwnerID,
+		OrgID:       input.OrgID,
 		Name:        input.Name,
 		Description: strings.TrimSpace(input.Description),
 		ProjectID:   input.ProjectID,
@@ -203,13 +213,16 @@ func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCrea
 	if canvasType == "" {
 		canvasType = "inspiration"
 	}
-	return h.FindOwnedEntityCanvas(ctx, input.OwnerID, input.ProjectID, canvasType, input.RefType, *input.RefID)
+	return h.FindOwnedEntityCanvas(ctx, input.OwnerID, input.OrgID, input.ProjectID, canvasType, input.RefType, *input.RefID)
 }
 
-func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint) (model.Canvas, error) {
+func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error) {
 	cv, err := h.GetCanvas(ctx, id)
 	if err != nil {
 		return cv, err
+	}
+	if !h.inOrgScope(ctx, cv.OrgID, orgID, cv.OwnerID, ownerID) {
+		return cv, ErrCanvasForbidden
 	}
 	if cv.OwnerID != ownerID && !(cv.CanvasType == "workflow" && cv.Visibility == "public") {
 		return cv, ErrCanvasForbidden
@@ -217,8 +230,8 @@ func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint)
 	return cv, nil
 }
 
-func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, input CanvasPatchInput) (model.Canvas, error) {
-	cv, err := h.getOwnedCanvas(ctx, id, ownerID)
+func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasPatchInput) (model.Canvas, error) {
+	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
 		return cv, err
 	}
@@ -245,8 +258,8 @@ func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, inpu
 	return cv, nil
 }
 
-func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint) error {
-	cv, err := h.getOwnedCanvas(ctx, id, ownerID)
+func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) error {
+	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
 		return err
 	}
@@ -265,8 +278,8 @@ func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint) err
 	return h.db.WithContext(ctx).Delete(&cv).Error
 }
 
-func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, input CanvasSaveInput) (model.Canvas, error) {
-	cv, err := h.getOwnedCanvas(ctx, id, ownerID)
+func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasSaveInput) (model.Canvas, error) {
+	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
 		return cv, err
 	}
@@ -309,7 +322,7 @@ func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, input
 	return cv, nil
 }
 
-func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint) (model.Canvas, error) {
+func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error) {
 	var cv model.Canvas
 	if err := h.db.WithContext(ctx).First(&cv, id).Error; err != nil {
 		return cv, err
@@ -317,11 +330,14 @@ func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint) (
 	if cv.OwnerID != ownerID {
 		return cv, ErrCanvasForbidden
 	}
+	if !h.inOrgScope(ctx, cv.OrgID, orgID, cv.OwnerID, ownerID) {
+		return cv, ErrCanvasForbidden
+	}
 	return cv, nil
 }
 
-func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint) (model.Canvas, error) {
-	return h.getOwnedCanvas(ctx, id, ownerID)
+func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error) {
+	return h.getOwnedCanvas(ctx, id, ownerID, orgID)
 }
 
 func singleCanvasRefType(refType string) bool {
@@ -384,8 +400,8 @@ func (h *Service) ListRunTasks(ctx context.Context, canvasID uint, runID string)
 	return tasks, nil
 }
 
-func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID uint, nodeID string) (model.CanvasTask, string, error) {
-	if _, err := h.GetOwnedCanvas(ctx, canvasID, ownerID); err != nil {
+func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) (model.CanvasTask, string, error) {
+	if _, err := h.GetOwnedCanvas(ctx, canvasID, ownerID, orgID); err != nil {
 		return model.CanvasTask{}, "", err
 	}
 	var node model.CanvasNode
@@ -400,8 +416,8 @@ func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID u
 	return task, node.Type, nil
 }
 
-func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID uint, nodeID string) ([]model.CanvasTask, string, error) {
-	if _, err := h.GetOwnedCanvas(ctx, canvasID, ownerID); err != nil {
+func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) ([]model.CanvasTask, string, error) {
+	if _, err := h.GetOwnedCanvas(ctx, canvasID, ownerID, orgID); err != nil {
 		return nil, "", err
 	}
 	var node model.CanvasNode
@@ -416,6 +432,58 @@ func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID ui
 		h.LazyBackfillCanvasTaskOutputs(&tasks[i], node.Type)
 	}
 	return tasks, node.Type, nil
+}
+
+func (h *Service) applyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerID uint) *gorm.DB {
+	if orgID == nil {
+		return q.Where("org_id IS NULL")
+	}
+	if h.includeLegacyPersonal(ctx, orgID) {
+		return q.Where("org_id = ? OR (org_id IS NULL AND owner_id = ?)", *orgID, ownerID)
+	}
+	return q.Where("org_id = ?", *orgID)
+}
+
+func (h *Service) inOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool {
+	if sameOrg(entityOrgID, currentOrgID) {
+		return true
+	}
+	return h.includeLegacyPersonal(ctx, currentOrgID) && entityOrgID == nil && ownerID == userID
+}
+
+func (h *Service) includeLegacyPersonal(ctx context.Context, orgID *uint) bool {
+	if orgID == nil {
+		return true
+	}
+	var org model.Organization
+	if err := h.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
+		return false
+	}
+	return org.IsPersonal
+}
+
+func sameOrg(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func (h *Service) ensureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error {
+	if projectID == nil {
+		return nil
+	}
+	var project model.Project
+	if err := h.db.WithContext(ctx).Select("id, org_id").First(&project, *projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if !sameOrg(project.OrgID, orgID) {
+		return ErrProjectOutsideOrg
+	}
+	return nil
 }
 
 func (h *Service) ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error) {

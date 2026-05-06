@@ -20,7 +20,7 @@ import {
 import { buildApplyDraftPreview, rejectDraft } from './store/draftApply.js'
 import { BackendApplyClient } from './store/backendApplyClient.js'
 import { runAgentGraph } from './loop/agentGraph.js'
-import { buildPromptPreview } from './loop/contextBuilder.js'
+import { buildContext, buildPromptPreview } from './loop/contextBuilder.js'
 import type {
   AgentApprovalRequest,
   AgentInputRequest,
@@ -65,7 +65,7 @@ import {
 } from './input/normalizeRunInput.js'
 import { buildDebugContext, buildDebugTrace } from './debug/debugContext.js'
 import { parseAgentCommand } from './commands/commandRouter.js'
-import { renderDebugContextText } from './contextText.js'
+import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
 
 export type {
   AgentMessage,
@@ -349,6 +349,7 @@ export class AgentRuntime {
     const memories = this.memoryManager.loadRelevantMemories({
       ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
       threadId: thread?.id ?? 'preview',
+      query: message,
     })
     const skills = resolveAgentSkills(agentManifest, message, this.skillCatalog)
     const capabilities = await resolveAgentCapabilities({
@@ -713,17 +714,17 @@ export class AgentRuntime {
           kind: 'context',
           title: 'Context pack failed',
           summary: contextError,
-          status: command.name === 'inspect_context' ? 'blocked' : 'failed',
+          status: isLocalDiagnosticCommand(command.name) ? 'blocked' : 'failed',
           round: setupRound,
           data: {
             source: 'mcp_context_pack',
             endpoint: 'movscript_get_context_pack',
             error: contextError,
-            fallback: command.name === 'inspect_context' ? 'client_input_snapshot' : 'none',
+            fallback: isLocalDiagnosticCommand(command.name) ? 'client_input_snapshot' : 'none',
           },
         })
         this.store.updateRun(run)
-        if (command.name !== 'inspect_context') throw error
+        if (!isLocalDiagnosticCommand(command.name)) throw error
         contextResult = buildFallbackContextResult(clientInput, contextError)
       }
       const context = extractAgentContext(contextResult)
@@ -734,6 +735,7 @@ export class AgentRuntime {
       const memories = this.memoryManager.loadRelevantMemories({
         projectId: context.currentProjectId,
         threadId: thread.id,
+        query: lastUser.content,
       })
       this.recordTraceEvent(run, {
         kind: 'memory',
@@ -802,38 +804,45 @@ export class AgentRuntime {
         data: { availableToolNames: capabilities.resolvedTools.available.map((t) => t.name), blockedTools: capabilities.resolvedTools.blocked.map((t) => ({ name: t.name, reason: t.unavailableReason })), warnings: capabilities.warnings },
       })
 
-      run.metadata = {
-        ...(run.metadata ?? {}),
-        debugTrace: buildDebugTrace(agentManifest, skills, capabilities.resolvedTools, []) as unknown as JSONValue,
-        context: debugContext as unknown as JSONValue,
-        command: command as unknown as JSONValue,
-      }
+    run.metadata = {
+      ...(run.metadata ?? {}),
+      debugTrace: buildDebugTrace(agentManifest, skills, capabilities.resolvedTools, []) as unknown as JSONValue,
+      context: debugContext as unknown as JSONValue,
+      command: command as unknown as JSONValue,
+      ...this.getRunAuth(run.id),
+    }
       this.store.updateRun(run)
 
-      if (command.name === 'inspect_context' && !run.metadata?.forcedToolCall) {
+      if (isLocalDiagnosticCommand(command.name) && !run.metadata?.forcedToolCall) {
         const localRound = buildRunRound(1, 'Runtime command', 'runtime_rule')
         this.recordTraceEvent(run, {
           kind: 'policy',
           title: 'Command handled locally',
-          summary: `${command.rawName ?? '/inspect_context'} returns runtime context without calling the model gateway.`,
+          summary: `${command.rawName ?? `/${command.name}`} returns deterministic runtime diagnostics without calling the model gateway.`,
           status: 'completed',
           round: localRound,
           data: {
             command,
             modelGatewayCalled: false,
-            reason: 'inspect_context is a deterministic runtime diagnostic command',
+            reason: `${command.name} is a deterministic runtime diagnostic command`,
           },
         })
 
         const finalRound = buildRunRound(999, 'Final response', 'final')
-        const finalContent = this.formatFinalAssistantContent(
-          lastUser.content,
-          '',
-          [],
-          [...capabilities.warnings],
-          memories,
-          run,
-        )
+        const finalContent = command.name === 'context'
+          ? renderModelGatewayMessagesText(buildContext({
+            manifest: agentManifest,
+            skills,
+            context: debugContext,
+            tools: capabilities.resolvedTools,
+            policy: run.policy,
+            memories,
+            warnings: [...capabilities.warnings],
+            history: thread.messages,
+            userMessage: lastUser.content,
+            command,
+          }).messages)
+          : renderMemoryFilesText(memories, this.getMemoryStorePath())
         const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
         thread.messages.push(assistant)
         thread.updatedAt = assistant.createdAt
@@ -900,6 +909,7 @@ export class AgentRuntime {
         draftStore: this.draftStore,
         backendApplyClient: this.backendApplyClient,
         registry: this.toolRegistry,
+        memoryManager: this.memoryManager,
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
         ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),
         onTrace: (traceInput) => {
@@ -1152,63 +1162,66 @@ export class AgentRuntime {
     run: AgentRun,
   ): string {
     const command = parseAgentCommand(userMessage)
-    if (command.name === 'inspect_context') {
+    if (command.name === 'context') {
       const context = isRecord(run.metadata?.context) ? run.metadata.context : undefined
-      return JSON.stringify({
-        command: command.rawName ?? '/inspect_context',
-        runId: run.id,
-        threadId: run.threadId,
+      return renderLocalContextCommand({
+        command: command.rawName ?? '/context',
+        run,
         context,
-        contextText: isAgentDebugContextPanel(context) ? renderDebugContextText(context) : undefined,
-        memories: memories.map((memory) => ({
-          id: memory.id,
-          scope: memory.scope,
-          kind: memory.kind,
-          content: memory.content,
-        })),
-        labels: Array.isArray(context?.labels) ? context.labels : [],
         warnings,
-      }, null, 2)
+      })
     }
 
-    if (command.name === 'production_plan') {
-      return JSON.stringify({
-        command: command.rawName ?? '/production_plan',
-        runId: run.id,
-        threadId: run.threadId,
-        objective: command.payload || userMessage.trim(),
-        strategy: 'agentic_loop',
-        contextProfile: command.contextProfile,
-        steps: run.steps.map((step) => ({
-          id: step.id,
-          type: step.type,
-          status: step.status,
-          toolName: step.toolName,
-          sandboxed: step.sandboxed === true,
-        })),
-        warnings,
-        toolResults: toolResults.map((outcome) => ({
-          call: outcome.call,
-          ...(outcome.error ? { error: outcome.error } : { result: outcome.result ?? null }),
-        })),
-        pendingApprovals: (run.pendingApprovals ?? []).map((approval) => ({
-          id: approval.id,
-          toolName: approval.toolName,
-          status: approval.status,
-          reason: approval.reason,
-          risk: approval.risk,
-          permission: approval.permission,
-        })),
-        modelContent: modelContent || undefined,
-      }, null, 2)
+    if (command.name === 'memory') {
+      return renderMemoryFilesText(memories, this.getMemoryStorePath())
     }
 
     return modelContent
+  }
+
+  private getMemoryStorePath(): string | undefined {
+    const store = this.memoryStore as { filePath?: unknown }
+    return typeof store.filePath === 'string' ? store.filePath : undefined
   }
 }
 
 function isMessageRole(value: unknown): value is AgentMessageRole {
   return value === 'system' || value === 'user' || value === 'assistant'
+}
+
+function isLocalDiagnosticCommand(name: string): boolean {
+  return name === 'context' || name === 'memory'
+}
+
+function renderLocalContextCommand(input: {
+  command: string
+  run: AgentRun
+  context: Record<string, unknown> | undefined
+  warnings: string[]
+}): string {
+  const lines = [
+    `Command: ${input.command}`,
+    `Run: ${input.run.id}`,
+    `Thread: ${input.run.threadId}`,
+    '',
+    'Model context text:',
+    isAgentDebugContextPanel(input.context)
+      ? renderDebugContextText(input.context)
+      : 'No runtime context was available.',
+  ]
+  if (input.warnings.length > 0) {
+    lines.push('', 'Warnings:', ...input.warnings.map((warning) => `- ${warning}`))
+  }
+  return lines.join('\n')
+}
+
+function renderModelGatewayMessagesText(messages: Array<{ role: string; content?: string | null }>): string {
+  const lines = ['Model gateway messages:']
+  messages.forEach((message, index) => {
+    lines.push('', `--- message ${index + 1}: ${message.role} ---`)
+    lines.push(message.content ?? '')
+  })
+  return lines.join('\n')
 }
 
 function isAgentDebugContextPanel(value: unknown): value is AgentDebugContextPanel {

@@ -1,12 +1,14 @@
 import type { JSONValue } from '../../types.js'
 import { parseToolResult } from '../context.js'
 import type { AgentRun, AgentMessage, ToolCallOutcome } from '../types.js'
-import type { AgentMemory, CreateMemoryInput } from './types.js'
+import type { AgentMemory, AgentMemoryKind, AgentMemoryScope, CreateMemoryInput, MemoryQuery } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
 
 export interface RelevantMemoryContext {
   projectId?: number
   threadId: string
+  query?: string
+  limit?: number
 }
 
 export interface MemoryExtractionInput {
@@ -21,17 +23,32 @@ export class MemoryManager {
   constructor(private readonly store: AgentMemoryStore) {}
 
   loadRelevantMemories(context: RelevantMemoryContext): AgentMemory[] {
+    return this.searchMemories({
+      projectId: context.projectId,
+      threadId: context.threadId,
+      query: context.query,
+      limit: context.limit ?? 6,
+    })
+  }
+
+  searchMemories(query: MemorySearchInput): AgentMemory[] {
     const byId = new Map<string, AgentMemory>()
-    for (const memory of this.store.listMemories({ scope: 'global' })) byId.set(memory.id, memory)
-    if (typeof context.projectId === 'number') {
-      for (const memory of this.store.listMemories({ scope: 'project', projectId: context.projectId })) {
+    if (!query.scope || query.scope === 'global') {
+      for (const memory of this.store.listMemories({ scope: 'global', ...(query.kind ? { kind: query.kind } : {}) })) {
         byId.set(memory.id, memory)
       }
     }
-    for (const memory of this.store.listMemories({ scope: 'thread', threadId: context.threadId })) {
-      byId.set(memory.id, memory)
+    if ((!query.scope || query.scope === 'project') && typeof query.projectId === 'number') {
+      for (const memory of this.store.listMemories({ scope: 'project', projectId: query.projectId, ...(query.kind ? { kind: query.kind } : {}) })) {
+        byId.set(memory.id, memory)
+      }
     }
-    return Array.from(byId.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    if ((!query.scope || query.scope === 'thread') && query.threadId) {
+      for (const memory of this.store.listMemories({ scope: 'thread', threadId: query.threadId, ...(query.kind ? { kind: query.kind } : {}) })) {
+        byId.set(memory.id, memory)
+      }
+    }
+    return rankMemories(Array.from(byId.values()), query).slice(0, clampLimit(query.limit))
   }
 
   extractAndWriteMemories(input: MemoryExtractionInput): AgentMemory[] {
@@ -101,6 +118,60 @@ export class MemoryManager {
       .filter((memory) => memory.content.trim().length > 0)
       .map((memory) => this.store.createMemory(memory))
   }
+}
+
+export interface MemorySearchInput {
+  projectId?: number
+  threadId?: string
+  scope?: AgentMemoryScope
+  kind?: AgentMemoryKind
+  query?: string
+  limit?: number
+}
+
+function rankMemories(memories: AgentMemory[], query: MemorySearchInput): AgentMemory[] {
+  const terms = tokenize(query.query)
+  return memories
+    .map((memory) => ({ memory, score: scoreMemory(memory, terms, query) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.memory.updatedAt.localeCompare(a.memory.updatedAt))
+    .map((item) => item.memory)
+}
+
+function scoreMemory(memory: AgentMemory, terms: string[], query: MemorySearchInput): number {
+  let score = 1
+  if (query.kind && memory.kind === query.kind) score += 2
+  if (query.scope && memory.scope === query.scope) score += 1
+  if (memory.threadId && query.threadId && memory.threadId === query.threadId) score += 1.5
+  if (typeof memory.projectId === 'number' && memory.projectId === query.projectId) score += 1
+  if (terms.length === 0) return score
+  const content = memory.content.toLowerCase()
+  const matches = terms.filter((term) => content.includes(term)).length
+  return matches > 0 ? score + matches * 3 : 0
+}
+
+function tokenize(input: string | undefined): string[] {
+  if (!input) return []
+  const normalized = input.toLowerCase()
+  const terms = normalized.split(/[^\p{L}\p{N}_-]+/u).filter((term) => term.length >= 2)
+  const cjkTerms = Array.from(normalized.matchAll(/[\p{Script=Han}]{2,}/gu))
+    .flatMap((match) => cjkNgrams(match[0]))
+  return Array.from(new Set([...terms, ...cjkTerms])).slice(0, 32)
+}
+
+function cjkNgrams(input: string): string[] {
+  const grams: string[] = []
+  for (let size = 2; size <= Math.min(6, input.length); size += 1) {
+    for (let index = 0; index <= input.length - size; index += 1) {
+      grams.push(input.slice(index, index + size))
+    }
+  }
+  return grams
+}
+
+function clampLimit(limit: number | undefined): number {
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) return 8
+  return Math.max(1, Math.min(25, Math.floor(limit)))
 }
 
 function extractPreference(message: string): string | undefined {

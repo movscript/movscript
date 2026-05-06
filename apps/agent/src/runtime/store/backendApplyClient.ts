@@ -5,6 +5,11 @@ export interface BackendApplyClientOptions {
   baseURL?: string
 }
 
+export interface BackendApplyAuthContext {
+  userId?: number | string
+  backendAuthToken?: string
+}
+
 export interface BackendApplyResult {
   performed: boolean
   method?: 'PATCH' | 'POST'
@@ -57,14 +62,13 @@ export class BackendApplyClient {
     return !!this.baseURL
   }
 
-  async applyReview(review: ApplyDraftReview, userId?: number | string): Promise<BackendApplyResult> {
+  async applyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     if (!this.baseURL) {
       return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const request = buildPatchRequest(review)
     const url = `${this.baseURL}${request.path}`
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (userId !== undefined) headers['X-User-ID'] = String(userId)
+    const headers = buildHeaders(auth)
 
     const response = await fetch(url, {
       method: 'PATCH',
@@ -85,14 +89,40 @@ export class BackendApplyClient {
     }
   }
 
-  async applyProposal(projectId: number, payload: Record<string, JSONValue>, userId?: number | string): Promise<BackendApplyResult> {
+  async applyProposal(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     if (!this.baseURL) {
       return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const path = `/projects/${encodeURIComponent(String(projectId))}/entities/production-proposals/apply`
     const url = `${this.baseURL}${path}`
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (userId !== undefined) headers['X-User-ID'] = String(userId)
+    const headers = buildHeaders(auth)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    })
+    const responseText = await response.text()
+    const parsed = parseJSONText(responseText)
+    if (!response.ok) {
+      throw new Error(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+    }
+    return {
+      performed: true,
+      method: 'POST',
+      url,
+      payload,
+      ...(parsed !== undefined ? { response: parsed } : {}),
+    }
+  }
+
+  async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    if (!this.baseURL) {
+      return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
+    }
+    const path = `/projects/${encodeURIComponent(String(projectId))}/scripts`
+    const url = `${this.baseURL}${path}`
+    const headers = buildHeaders(auth)
 
     const response = await fetch(url, {
       method: 'POST',
@@ -146,6 +176,13 @@ function normalizeBaseURL(value: string | undefined): string | undefined {
   if (!value || !value.trim()) return undefined
   const trimmed = value.trim().replace(/\/+$/, '')
   return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`
+}
+
+function buildHeaders(auth?: BackendApplyAuthContext): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (auth?.backendAuthToken) headers.Authorization = `Bearer ${auth.backendAuthToken}`
+  if (auth?.userId !== undefined) headers['X-User-ID'] = String(auth.userId)
+  return headers
 }
 
 function parseJSONText(text: string): JSONValue | undefined {

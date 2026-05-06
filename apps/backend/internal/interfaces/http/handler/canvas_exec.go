@@ -19,7 +19,7 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
 	if err != nil {
 		writeCanvasAccessError(c, err, "canvas not found")
 		return
@@ -50,7 +50,7 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
 	if err != nil {
 		writeCanvasAccessError(c, err, "not found")
 		return
@@ -75,7 +75,7 @@ func (h *CanvasHandler) ListRuns(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
 	if err != nil {
 		writeCanvasAccessError(c, err, "canvas not found")
 		return
@@ -109,7 +109,7 @@ func (h *CanvasHandler) GetRun(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
 	if err != nil {
 		writeCanvasAccessError(c, err, "canvas not found")
 		return
@@ -134,7 +134,7 @@ func (h *CanvasHandler) ListRunTasks(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID)
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
 	if err != nil {
 		writeCanvasAccessError(c, err, "canvas not found")
 		return
@@ -239,7 +239,7 @@ func (h *CanvasHandler) GetNodeTask(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	task, _, err := h.CanvasExecService.LatestNodeTask(c.Request.Context(), c.Param("id"), user.ID, c.Param("nodeId"))
+	task, _, err := h.CanvasExecService.LatestNodeTask(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c), c.Param("nodeId"))
 	if err != nil {
 		if errors.Is(err, canvasservice.ErrCanvasForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -261,7 +261,7 @@ func (h *CanvasHandler) ListNodeTasks(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	tasks, _, err := h.CanvasExecService.ListNodeTasks(c.Request.Context(), c.Param("id"), user.ID, c.Param("nodeId"))
+	tasks, _, err := h.CanvasExecService.ListNodeTasks(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c), c.Param("nodeId"))
 	if err != nil {
 		if errors.Is(err, canvasservice.ErrCanvasForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
