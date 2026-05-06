@@ -2,14 +2,14 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Bug, Database, FileText, LogOut, ShieldCheck, SlidersHorizontal } from 'lucide-react'
+import { Bug, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import AdminPage from '@/pages/admin/AdminPage'
-import { DebugPage } from '@/pages/admin/DebugPage'
-import { UIPreviewPage } from '@/pages/admin/UIPreviewPage'
+import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage, UsageLogsPage, UserManagementPage } from '@admin/pages/admin/AdminPage'
+import { DebugPage } from '@admin/pages/admin/DebugPage'
+import { UIPreviewPage } from '@admin/pages/admin/UIPreviewPage'
 import { Toaster } from '@/components/ui/Toaster'
 import '@/i18n'
 import './styles.css'
@@ -86,6 +86,13 @@ function LoginPage() {
 
 const navItems = [
   { to: '/', label: '总览', icon: Database, end: true },
+  { to: '/models', label: '模型管理', icon: Settings2 },
+  { to: '/features', label: '功能配置', icon: RouteIcon },
+  { to: '/users', label: '用户管理', icon: UsersRound },
+  { to: '/projects', label: '项目管理', icon: FolderKanban },
+  { to: '/usage', label: '用量日志', icon: ScrollText },
+  { to: '/storage', label: '资源存储', icon: HardDrive },
+  { to: '/cloud-files', label: '输入中转', icon: CloudUpload },
   { to: '/debug', label: '调试', icon: Bug },
   { to: '/ui-preview', label: 'UI 预览', icon: SlidersHorizontal },
 ]
@@ -149,6 +156,13 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<AdminShell><AdminPage /></AdminShell>} />
+        <Route path="/models" element={<AdminShell><ModelManagementPage /></AdminShell>} />
+        <Route path="/features" element={<AdminShell><FeatureConfigPage /></AdminShell>} />
+        <Route path="/users" element={<AdminShell><UserManagementPage /></AdminShell>} />
+        <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />
+        <Route path="/usage" element={<AdminShell><UsageLogsPage /></AdminShell>} />
+        <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
+        <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
         <Route path="/debug" element={<AdminShell><DebugPage /></AdminShell>} />
         <Route path="/ui-preview" element={<AdminShell><UIPreviewPage /></AdminShell>} />
         <Route path="*" element={<Navigate to="/" replace />} />

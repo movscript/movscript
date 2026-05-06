@@ -3,9 +3,9 @@ package resourcefolder
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
 	"gorm.io/gorm"
 )
 
@@ -67,7 +67,7 @@ func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (
 			}
 			return model.ResourceFolder{}, err
 		}
-		if parent.OwnerID != ownerID || !folderInOrgScope(parent.OrgID, input.OrgID, parent.OwnerID, ownerID, s.includeLegacyPersonal(ctx, input.OrgID)) {
+		if parent.OwnerID != ownerID || !domainresourcefolder.FolderInOrgScope(parent.OrgID, input.OrgID, parent.OwnerID, ownerID, s.includeLegacyPersonal(ctx, input.OrgID)) {
 			return model.ResourceFolder{}, ErrForbidden
 		}
 	}
@@ -93,7 +93,7 @@ func (s *Service) Update(ctx context.Context, userID uint, orgID *uint, id uint,
 		}
 		return folder, err
 	}
-	if folder.OwnerID != userID || !folderInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
+	if folder.OwnerID != userID || !domainresourcefolder.FolderInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
 		return folder, ErrForbidden
 	}
 	updates := map[string]any{}
@@ -123,7 +123,7 @@ func (s *Service) Delete(ctx context.Context, userID uint, orgID *uint, id uint)
 		}
 		return err
 	}
-	if folder.OwnerID != userID || !folderInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
+	if folder.OwnerID != userID || !domainresourcefolder.FolderInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
 		return ErrForbidden
 	}
 	if err := s.db.WithContext(ctx).Model(&model.RawResource{}).Where("folder_id = ?", folder.ID).Update("folder_id", nil).Error; err != nil {
@@ -196,7 +196,7 @@ func (s *Service) requireOwner(ctx context.Context, userID uint, orgID *uint, id
 		}
 		return folder, err
 	}
-	if folder.OwnerID != userID || !folderInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
+	if folder.OwnerID != userID || !domainresourcefolder.FolderInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, s.includeLegacyPersonal(ctx, orgID)) {
 		return folder, ErrForbidden
 	}
 	return folder, nil
@@ -233,24 +233,6 @@ func applyOrgScope(q *gorm.DB, orgID *uint, userID uint, includeLegacy bool) *go
 	return q.Where("org_id = ?", *orgID)
 }
 
-func folderInOrgScope(folderOrgID, currentOrgID *uint, ownerID uint, userID uint, includeLegacy bool) bool {
-	if sameOrg(folderOrgID, currentOrgID) {
-		return true
-	}
-	return includeLegacy && folderOrgID == nil && ownerID == userID
-}
-
-func sameOrg(a, b *uint) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
-}
-
 func ParsePermissionID(raw string) (uint, error) {
-	n, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return uint(n), nil
+	return domainresourcefolder.ParsePermissionID(raw)
 }

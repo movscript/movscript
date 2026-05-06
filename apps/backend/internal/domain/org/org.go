@@ -9,6 +9,17 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 )
 
+const (
+	PlanPersonal   = "personal"
+	PlanTeam       = "team"
+	PlanEnterprise = "enterprise"
+
+	StatusActive    = "active"
+	StatusTrialing  = "trialing"
+	StatusPastDue   = "past_due"
+	StatusSuspended = "suspended"
+)
+
 func IsAdminOrAbove(role string) bool {
 	return role == "owner" || role == "admin"
 }
@@ -45,6 +56,28 @@ func NormalizeJoinCode(value string) string {
 	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(value), "-", ""))
 }
 
+func NormalizePlan(value string) string {
+	switch strings.TrimSpace(value) {
+	case PlanPersonal, PlanEnterprise:
+		return strings.TrimSpace(value)
+	case "":
+		return PlanTeam
+	default:
+		return PlanTeam
+	}
+}
+
+func NormalizeStatus(value string) string {
+	switch strings.TrimSpace(value) {
+	case StatusActive, StatusTrialing, StatusPastDue, StatusSuspended:
+		return strings.TrimSpace(value)
+	case "":
+		return StatusActive
+	default:
+		return StatusActive
+	}
+}
+
 func PersonalOrgSlug(username string, userID uint, slugExists bool) string {
 	slug := username
 	if slugExists {
@@ -59,8 +92,8 @@ func NewPersonalOrg(user model.User, slugExists bool) model.Organization {
 		Slug:       PersonalOrgSlug(user.Username, user.ID, slugExists),
 		JoinCode:   "",
 		IsPersonal: true,
-		Plan:       "personal",
-		Status:     "active",
+		Plan:       PlanPersonal,
+		Status:     StatusActive,
 		CreatedBy:  user.ID,
 	}
 }

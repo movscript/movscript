@@ -412,25 +412,11 @@ func (s *Service) SetQuota(ctx context.Context, orgID uint, input QuotaInput) (m
 }
 
 func normalizeOrgPlan(value string) string {
-	switch strings.TrimSpace(value) {
-	case "personal", "enterprise":
-		return strings.TrimSpace(value)
-	case "":
-		return "team"
-	default:
-		return "team"
-	}
+	return domainorg.NormalizePlan(value)
 }
 
 func normalizeOrgStatus(value string) string {
-	switch strings.TrimSpace(value) {
-	case "active", "trialing", "past_due", "suspended":
-		return strings.TrimSpace(value)
-	case "":
-		return "active"
-	default:
-		return "active"
-	}
+	return domainorg.NormalizeStatus(value)
 }
 
 func (s *Service) CreatePersonalOrg(ctx context.Context, user *model.User) error {

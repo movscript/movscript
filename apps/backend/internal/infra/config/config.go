@@ -12,6 +12,8 @@ import (
 )
 
 type Config struct {
+	AppMode            string
+	DataDir            string
 	DBHost             string
 	DBPort             string
 	DBUser             string
@@ -25,6 +27,12 @@ type Config struct {
 	HubAdminToken      string
 	CORSAllowedOrigins []string
 
+	// Object storage
+	StorageBackend string
+
+	// Filesystem object storage
+	FilesystemStorageRoot string
+
 	// MinIO object storage
 	MinIOEndpoint  string
 	MinIOAccessKey string
@@ -37,7 +45,10 @@ func Load() *Config {
 	_ = godotenv.Load()
 
 	authSecret := getEnv("AUTH_TOKEN_SECRET", getEnv("ENCRYPTION_KEY", ""))
+	dataDir := getEnv("MOVSCRIPT_DATA_DIR", defaultDataDir())
 	return &Config{
+		AppMode:            getEnv("MOVSCRIPT_APP_MODE", "cloud"),
+		DataDir:            dataDir,
 		DBHost:             getEnv("DB_HOST", "localhost"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "postgres"),
@@ -50,6 +61,9 @@ func Load() *Config {
 		AuthTokenTTLHours:  getEnvInt("AUTH_TOKEN_TTL_HOURS", 24),
 		HubAdminToken:      getEnv("HUB_ADMIN_TOKEN", ""),
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
+
+		StorageBackend:        getEnv("STORAGE_BACKEND", "minio"),
+		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", dataDir+"/resources"),
 
 		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "minio:9000"),
 		MinIOAccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
@@ -73,8 +87,17 @@ func (c *Config) ValidateStartup() error {
 	if c.DBHost == "" || c.DBPort == "" || c.DBUser == "" || c.DBName == "" {
 		problems = append(problems, "database settings DB_HOST, DB_PORT, DB_USER, and DB_NAME are required")
 	}
-	if c.MinIOEndpoint == "" || c.MinIOAccessKey == "" || c.MinIOSecretKey == "" || c.MinIOBucket == "" {
-		problems = append(problems, "MinIO settings MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, and MINIO_BUCKET are required")
+	switch c.StorageBackend {
+	case "minio":
+		if c.MinIOEndpoint == "" || c.MinIOAccessKey == "" || c.MinIOSecretKey == "" || c.MinIOBucket == "" {
+			problems = append(problems, "MinIO settings MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, and MINIO_BUCKET are required when STORAGE_BACKEND=minio")
+		}
+	case "filesystem":
+		if c.FilesystemStorageRoot == "" {
+			problems = append(problems, "FILESYSTEM_STORAGE_ROOT or MOVSCRIPT_DATA_DIR is required when STORAGE_BACKEND=filesystem")
+		}
+	default:
+		problems = append(problems, "STORAGE_BACKEND must be one of: minio, filesystem")
 	}
 	if len(problems) > 0 {
 		return errors.New("invalid startup configuration: " + joinProblems(problems))
@@ -84,12 +107,16 @@ func (c *Config) ValidateStartup() error {
 
 func (c *Config) SafeSummary() map[string]any {
 	return map[string]any{
+		"app_mode":             c.AppMode,
+		"data_dir":             c.DataDir,
 		"db_host":              c.DBHost,
 		"db_port":              c.DBPort,
 		"db_name":              c.DBName,
 		"server_port":          c.ServerPort,
 		"auth_ttl_hours":       c.AuthTokenTTLHours,
 		"cors_allowed_origins": c.CORSAllowedOrigins,
+		"storage_backend":      c.StorageBackend,
+		"filesystem_root":      c.FilesystemStorageRoot,
 		"minio_endpoint":       c.MinIOEndpoint,
 		"minio_bucket":         c.MinIOBucket,
 		"minio_use_ssl":        c.MinIOUseSSL,
@@ -149,6 +176,13 @@ func defaultCORSAllowedOrigins() []string {
 		"http://localhost:5174",
 		"http://127.0.0.1:5174",
 	}
+}
+
+func defaultDataDir() string {
+	if dir, err := os.UserHomeDir(); err == nil && dir != "" {
+		return dir + "/.movscript"
+	}
+	return ".movscript"
 }
 
 func joinProblems(problems []string) string {

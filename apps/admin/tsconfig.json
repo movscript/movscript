@@ -23,5 +23,5 @@
       "@admin/*": ["./src/*"]
     }
   },
-  "include": ["src", "../frontend/src/vite-env.d.ts", "../frontend/src/pages/admin", "../frontend/src/lib", "../frontend/src/store", "../frontend/src/types", "../frontend/src/i18n", "../frontend/src/components/ui", "../frontend/src/components/canvas"]
+  "include": ["src", "../frontend/src/vite-env.d.ts", "../frontend/src/lib", "../frontend/src/store", "../frontend/src/types", "../frontend/src/i18n", "../frontend/src/components/ui", "../frontend/src/components/canvas"]
 }

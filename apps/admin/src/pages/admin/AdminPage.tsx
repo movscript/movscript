@@ -1,17 +1,14 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, UsersRound, Gauge, Coins, ArrowUpRight, Settings2, Route, FolderKanban, ScrollText, HardDrive, CloudUpload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
-import { DebugPage } from './DebugPage'
-import { UIPreviewPage } from './UIPreviewPage'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -772,7 +769,7 @@ function ParamConfigBuilder({
 
 // ── Model Management Tab ──────────────────────────────────────────────────────
 
-function ModelManagementTab() {
+export function ModelManagementPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [addStep, setAddStep] = useState<'idle' | 'pick' | 'fill'>('idle')
@@ -1760,7 +1757,7 @@ interface UserWithQuota {
   balance: number
 }
 
-function UserManagementTab() {
+export function UserManagementPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [quotaDialog, setQuotaDialog] = useState<UserWithQuota | null>(null)
@@ -1866,7 +1863,7 @@ interface AdminProject extends Project {
   members?: AdminProjectMember[]
 }
 
-function ProjectOwnerManagementTab() {
+export function ProjectOwnerManagementPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [ownerDialog, setOwnerDialog] = useState<AdminProject | null>(null)
@@ -1990,7 +1987,7 @@ function ProjectOwnerManagementTab() {
 
 // ── Tab 4: 用量日志 ────────────────────────────────────────────────────────────
 
-function UsageLogsTab() {
+export function UsageLogsPage() {
   const { t, i18n } = useTranslation()
   const [page, setPage] = useState(1)
   const [modelFilter, setModelFilter] = useState('')
@@ -2508,10 +2505,9 @@ function FeatureRow({
   )
 }
 
-function FeatureConfigTab() {
+export function FeatureConfigPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [, setSearchParams] = useSearchParams()
 
   const { data: features = [] } = useQuery<FeatureConfig[]>({
     queryKey: ['admin', 'features'],
@@ -2557,7 +2553,7 @@ function FeatureConfigTab() {
                 isPending={update.isPending || updatePrompt.isPending}
                 onUpdate={(data) => update.mutate({ key: f.feature_key, data })}
                 onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
-                onGoToModels={() => setSearchParams({ tab: 'models' })}
+                onGoToModels={() => navigateToAdminSection('models')}
               />
             ))}
           </div>
@@ -2571,7 +2567,7 @@ function FeatureConfigTab() {
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────
-function StorageTab() {
+export function StoragePage() {
   const { t } = useTranslation()
   const { data: backends } = useQuery<{ default: string; backends: { name: string; available: boolean }[] }>({
     queryKey: ['admin-storage-backends'],
@@ -2717,7 +2713,7 @@ interface CloudFileConfig {
   masked_config: string
 }
 
-function CloudFileConfigTab() {
+export function CloudFileConfigPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
@@ -2928,15 +2924,94 @@ function CloudFileConfigTab() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+type AdminSectionKey = 'models' | 'features' | 'users' | 'projects' | 'logs' | 'storage' | 'cloud-files'
+
+const adminSectionHref: Record<AdminSectionKey, string> = {
+  models: '/models',
+  features: '/features',
+  users: '/users',
+  projects: '/projects',
+  logs: '/usage',
+  storage: '/storage',
+  'cloud-files': '/cloud-files',
+}
+
+function navigateToAdminSection(section: AdminSectionKey) {
+  window.location.assign(adminSectionHref[section])
+}
+
 export default function AdminPage() {
   const { t } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const requestedTab = searchParams.get('tab') ?? 'models'
-  const tab = ['models', 'features', 'users', 'projects', 'logs', 'debug', 'storage', 'cloud-files', 'ui-preview'].includes(requestedTab)
-    ? requestedTab
-    : 'models'
+
+  const { data: users = [] } = useQuery<UserWithQuota[]>({
+    queryKey: ['admin', 'users'],
+    queryFn: () => api.get('/admin/users').then((r) => r.data),
+  })
+  const { data: usageData } = useQuery<{ total: number; items: UsageLog[] }>({
+    queryKey: ['admin', 'usage-logs', 'overview'],
+    queryFn: () => api.get('/admin/usage-logs', { params: { page: 1, page_size: 200 } }).then((r) => r.data),
+  })
+  const { data: credentials = [] } = useQuery<AICredential[]>({
+    queryKey: ['admin', 'credentials'],
+    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
+  })
+  const { data: projects = [] } = useQuery<AdminProject[]>({
+    queryKey: ['admin', 'projects'],
+    queryFn: () => api.get('/admin/projects').then((r) => r.data),
+  })
+
+  const usageItems = usageData?.items ?? []
+  const totalTokens = usageItems.reduce((sum, log) => sum + log.input_tokens + log.output_tokens, 0)
+  const totalCost = usageItems.reduce((sum, log) => sum + log.cost, 0)
+  const enabledModels = credentials.reduce((sum, cred) => sum + (cred.models ?? []).filter((model) => model.is_enabled).length, 0)
+  const now = Date.now()
+  const recentUsers = users.filter((user) => {
+    const createdAt = (user as UserWithQuota & { CreatedAt?: string }).CreatedAt
+    return createdAt ? now - new Date(createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000 : false
+  }).length
+
+  const overviewCards = [
+    {
+      label: '用户增长',
+      value: users.length.toLocaleString(),
+      detail: `近 30 天新增 ${recentUsers.toLocaleString()}`,
+      icon: UsersRound,
+      href: '/users',
+    },
+    {
+      label: 'Token 使用',
+      value: totalTokens.toLocaleString(),
+      detail: `最近 ${usageItems.length.toLocaleString()} 条调用记录`,
+      icon: Gauge,
+      href: '/usage',
+    },
+    {
+      label: 'Credit 消耗',
+      value: totalCost.toFixed(2),
+      detail: `${usageData?.total ?? 0} 条总用量日志`,
+      icon: Coins,
+      href: '/usage',
+    },
+    {
+      label: '启用模型',
+      value: enabledModels.toLocaleString(),
+      detail: `${credentials.length.toLocaleString()} 个供应商凭证`,
+      icon: Settings2,
+      href: '/models',
+    },
+  ]
+
+  const sectionCards = [
+    { label: t('admin.tabs.models'), detail: '供应商凭证、模型启用、价格与参数配置。', icon: Settings2, href: '/models' },
+    { label: t('admin.tabs.features'), detail: '功能到模型的路由、默认模型和系统提示词。', icon: Route, href: '/features' },
+    { label: t('admin.tabs.users'), detail: '用户额度、角色和余额管理。', icon: UsersRound, href: '/users' },
+    { label: t('admin.tabs.projects'), detail: `当前 ${projects.length.toLocaleString()} 个项目，可强制调整 Owner。`, icon: FolderKanban, href: '/projects' },
+    { label: t('admin.tabs.logs'), detail: '按供应商、模型和用户筛选 AI 用量。', icon: ScrollText, href: '/usage' },
+    { label: t('admin.tabs.storage'), detail: '内部资源存储后端状态和用户占用。', icon: HardDrive, href: '/storage' },
+    { label: t('admin.tabs.cloudFiles'), detail: '公共对象中转和云文件存储配置。', icon: CloudUpload, href: '/cloud-files' },
+  ]
 
   if (currentUser?.system_role !== 'super_admin') {
     navigate('/projects', { replace: true })
@@ -2953,46 +3028,38 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v })}>
-        <TabsList>
-          <TabsTrigger value="models">{t('admin.tabs.models')}</TabsTrigger>
-          <TabsTrigger value="features">{t('admin.tabs.features')}</TabsTrigger>
-          <TabsTrigger value="users">{t('admin.tabs.users')}</TabsTrigger>
-          <TabsTrigger value="projects">{t('admin.tabs.projects')}</TabsTrigger>
-          <TabsTrigger value="logs">{t('admin.tabs.logs')}</TabsTrigger>
-          <TabsTrigger value="debug">{t('admin.tabs.debug')}</TabsTrigger>
-          <TabsTrigger value="ui-preview">{t('admin.tabs.uiPreview')}</TabsTrigger>
-          <TabsTrigger value="storage">{t('admin.tabs.storage')}</TabsTrigger>
-          <TabsTrigger value="cloud-files">{t('admin.tabs.cloudFiles')}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="models" className="mt-6">
-          <ModelManagementTab />
-        </TabsContent>
-        <TabsContent value="features" className="mt-6">
-          <FeatureConfigTab />
-        </TabsContent>
-        <TabsContent value="users" className="mt-6">
-          <UserManagementTab />
-        </TabsContent>
-        <TabsContent value="projects" className="mt-6">
-          <ProjectOwnerManagementTab />
-        </TabsContent>
-        <TabsContent value="logs" className="mt-6">
-          <UsageLogsTab />
-        </TabsContent>
-        <TabsContent value="debug" className="mt-6">
-          <DebugPage />
-        </TabsContent>
-        <TabsContent value="ui-preview" className="mt-6">
-          <UIPreviewPage />
-        </TabsContent>
-        <TabsContent value="storage" className="mt-6">
-          <StorageTab />
-        </TabsContent>
-        <TabsContent value="cloud-files" className="mt-6">
-          <CloudFileConfigTab />
-        </TabsContent>
-      </Tabs>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {overviewCards.map((card) => (
+          <Link key={card.label} to={card.href} className="group rounded-lg border border-border bg-card p-4 transition-colors hover:border-ring/70">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <card.icon size={18} />
+              </div>
+              <ArrowUpRight size={15} className="text-muted-foreground transition-colors group-hover:text-foreground" />
+            </div>
+            <p className="text-xs font-medium text-muted-foreground">{card.label}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{card.value}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{card.detail}</p>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        {sectionCards.map((card) => (
+          <Link key={card.href} to={card.href} className="group flex items-start gap-3 rounded-lg border border-border bg-background p-4 transition-colors hover:border-ring/70 hover:bg-card">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+              <card.icon size={17} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-foreground">{card.label}</h2>
+                <ArrowUpRight size={14} className="shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{card.detail}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

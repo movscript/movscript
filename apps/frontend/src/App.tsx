@@ -185,6 +185,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/projects" replace />} />
               <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
+              <Route path="/admin/*" element={<Navigate to="/projects" replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
               <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />

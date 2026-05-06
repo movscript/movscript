@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   Bot, ChevronRight, Send, Loader2,
   Plus, ArrowLeft, Copy, Check, X, ClipboardCheck,
   Image, Video, FileText, Mic, File, Workflow, ShieldCheck,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
-  Trash2, RefreshCw, History, Database, Save,
+  Trash2, RefreshCw, History, Database, Save, FolderOpen,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
@@ -325,8 +325,9 @@ function buildAgentClientInput(options: {
   message: string
   attachments: AgentAttachment[]
   labels: string[]
+  project: Project | null
 }): AgentClientInput {
-  return buildCommandFirstClientInput({
+  const input = buildCommandFirstClientInput({
     message: options.message,
     attachments: options.attachments.map((attachment) => ({
       id: attachment.id,
@@ -337,7 +338,20 @@ function buildAgentClientInput(options: {
       ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
     })),
     labels: options.labels,
+    ...(options.project ? { hints: { projectId: options.project.ID } } : {}),
   })
+  if (options.project) {
+    input.uiSnapshot = {
+      ...(input.uiSnapshot ?? {}),
+      project: {
+        id: options.project.ID,
+        name: options.project.name,
+        status: options.project.status,
+        description: options.project.description,
+      },
+    }
+  }
+  return input
 }
 
 function safeJSONStringify(value: unknown) {
@@ -1653,6 +1667,135 @@ function DraftPanel({
   )
 }
 
+function ProjectRequirementPanel({
+  project,
+  projects,
+  loading,
+  creating,
+  onSelect,
+  onCreate,
+}: {
+  project: Project | null
+  projects: Project[]
+  loading: boolean
+  creating: boolean
+  onSelect: (project: Project) => void
+  onCreate: (payload: { name: string; description?: string }) => void
+}) {
+  const { t } = useTranslation()
+  const [showCreate, setShowCreate] = useState(projects.length === 0)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const selectedValue = project ? String(project.ID) : '__none'
+
+  function submitCreate() {
+    const trimmedName = name.trim()
+    if (!trimmedName || creating) return
+    onCreate({
+      name: trimmedName,
+      ...(description.trim() ? { description: description.trim() } : {}),
+    })
+    setName('')
+    setDescription('')
+    setShowCreate(false)
+  }
+
+  return (
+    <div className={cn(
+      'rounded-md border p-2 space-y-2',
+      project ? 'border-border bg-background/60' : 'border-amber-500/35 bg-amber-500/10',
+    )}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-1.5">
+          <FolderOpen size={12} className={cn('mt-0.5 shrink-0', project ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-300')} />
+          <div className="min-w-0">
+            <div className="text-[10px] font-medium text-foreground">
+              {project ? t('agents.chat.currentProject', { name: project.name }) : t('agents.chat.projectRequiredTitle')}
+            </div>
+            <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+              {project ? (project.description || t('agents.chat.projectRequiredHint')) : t('agents.chat.projectRequiredHint')}
+            </p>
+          </div>
+        </div>
+        {project?.status && (
+          <Badge variant="secondary" className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
+            {project.status}
+          </Badge>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Select
+          value={selectedValue}
+          onValueChange={(value) => {
+            const next = projects.find((item) => String(item.ID) === value)
+            if (next) onSelect(next)
+          }}
+          disabled={loading || projects.length === 0}
+        >
+          <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-[10px]">
+            <SelectValue placeholder={loading ? t('common.loadingShort') : t('agents.chat.selectProject')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none" disabled>{loading ? t('common.loadingShort') : t('agents.chat.selectProject')}</SelectItem>
+            {projects.map((item) => (
+              <SelectItem key={item.ID} value={String(item.ID)}>{item.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="xs"
+          variant={showCreate ? 'secondary' : 'outline'}
+          onClick={() => setShowCreate((next) => !next)}
+          className="h-7 shrink-0 px-2 text-[10px]"
+        >
+          <Plus size={10} />
+          {t('agents.chat.createProjectInline')}
+        </Button>
+      </div>
+
+      {showCreate && (
+        <div className="space-y-1.5 rounded-md border border-border/80 bg-background/70 p-2">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submitCreate()
+              }
+            }}
+            disabled={creating}
+            placeholder={t('agents.chat.projectNamePlaceholder')}
+            className="h-7 w-full rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={creating}
+            rows={2}
+            placeholder={t('agents.chat.projectDescriptionPlaceholder')}
+            className="min-h-12 w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="xs"
+              onClick={submitCreate}
+              disabled={creating || !name.trim()}
+              className="h-7 px-2 text-[10px]"
+            >
+              {creating ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+              {t('agents.chat.createAndUseProject')}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Chat view ─────────────────────────────────────────────────────────────────
 
 function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string; onBack: () => void }) {
@@ -1665,6 +1808,11 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   } = useAgentStore()
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
+  const setCurrentProject = useProjectStore((s) => s.setCurrent)
+  const { data: projects = [], isLoading: loadingProjects } = useQuery<Project[]>({
+    queryKey: ['projects'],
+    queryFn: () => api.get('/projects').then((r) => r.data),
+  })
   const { data: textModels = [] } = useQuery<PublicModel[]>({
     queryKey: ['models', 'assistant_chat'],
     queryFn: async () => {
@@ -1742,11 +1890,28 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     attachments.length > 0 ? t('agents.chat.attachmentsCount', { count: attachments.length }) : null,
   ].filter(Boolean) as string[]
-  const canSend = (!!input.trim() || attachments.length > 0) && !loading && !uploading && !buildingSendDraft
+  const canSend = (!!input.trim() || attachments.length > 0) && !!currentProject && !loading && !uploading && !buildingSendDraft
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
+  const createProject = useMutation({
+    mutationFn: (payload: { name: string; description?: string }) => api.post('/projects', payload).then((r) => r.data as Project),
+    onSuccess: (project) => {
+      setCurrentProject(project)
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+
+  useEffect(() => {
+    if (loadingProjects || !currentProject) return
+    const latest = projects.find((project) => project.ID === currentProject.ID)
+    if (latest) {
+      if (latest.UpdatedAt !== currentProject.UpdatedAt) setCurrentProject(latest)
+      return
+    }
+    setCurrentProject(null)
+  }, [projects, loadingProjects, currentProject, setCurrentProject])
 
   function setLocalRuntimeEnabled(next: boolean) {
     setLocalRuntimeEnabledState(next)
@@ -1899,6 +2064,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       message: runtimeMessage,
       attachments: sentAttachments,
       labels: contextLabels,
+      project: currentProject,
     })
     const agentContext = buildAgentContext({
       mode: settings.mode,
@@ -2110,6 +2276,10 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
 
   const send = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || uploading || buildingSendDraft) return
+    if (!currentProject) {
+      addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.projectRequiredMessage') })
+      return
+    }
     if (!modelId && !localRuntimeEnabled) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
@@ -2136,6 +2306,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     uploading,
     buildingSendDraft,
     modelId,
+    currentProject,
     userId,
     conv.id,
     addMessage,
@@ -2276,6 +2447,14 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
             )}
           </div>
         )}
+        <ProjectRequirementPanel
+          project={currentProject}
+          projects={projects}
+          loading={loadingProjects}
+          creating={createProject.isPending}
+          onSelect={setCurrentProject}
+          onCreate={(payload) => createProject.mutate(payload)}
+        />
         {activeModel && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
             <Wand2 size={10} />

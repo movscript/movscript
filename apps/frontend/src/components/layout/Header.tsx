@@ -35,9 +35,6 @@ const titleKeys: Record<string, string> = {
   '/collaboration': 'header.titles.collaboration',
   '/delivery': 'header.titles.delivery',
   '/user': 'header.titles.user',
-  '/admin': 'header.titles.admin',
-  '/admin/debug': 'header.titles.adminDebug',
-  '/admin/ui-preview': 'header.titles.adminUiPreview'
 }
 
 export function Header() {

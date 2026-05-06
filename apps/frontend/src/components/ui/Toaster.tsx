@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import * as Toast from '@radix-ui/react-toast'
 import { useTranslation } from 'react-i18next'
-import { X, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp, Bug } from 'lucide-react'
+import { X, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { useToastStore, type ToastItem } from '@/store/toastStore'
 import { cn } from '@/lib/utils'
 
@@ -61,8 +61,7 @@ function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
 }
 
 export function Toaster() {
-  const { t } = useTranslation()
-  const { toasts, remove, debugMode, toggleDebugMode } = useToastStore()
+  const { toasts, remove } = useToastStore()
 
   return (
     <Toast.Provider swipeDirection="right" duration={4000}>
@@ -70,20 +69,6 @@ export function Toaster() {
         <ToastItem key={t.id} t={t} onRemove={() => remove(t.id)} />
       ))}
       <Toast.Viewport className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 w-[360px] max-w-[calc(100vw-2rem)]" />
-
-      {/* Debug mode toggle — bottom-left corner */}
-      <button
-        onClick={toggleDebugMode}
-        title={debugMode ? t('toast.disableDebugMode') : t('toast.enableDebugMode')}
-        className={cn(
-          'fixed bottom-4 left-4 z-[200] p-1.5 rounded-md transition-colors',
-          debugMode
-            ? 'text-amber-500 bg-amber-500/10 border border-amber-400/30'
-            : 'text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/50'
-        )}
-      >
-        <Bug size={13} />
-      </button>
     </Toast.Provider>
   )
 }
