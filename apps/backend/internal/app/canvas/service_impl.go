@@ -15,7 +15,7 @@ type canvasPortValue = canvasruntime.PortValue
 type canvasPortInputMap = canvasruntime.PortInputMap
 
 func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
-	h.db.Model(task).Update("status", "running")
+	_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"status": "running"})
 	nd.Status = "running"
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
@@ -125,7 +125,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 		return
 	}
 
-	h.db.Model(task).Updates(map[string]any{"status": "done", "resource_id": r.ID})
+	_ = h.canvasRepo().UpdateTask(ctx, task, map[string]any{"status": "done", "resource_id": r.ID})
 	value := canvasruntime.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
@@ -142,7 +142,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 
 func (h *Service) completeInlineTextTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, text string) {
 	value := canvasPortValue{Type: "text", Text: text}
-	h.db.Model(task).Update("status", "done")
+	_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"status": "done"})
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
@@ -163,9 +163,9 @@ func (h *Service) billingContextForNode(ctx context.Context, node *model.CanvasN
 	}
 	var cv model.Canvas
 	if node != nil && node.CanvasID != 0 {
-		if err := h.db.WithContext(ctx).Select("id, org_id, project_id").First(&cv, node.CanvasID).Error; err == nil {
-			billing.OrgID = cv.OrgID
-			billing.ProjectID = cv.ProjectID
+		if orgID, projectID, err := h.canvasRepo().CanvasBillingScope(ctx, node.CanvasID); err == nil {
+			billing.OrgID = orgID
+			billing.ProjectID = projectID
 		}
 	}
 	return billing
@@ -176,8 +176,9 @@ func (h *Service) orgIDForNode(ctx context.Context, node *model.CanvasNode) *uin
 	if node == nil || node.CanvasID == 0 {
 		return nil
 	}
-	if err := h.db.WithContext(ctx).Select("id, org_id").First(&cv, node.CanvasID).Error; err != nil {
+	orgID, err := h.canvasRepo().CanvasOrgID(ctx, node.CanvasID)
+	if err != nil {
 		return nil
 	}
-	return cv.OrgID
+	return orgID
 }
