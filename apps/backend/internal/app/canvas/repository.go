@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
@@ -42,6 +43,13 @@ type repository interface {
 	CanvasBillingScope(ctx context.Context, canvasID uint) (*uint, *uint, error)
 	CanvasOrgID(ctx context.Context, canvasID uint) (*uint, error)
 	LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (model.CanvasTask, bool, error)
+	LatestCompletedRun(ctx context.Context, canvasID uint) (model.CanvasRun, error)
+	FindRunInCanvas(ctx context.Context, canvasID uint, runID uint) (model.CanvasRun, bool, error)
+	ListOutputNodes(ctx context.Context, canvasID uint) ([]model.CanvasNode, error)
+	ListTasksForRunAndNodes(ctx context.Context, runID uint, nodeIDs []uint) ([]model.CanvasTask, error)
+	GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (model.CanvasRun, model.Canvas, error)
+	FailRunNotFound(ctx context.Context, runID uint, finishedAt *time.Time) error
+	ListRunTasksOrdered(ctx context.Context, runID uint) ([]model.CanvasTask, error)
 }
 
 type gormRepository struct {
@@ -436,4 +444,69 @@ func (r *gormRepository) LatestDoneTaskForNode(ctx context.Context, canvasNodeID
 		return task, false, err
 	}
 	return task, true, nil
+}
+
+func (r *gormRepository) LatestCompletedRun(ctx context.Context, canvasID uint) (model.CanvasRun, error) {
+	var run model.CanvasRun
+	err := r.db.WithContext(ctx).Where("canvas_id = ? AND status = ?", canvasID, "done").Order("id desc").First(&run).Error
+	return run, err
+}
+
+func (r *gormRepository) FindRunInCanvas(ctx context.Context, canvasID uint, runID uint) (model.CanvasRun, bool, error) {
+	var run model.CanvasRun
+	err := r.db.WithContext(ctx).Where("canvas_id = ? AND id = ?", canvasID, runID).First(&run).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return run, false, nil
+		}
+		return run, false, err
+	}
+	return run, true, nil
+}
+
+func (r *gormRepository) ListOutputNodes(ctx context.Context, canvasID uint) ([]model.CanvasNode, error) {
+	nodes := make([]model.CanvasNode, 0)
+	err := r.db.WithContext(ctx).Where("canvas_id = ? AND type = ?", canvasID, "output").Order("id asc").Find(&nodes).Error
+	return nodes, err
+}
+
+func (r *gormRepository) ListTasksForRunAndNodes(ctx context.Context, runID uint, nodeIDs []uint) ([]model.CanvasTask, error) {
+	tasks := make([]model.CanvasTask, 0)
+	q := r.db.WithContext(ctx).Where("canvas_run_id = ?", runID)
+	if len(nodeIDs) > 0 {
+		q = q.Where("canvas_node_id IN ?", nodeIDs)
+	}
+	err := q.Order("id asc").Find(&tasks).Error
+	return tasks, err
+}
+
+func (r *gormRepository) GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (model.CanvasRun, model.Canvas, error) {
+	var run model.CanvasRun
+	if err := r.db.WithContext(ctx).First(&run, runID).Error; err != nil {
+		return run, model.Canvas{}, err
+	}
+	cv, err := canvasruntime.CanvasFromRunSnapshot(canvasID, run.GraphSnapshot)
+	if err == nil {
+		return run, cv, nil
+	}
+	if err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
+		return run, cv, err
+	}
+	return run, cv, nil
+}
+
+func (r *gormRepository) FailRunNotFound(ctx context.Context, runID uint, finishedAt *time.Time) error {
+	return r.db.WithContext(ctx).Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
+		"status":      "failed",
+		"error":       "run not found",
+		"finished_at": finishedAt,
+	}).Error
+}
+
+func (r *gormRepository) ListRunTasksOrdered(ctx context.Context, runID uint) ([]model.CanvasTask, error) {
+	tasks := make([]model.CanvasTask, 0)
+	if err := r.db.WithContext(ctx).Where("canvas_run_id = ?", runID).Order("id asc").Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }

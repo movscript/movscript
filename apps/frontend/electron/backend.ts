@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { app } from 'electron'
 import { createHash } from 'crypto'
@@ -44,18 +44,20 @@ export async function startBackend(
     console.info(`[backend] launch policy=${policy}; not spawning local backend`)
     return setBackendStatus({ state: 'idle', baseURL: LOCAL_BACKEND_URL }, onStatus)
   }
-  if (proc) {
-    if (currentStatus.state === 'ready') {
-      const status: BackendStatus = { state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: proc.pid }
-      return setBackendStatus(status, onStatus)
+
+  const existingPid = proc?.pid ?? readBackendPid()
+  if (existingPid && isProcessRunning(existingPid)) {
+    if (await isBackendReady(LOCAL_BACKEND_URL)) {
+      return setBackendStatus({ state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: existingPid }, onStatus)
     }
     if (startPromise) return startPromise
-    startPromise = waitForExistingBackend(onStatus).finally(() => {
+    startPromise = waitForExistingBackend(existingPid, onStatus).finally(() => {
       startPromise = null
     })
     return startPromise
   }
 
+  clearBackendPid()
   if (startPromise) return startPromise
 
   startPromise = spawnBackend(onStatus).finally(() => {
@@ -72,6 +74,7 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
   setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, message: 'Starting local backend' }, onStatus)
   proc = spawn(bin, [], {
     cwd: resolveBackendCwd(bin),
+    detached: true,
     env: {
       ...process.env,
       MOVSCRIPT_APP_MODE: process.env.MOVSCRIPT_APP_MODE || 'local',
@@ -85,13 +88,16 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || localSecret,
       AUTH_TOKEN_SECRET: process.env.AUTH_TOKEN_SECRET || localSecret,
     },
-    stdio: 'inherit'
+    stdio: 'ignore',
   })
+  proc.unref()
+  if (proc.pid) writeBackendPid(proc.pid)
 
   proc.on('error', (err) => console.error('[backend]', err))
   proc.on('exit', (code, signal) => {
     console.info(`[backend] exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
     proc = null
+    clearBackendPid()
     setBackendStatus({
       state: code === 0 || signal ? 'stopped' : 'error',
       baseURL: LOCAL_BACKEND_URL,
@@ -110,11 +116,10 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
   }
 }
 
-async function waitForExistingBackend(onStatus?: (status: BackendStatus) => void): Promise<BackendStatus> {
-  const pid = proc?.pid
-  setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, pid, message: 'Waiting for local backend' }, onStatus)
+async function waitForExistingBackend(pid: number, onStatus?: (status: BackendStatus) => void): Promise<BackendStatus> {
+  setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, pid, message: 'Local backend process is starting' }, onStatus)
   try {
-    await waitForBackendReady(LOCAL_BACKEND_URL)
+    await waitForBackendReady(LOCAL_BACKEND_URL, pid)
     return setBackendStatus({ state: 'ready', baseURL: LOCAL_BACKEND_URL, pid }, onStatus)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Local backend failed to start'
@@ -163,24 +168,72 @@ function resolveLocalSecret(dataDir: string): string {
   return createHash('sha256').update(seed).digest('hex')
 }
 
-async function waitForBackendReady(baseURL: string): Promise<void> {
-  const deadline = Date.now() + 12000
+function resolveBackendPidPath(): string {
+  return join(resolveLocalDataDir(), 'movscript-backend.pid')
+}
+
+function readBackendPid(): number | undefined {
+  try {
+    const raw = readFileSync(resolveBackendPidPath(), 'utf8').trim()
+    const pid = Number(raw)
+    return Number.isInteger(pid) && pid > 0 ? pid : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function writeBackendPid(pid: number): void {
+  const pidPath = resolveBackendPidPath()
+  mkdirSync(join(pidPath, '..'), { recursive: true })
+  writeFileSync(pidPath, String(pid), 'utf8')
+}
+
+function clearBackendPid(): void {
+  try {
+    unlinkSync(resolveBackendPidPath())
+  } catch {
+    // Missing pid files are expected after manual cleanup or first launch.
+  }
+}
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function isBackendReady(baseURL: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${baseURL}/health`, { cache: 'no-store' })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+async function waitForBackendReady(baseURL: string, pid?: number): Promise<void> {
+  const deadline = Date.now() + 30000
   while (Date.now() < deadline) {
-    try {
-      const response = await fetch(`${baseURL}/health`, { cache: 'no-store' })
-      if (response.ok) return
-    } catch {
-      // keep polling while the backend initializes sqlite and migrations
+    if (pid && !isProcessRunning(pid)) {
+      clearBackendPid()
+      throw new Error('Local backend process exited before it became ready')
     }
+    if (await isBackendReady(baseURL)) return
     await new Promise((resolve) => setTimeout(resolve, 300))
   }
   throw new Error(`Timed out waiting for ${baseURL}`)
 }
 
 export async function stopBackend(onStatus?: (status: BackendStatus) => void): Promise<void> {
-  if (proc) {
-    proc.kill()
-    proc = null
+  proc = null
+  const pid = readBackendPid()
+  if (pid && isProcessRunning(pid)) {
+    setBackendStatus({ state: 'ready', baseURL: LOCAL_BACKEND_URL, pid, message: 'Local backend keeps running in the background' }, onStatus)
+    return
   }
+  clearBackendPid()
   setBackendStatus({ state: 'stopped', baseURL: LOCAL_BACKEND_URL }, onStatus)
 }
