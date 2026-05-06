@@ -1839,20 +1839,20 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       attachments: sentAttachments,
     })
     const agentContext = buildAgentContext({
-        mode: settings.mode,
-        permissionMode: settings.permissionMode,
-        autoPlan: settings.autoPlan,
-        project: currentProject,
-        recentResources,
-        includeProjectContext: settings.includeProjectContext,
-        includeRecentResources: settings.includeRecentResources,
-      })
+      mode: settings.mode,
+      permissionMode: settings.permissionMode,
+      autoPlan: settings.autoPlan,
+      project: currentProject,
+      recentResources,
+      includeProjectContext: settings.includeProjectContext,
+      includeRecentResources: settings.includeRecentResources,
+    })
     const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
     const messages = [
-        { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
-        ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
-        { role: 'user' as const, content: enrichedUserContent },
-      ]
+      { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
+      ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user' as const, content: enrichedUserContent },
+    ]
     const warnings: string[] = []
     const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
     const localRuntime: AgentSendDraft['localRuntime'] = {
@@ -1940,7 +1940,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     conv.messages,
     conv.id,
     conv.title,
-    localRuntimeEnabled,
     localAgentThreadIds,
     localAgentOnline,
     refetchLocalAgentHealth,
@@ -2025,7 +2024,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     localAgentOnline,
     refetchLocalAgentHealth,
     setLocalAgentThreadIds,
-    updateSettings,
   ])
 
   const send = useCallback(async () => {
