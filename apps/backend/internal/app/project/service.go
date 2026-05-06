@@ -3,9 +3,12 @@ package project
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainproject "github.com/movscript/movscript/internal/domain/project"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
 
@@ -16,11 +19,21 @@ var (
 )
 
 type Service struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache cache.Cache
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+const progressCacheTTL = 2 * time.Minute
+
+func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
+	var c cache.Cache
+	if len(cacheStore) > 0 {
+		c = cacheStore[0]
+	}
+	if c == nil {
+		c = cache.NewNoop()
+	}
+	return &Service{db: db, cache: c}
 }
 
 type CreateInput struct {
@@ -132,6 +145,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, o
 		}
 		return nil
 	})
+	if err == nil {
+		s.bumpProgressVersion(ctx, project.ID)
+	}
 	return project, err
 }
 
@@ -201,7 +217,11 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput, orgID 
 	project.Name = input.Name
 	project.Description = input.Description
 	project.TotalEpisodes = input.TotalEpisodes
-	return project, s.db.WithContext(ctx).Save(&project).Error
+	err := s.db.WithContext(ctx).Save(&project).Error
+	if err == nil {
+		s.bumpProgressVersion(ctx, project.ID)
+	}
+	return project, err
 }
 
 func (s *Service) Delete(ctx context.Context, id uint, orgID *uint) error {
@@ -209,7 +229,11 @@ func (s *Service) Delete(ctx context.Context, id uint, orgID *uint) error {
 	if orgID != nil {
 		query = query.Where("org_id = ?", *orgID)
 	}
-	return query.Delete(&model.Project{}).Error
+	err := query.Delete(&model.Project{}).Error
+	if err == nil {
+		s.bumpProgressVersion(ctx, id)
+	}
+	return err
 }
 
 func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInput, orgID *uint) (model.ProjectMember, error) {
@@ -223,6 +247,7 @@ func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInp
 	if err := s.db.WithContext(ctx).Preload("User").First(&member, member.ID).Error; err != nil {
 		return member, err
 	}
+	s.bumpProgressVersion(ctx, projectID)
 	return member, nil
 }
 
@@ -230,9 +255,13 @@ func (s *Service) RemoveMember(ctx context.Context, projectID uint, memberID uin
 	if _, err := s.Get(ctx, projectID, orgID); err != nil {
 		return err
 	}
-	return s.db.WithContext(ctx).
+	err := s.db.WithContext(ctx).
 		Where("project_id = ? AND id = ?", projectID, memberID).
 		Delete(&model.ProjectMember{}).Error
+	if err == nil {
+		s.bumpProgressVersion(ctx, projectID)
+	}
+	return err
 }
 
 func (s *Service) ListMembers(ctx context.Context, projectID uint, orgID *uint) ([]model.ProjectMember, error) {
@@ -246,6 +275,11 @@ func (s *Service) ListMembers(ctx context.Context, projectID uint, orgID *uint) 
 
 func (s *Service) Progress(ctx context.Context, projectID uint, orgID *uint) (Progress, error) {
 	var progress Progress
+	version, _ := s.cache.GetVersion(ctx, progressCacheNamespace(projectID))
+	cacheKey := fmt.Sprintf("project:%d:progress:v%d", projectID, version)
+	if ok, err := s.cache.GetJSON(ctx, cacheKey, &progress); err == nil && ok {
+		return progress, nil
+	}
 	db := s.db.WithContext(ctx)
 	if _, err := s.Get(ctx, projectID, orgID); err != nil {
 		return progress, err
@@ -289,5 +323,17 @@ func (s *Service) Progress(ctx context.Context, projectID uint, orgID *uint) (Pr
 		return progress, err
 	}
 	progress.Keyframes = map[string]int64{"accepted": acceptedKeyframeCount}
+	_ = s.cache.SetJSON(ctx, cacheKey, progress, progressCacheTTL)
 	return progress, nil
+}
+
+func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
+	if projectID == 0 {
+		return
+	}
+	_, _ = s.cache.BumpVersion(ctx, progressCacheNamespace(projectID))
+}
+
+func progressCacheNamespace(projectID uint) string {
+	return fmt.Sprintf("project:%d:progress", projectID)
 }

@@ -3,9 +3,11 @@ package semantic
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +20,8 @@ var ErrTextBlockNotFound = errors.New("production text block not found")
 var ErrSegmentProductionMismatch = errors.New("segment production does not match text block production")
 
 type Service struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache cache.Cache
 }
 
 type ErrInvalidInput struct {
@@ -47,8 +50,22 @@ func (e ErrInvalidInput) Unwrap() error {
 	return e.Err
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
+	var c cache.Cache
+	if len(cacheStore) > 0 {
+		c = cacheStore[0]
+	}
+	if c == nil {
+		c = cache.NewNoop()
+	}
+	return &Service{db: db, cache: c}
+}
+
+func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
+	if projectID == 0 {
+		return
+	}
+	_, _ = s.cache.BumpVersion(ctx, fmt.Sprintf("project:%d:progress", projectID))
 }
 
 func (s *Service) ListRelations(ctx context.Context, filter RelationFilter) ([]model.EntityRelation, error) {

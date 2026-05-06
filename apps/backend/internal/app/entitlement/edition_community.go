@@ -37,8 +37,6 @@ func (s *communityService) Resolve(ctx context.Context, subject commercial.Subje
 			commercial.CapabilityBasicCollaboration,
 			commercial.CapabilityBasicGateway,
 			commercial.CapabilityGatewayAPIKeys,
-			commercial.CapabilityOrgBudget,
-			commercial.CapabilityUsageLogging,
 			commercial.CapabilityBasicAudit,
 		},
 		Limits: commercial.LimitSnapshot{},
@@ -69,13 +67,6 @@ func (s *communityService) Resolve(ctx context.Context, subject commercial.Subje
 	}
 	if org.Status != "" {
 		snapshot.Status = commercial.Status(org.Status)
-	}
-
-	var quota model.OrgQuota
-	if err := s.db.WithContext(ctx).Where("org_id = ?", org.ID).First(&quota).Error; err == nil {
-		snapshot.Limits.MonthlyBudget = quota.MonthlyBudget
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return snapshot, err
 	}
 
 	return snapshot, nil

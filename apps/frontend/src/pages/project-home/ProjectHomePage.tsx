@@ -98,12 +98,12 @@ const emptyHomeData: ProjectHomeData = {
 }
 
 const contentSurfaceLinks = [
-  { title: '片段', detail: '剧本结构和章节', href: '/segments', icon: Film },
-  { title: '情节', detail: '时间、地点、条件和动作', href: '/scene-moments', icon: Clapperboard },
-  { title: '创作资料', detail: '人物、地点、道具和规则', href: '/creative-references', icon: Sparkles },
-  { title: '素材位', detail: '缺口、候选和锁定资产', href: '/asset-slots', icon: PackageCheck },
+  { title: '剧本段落', detail: '剧本结构和章节', href: '/segments', icon: Film },
+  { title: '情景', detail: '时间、地点、条件和动作', href: '/scene-moments', icon: Clapperboard },
+  { title: '设定资料', detail: '人物、地点、道具和规则', href: '/creative-references', icon: Sparkles },
+  { title: '素材需求', detail: '缺口、候选和锁定素材', href: '/asset-slots', icon: PackageCheck },
   { title: '关系网络', detail: '资料关系和一致性约束', href: '/reference-relations', icon: GitBranch },
-  { title: '内容单元', detail: '预演与生产的最小颗粒', href: '/contents', icon: Boxes },
+  { title: '制作项', detail: '预演与生产的最小颗粒', href: '/contents', icon: Boxes },
   { title: '成片版本', detail: '最终版本和导出记录', href: '/final-videos', icon: Video },
 ]
 
@@ -442,11 +442,11 @@ export default function ProjectHomePage() {
     return [
       {
         key: 'script',
-        title: '剧本与情节',
-        description: '从剧本版本沉淀片段和情节，形成所有制作对象的叙事来源。',
-        primaryLabel: '剧本/片段/情节',
+        title: '剧本与情景',
+        description: '从剧本版本沉淀剧本段落和情景，形成所有制作对象的叙事来源。',
+        primaryLabel: '剧本/剧本段落/情景',
         primaryValue: scriptTotal,
-        secondary: `${counts.confirmedSegments} 个片段已确认，${counts.confirmedMoments} 个情节已确认`,
+        secondary: `${counts.confirmedSegments} 个剧本段落已确认，${counts.confirmedMoments} 个情景已确认`,
         progress: scriptProgress,
         state: scriptTotal === 0 ? 'empty' : scriptProgress >= 70 ? 'ready' : 'active',
         href: '/scripts',
@@ -468,7 +468,7 @@ export default function ProjectHomePage() {
       },
       {
         key: 'constraints',
-        title: '创作约束',
+        title: '设定约束',
         description: '人物、地点、道具、风格与资料关系统一管理，避免下游生成解释分裂。',
         primaryLabel: '资料/关系/引用',
         primaryValue: constraintTotal + data.creativeReferenceUsages.length,
@@ -482,8 +482,8 @@ export default function ProjectHomePage() {
       {
         key: 'assets',
         title: '素材输入',
-        description: '素材位负责表达缺口、候选和锁定素材，是关键帧和视频生产前的输入门槛。',
-        primaryLabel: '素材位',
+        description: '素材需求负责表达缺口、候选和锁定素材，是关键帧和视频生产前的输入门槛。',
+        primaryLabel: '素材需求',
         primaryValue: data.assetSlots.length,
         secondary: `${counts.missingAssets} 个缺口，${counts.candidateAssets} 个候选，${counts.lockedAssets} 个已锁定`,
         progress: assetProgress,
@@ -494,9 +494,9 @@ export default function ProjectHomePage() {
       },
       {
         key: 'content',
-        title: '内容生产',
-        description: '内容单元收拢关键帧、画面、语音和字幕，生产工作台只处理采用和返工决策。',
-        primaryLabel: '内容单元/关键帧',
+        title: '内容制作',
+        description: '制作项收拢关键帧、画面、语音和字幕，生产工作台只处理采用和返工决策。',
+        primaryLabel: '制作项/关键帧',
         primaryValue: contentTotal,
         secondary: `${counts.confirmedContents} 个内容可生产，${counts.acceptedKeyframes} 个关键帧已采纳`,
         progress: contentProgress,
@@ -531,7 +531,7 @@ export default function ProjectHomePage() {
         area: '理解确认工作台',
         href: '/workbench/script',
         priority: 'high',
-        detail: '没有剧本版本时，片段、情节、制作和素材都缺少来源',
+        detail: '没有剧本版本时，剧本段落、情节、制作和素材都缺少来源',
       })
     }
 
@@ -560,7 +560,7 @@ export default function ProjectHomePage() {
     for (const slot of data.assetSlots.filter((item) => String(item.status ?? '') === 'missing').slice(0, 3)) {
       items.push({
         key: `asset:${slot.ID}`,
-        title: titleOf(slot, `素材位 #${slot.ID}`),
+        title: titleOf(slot, `素材需求 #${slot.ID}`),
         area: '素材生成工作台',
         href: '/workbench/assets',
         priority: ['critical', 'high'].includes(String(slot.priority ?? '')) ? 'high' : 'medium',
@@ -571,8 +571,8 @@ export default function ProjectHomePage() {
     if (data.productions.length > 0 && data.contentUnits.length === 0) {
       items.push({
         key: 'content',
-        title: '生成或确认内容单元',
-        area: '内容单元',
+        title: '生成或确认制作项',
+        area: '制作项',
         href: '/contents',
         priority: 'medium',
         detail: '制作创建后，需要把预演拆成可执行的生产颗粒',
@@ -661,8 +661,8 @@ export default function ProjectHomePage() {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatBlock label="制作" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
-              <StatBlock label="内容单元" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可生产`} icon={Wand2} />
-              <StatBlock label="素材位" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={PackageCheck} />
+              <StatBlock label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可生产`} icon={Wand2} />
+              <StatBlock label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={PackageCheck} />
               <StatBlock label="成片版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={Video} />
             </div>
 

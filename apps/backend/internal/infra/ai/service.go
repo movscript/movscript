@@ -272,7 +272,7 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 
 // GetForFeature returns the first allowed model config for a named feature.
 // Falls back to any text model when the feature is unconfigured.
-// When multiple configs share the highest priority, one is chosen randomly.
+// When multiple configs share the highest priority, one is chosen in round-robin order.
 func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelID string, err error) {
 	featureKey = NormalizeFeatureKey(featureKey)
 	var fcfg model.FeatureConfig
@@ -308,7 +308,7 @@ func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelI
 		return 0, "", fmt.Errorf("no available model for feature %q", featureKey)
 	}
 
-	chosen, mid, ok := selectFeatureModel(candidates, fcfg.DefaultModelID)
+	chosen, mid, ok := selectFeatureModel("service.select_feature_model:"+featureKey, candidates, fcfg.DefaultModelID)
 	if !ok {
 		return 0, "", fmt.Errorf("no available model for feature %q", featureKey)
 	}
@@ -321,7 +321,7 @@ type featureModelCandidate struct {
 	priority int
 }
 
-func selectFeatureModel(candidates []featureModelCandidate, defaultModelID *uint) (featureModelCandidate, string, bool) {
+func selectFeatureModel(key string, candidates []featureModelCandidate, defaultModelID *uint) (featureModelCandidate, string, bool) {
 	if len(candidates) == 0 {
 		return featureModelCandidate{}, "", false
 	}
@@ -332,7 +332,7 @@ func selectFeatureModel(candidates []featureModelCandidate, defaultModelID *uint
 			}
 		}
 	}
-	chosen := pickByPriority(candidates, func(c featureModelCandidate) int { return c.priority })
+	chosen := pickByPriority(key, candidates, func(c featureModelCandidate) int { return c.priority })
 	return chosen, resolveModelID(chosen.cfg, chosen.def), true
 }
 
@@ -363,7 +363,7 @@ func parseIDArray(s string) []uint {
 }
 
 // GetAnyTextModel returns the first available text-capable model config for internal use.
-// When multiple configs share the highest priority, one is chosen randomly.
+// When multiple configs share the highest priority, one is chosen in round-robin order.
 func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err error) {
 	var rows []modelConfigWithProvider
 	s.db.Model(&model.AIModelConfig{}).
@@ -392,7 +392,7 @@ func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err e
 		return 0, "", fmt.Errorf("no text-capable model configured and enabled")
 	}
 
-	chosen := pickByPriority(candidates, func(c candidate) int { return c.priority })
+	chosen := pickByPriority("service.get_any_text_model", candidates, func(c candidate) int { return c.priority })
 	mid := chosen.cfg.ModelIDOverride
 	if mid == "" {
 		mid = chosen.def.ModelID

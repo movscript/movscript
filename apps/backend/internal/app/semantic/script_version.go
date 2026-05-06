@@ -53,6 +53,7 @@ func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input
 	if err := s.db.WithContext(ctx).Create(&item).Error; err != nil {
 		return item, err
 	}
+	s.bumpProgressVersion(ctx, projectID)
 	return item, nil
 }
 

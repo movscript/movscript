@@ -459,7 +459,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">引用关系工作台</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              校正 AI 提取的创作资料引用，维护情节、内容单元、关键帧与人物、地点、道具、风格之间的关系。
+              校正 AI 提取的设定资料引用，维护情景、制作项、关键帧与人物、地点、道具、风格之间的关系。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -529,7 +529,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">{tab === 'usage' ? '对象使用资料' : '资料之间关系'}</h2>
-                <p className="text-xs text-muted-foreground">{tab === 'usage' ? '描述某个结构对象引用了哪个创作资料和状态' : '描述人物、地点、道具、风格之间的语义关系'}</p>
+                <p className="text-xs text-muted-foreground">{tab === 'usage' ? '描述某个结构对象引用了哪个设定资料和状态' : '描述人物、地点、道具、风格之间的语义关系'}</p>
               </div>
               <Badge variant="outline">{tab === 'usage' ? filteredUsages.length : filteredRelationships.length} 条</Badge>
             </div>
@@ -628,7 +628,7 @@ function UsageForm({ draft, setDraft, references, states }: {
           <Input value={draft.owner_id} onChange={(event) => setDraft({ ...draft, owner_id: event.target.value })} inputMode="numeric" required />
         </Field>
       </div>
-      <Field label="创作资料">
+      <Field label="设定资料">
         <ReferenceSelect value={draft.creative_reference_id} onChange={(value) => setDraft({ ...draft, creative_reference_id: value, creative_reference_state_id: '' })} references={references} />
       </Field>
       <Field label="资料状态">
@@ -893,8 +893,8 @@ function RelationGraphOverview({
         </Panel>
 
         <Panel title="图例">
-          <LegendItem tone="bg-sky-500" label="创作资料节点" detail="人物、地点、道具、风格等资料" />
-          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="剧本段落、情节、内容单元、关键帧" />
+          <LegendItem tone="bg-sky-500" label="设定资料节点" detail="人物、地点、道具、风格等资料" />
+          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="剧本段落、情景、制作项、关键帧" />
           <LegendItem tone="bg-blue-500" label="主角/连续性" detail="protagonist 或 continuity" />
           <LegendItem tone="bg-orange-500" label="地点使用" detail="location" />
           <LegendItem tone="bg-violet-500" label="道具/依赖" detail="prop 或 dependency" />
@@ -1019,7 +1019,7 @@ function Select({ value, onChange, options, labels }: { value: string; onChange:
 function ReferenceSelect({ value, onChange, references }: { value: string; onChange: (value: string) => void; references: CreativeReference[] }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" required>
-      <option value="">选择创作资料</option>
+      <option value="">选择设定资料</option>
       {references.map((reference) => (
         <option key={reference.ID} value={reference.ID}>{reference.name} · {reference.kind} #{reference.ID}</option>
       ))}

@@ -14,9 +14,9 @@ interface PreviewDrawerProps {
 }
 
 const scopeLabel: Record<PreviewScope, string> = {
-  segment: '片段',
-  scene_moment: '情节',
-  content_unit: '内容单元',
+  segment: '剧本段落',
+  scene_moment: '情景',
+  content_unit: '制作项',
 }
 
 const priorityTone: Record<string, string> = {
@@ -90,7 +90,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
           {data && (
             <div className="space-y-4 p-4">
               <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                <span>{data.content_units.length} 个内容单元</span>
+                <span>{data.content_units.length} 个制作项</span>
                 <ChevronRight size={12} className="shrink-0" />
                 <span>{data.keyframes.length} 个关键帧</span>
                 <ChevronRight size={12} className="shrink-0" />
@@ -131,7 +131,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                 {data.keyframes.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border p-6 text-center">
                     <p className="text-sm text-muted-foreground">暂无关键帧</p>
-                    <p className="mt-1 text-xs text-muted-foreground">需要先完善内容单元</p>
+                    <p className="mt-1 text-xs text-muted-foreground">需要先完善制作项</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">

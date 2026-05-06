@@ -187,7 +187,7 @@ const statusMeta: Record<string, { label: string; className: string; dot: string
 
 const kindLabels: Record<string, string> = {
   shot: '镜头',
-  visual_segment: '视觉片段',
+  visual_segment: '视觉剧本段落',
   product_showcase: '产品展示',
   caption_card: '字幕卡',
   narration: '旁白',
@@ -253,7 +253,7 @@ export default function ContentsPage() {
     mutationFn: (item: ContentUnitViewModel) => {
       if (!projectId) throw new Error('请先选择项目')
       return api.post('/canvases', {
-        name: `${item.unit.title || `内容单元 #${item.unit.ID}`} · 内容生成`,
+        name: `${item.unit.title || `制作项 #${item.unit.ID}`} · 内容生成`,
         project_id: projectId,
         canvas_type: 'workflow',
         stage: 'generation',
@@ -450,11 +450,11 @@ export default function ContentsPage() {
               <ChevronRight size={13} />
               <span>内容区</span>
               <ChevronRight size={13} />
-              <span>内容单元</span>
+              <span>制作项</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">内容单元</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作项</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              内容单元是内容槽：从候选中确定最终目标，并同时收拢关键帧、画面、语音和字幕。
+              制作项是制作项：从候选中确定最终目标，并同时收拢关键帧、画面、语音和字幕。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -483,8 +483,8 @@ export default function ContentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Boxes} label="内容槽" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="text-indigo-600" />
-          <MetricCard icon={ShieldCheck} label="可生成" value={readyCount} detail="情节、资料和素材输入已满足" tone="text-emerald-600" />
+          <MetricCard icon={Boxes} label="制作项" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="text-indigo-600" />
+          <MetricCard icon={ShieldCheck} label="可生成" value={readyCount} detail="情景、资料和素材输入已满足" tone="text-emerald-600" />
           <MetricCard icon={Play} label="候选目标" value={contentTargetCount} detail="关键帧、画面、语音和字幕" tone="text-sky-600" />
           <MetricCard icon={LockKeyhole} label="已锁定" value={lockedCount} detail={`${averageReadiness}% 平均生成准备度`} tone="text-violet-600" />
           </section>
@@ -520,11 +520,11 @@ export default function ContentsPage() {
               },
             ]}
             chips={[
-              segmentFilterId ? { id: 'segment', label: `片段 #${segmentFilterId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
-              sceneMomentFilterId ? { id: 'scene', label: `情节 #${sceneMomentFilterId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
+              segmentFilterId ? { id: 'segment', label: `剧本段落 #${segmentFilterId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
+              sceneMomentFilterId ? { id: 'scene', label: `情景 #${sceneMomentFilterId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
               selectedId ? { id: 'content', label: `内容 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
               referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
-              assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
+              assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
               productionFilterId ? { id: 'production', label: `制作 #${productionFilterId}`, onRemove: () => setFilter({ production_id: null }) } : null,
             ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
             resultCount={filteredUnits.length}
@@ -535,16 +535,16 @@ export default function ContentsPage() {
           <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">内容单元清单</p>
+                  <p className="text-sm font-semibold text-foreground">制作项清单</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">每一项都是可被生成工作台执行、复核和锁定的生产颗粒。</p>
                 </div>
               </div>
 
               <div className="max-h-[760px] overflow-auto">
                 {isLoading ? (
-                  <EmptyState title="正在加载内容单元" detail="读取内容、情节和生成输入关系" />
+                  <EmptyState title="正在加载制作项" detail="读取内容、情景和生成输入关系" />
                 ) : filteredUnits.length === 0 ? (
-                  <EmptyState title="暂无内容单元" detail="可先在制作预演确认分镜，再生成内容单元骨架" />
+                  <EmptyState title="暂无制作项" detail="可先在制作预演确认分镜，再生成制作项骨架" />
                 ) : (
                 <div className="grid grid-cols-1 gap-3 p-4">
                   {filteredUnits.map((item) => (
@@ -574,13 +574,13 @@ export default function ContentsPage() {
                 status: 'draft',
               } : undefined}
               queryKey={['semantic-content-positioning', projectId]}
-              title={creatingContentUnit ? '新建内容单元' : '卡片内编辑内容单元'}
-              description="直接维护内容槽、生成提示、时长和状态。"
+              title={creatingContentUnit ? '新建制作项' : '卡片内编辑制作项'}
+              description="直接维护制作项、生成提示、时长和状态。"
               hero={{
                 icon: <Boxes size={19} />,
-                eyebrow: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定情节',
-                title: creatingContentUnit ? '新建内容单元' : selected ? titleOf(selected.unit) : '新建内容单元',
-                subtitle: creatingContentUnit ? '内容槽' : selected ? `${kindLabel(selected.unit.kind)} · 内容 #${selected.unit.ID}` : '内容槽',
+                eyebrow: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定情景',
+                title: creatingContentUnit ? '新建制作项' : selected ? titleOf(selected.unit) : '新建制作项',
+                subtitle: creatingContentUnit ? '制作项' : selected ? `${kindLabel(selected.unit.kind)} · 内容 #${selected.unit.ID}` : '制作项',
                 summary: creatingContentUnit ? '创建后可继续补充生成提示、运镜参数，并收拢关键帧、画面、语音和字幕候选。' : selected?.unit.description || selected?.unit.prompt || '暂无内容描述或生成提示词。',
                 accentClassName: 'from-indigo-500/15 via-sky-500/10 to-cyan-500/10',
                 status: <StatusBadge status={creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft'} />,
@@ -591,7 +591,7 @@ export default function ContentsPage() {
                   { label: '准备度', value: `${selected.readiness}%` },
                 ] : [
                   { label: '默认类型', value: '镜头' },
-                  { label: '所属情节', value: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定' },
+                  { label: '所属情景', value: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定' },
                   { label: '顺序', value: unitViewModels.length + 1 },
                   { label: '准备度', value: '0%' },
                 ],
@@ -612,7 +612,7 @@ export default function ContentsPage() {
         preview={(
           <>
             <RelatedPanel
-              title="创作资料"
+              title="设定资料"
               icon={Sparkles}
               empty="暂无资料引用"
               records={selected?.references.map((item) => ({
@@ -623,7 +623,7 @@ export default function ContentsPage() {
               })) ?? []}
             />
             <RelatedPanel
-              title="素材位"
+              title="素材需求"
               icon={PackageCheck}
               empty="暂无素材需求"
               records={selected?.assetSlots.map((item) => ({
@@ -651,31 +651,31 @@ export default function ContentsPage() {
         bottom={(
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
             <RelatedPanel
-              title="涉及到的片段"
+              title="涉及到的剧本段落"
               icon={Route}
-              empty="当前内容单元暂无片段引用"
+              empty="当前制作项暂无剧本段落引用"
               records={selected?.section ? [{
                 id: selected.section.ID,
                 title: titleOf(selected.section),
-                subtitle: selected.section.summary || selected.section.content || '片段上下文',
+                subtitle: selected.section.summary || selected.section.content || '剧本段落上下文',
                 status: selected.section.status,
               }] : []}
             />
             <RelatedPanel
-              title="涉及的情节"
+              title="涉及的情景"
               icon={Film}
-              empty="当前内容单元暂无情节引用"
+              empty="当前制作项暂无情景引用"
               records={selected?.sceneMoment ? [{
                 id: selected.sceneMoment.ID,
                 title: titleOf(selected.sceneMoment),
-                subtitle: selected.sceneMoment.description || selected.sceneMoment.action_text || '情节上下文',
+                subtitle: selected.sceneMoment.description || selected.sceneMoment.action_text || '情景上下文',
                 status: selected.sceneMoment.status,
               }] : []}
             />
             <RelatedPanel
-              title="涉及的创作资料"
+              title="涉及的设定资料"
               icon={Sparkles}
-              empty="当前内容单元暂无资料引用"
+              empty="当前制作项暂无资料引用"
               records={selected?.references.map((item) => ({
                 id: item.ID,
                 title: item.name || titleOf(item),
@@ -686,7 +686,7 @@ export default function ContentsPage() {
             <RelatedPanel
               title="涉及的素材"
               icon={PackageCheck}
-              empty="当前内容单元暂无素材需求"
+              empty="当前制作项暂无素材需求"
               records={selected?.assetSlots.map((item) => ({
                 id: item.ID,
                 title: item.name || titleOf(item),
@@ -697,7 +697,7 @@ export default function ContentsPage() {
             <RelatedPanel
               title="被引用的成片"
               icon={Play}
-              empty="当前内容单元暂无成片引用"
+              empty="当前制作项暂无成片引用"
               records={[]}
             />
           </div>
@@ -717,7 +717,7 @@ function ContentUnitCard({
   onSelect: () => void
 }) {
   const status = String(item.unit.status ?? 'draft')
-  const sceneMomentTitle = item.sceneMoment ? titleOf(item.sceneMoment) : '未绑定情节'
+  const sceneMomentTitle = item.sceneMoment ? titleOf(item.sceneMoment) : '未绑定情景'
 
   return (
     <button
@@ -745,11 +745,11 @@ function ContentUnitCard({
         ) : null}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <InfoChip icon={Route} label={sceneMomentTitle} />
-          <InfoChip icon={Clock3} label={item.sceneMoment?.time_text || item.sceneMoment?.location_text || '情节待补'} />
+          <InfoChip icon={Clock3} label={item.sceneMoment?.time_text || item.sceneMoment?.location_text || '情景待补'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Badge variant="outline" className="text-[10px]">资料 {item.references.length}</Badge>
-          <Badge variant="outline" className="text-[10px]">素材槽 {item.assetSlots.length}</Badge>
+          <Badge variant="outline" className="text-[10px]">素材需求 {item.assetSlots.length}</Badge>
           <Badge variant="outline" className="text-[10px]">目标 {item.targets.filter((target) => target.status !== 'missing').length}/4</Badge>
           <Badge variant="outline" className="text-[10px]">候选 {candidateTotal(item.targets)}</Badge>
           {item.missingAssets.length > 0 ? <Badge variant="warning" className="text-[10px]">缺口 {item.missingAssets.length}</Badge> : null}
@@ -778,7 +778,7 @@ function ContentUnitDetail({
   if (!item) {
     return (
       <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择内容单元" detail="从中间清单选择一个可生成颗粒" compact />
+        <EmptyState title="未选择制作项" detail="从中间清单选择一个可生成颗粒" compact />
       </section>
     )
   }
@@ -814,12 +814,12 @@ function ContentUnitDetail({
           </div>
           <Progress value={item.readiness} className="h-2" />
         </div>
-        <CheckRow ok={Boolean(item.sceneMoment)} label="已绑定情节" detail={item.sceneMoment ? titleOf(item.sceneMoment) : '缺少时间、地点、动作上下文'} />
+        <CheckRow ok={Boolean(item.sceneMoment)} label="已绑定情景" detail={item.sceneMoment ? titleOf(item.sceneMoment) : '缺少时间、地点、动作上下文'} />
         <CheckRow ok={Boolean(item.unit.prompt || item.unit.description)} label="有生成意图" detail={item.unit.prompt || item.unit.description || '需要补充描述或提示词'} />
-        <CheckRow ok={item.references.length > 0} label="有创作资料" detail={`${item.references.length} 个资料约束`} />
-        <CheckRow ok={item.missingAssets.length === 0} label="素材槽可收敛" detail={item.missingAssets.length ? `${item.missingAssets.length} 个素材槽待补齐` : `${item.assetSlots.length} 个素材槽可用或未要求`} />
+        <CheckRow ok={item.references.length > 0} label="有设定资料" detail={`${item.references.length} 个资料约束`} />
+        <CheckRow ok={item.missingAssets.length === 0} label="素材需求可收敛" detail={item.missingAssets.length ? `${item.missingAssets.length} 个素材需求待补齐` : `${item.assetSlots.length} 个素材需求可用或未要求`} />
         <CheckRow ok={item.targets.some((target) => target.status !== 'missing')} label="有候选目标" detail={targetSummary(item.targets)} />
-        <InfoBlock label="情节" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情节描述'} />
+        <InfoBlock label="情景" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情景描述'} />
         <InfoBlock label="生成提示" value={item.unit.prompt || item.unit.description || '暂无提示词'} />
         <InfoBlock label="运镜设计" value={cameraSummary(item.unit) || '暂无运镜参数'} />
         <div className="grid grid-cols-2 gap-2">
@@ -1187,7 +1187,7 @@ function titleOf(record?: { ID?: number; title?: string; name?: string; label?: 
 }
 
 function kindLabel(kind?: string) {
-  return kindLabels[String(kind ?? '')] ?? kind ?? '内容单元'
+  return kindLabels[String(kind ?? '')] ?? kind ?? '制作项'
 }
 
 function statusLabel(status?: string) {

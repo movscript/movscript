@@ -163,7 +163,7 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const memberships = useUserStore((s) => s.orgMemberships)
   const currentMembership = memberships.find((m) => m.org_id === currentOrgID)
-  if (!currentMembership) return <Navigate to="/projects" replace />
+  if (!currentMembership) return <Navigate to="/org/select" replace />
   return <>{children}</>
 }
 
@@ -229,40 +229,43 @@ export default function App() {
 
   if (!user) {
     return (
+      <ErrorBoundary>
+        <AppRouter>
+          <MCPContextBridge />
+          <Toaster />
+          <BackendBootOverlay />
+          <Routes>
+            <Route path="/invite/:token" element={<InvitePage />} />
+            <Route path="/app/settings" element={<AppSettingsPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
+          </Routes>
+        </AppRouter>
+      </ErrorBoundary>
+    )
+  }
+
+  return (
+    <ErrorBoundary>
       <AppRouter>
         <MCPContextBridge />
         <Toaster />
         <BackendBootOverlay />
         <Routes>
+          {/* Canvas editor is full-screen, no sidebar/header */}
+          <Route path="/canvases/:id" element={<CanvasEditorPage />} />
+          {/* Org select - full-screen, no sidebar */}
+          <Route path="/org/select" element={<OrgSelectPage />} />
+          {/* Invite page - accessible when logged in */}
           <Route path="/invite/:token" element={<InvitePage />} />
           <Route path="/app/settings" element={<AppSettingsPage />} />
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
-        </Routes>
-      </AppRouter>
-    )
-  }
-
-  return (
-    <AppRouter>
-      <MCPContextBridge />
-      <Toaster />
-      <BackendBootOverlay />
-      <Routes>
-        {/* Canvas editor is full-screen, no sidebar/header */}
-        <Route path="/canvases/:id" element={<CanvasEditorPage />} />
-        {/* Org select — full-screen, no sidebar */}
-        <Route path="/org/select" element={<OrgSelectPage />} />
-        {/* Invite page — accessible when logged in */}
-        <Route path="/invite/:token" element={<InvitePage />} />
-        <Route path="/app/settings" element={<AppSettingsPage />} />
-        {/* All other pages use the shell layout */}
-        <Route path="*" element={
-          <ShellLayout>
-            <Routes>
-              <Route path="/" element={<Navigate to="/projects" replace />} />
-              <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
-              <Route path="/admin/*" element={<Navigate to="/projects" replace />} />
+          {/* All other pages use the shell layout */}
+          <Route path="*" element={
+            <ShellLayout>
+              <Routes>
+                <Route path="/" element={<Navigate to="/projects" replace />} />
+                <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
+                <Route path="/admin/*" element={<Navigate to="/projects" replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
               <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
@@ -319,10 +322,11 @@ export default function App() {
               <Route path="/agent/debug" element={<AgentDebugPage />} />
               <Route path="/agent/settings" element={<Navigate to="/agent/debug" replace />} />
               <Route path="/agents" element={<Navigate to="/agent/debug" replace />} />
-            </Routes>
-          </ShellLayout>
-        } />
-      </Routes>
-    </AppRouter>
+              </Routes>
+            </ShellLayout>
+          } />
+        </Routes>
+      </AppRouter>
+    </ErrorBoundary>
   )
 }

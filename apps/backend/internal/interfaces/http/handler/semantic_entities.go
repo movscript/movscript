@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
 )
@@ -15,8 +16,8 @@ type SemanticEntityHandler struct {
 	projects *projectapp.Service
 }
 
-func NewSemanticEntityHandler(db *gorm.DB) *SemanticEntityHandler {
-	return &SemanticEntityHandler{semantic: semanticapp.NewService(db), projects: projectapp.NewService(db)}
+func NewSemanticEntityHandler(db *gorm.DB, cacheStore ...cache.Cache) *SemanticEntityHandler {
+	return &SemanticEntityHandler{semantic: semanticapp.NewService(db, cacheStore...), projects: projectapp.NewService(db, cacheStore...)}
 }
 
 func (h *SemanticEntityHandler) ListEntityRelations(c *gin.Context) {

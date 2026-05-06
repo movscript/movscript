@@ -25,6 +25,7 @@ import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
 } from './contracts/runtimeContract.js'
+import { buildAgentRun } from './run/runFactory.js'
 import type {
   AgentApprovalRequest,
   AgentInputRequest,
@@ -251,26 +252,21 @@ export class AgentRuntime {
     }
     const now = isoNow()
     const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    const runtimeContract = this.contractResolver.find(agentManifest)
+    const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true })
-    const run: AgentRun = {
+    const initialUser = [...thread.messages].reverse().find((message) => message.role === 'user')
+    const run = buildAgentRun({
       id: makeId('run'),
       threadId: input.threadId,
-      status: 'queued',
       agentManifest,
       policy,
-      createdAt: now,
-      updatedAt: now,
-      steps: [],
-      traceEvents: [],
-      ...(normalizeApprovedToolNames(input.approvedToolNames).length > 0
-        ? { metadata: { approvedToolNames: normalizeApprovedToolNames(input.approvedToolNames) } }
-        : {}),
-    }
-    if (clientInput) {
-      run.metadata = { ...(run.metadata ?? {}), clientInput: clientInput as unknown as JSONValue }
-    }
-    const initialUser = [...thread.messages].reverse().find((message) => message.role === 'user')
-    if (initialUser) run.metadata = { ...(run.metadata ?? {}), initialUserMessageId: initialUser.id }
+      now,
+      runtimeContract,
+      ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
+      ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
+      ...(initialUser ? { initialUserMessageId: initialUser.id } : {}),
+    })
     this.store.createRun(run)
     thread.lastRunStatus = run.status
     thread.updatedAt = now
@@ -303,24 +299,21 @@ export class AgentRuntime {
     this.store.updateThread(thread)
     const now = isoNow()
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
+    const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    const runtimeContract = this.contractResolver.find(agentManifest)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true })
-    const run: AgentRun = {
+    const run = buildAgentRun({
       id: makeId('run'),
       threadId: thread.id,
-      status: 'queued',
-      agentManifest: normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest),
+      agentManifest,
       policy,
-      createdAt: now,
-      updatedAt: now,
-      steps: [],
-      traceEvents: [],
-      metadata: {
-        forcedToolCall: toolCall as unknown as JSONValue,
-        ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
-        ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
-        initialUserMessageId: userMessage.id,
-      },
-    }
+      now,
+      forcedToolCall: toolCall,
+      initialUserMessageId: userMessage.id,
+      runtimeContract,
+      ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
+      ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
+    })
     this.store.createRun(run)
     thread.lastRunStatus = run.status
     thread.updatedAt = now
@@ -379,6 +372,7 @@ export class AgentRuntime {
       history: thread?.messages ?? [],
       userMessage: message,
       command,
+      contractResolver: this.contractResolver,
     })
     const warnings: string[] = [...capabilities.warnings]
 
@@ -398,8 +392,9 @@ export class AgentRuntime {
           tools: capabilities.resolvedTools, policy, memories,
           warnings, history: thread?.messages ?? [], userMessage: message,
           command,
+          contractResolver: this.contractResolver,
         })
-        const modelTools = buildOpenAIChatTools(capabilities.resolvedTools)
+        const modelTools = buildOpenAIChatTools(capabilities.resolvedTools, this.contractResolver.find(agentManifest))
         const modelResult = await callModel({
           messages: ctxMessages, tools: modelTools,
           toolChoice: modelTools.length > 0 ? 'auto' : undefined,
@@ -753,6 +748,7 @@ export class AgentRuntime {
       })
 
       const agentManifest = run.agentManifest ?? this.defaultAgentManifest
+      const runtimeContract = this.contractResolver.find(agentManifest)
       const contextWarnings = contextError ? [`Context pack unavailable: ${contextError}`] : []
       const capabilities = await resolveAgentCapabilities({
         mcpClient: this.mcpClient,
@@ -847,6 +843,7 @@ export class AgentRuntime {
             history: thread.messages,
             userMessage: lastUser.content,
             command,
+            contractResolver: this.contractResolver,
           }).messages)
           : renderMemoryFilesText(memories, this.getMemoryStorePath())
         const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
@@ -915,9 +912,10 @@ export class AgentRuntime {
         draftStore: this.draftStore,
         backendApplyClient: this.backendApplyClient,
         registry: this.toolRegistry,
+        contractResolver: this.contractResolver,
         memoryManager: this.memoryManager,
-        ...(this.contractResolver.find(agentManifest)?.commandOverride
-          ? { command: this.contractResolver.find(agentManifest)?.commandOverride?.({ userMessage: lastUser.content, manifest: agentManifest }) }
+        ...(runtimeContract?.commandOverride
+          ? { command: runtimeContract.commandOverride({ userMessage: lastUser.content, manifest: agentManifest }) }
           : {}),
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
         ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),

@@ -5,11 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
 )
@@ -24,10 +28,20 @@ var (
 type Service struct {
 	db    *gorm.DB
 	store storage.Storage
+	cache cache.Cache
 }
 
-func NewService(db *gorm.DB, store storage.Storage) *Service {
-	return &Service{db: db, store: store}
+const listCacheTTL = 60 * time.Second
+
+func NewService(db *gorm.DB, store storage.Storage, cacheStore ...cache.Cache) *Service {
+	var c cache.Cache
+	if len(cacheStore) > 0 {
+		c = cacheStore[0]
+	}
+	if c == nil {
+		c = cache.NewNoop()
+	}
+	return &Service{db: db, store: store, cache: c}
 }
 
 type ListInput struct {
@@ -68,6 +82,15 @@ type UpdateInput struct {
 }
 
 func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResource, *Page, error) {
+	version, _ := s.cache.GetVersion(ctx, resourceListNamespace(input.UserID, input.OrgID))
+	cacheKey := resourceListCacheKey(input, version)
+	var cached cachedListResult
+	if ok, err := s.cache.GetJSON(ctx, cacheKey, &cached); err == nil && ok {
+		if cached.Page != nil {
+			cached.Page.Items = cached.Resources
+		}
+		return cached.Resources, cached.Page, nil
+	}
 	q, err := s.listQuery(ctx, input)
 	if err != nil {
 		return nil, nil, err
@@ -83,10 +106,15 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResourc
 		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(page.PageSize).Offset(page.Offset).Find(&resources).Error; err != nil {
 			return nil, nil, err
 		}
-		return resources, &Page{Total: total, Items: resources, Page: page.Page, PageSize: page.PageSize}, nil
+		resultPage := &Page{Total: total, Items: resources, Page: page.Page, PageSize: page.PageSize}
+		_ = s.cache.SetJSON(ctx, cacheKey, cachedListResult{Resources: resources, Page: resultPage}, listCacheTTL)
+		return resources, resultPage, nil
 	}
 	resources := make([]model.RawResource, 0)
 	err = q.Order("created_at desc").Find(&resources).Error
+	if err == nil {
+		_ = s.cache.SetJSON(ctx, cacheKey, cachedListResult{Resources: resources}, listCacheTTL)
+	}
 	return resources, nil, err
 }
 
@@ -142,6 +170,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 	}
 	r.StorageKey = key
 	r.StorageBackend = s.store.Backend()
+	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
 }
 
@@ -189,7 +218,11 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint)
 	if err := s.db.WithContext(ctx).Where("resource_id = ?", r.ID).Delete(&model.ResourceBinding{}).Error; err != nil {
 		return err
 	}
-	return s.db.WithContext(ctx).Delete(&r).Error
+	if err := s.db.WithContext(ctx).Delete(&r).Error; err != nil {
+		return err
+	}
+	s.bumpListVersion(ctx, userID, orgID)
+	return nil
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResource, error) {
@@ -235,6 +268,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResou
 	if err := s.db.WithContext(ctx).First(&r, r.ID).Error; err != nil {
 		return r, err
 	}
+	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
 }
 
@@ -336,6 +370,37 @@ func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
 		q = q.Where("LOWER(name) LIKE ?", "%"+filters.Keyword+"%")
 	}
 	return q
+}
+
+type cachedListResult struct {
+	Resources []model.RawResource `json:"resources"`
+	Page      *Page               `json:"page,omitempty"`
+}
+
+func (s *Service) bumpListVersion(ctx context.Context, userID uint, orgID *uint) {
+	_, _ = s.cache.BumpVersion(ctx, resourceListNamespace(userID, orgID))
+}
+
+func resourceListNamespace(userID uint, orgID *uint) string {
+	return fmt.Sprintf("resources:user:%d:org:%s", userID, orgIDCachePart(orgID))
+}
+
+func resourceListCacheKey(input ListInput, version int64) string {
+	values := url.Values{}
+	values.Set("folder_id", strings.TrimSpace(input.FolderID))
+	values.Set("shared", strconv.FormatBool(input.Shared))
+	values.Set("type", strings.TrimSpace(input.Type))
+	values.Set("q", strings.TrimSpace(input.Query))
+	values.Set("page", strconv.Itoa(input.Page))
+	values.Set("page_size", strconv.Itoa(input.PageSize))
+	return fmt.Sprintf("%s:v%d:%s", resourceListNamespace(input.UserID, input.OrgID), version, values.Encode())
+}
+
+func orgIDCachePart(orgID *uint) string {
+	if orgID == nil {
+		return "none"
+	}
+	return strconv.FormatUint(uint64(*orgID), 10)
 }
 
 func MimeToType(mime, filename string) string {

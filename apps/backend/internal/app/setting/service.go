@@ -148,7 +148,14 @@ func (s *Service) UpdateRef(ctx context.Context, id uint, input dto.ScriptSettin
 }
 
 func (s *Service) DeleteRef(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Delete(&model.ScriptSettingRef{}, id).Error
+	var ref model.ScriptSettingRef
+	if err := s.db.WithContext(ctx).First(&ref, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return s.db.WithContext(ctx).Delete(&ref).Error
 }
 
 func (s *Service) ListRelationships(ctx context.Context, filter RelationshipFilter) ([]model.SettingRelationship, error) {

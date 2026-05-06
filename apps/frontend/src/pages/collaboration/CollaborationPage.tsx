@@ -160,10 +160,10 @@ const seededTasks: ProjectTask[] = []
 const targetTypeLabels: Record<WorkTargetType, string> = {
   project: '项目',
   production: '制作',
-  segment: '片段',
-  scene_moment: '情节',
-  content_unit: '内容单元',
-  asset_slot: '素材位',
+  segment: '剧本段落',
+  scene_moment: '情景',
+  content_unit: '制作项',
+  asset_slot: '素材需求',
   keyframe: '关键帧',
   delivery_version: '交付版本',
 }
@@ -232,7 +232,7 @@ const reviewStatusMeta: Record<WorkReviewStatus, { label: string; className: str
 const resultTypeMeta: Record<WorkItemResultType, { label: string; description: string }> = {
   none: { label: '只完成任务', description: '不改变生产实体' },
   status_change: { label: '更新目标状态', description: '通过审核后更新目标对象状态' },
-  lock_asset_candidate: { label: '锁定素材候选', description: '把素材位锁定到指定候选' },
+  lock_asset_candidate: { label: '锁定素材候选', description: '把素材需求锁定到指定候选' },
   accept_keyframe: { label: '接受关键帧', description: '将关键帧标记为 accepted' },
   approve_delivery_version: { label: '批准交付版本', description: '将交付版本标记为 approved' },
 }
@@ -262,20 +262,20 @@ const taskPurposeMeta: Record<TaskPurpose, {
   },
   choose_asset_candidate: {
     label: '从候选中选择采用项',
-    description: '通过后锁定素材位到指定候选',
+    description: '通过后锁定素材需求到指定候选',
     taskType: 'decision',
     resultType: 'lock_asset_candidate',
     targetTypes: ['asset_slot'],
     defaultTitle: '选择素材候选',
   },
   confirm_content_unit: {
-    label: '确认内容单元',
-    description: '通过后将内容单元标记为 confirmed',
+    label: '确认制作项',
+    description: '通过后将制作项标记为 confirmed',
     taskType: 'review',
     resultType: 'status_change',
     targetTypes: ['content_unit'],
     defaultStatus: 'confirmed',
-    defaultTitle: '确认内容单元',
+    defaultTitle: '确认制作项',
   },
   accept_keyframe: {
     label: '接受关键帧',
@@ -518,7 +518,7 @@ function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
       return '通过后目标状态会按所选状态更新。'
     }
   }
-  if (resultType === 'lock_asset_candidate') return '通过后系统会锁定素材位到指定候选。'
+  if (resultType === 'lock_asset_candidate') return '通过后系统会锁定素材需求到指定候选。'
   if (resultType === 'accept_keyframe') return '通过后关键帧状态会变为 accepted。'
   if (resultType === 'approve_delivery_version') return '通过后交付版本状态会变为 approved。'
   return '通过后应用任务结果。'
@@ -985,9 +985,9 @@ export default function CollaborationPage() {
     return [
       { key: `project:${projectId}`, type: 'project', id: projectId, label: `项目 · ${project?.name ?? '当前项目'}` },
       ...productions.map((record) => targetOption('production', record, '制作')),
-      ...segments.map((record) => targetOption('segment', record, '片段')),
-      ...contentUnits.map((record) => targetOption('content_unit', record, '内容单元')),
-      ...assetSlots.map((record) => targetOption('asset_slot', record, '素材位')),
+      ...segments.map((record) => targetOption('segment', record, '剧本段落')),
+      ...contentUnits.map((record) => targetOption('content_unit', record, '制作项')),
+      ...assetSlots.map((record) => targetOption('asset_slot', record, '素材需求')),
       ...keyframes.map((record) => targetOption('keyframe', record, '关键帧')),
       ...deliveryVersions.map((record) => targetOption('delivery_version', record, '交付版本')),
     ]

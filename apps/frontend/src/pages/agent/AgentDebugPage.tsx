@@ -279,7 +279,7 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
   {
     id: 'business_context',
     name: 'Business Context Layer',
-    scope: 'MovScript 项目、剧本、设定、语义生产实体、素材位和资源',
+    scope: 'MovScript 项目、剧本、设定、语义生产实体、素材需求和资源',
     owner: 'Go backend + frontend MCP bridge',
     entrypoints: [
       'apps/backend/internal/router/router.go',

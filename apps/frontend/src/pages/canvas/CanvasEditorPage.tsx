@@ -711,11 +711,11 @@ function CanvasResourceShelf({
     badge: string
     entityKind?: CanvasEntityKind
   }> = [
-    { id: 'segments' as const, label: '片段', items: segments, titleKey: 'title', bodyKeys: ['summary', 'description', 'raw_source'], badge: 'segment', entityKind: 'segment' },
-    { id: 'sceneMoments' as const, label: '情节', items: sceneMoments, titleKey: 'title', bodyKeys: ['description', 'action_text', 'condition_text'], badge: 'moment', entityKind: 'scene_moment' },
-    { id: 'creativeReferences' as const, label: '创作资料', items: creativeReferences, titleKey: 'name', bodyKeys: ['description', 'content', 'profile_json'], badge: 'reference', entityKind: 'creative_reference' },
+    { id: 'segments' as const, label: '剧本段落', items: segments, titleKey: 'title', bodyKeys: ['summary', 'description', 'raw_source'], badge: 'segment', entityKind: 'segment' },
+    { id: 'sceneMoments' as const, label: '情景', items: sceneMoments, titleKey: 'title', bodyKeys: ['description', 'action_text', 'condition_text'], badge: 'moment', entityKind: 'scene_moment' },
+    { id: 'creativeReferences' as const, label: '设定资料', items: creativeReferences, titleKey: 'name', bodyKeys: ['description', 'content', 'profile_json'], badge: 'reference', entityKind: 'creative_reference' },
     { id: 'assetSlots' as const, label: '素材', items: assetSlots, titleKey: 'name', bodyKeys: ['description', 'prompt_hint', 'slot_key'], badge: 'asset', entityKind: 'asset_slot' },
-    { id: 'contentUnits' as const, label: '内容单元', items: contentUnits, titleKey: 'title', bodyKeys: ['description', 'prompt'], badge: 'unit', entityKind: 'content_unit' },
+    { id: 'contentUnits' as const, label: '制作项', items: contentUnits, titleKey: 'title', bodyKeys: ['description', 'prompt'], badge: 'unit', entityKind: 'content_unit' },
   ]
   const activeSemanticTab = tab === 'resources' ? undefined : semanticTabs.find((item) => item.id === tab) ?? semanticTabs[0]
   const semanticItems = activeSemanticTab ? activeSemanticTab.items.filter((item) => semanticRecordMatchesSearch(item, search, activeSemanticTab.titleKey, activeSemanticTab.bodyKeys)) : []
@@ -2501,7 +2501,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const assetSlot = assetSlotId ? assetSlotById.get(assetSlotId) : undefined
     const creativeReferenceId = semanticValueNumber(assetSlot?.creative_reference_id)
     if (!creativeReferenceId) {
-      toast.error('无法创建所属资料卡片', '当前素材位没有绑定创作资料。')
+      toast.error('无法创建所属资料卡片', '当前素材需求没有绑定设定资料。')
       return
     }
     const existingNode = nodes.find((node) => {
@@ -2515,7 +2515,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const targetNodeId = existingNode?.id ?? genId()
     if (!existingNode) {
       const reference = creativeReferenceById.get(creativeReferenceId)
-      const title = String((reference as any)?.name || (reference as any)?.title || `创作资料 #${creativeReferenceId}`)
+      const title = String((reference as any)?.name || (reference as any)?.title || `设定资料 #${creativeReferenceId}`)
       const schema = entitySchemaByKind.get('creative_reference')
       const newNode: Node = {
         id: targetNodeId,

@@ -121,9 +121,6 @@ func (s *Service) CreateBinding(ctx context.Context, binding *model.ResourceBind
 		if err := tx.Create(binding).Error; err != nil {
 			return err
 		}
-		if err := model.SyncCoreEntityRelations(tx, binding); err != nil {
-			return err
-		}
 		if binding.IsPrimary {
 			return s.clearOtherPrimaryBindingsWithDB(tx, *binding)
 		}
@@ -166,9 +163,6 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model
 			if err := tx.First(&binding, id).Error; err != nil {
 				return err
 			}
-			if err := model.SyncCoreEntityRelations(tx, &binding); err != nil {
-				return err
-			}
 			if binding.IsPrimary {
 				return s.clearOtherPrimaryBindingsWithDB(tx, binding)
 			}
@@ -195,7 +189,7 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 		if err := tx.Delete(&binding).Error; err != nil {
 			return err
 		}
-		return model.DeleteCoreEntityRelations(tx, &binding)
+		return nil
 	}); err != nil {
 		return err
 	}

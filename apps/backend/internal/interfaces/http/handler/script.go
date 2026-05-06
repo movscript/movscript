@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/app/dto"
 	scriptapp "github.com/movscript/movscript/internal/app/script"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
 )
@@ -15,8 +16,8 @@ type ScriptHandler struct {
 	service *scriptapp.Service
 }
 
-func NewScriptHandler(db *gorm.DB) *ScriptHandler {
-	return &ScriptHandler{service: scriptapp.NewService(db)}
+func NewScriptHandler(db *gorm.DB, cacheStore ...cache.Cache) *ScriptHandler {
+	return &ScriptHandler{service: scriptapp.NewService(db, cacheStore...)}
 }
 
 func (h *ScriptHandler) List(c *gin.Context) {

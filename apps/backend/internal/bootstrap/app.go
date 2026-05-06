@@ -13,6 +13,7 @@ import (
 	"github.com/movscript/movscript/internal/domain/commercial"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/auth"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/config"
 	"github.com/movscript/movscript/internal/infra/db"
 	"github.com/movscript/movscript/internal/infra/jobrunner"
@@ -29,6 +30,7 @@ type App struct {
 	Tokens       *auth.Manager
 	Registry     *ai.Registry
 	AIService    *ai.AIService
+	Cache        cache.Cache
 	Entitlements commercial.EntitlementService
 	Worker       *jobrunner.Worker
 	Router       *gin.Engine
@@ -79,6 +81,10 @@ func New() (*App, error) {
 
 	registry := ai.NewRegistry(database, encKey)
 	aiService := ai.NewAIService(database, registry)
+	cacheStore, err := cache.New(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize cache: %w", err)
+	}
 	entitlements := entitlementapp.NewService(database, cfg)
 	worker := jobrunner.NewWorker(database, aiService, store, encKey)
 
@@ -89,6 +95,7 @@ func New() (*App, error) {
 		Tokens:        tokens,
 		Registry:      registry,
 		AIService:     aiService,
+		Cache:         cacheStore,
 		Entitlements:  entitlements,
 		EncryptionKey: encKey,
 	})
@@ -100,6 +107,7 @@ func New() (*App, error) {
 		Tokens:       tokens,
 		Registry:     registry,
 		AIService:    aiService,
+		Cache:        cacheStore,
 		Entitlements: entitlements,
 		Worker:       worker,
 		Router:       engine,

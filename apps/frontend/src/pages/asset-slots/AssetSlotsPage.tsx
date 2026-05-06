@@ -234,7 +234,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
       await queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] })
       setNewSlotEditId(record.ID)
       setFilter({ asset_slot_id: record.ID, selected: null })
-      toast.success('素材位已创建')
+      toast.success('素材需求已创建')
     },
   })
 
@@ -251,7 +251,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
     mutationFn: async (row: AssetSlotViewModel) => {
       if (!projectId) throw new Error('请先选择项目')
       return api.post('/canvases', {
-        name: `${row.slot.name || `素材位 #${row.slot.ID}`} · 素材准备画布`,
+        name: `${row.slot.name || `素材需求 #${row.slot.ID}`} · 素材准备画布`,
         project_id: projectId,
         canvas_type: 'inspiration',
         stage: 'asset_prep',
@@ -334,18 +334,18 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             ) : null}
             <p className="text-sm font-semibold text-foreground">{t('pages.assets.semantic.title', '素材准备')}</p>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-              素材区按卡片组织素材位、候选和资源来源，并能按类型快速筛选、锁定和补齐。
+              素材区按卡片组织素材需求、候选和资源来源，并能按类型快速筛选、锁定和补齐。
             </p>
           </div>
           <Button size="sm" onClick={startCreate} loading={createSlotMutation.isPending} disabled={!projectId || createSlotMutation.isPending}>
             <Plus size={14} />
-            {createSlotMutation.isPending ? '创建中' : '新建素材位'}
+            {createSlotMutation.isPending ? '创建中' : '新建素材需求'}
           </Button>
         </header>
       )}
       overview={!compact ? (
         <section className="grid grid-cols-4 gap-3">
-            <AssetMetric icon={PackageCheck} label="素材位" value={visibleSlots.length} detail="内容区素材需求" />
+            <AssetMetric icon={PackageCheck} label="素材需求" value={visibleSlots.length} detail="内容区素材需求" />
             <AssetMetric icon={CircleDashed} label="待补齐" value={missingCount} detail="仍缺候选或锁定素材" />
             <AssetMetric icon={Sparkles} label="候选中" value={candidateCount} detail="可作为候选素材" />
             <AssetMetric icon={Lock} label="已锁定" value={lockedCount} detail={`${waivedCount} 个已豁免`} />
@@ -370,7 +370,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             })),
           }]}
           chips={[
-            selectedId ? { id: 'selected', label: `素材位 #${selectedId}`, onRemove: () => setFilter({ asset_slot_id: null, selected: null }) } : null,
+            selectedId ? { id: 'selected', label: `素材需求 #${selectedId}`, onRemove: () => setFilter({ asset_slot_id: null, selected: null }) } : null,
             kindFilter !== 'all' ? { id: 'kind', label: `分类 ${assetKindLabel(kindFilter)}`, onRemove: () => setFilter({ kind: null }) } : null,
           ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
           resultCount={filtered.length}
@@ -383,7 +383,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             {isLoading ? (
               <p className="py-12 text-center text-xs text-muted-foreground">{t('common.loadingShort', '加载中')}</p>
             ) : filtered.length === 0 ? (
-              <EmptyPreview title="暂无素材位" description="从内容、情节或资料页面创建素材位，或手动新建一个候选素材位。" />
+              <EmptyPreview title="暂无素材需求" description="从内容、情景或资料页面创建素材需求，或手动新建一个候选素材需求。" />
             ) : (
               <div className="grid gap-4">
                 {filtered.map((row) => (
@@ -402,13 +402,13 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             record={selected?.slot}
             queryKey={['semantic-asset-slots-page', projectId]}
             editKey={selected?.slot.ID === newSlotEditId ? newSlotEditId : null}
-            title="卡片内编辑素材位"
-            description="直接维护素材位名称、类型、描述、提示词、优先级和归属字段。"
+            title="卡片内编辑素材需求"
+            description="直接维护素材需求名称、类型、描述、提示词、优先级和归属字段。"
             hero={{
               icon: selected ? <SlotKindIcon kind={selected.kind} /> : <Image size={19} />,
-              eyebrow: selected ? assetKindLabel(selected.kind) : '素材位',
-              title: selected?.slot.name || (selected ? `素材位 #${selected.slot.ID}` : '请选择素材位'),
-              subtitle: selected ? slotScopeLabel(selected.slot) : '项目素材位',
+              eyebrow: selected ? assetKindLabel(selected.kind) : '素材需求',
+              title: selected?.slot.name || (selected ? `素材需求 #${selected.slot.ID}` : '请选择素材需求'),
+              subtitle: selected ? slotScopeLabel(selected.slot) : '项目素材需求',
               summary: selected?.slot.description || selected?.slot.prompt_hint || '暂无素材描述。',
               accentClassName: selected ? assetKindMeta[selected.kind].accent : 'from-sky-500/15 via-cyan-500/10 to-teal-500/10',
               status: <SlotStatusBadge status={normalizeSlotStatus(selected?.slot.status)} />,
@@ -445,13 +445,13 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
       bottom={(
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
           <AssetInfoPanel title="归属对象" icon={Database}>
-            <AssetInfoRow label="范围" value={selected ? slotScopeLabel(selected.slot) : '未选择素材位'} />
+            <AssetInfoRow label="范围" value={selected ? slotScopeLabel(selected.slot) : '未选择素材需求'} />
             <AssetInfoRow label="资料" value={selected?.slot.creative_reference_id ? `资料 #${selected.slot.creative_reference_id}` : '未绑定资料'} />
           </AssetInfoPanel>
           <AssetInfoPanel title="候选素材" icon={Sparkles}>
             {selected?.candidates.length ? selected.candidates.slice(0, 4).map((candidate) => (
               <CandidateInfoCard key={candidate.ID} candidate={candidate} />
-            )) : <EmptyPreview title="暂无候选" description="当前素材位还没有候选素材。" />}
+            )) : <EmptyPreview title="暂无候选" description="当前素材需求还没有候选素材。" />}
           </AssetInfoPanel>
           <AssetInfoPanel title="锁定素材" icon={Lock}>
             <AssetInfoRow label="锁定状态" value={selected?.lockedSlot?.name || (selected?.slot.locked_asset_slot_id ? `#${selected.slot.locked_asset_slot_id}` : '未锁定')} />
@@ -491,7 +491,7 @@ function AssetSlotCard({ row, selected, onSelect }: { row: AssetSlotViewModel; s
             <SlotStatusBadge status={normalizeSlotStatus(slot.status)} />
           </div>
           <div className="space-y-1">
-            <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground drop-shadow-sm">{slot.name || `素材位 #${slot.ID}`}</p>
+            <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground drop-shadow-sm">{slot.name || `素材需求 #${slot.ID}`}</p>
             <p className="truncate text-xs text-muted-foreground">{slotScopeLabel(slot)}</p>
           </div>
         </div>
@@ -530,13 +530,13 @@ function AssetSlotDetail({
   onGenerate: () => void
   busy: boolean
 }) {
-  if (!row) return <EmptyPreview title="选择素材位" description="查看缺口、候选和已锁定素材位。" />
+  if (!row) return <EmptyPreview title="选择素材需求" description="查看缺口、候选和已锁定素材需求。" />
   const slot = row.slot
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{slot.name || `素材位 #${slot.ID}`}</p>
+          <p className="text-sm font-semibold text-foreground">{slot.name || `素材需求 #${slot.ID}`}</p>
           <p className="mt-1 text-xs text-muted-foreground">{slotScopeLabel(slot)}</p>
         </div>
         <SlotStatusBadge status={normalizeSlotStatus(slot.status)} />
@@ -548,7 +548,7 @@ function AssetSlotDetail({
         <MiniStat label="状态" value={normalizeSlotStatus(slot.status)} />
         <MiniStat label="类型" value={assetKindLabel(row.kind)} />
         <MiniStat label="优先级" value={slot.priority || 'normal'} />
-        <MiniStat label="锁定素材位" value={row.lockedSlot?.name || (slot.locked_asset_slot_id ? `#${slot.locked_asset_slot_id}` : '未锁定')} />
+        <MiniStat label="锁定素材需求" value={row.lockedSlot?.name || (slot.locked_asset_slot_id ? `#${slot.locked_asset_slot_id}` : '未锁定')} />
       </div>
 
       <section>
@@ -560,7 +560,7 @@ function AssetSlotDetail({
           </Button>
         </div>
         <div className="space-y-2">
-          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description="点击去生成会直接打开当前素材位的灵感激发画布。" /> : null}
+          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description="点击去生成会直接打开当前素材需求的灵感激发画布。" /> : null}
           {row.candidates.map((candidate) => (
             <CandidateRow
               key={candidate.ID}
@@ -596,7 +596,7 @@ function CandidateRow({ candidate, selected, onConfirm, busy }: { candidate: Ass
       <div className="flex gap-2">
         <SlotThumb slot={slot} className="h-14 w-20 rounded border border-border" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{slot?.name || `素材位 #${candidate.candidate_asset_slot_id}`}</p>
+          <p className="truncate text-sm font-medium text-foreground">{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</p>
           <p className="truncate text-xs text-muted-foreground">{candidate.note || candidate.source_type || 'candidate'}</p>
         </div>
       </div>
@@ -674,7 +674,7 @@ function slotScopeLabel(slot: AssetSlotRecord) {
   if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
   if (slot.creative_reference_id) return `资料 #${slot.creative_reference_id}`
   if (slot.resource_id) return `资源 #${slot.resource_id}`
-  return '项目素材位'
+  return '项目素材需求'
 }
 
 function AssetMetric({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: number; detail: string }) {

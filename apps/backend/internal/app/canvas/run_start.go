@@ -82,11 +82,11 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 
 	if len(tasks) == 0 {
 		finishedAt := time.Now()
-		if err := h.db.Model(&run).Updates(map[string]any{"status": "done", "finished_at": &finishedAt}).Error; err != nil {
-			return run, tasks, err
-		}
 		run.Status = "done"
 		run.FinishedAt = &finishedAt
+		if err := h.db.Save(&run).Error; err != nil {
+			return run, tasks, err
+		}
 	} else {
 		go h.ExecuteWorkflowRun(user, cv.ID, run.ID, plan.Order)
 	}

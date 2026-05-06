@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
-import { buildContext } from './contextBuilder.js'
+import { StaticAgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
+import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 
 test('buildContext emits multiple textual system messages instead of one JSON-packed prompt', () => {
   const built = buildContext({
@@ -40,4 +41,72 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
   assert.match(systemMessages[0].content ?? '', /production#4/)
   assert.equal(systemMessages.some((message) => String(message.content).includes('Runtime context JSON')), false)
   assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
+})
+
+test('buildContext gets structured contract through runtime contract resolver', () => {
+  const resolver = new StaticAgentRuntimeContractResolver([
+    {
+      id: 'structured-test-contract',
+      matches: (manifest) => manifest.id === 'structured-test-agent',
+      structuredContract: 'Return only JSON matching schema movscript.structured_test.v1.',
+      toolSchemas: {
+        movscript_structured_test_tool: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+      },
+      requiresStructuredJSON: true,
+    },
+  ])
+  const manifest = {
+    ...DEFAULT_AGENT_MANIFEST,
+    id: 'structured-test-agent',
+    soul: '输出JSON',
+  }
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'movscript_structured_test_tool',
+      source: 'runtime' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+    }],
+  }
+  const built = buildContext({
+    manifest,
+    skills: [],
+    context: {
+      route: { pathname: '/production-orchestrate' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools,
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: '分析剧本',
+    contractResolver: resolver,
+  })
+  const chatTools = buildOpenAIChatTools(tools, resolver.find(manifest))
+
+  assert.match(built.systemPrompt, /Runtime structured contract/)
+  assert.match(built.systemPrompt, /movscript\.structured_test\.v1/)
+  assert.ok(chatTools.some((tool) => tool.function.name === 'movscript_structured_test_tool' && !!tool.function.parameters))
 })

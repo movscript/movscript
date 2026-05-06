@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
+import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -772,6 +773,7 @@ function ParamConfigBuilder({
 export function ModelManagementPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [viewMode, setViewMode] = useState<'providers' | 'gateway'>('providers')
   const [addStep, setAddStep] = useState<'idle' | 'pick' | 'fill'>('idle')
   const [selectedAdapter, setSelectedAdapter] = useState<AdapterDef | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -983,29 +985,42 @@ export function ModelManagementPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">{t('admin.models.title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">{t('admin.models.description')}</p>
         </div>
-        {addStep === 'idle' && (
-          <Button
-            onClick={() => setAddStep('pick')}
-          >
-            <Plus size={14} className="mr-1.5" /> {t('admin.models.addCredential')}
-          </Button>
-        )}
+        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'providers' | 'gateway')}>
+          <TabsList>
+            <TabsTrigger value="providers">{t('admin.models.viewProviders')}</TabsTrigger>
+            <TabsTrigger value="gateway">{t('admin.models.viewGateway')}</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      {addStep === 'pick' && (
+      <div className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+        {viewMode === 'providers'
+          ? t('admin.models.providersHint')
+          : t('admin.models.gatewayHint')}
+      </div>
+
+      {viewMode === 'providers' && addStep === 'idle' && (
+        <div className="flex justify-end">
+          <Button onClick={() => setAddStep('pick')}>
+            <Plus size={14} className="mr-1.5" /> {t('admin.models.addCredential')}
+          </Button>
+        </div>
+      )}
+
+      {viewMode === 'providers' && addStep === 'pick' && (
         <AdapterPicker
           adapters={adapters}
           onPick={(a) => { setSelectedAdapter(a); setAddStep('fill') }}
           onCancel={() => setAddStep('idle')}
         />
       )}
-      {addStep === 'fill' && selectedAdapter && (
+      {viewMode === 'providers' && addStep === 'fill' && selectedAdapter && (
         <CredentialForm
           adapter={selectedAdapter}
           onBack={() => setAddStep('pick')}
@@ -1013,8 +1028,9 @@ export function ModelManagementPage() {
         />
       )}
 
-      <div className="space-y-3">
-        {credentials.map((cred) => {
+      {viewMode === 'providers' && (
+        <div className="space-y-3">
+          {credentials.map((cred) => {
           const testKey = `cred-${cred.ID}`
           const testRes = testResults[testKey]
           const adapter = adapters.find((a) => a.adapter_type === cred.adapter_type)
@@ -1738,12 +1754,48 @@ export function ModelManagementPage() {
           )
         })}
 
-        {credentials.length === 0 && addStep === 'idle' && (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            {t('admin.models.noCredentialsHint')}
-          </p>
-        )}
-      </div>
+          {credentials.length === 0 && addStep === 'idle' && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              {t('admin.models.noCredentialsHint')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {viewMode === 'gateway' && (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayRuleTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayRuleBody')}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayPriorityTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayPriorityBody')}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayBudgetTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayBudgetBody')}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayKeyTitle')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayKeyBody')}</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => window.open('/debug', '_blank')}
+              >
+                {t('admin.models.gatewayOpenDebug')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

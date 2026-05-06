@@ -9,7 +9,9 @@ import (
 )
 
 func (h *Service) failTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, errMsg string) {
-	h.db.Model(task).Updates(map[string]any{"status": "failed", "error": errMsg})
+	task.Status = "failed"
+	task.Error = errMsg
+	_ = h.db.Save(task).Error
 	nd.Status = "failed"
 	nd.Error = errMsg
 	if task.CanvasRunID == nil {
@@ -30,16 +32,20 @@ func (h *Service) updateNodeData(node *model.CanvasNode, nd nodeData) {
 		existing[k] = v
 	}
 	b, _ = json.Marshal(existing)
-	h.db.Model(node).Update("data", string(b))
 	node.Data = string(b)
+	_ = h.db.Save(node).Error
 }
 
 func (h *Service) updateRunStatus(runID *uint) {
 	if runID == nil {
 		return
 	}
+	var run model.CanvasRun
+	if err := h.db.First(&run, *runID).Error; err != nil {
+		return
+	}
 	var tasks []model.CanvasTask
-	h.db.Where("canvas_run_id = ?", *runID).Find(&tasks)
+	h.db.Where("canvas_run_id = ?", run.ID).Find(&tasks)
 	if len(tasks) == 0 {
 		return
 	}
@@ -54,20 +60,20 @@ func (h *Service) updateRunStatus(runID *uint) {
 		}
 	}
 	status := "done"
-	updates := map[string]any{"status": status}
 	if active {
 		status = "running"
-		updates["status"] = status
 	} else {
 		if failed {
 			status = "failed"
-			updates["status"] = status
-			updates["error"] = canvasruntime.CanvasRunTaskFailureSummary(tasks)
+			run.Error = canvasruntime.CanvasRunTaskFailureSummary(tasks)
+		} else {
+			run.Error = ""
 		}
-		finishedAt := time.Now()
-		updates["finished_at"] = &finishedAt
+		t := time.Now()
+		run.FinishedAt = &t
 	}
-	h.db.Model(&model.CanvasRun{}).Where("id = ?", *runID).Updates(updates)
+	run.Status = status
+	_ = h.db.Save(&run).Error
 }
 
 func CanvasRunTaskFailureSummary(tasks []model.CanvasTask) string {

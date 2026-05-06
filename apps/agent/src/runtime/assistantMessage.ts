@@ -12,7 +12,6 @@ import {
 } from './model/modelConfig.js'
 import type { AgentMemory } from './memory/types.js'
 import type { AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from './types.js'
-import { isProductionOrchestrationAnalyzer } from './production/orchestrationContract.js'
 
 export function buildAssistantContent(
   userMessage: string,
@@ -281,13 +280,13 @@ function formatMemoryBlock(memories: AgentMemory[], limit: number): string {
 }
 
 function shouldReturnStructuredJSON(run?: AgentRun): boolean {
+  if (run?.metadata?.runtimeRequiresStructuredJSON === true) return true
   const soul = typeof run?.agentManifest?.soul === 'string' ? run.agentManifest.soul : ''
-  const manifestId = typeof run?.agentManifest?.id === 'string' ? run.agentManifest.id : ''
-  return isProductionOrchestrationAnalyzer(manifestId) || /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(soul)
+  return /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(soul)
 }
 
 function shouldRequireConfiguredModel(run?: AgentRun): boolean {
-  return isProductionOrchestrationAnalyzer(run?.agentManifest?.id)
+  return run?.metadata?.runtimeRequiresConfiguredModel === true
 }
 
 function parseAssistantJSON(content: string): unknown {

@@ -79,11 +79,11 @@ export function SemanticEntityThumbCard({
 }
 
 function kindLabel(kind: CanvasEntityKind) {
-  if (kind === 'segment') return '片段'
-  if (kind === 'scene_moment') return '情节'
-  if (kind === 'creative_reference') return '创作资料'
-  if (kind === 'asset_slot') return '素材位'
-  if (kind === 'content_unit') return '内容单元'
+  if (kind === 'segment') return '剧本段落'
+  if (kind === 'scene_moment') return '情景'
+  if (kind === 'creative_reference') return '设定资料'
+  if (kind === 'asset_slot') return '素材需求'
+  if (kind === 'content_unit') return '制作项'
   if (kind === 'setting') return '设定'
   return '剧本'
 }

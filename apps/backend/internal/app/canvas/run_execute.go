@@ -18,11 +18,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 	var run model.CanvasRun
 	if err := h.db.First(&run, runID).Error; err != nil {
 		finishedAt := time.Now()
-		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
-			"status":      "failed",
-			"error":       "run not found",
-			"finished_at": &finishedAt,
-		})
+		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{"status": "failed", "error": "run not found", "finished_at": &finishedAt})
 		return
 	}
 
@@ -30,11 +26,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 	if snapshotErr != nil {
 		if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
 			finishedAt := time.Now()
-			h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
-				"status":      "failed",
-				"error":       "canvas not found",
-				"finished_at": &finishedAt,
-			})
+			h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{"status": "failed", "error": "canvas not found", "finished_at": &finishedAt})
 			return
 		}
 	}
@@ -133,16 +125,16 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 	if len(workflowOutputs) > 0 {
 		if err := h.persistWorkflowOutputsToResources(ctx, user, cv, runID, workflowOutputs); err != nil {
 			finishedAt := time.Now()
-			h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
-				"status":      "failed",
-				"error":       err.Error(),
-				"finished_at": &finishedAt,
-			})
+			run.Status = "failed"
+			run.Error = err.Error()
+			run.FinishedAt = &finishedAt
+			_ = h.db.Save(&run).Error
 			return
 		}
 	}
 	if raw := canvasruntime.MarshalPortOutputs(workflowOutputs); raw != "" {
-		h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Update("output_values", raw)
+		run.OutputValues = raw
+		_ = h.db.Save(&run).Error
 	}
-	h.updateRunStatus(&runID)
+	h.updateRunStatus(&run.ID)
 }

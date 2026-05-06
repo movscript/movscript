@@ -3,6 +3,7 @@ package semantic
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
@@ -20,24 +21,32 @@ func (s *Service) LoadProjectItem(ctx context.Context, projectID uint, item any,
 }
 
 func (s *Service) CreateItem(ctx context.Context, item any) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(item).Error; err != nil {
-			return err
-		}
-		return model.SyncCoreEntityRelations(tx, item)
-	})
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.Create(item).Error
+	}); err != nil {
+		return err
+	}
+	s.bumpProgressVersion(ctx, projectIDOf(item))
+	return nil
 }
 
 func (s *Service) PatchItem(ctx context.Context, item any, updates map[string]any) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(item).Updates(updates).Error; err != nil {
 			return err
 		}
-		return model.SyncCoreEntityRelations(tx, item)
-	})
+		if err := tx.First(item).Error; err != nil {
+			return err
+		}
+		return tx.Save(item).Error
+	}); err != nil {
+		return err
+	}
+	s.bumpProgressVersion(ctx, projectIDOf(item))
+	return nil
 }
 
 func (s *Service) ReloadItem(ctx context.Context, item any) error {
@@ -45,12 +54,40 @@ func (s *Service) ReloadItem(ctx context.Context, item any) error {
 }
 
 func (s *Service) DeleteItem(ctx context.Context, item any) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Delete(item).Error; err != nil {
-			return err
+	projectID := projectIDOf(item)
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.Delete(item).Error
+	}); err != nil {
+		return err
+	}
+	s.bumpProgressVersion(ctx, projectID)
+	return nil
+}
+
+func projectIDOf(item any) uint {
+	value := reflect.ValueOf(item)
+	if !value.IsValid() {
+		return 0
+	}
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return 0
 		}
-		return model.DeleteCoreEntityRelations(tx, item)
-	})
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return 0
+	}
+	field := value.FieldByName("ProjectID")
+	if !field.IsValid() {
+		return 0
+	}
+	switch field.Kind() {
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return uint(field.Uint())
+	default:
+		return 0
+	}
 }
 
 func (s *Service) ensureProductionInProject(ctx context.Context, projectID uint, productionID uint) error {

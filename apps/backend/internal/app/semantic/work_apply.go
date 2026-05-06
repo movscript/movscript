@@ -18,14 +18,14 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 		ApplyWorkItemUpdates(&next, updates)
 		next.ResultType = fallbackString(next.ResultType, "none")
 		if next.ResultType == "none" {
-			updates["apply_status"] = "not_applicable"
-			updates["applied_at"] = ""
-			updates["apply_error"] = ""
+			next.ApplyStatus = "not_applicable"
+			next.AppliedAt = ""
+			next.ApplyError = ""
 		} else {
-			updates["apply_status"] = "pending"
-			updates["apply_error"] = ""
+			next.ApplyStatus = "pending"
+			next.ApplyError = ""
 		}
-		if err := tx.Model(item).Updates(updates).Error; err != nil {
+		if err := tx.Save(&next).Error; err != nil {
 			return err
 		}
 		if next.ResultType != "none" {
@@ -33,11 +33,10 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 			if applyErr != nil {
 				return applyErr
 			}
-			if err := tx.Model(item).Updates(map[string]any{
-				"apply_status": "applied",
-				"applied_at":   now,
-				"apply_error":  "",
-			}).Error; err != nil {
+			next.ApplyStatus = "applied"
+			next.AppliedAt = now
+			next.ApplyError = ""
+			if err := tx.Save(&next).Error; err != nil {
 				return err
 			}
 		}
@@ -45,11 +44,11 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 	})
 	if err != nil {
 		if applyErr != nil {
-			_ = s.db.WithContext(ctx).Model(item).Updates(map[string]any{
-				"apply_status": "failed",
-				"apply_error":  applyErr.Error(),
-			}).Error
-			return *item, ErrInvalidInput{Err: applyErr}
+			failed := *item
+			failed.ApplyStatus = "failed"
+			failed.ApplyError = applyErr.Error()
+			_ = s.db.WithContext(ctx).Save(&failed).Error
+			return failed, ErrInvalidInput{Err: applyErr}
 		}
 		return *item, err
 	}
@@ -110,30 +109,29 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	if candidate.CandidateAssetSlot == nil {
 		return errors.New("素材候选缺少候选素材位")
 	}
-	if err := tx.Model(&model.AssetSlot{}).
-		Where("project_id = ? AND id = ?", projectID, item.TargetID).
-		Updates(map[string]any{
-			"status":               "locked",
-			"locked_asset_slot_id": candidate.CandidateAssetSlotID,
-			"resource_id":          candidate.CandidateAssetSlot.ResourceID,
-		}).Error; err != nil {
+	var targetSlot model.AssetSlot
+	if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&targetSlot).Error; err != nil {
 		return err
 	}
-	var targetSlot model.AssetSlot
-	if err := tx.First(&targetSlot, item.TargetID).Error; err == nil {
-		if err := model.SyncCoreEntityRelations(tx, &targetSlot); err != nil {
+	lockedAssetSlotID := candidate.CandidateAssetSlotID
+	targetSlot.Status = "locked"
+	targetSlot.LockedAssetSlotID = &lockedAssetSlotID
+	targetSlot.ResourceID = candidate.CandidateAssetSlot.ResourceID
+	if err := tx.Save(&targetSlot).Error; err != nil {
+		return err
+	}
+	var rejected []model.AssetSlotCandidate
+	if err := tx.Where("project_id = ? AND asset_slot_id = ? AND id <> ?", projectID, item.TargetID, candidate.ID).Find(&rejected).Error; err != nil {
+		return err
+	}
+	for i := range rejected {
+		rejected[i].Status = "rejected"
+		if err := tx.Save(&rejected[i]).Error; err != nil {
 			return err
 		}
 	}
-	if err := tx.Model(&model.AssetSlotCandidate{}).
-		Where("project_id = ? AND asset_slot_id = ? AND id <> ?", projectID, item.TargetID, candidate.ID).
-		Update("status", "rejected").Error; err != nil {
-		return err
-	}
-	if err := tx.Model(&candidate).Update("status", "selected").Error; err != nil {
-		return err
-	}
-	if err := model.SyncCoreEntityRelations(tx, &candidate); err != nil {
+	candidate.Status = "selected"
+	if err := tx.Save(&candidate).Error; err != nil {
 		return err
 	}
 	targetID := item.TargetID
@@ -154,9 +152,6 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	if err := tx.Create(&decision).Error; err != nil {
 		return err
 	}
-	if err := model.SyncCoreEntityRelations(tx, &decision); err != nil {
-		return err
-	}
 	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
 }
 
@@ -164,26 +159,45 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 	if item.TargetType != targetType {
 		return errors.New("任务结果类型与目标类型不匹配")
 	}
-	var target any
 	switch targetType {
 	case "content_unit":
-		target = &model.ContentUnit{}
-	case "keyframe":
-		target = &model.Keyframe{}
-	case "asset_slot":
-		target = &model.AssetSlot{}
-	case "delivery_version":
-		target = &model.DeliveryVersion{}
-	default:
-		return errors.New("该目标类型暂不支持由任务结果更新状态")
-	}
-	if err := tx.Model(target).Where("project_id = ? AND id = ?", projectID, item.TargetID).Update("status", status).Error; err != nil {
-		return err
-	}
-	if err := tx.First(target, item.TargetID).Error; err == nil {
-		if err := model.SyncCoreEntityRelations(tx, target); err != nil {
+		var target model.ContentUnit
+		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
 		}
+		target.Status = status
+		if err := tx.Save(&target).Error; err != nil {
+			return err
+		}
+	case "keyframe":
+		var target model.Keyframe
+		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
+			return err
+		}
+		target.Status = status
+		if err := tx.Save(&target).Error; err != nil {
+			return err
+		}
+	case "asset_slot":
+		var target model.AssetSlot
+		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
+			return err
+		}
+		target.Status = status
+		if err := tx.Save(&target).Error; err != nil {
+			return err
+		}
+	case "delivery_version":
+		var target model.DeliveryVersion
+		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
+			return err
+		}
+		target.Status = status
+		if err := tx.Save(&target).Error; err != nil {
+			return err
+		}
+	default:
+		return errors.New("该目标类型暂不支持由任务结果更新状态")
 	}
 	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
 }
@@ -210,7 +224,7 @@ func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.Wo
 	if err := tx.Create(&event).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(tx, &event)
+	return nil
 }
 
 func workItemApplyMetadata(workItemID uint) string {

@@ -45,23 +45,24 @@ func newHandlers(deps Dependencies) handlers {
 	tokens := deps.Tokens
 	registry := deps.Registry
 	aiService := deps.AIService
+	cacheStore := deps.Cache
 
 	return handlers{
-		projects:         handler.NewProjectHandler(db),
-		scripts:          handler.NewScriptHandler(db),
+		projects:         handler.NewProjectHandler(db, cacheStore),
+		scripts:          handler.NewScriptHandler(db, cacheStore),
 		artifactRefs:     handler.NewArtifactRefHandler(db),
 		settings:         handler.NewSettingHandler(db),
 		users:            handler.NewUserHandler(db),
 		auth:             handler.NewAuthHandlerWithConfig(db, tokens, cfg),
 		ai:               handler.NewAIHandler(db, cfg.EncryptionKey, registry),
-		resources:        handler.NewResourceHandler(db, store),
+		resources:        handler.NewResourceHandler(db, store, cacheStore),
 		resourceBindings: handler.NewResourceBindingHandler(db),
-		semanticEntities: handler.NewSemanticEntityHandler(db),
+		semanticEntities: handler.NewSemanticEntityHandler(db, cacheStore),
 		preview:          handler.NewPreviewHandler(db),
-		resourceFolders:  handler.NewResourceFolderHandler(db),
+		resourceFolders:  handler.NewResourceFolderHandler(db, cacheStore),
 		resourceAdmin:    handler.NewResourceAdminHandler(db, store),
 		canvases:         handler.NewCanvasHandler(db, registry, aiService, store),
-		models:           handler.NewModelsHandler(aiService),
+		models:           handler.NewModelsHandler(aiService, cacheStore),
 		feature:          handler.NewFeatureHandler(db),
 		jobs:             handler.NewJobHandler(db, aiService),
 		chat:             handler.NewChatHandler(aiService),

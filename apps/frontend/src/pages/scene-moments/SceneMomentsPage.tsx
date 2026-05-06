@@ -287,17 +287,17 @@ export default function SceneMomentsPage() {
               <ChevronRight size={13} />
               <span>内容区</span>
               <ChevronRight size={13} />
-              <span>情节</span>
+              <span>情景</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">情节</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">情景</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              情节属于某一个片段，提供时间、地点、条件、动作和情绪上下文；资料和素材从这里向下游内容单元与生产任务传递。
+              情景属于某一个剧本段落，提供时间、地点、条件、动作和情绪上下文；资料和素材从这里向下游制作项与生产任务传递。
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button className="gap-2" onClick={startCreateMoment}>
               <Plus size={15} />
-              新建情节
+              新建情景
             </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
               <RefreshCcw size={15} />
@@ -320,8 +320,8 @@ export default function SceneMomentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Film} label="情节" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="text-teal-600" />
-          <MetricCard icon={Layers3} label="所属片段" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情节通过片段进入制作结构" tone="text-cyan-600" />
+          <MetricCard icon={Film} label="情景" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="text-teal-600" />
+          <MetricCard icon={Layers3} label="所属剧本段落" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情景通过剧本段落进入制作结构" tone="text-cyan-600" />
           <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="text-emerald-600" />
           <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
           </section>
@@ -330,7 +330,7 @@ export default function SceneMomentsPage() {
           <ContentFilterBar
           query={query}
           onQueryChange={(value) => setFilter({ q: value })}
-          queryPlaceholder="搜索情节、片段、资料、素材或内容"
+          queryPlaceholder="搜索情景、剧本段落、资料、素材或内容"
           filters={[
             {
               id: 'status',
@@ -338,7 +338,7 @@ export default function SceneMomentsPage() {
               value: statusFilter,
               onChange: (value) => setFilter({ status: value }),
               options: [
-                { value: 'all', label: '全部情节', count: momentWorkspaces.length },
+                { value: 'all', label: '全部情景', count: momentWorkspaces.length },
                 { value: 'ready', label: '可推进', count: readyCount },
                 { value: 'attention', label: '待处理', count: attentionCount },
                 { value: 'confirmed', label: '已确认', count: momentWorkspaces.filter((item) => item.moment.status === 'confirmed').length },
@@ -346,11 +346,11 @@ export default function SceneMomentsPage() {
             },
             {
               id: 'segment',
-              label: '片段',
+              label: '剧本段落',
               value: segmentFilterId ? String(segmentFilterId) : 'all',
               onChange: (value) => setFilter({ segment_id: value === 'all' ? null : value, scene_moment_id: null }),
               options: [
-                { value: 'all', label: '全部片段', count: momentWorkspaces.length },
+                { value: 'all', label: '全部剧本段落', count: momentWorkspaces.length },
                 ...segments.map((segment) => ({
                   value: String(segment.ID),
                   label: titleOf(segment),
@@ -360,22 +360,22 @@ export default function SceneMomentsPage() {
             },
           ]}
           chips={[
-            selectedMomentId ? { id: 'moment', label: `情节 #${selectedMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
+            selectedMomentId ? { id: 'moment', label: `情景 #${selectedMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
             contentUnitFilterId ? { id: 'content', label: `内容 #${contentUnitFilterId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
             referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
-            assetSlotFilterId ? { id: 'asset', label: `素材位 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
+            assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
           ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
           resultCount={filteredMoments.length}
           totalCount={momentWorkspaces.length}
           />
         )}
         list={(
-            <Panel title="情节列表" icon={Route}>
+            <Panel title="情景列表" icon={Route}>
               <div className="max-h-[760px] space-y-2 overflow-auto pr-1">
                 {isLoading ? (
-                  <EmptyState title="正在加载情节" detail="读取情节和上游片段" compact />
+                  <EmptyState title="正在加载情景" detail="读取情景和上游剧本段落" compact />
                 ) : filteredMoments.length === 0 ? (
-                  <EmptyState title="暂无情节" detail="可从片段页或剧本拆解生成情节" compact />
+                  <EmptyState title="暂无情景" detail="可从剧本段落页或剧本拆解生成情景" compact />
                 ) : (
                   filteredMoments.map((item) => (
                     <MomentButton
@@ -393,7 +393,7 @@ export default function SceneMomentsPage() {
           <Panel title="内容设计" icon={Boxes}>
             <RelatedList
               records={selected?.contentUnits ?? []}
-              empty="当前情节暂无内容单元"
+              empty="当前情景暂无制作项"
               onSelect={(record) => setFilter({ content_unit_id: record.ID })}
             />
           </Panel>
@@ -414,24 +414,24 @@ export default function SceneMomentsPage() {
               record={creatingMoment ? null : selected?.moment}
               defaults={creatingMoment ? { segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, order: momentWorkspaces.length + 1, status: 'draft' } : undefined}
               queryKey={['semantic-scene-moment-page', projectId]}
-              title={creatingMoment ? '新建情节' : '卡片内编辑情节'}
-              description="直接维护情节标题、时空、条件、动作和情绪；引用关系不在这里重写。"
+              title={creatingMoment ? '新建情景' : '卡片内编辑情景'}
+              description="直接维护情景标题、时空、条件、动作和情绪；引用关系不在这里重写。"
               hero={{
                 icon: <Film size={19} />,
-                eyebrow: selected?.segment ? titleOf(selected.segment) : '未绑定片段',
-                title: creatingMoment ? '新建情节' : selected ? titleOf(selected.moment) : '新建情节',
-                subtitle: creatingMoment ? '项目情节' : selected ? `情节 #${selected.moment.ID}` : '项目情节',
-                summary: creatingMoment ? '补充时间、地点、条件、动作和情绪后，情节就可以承接内容单元与素材需求。' : selected?.moment.description || selected?.moment.action_text || '暂无情节描述。',
+                eyebrow: selected?.segment ? titleOf(selected.segment) : '未绑定剧本段落',
+                title: creatingMoment ? '新建情景' : selected ? titleOf(selected.moment) : '新建情景',
+                subtitle: creatingMoment ? '项目情景' : selected ? `情景 #${selected.moment.ID}` : '项目情景',
+                summary: creatingMoment ? '补充时间、地点、条件、动作和情绪后，情景就可以承接制作项与素材需求。' : selected?.moment.description || selected?.moment.action_text || '暂无情景描述。',
                 accentClassName: 'from-teal-500/15 via-cyan-500/10 to-emerald-500/10',
                 status: <StatusBadge status={creatingMoment ? 'draft' : selected?.moment.status ?? 'draft'} />,
                 stats: selected && !creatingMoment ? [
                   { label: '时间', value: selected.moment.time_text || '未设定' },
                   { label: '地点', value: selected.moment.location_text || '未设定' },
-                  { label: '内容单元', value: selected.contentUnits.length },
+                  { label: '制作项', value: selected.contentUnits.length },
                   { label: '准备度', value: `${selected.readiness}%` },
                 ] : [
                   { label: '默认状态', value: '草稿' },
-                  { label: '所属片段', value: selected?.segment ? titleOf(selected.segment) : '未绑定' },
+                  { label: '所属剧本段落', value: selected?.segment ? titleOf(selected.segment) : '未绑定' },
                   { label: '顺序', value: momentWorkspaces.length + 1 },
                   { label: '准备度', value: '0%' },
                 ],
@@ -451,24 +451,24 @@ export default function SceneMomentsPage() {
         downstream={<div />}
         bottom={(
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <Panel title="涉及到的创作资料" icon={Sparkles}>
+            <Panel title="涉及到的设定资料" icon={Sparkles}>
               <RelatedList
                 records={selected?.references ?? []}
-                empty="当前情节暂无资料使用"
+                empty="当前情景暂无资料使用"
                 onSelect={(record) => setFilter({ reference_id: record.ID })}
               />
             </Panel>
             <Panel title="所需要的素材" icon={PackageCheck}>
               <RelatedList
                 records={selected?.assetSlots ?? []}
-                empty="当前情节暂无素材需求"
+                empty="当前情景暂无素材需求"
                 onSelect={(record) => setFilter({ asset_slot_id: record.ID })}
               />
             </Panel>
-            <Panel title="需要产出的内容单元" icon={Boxes}>
+            <Panel title="需要产出的制作项" icon={Boxes}>
               <RelatedList
                 records={selected?.contentUnits ?? []}
-                empty="当前情节暂无内容单元"
+                empty="当前情景暂无制作项"
                 onSelect={(record) => setFilter({ content_unit_id: record.ID })}
               />
             </Panel>
@@ -502,11 +502,11 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{titleOf(item.moment)}</p>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.segment ? titleOf(item.segment) : '未绑定片段'}</p>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.segment ? titleOf(item.segment) : '未绑定剧本段落'}</p>
         </div>
         <StatusBadge status={item.moment.status ?? 'draft'} />
       </div>
-      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情节描述'}</p>
+      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情景描述'}</p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         <MiniStat label="内容" value={item.contentUnits.length} />
         <MiniStat label="资料" value={item.references.length} />

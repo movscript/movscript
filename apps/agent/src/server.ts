@@ -11,6 +11,12 @@ import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from './runtim
 import { ProductionRuntime } from './production/runtime.js'
 import { FileProductionStore, resolveProductionStatePath } from './production/store.js'
 import { ProductionPreviewSemanticFallbackClient } from './production/semanticFallbackClient.js'
+import {
+  StaticAgentRuntimeContractResolver,
+} from './runtime/contracts/runtimeContract.js'
+import {
+  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+} from './production/orchestrationContract.js'
 import type { JSONValue } from './types.js'
 
 const port = Number(process.env.MOVSCRIPT_AGENT_PORT || 28765)
@@ -30,6 +36,10 @@ const productionRuntime = new ProductionRuntime({
   store: new FileProductionStore(productionStatePath),
   semanticFallbackClient: productionSemanticFallbackClient,
 })
+const runtimeContractResolver = new StaticAgentRuntimeContractResolver([
+  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+])
+
 const agentRuntime = new AgentRuntime({
   mcpClient: client,
   store: new FileAgentStore(statePath),
@@ -39,6 +49,7 @@ const agentRuntime = new AgentRuntime({
   defaultAgentManifest: pluginCatalog.manifest,
   skillCatalog: pluginCatalog.skills,
   toolRegistry: pluginCatalog.registry,
+  contractResolver: runtimeContractResolver,
   pluginCatalogInfo: {
     skillsDir: pluginCatalog.skillsDir,
     toolsDir: pluginCatalog.toolsDir,

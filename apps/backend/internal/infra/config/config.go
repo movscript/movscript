@@ -31,6 +31,15 @@ type Config struct {
 	CORSAllowedOrigins []string
 	AdminStaticDir     string
 
+	// Cache
+	CacheBackend   string
+	CacheKeyPrefix string
+	RedisURL       string
+	RedisAddr      string
+	RedisUsername  string
+	RedisPassword  string
+	RedisDB        int
+
 	// Object storage
 	StorageBackend string
 
@@ -69,6 +78,14 @@ func Load() *Config {
 		HubAdminToken:      getEnv("HUB_ADMIN_TOKEN", ""),
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
 		AdminStaticDir:     getEnv("MOVSCRIPT_ADMIN_DIR", "admin"),
+
+		CacheBackend:   getEnv("CACHE_BACKEND", "noop"),
+		CacheKeyPrefix: getEnv("CACHE_KEY_PREFIX", "movscript"),
+		RedisURL:       getEnv("REDIS_URL", ""),
+		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisUsername:  getEnv("REDIS_USERNAME", ""),
+		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
+		RedisDB:        getEnvInt("REDIS_DB", 0),
 
 		StorageBackend:        getEnv("STORAGE_BACKEND", "minio"),
 		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", dataDir+"/resources"),
@@ -116,6 +133,14 @@ func (c *Config) ValidateStartup() error {
 	default:
 		problems = append(problems, "STORAGE_BACKEND must be one of: minio, filesystem")
 	}
+	switch c.CacheBackend {
+	case "", "noop", "memory", "redis":
+	default:
+		problems = append(problems, "CACHE_BACKEND must be one of: noop, memory, redis")
+	}
+	if c.CacheBackend == "redis" && c.RedisURL == "" && c.RedisAddr == "" {
+		problems = append(problems, "REDIS_URL or REDIS_ADDR is required when CACHE_BACKEND=redis")
+	}
 	if len(problems) > 0 {
 		return errors.New("invalid startup configuration: " + joinProblems(problems))
 	}
@@ -144,6 +169,11 @@ func (c *Config) SafeSummary() map[string]any {
 		"auth_secret_set":      c.AuthTokenSecret != "",
 		"hub_admin_token_set":  c.HubAdminToken != "",
 		"admin_static_dir":     c.AdminStaticDir,
+		"cache_backend":        c.CacheBackend,
+		"cache_key_prefix":     c.CacheKeyPrefix,
+		"redis_addr":           c.RedisAddr,
+		"redis_url_set":        c.RedisURL != "",
+		"redis_db":             c.RedisDB,
 	}
 }
 

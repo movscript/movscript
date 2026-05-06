@@ -6,14 +6,15 @@ import (
 	"github.com/gin-gonic/gin"
 	modelsapp "github.com/movscript/movscript/internal/app/models"
 	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/cache"
 )
 
 type ModelsHandler struct {
 	service *modelsapp.Service
 }
 
-func NewModelsHandler(svc *ai.AIService) *ModelsHandler {
-	return &ModelsHandler{service: modelsapp.NewService(svc)}
+func NewModelsHandler(svc *ai.AIService, cacheStore ...cache.Cache) *ModelsHandler {
+	return &ModelsHandler{service: modelsapp.NewService(svc, cacheStore...)}
 }
 
 // ListByCapability returns enabled models for the given capability or feature.

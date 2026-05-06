@@ -47,6 +47,20 @@ services:
       exit 0;
       "
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -64,6 +78,10 @@ services:
       SERVER_PORT: "${SERVER_PORT:-8765}"
       ENCRYPTION_KEY: "${ENCRYPTION_KEY:-233e37b8dc5fb65011b8665844002fe1973c3c9fddbc7c72c8290d67d1dc0bce}"
       MCP_TOKEN: "${MCP_TOKEN:-}"
+      CACHE_BACKEND: "${CACHE_BACKEND:-noop}"
+      CACHE_KEY_PREFIX: "${CACHE_KEY_PREFIX:-movscript}"
+      REDIS_ADDR: redis:6379
+      REDIS_DB: "${REDIS_DB:-0}"
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -78,3 +96,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redisdata:

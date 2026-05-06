@@ -2,6 +2,16 @@ export { executeDeterministicProductionAction } from './deterministicExecutor.js
 export { ProductionRuntime, normalizeProductionAction } from './runtime.js'
 export { FileProductionStore, InMemoryProductionStore, resolveProductionStatePath } from './store.js'
 export { DisabledProductionSemanticFallbackClient, ProductionPreviewSemanticFallbackClient } from './semanticFallbackClient.js'
+export {
+  CHECK_ENTITY_CONFLICTS_SCHEMA,
+  PRODUCTION_ORCHESTRATE_ANALYZER_ID,
+  PRODUCTION_ORCHESTRATION_CONTRACT,
+  PRODUCTION_ORCHESTRATION_OUTPUT_SCHEMA,
+  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+  PROPOSE_PRODUCTION_ENTITIES_SCHEMA,
+  READ_PRODUCTION_CONTEXT_SCHEMA,
+  isProductionOrchestrationAnalyzer,
+} from './orchestrationContract.js'
 export type { ProductionSemanticFallbackClient, ProductionSemanticFallbackResult } from './semanticFallbackClient.js'
 export type {
   CreateProductionActionInput,

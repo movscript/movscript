@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
@@ -18,8 +19,8 @@ type ProjectHandler struct {
 	projects *projectapp.Service
 }
 
-func NewProjectHandler(db *gorm.DB) *ProjectHandler {
-	return &ProjectHandler{db: db, projects: projectapp.NewService(db)}
+func NewProjectHandler(db *gorm.DB, cacheStore ...cache.Cache) *ProjectHandler {
+	return &ProjectHandler{db: db, projects: projectapp.NewService(db, cacheStore...)}
 }
 
 func currentOrgID(c *gin.Context) *uint {

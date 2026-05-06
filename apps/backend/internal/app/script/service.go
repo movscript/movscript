@@ -3,10 +3,12 @@ package script
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	dto "github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
 
@@ -16,11 +18,19 @@ var (
 )
 
 type Service struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache cache.Cache
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
+	var c cache.Cache
+	if len(cacheStore) > 0 {
+		c = cacheStore[0]
+	}
+	if c == nil {
+		c = cache.NewNoop()
+	}
+	return &Service{db: db, cache: c}
 }
 
 type ListFilter struct {
@@ -73,6 +83,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.Script, 
 	if err := s.ensureInitialVersion(ctx, &item, input.CreatedByID); err != nil {
 		return item, wrapVersionSync(err)
 	}
+	s.bumpProgressVersion(ctx, item.ProjectID)
 	return item, nil
 }
 
@@ -102,11 +113,18 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.Script, 
 	if err := s.ensureInitialVersion(ctx, &item, input.UpdatedByID); err != nil {
 		return item, wrapVersionSync(err)
 	}
+	s.bumpProgressVersion(ctx, item.ProjectID)
 	return item, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Delete(&model.Script{}, id).Error
+	var item model.Script
+	_ = s.db.WithContext(ctx).Select("id, project_id").First(&item, id).Error
+	if err := s.db.WithContext(ctx).Delete(&model.Script{}, id).Error; err != nil {
+		return err
+	}
+	s.bumpProgressVersion(ctx, item.ProjectID)
+	return nil
 }
 
 func (s *Service) Patch(ctx context.Context, input PatchInput) (model.Script, error) {
@@ -131,7 +149,15 @@ func (s *Service) Patch(ctx context.Context, input PatchInput) (model.Script, er
 	if err := s.ensureInitialVersion(ctx, &item, input.UpdatedByID); err != nil {
 		return item, wrapVersionSync(err)
 	}
+	s.bumpProgressVersion(ctx, item.ProjectID)
 	return item, nil
+}
+
+func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
+	if projectID == 0 {
+		return
+	}
+	_, _ = s.cache.BumpVersion(ctx, fmt.Sprintf("project:%d:progress", projectID))
 }
 
 func NormalizeDefaults(item *model.Script) {

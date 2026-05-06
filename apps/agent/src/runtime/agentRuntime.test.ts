@@ -11,7 +11,10 @@ import { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from './manifest/agentManifest.js'
 import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from './store/backendApplyClient.js'
 import type { ApplyDraftReview } from './store/draftApply.js'
-import { PRODUCTION_ORCHESTRATE_ANALYZER_ID } from './production/orchestrationContract.js'
+import {
+  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+} from '../production/orchestrationContract.js'
+import { StaticAgentRuntimeContractResolver } from './contracts/runtimeContract.js'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
 
@@ -1099,9 +1102,12 @@ test('production orchestration analyzer uses JSON mode and structured tool schem
       mcpClient: client,
       defaultAgentManifest: {
         ...DEFAULT_AGENT_MANIFEST,
-        id: PRODUCTION_ORCHESTRATE_ANALYZER_ID,
+        id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
         soul: '输出JSON',
       },
+      contractResolver: new StaticAgentRuntimeContractResolver([
+        PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
+      ]),
     })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
     await createAndWaitForRun(runtime, thread.id)

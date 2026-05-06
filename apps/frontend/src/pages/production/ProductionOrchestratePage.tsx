@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
@@ -22,11 +22,13 @@ import {
   X,
   CheckCheck,
   Check,
-  Diff,
   LayoutList,
   AlertCircle,
   CheckCircle2,
   ChevronUp,
+  Info,
+  Layers3,
+  Target,
 } from 'lucide-react'
 
 import {
@@ -52,6 +54,13 @@ import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, Select
 
 type EntityFilter = 'all' | 'segments' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
 type AnalysisScope = 'production' | 'segments' | 'segmentAnalysis' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
+type RailItem = {
+  id: number
+  title: string
+  detail: string
+  meta: string[]
+  status: string
+}
 
 type SegmentRecord = SemanticEntityRecord & {
   production_id?: number
@@ -248,16 +257,6 @@ interface AnalysisTarget {
   entityId?: number | null
 }
 
-const analysisScopeLabels: Record<AnalysisScope, string> = {
-  production: '总编排',
-  segments: '片段拆分',
-  segmentAnalysis: '片段分析',
-  sceneMoments: '情节分析',
-  creativeReferences: '创作资料分析',
-  assetSlots: '素材需求',
-  contentUnits: '内容单元分析',
-}
-
 interface OrchestrationLookup {
   scriptText: string
   scriptVersionTitle: string
@@ -271,17 +270,24 @@ interface OrchestrationLookup {
   assetSlotsByReferenceId: Map<number, AssetSlotRecord[]>
 }
 
+interface OverviewMetric {
+  icon: LucideIcon
+  label: string
+  value: number | string
+  tone?: 'muted' | 'ok' | 'warn'
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
 const filterDefs: { key: EntityFilter; label: string; icon: LucideIcon }[] = [
-  { key: 'all', label: '总编排', icon: LayoutList },
-  { key: 'segments', label: '片段拆分', icon: GitBranch },
-  { key: 'sceneMoments', label: '情节分析', icon: Route },
-  { key: 'creativeReferences', label: '创作资料分析', icon: Sparkles },
-  { key: 'assetSlots', label: '素材需求', icon: PackageCheck },
-  { key: 'contentUnits', label: '内容单元分析', icon: Film },
+  { key: 'all', label: '全局结构', icon: LayoutList },
+  { key: 'segments', label: '剧本段落结构', icon: GitBranch },
+  { key: 'sceneMoments', label: '情景结构', icon: Route },
+  { key: 'creativeReferences', label: '资料梳理', icon: Sparkles },
+  { key: 'assetSlots', label: '素材缺口', icon: PackageCheck },
+  { key: 'contentUnits', label: '制作项', icon: Film },
 ]
 
 const statusTone: Record<string, string> = {
@@ -306,7 +312,7 @@ const statusLabel: Record<string, string> = {
 }
 
 const segmentKindLabel: Record<string, string> = {
-  section: '片段', scene: '场次', montage: '蒙太奇', narration: '旁白',
+  section: '剧本段落', scene: '场次', montage: '蒙太奇', narration: '旁白',
   product_showcase: '产品展示', title_card: '标题卡', transition: '转场',
 }
 
@@ -356,15 +362,14 @@ export default function ProductionOrchestratePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const productionId = Number(searchParams.get('productionId')) || 0
 
-  const [filter, setFilter] = useState<EntityFilter>('all')
-  const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null)
+  const [filter, setFilter] = useState<EntityFilter>('segments')
+  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [createType, setCreateType] = useState<EntityFilter | null>(null)
   const [editEntry, setEditEntry] = useState<{ type: EntityFilter; record: SemanticEntityRecord } | null>(null)
   const [candidates, setCandidates] = useState<TrackedCandidates | null>(null)
-  const [showDiff, setShowDiff] = useState(false)
-  const [aiPanelOpen, setAIPanelOpen] = useState(false)
-  const [analysisTarget, setAnalysisTarget] = useState<AnalysisTarget>({ scope: 'production' })
+  const [aiPanelOpen, setAIPanelOpen] = useState(true)
+  const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
 
   const queryKey = ['production-orchestrate', projectId] as const
   const scriptVersionsQueryKey = ['production-orchestrate-script-versions', projectId] as const
@@ -422,14 +427,138 @@ export default function ProductionOrchestratePage() {
     assetSlots: allAssetSlots,
     contentUnits: allContentUnits,
   }), [allAssetSlots, allCreativeReferences, allContentUnits, allSceneMoments, allSegments, data?.creativeReferenceUsages, scriptText, selectedScriptVersion?.title])
-  const selectedSegment = allSegments.find((segment) => segment.ID === selectedSegmentId) ?? allSegments[0] ?? null
-  const selectedSceneMoment = selectedSegment ? allSceneMoments.find((moment) => moment.segment_id === selectedSegment.ID) ?? null : null
+  const selectedSegment = allSegments.find((segment) => segment.ID === selectedEntityId) ?? allSegments[0] ?? null
+  const selectedSceneMoment = allSceneMoments.find((moment) => moment.ID === selectedEntityId) ?? allSceneMoments[0] ?? null
+  const selectedCreativeReference = allCreativeReferences.find((reference) => reference.ID === selectedEntityId) ?? allCreativeReferences[0] ?? null
+  const selectedAssetSlot = allAssetSlots.find((slot) => slot.ID === selectedEntityId) ?? allAssetSlots[0] ?? null
+  const selectedContentUnit = allContentUnits.find((unit) => unit.ID === selectedEntityId) ?? allContentUnits[0] ?? null
+
+  function getFirstEntityIdByFilter(nextFilter: EntityFilter) {
+    if (nextFilter === 'segments') return allSegments[0]?.ID ?? null
+    if (nextFilter === 'sceneMoments') return allSceneMoments[0]?.ID ?? null
+    if (nextFilter === 'creativeReferences') return allCreativeReferences[0]?.ID ?? null
+    if (nextFilter === 'assetSlots') return allAssetSlots[0]?.ID ?? null
+    if (nextFilter === 'contentUnits') return allContentUnits[0]?.ID ?? null
+    return null
+  }
+
+  function handleFilterChange(nextFilter: EntityFilter) {
+    setFilter(nextFilter)
+    setSelectedEntityId(getFirstEntityIdByFilter(nextFilter))
+  }
+
+  function getSelectedRecordLabel() {
+    if (filter === 'segments') return selectedSegment ? titleOfRecord(selectedSegment) : '未选择剧本段落'
+    if (filter === 'sceneMoments') return selectedSceneMoment ? titleOfRecord(selectedSceneMoment) : '未选择情景'
+    if (filter === 'creativeReferences') return selectedCreativeReference ? titleOfRecord(selectedCreativeReference) : '未选择资料'
+    if (filter === 'assetSlots') return selectedAssetSlot ? titleOfRecord(selectedAssetSlot) : '未选择素材'
+    if (filter === 'contentUnits') return selectedContentUnit ? titleOfRecord(selectedContentUnit) : '未选择制作项'
+    return '未选择对象'
+  }
+
+  function getSelectedRecordSummary() {
+    if (filter === 'segments') return String(selectedSegment?.summary ?? selectedSegment?.content ?? '暂无摘要')
+    if (filter === 'sceneMoments') {
+      return [
+        selectedSceneMoment?.time_text ? `时间：${selectedSceneMoment.time_text}` : '',
+        selectedSceneMoment?.location_text ? `地点：${selectedSceneMoment.location_text}` : '',
+        selectedSceneMoment?.action_text ? selectedSceneMoment.action_text : '',
+      ].filter(Boolean).join(' · ') || '暂无说明'
+    }
+    if (filter === 'creativeReferences') return String(selectedCreativeReference?.description ?? '暂无说明')
+    if (filter === 'assetSlots') return String(selectedAssetSlot?.description ?? '暂无说明')
+    if (filter === 'contentUnits') {
+      return [
+        selectedContentUnit?.shot_size ? `景别：${selectedContentUnit.shot_size}` : '',
+        selectedContentUnit?.camera_angle ? `机位：${selectedContentUnit.camera_angle}` : '',
+        selectedContentUnit?.camera_motion ? `运镜：${selectedContentUnit.camera_motion}` : '',
+        selectedContentUnit?.description ? selectedContentUnit.description : '',
+      ].filter(Boolean).join(' · ') || '暂无说明'
+    }
+    return '暂无说明'
+  }
+
+  const railItems = useMemo(() => {
+    if (filter === 'all') {
+      return allSegments.map((segment) => {
+        const childMoments = allSceneMoments.filter((moment) => moment.segment_id === segment.ID)
+        const childUnits = allContentUnits.filter((unit) => unit.segment_id === segment.ID)
+        return {
+          id: segment.ID,
+          title: titleOfRecord(segment),
+          detail: String(segment.summary ?? segment.content ?? '暂无摘要'),
+          meta: [`${childMoments.length} 情景`, `${childUnits.length} 单元`],
+          status: String(segment.status ?? ''),
+        }
+      })
+    }
+    if (filter === 'segments') {
+      return allSegments.map((segment) => {
+        const childMoments = allSceneMoments.filter((moment) => moment.segment_id === segment.ID)
+        const childUnits = allContentUnits.filter((unit) => unit.segment_id === segment.ID)
+        return {
+          id: segment.ID,
+          title: titleOfRecord(segment),
+          detail: String(segment.summary ?? segment.content ?? '暂无摘要'),
+          meta: [`${childMoments.length} 情景`, `${childUnits.length} 单元`],
+          status: String(segment.status ?? ''),
+        }
+      })
+    }
+    if (filter === 'sceneMoments') {
+      return allSceneMoments.map((moment) => ({
+        id: moment.ID,
+        title: titleOfRecord(moment),
+        detail: [moment.time_text, moment.location_text, moment.action_text].filter(Boolean).join(' · ') || '暂无说明',
+        meta: [moment.segment_id ? `剧本段落 #${moment.segment_id}` : ''],
+        status: String(moment.status ?? ''),
+      }))
+    }
+    if (filter === 'creativeReferences') {
+      return allCreativeReferences.map((reference) => ({
+        id: reference.ID,
+        title: titleOfRecord(reference),
+        detail: String(reference.description ?? '暂无说明'),
+        meta: [reference.kind ? creativeReferenceKindLabel[String(reference.kind)] ?? String(reference.kind) : '', reference.importance ? String(reference.importance) : ''].filter(Boolean),
+        status: String(reference.status ?? ''),
+      }))
+    }
+    if (filter === 'assetSlots') {
+      return allAssetSlots.map((slot) => ({
+        id: slot.ID,
+        title: titleOfRecord(slot),
+        detail: String(slot.description ?? '暂无说明'),
+        meta: [slot.kind ? String(slot.kind) : '', slot.priority ? String(slot.priority) : ''].filter(Boolean),
+        status: String(slot.status ?? ''),
+      }))
+    }
+    return allContentUnits.map((unit) => ({
+      id: unit.ID,
+      title: titleOfRecord(unit),
+      detail: String(unit.description ?? unit.prompt ?? '暂无说明'),
+      meta: [
+        unit.shot_size ? String(unit.shot_size) : '',
+        unit.camera_angle ? String(unit.camera_angle) : '',
+        unit.duration_sec ? `${unit.duration_sec}s` : '',
+      ].filter(Boolean),
+      status: String(unit.status ?? ''),
+    }))
+  }, [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, filter])
 
   useEffect(() => {
-    if (selectedSegmentId && !allSegments.some((segment) => segment.ID === selectedSegmentId)) {
-      setSelectedSegmentId(null)
-    }
-  }, [allSegments, selectedSegmentId])
+    const exists = filter === 'segments'
+      ? allSegments.some((item) => item.ID === selectedEntityId)
+      : filter === 'sceneMoments'
+        ? allSceneMoments.some((item) => item.ID === selectedEntityId)
+        : filter === 'creativeReferences'
+          ? allCreativeReferences.some((item) => item.ID === selectedEntityId)
+          : filter === 'assetSlots'
+            ? allAssetSlots.some((item) => item.ID === selectedEntityId)
+            : filter === 'contentUnits'
+              ? allContentUnits.some((item) => item.ID === selectedEntityId)
+              : true
+    if (!exists) setSelectedEntityId(getFirstEntityIdByFilter(filter))
+  }, [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, filter, selectedEntityId])
 
   const filterCounts = {
     segments: allSegments.length,
@@ -514,13 +643,15 @@ export default function ProductionOrchestratePage() {
   }
 
   function handleAnalyzeTarget(target: AnalysisTarget) {
-    setAnalysisTarget(target)
+    setOrchestrationPrompt((prev) => {
+      const prefix = target.entityId ? `请重点检查当前选中的结构对象 #${target.entityId}，补齐 AI 可能遗漏的剧本段落、情景、资料、素材或制作项。` : '请重新检查当前制作结构，补齐 AI 可能遗漏的内容。'
+      return prev.trim() ? prev : prefix
+    })
     setAIPanelOpen(true)
   }
 
   function handleClearCandidates() {
     setCandidates(null)
-    setShowDiff(false)
   }
 
   function resolvedCandidateSegmentId(clientId?: string) {
@@ -612,7 +743,7 @@ export default function ProductionOrchestratePage() {
       ? await updateSemanticEntity(projectId!, semanticEntityConfig('segments'), overwriteId, payload)
       : await createSemanticEntity(projectId!, semanticEntityConfig('segments'), payload)
     handleAcceptCandidate('segments', data.client_id)
-    toast.success(overwriteId ? `片段「${saved.title}」已覆盖更新` : `片段「${saved.title}」已创建`)
+    toast.success(overwriteId ? `剧本段落「${saved.title}」已覆盖更新` : `剧本段落「${saved.title}」已创建`)
     refetch()
   }
 
@@ -633,7 +764,7 @@ export default function ProductionOrchestratePage() {
       : await createSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), payload)
     handleAcceptCandidate('scene_moments', data.client_id)
     await linkCandidateReferencesToOwner('scene_moment', saved.ID, data.creative_reference_ids, data.action_text ?? data.title)
-    toast.success(overwriteId ? `情节「${saved.title}」已覆盖更新` : `情节「${saved.title}」已创建`)
+    toast.success(overwriteId ? `情景「${saved.title}」已覆盖更新` : `情景「${saved.title}」已创建`)
     refetch()
   }
 
@@ -658,7 +789,7 @@ export default function ProductionOrchestratePage() {
     for (const sceneMomentId of sceneMomentIds) await linkReferenceToOwner('scene_moment', sceneMomentId, saved.ID, data.description)
     for (const contentUnitId of contentUnitIds) await linkReferenceToOwner('content_unit', contentUnitId, saved.ID, data.description)
     handleAcceptCandidate('creative_references', data.client_id)
-    toast.success(overwriteId ? `创作资料「${saved.name}」已覆盖更新` : `创作资料「${saved.name}」已创建`)
+    toast.success(overwriteId ? `设定资料「${saved.name}」已覆盖更新` : `设定资料「${saved.name}」已创建`)
     refetch()
   }
 
@@ -708,7 +839,7 @@ export default function ProductionOrchestratePage() {
       : await createSemanticEntity(projectId!, semanticEntityConfig('contentUnits'), payload)
     handleAcceptCandidate('content_units', data.client_id)
     await linkCandidateReferencesToOwner('content_unit', saved.ID, data.creative_reference_ids, data.description)
-    toast.success(overwriteId ? `内容单元「${saved.title}」已覆盖更新` : `内容单元「${saved.title}」已创建`)
+    toast.success(overwriteId ? `制作项「${saved.title}」已覆盖更新` : `制作项「${saved.title}」已创建`)
     refetch()
   }
 
@@ -722,11 +853,111 @@ export default function ProductionOrchestratePage() {
     onCreateChild: (type: EntityFilter) => setCreateType(type),
     onAnalyze: handleAnalyzeTarget,
     candidates,
-    showDiff,
+    showDiff: false,
     onAcceptCandidate: handleAcceptCandidate,
     onRejectCandidate: handleRejectCandidate,
     onConflictDecision: handleConflictDecision,
     lookup,
+  }
+
+  function renderCandidateRow(type: EntityFilter, candidate: TrackedCandidate<Record<string, unknown> & { client_id: string }>) {
+    if (type === 'segments') {
+      const item = candidate as TrackedCandidate<AISegmentCandidate>
+      return (
+        <AISegmentRow
+          key={item.data.client_id}
+          candidate={item.data}
+          status={item.status}
+          onAccept={async () => { await acceptSegmentCandidate(item.data) }}
+          onReject={() => handleRejectCandidate('segments', item.data.client_id)}
+          onOverwrite={async () => { await acceptSegmentCandidate(item.data, item.data.conflict_entity_id) }}
+          onParallel={async () => { await acceptSegmentCandidate(item.data) }}
+        />
+      )
+    }
+    if (type === 'sceneMoments') {
+      const item = candidate as TrackedCandidate<AISceneMomentCandidate>
+      return (
+        <AISceneMomentRow
+          key={item.data.client_id}
+          candidate={item.data}
+          status={item.status}
+          onAccept={async () => { await acceptSceneMomentCandidate(item.data) }}
+          onReject={() => handleRejectCandidate('scene_moments', item.data.client_id)}
+          onOverwrite={async () => { await acceptSceneMomentCandidate(item.data, item.data.conflict_entity_id) }}
+          onParallel={async () => { await acceptSceneMomentCandidate(item.data) }}
+        />
+      )
+    }
+    if (type === 'creativeReferences') {
+      const item = candidate as TrackedCandidate<AICreativeReferenceCandidate>
+      return (
+        <AICreativeReferenceRow
+          key={item.data.client_id}
+          candidate={item.data}
+          status={item.status}
+          onAccept={async () => { await acceptCreativeReferenceCandidate(item.data) }}
+          onReject={() => handleRejectCandidate('creative_references', item.data.client_id)}
+          onOverwrite={async () => { await acceptCreativeReferenceCandidate(item.data, item.data.conflict_entity_id) }}
+          onParallel={async () => { await acceptCreativeReferenceCandidate(item.data) }}
+        />
+      )
+    }
+    if (type === 'assetSlots') {
+      const item = candidate as TrackedCandidate<AIAssetSlotCandidate>
+      return (
+        <AIAssetSlotRow
+          key={item.data.client_id}
+          candidate={item.data}
+          status={item.status}
+          onAccept={async () => { await acceptAssetSlotCandidate(item.data) }}
+          onReject={() => handleRejectCandidate('asset_slots', item.data.client_id)}
+          onOverwrite={async () => { await acceptAssetSlotCandidate(item.data, item.data.conflict_entity_id) }}
+          onParallel={async () => { await acceptAssetSlotCandidate(item.data) }}
+        />
+      )
+    }
+    if (type === 'contentUnits') {
+      const item = candidate as TrackedCandidate<AIContentUnitCandidate>
+      return (
+        <AIContentUnitRow
+          key={item.data.client_id}
+          candidate={item.data}
+          status={item.status}
+          onAccept={async () => { await acceptContentUnitCandidate(item.data) }}
+          onReject={() => handleRejectCandidate('content_units', item.data.client_id)}
+          onOverwrite={async () => { await acceptContentUnitCandidate(item.data, item.data.conflict_entity_id) }}
+          onParallel={async () => { await acceptContentUnitCandidate(item.data) }}
+        />
+      )
+    }
+    return null
+  }
+
+  function renderRecordRow(type: EntityFilter, id: number) {
+    if (type === 'all' || type === 'segments') {
+      const segment = allSegments.find((item) => item.ID === id)
+      if (!segment) return null
+      return <SegmentRow key={segment.ID} segment={segment} sceneMoments={allSceneMoments} contentUnits={allContentUnits} {...sharedEntityProps} />
+    }
+    if (type === 'sceneMoments') {
+      const moment = allSceneMoments.find((item) => item.ID === id)
+      if (!moment) return null
+      return <SceneMomentRow key={moment.ID} moment={moment} segments={allSegments} {...sharedEntityProps} />
+    }
+    if (type === 'creativeReferences') {
+      const reference = allCreativeReferences.find((item) => item.ID === id)
+      if (!reference) return null
+      return <CreativeReferenceRow key={reference.ID} reference={reference} {...sharedEntityProps} />
+    }
+    if (type === 'assetSlots') {
+      const slot = allAssetSlots.find((item) => item.ID === id)
+      if (!slot) return null
+      return <AssetSlotRow key={slot.ID} slot={slot} {...sharedEntityProps} />
+    }
+    const unit = allContentUnits.find((item) => item.ID === id)
+    if (!unit) return null
+    return <ContentUnitRow key={unit.ID} unit={unit} segments={allSegments} sceneMoments={allSceneMoments} {...sharedEntityProps} />
   }
 
   return (
@@ -758,26 +989,14 @@ export default function ProductionOrchestratePage() {
           </div>
           <div className="flex items-center gap-2">
             {isFetching && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
-            {candidates && (
-              <>
-                <Button
-                  size="sm"
-                  variant={showDiff ? 'secondary' : 'outline'}
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={() => setShowDiff((v) => !v)}
-                >
-                  <Diff size={13} />
-                  {showDiff ? '隐藏差异' : '查看差异'}
-                  {pendingCandidateCount > 0 && (
-                    <Badge variant="secondary" className="ml-0.5 h-4 rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-300">
-                      {pendingCandidateCount}
-                    </Badge>
-                  )}
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleClearCandidates}>
-                  <X size={13} />
-                </Button>
-              </>
+            {pendingCandidateCount > 0 && (
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setAIPanelOpen(true)}>
+                <Sparkle size={13} />
+                待审候选
+                <Badge variant="secondary" className="ml-0.5 h-4 rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-300">
+                  {pendingCandidateCount}
+                </Badge>
+              </Button>
             )}
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => refetch()}>
               <RefreshCw size={13} />
@@ -788,13 +1007,11 @@ export default function ProductionOrchestratePage() {
               variant={aiPanelOpen ? 'secondary' : 'default'}
               className="h-7 gap-1.5 text-xs"
               onClick={() => {
-                setAnalysisTarget({ scope: 'production' })
-                setFilter('all')
                 setAIPanelOpen((v) => !v)
               }}
             >
               <Sparkles size={13} />
-              总编排
+              重新编排
             </Button>
           </div>
         </div>
@@ -803,20 +1020,14 @@ export default function ProductionOrchestratePage() {
       {/* Body: director-style orchestration workspace + optional agent sidebar */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <OrchestrationRail
-          segments={allSegments}
-          sceneMoments={allSceneMoments}
-          contentUnits={allContentUnits}
           filter={filter}
+          items={railItems}
           filterCounts={filterCounts}
           pendingCandidateCount={pendingCandidateCount}
-          selectedSegmentId={selectedSegment?.ID ?? null}
-          onFilterChange={setFilter}
-          onSelectSegment={(segmentId) => {
-            setSelectedSegmentId(segmentId)
-            setFilter('all')
-            setExpandedIds((prev) => new Set(prev).add(`segment-${segmentId}`))
-          }}
-          onAddSegment={() => setCreateType('segments')}
+          selectedEntityId={selectedEntityId}
+          onFilterChange={handleFilterChange}
+          onSelectItem={(entityId) => setSelectedEntityId(entityId)}
+          onAddItem={() => { if (filter !== 'all') setCreateType(filter) }}
         />
 
         {/* Main content */}
@@ -827,149 +1038,26 @@ export default function ProductionOrchestratePage() {
               加载中…
             </div>
           ) : (
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
               <WorkspaceHeader
                 filter={filter}
-                selectedSegment={selectedSegment}
-                segments={allSegments}
-                sceneMoments={allSceneMoments}
-                assetSlots={allAssetSlots}
-                contentUnits={allContentUnits}
+                selectedRecordLabel={getSelectedRecordLabel()}
+                selectedRecordSummary={getSelectedRecordSummary()}
+                count={railItems.length}
                 candidates={candidates}
-                onAdd={() => setCreateType(filter === 'all' ? 'segments' : filter)}
-                onOpenAI={() => {
-                  setAnalysisTarget({ scope: 'production' })
-                  setFilter('all')
-                  setAIPanelOpen(true)
-                }}
+                onAdd={() => setCreateType(filter)}
               />
               <div className="overflow-hidden rounded-lg border border-border bg-card">
-                {filter === 'all' ? (
-                  <AllView
-                    segments={selectedSegment ? [selectedSegment] : allSegments}
-                    sceneMoments={allSceneMoments}
-                    creativeReferences={allCreativeReferences}
-                    assetSlots={allAssetSlots}
-                    contentUnits={allContentUnits}
-                    onAddSegment={() => setCreateType('segments')}
-                    onAddReference={() => setCreateType('creativeReferences')}
-                    onAddAsset={() => setCreateType('assetSlots')}
-                    onAcceptSegmentCandidate={acceptSegmentCandidate}
-                    onAcceptCreativeReferenceCandidate={acceptCreativeReferenceCandidate}
-                    onAcceptAssetSlotCandidate={acceptAssetSlotCandidate}
-                    {...sharedEntityProps}
-                  />
-                ) : filter === 'segments' ? (
-                  <TypeSection
-                    type="segments"
-                    label="片段"
-                    icon={GitBranch}
-                    items={allSegments}
-                    renderRow={(seg) => (
-                      <SegmentRow key={seg.ID} segment={seg as SegmentRecord} sceneMoments={allSceneMoments} contentUnits={allContentUnits} {...sharedEntityProps} />
-                    )}
-                    pendingCandidates={(showDiff ? (candidates?.segments.filter((c) => c.status === 'pending' || c.status === 'conflict_pending') ?? []) : []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[]}
-                    renderCandidate={(c) => {
-                      const data = c.data as AISegmentCandidate & ConflictInfo
-                      return (
-                        <AISegmentRow key={data.client_id} candidate={data} status={c.status}
-                          onAccept={async () => { await acceptSegmentCandidate(data) }}
-                          onReject={() => handleRejectCandidate('segments', data.client_id)}
-                          onOverwrite={async () => { await acceptSegmentCandidate(data, data.conflict_entity_id) }}
-                          onParallel={async () => { await acceptSegmentCandidate(data) }} />
-                      )
-                    }}
-                    onAdd={() => setCreateType('segments')}
-                  />
-                ) : filter === 'sceneMoments' ? (
-                  <TypeSection
-                    type="sceneMoments"
-                    label="情节"
-                    icon={Route}
-                    items={allSceneMoments}
-                    renderRow={(sm) => (
-                      <SceneMomentRow key={sm.ID} moment={sm as SceneMomentRecord} segments={allSegments} {...sharedEntityProps} />
-                    )}
-                    pendingCandidates={(showDiff ? (candidates?.scene_moments.filter((c) => c.status === 'pending' || c.status === 'conflict_pending') ?? []) : []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[]}
-                    renderCandidate={(c) => {
-                      const data = c.data as AISceneMomentCandidate & ConflictInfo
-                      return (
-                        <AISceneMomentRow key={data.client_id} candidate={data} status={c.status}
-                          onAccept={async () => { await acceptSceneMomentCandidate(data) }}
-                          onReject={() => handleRejectCandidate('scene_moments', data.client_id)}
-                          onOverwrite={async () => { await acceptSceneMomentCandidate(data, data.conflict_entity_id) }}
-                          onParallel={async () => { await acceptSceneMomentCandidate(data) }} />
-                      )
-                    }}
-                    onAdd={() => setCreateType('sceneMoments')}
-                  />
-                ) : filter === 'creativeReferences' ? (
-                  <TypeSection
-                    type="creativeReferences"
-                    label="创作资料"
-                    icon={Sparkles}
-                    items={allCreativeReferences}
-                    renderRow={(ref) => (
-                      <CreativeReferenceRow key={ref.ID} reference={ref as CreativeReferenceRecord} {...sharedEntityProps} />
-                    )}
-                    pendingCandidates={(showDiff ? (candidates?.creative_references.filter((c) => c.status === 'pending' || c.status === 'conflict_pending') ?? []) : []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[]}
-                    renderCandidate={(c) => {
-                      const data = c.data as AICreativeReferenceCandidate & ConflictInfo
-                      return (
-                        <AICreativeReferenceRow key={data.client_id} candidate={data} status={c.status}
-                          onAccept={async () => { await acceptCreativeReferenceCandidate(data) }}
-                          onReject={() => handleRejectCandidate('creative_references', data.client_id)}
-                          onOverwrite={async () => { await acceptCreativeReferenceCandidate(data, data.conflict_entity_id) }}
-                          onParallel={async () => { await acceptCreativeReferenceCandidate(data) }} />
-                      )
-                    }}
-                    onAdd={() => setCreateType('creativeReferences')}
-                  />
-                ) : filter === 'assetSlots' ? (
-                  <TypeSection
-                    type="assetSlots"
-                    label="素材需求"
-                    icon={PackageCheck}
-                    items={allAssetSlots}
-                    renderRow={(slot) => (
-                      <AssetSlotRow key={slot.ID} slot={slot as AssetSlotRecord} {...sharedEntityProps} />
-                    )}
-                    pendingCandidates={(showDiff ? (candidates?.asset_slots.filter((c) => c.status === 'pending' || c.status === 'conflict_pending') ?? []) : []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[]}
-                    renderCandidate={(c) => {
-                      const data = c.data as AIAssetSlotCandidate & ConflictInfo
-                      return (
-                        <AIAssetSlotRow key={data.client_id} candidate={data} status={c.status}
-                          onAccept={async () => { await acceptAssetSlotCandidate(data) }}
-                          onReject={() => handleRejectCandidate('asset_slots', data.client_id)}
-                          onOverwrite={async () => { await acceptAssetSlotCandidate(data, data.conflict_entity_id) }}
-                          onParallel={async () => { await acceptAssetSlotCandidate(data) }} />
-                      )
-                    }}
-                    onAdd={() => setCreateType('assetSlots')}
-                  />
-                ) : filter === 'contentUnits' ? (
-                  <TypeSection
-                    type="contentUnits"
-                    label="内容单元"
-                    icon={Film}
-                    items={allContentUnits}
-                    renderRow={(cu) => (
-                      <ContentUnitRow key={cu.ID} unit={cu as ContentUnitRecord} segments={allSegments} sceneMoments={allSceneMoments} {...sharedEntityProps} />
-                    )}
-                    pendingCandidates={(showDiff ? (candidates?.content_units.filter((c) => c.status === 'pending' || c.status === 'conflict_pending') ?? []) : []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[]}
-                    renderCandidate={(c) => {
-                      const data = c.data as AIContentUnitCandidate & ConflictInfo
-                      return (
-                        <AIContentUnitRow key={data.client_id} candidate={data} status={c.status}
-                          onAccept={async () => { await acceptContentUnitCandidate(data) }}
-                          onReject={() => handleRejectCandidate('content_units', data.client_id)}
-                          onOverwrite={async () => { await acceptContentUnitCandidate(data, data.conflict_entity_id) }}
-                          onParallel={async () => { await acceptContentUnitCandidate(data) }} />
-                      )
-                    }}
-                    onAdd={() => setCreateType('contentUnits')}
-                  />
-                ) : null}
+                <TypeSection
+                  type={filter}
+                  label={filterDefs.find((item) => item.key === filter)?.label ?? '结构'}
+                  icon={filter === 'segments' ? GitBranch : filter === 'sceneMoments' ? Route : filter === 'creativeReferences' ? Sparkles : filter === 'assetSlots' ? PackageCheck : Film}
+                  items={railItems}
+                  renderRow={(item) => renderRecordRow(filter, item.id)}
+                  pendingCandidates={[]}
+                  renderCandidate={(c) => renderCandidateRow(filter, c)}
+                  onAdd={() => { if (filter !== 'all') setCreateType(filter) }}
+                />
               </div>
             </div>
           )}
@@ -988,8 +1076,15 @@ export default function ProductionOrchestratePage() {
             contentUnits={allContentUnits}
             guideCounts={guideCounts}
             pendingCounts={guidePendingCounts}
-            analysisTarget={analysisTarget}
-            onAnalysisTargetChange={setAnalysisTarget}
+            orchestrationPrompt={orchestrationPrompt}
+            onOrchestrationPromptChange={setOrchestrationPrompt}
+            candidateWorkbench={
+              <CandidateWorkbench
+                candidates={candidates}
+                onClear={handleClearCandidates}
+                renderCandidate={(type, candidate) => renderCandidateRow(type, candidate)}
+              />
+            }
             onClose={() => setAIPanelOpen(false)}
             onResult={(result) => {
               const toStatus = (d: unknown): CandidateStatus => {
@@ -1003,12 +1098,11 @@ export default function ProductionOrchestratePage() {
                 asset_slots: result.asset_slots.map((d) => ({ data: d as AIAssetSlotCandidate & ConflictInfo, status: toStatus(d) })),
                 content_units: result.content_units.map((d) => ({ data: d as AIContentUnitCandidate & ConflictInfo, status: toStatus(d) })),
               })
-              setShowDiff(true)
               const conflictCount = [
                 ...result.segments, ...result.scene_moments, ...result.creative_references,
                 ...result.asset_slots, ...result.content_units,
               ].filter((d) => d.conflict_status === 'duplicate' || d.conflict_status === 'supersedes').length
-              const msg = `AI分析完成：${result.segments.length} 片段，${result.scene_moments.length} 情节，${result.creative_references.length} 资料，${result.asset_slots.length} 素材，${result.content_units.length} 内容单元`
+              const msg = `AI分析完成：${result.segments.length} 剧本段落，${result.scene_moments.length} 情景，${result.creative_references.length} 资料，${result.asset_slots.length} 素材，${result.content_units.length} 制作项`
               if (conflictCount > 0) {
                 toast.info(`${msg}（${conflictCount} 个与已有实体冲突，请选择覆盖或并行）`)
               } else {
@@ -1063,39 +1157,37 @@ export default function ProductionOrchestratePage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface OrchestrationRailProps {
-  segments: SegmentRecord[]
-  sceneMoments: SceneMomentRecord[]
-  contentUnits: ContentUnitRecord[]
   filter: EntityFilter
+  items: RailItem[]
   filterCounts: Record<Exclude<EntityFilter, 'all'>, number>
   pendingCandidateCount: number
-  selectedSegmentId: number | null
+  selectedEntityId: number | null
   onFilterChange: (filter: EntityFilter) => void
-  onSelectSegment: (segmentId: number) => void
-  onAddSegment: () => void
+  onSelectItem: (entityId: number) => void
+  onAddItem: () => void
 }
 
-function OrchestrationRail({ segments, sceneMoments, contentUnits, filter, filterCounts, pendingCandidateCount, selectedSegmentId, onFilterChange, onSelectSegment, onAddSegment }: OrchestrationRailProps) {
-  const confirmedContentUnits = contentUnits.filter((unit) => ['confirmed', 'accepted', 'locked'].includes(String(unit.status))).length
-  const missingSegments = Math.max(segments.length - new Set(sceneMoments.map((moment) => moment.segment_id).filter(Boolean)).size, 0)
+function OrchestrationRail({ filter, items, filterCounts, pendingCandidateCount, selectedEntityId, onFilterChange, onSelectItem, onAddItem }: OrchestrationRailProps) {
+  const activeFilterLabel = filterDefs.find((item) => item.key === filter)?.label ?? '结构'
+  const totalCount = filterCounts.segments + filterCounts.sceneMoments + filterCounts.creativeReferences + filterCounts.assetSlots + filterCounts.contentUnits
 
   return (
     <aside className="flex w-[280px] shrink-0 flex-col border-r border-border bg-card">
       <div className="border-b border-border px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-foreground">结构导航</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">按剧本片段推进制作确认</p>
+            <p className="text-sm font-semibold text-foreground">结构目录</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">先看全局，再进入单项修正</p>
           </div>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={onAddSegment}>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={onAddItem} disabled={filter === 'all'}>
             <Plus size={13} />
           </Button>
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-1.5">
-          <RailMetric label="片段" value={segments.length} />
-          <RailMetric label="情节" value={sceneMoments.length} />
-          <RailMetric label="镜头" value={contentUnits.length} />
+          <RailMetric label="剧本段落" value={filterCounts.segments} />
+          <RailMetric label="情景" value={filterCounts.sceneMoments} />
+          <RailMetric label="单元" value={filterCounts.contentUnits} />
         </div>
       </div>
 
@@ -1108,7 +1200,7 @@ function OrchestrationRail({ segments, sceneMoments, contentUnits, filter, filte
             filter === 'all' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           )}
         >
-          <span className="flex items-center gap-1.5"><LayoutList size={13} />总编排工作区</span>
+          <span className="flex items-center gap-1.5"><LayoutList size={13} />全局结构</span>
           {pendingCandidateCount > 0 && <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-300">{pendingCandidateCount}</span>}
         </button>
         <div className="mt-1 grid grid-cols-2 gap-1">
@@ -1133,26 +1225,25 @@ function OrchestrationRail({ segments, sceneMoments, contentUnits, filter, filte
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {segments.length === 0 ? (
+        {items.length === 0 ? (
           <button
             type="button"
-            onClick={onAddSegment}
+            onClick={onAddItem}
+            disabled={filter === 'all'}
             className="flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
           >
-            <GitBranch size={18} />
-            新增第一个片段
+            <Plus size={18} />
+            {filter === 'all' ? '暂无结构' : `新增第一个${activeFilterLabel}`}
           </button>
         ) : (
           <div className="space-y-1">
-            {segments.map((segment) => {
-              const childMoments = sceneMoments.filter((moment) => moment.segment_id === segment.ID)
-              const childUnits = contentUnits.filter((unit) => unit.segment_id === segment.ID)
-              const active = selectedSegmentId === segment.ID && filter === 'all'
+            {items.map((item) => {
+              const active = selectedEntityId === item.id
               return (
                 <button
-                  key={segment.ID}
+                  key={item.id}
                   type="button"
-                  onClick={() => onSelectSegment(segment.ID)}
+                  onClick={() => onSelectItem(item.id)}
                   className={cn(
                     'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
                     active ? 'border-primary/40 bg-primary/8' : 'border-transparent hover:border-border hover:bg-muted/60',
@@ -1160,15 +1251,13 @@ function OrchestrationRail({ segments, sceneMoments, contentUnits, filter, filte
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{String(segment.title ?? `片段 #${segment.ID}`)}</p>
-                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{String(segment.summary ?? segment.content ?? '暂无摘要')}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{item.detail}</p>
                     </div>
-                    {segment.status && <StatusDot status={String(segment.status)} />}
+                    {item.status && <StatusDot status={item.status} />}
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>{childMoments.length} 情节</span>
-                    <span>{childUnits.length} 单元</span>
-                    {childMoments.length === 0 && <span className="text-amber-600 dark:text-amber-400">待拆解</span>}
+                    {item.meta.length > 0 ? item.meta.map((meta) => <span key={meta}>{meta}</span>) : <span>暂无关联信息</span>}
                   </div>
                 </button>
               )
@@ -1179,9 +1268,9 @@ function OrchestrationRail({ segments, sceneMoments, contentUnits, filter, filte
 
       <div className="border-t border-border p-3">
         <div className="space-y-2">
-          <CheckRowTiny ok={segments.length > 0} label="已有剧本片段" detail={`${segments.length} 条`} />
-          <CheckRowTiny ok={missingSegments === 0 && segments.length > 0} label="片段已拆情节" detail={missingSegments > 0 ? `${missingSegments} 段待补` : `${sceneMoments.length} 条情节`} />
-          <CheckRowTiny ok={confirmedContentUnits > 0} label="可执行内容" detail={confirmedContentUnits > 0 ? `${confirmedContentUnits} 条已确认` : '等待确认'} />
+          <CheckRowTiny ok={filterCounts.segments > 0} label="剧本段落骨架" detail={`${filterCounts.segments} 条`} />
+          <CheckRowTiny ok={filterCounts.sceneMoments > 0} label="情景拆解" detail={`${filterCounts.sceneMoments} 条`} />
+          <CheckRowTiny ok={pendingCandidateCount === 0} label="候选审阅" detail={pendingCandidateCount > 0 ? `${pendingCandidateCount} 条待审` : `${totalCount} 条已入库`} />
         </div>
       </div>
     </aside>
@@ -1199,32 +1288,21 @@ function RailMetric({ label, value }: { label: string; value: number }) {
 
 function WorkspaceHeader({
   filter,
-  selectedSegment,
-  segments,
-  sceneMoments,
-  assetSlots,
-  contentUnits,
+  selectedRecordLabel,
+  selectedRecordSummary,
+  count,
   candidates,
   onAdd,
-  onOpenAI,
 }: {
   filter: EntityFilter
-  selectedSegment: SegmentRecord | null
-  segments: SegmentRecord[]
-  sceneMoments: SceneMomentRecord[]
-  assetSlots: AssetSlotRecord[]
-  contentUnits: ContentUnitRecord[]
+  selectedRecordLabel: string
+  selectedRecordSummary: string
+  count: number
   candidates: TrackedCandidates | null
   onAdd: () => void
-  onOpenAI: () => void
 }) {
   const filterLabel = filterDefs.find((item) => item.key === filter)?.label ?? '编排'
-  const title = filter === 'all'
-    ? selectedSegment ? String(selectedSegment.title ?? `片段 #${selectedSegment.ID}`) : '编排工作区'
-    : `${filterLabel}总览`
-  const selectedMoments = selectedSegment ? sceneMoments.filter((moment) => moment.segment_id === selectedSegment.ID) : sceneMoments
-  const selectedUnits = selectedSegment ? contentUnits.filter((unit) => unit.segment_id === selectedSegment.ID) : contentUnits
-  const missingAssetCount = assetSlots.filter((slot) => ['missing', 'blocked'].includes(String(slot.status))).length
+  const title = filter === 'all' ? '全局结构' : `${filterLabel}总览`
   const pending = candidates
     ? countPending(candidates.segments) + countPending(candidates.scene_moments) + countPending(candidates.creative_references) + countPending(candidates.asset_slots) + countPending(candidates.content_units)
     : 0
@@ -1235,30 +1313,29 @@ function WorkspaceHeader({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
             <Route size={12} />
-            {filter === 'all' ? `${segments.length} 个片段中的当前焦点` : filterLabel}
+            {filterLabel}
           </div>
           <h1 className="mt-1 truncate text-lg font-semibold text-foreground">{title}</h1>
           <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-            {filter === 'all'
-              ? selectedSegment?.summary || selectedSegment?.content || '选择片段后，在这里确认情节、内容单元和素材缺口。'
-              : '按实体类型批量检查和维护生产结构。'}
+            {selectedRecordLabel} · {selectedRecordSummary}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onAdd}>
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onAdd} disabled={filter === 'all'}>
             <Plus size={13} />
-            新增
-          </Button>
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={onOpenAI}>
-            <Sparkles size={13} />
-            总编排
+            新增条目
           </Button>
         </div>
       </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        <DecisionCheck ok={count > 0} label="结构浏览" detail="左侧切换剧本段落、情景、资料、素材和制作项。" />
+        <DecisionCheck ok={pending > 0} label="局部修正" detail="单个剧本段落、情景或素材缺口可继续补充。" />
+        <DecisionCheck ok={pending === 0} label="候选审阅" detail="对 AI 结果采纳、覆盖或并行保留。" />
+      </div>
       <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-        <DecisionMetric icon={Route} label="当前情节" value={selectedMoments.length} />
-        <DecisionMetric icon={Film} label="内容单元" value={selectedUnits.length} />
-        <DecisionMetric icon={PackageCheck} label="素材缺口" value={missingAssetCount} tone={missingAssetCount > 0 ? 'warn' : 'ok'} />
+        <DecisionMetric icon={LayoutList} label="当前列表" value={count} />
+        <DecisionMetric icon={Route} label="当前选择" value={selectedRecordLabel.startsWith('未选择') ? 0 : 1} />
+        <DecisionMetric icon={PackageCheck} label="待接入功能" value={0} tone="muted" />
         <DecisionMetric icon={Sparkle} label="阶段候选" value={pending} tone={pending > 0 ? 'warn' : 'muted'} />
       </div>
     </section>
@@ -1385,15 +1462,15 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
         <div className="flex items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <GitBranch size={13} />
-            片段 · 情节 · 内容单元
+            剧本段落 · 情景 · 制作项
           </div>
           <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={onAddSegment}>
-            <Plus size={11} />新增片段
+            <Plus size={11} />新增剧本段落
           </button>
         </div>
         {showDiff && candidates && candidates.segments.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length > 0 && (
           <div className="px-4 pb-2">
-            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">AI 新增候选</p>
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">AI 候选</p>
             {candidates.segments.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').map((c) => (
               <AISegmentRow key={c.data.client_id} candidate={c.data} status={c.status}
                 onAccept={async () => { await onAcceptSegmentCandidate(c.data) }}
@@ -1405,7 +1482,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
           </div>
         )}
         {segments.length === 0 ? (
-          <EmptySection text="暂无片段" onAdd={onAddSegment} />
+          <EmptySection text="暂无剧本段落" onAdd={onAddSegment} />
         ) : (
           <div className="divide-y divide-border/50">
             {segments.map((seg) => (
@@ -1420,7 +1497,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
         <div className="flex items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Sparkles size={13} />
-            创作资料
+            设定资料
           </div>
           <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={onAddReference}>
             <Plus size={11} />新增资料
@@ -1428,7 +1505,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
         </div>
         {showDiff && candidates && candidates.creative_references.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length > 0 && (
           <div className="px-4 pb-2">
-            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">AI 新增候选</p>
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">AI 候选</p>
             {candidates.creative_references.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').map((c) => (
               <AICreativeReferenceRow key={c.data.client_id} candidate={c.data} status={c.status}
                 onAccept={async () => { await onAcceptCreativeReferenceCandidate(c.data) }}
@@ -1440,7 +1517,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
           </div>
         )}
         {creativeReferences.length === 0 ? (
-          <EmptySection text="暂无创作资料" onAdd={onAddReference} />
+          <EmptySection text="暂无设定资料" onAdd={onAddReference} />
         ) : (
           <div className="divide-y divide-border/50">
             {creativeReferences.map((ref) => (
@@ -1463,7 +1540,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
         </div>
         {showDiff && candidates && candidates.asset_slots.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length > 0 && (
           <div className="px-4 pb-2">
-            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">AI 新增候选</p>
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">AI 候选</p>
             {candidates.asset_slots.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').map((c) => (
               <AIAssetSlotRow key={c.data.client_id} candidate={c.data} status={c.status}
                 onAccept={async () => { await onAcceptAssetSlotCandidate(c.data) }}
@@ -1496,8 +1573,8 @@ interface TypeSectionProps {
   type: EntityFilter
   label: string
   icon: LucideIcon
-  items: SemanticEntityRecord[]
-  renderRow: (item: SemanticEntityRecord) => React.ReactNode
+  items: RailItem[]
+  renderRow: (item: RailItem) => React.ReactNode
   pendingCandidates: TrackedCandidate<Record<string, unknown> & { client_id: string }>[]
   renderCandidate: (c: TrackedCandidate<Record<string, unknown> & { client_id: string }>) => React.ReactNode
   onAdd: () => void
@@ -1521,6 +1598,85 @@ function TypeSection({ label, items, renderRow, pendingCandidates, renderCandida
         <EmptySection text={`暂无${label}`} onAdd={onAdd} />
       ) : (
         items.map((item) => renderRow(item))
+      )}
+    </div>
+  )
+}
+
+function CandidateWorkbench({
+  candidates,
+  onClear,
+  renderCandidate,
+}: {
+  candidates: TrackedCandidates | null
+  onClear: () => void
+  renderCandidate: (type: EntityFilter, candidate: TrackedCandidate<Record<string, unknown> & { client_id: string }>) => ReactNode
+}) {
+  const groups: {
+    type: EntityFilter
+    key: keyof TrackedCandidates
+    label: string
+    icon: LucideIcon
+    items: TrackedCandidate<Record<string, unknown> & { client_id: string }>[]
+  }[] = [
+    { type: 'segments', key: 'segments', label: '剧本段落', icon: GitBranch, items: (candidates?.segments ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'sceneMoments', key: 'scene_moments', label: '情景', icon: Route, items: (candidates?.scene_moments ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'creativeReferences', key: 'creative_references', label: '资料', icon: Sparkles, items: (candidates?.creative_references ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'assetSlots', key: 'asset_slots', label: '素材', icon: PackageCheck, items: (candidates?.asset_slots ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'contentUnits', key: 'content_units', label: '制作项', icon: Film, items: (candidates?.content_units ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+  ]
+  const pendingGroups = groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.status === 'pending' || item.status === 'conflict_pending'),
+    }))
+    .filter((group) => group.items.length > 0)
+  const pendingTotal = pendingGroups.reduce((sum, group) => sum + group.items.length, 0)
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <CheckCheck size={14} className="text-primary" />
+            <p className="text-xs font-semibold text-foreground">候选工作台</p>
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+            AI 结果先进入这里，确认后才写入结构列表。
+          </p>
+        </div>
+        {candidates && (
+          <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={onClear}>
+            <X size={13} />
+          </Button>
+        )}
+      </div>
+
+      {pendingTotal === 0 ? (
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-dashed border-border px-3 py-4">
+          <Info size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-xs text-foreground">暂无待审候选</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">开始编排后，新增或冲突项会在这里集中处理。</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {pendingGroups.map(({ type, label, icon: Icon, items }) => (
+            <div key={type} className="rounded-md border border-border">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                  <Icon size={12} />
+                  {label}
+                </span>
+                <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">{items.length}</Badge>
+              </div>
+              <div className="space-y-1.5 p-2">
+                {items.map((item) => renderCandidate(type, item))}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -1556,7 +1712,7 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSemanticEntity(projectId!, semanticEntityConfig('segments'), segment.ID),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('片段已删除') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('剧本段落已删除') },
     onError: () => toast.error('删除失败'),
   })
 
@@ -1568,22 +1724,22 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-foreground">{String(segment.title ?? `片段 #${segment.ID}`)}</span>
+            <span className="text-sm font-medium text-foreground">{String(segment.title ?? `剧本段落 #${segment.ID}`)}</span>
             {segment.kind && <Badge variant="secondary" className="text-[10px]">{segmentKindLabel[String(segment.kind)] ?? String(segment.kind)}</Badge>}
             {segment.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(segment.status)])}>{statusLabel[String(segment.status)] ?? String(segment.status)}</Badge>}
-            {childSceneMoments.length > 0 && <span className="text-[10px] text-muted-foreground">{childSceneMoments.length} 情节</span>}
-            {childContentUnits.length > 0 && <span className="text-[10px] text-muted-foreground">{childContentUnits.length} 内容单元 {totalDuration > 0 ? `· ${totalDuration}s` : ''}</span>}
+            {childSceneMoments.length > 0 && <span className="text-[10px] text-muted-foreground">{childSceneMoments.length} 情景</span>}
+            {childContentUnits.length > 0 && <span className="text-[10px] text-muted-foreground">{childContentUnits.length} 制作项 {totalDuration > 0 ? `· ${totalDuration}s` : ''}</span>}
           </div>
           {segment.summary && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{String(segment.summary)}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/seg:opacity-100">
-          <button type="button" onClick={() => onAnalyze({ scope: 'segmentAnalysis', entityId: segment.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="单项分析">
+          <button type="button" onClick={() => onAnalyze({ scope: 'segmentAnalysis', entityId: segment.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="重新分析">
             <Wand2 size={13} />
           </button>
           <button type="button" onClick={() => onEdit('segments', segment)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <Pencil size={13} />
           </button>
-          <button type="button" onClick={() => { if (confirm('确定删除这个片段？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
+          <button type="button" onClick={() => { if (confirm('确定删除这个剧本段落？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
             <Trash2 size={13} />
           </button>
         </div>
@@ -1609,12 +1765,12 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
               <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-foreground">{String(segment.summary)}</p>
             </div>
           )}
-          <RelationBlock label="出现的情节" items={childSceneMoments.map((item) => titleOfRecord(item))} />
-          <RelationBlock label="出现的内容单元" items={childContentUnits.map((item) => titleOfRecord(item))} />
+          <RelationBlock label="出现的情景" items={childSceneMoments.map((item) => titleOfRecord(item))} />
+          <RelationBlock label="出现的制作项" items={childContentUnits.map((item) => titleOfRecord(item))} />
           {/* Child scene moments */}
           {childSceneMoments.length > 0 && (
             <div className="mt-2">
-              <p className="px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">情节</p>
+              <p className="px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">情景</p>
               {childSceneMoments.map((sm) => (
                 <SceneMomentRow key={sm.ID} moment={sm} segments={[]} projectId={projectId} productionId={0} queryKey={queryKey} expandedIds={expandedIds} onToggleExpand={onToggleExpand} onEdit={onEdit} onCreateChild={() => {}} onAnalyze={onAnalyze} lookup={lookup} candidates={null} showDiff={false} onAcceptCandidate={() => {}} onRejectCandidate={() => {}} />
               ))}
@@ -1623,7 +1779,7 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
           {/* Child content units */}
           {childContentUnits.length > 0 && (
             <div className="mt-2">
-              <p className="px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">内容单元</p>
+              <p className="px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">制作项</p>
               {childContentUnits.map((cu) => (
                 <ContentUnitRow key={cu.ID} unit={cu} segments={[]} sceneMoments={[]} projectId={projectId} productionId={0} queryKey={queryKey} expandedIds={expandedIds} onToggleExpand={onToggleExpand} onEdit={onEdit} onCreateChild={() => {}} onAnalyze={onAnalyze} lookup={lookup} candidates={null} showDiff={false} onAcceptCandidate={() => {}} onRejectCandidate={() => {}} />
               ))}
@@ -1643,7 +1799,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), moment.ID),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('情节已删除') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('情景已删除') },
     onError: () => toast.error('删除失败'),
   })
 
@@ -1655,9 +1811,9 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm text-foreground">{String(moment.title ?? `情节 #${moment.ID}`)}</span>
+            <span className="text-sm text-foreground">{String(moment.title ?? `情景 #${moment.ID}`)}</span>
             {moment.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(moment.status)])}>{statusLabel[String(moment.status)] ?? String(moment.status)}</Badge>}
-            {parentSegment && <span className="text-[10px] text-muted-foreground">片段: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
+            {parentSegment && <span className="text-[10px] text-muted-foreground">剧本段落: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
             {moment.time_text && <span>时间: {String(moment.time_text)}</span>}
@@ -1666,13 +1822,13 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/sm:opacity-100">
-          <button type="button" onClick={() => onAnalyze({ scope: 'sceneMoments', entityId: moment.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="单项分析">
+          <button type="button" onClick={() => onAnalyze({ scope: 'sceneMoments', entityId: moment.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="重新分析">
             <Wand2 size={13} />
           </button>
           <button type="button" onClick={() => onEdit('sceneMoments', moment)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <Pencil size={13} />
           </button>
-          <button type="button" onClick={() => { if (confirm('确定删除这个情节？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
+          <button type="button" onClick={() => { if (confirm('确定删除这个情景？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
             <Trash2 size={13} />
           </button>
         </div>
@@ -1692,7 +1848,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
           )}
           {moment.description && (
             <div className="px-2 pb-2">
-              <p className="text-[10px] text-muted-foreground">情节文字</p>
+              <p className="text-[10px] text-muted-foreground">情景文字</p>
               <p className="mt-0.5 text-xs leading-relaxed text-foreground">{String(moment.description)}</p>
             </div>
           )}
@@ -1715,7 +1871,7 @@ function CreativeReferenceRow({ reference, projectId, queryKey, expandedIds, onT
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSemanticEntity(projectId!, semanticEntityConfig('creativeReferences'), reference.ID),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('创作资料已删除') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('设定资料已删除') },
     onError: () => toast.error('删除失败'),
   })
 
@@ -1735,13 +1891,13 @@ function CreativeReferenceRow({ reference, projectId, queryKey, expandedIds, onT
           {reference.description && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{String(reference.description)}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/cr:opacity-100">
-          <button type="button" onClick={() => onAnalyze({ scope: 'creativeReferences', entityId: reference.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="单项分析">
+          <button type="button" onClick={() => onAnalyze({ scope: 'creativeReferences', entityId: reference.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="重新分析">
             <Wand2 size={13} />
           </button>
           <button type="button" onClick={() => onEdit('creativeReferences', reference)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <Pencil size={13} />
           </button>
-          <button type="button" onClick={() => { if (confirm('确定删除这条创作资料？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
+          <button type="button" onClick={() => { if (confirm('确定删除这条设定资料？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
             <Trash2 size={13} />
           </button>
         </div>
@@ -1796,7 +1952,7 @@ function AssetSlotRow({ slot, projectId, queryKey, expandedIds, onToggleExpand, 
           {slot.description && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{String(slot.description)}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/as:opacity-100">
-          <button type="button" onClick={() => onAnalyze({ scope: 'assetSlots', entityId: slot.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="单项分析">
+          <button type="button" onClick={() => onAnalyze({ scope: 'assetSlots', entityId: slot.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="重新分析">
             <Wand2 size={13} />
           </button>
           <button type="button" onClick={() => onEdit('assetSlots', slot)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -1838,7 +1994,7 @@ function ContentUnitRow({ unit, segments, sceneMoments, projectId, queryKey, exp
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSemanticEntity(projectId!, semanticEntityConfig('contentUnits'), unit.ID),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('内容单元已删除') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('制作项已删除') },
     onError: () => toast.error('删除失败'),
   })
 
@@ -1850,7 +2006,7 @@ function ContentUnitRow({ unit, segments, sceneMoments, projectId, queryKey, exp
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm text-foreground">{String(unit.title ?? `内容单元 #${unit.ID}`)}</span>
+            <span className="text-sm text-foreground">{String(unit.title ?? `制作项 #${unit.ID}`)}</span>
             {unit.kind && <Badge variant="secondary" className="text-[10px]">{contentUnitKindLabel[String(unit.kind)] ?? String(unit.kind)}</Badge>}
             {unit.duration_sec && <span className="text-[10px] text-muted-foreground">{unit.duration_sec}s</span>}
             {unit.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(unit.status)])}>{statusLabel[String(unit.status)] ?? String(unit.status)}</Badge>}
@@ -1859,18 +2015,18 @@ function ContentUnitRow({ unit, segments, sceneMoments, projectId, queryKey, exp
             {unit.shot_size && <span>景别: {String(unit.shot_size)}</span>}
             {unit.camera_angle && <span>机位: {String(unit.camera_angle)}</span>}
             {unit.camera_motion && <span>运镜: {String(unit.camera_motion)}</span>}
-            {parentSegment && <span>片段: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
-            {parentSceneMoment && <span>情节: {String(parentSceneMoment.title ?? `#${parentSceneMoment.ID}`)}</span>}
+            {parentSegment && <span>剧本段落: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
+            {parentSceneMoment && <span>情景: {String(parentSceneMoment.title ?? `#${parentSceneMoment.ID}`)}</span>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/cu:opacity-100">
-          <button type="button" onClick={() => onAnalyze({ scope: 'contentUnits', entityId: unit.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="单项分析">
+          <button type="button" onClick={() => onAnalyze({ scope: 'contentUnits', entityId: unit.ID })} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="重新分析">
             <Wand2 size={13} />
           </button>
           <button type="button" onClick={() => onEdit('contentUnits', unit)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <Pencil size={13} />
           </button>
-          <button type="button" onClick={() => { if (confirm('确定删除这个内容单元？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
+          <button type="button" onClick={() => { if (confirm('确定删除这个制作项？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
             <Trash2 size={13} />
           </button>
         </div>
@@ -1895,7 +2051,7 @@ function ContentUnitRow({ unit, segments, sceneMoments, projectId, queryKey, exp
             {unit.camera_motion && <DetailField label="运镜方式" value={String(unit.camera_motion)} />}
             {unit.duration_sec && <DetailField label="时长" value={`${unit.duration_sec}s`} />}
           </div>
-          <RelationBlock label="对应片段/情节" items={contentUnitAppearances(unit, lookup)} />
+          <RelationBlock label="对应剧本段落/情景" items={contentUnitAppearances(unit, lookup)} />
           <RelationBlock label="相关资料" items={contentUnitReferences(unit, lookup)} />
           <RelationBlock label="相关素材" items={contentUnitAssetSlots(unit, lookup)} />
         </div>
@@ -2158,7 +2314,7 @@ function AIContentUnitRow({
     )}>
       <Sparkle size={13} className={cn('mt-0.5 shrink-0', isConflict ? 'text-rose-500' : 'text-amber-500')} />
       <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium text-foreground">{candidate.description ?? `内容单元 #${candidate.order}`}</span>
+        <span className="text-sm font-medium text-foreground">{candidate.description ?? `制作项 #${candidate.order}`}</span>
         <div className="mt-0.5 flex gap-2 text-[11px] text-muted-foreground">
           <span>{contentUnitKindLabel[candidate.type] ?? candidate.type}</span>
           {candidate.shot_size && <span>景别: {candidate.shot_size}</span>}
@@ -2200,8 +2356,8 @@ function CandidateRelationLine({
   units?: string[]
 }) {
   const items = [
-    segments.length > 0 ? `片段 ${segments.join('/')}` : '',
-    moments.length > 0 ? `情节 ${moments.join('/')}` : '',
+    segments.length > 0 ? `剧本段落 ${segments.join('/')}` : '',
+    moments.length > 0 ? `情景 ${moments.join('/')}` : '',
     refs.length > 0 ? `资料 ${refs.join('/')}` : '',
     assets.length > 0 ? `素材 ${assets.join('/')}` : '',
     units.length > 0 ? `单元 ${units.join('/')}` : '',
@@ -2320,26 +2476,26 @@ function buildOrchestrationAnalysisPrompt(scriptText: string, productionId?: num
     '',
     '2. 调用 movscript_read_production_context 读取当前制作已有的实体和剧本文本。',
     '   - 参数：projectId（从上下文获取）、productionId（从上下文获取）、includeScriptText: true',
-    '   - 目的：了解已有片段/情节/资料/素材/内容单元，为去重做准备',
+    '   - 目的：了解已有剧本段落/情景/资料/素材/制作项，为去重做准备',
     '',
-    '3. 基于剧本文本，按叙事节奏（情绪弧线、时空跳跃、节奏变化）拆分片段。',
-    '   - 片段是剧集级的，不是简单段落分割',
-    '   - 每个片段：client_id（s1/s2...）、order、title、summary、source_range',
+    '3. 基于剧本文本，按叙事节奏（情绪弧线、时空跳跃、节奏变化）拆分剧本段落。',
+    '   - 剧本段落是剧集级的，不是简单段落分割',
+    '   - 每个剧本段落：client_id（s1/s2...）、order、title、summary、source_range',
     '',
-    '4. 对每个片段，递归分析其内部情节（scene_moments）。',
-    '   - 每个情节必须带 segment_id（指向片段 client_id）',
+    '4. 对每个剧本段落，递归分析其内部情景（scene_moments）。',
+    '   - 每个情景必须带 segment_id（指向剧本段落 client_id）',
     '   - 记录 time_text、location_text、action_text、mood',
     '',
-    '5. 扫描全文提取创作资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
-    '   - 创作资料是项目级的，必须与已有资料对比去重',
+    '5. 扫描全文提取设定资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
+    '   - 设定资料是项目级的，必须与已有资料对比去重',
     '   - 建立关系：segment_ids、scene_moment_ids、content_unit_ids',
     '',
-    '6. 基于资料和情节，推断素材需求（asset_slots）。',
+    '6. 基于资料和情景，推断素材需求（asset_slots）。',
     '   - 素材也是项目级的，必须与已有素材对比去重',
     '   - 每个素材必须有 owner_type 和对应 owner client_id',
     '',
-    '7. 对每个情节，递归分析内容单元（content_units）。',
-    '   - 每个内容单元必须带 segment_id 和 scene_moment_id',
+    '7. 对每个情景，递归分析制作项（content_units）。',
+    '   - 每个制作项必须带 segment_id 和 scene_moment_id',
     '   - 记录 type、shot_size、camera_angle',
     '   - 关联 creative_reference_ids 和 asset_slot_ids',
     '',
@@ -2439,7 +2595,7 @@ function normalizeSegments(value: unknown): AISegmentCandidate[] {
       ...row,
       client_id: toText(row.client_id) || `s${order}`,
       order,
-      title: toText(row.title) || `片段 ${order}`,
+      title: toText(row.title) || `剧本段落 ${order}`,
       summary: toText(row.summary) || toText(row.content) || toText(row.description) || '',
       ...(toText(row.source_range) ? { source_range: toText(row.source_range) } : {}),
     }
@@ -2455,7 +2611,7 @@ function normalizeSceneMoments(value: unknown): AISceneMomentCandidate[] {
       client_id: toText(row.client_id) || `sm${order}`,
       segment_id: toText(row.segment_id) || `s${order}`,
       order,
-      title: toText(row.title) || `情节 ${order}`,
+      title: toText(row.title) || `情景 ${order}`,
       ...(toText(row.time_text) ? { time_text: toText(row.time_text) } : {}),
       ...(toText(row.location_text) ? { location_text: toText(row.location_text) } : {}),
       ...(toText(row.action_text) ? { action_text: toText(row.action_text) } : {}),
@@ -2473,7 +2629,7 @@ function normalizeCreativeReferences(value: unknown): AICreativeReferenceCandida
     return {
       ...row,
       client_id: toText(row.client_id) || `cr${index + 1}`,
-      name: toText(row.name) || `创作资料 ${index + 1}`,
+      name: toText(row.name) || `设定资料 ${index + 1}`,
       type: normalizeReferenceType(toText(row.type) || toText(row.kind)),
       importance: normalizeImportance(toText(row.importance)),
       ...(toText(row.description) ? { description: toText(row.description) } : {}),
@@ -2658,7 +2814,7 @@ function buildAssetSlots(segments: AISegmentCandidate[], references: AICreativeR
       creative_reference_id: ref.client_id,
       name: `${ref.name} 参考素材`,
       type: ref.type === 'person' || ref.type === 'place' ? 'image' : 'image',
-      description: ref.description || `创作资料「${ref.name}」所需参考素材`,
+      description: ref.description || `设定资料「${ref.name}」所需参考素材`,
       priority: ref.importance === 'high' ? 'high' : 'normal',
     })
   }
@@ -2669,13 +2825,13 @@ function inferTitle(chunk: { text: string }, index: number): string {
   const explicit = chunk.text.match(/第[一二三四五六七八九十百千万\d]+[集场幕章][：:\s-]*([^\n。！？!?]{2,24})/)
   if (explicit?.[1]) return explicit[1].trim()
   const firstLine = chunk.text.split('\n').map((line) => line.trim()).find(Boolean)
-  return firstLine ? summarizeText(firstLine, 24) : `片段 ${index + 1}`
+  return firstLine ? summarizeText(firstLine, 24) : `剧本段落 ${index + 1}`
 }
 
 function inferMomentTitle(text: string, index: number): string {
   const location = inferLocationText(text)
   const action = summarizeText(text, 24)
-  return location ? `${location}：${action}` : `情节 ${index + 1}`
+  return location ? `${location}：${action}` : `情景 ${index + 1}`
 }
 
 function inferTimeText(text: string): string {
@@ -2764,8 +2920,9 @@ function AgentChatSidebar({
   contentUnits,
   guideCounts,
   pendingCounts,
-  analysisTarget,
-  onAnalysisTargetChange,
+  orchestrationPrompt,
+  onOrchestrationPromptChange,
+  candidateWorkbench,
   onClose,
   onResult,
 }: {
@@ -2779,8 +2936,9 @@ function AgentChatSidebar({
   contentUnits: ContentUnitRecord[]
   guideCounts: GuideCounts
   pendingCounts: GuideCounts
-  analysisTarget: AnalysisTarget
-  onAnalysisTargetChange: (target: AnalysisTarget) => void
+  orchestrationPrompt: string
+  onOrchestrationPromptChange: (value: string) => void
+  candidateWorkbench: ReactNode
   onClose: () => void
   onResult: (result: AIAnalysisResult) => void
 }) {
@@ -2836,14 +2994,17 @@ function AgentChatSidebar({
     const productionId = production?.ID ?? 0
 
     // Build a concise prompt that instructs the agent to use its tools
-    const analysisPrompt = buildOrchestrationAnalysisPrompt(text.trim(), productionId)
+    const analysisPrompt = buildOrchestrationAnalysisPrompt(
+      [text.trim(), orchestrationPrompt.trim() ? `\n\n用户补充要求：\n${orchestrationPrompt.trim()}` : ''].filter(Boolean).join(''),
+      productionId,
+    )
 
     try {
       await client.ensureRunning()
 
       const thread = await client.createThread({ projectId })
       await client.addMessage(thread.id, analysisPrompt, {
-        message: '递归分析剧本，提取片段、情节、创作资料、素材需求和内容单元，去重并建立关系图',
+        message: '递归分析剧本，提取剧本段落、情景、设定资料、素材需求和制作项，去重并建立关系图',
         uiSnapshot: {
           route: { pathname: '/production-orchestrate', search: window.location.search },
           project: projectId ? { id: projectId } : undefined,
@@ -2863,6 +3024,7 @@ function AgentChatSidebar({
           threadId: thread.id,
           scriptVersionId: scriptVersionId || undefined,
           promptLength: analysisPrompt.length,
+          userPrompt: orchestrationPrompt.trim() || undefined,
           mode: 'tool-driven',
         },
       })
@@ -2968,7 +3130,7 @@ function AgentChatSidebar({
     }
   }
 
-  const effectiveText = getAnalysisText(analysisTarget, {
+  const effectiveText = getAnalysisText({ scope: 'production', entityId: null }, {
     manualText: scriptText,
     linkedVersion,
     production,
@@ -2987,7 +3149,6 @@ function AgentChatSidebar({
     assetSlots: guideCounts.asset_slots + pendingCounts.asset_slots,
     contentUnits: guideCounts.content_units + pendingCounts.content_units,
   }
-  const isWholeScope = analysisTarget.scope === 'production' || analysisTarget.scope === 'segments'
 
   return (
     <aside className="flex w-[420px] shrink-0 flex-col border-l border-border bg-card">
@@ -2995,7 +3156,7 @@ function AgentChatSidebar({
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Sparkles size={15} className="text-primary" />
-          <span className="text-sm font-semibold text-foreground">总编排</span>
+          <span className="text-sm font-semibold text-foreground">编排面板</span>
           {phase === 'running' && <Loader2 size={12} className="animate-spin text-muted-foreground" />}
           {phase === 'done' && <CheckCircle2 size={12} className="text-emerald-500" />}
           {phase === 'error' && <AlertCircle size={12} className="text-rose-500" />}
@@ -3013,67 +3174,44 @@ function AgentChatSidebar({
               {production ? String(production.name ?? `制作 #${production.ID}`) : '未选择制作'}
             </p>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              总编排负责串联全部子功能；点击任一阶段或实体的分析按钮，可进入对应子功能。
+              这里只保留一个编排入口。AI 每次产出同一组候选，用户再决定采纳、忽略、覆盖或并行保留。
             </p>
           </div>
           <div className="mt-3 rounded-lg border border-border bg-background p-3">
-            <p className="text-[11px] font-medium text-muted-foreground">分析范围</p>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {(['production', 'segments', 'segmentAnalysis', 'sceneMoments', 'creativeReferences', 'assetSlots', 'contentUnits'] as AnalysisScope[]).map((scope) => (
-                <button
-                  key={scope}
-                  type="button"
-                  onClick={() => onAnalysisTargetChange({ scope, entityId: scope === analysisTarget.scope && scope !== 'segments' ? analysisTarget.entityId : null })}
-                  className={cn(
-                    'rounded-md border px-2 py-1.5 text-left text-[11px] transition-colors',
-                    analysisTarget.scope === scope
-                      ? 'border-primary/40 bg-primary/8 text-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <span className="block font-medium">{analysisScopeLabels[scope]}</span>
-                  <span className="block truncate text-[10px] text-muted-foreground">
-                    {scope === 'production' || scope === 'segments' ? '产出结果' : '选择对象后产出结果'}
-                  </span>
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <Wand2 size={14} className="text-primary" />
+              <p className="text-xs font-semibold text-foreground">编排要求</p>
             </div>
-            {!isWholeScope && (
-              <div className="mt-2">
-                <p className="text-[10px] text-muted-foreground">单项目标</p>
-                <div className="mt-1 grid grid-cols-2 gap-1.5">
-                  <TargetPicker
-                    scope={analysisTarget.scope}
-                    value={analysisTarget.entityId ?? null}
-                    selectedSegment={selectedSegment}
-                    segments={segments}
-                    sceneMoments={sceneMoments}
-                    creativeReferences={creativeReferences}
-                    assetSlots={assetSlots}
-                    contentUnits={contentUnits}
-                    onChange={(entityId) => onAnalysisTargetChange({ scope: analysisTarget.scope, entityId })}
-                  />
-                </div>
-              </div>
-            )}
+            <Textarea
+              className="mt-2 min-h-24 resize-none text-xs leading-relaxed"
+              placeholder="补充你希望 AI 遵循的要求，例如：重点补齐缺失情景；保留原剧本段落名称；制作项先粗分，不生成镜头细节。"
+              value={orchestrationPrompt}
+              onChange={(event) => onOrchestrationPromptChange(event.target.value)}
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              这里用于再次编排时补充约束，不区分剧本段落分析、情景分析、素材分析等子功能。
+            </p>
           </div>
           <div className="mt-3 rounded-lg border border-border bg-background p-3">
             <div className="flex items-center gap-2">
               <CheckCheck size={14} className="text-primary" />
-              <p className="text-xs font-semibold text-foreground">目标</p>
+              <p className="text-xs font-semibold text-foreground">本次输出</p>
             </div>
-            <p className="mt-2 text-base font-semibold text-foreground">产出结果</p>
+            <p className="mt-2 text-base font-semibold text-foreground">候选结果</p>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              所有分析都产出同一组候选：片段、情节、创作资料、素材、内容单元；单项分析中不适用的类别会返回 0 条。
+              所有分析都产出同一组候选：剧本段落、情景、设定资料、素材、制作项；单项分析中不适用的类别会返回 0 条。
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <ContextLine icon={GitBranch} label="片段" value={`${outputCounts.segments}`} />
-              <ContextLine icon={Route} label="情节" value={`${outputCounts.sceneMoments}`} />
+              <ContextLine icon={GitBranch} label="剧本段落" value={`${outputCounts.segments}`} />
+              <ContextLine icon={Route} label="情景" value={`${outputCounts.sceneMoments}`} />
               <ContextLine icon={Sparkles} label="资料" value={`${outputCounts.creativeReferences}`} />
               <ContextLine icon={PackageCheck} label="素材" value={`${outputCounts.assetSlots}`} />
-              <ContextLine icon={Film} label="内容单元" value={`${outputCounts.contentUnits}`} />
+              <ContextLine icon={Film} label="制作项" value={`${outputCounts.contentUnits}`} />
               <ContextLine icon={Sparkle} label="待审候选" value={`${pendingTotal}`} />
             </div>
+          </div>
+          <div className="mt-3">
+            {candidateWorkbench}
           </div>
         </div>
 
@@ -3087,7 +3225,7 @@ function AgentChatSidebar({
                 <p className="text-xs font-semibold text-foreground">重新生成候选</p>
               </div>
               <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                可在任意阶段重新整理剧本，生成的新候选会进入待审状态；已采纳的片段、资料、情节、素材和内容单元不会被覆盖。
+                可在任意阶段重新整理剧本，生成的新候选会进入待审状态；已采纳的剧本段落、资料、情景、素材和制作项不会被覆盖。
               </p>
             </div>
 
@@ -3159,7 +3297,7 @@ function AgentChatSidebar({
                 )}
                 <Textarea
                   className="min-h-[240px] resize-none font-mono text-xs leading-relaxed"
-                  placeholder="粘贴剧本内容，向导会先拆片段，再补创作资料、情节、素材和内容单元。"
+                  placeholder="粘贴剧本内容，向导会先拆剧本段落，再补设定资料、情景、素材和制作项。"
                   value={scriptText}
                   onChange={(e) => setScriptText(e.target.value)}
                   autoFocus
@@ -3286,8 +3424,8 @@ function AgentChatSidebar({
                 </div>
                 {outputResult && (
                   <div className="mt-2 grid grid-cols-5 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
-                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">片段 {outputResult.segments.length}</span>
-                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 {outputResult.scene_moments.length}</span>
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">剧本段落 {outputResult.segments.length}</span>
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 {outputResult.scene_moments.length}</span>
                     <span className="rounded bg-emerald-500/10 px-1.5 py-1">资料 {outputResult.creative_references.length}</span>
                     <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材 {outputResult.asset_slots.length}</span>
                     <span className="rounded bg-emerald-500/10 px-1.5 py-1">单元 {outputResult.content_units.length}</span>
@@ -3333,7 +3471,7 @@ function AgentChatSidebar({
                 onClick={() => startAnalysis(effectiveText)}
               >
                 <Sparkles size={12} />
-                生成阶段候选
+                开始编排
               </Button>
             )}
           </div>
@@ -3405,10 +3543,10 @@ function ProposalReviewPanel({
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
             {appliedCounts.segments_created > 0 && (
-              <span className="rounded bg-emerald-500/10 px-1.5 py-1">片段 +{appliedCounts.segments_created}</span>
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">剧本段落 +{appliedCounts.segments_created}</span>
             )}
             {appliedCounts.scene_moments_created > 0 && (
-              <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{appliedCounts.scene_moments_created}</span>
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{appliedCounts.scene_moments_created}</span>
             )}
             {appliedCounts.content_units_created > 0 && (
               <span className="rounded bg-emerald-500/10 px-1.5 py-1">单元 +{appliedCounts.content_units_created}</span>
@@ -3440,8 +3578,8 @@ function ProposalReviewPanel({
           <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{proposalDraft.summary}</p>
         )}
         <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px]">
-          <span className="rounded bg-muted px-1.5 py-1 text-foreground">片段 {segments.length}</span>
-          <span className="rounded bg-muted px-1.5 py-1 text-foreground">情节 {totalSceneMoments}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">剧本段落 {segments.length}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">情景 {totalSceneMoments}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">单元 {totalContentUnits}</span>
           {totalCreativeRefs > 0 && (
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">资料 {totalCreativeRefs}</span>
@@ -3471,9 +3609,9 @@ function ProposalReviewPanel({
                 >
                   <ActionBadge action={seg.action} />
                   <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
-                    {seg.title || `片段 ${i + 1}`}
+                    {seg.title || `剧本段落 ${i + 1}`}
                   </span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{smCount} 情节</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{smCount} 情景</span>
                   {smCount > 0 && (
                     <span className="shrink-0 text-muted-foreground">
                       {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
@@ -3491,7 +3629,7 @@ function ProposalReviewPanel({
                             <span className="w-3 shrink-0" />
                             <ActionBadge action={sm.action} />
                             <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
-                              {sm.title || `情节 ${j + 1}`}
+                              {sm.title || `情景 ${j + 1}`}
                             </span>
                             {cuCount > 0 && (
                               <span className="shrink-0 text-[10px] text-muted-foreground">{cuCount} 单元</span>
@@ -3567,37 +3705,37 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 
 ### Step 1：读取现有上下文
 如果当前 productionId 缺失或不确定，先调用 movscript_list_productions，列出当前项目的制作，并选择与用户上下文最匹配的 production。
-调用 movscript_read_production_context，获取当前制作已有的片段、情节、创作资料（项目级）、素材（项目级）、内容单元，以及关联剧本文本。这是去重的基础，不可跳过。
+调用 movscript_read_production_context，获取当前制作已有的剧本段落、情景、设定资料（项目级）、素材（项目级）、制作项，以及关联剧本文本。这是去重的基础，不可跳过。
 
-### Step 2：片段拆分（剧集级）
-把剧本按叙事节奏拆分为片段。片段不是简单的段落分割，而是基于：
+### Step 2：剧本段落拆分（剧集级）
+把剧本按叙事节奏拆分为剧本段落。剧本段落不是简单的段落分割，而是基于：
 - 情绪弧线的起伏（铺垫→冲突→高潮→收尾）
 - 时间/空间的跳跃
 - 叙事视角的切换
 - 节奏的明显变化（快节奏动作段 vs 慢节奏情感段）
-每个片段必须有 order、title、summary、source_range（字符偏移范围）。
+每个剧本段落必须有 order、title、summary、source_range（字符偏移范围）。
 
-### Step 3：情节分析（递归，每个片段都要分析）
-对每个片段，分析其内部的情节（scene_moments）：
-- 每个情节必须带 segment_id（指向所属片段的 client_id）
+### Step 3：情景分析（递归，每个剧本段落都要分析）
+对每个剧本段落，分析其内部的情景（scene_moments）：
+- 每个情景必须带 segment_id（指向所属剧本段落的 client_id）
 - 记录 time_text、location_text、action_text、mood
-- 情节是片段内的最小叙事单元，一个片段通常有 2-6 个情节
+- 情景是剧本段落内的最小叙事单元，一个剧本段落通常有 2-6 个情景
 
-### Step 4：创作资料分析（项目级，必须去重）
-扫描全文提取所有创作资料（人物/地点/道具/产品/品牌/风格/世界规则）：
-- 创作资料是项目级的，不属于某个制作，所有制作共享
+### Step 4：设定资料分析（项目级，必须去重）
+扫描全文提取所有设定资料（人物/地点/道具/产品/品牌/风格/世界规则）：
+- 设定资料是项目级的，不属于某个制作，所有制作共享
 - 必须与已有 creative_references 对比：名称相同或高度相似的不要重复创建
 - 建立关系：每个资料关联到用到它的 segment_ids、scene_moment_ids、content_unit_ids
 
 ### Step 5：素材需求分析（项目级，必须去重）
-基于创作资料和情节，推断需要哪些素材（asset_slots）：
+基于设定资料和情景，推断需要哪些素材（asset_slots）：
 - 素材也是项目级的，必须与已有 asset_slots 对比去重
 - 每个素材必须有 owner_type（segment/scene_moment/content_unit）和对应的 owner client_id
 - 关联 creative_reference_id（如果该素材是为某个资料准备的）
 
-### Step 6：内容单元分析（递归，每个情节都要分析）
-对每个情节，分析其内部的内容单元（content_units）：
-- 每个内容单元必须带 segment_id 和 scene_moment_id
+### Step 6：制作项分析（递归，每个情景都要分析）
+对每个情景，分析其内部的制作项（content_units）：
+- 每个制作项必须带 segment_id 和 scene_moment_id
 - 记录 type（shot/visual_segment/product_showcase/caption_card/narration/transition/music_beat）
 - 记录 shot_size（特写/近景/中景/全景/远景）和 camera_angle
 - 关联 creative_reference_ids 和 asset_slot_ids
@@ -3617,14 +3755,14 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 ## 去重规则
 - 名称完全相同：标记为 conflict_status: “duplicate”，附上已有实体 ID
 - 名称高度相似（包含关系或词汇重叠 ≥70%）：同上
-- 创作资料和素材是项目级的，去重范围是整个项目，不限于当前制作
-- 片段和情节是制作级的，去重范围是当前制作
+- 设定资料和素材是项目级的，去重范围是整个项目，不限于当前制作
+- 剧本段落和情景是制作级的，去重范围是当前制作
 
 ## 分析深度要求
 - 必须尽可能全面，不要因为”差不多”就省略
-- 每个片段至少分析出 2 个情节
-- 每个情节至少分析出 1 个内容单元
-- 创作资料要覆盖所有出现的人物、地点、关键道具/产品`,
+- 每个剧本段落至少分析出 2 个情景
+- 每个情景至少分析出 1 个制作项
+- 设定资料要覆盖所有出现的人物、地点、关键道具/产品`,
   permissions: ['project.read', 'draft.read', 'draft.write'],
   tools: [
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
@@ -3826,9 +3964,9 @@ function titleOfRecord(record: SemanticEntityRecord | null | undefined) {
 function formatOwnerLabel(ownerType?: string, ownerId?: number, lookup?: OrchestrationLookup) {
   if (!ownerType || !ownerId || !lookup) return ''
   const key = ownerKey(ownerType, ownerId)
-  if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `片段 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `片段 #${ownerId}`
-  if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情节 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情节 #${ownerId}`
-  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `内容单元 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `内容单元 #${ownerId}`
+  if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `剧本段落 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `剧本段落 #${ownerId}`
+  if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情景 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情景 #${ownerId}`
+  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `制作项 #${ownerId}`
   if (ownerType === 'creative_reference') return lookup.creativeReferenceById.get(ownerId) ? `资料 · ${titleOfRecord(lookup.creativeReferenceById.get(ownerId))}` : `资料 #${ownerId}`
   return `${ownerType} #${ownerId}`
 }
@@ -3843,8 +3981,8 @@ function contentUnitAppearances(unit: ContentUnitRecord, lookup: OrchestrationLo
   const items: string[] = []
   const segment = unit.segment_id ? lookup.segmentById.get(Number(unit.segment_id)) : null
   const moment = unit.scene_moment_id ? lookup.sceneMomentById.get(Number(unit.scene_moment_id)) : null
-  if (segment) items.push(`片段 · ${titleOfRecord(segment)}`)
-  if (moment) items.push(`情节 · ${titleOfRecord(moment)}`)
+  if (segment) items.push(`剧本段落 · ${titleOfRecord(segment)}`)
+  if (moment) items.push(`情景 · ${titleOfRecord(moment)}`)
   return items
 }
 
@@ -3933,11 +4071,11 @@ function getAnalysisText(target: AnalysisTarget, input: {
     const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moments, units)
     const slots = collectAssetSlotsFromSegment(input.assetSlots, segment.ID, moments, units)
     return [
-      `片段：${titleOfRecord(segment)}`,
+      `剧本段落：${titleOfRecord(segment)}`,
       segment.summary ? `摘要：${segment.summary}` : '',
       segment.content ? `剧本正文：\n${segment.content}` : '',
-      moments.length > 0 ? `情节：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
-      units.length > 0 ? `内容单元：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      moments.length > 0 ? `情景：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
+      units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -3954,14 +4092,14 @@ function getAnalysisText(target: AnalysisTarget, input: {
       units.some((unit) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     ))
     return [
-      `情节：${titleOfRecord(moment)}`,
+      `情景：${titleOfRecord(moment)}`,
       moment.description ? `描述：${moment.description}` : '',
       moment.time_text ? `时间：${moment.time_text}` : '',
       moment.location_text ? `地点：${moment.location_text}` : '',
       moment.action_text ? `动作：${moment.action_text}` : '',
       moment.mood ? `情绪：${moment.mood}` : '',
-      segmentRecord ? `所属片段：${titleOfRecord(segmentRecord)}` : '',
-      units.length > 0 ? `内容单元：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      segmentRecord ? `所属剧本段落：${titleOfRecord(segmentRecord)}` : '',
+      units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -3982,12 +4120,12 @@ function getAnalysisText(target: AnalysisTarget, input: {
     const relatedUnits = input.contentUnits.filter((unit) => usageKeys.has(ownerKey('content_unit', unit.ID)))
     const slots = input.assetSlots.filter((slot) => slot.creative_reference_id === reference.ID)
     return [
-      `创作资料：${titleOfRecord(reference)}`,
+      `设定资料：${titleOfRecord(reference)}`,
       reference.alias ? `别名：${reference.alias}` : '',
       reference.description ? `描述：${reference.description}` : '',
       reference.content ? `资料正文：\n${reference.content}` : '',
-      relatedMoments.length > 0 ? `出现情节：${relatedMoments.map((item) => titleOfRecord(item)).join(' / ')}` : '',
-      relatedUnits.length > 0 ? `相关内容单元：${relatedUnits.map((item) => titleOfRecord(item)).join(' / ')}` : '',
+      relatedMoments.length > 0 ? `出现情景：${relatedMoments.map((item) => titleOfRecord(item)).join(' / ')}` : '',
+      relatedUnits.length > 0 ? `相关制作项：${relatedUnits.map((item) => titleOfRecord(item)).join(' / ')}` : '',
       slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
@@ -4027,15 +4165,15 @@ function getAnalysisText(target: AnalysisTarget, input: {
     const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moment ? [moment] : [], [unit])
     const slots = input.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     return [
-      `内容单元：${titleOfRecord(unit)}`,
+      `制作项：${titleOfRecord(unit)}`,
       unit.kind ? `类型：${unit.kind}` : '',
       unit.description ? `描述：${unit.description}` : '',
       unit.prompt ? `提示：${unit.prompt}` : '',
       unit.shot_size ? `景别：${unit.shot_size}` : '',
       unit.camera_angle ? `机位角度：${unit.camera_angle}` : '',
       unit.camera_motion ? `运镜：${unit.camera_motion}` : '',
-      segmentRecord ? `所属片段：${titleOfRecord(segmentRecord)}` : '',
-      moment ? `所属情节：${titleOfRecord(moment)}` : '',
+      segmentRecord ? `所属剧本段落：${titleOfRecord(segmentRecord)}` : '',
+      moment ? `所属情景：${titleOfRecord(moment)}` : '',
       refs.length > 0 ? `相关资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -4141,7 +4279,7 @@ function TargetPicker({
   if (scope === 'segments' || scope === 'segmentAnalysis') {
     return (
       <Select value={value ? String(value) : ''} onValueChange={(next) => onChange(next ? Number(next) : null)}>
-        <SelectTrigger className={selectClass}><SelectValue placeholder="选择片段" /></SelectTrigger>
+        <SelectTrigger className={selectClass}><SelectValue placeholder="选择剧本段落" /></SelectTrigger>
         <SelectContent>
           {segments.map((segment) => <SelectItem key={segment.ID} value={String(segment.ID)}>{titleOfRecord(segment)}</SelectItem>)}
         </SelectContent>
@@ -4152,7 +4290,7 @@ function TargetPicker({
     const options = selectedSegment ? sceneMoments.filter((moment) => moment.segment_id === selectedSegment.ID) : sceneMoments
     return (
       <Select value={value ? String(value) : ''} onValueChange={(next) => onChange(next ? Number(next) : null)}>
-        <SelectTrigger className={selectClass}><SelectValue placeholder="选择情节" /></SelectTrigger>
+        <SelectTrigger className={selectClass}><SelectValue placeholder="选择情景" /></SelectTrigger>
         <SelectContent>
           {options.map((moment) => <SelectItem key={moment.ID} value={String(moment.ID)}>{titleOfRecord(moment)}</SelectItem>)}
         </SelectContent>
@@ -4181,7 +4319,7 @@ function TargetPicker({
   }
   return (
     <Select value={value ? String(value) : ''} onValueChange={(next) => onChange(next ? Number(next) : null)}>
-      <SelectTrigger className={selectClass}><SelectValue placeholder="选择内容单元" /></SelectTrigger>
+      <SelectTrigger className={selectClass}><SelectValue placeholder="选择制作项" /></SelectTrigger>
       <SelectContent>
         {contentUnits.map((unit) => <SelectItem key={unit.ID} value={String(unit.ID)}>{titleOfRecord(unit)}</SelectItem>)}
       </SelectContent>

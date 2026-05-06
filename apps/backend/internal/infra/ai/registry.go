@@ -136,7 +136,7 @@ func (r *Registry) GetFileUploader(cfg model.AIModelConfig) FileUploader {
 
 // GetAny returns the first text-capable (credential, modelConfig, modelDef) triple.
 // Used for internal calls (agent, script analyze) that don't care which model they get.
-// When multiple configs share the highest priority, one is chosen at random.
+// When multiple configs share the highest priority, one is chosen in round-robin order.
 func (r *Registry) GetAny() (Provider, string, error) {
 	type row struct {
 		model.AIModelConfig
@@ -169,7 +169,7 @@ func (r *Registry) GetAny() (Provider, string, error) {
 		return nil, "", fmt.Errorf("no text-capable model configured and enabled")
 	}
 
-	chosen := pickByPriority(candidates, func(c candidate) int { return c.priority })
+	chosen := pickByPriority("registry.get_any_text", candidates, func(c candidate) int { return c.priority })
 	provider, _, err := r.BuildForConfig(chosen.cfg)
 	if err != nil {
 		return nil, "", err

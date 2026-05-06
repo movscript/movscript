@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	billingapp "github.com/movscript/movscript/internal/app/billing"
 	orgapp "github.com/movscript/movscript/internal/app/org"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
@@ -14,13 +13,13 @@ import (
 )
 
 type OrgHandler struct {
-	service *orgapp.Service
-	billing *billingapp.Service
-	db      *gorm.DB
+	service    *orgapp.Service
+	commercial orgCommercialDeps
+	db         *gorm.DB
 }
 
 func NewOrgHandler(db *gorm.DB) *OrgHandler {
-	return &OrgHandler{service: orgapp.NewService(db), billing: billingapp.NewService(db), db: db}
+	return &OrgHandler{service: orgapp.NewService(db), commercial: newOrgCommercialDeps(db), db: db}
 }
 
 func currentOrgMember(c *gin.Context) *model.OrganizationMember {
@@ -381,39 +380,4 @@ func (h *OrgHandler) GetUsage(c *gin.Context) {
 		rows = append(rows, userUsage{UserID: row.UserID, Username: row.Username, Cost: row.TotalCost, Tokens: row.TotalTokens})
 	}
 	c.JSON(http.StatusOK, gin.H{"month": result.Month, "by_user": rows})
-}
-
-func (h *OrgHandler) AdminGetQuota(c *gin.Context) {
-	quota, err := h.billing.GetQuota(c.Request.Context(), parseID(c.Param("id")))
-	if err != nil {
-		if err == billingapp.ErrNotFound {
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询组织额度失败"))
-		return
-	}
-	c.JSON(http.StatusOK, quota)
-}
-
-func (h *OrgHandler) AdminSetQuota(c *gin.Context) {
-	var req struct {
-		MonthlyBudget float64 `json:"monthly_budget"`
-		Plan          *string `json:"plan"`
-		Status        *string `json:"status"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	quota, err := h.billing.SetQuota(c.Request.Context(), parseID(c.Param("id")), billingapp.QuotaInput{MonthlyBudget: req.MonthlyBudget, Plan: req.Plan, Status: req.Status})
-	if err != nil {
-		if err == billingapp.ErrNotFound {
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("设置组织额度失败"))
-		return
-	}
-	c.JSON(http.StatusOK, quota)
 }

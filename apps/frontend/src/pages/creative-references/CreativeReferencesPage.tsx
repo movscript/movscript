@@ -349,11 +349,11 @@ export default function CreativeReferencesPage() {
               <ChevronRight size={13} />
               <span>内容区</span>
               <ChevronRight size={13} />
-              <span>创作资料</span>
+              <span>设定资料</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">创作资料库</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">设定资料库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              人物、地点、道具、产品和风格作为可复用资料被情节引用，帮助制作预演、资产准备和内容生产保持连续性。
+              人物、地点、道具、产品和风格作为可复用资料被情景引用，帮助制作预演、资产准备和内容生产保持连续性。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -417,7 +417,7 @@ export default function CreativeReferencesPage() {
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">资料清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">以资料卡为中心管理事实、视觉状态、引用情节和资产覆盖。</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">以资料卡为中心管理事实、视觉状态、引用情景和资产覆盖。</p>
                 </div>
               </div>
 
@@ -449,17 +449,17 @@ export default function CreativeReferencesPage() {
                 ? { kind: 'person', importance: 'supporting', status: 'draft' }
                 : undefined}
             queryKey={creatingAssetSlot ? ['semantic-creative-references-page', projectId, 'asset-slots'] : ['semantic-creative-references-page', projectId]}
-            title={creatingAssetSlot ? '新增素材需求' : creatingReference ? '新建创作资料' : '卡片内编辑创作资料'}
-            description={creatingAssetSlot ? '为当前资料创建素材位，资料绑定会自动带入。' : '直接维护资料名称、类型、描述、内容和状态。'}
+            title={creatingAssetSlot ? '新增素材需求' : creatingReference ? '新建设定资料' : '卡片内编辑设定资料'}
+            description={creatingAssetSlot ? '为当前资料创建素材需求，资料绑定会自动带入。' : '直接维护资料名称、类型、描述、内容和状态。'}
             hero={selected ? {
               icon: (() => {
                 const Icon = creativeReferenceKindMeta[selected.kind].icon
                 return <Icon size={19} />
               })(),
               eyebrow: creatingAssetSlot ? '素材需求' : creativeReferenceKindMeta[selected.kind].label,
-              title: creatingAssetSlot ? `为 ${selected.title} 新增素材` : creatingReference ? '新建创作资料' : selected.title,
+              title: creatingAssetSlot ? `为 ${selected.title} 新增素材` : creatingReference ? '新建设定资料' : selected.title,
               subtitle: creatingAssetSlot ? selected.subtitle || `资料 #${selected.id}` : creatingReference ? '项目资料' : selected.subtitle || `资料 #${selected.id}`,
-              summary: creatingAssetSlot ? '创建后会出现在该资料的“所需要的素材”中，并可继续补充候选或锁定资源。' : creatingReference ? '建立人物、地点、道具、产品或风格资料后，可以被情节、内容单元和素材位复用。' : selected.summary,
+              summary: creatingAssetSlot ? '创建后会出现在该资料的“所需要的素材”中，并可继续补充候选或锁定资源。' : creatingReference ? '建立人物、地点、道具、产品或风格资料后，可以被情景、制作项和素材需求复用。' : selected.summary,
               accentClassName: selected.accent,
               status: <Badge variant="secondary" className={cn('text-[10px]', creativeReferenceStatusMeta[creatingReference ? 'draft' : selected.status].className)}>{creativeReferenceStatusMeta[creatingReference ? 'draft' : selected.status].label}</Badge>,
               stats: creatingAssetSlot ? [
@@ -516,10 +516,10 @@ export default function CreativeReferencesPage() {
       downstream={<div />}
       bottom={(
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
-          <RelatedPanel title="被引用的片段" icon={Layers3} records={referencedSegments} empty="当前资料暂无片段引用" />
-          <RelatedPanel title="被引用的情节" icon={Film} records={referencedSceneMoments} empty="当前资料暂无情节引用" />
+          <RelatedPanel title="被引用的剧本段落" icon={Layers3} records={referencedSegments} empty="当前资料暂无剧本段落引用" />
+          <RelatedPanel title="被引用的情景" icon={Film} records={referencedSceneMoments} empty="当前资料暂无情景引用" />
           <RelatedPanel title="所需要的素材" icon={PackageCheck} records={requiredAssets} empty="当前资料暂无素材需求" action={selectedReferenceId ? { label: '新增素材', onClick: startCreateAssetSlot } : undefined} />
-          <RelatedPanel title="被引用的内容单元" icon={Boxes} records={referencedContentUnits} empty="当前资料暂无内容单元引用" />
+          <RelatedPanel title="被引用的制作项" icon={Boxes} records={referencedContentUnits} empty="当前资料暂无制作项引用" />
         </div>
       )}
     />

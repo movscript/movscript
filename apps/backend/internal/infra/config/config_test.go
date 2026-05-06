@@ -80,3 +80,40 @@ func TestValidateStartupAcceptsSQLiteConfig(t *testing.T) {
 		t.Fatalf("ValidateStartup returned error for sqlite config: %v", err)
 	}
 }
+
+func TestValidateStartupAcceptsCacheBackends(t *testing.T) {
+	for _, backend := range []string{"", "noop", "memory", "redis"} {
+		cfg := &Config{
+			DBDriver:              "sqlite",
+			DBPath:                t.TempDir() + "/movscript.db",
+			ServerPort:            "8765",
+			EncryptionKey:         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			AuthTokenSecret:       "test-auth-secret",
+			AuthTokenTTLHours:     24,
+			StorageBackend:        "filesystem",
+			FilesystemStorageRoot: t.TempDir(),
+			CacheBackend:          backend,
+			RedisAddr:             "localhost:6379",
+		}
+		if err := cfg.ValidateStartup(); err != nil {
+			t.Fatalf("ValidateStartup returned error for cache backend %q: %v", backend, err)
+		}
+	}
+}
+
+func TestValidateStartupRejectsInvalidCacheBackend(t *testing.T) {
+	cfg := &Config{
+		DBDriver:              "sqlite",
+		DBPath:                t.TempDir() + "/movscript.db",
+		ServerPort:            "8765",
+		EncryptionKey:         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		AuthTokenSecret:       "test-auth-secret",
+		AuthTokenTTLHours:     24,
+		StorageBackend:        "filesystem",
+		FilesystemStorageRoot: t.TempDir(),
+		CacheBackend:          "memcached",
+	}
+	if err := cfg.ValidateStartup(); err == nil {
+		t.Fatal("ValidateStartup returned nil for invalid cache backend")
+	}
+}

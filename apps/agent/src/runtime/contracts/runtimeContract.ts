@@ -24,6 +24,15 @@ export interface AgentRuntimeContractMetadata {
   runtimeRequiresStructuredJSON?: boolean
 }
 
+export function buildRuntimeContractMetadata(contract?: AgentRuntimeContract): AgentRuntimeContractMetadata | undefined {
+  if (!contract) return undefined
+  return {
+    runtimeContractId: contract.id,
+    runtimeRequiresConfiguredModel: contract.requiresConfiguredModel === true,
+    runtimeRequiresStructuredJSON: contract.requiresStructuredJSON === true,
+  }
+}
+
 export class StaticAgentRuntimeContractResolver implements AgentRuntimeContractResolver {
   private readonly contracts: AgentRuntimeContract[]
 

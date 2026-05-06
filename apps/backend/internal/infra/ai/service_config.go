@@ -2,10 +2,13 @@ package ai
 
 import (
 	"fmt"
-	"math/rand"
+	"sync"
+	"sync/atomic"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
+
+var priorityRoundRobinCounters sync.Map
 
 func (s *AIService) loadConfig(modelConfigID uint, requiredCap string) (model.AIModelConfig, Provider, *ModelDef, error) {
 	var cfg model.AIModelConfig
@@ -72,8 +75,8 @@ func calcCost(cfg model.AIModelConfig, def *ModelDef, inputTokens, outputTokens,
 }
 
 // pickByPriority selects one item from a slice by priority.
-// All items with the maximum priority value are collected, then one is chosen at random.
-func pickByPriority[T any](items []T, priority func(T) int) T {
+// All items with the maximum priority value are collected, then one is chosen in round-robin order.
+func pickByPriority[T any](key string, items []T, priority func(T) int) T {
 	if len(items) == 0 {
 		var zero T
 		return zero
@@ -90,5 +93,11 @@ func pickByPriority[T any](items []T, priority func(T) int) T {
 			top = append(top, item)
 		}
 	}
-	return top[rand.Intn(len(top))]
+	if len(top) == 1 {
+		return top[0]
+	}
+	counterAny, _ := priorityRoundRobinCounters.LoadOrStore(key, new(uint64))
+	counter := counterAny.(*uint64)
+	index := atomic.AddUint64(counter, 1) - 1
+	return top[int(index%uint64(len(top)))]
 }

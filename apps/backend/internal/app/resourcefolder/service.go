@@ -3,9 +3,12 @@ package resourcefolder
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
 
@@ -16,11 +19,19 @@ var (
 )
 
 type Service struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache cache.Cache
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
+	var c cache.Cache
+	if len(cacheStore) > 0 {
+		c = cacheStore[0]
+	}
+	if c == nil {
+		c = cache.NewNoop()
+	}
+	return &Service{db: db, cache: c}
 }
 
 type CreateInput struct {
@@ -82,6 +93,7 @@ func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (
 	if err := s.db.WithContext(ctx).Create(&folder).Error; err != nil {
 		return folder, err
 	}
+	s.bumpResourceListVersion(ctx, ownerID, input.OrgID)
 	return folder, nil
 }
 
@@ -112,6 +124,7 @@ func (s *Service) Update(ctx context.Context, userID uint, orgID *uint, id uint,
 	if err := s.db.WithContext(ctx).First(&folder, folder.ID).Error; err != nil {
 		return folder, err
 	}
+	s.bumpResourceListVersion(ctx, userID, orgID)
 	return folder, nil
 }
 
@@ -132,7 +145,11 @@ func (s *Service) Delete(ctx context.Context, userID uint, orgID *uint, id uint)
 	if err := s.db.WithContext(ctx).Where("folder_id = ?", folder.ID).Delete(&model.ResourceFolderPermission{}).Error; err != nil {
 		return err
 	}
-	return s.db.WithContext(ctx).Delete(&folder).Error
+	if err := s.db.WithContext(ctx).Delete(&folder).Error; err != nil {
+		return err
+	}
+	s.bumpResourceListVersion(ctx, userID, orgID)
+	return nil
 }
 
 func (s *Service) ListPermissions(ctx context.Context, userID uint, orgID *uint, id uint) ([]model.ResourceFolderPermission, error) {
@@ -176,6 +193,8 @@ func (s *Service) GrantPermission(ctx context.Context, userID uint, orgID *uint,
 	if err := s.db.WithContext(ctx).Preload("User").First(&existing, existing.ID).Error; err != nil {
 		return existing, err
 	}
+	s.bumpResourceListVersion(ctx, userID, orgID)
+	s.bumpResourceListVersion(ctx, input.UserID, orgID)
 	return existing, nil
 }
 
@@ -184,8 +203,13 @@ func (s *Service) RevokePermission(ctx context.Context, userID uint, orgID *uint
 	if err != nil {
 		return err
 	}
-	return s.db.WithContext(ctx).Where("folder_id = ? AND user_id = ?", folder.ID, targetUserID).
-		Delete(&model.ResourceFolderPermission{}).Error
+	if err := s.db.WithContext(ctx).Where("folder_id = ? AND user_id = ?", folder.ID, targetUserID).
+		Delete(&model.ResourceFolderPermission{}).Error; err != nil {
+		return err
+	}
+	s.bumpResourceListVersion(ctx, userID, orgID)
+	s.bumpResourceListVersion(ctx, targetUserID, orgID)
+	return nil
 }
 
 func (s *Service) requireOwner(ctx context.Context, userID uint, orgID *uint, id uint) (model.ResourceFolder, error) {
@@ -231,6 +255,21 @@ func applyOrgScope(q *gorm.DB, orgID *uint, userID uint, includeLegacy bool) *go
 		return q.Where("org_id = ? OR (org_id IS NULL AND owner_id = ?)", *orgID, userID)
 	}
 	return q.Where("org_id = ?", *orgID)
+}
+
+func (s *Service) bumpResourceListVersion(ctx context.Context, userID uint, orgID *uint) {
+	_, _ = s.cache.BumpVersion(ctx, resourceListNamespace(userID, orgID))
+}
+
+func resourceListNamespace(userID uint, orgID *uint) string {
+	return fmt.Sprintf("resources:user:%d:org:%s", userID, orgIDCachePart(orgID))
+}
+
+func orgIDCachePart(orgID *uint) string {
+	if orgID == nil {
+		return "none"
+	}
+	return strconv.FormatUint(uint64(*orgID), 10)
 }
 
 func ParsePermissionID(raw string) (uint, error) {

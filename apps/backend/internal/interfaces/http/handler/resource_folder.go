@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	appresourcefolder "github.com/movscript/movscript/internal/app/resourcefolder"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
 
@@ -12,8 +13,8 @@ type ResourceFolderHandler struct {
 	service *appresourcefolder.Service
 }
 
-func NewResourceFolderHandler(db *gorm.DB) *ResourceFolderHandler {
-	return &ResourceFolderHandler{service: appresourcefolder.NewService(db)}
+func NewResourceFolderHandler(db *gorm.DB, cacheStore ...cache.Cache) *ResourceFolderHandler {
+	return &ResourceFolderHandler{service: appresourcefolder.NewService(db, cacheStore...)}
 }
 
 func (h *ResourceFolderHandler) List(c *gin.Context) {

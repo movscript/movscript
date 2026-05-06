@@ -82,16 +82,16 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
   defaultActions: CanvasDomainAction[]
 }> = {
   segment: {
-    label: '片段',
+    label: '剧本段落',
     icon: Film,
     tone: 'cyan',
     defaultActions: [
-      { label: '拆情节', icon: GitBranch, outputPortId: 'scene_moments' },
+      { label: '拆情景', icon: GitBranch, outputPortId: 'scene_moments' },
       { label: '开画布', icon: Layers, outputPortId: 'result' },
     ],
   },
   scene_moment: {
-    label: '情节',
+    label: '情景',
     icon: Clapperboard,
     tone: 'teal',
     defaultActions: [
@@ -100,7 +100,7 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
     ],
   },
   creative_reference: {
-    label: '创作资料',
+    label: '设定资料',
     icon: Database,
     tone: 'violet',
     defaultActions: [
@@ -118,7 +118,7 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
     ],
   },
   content_unit: {
-    label: '内容单元',
+    label: '制作项',
     icon: Boxes,
     tone: 'indigo',
     defaultActions: [
@@ -305,7 +305,7 @@ function AssetSlotMaterialCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">素材槽</span>
+              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">素材需求</span>
               <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
             </div>
             {subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>}
@@ -435,7 +435,7 @@ function domainMetrics(kind: CanvasDomainEntityKind, semanticValues?: EntitySema
   const values = semanticValues?.values ?? {}
   if (kind === 'segment') {
     return [
-      { label: '情节', value: countValue(values.scene_moments) },
+      { label: '情景', value: countValue(values.scene_moments) },
       { label: '内容', value: countValue(values.content_units) },
       { label: '时长', value: textValue(values.duration_sec, '-') },
     ]
@@ -523,13 +523,13 @@ function domainLinks(kind: CanvasDomainEntityKind, semanticValues?: EntitySemant
   const values = semanticValues?.values ?? {}
   if (kind === 'segment') {
     return [
-      { label: '下游情节', value: countLabel(values.scene_moments, '个'), outputPortId: 'scene_moments' },
+      { label: '下游情景', value: countLabel(values.scene_moments, '个'), outputPortId: 'scene_moments' },
       { label: '素材缺口', value: countLabel(values.asset_slots, '个'), tone: hasMissingAsset(values.asset_slots) ? 'warning' : 'default', outputPortId: 'asset_slots' },
     ]
   }
   if (kind === 'scene_moment') {
     return [
-      { label: '所属片段', value: idLabel(values.segment_id), inputPortId: 'segment_id', outputPortId: 'segment_id' },
+      { label: '所属剧本段落', value: idLabel(values.segment_id), inputPortId: 'segment_id', outputPortId: 'segment_id' },
       { label: '生成上下文', value: '关键帧/视频', tone: 'ready', outputPortId: 'content_units' },
     ]
   }
@@ -547,7 +547,7 @@ function domainLinks(kind: CanvasDomainEntityKind, semanticValues?: EntitySemant
   }
   if (kind === 'content_unit') {
     return [
-      { label: '上游情节', value: idLabel(values.scene_moment_id), inputPortId: 'scene_moment_id', outputPortId: 'scene_moment_id' },
+      { label: '上游情景', value: idLabel(values.scene_moment_id), inputPortId: 'scene_moment_id', outputPortId: 'scene_moment_id' },
       { label: '生产落点', value: values.timeline_label ? String(values.timeline_label) : '预演时间线', tone: 'ready', outputPortId: 'result' },
     ]
   }

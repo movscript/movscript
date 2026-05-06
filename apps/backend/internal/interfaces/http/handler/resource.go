@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	appresource "github.com/movscript/movscript/internal/app/resource"
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
@@ -22,8 +23,8 @@ type ResourceHandler struct {
 	service *appresource.Service
 }
 
-func NewResourceHandler(db *gorm.DB, store storage.Storage) *ResourceHandler {
-	return &ResourceHandler{store: store, service: appresource.NewService(db, store)}
+func NewResourceHandler(db *gorm.DB, store storage.Storage, cacheStore ...cache.Cache) *ResourceHandler {
+	return &ResourceHandler{store: store, service: appresource.NewService(db, store, cacheStore...)}
 }
 
 // List returns the current user's resources.

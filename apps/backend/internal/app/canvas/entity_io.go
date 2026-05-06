@@ -110,12 +110,12 @@ func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv mode
 		return
 	}
 	if candidateSlot.ResourceID == nil {
-		_ = h.db.Model(&candidateSlot).Update("resource_id", resourceID).Error
+		candidateSlot.ResourceID = &resourceID
 	}
 	if candidateSlot.Status == "" || candidateSlot.Status == "missing" {
-		_ = h.db.Model(&candidateSlot).Update("status", "candidate").Error
+		candidateSlot.Status = "candidate"
 	}
-	_ = model.SyncCoreEntityRelations(h.db, &candidateSlot)
+	_ = h.db.Save(&candidateSlot).Error
 	if candidateSlot.OwnerType != "asset_slot" || candidateSlot.OwnerID == nil || *candidateSlot.OwnerID == 0 {
 		return
 	}
@@ -143,8 +143,12 @@ func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv mode
 		if existing.Status == "" || existing.Status == "pending" {
 			updates["status"] = "candidate"
 		}
-		_ = h.db.Model(&existing).Updates(updates).Error
-		_ = model.SyncCoreEntityRelations(h.db, &existing)
+		if updates["status"] == "candidate" {
+			existing.Status = "candidate"
+		}
+		existing.SourceType = "canvas"
+		existing.SourceID = &sourceID
+		_ = h.db.Save(&existing).Error
 	}
 	var existingBinding model.ResourceBinding
 	if err := h.db.

@@ -8,6 +8,7 @@ import type { AgentDraftStore } from '../store/draftStore.js'
 import type { BackendApplyClient } from '../store/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
+import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { AgentLoopTraceInput, AgentLoopResult } from './agentLoop.js'
 import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 import { callModel } from './modelClient.js'
@@ -15,7 +16,6 @@ import { executeTool } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { buildApplyDraftPreview } from '../store/draftApply.js'
 import type { AgentCommandRuntime } from '../commands/commandRouter.js'
-import { isProductionOrchestrationAnalyzer } from '../production/orchestrationContract.js'
 
 export interface AgentGraphInput {
   run: AgentRun
@@ -35,6 +35,7 @@ export interface AgentGraphInput {
   draftStore: AgentDraftStore
   backendApplyClient: BackendApplyClient
   registry: ToolRegistry
+  contractResolver?: AgentRuntimeContractResolver
   memoryManager?: MemoryManager
   forcedToolCalls?: ToolCall[]
   approvedToolNames?: string[]
@@ -233,21 +234,22 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     history: promptHistory,
     userMessage: effectiveUserMessage,
     ...(input.command ? { command: input.command } : {}),
+    ...(input.contractResolver ? { contractResolver: input.contractResolver } : {}),
   })
   const messages = [
     ...baseMessages.slice(0, -1),
     ...state.history,
     baseMessages.at(-1)!,
   ]
-  const tools = buildOpenAIChatTools(input.capabilities)
+  const tools = buildOpenAIChatTools(input.capabilities, input.contractResolver?.find(input.manifest))
   const modelResult = await callModel({
     messages,
     tools,
     toolChoice: tools.length > 0 ? 'auto' : undefined,
     config: input.config,
     auth: input.auth,
-    temperature: shouldReturnStructuredJSON(input.manifest) ? 0.1 : undefined,
-    jsonMode: shouldReturnStructuredJSON(input.manifest),
+    temperature: shouldReturnStructuredJSON(input.manifest, input.contractResolver) ? 0.1 : undefined,
+    jsonMode: shouldReturnStructuredJSON(input.manifest, input.contractResolver),
     onTrace: (event) => {
       input.onTrace({
         kind: 'model_call',
@@ -295,8 +297,9 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   }
 }
 
-function shouldReturnStructuredJSON(manifest: AgentManifest): boolean {
-  return isProductionOrchestrationAnalyzer(manifest.id) || /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(manifest.soul ?? '')
+function shouldReturnStructuredJSON(manifest: AgentManifest, contractResolver?: AgentRuntimeContractResolver): boolean {
+  if (contractResolver?.requiresStructuredJSON(manifest)) return true
+  return /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(manifest.soul ?? '')
 }
 
 async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {

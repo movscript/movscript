@@ -28,6 +28,13 @@ func TestNewCommunityRoutesDoNotExposeHubAdmin(t *testing.T) {
 		"POST /api/v1/workflows/:id/publish",
 		"POST /api/v1/workflows/:id/unpublish",
 		"POST /api/v1/workflows/:id/clone",
+		"GET /api/v1/user/quota",
+		"GET /api/v1/user/usage-logs",
+		"GET /api/v1/admin/users",
+		"PUT /api/v1/admin/users/:id/quota",
+		"GET /api/v1/admin/usage-logs",
+		"GET /api/v1/admin/orgs/:id/quota",
+		"PUT /api/v1/admin/orgs/:id/quota",
 	} {
 		if routes[route] {
 			t.Fatalf("community router should not register %q", route)

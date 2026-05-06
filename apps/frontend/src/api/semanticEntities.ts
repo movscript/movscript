@@ -171,7 +171,7 @@ export async function applyProductionProposal(
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
-    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是片段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
+    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是剧本段落和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
       text('title', '标题', true),
       select('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
@@ -180,12 +180,12 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('summary', '摘要'),
       select('status', '状态', ['draft', 'active', 'archived']),
     ], '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。'),
-    cfg('segments', 'segments', '片段', '制作里的内容片段，可选绑定制作文本块作为来源。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
+    cfg('segments', 'segments', '剧本段落', '制作里的内容剧本段落，可选绑定制作文本块作为来源。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
       num('production_id', 'Production ID'),
       num('text_block_id', '文本块 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
-        { value: 'section', label: '片段' },
+        { value: 'section', label: '剧本段落' },
         { value: 'scene', label: '场次' },
         { value: 'montage', label: '蒙太奇' },
         { value: 'narration', label: '旁白' },
@@ -199,7 +199,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，片段可以绑定到这里而不是直接绑定剧本。', 'text-amber-600', ['title', 'kind', 'status', 'summary'], [
+    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，剧本段落可以绑定到这里而不是直接绑定剧本。', 'text-amber-600', ['title', 'kind', 'status', 'summary'], [
       num('production_id', 'Production ID', true, true),
       num('parent_block_id', '父文本块 ID'),
       selectOptions('kind', '类型', [
@@ -218,7 +218,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'active', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 production_id。'),
-    cfg('sceneMoments', 'scene-moments', '情节', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
+    cfg('sceneMoments', 'scene-moments', '情景', 'AI 生成的核心上下文：何时、何地、什么条件下发生什么。', 'text-teal-600', ['title', 'time_text', 'location_text', 'status'], [
       num('segment_id', 'Segment ID'),
       text('title', '标题', true),
       num('order', '顺序'),
@@ -246,7 +246,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('preview_timeline_id', 'PreviewTimeline ID'),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情节到内容单元之间的正式语义对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
+    cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情景到制作项之间的正式语义对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
       num('script_version_id', 'ScriptVersion ID'),
       text('name', '名称', true),
       area('description', '描述'),
@@ -264,7 +264,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('snapshot_json', '快照 JSON'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 storyboard_script_id。'),
-    cfg('storyboardLines', 'storyboard-lines', '分镜行', '结构化分镜脚本中的一行，可编译为一个或多个内容单元。', 'text-blue-600', ['title', 'kind', 'order', 'status'], [
+    cfg('storyboardLines', 'storyboard-lines', '分镜行', '结构化分镜脚本中的一行，可编译为一个或多个制作项。', 'text-blue-600', ['title', 'kind', 'order', 'status'], [
       num('storyboard_script_id', 'StoryboardScript ID', true),
       num('storyboard_version_id', 'StoryboardVersion ID'),
       num('segment_id', 'Segment ID'),
@@ -279,10 +279,10 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'candidate', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 storyboard_script_id。'),
-    cfg('contentUnits', 'content-units', '内容单元', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
+    cfg('contentUnits', 'content-units', '制作项', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
       num('production_id', 'Production ID'),
-      num('segment_id', '所属片段 ID'),
-      num('scene_moment_id', '所属情节 ID'),
+      num('segment_id', '所属剧本段落 ID'),
+      num('scene_moment_id', '所属情景 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
         { value: 'shot', label: '镜头' },
@@ -378,7 +378,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       ]),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('keyframes', 'keyframes', '关键帧', '情节或内容单元的视觉锚点，用于驱动预演时间线。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
+    cfg('keyframes', 'keyframes', '关键帧', '情景或制作项的视觉锚点，用于驱动预演时间线。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
@@ -391,7 +391,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['generated', 'candidate', 'attached', 'accepted', 'rejected']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('previewTimelines', 'preview-timelines', '预演时间线', '按内容单元排列的可播放预演版本。', 'text-emerald-600', ['name', 'status', 'duration_sec', 'is_primary'], [
+    cfg('previewTimelines', 'preview-timelines', '预演时间线', '按制作项排列的可播放预演版本。', 'text-emerald-600', ['name', 'status', 'duration_sec', 'is_primary'], [
       num('production_id', 'Production ID'),
       num('script_version_id', 'ScriptVersion ID'),
       text('name', '名称', true),
@@ -400,8 +400,8 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'playable', 'confirmed', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的关键帧、内容单元、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
-    cfg('creativeReferences', 'creative-references', '创作资料', '人物、地点、道具、产品、风格和规则等项目资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
+    cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的关键帧、制作项、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
+    cfg('creativeReferences', 'creative-references', '设定资料', '人物、地点、道具、产品、风格和规则等项目资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
       selectOptions('kind', '类型', [
         { value: 'person', label: '人物' },
         { value: 'place', label: '地点' },
@@ -426,7 +426,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('profile_json', '档案 JSON'),
       area('tags_json', '标签 JSON'),
     ]),
-    cfg('creativeReferenceStates', 'creative-reference-states', '资料状态', '创作资料在特定片段、情节或内容单元中的临时状态。', 'text-fuchsia-600', ['name', 'scope_type', 'status', 'emotion'], [
+    cfg('creativeReferenceStates', 'creative-reference-states', '资料状态', '设定资料在特定剧本段落、情景或制作项中的临时状态。', 'text-fuchsia-600', ['name', 'scope_type', 'status', 'emotion'], [
       num('creative_reference_id', 'CreativeReference ID', true),
       select('scope_type', '作用范围', ['script', 'segment', 'scene_moment', 'storyboard_line', 'content_unit', 'time_period'], true),
       num('scope_id', 'Scope ID'),
@@ -440,7 +440,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('tags_json', '标签 JSON'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 creative_reference_id。'),
-    cfg('creativeReferenceUsages', 'creative-reference-usages', '资料使用', '记录结构对象使用哪一个创作资料及其状态。', 'text-fuchsia-600', ['owner_type', 'owner_id', 'role', 'status'], [
+    cfg('creativeReferenceUsages', 'creative-reference-usages', '资料使用', '记录结构对象使用哪一个设定资料及其状态。', 'text-fuchsia-600', ['owner_type', 'owner_id', 'role', 'status'], [
       select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe'], true),
       num('owner_id', 'Owner ID', true),
       num('creative_reference_id', 'CreativeReference ID', true),
@@ -452,7 +452,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'confirmed', 'corrected', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 owner_type、owner_id 和 creative_reference_id。'),
-    cfg('creativeRelationships', 'creative-relationships', '资料关系', '创作资料之间的关系、约束、引用和冲突。', 'text-fuchsia-600', ['label', 'category', 'type', 'status'], [
+    cfg('creativeRelationships', 'creative-relationships', '资料关系', '设定资料之间的关系、约束、引用和冲突。', 'text-fuchsia-600', ['label', 'category', 'type', 'status'], [
       num('source_creative_reference_id', 'SourceCreativeReference ID', true),
       num('target_creative_reference_id', 'TargetCreativeReference ID', true),
       select('scope_type', '作用范围', ['project', 'script', 'segment', 'scene_moment', 'storyboard_line', 'content_unit']),
@@ -466,11 +466,11 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('evidence', '证据'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
-    cfg('assetSlots', 'asset-slots', '素材位', '正式生产前需要补齐、候选或锁定的素材缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
+    cfg('assetSlots', 'asset-slots', '素材需求', '正式生产前需要补齐、候选或锁定的素材缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
       num('production_id', 'Production ID'),
       select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
       num('owner_id', '归属对象 ID'),
-      num('creative_reference_id', '创作资料'),
+      num('creative_reference_id', '设定资料'),
       num('creative_reference_state_id', '资料状态'),
       selectOptions('kind', '素材类型', [
         { value: 'image', label: '图片' },
@@ -481,7 +481,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
         { value: 'reference', label: '参考资料' },
       ]),
       text('name', '需要什么素材', true),
-      text('slot_key', '素材位键'),
+      text('slot_key', '素材需求键'),
       area('description', '用途说明'),
       area('prompt_hint', '生成提示'),
       selectOptions('priority', '优先级', [
@@ -491,11 +491,11 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
         { value: 'critical', label: '紧急' },
       ]),
       num('resource_id', 'Resource ID'),
-      num('locked_asset_slot_id', '已锁定素材位 ID'),
+      num('locked_asset_slot_id', '已锁定素材需求 ID'),
       select('status', '状态', ['missing', 'candidate', 'locked', 'waived']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '某个素材位下的候选素材及选择状态。', 'text-amber-600', ['asset_slot_id', 'candidate_asset_slot_id', 'score', 'status'], [
+    cfg('assetSlotCandidates', 'asset-slot-candidates', '素材候选', '某个素材需求下的候选素材及选择状态。', 'text-amber-600', ['asset_slot_id', 'candidate_asset_slot_id', 'score', 'status'], [
       num('asset_slot_id', 'AssetSlot ID', true),
       num('candidate_asset_slot_id', 'Candidate AssetSlot ID', true),
       select('source_type', '来源类型', ['manual', 'upload', 'job', 'canvas', 'import']),

@@ -43,7 +43,7 @@ func TestCommunityResolvePersonalOrg(t *testing.T) {
 	}
 }
 
-func TestCommunityResolveTeamOrgWithBudget(t *testing.T) {
+func TestCommunityResolveTeamOrgWithoutCommercialBudget(t *testing.T) {
 	db := openEntitlementTestDB(t)
 	orgID := createEntitlementTestOrg(t, db, model.Organization{
 		Name:       "Team",
@@ -68,8 +68,14 @@ func TestCommunityResolveTeamOrgWithBudget(t *testing.T) {
 	if snapshot.Status != commercial.StatusTrialing {
 		t.Fatalf("Status = %q, want %q", snapshot.Status, commercial.StatusTrialing)
 	}
-	if snapshot.Limits.MonthlyBudget != 120 {
-		t.Fatalf("MonthlyBudget = %v, want 120", snapshot.Limits.MonthlyBudget)
+	if snapshot.Limits.MonthlyBudget != 0 {
+		t.Fatalf("MonthlyBudget = %v, want 0", snapshot.Limits.MonthlyBudget)
+	}
+	if hasCapability(snapshot, commercial.CapabilityOrgBudget) {
+		t.Fatalf("community snapshot should not include %q", commercial.CapabilityOrgBudget)
+	}
+	if hasCapability(snapshot, commercial.CapabilityUsageLogging) {
+		t.Fatalf("community snapshot should not include %q", commercial.CapabilityUsageLogging)
 	}
 }
 

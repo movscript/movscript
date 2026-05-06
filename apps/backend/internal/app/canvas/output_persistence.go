@@ -221,25 +221,19 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		}
 		_ = h.db.Create(&existing).Error
 	} else {
-		updates := map[string]any{"source_type": "canvas", "source_id": runID}
+		existing.SourceType = "canvas"
+		existing.SourceID = &runID
 		if existing.Status == "" || existing.Status == "pending" {
-			updates["status"] = "candidate"
+			existing.Status = "candidate"
 		}
-		_ = h.db.Model(&existing).Updates(updates).Error
-		_ = model.SyncCoreEntityRelations(h.db, &existing)
+		_ = h.db.Save(&existing).Error
 	}
 	raw, _ := json.Marshal(value)
-	runIDPtr := runID
-	_ = h.db.Model(&model.CanvasOutput{}).Where("id = ?", target.ID).Updates(map[string]any{
-		"canvas_run_id": runIDPtr,
-		"resource_id":   *value.ResourceID,
-		"value_json":    string(raw),
-		"status":        "attached",
-	}).Error
-	var updatedTarget model.CanvasOutput
-	if err := h.db.First(&updatedTarget, target.ID).Error; err == nil {
-		_ = model.SyncCoreEntityRelations(h.db, &updatedTarget)
-	}
+	target.CanvasRunID = &runID
+	target.ResourceID = value.ResourceID
+	target.ValueJSON = string(raw)
+	target.Status = "attached"
+	_ = h.db.Save(&target).Error
 }
 
 func canvasOutputMetadataJSON(canvasID uint, runID uint, target model.CanvasOutput, value canvasPortValue) string {

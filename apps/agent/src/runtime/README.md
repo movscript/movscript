@@ -6,8 +6,12 @@ The standalone agent process owns agent state and orchestration. CLI, Electron, 
 
 | Module | Responsibility |
 | --- | --- |
-| `agentRuntime.ts` | Thread/run lifecycle, run execution, MCP step recording, assistant message insertion, capability and memory operations. |
+| `agentRuntime.ts` | Public runtime facade, thread lifecycle, persistence coordination, approval/input resume, and run execution orchestration. |
 | `types.ts` | Shared agent API contracts for threads, messages, runs, steps, tool calls, and outcomes. |
+| `contracts/` | Runtime extension contracts. Domain modules can contribute structured output requirements, tool schema overrides, command overrides, and model requirements without being hardcoded into the core runtime. |
+| `run/runFactory.ts` | Factory for `AgentRun` creation and run metadata assembly. |
+| `loop/` | Agentic loop pipeline: context build, model call, policy gate, tool execution, and final loop result. |
+| `input/` | Request normalization, default run policy, approval merging, and round identifiers. |
 | `context.ts` | Parse `movscript.get_context_pack` results into runtime context such as current project id. |
 | `agentManifest.ts` | `movscript.agent.v1` normalization and the default local-agent contract. |
 | `toolRegistry.ts` | Tool metadata, permissions, risk levels, and default approval requirements. |
@@ -28,6 +32,13 @@ The standalone agent process owns agent state and orchestration. CLI, Electron, 
 - `approveRun` resumes the same run with approved tool names.
 - Frontend-selected agents can pass a `movscript.agent.v1` manifest to `POST /runs`.
 - Memory is local and file-backed.
+
+## Architecture Pattern Direction
+
+- `server.ts` is the composition root. It wires domain-specific contracts, stores, model config, and MCP clients into the core runtime.
+- Domain-specific behavior should enter `AgentRuntime` through strategy-style contracts such as `AgentRuntimeContractResolver`, not through manifest id conditionals inside the runtime.
+- Run object creation should stay in factories. Execution code should operate on already-built runs and focus on orchestration.
+- The agentic loop is a pipeline: build context, call model, gate requested tools, execute tools, and repeat or finish.
 
 ## Current Non-Goals
 
