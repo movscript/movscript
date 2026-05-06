@@ -73,7 +73,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput, userID uint) (m
 		input.ProjectID, input.ResourceID, input.OwnerType, input.OwnerID, input.Role, input.Slot, input.Version,
 	).First(&existing).Error
 	if duplicate == nil {
-		s.backfillAssetSlotResource(ctx, existing)
+		if err := s.backfillAssetSlotResource(ctx, existing); err != nil {
+			return binding, false, err
+		}
 		return s.Get(ctx, existing.ID)
 	}
 	if !errors.Is(duplicate, gorm.ErrRecordNotFound) {
@@ -115,10 +117,14 @@ func (s *Service) CreateBinding(ctx context.Context, binding *model.ResourceBind
 	}
 	normalizeBinding(binding)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if binding.SortOrder == 0 {
 			binding.SortOrder = s.nextSortOrderWithDB(tx, binding.ProjectID, binding.OwnerType, binding.OwnerID, binding.Role, binding.Slot)
 		}
 		if err := tx.Create(binding).Error; err != nil {
+			return err
+		}
+		if err := model.SyncCoreEntityRelations(tx, binding); err != nil {
 			return err
 		}
 		if binding.IsPrimary {
@@ -128,8 +134,7 @@ func (s *Service) CreateBinding(ctx context.Context, binding *model.ResourceBind
 	}); err != nil {
 		return err
 	}
-	s.backfillAssetSlotResource(ctx, *binding)
-	return nil
+	return s.backfillAssetSlotResource(ctx, *binding)
 }
 
 func (s *Service) Get(ctx context.Context, id uint) (model.ResourceBinding, bool, error) {
@@ -157,6 +162,7 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model
 	}
 	if len(updates) > 0 {
 		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			tx = tx.Session(&gorm.Session{SkipHooks: true})
 			if err := tx.Model(&binding).Updates(updates).Error; err != nil {
 				return err
 			}
@@ -164,9 +170,11 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model
 				return err
 			}
 			if binding.IsPrimary {
-				return s.clearOtherPrimaryBindingsWithDB(tx, binding)
+				if err := s.clearOtherPrimaryBindingsWithDB(tx, binding); err != nil {
+					return err
+				}
 			}
-			return nil
+			return model.SyncCoreEntityRelations(tx, &binding)
 		}); err != nil {
 			return binding, err
 		}
@@ -186,15 +194,15 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Delete(&binding).Error; err != nil {
 			return err
 		}
-		return nil
+		return model.DeleteCoreEntityRelations(tx, &binding)
 	}); err != nil {
 		return err
 	}
-	s.clearAssetSlotResourceIfDeleted(ctx, binding)
-	return nil
+	return s.clearAssetSlotResourceIfDeleted(ctx, binding)
 }
 
 func (s *Service) EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint) error {
@@ -413,31 +421,62 @@ func (s *Service) clearOtherPrimaryBindingsWithDB(db *gorm.DB, binding model.Res
 		Update("is_primary", false).Error
 }
 
-func (s *Service) backfillAssetSlotResource(ctx context.Context, binding model.ResourceBinding) {
+func (s *Service) backfillAssetSlotResource(ctx context.Context, binding model.ResourceBinding) error {
 	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
-		return
+		return nil
 	}
-	s.db.WithContext(ctx).Model(&model.AssetSlot{}).
+	db := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	update := db.Model(&model.AssetSlot{}).
 		Where("id = ? AND resource_id IS NULL", binding.OwnerID).
 		Update("resource_id", binding.ResourceID)
+	if update.Error != nil {
+		return update.Error
+	}
+	if update.RowsAffected == 0 {
+		return nil
+	}
+	slot := model.AssetSlot{}
+	slot.ID = binding.OwnerID
+	return model.SyncCoreEntityRelations(db, &slot)
 }
 
-func (s *Service) clearAssetSlotResourceIfDeleted(ctx context.Context, binding model.ResourceBinding) {
+func (s *Service) clearAssetSlotResourceIfDeleted(ctx context.Context, binding model.ResourceBinding) error {
 	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
-		return
+		return nil
 	}
+	db := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
 	var replacement model.ResourceBinding
-	err := s.db.WithContext(ctx).
+	err := db.
 		Where("owner_type = ? AND owner_id = ? AND resource_id <> ?", "asset_slot", binding.OwnerID, binding.ResourceID).
 		Order("is_primary desc, sort_order, created_at").
 		First(&replacement).Error
 	if err == nil {
-		s.db.WithContext(ctx).Model(&model.AssetSlot{}).
+		update := db.Model(&model.AssetSlot{}).
 			Where("id = ? AND resource_id = ?", binding.OwnerID, binding.ResourceID).
 			Update("resource_id", replacement.ResourceID)
-		return
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected > 0 {
+			slot := model.AssetSlot{}
+			slot.ID = binding.OwnerID
+			return model.SyncCoreEntityRelations(db, &slot)
+		}
+		return nil
 	}
-	s.db.WithContext(ctx).Model(&model.AssetSlot{}).
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	update := db.Model(&model.AssetSlot{}).
 		Where("id = ? AND resource_id = ?", binding.OwnerID, binding.ResourceID).
 		Update("resource_id", nil)
+	if update.Error != nil {
+		return update.Error
+	}
+	if update.RowsAffected == 0 {
+		return nil
+	}
+	slot := model.AssetSlot{}
+	slot.ID = binding.OwnerID
+	return model.SyncCoreEntityRelations(db, &slot)
 }

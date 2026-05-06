@@ -14,7 +14,6 @@ interface AppSettingsStore {
   completeOnboarding: (settings: Partial<AppSettings>) => void
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
   setAPIBaseURL: (apiBaseURL: string) => void
-  setShowDeveloperTools: (showDeveloperTools: boolean) => void
   reset: () => void
 }
 
@@ -22,7 +21,6 @@ const defaultSettings: AppSettings = {
   apiBaseURL: getDefaultAPIBaseURL(),
   launchMode: 'cloud',
   onboardingCompleted: false,
-  showDeveloperTools: false,
 }
 
 function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings {
@@ -33,7 +31,6 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
     onboardingCompleted: settings?.onboardingCompleted ?? defaultSettings.onboardingCompleted,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
     apiBaseURL: normalizeAPIBaseURL(settings?.apiBaseURL || (settings?.launchMode === 'local' ? getLocalAPIBaseURL() : defaultSettings.apiBaseURL)),
-    showDeveloperTools: settings?.showDeveloperTools ?? defaultSettings.showDeveloperTools,
   }
 }
 
@@ -68,11 +65,6 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       },
       setAPIBaseURL: (apiBaseURL) => {
         const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, apiBaseURL })
-        set({ settings: next, savedAt: new Date().toISOString() })
-        syncElectronSettings(next)
-      },
-      setShowDeveloperTools: (showDeveloperTools) => {
-        const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, showDeveloperTools })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },

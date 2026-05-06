@@ -7,7 +7,6 @@ export interface AppSettings {
   launchMode: 'cloud' | 'local'
   onboardingCompleted: boolean
   localDisplayName?: string
-  showDeveloperTools: boolean
 }
 
 export function trimTrailingSlash(value: string): string {

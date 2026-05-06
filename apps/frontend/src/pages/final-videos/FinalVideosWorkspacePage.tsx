@@ -190,8 +190,8 @@ export default function FinalVideosWorkspacePage() {
         description: total === 0
           ? '尚未添加任何片段。'
           : unlinked > 0
-            ? `${unlinked} 个片段未绑定内容单元。`
-            : `全部 ${total} 个片段已绑定内容单元。`,
+            ? `${unlinked} 个片段未绑定制作项。`
+            : `全部 ${total} 个片段已绑定制作项。`,
         status: timelineOk ? 'passed' : 'warning',
         count: `${total - unlinked}/${total}`,
       },
@@ -583,7 +583,7 @@ export default function FinalVideosWorkspacePage() {
             {itemsQuery.isLoading ? (
               <EmptyBlock icon={Clock3} title="正在加载" detail="读取成片时间线" />
             ) : timelineItems.length === 0 ? (
-              <EmptyBlock icon={Video} title="暂无片段" detail="添加片段后，为每个内容单元锁定成片资源" />
+              <EmptyBlock icon={Video} title="暂无片段" detail="添加片段后，为每个制作项锁定成片资源" />
             ) : (
               timelineItems.map((item) => (
                 <TimelineRow
@@ -802,7 +802,7 @@ function TimelineRow({
       <div className="min-w-0">
         <p className="truncate font-medium">{item.label || contentUnit?.title || `片段 ${item.ID}`}</p>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {contentUnit ? `${contentUnit.kind} · CU#${contentUnit.ID}` : item.content_unit_id ? `CU#${item.content_unit_id}` : '未绑定内容单元'}
+          {contentUnit ? `${contentUnit.kind} · CU#${contentUnit.ID}` : item.content_unit_id ? `CU#${item.content_unit_id}` : '未绑定制作项'}
         </p>
       </div>
       <span className="text-xs text-muted-foreground">{item.kind}</span>
@@ -842,7 +842,7 @@ function ItemEditor({
       <Field label="标签">
         <Input disabled={!editing} value={item.label ?? ''} onChange={(event) => onChange({ label: event.target.value })} />
       </Field>
-      <Field label="内容单元">
+      <Field label="制作项">
         <select disabled={!editing} className="ms-input h-9 w-full" value={item.content_unit_id ?? ''} onChange={(event) => onChange({ content_unit_id: numberOrNull(event.target.value) })}>
           <option value="">未绑定</option>
           {contentUnits.map((unit) => <option key={unit.ID} value={unit.ID}>{unit.title || `ContentUnit #${unit.ID}`}</option>)}

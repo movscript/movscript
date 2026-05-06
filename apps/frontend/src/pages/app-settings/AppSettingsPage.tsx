@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Bug, CheckCircle2, RefreshCw, Server, Settings } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, RefreshCw, Server, Settings } from 'lucide-react'
 import { Button, Input, Label } from '@movscript/ui'
 import { getDefaultAPIBaseURL, normalizeAPIBaseURL } from '@/lib/config'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
@@ -24,7 +24,6 @@ export default function AppSettingsPage() {
   const settings = useAppSettingsStore((s) => s.settings)
   const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
-  const setShowDeveloperTools = useAppSettingsStore((s) => s.setShowDeveloperTools)
   const resetSettings = useAppSettingsStore((s) => s.reset)
   const [apiBaseURL, setAPIBaseURLInput] = useState(settings.apiBaseURL)
   const [saved, setSaved] = useState(false)
@@ -196,31 +195,6 @@ export default function AppSettingsPage() {
                 {t('appSettings.resetDefault')}
               </Button>
             </div>
-          </div>
-
-          <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Bug size={18} />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold">{t('appSettings.developerToolsTitle')}</h2>
-                <p className="text-xs text-muted-foreground">{t('appSettings.developerToolsHint')}</p>
-              </div>
-            </div>
-
-            <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-3 transition-colors hover:bg-muted/40">
-              <input
-                type="checkbox"
-                checked={settings.showDeveloperTools}
-                onChange={(e) => setShowDeveloperTools(e.target.checked)}
-                className="mt-0.5 size-4 rounded border-border accent-primary"
-              />
-              <span>
-                <span className="block text-sm font-medium text-foreground">{t('appSettings.showDeveloperTools')}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">{t('appSettings.showDeveloperToolsHelp')}</span>
-              </span>
-            </label>
           </div>
 
           {!user && (

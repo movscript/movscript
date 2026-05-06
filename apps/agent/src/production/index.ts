@@ -14,6 +14,27 @@ export {
 } from './orchestrationContract.js'
 export type { ProductionSemanticFallbackClient, ProductionSemanticFallbackResult } from './semanticFallbackClient.js'
 export type {
+  ContinuityConstraint,
+  CreativeSourceType,
+  EvidenceRange,
+  GraphObjectRef,
+  GraphRelation,
+  IntentKind,
+  IntentRecord,
+  MovscriptProductionKnowledgeGraph,
+  ProductionGraph,
+  ProductionGraphNode,
+  ProductionGraphObjectType,
+  ProductionGraphRelationType,
+  SourceGraph,
+  SourceGraphNode,
+  SourceGraphObjectType,
+  ScriptGraph,
+  ScriptGraphNode,
+  ScriptGraphObjectType,
+  StoryIntentGraph,
+} from './graphTypes.js'
+export type {
   CreateProductionActionInput,
   ProductionAction,
   ProductionActionType,

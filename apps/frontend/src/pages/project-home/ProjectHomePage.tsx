@@ -443,7 +443,7 @@ export default function ProjectHomePage() {
       {
         key: 'script',
         title: '剧本与情景',
-        description: '从剧本版本沉淀剧本段落和情景，形成所有制作对象的叙事来源。',
+        description: '从剧本版本沉淀剧本段落和情景，形成分集编排的叙事来源。',
         primaryLabel: '剧本/剧本段落/情景',
         primaryValue: scriptTotal,
         secondary: `${counts.confirmedSegments} 个剧本段落已确认，${counts.confirmedMoments} 个情景已确认`,
@@ -455,11 +455,11 @@ export default function ProjectHomePage() {
       },
       {
         key: 'production',
-        title: '制作编排',
-        description: '项目现在以“制作”为主轴，承载从剧本到成片的一次完整生产单元。',
-        primaryLabel: '制作/分镜/预演',
+        title: '分集编排',
+        description: '项目现在以“分集”为主轴，承载从剧本到成片的一次完整生产单元。',
+        primaryLabel: '分集/分镜/预演',
         primaryValue: planTotal,
-        secondary: `${counts.activeProductions} 个制作进行中，${data.previewTimelines.length} 条预演时间线`,
+        secondary: `${counts.activeProductions} 个分集进行中，${data.previewTimelines.length} 条预演时间线`,
         progress: planProgress,
         state: data.productions.length === 0 ? (scriptTotal > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: '/production',
@@ -508,7 +508,7 @@ export default function ProjectHomePage() {
       {
         key: 'delivery',
         title: '成片交付',
-        description: '交付版本、导出记录和检查状态从内容生产中分离出来，作为最终放行门禁。',
+        description: '交付版本、导出记录和检查状态从内容制作中分离出来，作为最终放行门禁。',
         primaryLabel: '交付版本',
         primaryValue: data.deliveryVersions.length,
         secondary: `${counts.approvedDeliveries} 个版本已放行，${counts.lockedContents} 个内容已锁定`,
@@ -531,18 +531,18 @@ export default function ProjectHomePage() {
         area: '理解确认工作台',
         href: '/workbench/script',
         priority: 'high',
-        detail: '没有剧本版本时，剧本段落、情节、制作和素材都缺少来源',
+        detail: '没有剧本版本时，剧本段落、情景、分集和素材都缺少来源',
       })
     }
 
     if (data.scriptVersions.length > 0 && data.productions.length === 0) {
       items.push({
         key: 'production',
-        title: '创建第一个制作',
-        area: '制作',
+        title: '创建第一个分集',
+        area: '分集',
         href: '/production',
         priority: 'high',
-        detail: '当前架构以制作为主轴，需要先建立生产单元',
+        detail: '当前架构以分集为主轴，需要先建立生产单元',
       })
     }
 
@@ -575,7 +575,7 @@ export default function ProjectHomePage() {
         area: '制作项',
         href: '/contents',
         priority: 'medium',
-        detail: '制作创建后，需要把预演拆成可执行的生产颗粒',
+        detail: '分集创建后，需要把预演拆成可执行的生产颗粒',
       })
     }
 
@@ -583,8 +583,8 @@ export default function ProjectHomePage() {
     return [
       {
         key: 'preview',
-        title: '检查制作预演',
-        area: '项目预演工作台',
+        title: '检查分集预演',
+        area: '分集预演',
         href: '/workbench/production-plan',
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
@@ -622,7 +622,7 @@ export default function ProjectHomePage() {
             </div>
             <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-foreground">{project?.name}</h1>
             <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-              {project?.description || '总览只负责把当前项目的制作、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
+              {project?.description || '总览只负责把当前项目的分集、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -635,7 +635,7 @@ export default function ProjectHomePage() {
             <Button asChild variant="outline" className="gap-2">
               <Link to="/production">
                 <Boxes size={15} />
-                制作
+                分集
               </Link>
             </Button>
             <Button asChild className="gap-2">
@@ -660,7 +660,7 @@ export default function ProjectHomePage() {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatBlock label="制作" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
+              <StatBlock label="分集" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
               <StatBlock label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可生产`} icon={Wand2} />
               <StatBlock label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={PackageCheck} />
               <StatBlock label="成片版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={Video} />

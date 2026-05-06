@@ -56,7 +56,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 		SnapshotEdgeCount: snapshotEdgeCount,
 		StartedAt:         &now,
 	}
-	if err := h.db.Create(&run).Error; err != nil {
+	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, nil, err
 	}
 
@@ -84,7 +84,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 		finishedAt := time.Now()
 		run.Status = "done"
 		run.FinishedAt = &finishedAt
-		if err := h.db.Save(&run).Error; err != nil {
+		if err := h.saveCanvasRunWithRelations(&run); err != nil {
 			return run, tasks, err
 		}
 	} else {

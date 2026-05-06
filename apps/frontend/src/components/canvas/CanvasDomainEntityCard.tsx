@@ -286,7 +286,7 @@ function AssetSlotMaterialCard({
   const referenceLabel = values.resource_id ? `资源 #${stringifyValue(values.resource_id)}` : '待输出'
   const referenceNote = stringifyValue(values.prompt_hint) || stringifyValue(values.description) || fallbackText || '暂无说明'
   const referenceId = stringifyValue(values.creative_reference_id)
-  const ownerText = referenceId ? `资料 #${referenceId}` : ownerLabel(values)
+  const ownerText = referenceId ? `设定资料 #${referenceId}` : ownerLabel(values)
   const hasInput = (id: string) => inputPortIds.includes(id)
   const hasOutput = (id: string) => outputPortIds.includes(id)
 
@@ -358,9 +358,9 @@ function AssetSlotMaterialCard({
             renderPortHandle={renderPortHandle}
           />
           <MaterialPortRow
-            label="所属资料"
+            label="所属设定资料"
             value={ownerText}
-            detail="可拉出资料卡"
+            detail="可拉出设定资料卡"
             icon={Database}
             outputPortId={hasOutput('creative_reference_id') ? 'creative_reference_id' : undefined}
             compact
@@ -436,22 +436,22 @@ function domainMetrics(kind: CanvasDomainEntityKind, semanticValues?: EntitySema
   if (kind === 'segment') {
     return [
       { label: '情景', value: countValue(values.scene_moments) },
-      { label: '内容', value: countValue(values.content_units) },
+      { label: '制作项', value: countValue(values.content_units) },
       { label: '时长', value: textValue(values.duration_sec, '-') },
     ]
   }
   if (kind === 'scene_moment') {
     return [
       { label: '人物', value: countValue(values.creative_references ?? values.characters) },
-      { label: '内容', value: countValue(values.content_units) },
-      { label: '素材', value: assetMetricValue(values.asset_slots), warning: hasMissingAsset(values.asset_slots) },
+      { label: '制作项', value: countValue(values.content_units) },
+      { label: '素材需求', value: assetMetricValue(values.asset_slots), warning: hasMissingAsset(values.asset_slots) },
     ]
   }
   if (kind === 'creative_reference') {
     return [
       { label: '引用', value: countValue(values.usages ?? values.usage_count) },
       { label: '状态', value: countValue(values.states ?? values.state_tags) },
-      { label: '素材', value: countValue(values.asset_slots) },
+      { label: '素材需求', value: countValue(values.asset_slots) },
     ]
   }
   if (kind === 'asset_slot') {

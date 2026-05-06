@@ -22,7 +22,11 @@ func (s *Service) LoadProjectItem(ctx context.Context, projectID uint, item any,
 
 func (s *Service) CreateItem(ctx context.Context, item any) error {
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return tx.Create(item).Error
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
+		if err := tx.Create(item).Error; err != nil {
+			return err
+		}
+		return model.SyncCoreEntityRelations(tx, item)
 	}); err != nil {
 		return err
 	}
@@ -35,13 +39,17 @@ func (s *Service) PatchItem(ctx context.Context, item any, updates map[string]an
 		return nil
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Model(item).Updates(updates).Error; err != nil {
 			return err
 		}
 		if err := tx.First(item).Error; err != nil {
 			return err
 		}
-		return tx.Save(item).Error
+		if err := tx.Save(item).Error; err != nil {
+			return err
+		}
+		return model.SyncCoreEntityRelations(tx, item)
 	}); err != nil {
 		return err
 	}
@@ -56,7 +64,11 @@ func (s *Service) ReloadItem(ctx context.Context, item any) error {
 func (s *Service) DeleteItem(ctx context.Context, item any) error {
 	projectID := projectIDOf(item)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return tx.Delete(item).Error
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
+		if err := tx.Delete(item).Error; err != nil {
+			return err
+		}
+		return model.DeleteCoreEntityRelations(tx, item)
 	}); err != nil {
 		return err
 	}

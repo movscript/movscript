@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, UsageLog, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, UsersRound, Gauge, Coins, ArrowUpRight, Settings2, Route, FolderKanban, ScrollText, HardDrive, CloudUpload } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, UsersRound, Gauge, Coins, ArrowUpRight, Settings2, Route, FolderKanban, ScrollText, HardDrive, CloudUpload, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -53,7 +53,7 @@ function runtimeModelConfigFromAdmin(cred: AICredential, cfg: AIModelConfig, def
       modelConfigId: cfg.ID,
       modelName: cfg.custom_display_name || cfg.short_name || cfg.model_def_id,
     },
-    note: 'API key is not included because admin credentials are masked in the browser. Paste this into /agent/debug and enter the key there if needed.',
+    note: 'API key is not included because admin credentials are masked in the browser. Paste this into admin Agent Debug and enter the key there if needed.',
   }
 }
 
@@ -1788,7 +1788,7 @@ export function ModelManagementPage() {
               <button
                 type="button"
                 className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => window.open('/debug', '_blank')}
+                onClick={() => window.open(adminHref('/debug'), '_blank')}
               >
                 {t('admin.models.gatewayOpenDebug')}
               </button>
@@ -2989,7 +2989,15 @@ const adminSectionHref: Record<AdminSectionKey, string> = {
 }
 
 function navigateToAdminSection(section: AdminSectionKey) {
-  window.location.assign(adminSectionHref[section])
+  window.location.assign(adminHref(adminSectionHref[section]))
+}
+
+function adminHref(href: string) {
+  const normalized = href.startsWith('/') ? href : `/${href}`
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    return `/admin${normalized}`
+  }
+  return normalized
 }
 
 export default function AdminPage() {
@@ -3063,6 +3071,7 @@ export default function AdminPage() {
     { label: t('admin.tabs.logs'), detail: '按供应商、模型和用户筛选 AI 用量。', icon: ScrollText, href: '/usage' },
     { label: t('admin.tabs.storage'), detail: '内部资源存储后端状态和用户占用。', icon: HardDrive, href: '/storage' },
     { label: t('admin.tabs.cloudFiles'), detail: '公共对象中转和云文件存储配置。', icon: CloudUpload, href: '/cloud-files' },
+    { label: 'Agent 调试', detail: '本地 Agent 运行时、工具、技能和上下文调试。', icon: Bot, href: '/agent-debug' },
   ]
 
   if (currentUser?.system_role !== 'super_admin') {

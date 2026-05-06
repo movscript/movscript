@@ -937,7 +937,7 @@ function contentUnitStatus(status: unknown, blocked: boolean): UnitStatus {
 }
 
 function nextActionsForProduction(input: { blockedUnits: number; units: number; deliveryVersions: number; keyframes: number }) {
-  if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预演时间线或直接开始内容生成。']
+  if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预演时间线或直接开始制作项生成。']
   if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材。', '再进入内容候选生成与选片。']
   if (input.deliveryVersions === 0) return ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
   return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/movscript/movscript/internal/app/workflowio"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/domain/workflow"
 )
 
 func (h *Service) completeEntityWriteTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, cv model.Canvas, portInputs canvasPortInputMap, user *model.User) map[string]canvasPortValue {
@@ -29,7 +29,7 @@ func (h *Service) completeEntityWriteTask(ctx context.Context, task *model.Canva
 	if task.CanvasRunID != nil {
 		runID = *task.CanvasRunID
 	}
-	result, err := h.entityIO.WritePorts(ctx, kind, entityID, values, workflow.EntityWriteMeta{
+	result, err := h.entityIO.WritePorts(ctx, kind, entityID, values, workflowio.EntityWriteMeta{
 		CanvasID:   cv.ID,
 		RunID:      runID,
 		NodeID:     node.NodeID,
@@ -74,7 +74,7 @@ func ValidateCanvasProductionEntityWrite(kind string, portInputs canvasPortInput
 		if portID == "" {
 			continue
 		}
-		field, ok := workflow.EntityFieldForPort(kind, portID)
+		field, ok := workflowio.EntityFieldForPort(kind, portID)
 		if !ok || !field.Workflow.Writable {
 			return fmt.Errorf("canvas port %q is not a production write port for %s", portID, kind)
 		}
@@ -171,19 +171,19 @@ func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv mode
 	}
 }
 
-func (h *Service) entityPortValuesFromCanvasInputs(ctx context.Context, kind string, portInputs canvasPortInputMap) map[string]workflow.EntityPortValue {
-	values := map[string]workflow.EntityPortValue{}
+func (h *Service) entityPortValuesFromCanvasInputs(ctx context.Context, kind string, portInputs canvasPortInputMap) map[string]workflowio.EntityPortValue {
+	values := map[string]workflowio.EntityPortValue{}
 	for handle, portValues := range portInputs {
 		handle = strings.TrimSpace(handle)
 		if handle == "" {
 			continue
 		}
-		field, ok := workflow.EntityFieldForPort(kind, handle)
+		field, ok := workflowio.EntityFieldForPort(kind, handle)
 		if !ok {
-			values[handle] = workflow.EntityPortValue{Type: "resource", ResourceIDs: uintValuesFromPortValues(portValues)}
+			values[handle] = workflowio.EntityPortValue{Type: "resource", ResourceIDs: uintValuesFromPortValues(portValues)}
 			continue
 		}
-		value := workflow.EntityPortValue{
+		value := workflowio.EntityPortValue{
 			Type:        field.ValueType,
 			ResourceIDs: uintValuesFromPortValues(portValues),
 		}
@@ -258,7 +258,7 @@ func (h *Service) resolveEntityNodeOutputs(ctx context.Context, user *model.User
 	return outputs
 }
 
-func entityPortValueToCanvasPortValue(value workflow.EntityPortValue) canvasPortValue {
+func entityPortValueToCanvasPortValue(value workflowio.EntityPortValue) canvasPortValue {
 	valueType := strings.TrimSpace(value.Type)
 	if valueType == "" {
 		valueType = "text"

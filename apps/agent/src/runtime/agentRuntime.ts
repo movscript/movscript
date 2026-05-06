@@ -20,12 +20,14 @@ import {
 import { buildApplyDraftPreview, rejectDraft } from './store/draftApply.js'
 import { BackendApplyClient } from './store/backendApplyClient.js'
 import { runAgentGraph } from './loop/agentGraph.js'
-import { buildContext, buildPromptPreview } from './loop/contextBuilder.js'
+import { buildPromptPreview } from './loop/contextBuilder.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
 } from './contracts/runtimeContract.js'
 import { buildAgentRun } from './run/runFactory.js'
+import { appendTraceEvent, buildRunStep } from './run/runTrace.js'
+import { buildRunSetupMetadata } from './run/runSetup.js'
 import type {
   AgentApprovalRequest,
   AgentInputRequest,
@@ -54,7 +56,7 @@ import type {
   ToolCall,
   UpdateThreadInput,
 } from './types.js'
-import { normalizeClientInput, buildRuntimeUserMessage, type NormalizedClientInput } from './input/normalizeClientInput.js'
+import { normalizeClientInput, buildRuntimeUserMessage } from './input/normalizeClientInput.js'
 import {
   normalizeStringArray,
   normalizeApprovedToolNames,
@@ -66,11 +68,19 @@ import {
   defaultRunPolicy,
   buildRunRound,
   mergePendingApprovals,
+  mergePendingInputRequests,
+  formatInputAnswerMessage,
   type AgentRunRoundInfo,
 } from './input/normalizeRunInput.js'
 import { buildDebugContext, buildDebugTrace } from './debug/debugContext.js'
 import { parseAgentCommand } from './commands/commandRouter.js'
-import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
+import { planPreviewToolRequests } from './preview/previewPlanner.js'
+import {
+  buildLocalDiagnosticFallbackContextResult,
+  isLocalDiagnosticCommand,
+  renderLocalDiagnosticCommand,
+  renderLocalFinalAssistantContent,
+} from './commands/localDiagnosticCommands.js'
 
 export type {
   AgentMessage,
@@ -376,67 +386,26 @@ export class AgentRuntime {
     })
     const warnings: string[] = [...capabilities.warnings]
 
-    // Call model to determine what tools would be requested, then apply policy for pending approvals
-    let toolCalls: ToolCall[] = []
-    let pendingApprovals: AgentApprovalRequest[] = []
+    let previewToolPlan = { toolCalls: [] as ToolCall[], pendingApprovals: [] as AgentApprovalRequest[] }
     try {
-      const { resolveRuntimeChatModelConfig } = await import('./model/modelConfig.js')
-      const modelConfig = resolveRuntimeChatModelConfig()
-      if (modelConfig) {
-        const { buildContext: buildCtx, buildOpenAIChatTools } = await import('./loop/contextBuilder.js')
-        const { callModel } = await import('./loop/modelClient.js')
-        const { applyToolPolicy } = await import('./tools/toolPolicy.js')
-        const { buildApplyDraftPreview } = await import('./store/draftApply.js')
-        const { messages: ctxMessages } = buildCtx({
-          manifest: agentManifest, skills, context: debugContext,
-          tools: capabilities.resolvedTools, policy, memories,
-          warnings, history: thread?.messages ?? [], userMessage: message,
-          command,
-          contractResolver: this.contractResolver,
-        })
-        const modelTools = buildOpenAIChatTools(capabilities.resolvedTools, this.contractResolver.find(agentManifest))
-        const modelResult = await callModel({
-          messages: ctxMessages, tools: modelTools,
-          toolChoice: modelTools.length > 0 ? 'auto' : undefined,
-          config: modelConfig, auth: {},
-        })
-        if (modelResult.tool_calls.length > 0) {
-          const requestedCalls = modelResult.tool_calls.map((tc) => {
-            let args: Record<string, import('./types.js').JSONValue> = {}
-            try { const p = JSON.parse(tc.function.arguments); if (p && typeof p === 'object' && !Array.isArray(p)) args = p } catch { /* */ }
-            return { id: tc.id, name: tc.function.name, args }
-          })
-          const policyResult = applyToolPolicy(requestedCalls, {
-            currentProjectId: context.currentProjectId,
-            manifest: agentManifest,
-            catalog: capabilities.resolvedTools,
-            registry: this.toolRegistry,
-            sandboxMode: false,
-          })
-          toolCalls = policyResult.toolCalls
-          pendingApprovals = policyResult.blockedToolCalls
-            .filter((b) => b.reason === 'approval_required')
-            .map((blocked) => {
-              const now = isoNow()
-              let preview: import('./types.js').JSONValue | undefined
-              if (blocked.call.name === 'movscript_apply_draft') {
-                try { preview = buildApplyDraftPreview(this.draftStore, blocked.call.args ?? {}) as unknown as import('./types.js').JSONValue } catch { /* */ }
-              }
-              return {
-                id: makeId('approval'),
-                runId: 'preview',
-                toolName: blocked.call.name,
-                ...(blocked.call.args ? { args: blocked.call.args } : {}),
-                reason: blocked.message,
-                ...(blocked.tool?.risk ? { risk: blocked.tool.risk } : {}),
-                ...(preview !== undefined ? { preview } : {}),
-                status: 'pending' as const,
-                createdAt: now,
-                updatedAt: now,
-              }
-            })
-        }
-      }
+      previewToolPlan = await planPreviewToolRequests({
+        manifest: agentManifest,
+        skills,
+        context: debugContext,
+        tools: capabilities.resolvedTools,
+        policy,
+        memories,
+        warnings,
+        history: thread?.messages ?? [],
+        userMessage: message,
+        command,
+        currentProjectId: context.currentProjectId,
+        registry: this.toolRegistry,
+        draftStore: this.draftStore,
+        contractResolver: this.contractResolver,
+        makeApprovalId: () => makeId('approval'),
+        now: isoNow,
+      })
     } catch {
       // model call failed — preview still works without tool predictions
     }
@@ -454,8 +423,8 @@ export class AgentRuntime {
       policy,
       promptPreview,
       debug: buildDebugTrace(agentManifest, skills, capabilities.resolvedTools, promptPreview.debugParts.map((part) => part.id)),
-      toolCalls,
-      pendingApprovals,
+      toolCalls: previewToolPlan.toolCalls,
+      pendingApprovals: previewToolPlan.pendingApprovals,
       warnings,
       memoryIds: memories.map((memory) => memory.id),
       memoryCount: memories.length,
@@ -726,7 +695,7 @@ export class AgentRuntime {
         })
         this.store.updateRun(run)
         if (!isLocalDiagnosticCommand(command.name)) throw error
-        contextResult = buildFallbackContextResult(clientInput, contextError)
+        contextResult = buildLocalDiagnosticFallbackContextResult(clientInput, contextError)
       }
       const context = extractAgentContext(contextResult)
       if (typeof context.currentProjectId === 'number') {
@@ -759,10 +728,19 @@ export class AgentRuntime {
         warnings: [...this.pluginWarnings, ...contextWarnings],
       })
       const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
-      const debugContext = buildDebugContext(contextResult, memories, clientInput)
-      if (typeof context.currentProductionId === 'number') {
-        debugContext.productionId = context.currentProductionId
-      }
+      const setup = buildRunSetupMetadata({
+        run,
+        agentManifest,
+        skills,
+        capabilities,
+        contextResult,
+        context,
+        memories,
+        command,
+        ...(clientInput ? { clientInput } : {}),
+        authMetadata: this.getRunAuth(run.id),
+      })
+      const debugContext = setup.debugContext
 
       this.recordTraceEvent(run, {
         kind: 'context',
@@ -806,13 +784,7 @@ export class AgentRuntime {
         data: { availableToolNames: capabilities.resolvedTools.available.map((t) => t.name), blockedTools: capabilities.resolvedTools.blocked.map((t) => ({ name: t.name, reason: t.unavailableReason })), warnings: capabilities.warnings },
       })
 
-    run.metadata = {
-      ...(run.metadata ?? {}),
-      debugTrace: buildDebugTrace(agentManifest, skills, capabilities.resolvedTools, []) as unknown as JSONValue,
-      context: debugContext as unknown as JSONValue,
-      command: command as unknown as JSONValue,
-      ...this.getRunAuth(run.id),
-    }
+      run.metadata = setup.metadata
       this.store.updateRun(run)
 
       if (isLocalDiagnosticCommand(command.name) && !run.metadata?.forcedToolCall) {
@@ -831,21 +803,21 @@ export class AgentRuntime {
         })
 
         const finalRound = buildRunRound(999, 'Final response', 'final')
-        const finalContent = command.name === 'context'
-          ? renderModelGatewayMessagesText(buildContext({
-            manifest: agentManifest,
-            skills,
-            context: debugContext,
-            tools: capabilities.resolvedTools,
-            policy: run.policy,
-            memories,
-            warnings: [...capabilities.warnings],
-            history: thread.messages,
-            userMessage: lastUser.content,
-            command,
-            contractResolver: this.contractResolver,
-          }).messages)
-          : renderMemoryFilesText(memories, this.getMemoryStorePath())
+        const finalContent = renderLocalDiagnosticCommand({
+          command,
+          run,
+          manifest: agentManifest,
+          skills,
+          context: debugContext,
+          tools: capabilities.resolvedTools,
+          policy: run.policy,
+          memories,
+          warnings: [...capabilities.warnings],
+          history: thread.messages,
+          userMessage: lastUser.content,
+          memoryStorePath: this.getMemoryStorePath(),
+          contractResolver: this.contractResolver,
+        })
         const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
         thread.messages.push(assistant)
         thread.updatedAt = assistant.createdAt
@@ -1084,15 +1056,14 @@ export class AgentRuntime {
   }
 
   private createStep(run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string): AgentRunStep {
-    const step: AgentRunStep = {
+    const step = buildRunStep({
       id: makeId('step'),
       runId: run.id,
       type,
-      status: 'in_progress',
-      ...(round ? { roundId: round.roundId, roundIndex: round.roundIndex, roundLabel: round.roundLabel, roundSource: round.roundSource } : {}),
-      ...(toolName ? { toolName } : {}),
       createdAt: isoNow(),
-    }
+      ...(round ? { round } : {}),
+      ...(toolName ? { toolName } : {}),
+    })
     run.steps.push(step)
     run.updatedAt = step.createdAt
     this.store.updateRun(run)
@@ -1115,24 +1086,22 @@ export class AgentRuntime {
       completedAt?: string
     },
   ): AgentTraceEvent {
-    const event: AgentTraceEvent = {
+    const event = appendTraceEvent({
       id: makeId('trace'),
-      runId: run.id,
+      run,
+      now: isoNow(),
       kind: input.kind,
       title: input.title,
       status: input.status,
-      createdAt: isoNow(),
-      ...(input.round ? { roundId: input.round.roundId, roundIndex: input.round.roundIndex, roundLabel: input.round.roundLabel, roundSource: input.round.roundSource } : {}),
+      ...(input.round ? { round: input.round } : {}),
       ...(input.summary ? { summary: input.summary } : {}),
       ...(input.agentId ? { agentId: input.agentId } : {}),
       ...(input.parentAgentId ? { parentAgentId: input.parentAgentId } : {}),
       ...(input.stepId ? { stepId: input.stepId } : {}),
       ...(input.toolName ? { toolName: input.toolName } : {}),
-      ...(input.data !== undefined ? { data: toJSONValue(input.data) } : {}),
+      ...(input.data !== undefined ? { data: input.data } : {}),
       ...(input.completedAt ? { completedAt: input.completedAt } : {}),
-    }
-    run.traceEvents = [...(run.traceEvents ?? []), event]
-    run.updatedAt = event.completedAt ?? event.createdAt
+    })
     return event
   }
 
@@ -1169,21 +1138,15 @@ export class AgentRuntime {
     run: AgentRun,
   ): string {
     const command = parseAgentCommand(userMessage)
-    if (command.name === 'context') {
-      const context = isRecord(run.metadata?.context) ? run.metadata.context : undefined
-      return renderLocalContextCommand({
-        command: command.rawName ?? '/context',
-        run,
-        context,
-        warnings,
-      })
-    }
-
-    if (command.name === 'memory') {
-      return renderMemoryFilesText(memories, this.getMemoryStorePath())
-    }
-
-    return modelContent
+    return renderLocalFinalAssistantContent({
+      command,
+      run,
+      context: isRecord(run.metadata?.context) ? run.metadata.context : undefined,
+      warnings,
+      memories,
+      memoryStorePath: this.getMemoryStorePath(),
+      modelContent,
+    })
   }
 
   private getMemoryStorePath(): string | undefined {
@@ -1196,133 +1159,8 @@ function isMessageRole(value: unknown): value is AgentMessageRole {
   return value === 'system' || value === 'user' || value === 'assistant'
 }
 
-function isLocalDiagnosticCommand(name: string): boolean {
-  return name === 'context' || name === 'memory'
-}
-
-function renderLocalContextCommand(input: {
-  command: string
-  run: AgentRun
-  context: Record<string, unknown> | undefined
-  warnings: string[]
-}): string {
-  const lines = [
-    `Command: ${input.command}`,
-    `Run: ${input.run.id}`,
-    `Thread: ${input.run.threadId}`,
-    '',
-    'Model context text:',
-    isAgentDebugContextPanel(input.context)
-      ? renderDebugContextText(input.context)
-      : 'No runtime context was available.',
-  ]
-  if (input.warnings.length > 0) {
-    lines.push('', 'Warnings:', ...input.warnings.map((warning) => `- ${warning}`))
-  }
-  return lines.join('\n')
-}
-
-function renderModelGatewayMessagesText(messages: Array<{ role: string; content?: string | null }>): string {
-  const lines = ['Model gateway messages:']
-  messages.forEach((message, index) => {
-    lines.push('', `--- message ${index + 1}: ${message.role} ---`)
-    lines.push(message.content ?? '')
-  })
-  return lines.join('\n')
-}
-
-function isAgentDebugContextPanel(value: unknown): value is AgentDebugContextPanel {
-  return isRecord(value) && isRecord(value.route) && Array.isArray(value.projects) && Array.isArray(value.recentResources) && Array.isArray(value.attachments) && Array.isArray(value.memories) && Array.isArray(value.labels)
-}
-
-function buildFallbackContextResult(clientInput: NormalizedClientInput | undefined, error: string): JSONValue {
-  const ui = clientInput?.uiSnapshot
-  const snapshot: Record<string, JSONValue> = {
-    route: {
-      pathname: ui?.route?.pathname ?? '/',
-      ...(typeof ui?.route?.search === 'string' ? { search: ui.route.search } : {}),
-      ...(typeof ui?.route?.hash === 'string' ? { hash: ui.route.hash } : {}),
-    },
-    ...(ui?.project ? {
-      project: {
-        ...(typeof ui.project.id === 'number' ? { id: ui.project.id } : {}),
-        ...(typeof ui.project.name === 'string' ? { name: ui.project.name } : {}),
-        ...(typeof ui.project.status === 'string' ? { status: ui.project.status } : {}),
-        ...(typeof ui.project.description === 'string' ? { description: ui.project.description } : {}),
-      },
-    } : {}),
-    ...(typeof ui?.productionId === 'number' ? { productionId: ui.productionId } : {}),
-    selection: ui?.selection
-      ? {
-        ...(typeof ui.selection.entityType === 'string' ? { entityType: ui.selection.entityType } : {}),
-        ...((typeof ui.selection.entityId === 'number' || typeof ui.selection.entityId === 'string') ? { entityId: ui.selection.entityId } : {}),
-        ...(typeof ui.selection.label === 'string' ? { label: ui.selection.label } : {}),
-      }
-      : null,
-    recentResources: toJSONValue(ui?.recentResources ?? []),
-    projects: [],
-    contextSource: 'client_input_fallback',
-    contextError: error,
-  }
-  return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify({ snapshot }, null, 2),
-    }],
-  }
-}
-
-function mergePendingInputRequests(existing: AgentInputRequest[], next: AgentInputRequest[], updatedAt: string): AgentInputRequest[] {
-  const pending = existing.filter((request) => request.status === 'pending')
-  const resolved = existing.filter((request) => request.status !== 'pending')
-  const merged = [...pending]
-  for (const request of next) {
-    const currentIndex = merged.findIndex((item) => item.title === request.title && item.question === request.question)
-    if (currentIndex >= 0) {
-      merged[currentIndex] = { ...merged[currentIndex], summary: request.summary, choices: request.choices, updatedAt }
-    } else {
-      merged.push(request)
-    }
-  }
-  return [...resolved, ...merged].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-}
-
-function formatInputAnswerMessage(request: AgentInputRequest, choiceIds: string[], text?: string): string {
-  const choicesById = new Map(request.choices.map((choice) => [choice.id, choice]))
-  const selected = choiceIds
-    .map((choiceId) => choicesById.get(choiceId))
-    .filter((choice): choice is AgentInputRequest['choices'][number] => Boolean(choice))
-  const lines = [
-    '[用户补充信息]',
-    `标题：${request.title}`,
-    request.summary ? `简介：${request.summary}` : undefined,
-    `问题：${request.question}`,
-  ].filter((line): line is string => Boolean(line))
-  if (selected.length > 0) {
-    lines.push('选择：')
-    for (const choice of selected) {
-      lines.push(`- ${choice.label}${choice.description ? `：${choice.description}` : ''}`)
-    }
-  }
-  if (text) lines.push(`输入：${text}`)
-  return lines.join('\n')
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function toJSONValue(value: unknown): JSONValue {
-  if (value === undefined) return null
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
-  if (Array.isArray(value)) return value.map(toJSONValue)
-  if (!isRecord(value)) return String(value)
-  const out: Record<string, JSONValue> = {}
-  for (const [key, item] of Object.entries(value)) {
-    if (item === undefined) continue
-    out[key] = toJSONValue(item)
-  }
-  return out
 }
 
 function makeId(prefix: string): string {

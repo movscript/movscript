@@ -21,6 +21,7 @@ import {
   PackageCheck,
   Play,
   RefreshCw,
+  Route,
   Settings2,
   ShieldCheck,
   SquareStack,
@@ -89,9 +90,9 @@ interface CategoryScenario {
 const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   script: {
     queue: [
-      { id: 's3', title: '旧伞纸条滑落', subtitle: '片段 3 · 建议拆成两个情景', status: 'review', priority: 'high', progress: 62 },
-      { id: 's2', title: '巷口对峙', subtitle: '片段 2 · 人物动机待确认', status: 'review', priority: 'medium', progress: 74 },
-      { id: 's4', title: '顾言停步', subtitle: '片段 4 · 低置信表达', status: 'blocked', priority: 'medium', progress: 35 },
+      { id: 's3', title: '旧伞纸条滑落', subtitle: '剧本段落 3 · 建议拆成两个情景', status: 'review', priority: 'high', progress: 62 },
+      { id: 's2', title: '巷口对峙', subtitle: '剧本段落 2 · 人物动机待确认', status: 'review', priority: 'medium', progress: 74 },
+      { id: 's4', title: '顾言停步', subtitle: '剧本段落 4 · 低置信表达', status: 'blocked', priority: 'medium', progress: 35 },
     ],
     evidenceTitle: '剧本证据',
     evidence: [
@@ -116,9 +117,9 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   preview: {
     queue: [
-      { id: 'p2', title: '林夏雨中半身', subtitle: '片段 02 · 关键帧待选', status: 'running', priority: 'high', progress: 72 },
-      { id: 'p3', title: '纸条特写', subtitle: '片段 03 · 缺旧伞素材', status: 'blocked', priority: 'high', progress: 38 },
-      { id: 'p5', title: '巷口背影', subtitle: '片段 05 · 时间线偏短', status: 'ready', priority: 'low', progress: 84 },
+      { id: 'p2', title: '林夏雨中半身', subtitle: '剧本段落 02 · 关键帧待选', status: 'running', priority: 'high', progress: 72 },
+      { id: 'p3', title: '纸条特写', subtitle: '剧本段落 03 · 缺旧伞素材', status: 'blocked', priority: 'high', progress: 38 },
+      { id: 'p5', title: '巷口背影', subtitle: '剧本段落 05 · 时间线偏短', status: 'ready', priority: 'low', progress: 84 },
     ],
     evidenceTitle: '分镜脚本',
     evidence: [
@@ -130,17 +131,17 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     decisionTitle: '预演判断',
     decisions: [
       { label: '时长', value: '23s，目标 30s 仍偏短', tone: 'warning' },
-      { label: '缺口', value: '片段 03 缺旧伞素材', tone: 'warning' },
-      { label: '关键帧', value: '片段 02 候选 4 张' },
-      { label: '建议', value: '先补素材，再确认制作预演' },
+      { label: '缺口', value: '剧本段落 03 缺旧伞素材', tone: 'warning' },
+      { label: '关键帧', value: '剧本段落 02 候选 4 张' },
+      { label: '建议', value: '先补素材，再确认分集预演' },
     ],
     outputTitle: '确认后输出',
     outputs: [
       { label: '时间线', value: '第 1 版预演时间线' },
       { label: '任务', value: '2 个素材缺口，1 个关键帧选择' },
-      { label: '状态', value: '部分片段可生产', tone: 'success' },
+      { label: '状态', value: '部分剧本段落可生产', tone: 'success' },
     ],
-    actions: ['采用当前分镜', '生成关键帧', '补素材缺口', '确认制作预演'],
+    actions: ['采用当前分镜', '生成关键帧', '补素材缺口', '确认分集预演'],
   },
   creative: {
     queue: [
@@ -193,7 +194,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   production: {
     queue: [
-      { id: 'variant-b', title: '片段 02 人物停步', subtitle: '版本 B 待审', status: 'review', priority: 'high', progress: 61 },
+      { id: 'variant-b', title: '剧本段落 02 人物停步', subtitle: '版本 B 待审', status: 'review', priority: 'high', progress: 61 },
       { id: 'v3', title: '纸条特写', subtitle: '缺正式视频', status: 'blocked', priority: 'high', progress: 34 },
       { id: 'v1', title: '雨夜全景', subtitle: '可采用', status: 'ready', priority: 'medium', progress: 86 },
     ],
@@ -208,7 +209,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     ],
     outputTitle: '确认后输出',
     outputs: [
-      { label: '片段', value: '正式片段 02' },
+      { label: '剧本段落', value: '正式段落 02' },
       { label: '记录', value: '采用版本和返工意见' },
       { label: '状态', value: '可进入交付门禁', tone: 'success' },
     ],
@@ -216,12 +217,12 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   delivery: {
     queue: [
-      { id: 'd3', title: '画面完整性', subtitle: '片段 03 缺正式视频', status: 'blocked', priority: 'high', progress: 52 },
+      { id: 'd3', title: '画面完整性', subtitle: '剧本段落 03 缺正式视频', status: 'blocked', priority: 'high', progress: 52 },
       { id: 'd2', title: '声音混音', subtitle: '雨声已生成，台词未混音', status: 'review', priority: 'medium', progress: 66 },
       { id: 'd4', title: '版权记录', subtitle: '字体授权待记录', status: 'blocked', priority: 'medium', progress: 40 },
     ],
     evidenceTitle: '交付检查',
-    evidence: ['片段 03 缺正式视频。', '第 2 段字幕未确认。', '台词未混音。', '字体授权待记录。'],
+    evidence: ['剧本段落 03 缺正式视频。', '第 2 段字幕未确认。', '台词未混音。', '字体授权待记录。'],
     decisionTitle: '放行判断',
     decisions: [
       { label: '完整性', value: '84%' },
@@ -626,7 +627,7 @@ function buildAssetMetrics(rows: AssetPrepViewRow[], data?: AssetPrepData): Work
   return [
     { label: '素材缺口', value: String(rows.length), detail: '来自内容区素材需求', icon: PackageCheck, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
     { label: '候选素材', value: String(data?.candidates.length ?? 0), detail: 'asset-slot-candidates', icon: SquareStack, status: (data?.candidates.length ?? 0) > 0 ? 'review' : 'blocked' },
-    { label: '已锁定', value: String(rows.filter((row) => normalizeAssetSlotStatus(row.slot.status) === 'locked').length), detail: '可进入关键帧或内容生成', icon: LockKeyhole, status: 'ready' },
+    { label: '已锁定', value: String(rows.filter((row) => normalizeAssetSlotStatus(row.slot.status) === 'locked').length), detail: '可进入关键帧或制作项生成', icon: LockKeyhole, status: 'ready' },
     { label: '生成任务', value: String(activeJobs), detail: '当前项目图片任务', icon: RefreshCw, status: activeJobs > 0 ? 'running' : 'ready' },
   ]
 }
@@ -699,7 +700,7 @@ function buildProductionContext(row: ContentGenerationViewRow | null): Workbench
     { label: '内容目标', value: firstText(unit.description, unit.prompt, titleOfRecord(unit)), icon: Target },
     { label: '关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定关键帧', icon: Image },
     { label: '素材输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
-    { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
+    { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `分集 #${unit.production_id}` : '未绑定分集'}`, icon: Settings2 },
   ]
 }
 
@@ -849,14 +850,14 @@ function assetSlotScopeLabel(slot: WorkbenchRecord, data?: AssetPrepData) {
   }
   if (slot.owner_type === 'segment' && slot.owner_id) {
     const segment = data?.segments.find((item) => item.ID === Number(slot.owner_id))
-    return segment ? `片段 · ${titleOfRecord(segment)}` : `片段 #${slot.owner_id}`
+    return segment ? `剧本段落 · ${titleOfRecord(segment)}` : `剧本段落 #${slot.owner_id}`
   }
   if (slot.creative_reference_id) {
     const reference = data?.creativeReferences.find((item) => item.ID === Number(slot.creative_reference_id))
     return reference ? `设定资料 · ${titleOfRecord(reference)}` : `设定资料 #${slot.creative_reference_id}`
   }
   if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
-  if (slot.production_id) return `制作 #${slot.production_id}`
+  if (slot.production_id) return `分集 #${slot.production_id}`
   return '项目素材需求'
 }
 
@@ -1240,17 +1241,17 @@ function ContentGenerationWorkbench() {
       <SpecializedWorkbenchHeader
         category="production"
         generationKind="production"
-        kicker="内容生成"
-        title="内容生成工作台"
+        kicker="制作项生成"
+        title="制作项生成工作台"
         description="围绕制作项组织输入完整性、生成上下文、候选版本、返工意见和正式输出。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         {!projectId ? (
           <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目上下文，无法拉取制作项、素材需求和生成任务。" />
         ) : isLoading ? (
-          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载内容生成数据...</Card>
+          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载制作项生成数据...</Card>
         ) : isError ? (
-          <EmptyWorkbenchState title="内容生成数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+          <EmptyWorkbenchState title="制作项生成数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
           <div className="space-y-5">
             <MetricStrip metrics={metrics} />
@@ -1347,105 +1348,194 @@ interface PreviewGateRow {
   done: boolean
 }
 
+interface PreviewWorkTask {
+  id: string
+  title: string
+  scope: string
+  status: WorkStatus
+  priority: Priority
+  progress: number
+  method: string
+  output: string
+  blocker?: string
+}
+
+interface PreviewAssetGap {
+  name: string
+  owner: string
+  priority: '高' | '中'
+  impact: '影响判断' | '影响最终质量'
+  placeholder: string
+  detail: string
+}
+
+interface PreviewRunSignal {
+  label: string
+  value: string
+  detail: string
+  status: PreviewPlanStatus
+}
+
 const previewPlanSegments: PreviewPlanSegment[] = [
-  { id: 'seg-01', title: '雨夜巷口进入', subtitle: '片段 01 / 开场环境', status: 'ready', readiness: 86, duration: '12s', moments: 2, units: 4, gaps: 0 },
-  { id: 'seg-02', title: '旧伞纸条滑落', subtitle: '片段 02 / 剧情证据', status: 'blocked', readiness: 52, duration: '11s', moments: 2, units: 3, gaps: 2 },
-  { id: 'seg-03', title: '顾言停步对峙', subtitle: '片段 03 / 情绪转折', status: 'attention', readiness: 68, duration: '9s', moments: 1, units: 3, gaps: 1 },
-  { id: 'seg-04', title: '纸条被雨水浸湿', subtitle: '片段 04 / 细节收束', status: 'draft', readiness: 34, duration: '6s', moments: 1, units: 2, gaps: 3 },
+  { id: 'seg-01', title: '雨夜巷口进入', subtitle: '剧本段落 01 / 开场环境', status: 'ready', readiness: 86, duration: '12s', moments: 2, units: 4, gaps: 0 },
+  { id: 'seg-02', title: '旧伞纸条滑落', subtitle: '剧本段落 02 / 剧情证据', status: 'blocked', readiness: 52, duration: '11s', moments: 2, units: 3, gaps: 2 },
+  { id: 'seg-03', title: '顾言停步对峙', subtitle: '剧本段落 03 / 情绪转折', status: 'attention', readiness: 68, duration: '9s', moments: 1, units: 3, gaps: 1 },
+  { id: 'seg-04', title: '纸条被雨水浸湿', subtitle: '剧本段落 04 / 细节收束', status: 'draft', readiness: 34, duration: '6s', moments: 1, units: 2, gaps: 3 },
 ]
 
 const previewTimelineShots: PreviewTimelineShot[] = [
-  { id: 'cu-01', title: '巷口远景建立雨夜空间', source: '片段 01 / 情景 01', duration: '4s', camera: '广角固定', status: 'ready', assets: '场景、雨夜风格已齐' },
-  { id: 'cu-02', title: '林夏撑旧伞进入画面', source: '片段 01 / 情景 02', duration: '5s', camera: '中景缓推', status: 'ready', assets: '人物状态已锁定' },
-  { id: 'cu-03', title: '旧伞伞骨内侧露出纸条', source: '片段 02 / 情景 03', duration: '3s', camera: '特写慢推', status: 'blocked', assets: '缺旧伞特写素材' },
-  { id: 'cu-04', title: '顾言停步看向纸条', source: '片段 03 / 情景 04', duration: '4s', camera: '中近景静止', status: 'attention', assets: '表演状态待确认' },
-  { id: 'cu-05', title: '雨水打湿纸条文字', source: '片段 04 / 情景 05', duration: '3s', camera: '微距俯拍', status: 'draft', assets: '缺纸条与雨滴参考' },
+  { id: 'cu-01', title: '巷口远景建立雨夜空间', source: '剧本段落 01 / 情景 01', duration: '4s', camera: '广角固定', status: 'ready', assets: '场景、雨夜风格已齐' },
+  { id: 'cu-02', title: '林夏撑旧伞进入画面', source: '剧本段落 01 / 情景 02', duration: '5s', camera: '中景缓推', status: 'ready', assets: '人物状态已锁定' },
+  { id: 'cu-03', title: '旧伞伞骨内侧露出纸条', source: '剧本段落 02 / 情景 03', duration: '3s', camera: '特写慢推', status: 'blocked', assets: '缺旧伞特写素材' },
+  { id: 'cu-04', title: '顾言停步看向纸条', source: '剧本段落 03 / 情景 04', duration: '4s', camera: '中近景静止', status: 'attention', assets: '表演状态待确认' },
+  { id: 'cu-05', title: '雨水打湿纸条文字', source: '剧本段落 04 / 情景 05', duration: '3s', camera: '微距俯拍', status: 'draft', assets: '缺纸条与雨滴参考' },
 ]
 
 const previewGates: PreviewGateRow[] = [
-  { label: '结构完整', detail: '4 个片段 / 6 个情景 / 12 个制作项', done: true },
+  { label: '结构完整', detail: '4 个剧本段落 / 6 个情景 / 12 个制作项', done: true },
   { label: '关键帧可选', detail: '8 个候选，3 个待确认', done: true },
   { label: '素材缺口收敛', detail: '仍有 6 个素材缺口', done: false },
   { label: '时间线可生产', detail: '38s / 目标 45s，节奏偏短', done: false },
 ]
 
-const previewMissingAssets = [
-  { name: '破损旧伞特写', owner: 'CU-03', priority: '高', detail: '伞骨内侧需要能解释纸条藏匿位置' },
-  { name: '顾言雨夜表演状态', owner: 'CU-04', priority: '中', detail: '需要克制、迟疑，不是惊讶或愤怒' },
-  { name: '被雨水打湿的纸条', owner: 'CU-05', priority: '高', detail: '文字需要可读，同时保留被雨水破坏的质感' },
+const previewWorkTasks: PreviewWorkTask[] = [
+  {
+    id: 'task-01',
+    title: '验证旧伞纸条桥段是否成立',
+    scope: '剧本段落 02 / 情景 03',
+    status: 'running',
+    priority: 'high',
+    progress: 58,
+    method: '低清关键帧 + 粗剪时间线',
+    output: '判断是否继续投入正式制作',
+    blocker: '纸条特写缺可信占位素材',
+  },
+  {
+    id: 'task-02',
+    title: '生成旧伞和纸条占位素材',
+    scope: '素材需求 / CU-03',
+    status: 'blocked',
+    priority: 'high',
+    progress: 32,
+    method: '低成本生图',
+    output: '替代正式道具参考进入预演',
+    blocker: '伞骨藏纸条的结构还不清楚',
+  },
+  {
+    id: 'task-03',
+    title: '挑选顾言停步关键帧',
+    scope: '关键帧候选 / CU-04',
+    status: 'review',
+    priority: 'medium',
+    progress: 74,
+    method: '候选图评审',
+    output: '锁定情绪转折的视觉锚点',
+  },
+  {
+    id: 'task-04',
+    title: '补一版 45 秒节奏粗预演',
+    scope: 'Preview v1 / 全片段',
+    status: 'ready',
+    priority: 'low',
+    progress: 84,
+    method: '占位图 + 临时字幕',
+    output: '确认节奏是否值得进入制作',
+  },
+]
+
+const previewMissingAssets: PreviewAssetGap[] = [
+  { name: '破损旧伞特写', owner: 'CU-03', priority: '高', impact: '影响判断', placeholder: '可先生成低清道具图', detail: '伞骨内侧需要能解释纸条藏匿位置，否则桥段无法判断。' },
+  { name: '顾言雨夜表演状态', owner: 'CU-04', priority: '中', impact: '影响最终质量', placeholder: '可用临时人物状态帧', detail: '需要克制、迟疑，不是惊讶或愤怒。' },
+  { name: '被雨水打湿的纸条', owner: 'CU-05', priority: '高', impact: '影响判断', placeholder: '可先生成文字可读的占位图', detail: '文字需要可读，同时保留被雨水破坏的质感。' },
+]
+
+const previewValueChecks = [
+  { label: '剧情钩子', value: '基本成立', detail: '旧伞和纸条能形成可视化证据。', status: 'ready' as WorkStatus },
+  { label: '画面可生成性', value: '有风险', detail: '伞骨藏纸条的细节需要占位验证。', status: 'blocked' as WorkStatus },
+  { label: '节奏判断', value: '偏短', detail: '38s 版本信息够用，但情绪停顿不足。', status: 'review' as WorkStatus },
+]
+
+const previewScriptEvidence = [
+  '林夏撑着破损旧伞走进雨夜巷口，雨水沿着伞骨滴落。',
+  '纸条从伞骨夹缝里滑出，被雨水打湿。',
+  '顾言看见纸条后停步，情绪变化需要克制而不是爆发。',
+]
+
+const previewRunSignals: PreviewRunSignal[] = [
+  { label: '结构顺序', value: '4 段可串联', detail: '从进入、证据、对峙到细节收束，叙事链条完整。', status: 'ready' },
+  { label: '当前卡点', value: '旧伞纸条', detail: '道具细节解释不足，会影响桥段是否可信。', status: 'blocked' },
+  { label: '节奏状态', value: '偏短 7s', detail: '情绪停顿不足，需要补一版 45 秒粗预演。', status: 'attention' },
 ]
 
 function ProductionPreviewWorkspace() {
   const navigate = useNavigate()
+  const [showAllTasks, setShowAllTasks] = useState(false)
   const selectedSegment = previewPlanSegments[1]
+  const selectedTask = previewWorkTasks[0]
+  const activeTasks = showAllTasks ? previewWorkTasks : previewWorkTasks.filter((task) => ['running', 'blocked', 'review'].includes(task.status)).slice(0, 3)
+  const criticalGaps = previewMissingAssets.filter((asset) => asset.impact === '影响判断').length
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <SpecializedWorkbenchHeader
         category="preview"
-        kicker="预演与制作方案"
-        title="项目预演工作台"
-        description="把片段、情景、制作项、关键帧和素材缺口放进同一条制作时间线里，先判断能不能进入生产。"
+        kicker="分集编排验证"
+        title="分集预演"
+        description="基于分集编排的结构全览，检查片段是否跑通，再处理关键帧、占位素材和制作判断。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         <div className="space-y-5">
           <MetricStrip
             metrics={[
-              { label: '预演准备度', value: '68%', detail: '按结构、关键帧、素材和时长估算', icon: ShieldCheck, status: 'review' },
-              { label: '制作项', value: '12', detail: '已进入制作时间线', icon: Boxes, status: 'ready' },
-              { label: '素材缺口', value: '6', detail: '2 个高优先级阻塞', icon: AlertTriangle, status: 'blocked' },
-              { label: '预计时长', value: '38s', detail: '目标 45s，仍需补节奏', icon: Clock3, status: 'review' },
+              { label: '编排覆盖', value: '4 段', detail: '剧本段落、情景和制作项已串联', icon: Route, status: 'ready' },
+              { label: '可粗看内容', value: '7/12', detail: '已有关键帧或占位素材', icon: Boxes, status: 'ready' },
+              { label: '判断阻塞', value: String(criticalGaps), detail: '会影响是否继续制作', icon: AlertTriangle, status: 'blocked' },
+              { label: '粗预演时长', value: '38s', detail: '目标 45s，仍需补节奏', icon: Clock3, status: 'review' },
             ]}
           />
 
-          <div className="grid gap-5 2xl:grid-cols-[330px_minmax(0,1fr)_360px]">
-            <WorkbenchPanel title="预演范围" icon={Layers} action={<Badge variant="secondary">片段视图</Badge>}>
-              <div className="mb-3 grid grid-cols-3 gap-2">
-                {[
-                  ['片段', '4'],
-                  ['情景', '6'],
-                  ['内容', '12'],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-md border border-border bg-background px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">{label}</p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-2">
-                {previewPlanSegments.map((segment) => (
-                  <PreviewSegmentButton key={segment.id} segment={segment} selected={segment.id === selectedSegment.id} />
-                ))}
-              </div>
-            </WorkbenchPanel>
-
+          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="min-w-0 space-y-5">
               <section className="rounded-lg border border-border bg-card">
                 <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">当前片段</Badge>
+                      <Badge variant="outline">全览态</Badge>
                       <Badge variant={previewStatusVariant(selectedSegment.status)}>{previewStatusLabel(selectedSegment.status)}</Badge>
                     </div>
-                    <h2 className="mt-2 truncate text-xl font-semibold text-foreground">{selectedSegment.title}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{selectedSegment.subtitle} / {selectedSegment.duration} / {selectedSegment.units} 个制作项</p>
+                    <h2 className="mt-2 truncate text-xl font-semibold text-foreground">本集预演全览</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">先看整集结构是否跑通，再聚焦“{selectedSegment.title}”的当前风险。</p>
                   </div>
                   <div className="w-36 shrink-0">
                     <div className="mb-2 flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">准备度</span>
-                      <span className="font-medium text-foreground">{selectedSegment.readiness}%</span>
+                      <span className="text-muted-foreground">全局可判断</span>
+                      <span className="font-medium text-foreground">68%</span>
                     </div>
-                    <Progress value={selectedSegment.readiness} className="h-2" />
+                    <Progress value={68} className="h-2" />
                   </div>
                 </div>
-                <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+
+                <div className="border-b border-border p-4">
+                  <div className="grid gap-3 lg:grid-cols-4">
+                    {previewPlanSegments.map((segment, index) => (
+                      <PreviewOverviewNode key={segment.id} segment={segment} index={index} selected={segment.id === selectedSegment.id} />
+                    ))}
+                  </div>
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    {previewRunSignals.map((signal) => (
+                      <PreviewRunSignalCard key={signal.label} signal={signal} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_280px]">
                   <div className="min-w-0">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <ListChecks size={16} className="text-muted-foreground" />
-                        <h3 className="text-sm font-semibold text-foreground">制作时间线</h3>
+                        <GitBranch size={16} className="text-muted-foreground" />
+                        <h3 className="text-sm font-semibold text-foreground">粗预演时间线</h3>
                       </div>
-                      <Badge variant="outline">{previewTimelineShots.length} 个镜头颗粒</Badge>
+                      <Badge variant="outline">{previewTimelineShots.length} 个验证颗粒</Badge>
                     </div>
                     <div className="space-y-2">
                       {previewTimelineShots.map((shot, index) => (
@@ -1456,12 +1546,12 @@ function ProductionPreviewWorkspace() {
                   <div className="min-w-0 rounded-md border border-border bg-background p-3">
                     <div className="flex items-center gap-2">
                       <Play size={15} className="text-muted-foreground" />
-                      <h3 className="text-sm font-semibold text-foreground">预演播放区</h3>
+                      <h3 className="text-sm font-semibold text-foreground">低清预演</h3>
                     </div>
                     <div className="mt-3 aspect-video overflow-hidden rounded-md border border-border bg-zinc-950">
                       <div className="flex h-full flex-col justify-between p-3">
                         <div className="flex items-center justify-between text-[11px] text-zinc-300">
-                          <span>Preview v1</span>
+                          <span>Low-fi v1</span>
                           <span>00:14 / 00:38</span>
                         </div>
                         <div className="grid grid-cols-3 gap-1">
@@ -1477,19 +1567,41 @@ function ProductionPreviewWorkspace() {
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <Button size="sm" className="justify-center gap-2">
                         <Play size={14} />
-                        播放
+                        粗看
                       </Button>
                       <Button size="sm" variant="outline" className="justify-center gap-2">
                         <RefreshCw size={14} />
-                        刷新
+                        再生成
                       </Button>
                     </div>
                   </div>
                 </div>
               </section>
 
-              <div className="grid gap-5 xl:grid-cols-2">
-                <WorkbenchPanel title="关键帧候选" icon={Image} action={<Badge variant="outline">8 张</Badge>}>
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <WorkbenchPanel title="当前节点详情" icon={Target} action={<Badge variant={previewStatusVariant(selectedSegment.status)}>{selectedSegment.title}</Badge>}>
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px]">
+                    <div className="min-w-0">
+                      <div className="rounded-md border border-border bg-background px-3 py-3">
+                        <p className="text-xs text-muted-foreground">验证问题</p>
+                        <p className="mt-1 text-sm font-medium leading-6 text-foreground">纸条滑落是否能形成足够强的剧情钩子，并且能被镜头解释清楚。</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {previewScriptEvidence.map((row) => (
+                          <p key={row} className="rounded border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">{row}</p>
+                        ))}
+                      </div>
+                    </div>
+                    <ContextStack
+                      rows={[
+                        { label: '低质产出', value: '3 张关键帧、1 条 38 秒粗剪、2 个占位素材', icon: Wand2 },
+                        { label: '当前处理', value: selectedTask.title, icon: ClipboardCheck },
+                      ]}
+                    />
+                  </div>
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="低质关键帧候选" icon={Image} action={<Badge variant="outline">8 张</Badge>}>
                   <div className="grid grid-cols-2 gap-3">
                     {['林夏雨中半身', '旧伞纸条特写', '顾言停步', '雨水浸湿纸条'].map((title, index) => (
                       <div key={title} className="rounded-md border border-border bg-background p-2">
@@ -1507,26 +1619,52 @@ function ProductionPreviewWorkspace() {
                     ))}
                   </div>
                 </WorkbenchPanel>
-
-                <WorkbenchPanel title="上下文约束" icon={GitBranch} action={<Badge variant="outline">资料 5</Badge>}>
-                  <ContextStack
-                    rows={[
-                      { label: '人物状态', value: '林夏克制紧张，顾言迟疑停步', icon: Users },
-                      { label: '地点风格', value: '老城区窄巷、坏路灯、低照度雨夜', icon: Film },
-                      { label: '剧情道具', value: '破损旧伞和纸条必须可被镜头解释', icon: PackageCheck },
-                      { label: '生成落点', value: '确认后进入内容生成工作台', icon: Wand2 },
-                    ]}
-                  />
-                </WorkbenchPanel>
               </div>
             </div>
 
             <div className="min-w-0 space-y-5">
-              <WorkbenchPanel title="确认门禁" icon={ShieldCheck} action={<Badge variant="warning">2 项阻塞</Badge>}>
-                <GateChecklist rows={previewGates} />
+              <WorkbenchPanel title="当前处理" icon={ListChecks} action={<Badge variant="secondary">{activeTasks.length}</Badge>}>
+                <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
+                  <p className="text-xs text-muted-foreground">本轮目标</p>
+                  <p className="mt-1 text-sm font-medium leading-6 text-foreground">用低成本画面判断“旧伞纸条滑落”是否值得进入正式视频制作。</p>
+                </div>
+                <div className="space-y-2">
+                  {activeTasks.map((task) => (
+                    <PreviewWorkTaskCard key={task.id} task={task} selected={task.id === selectedTask.id} compact />
+                  ))}
+                </div>
+                <Button variant="outline" size="sm" className="mt-3 w-full justify-center gap-2" onClick={() => setShowAllTasks((value) => !value)}>
+                  <ListChecks size={14} />
+                  {showAllTasks ? '收起清单' : '展开完整清单'}
+                </Button>
               </WorkbenchPanel>
 
-              <WorkbenchPanel title="素材缺口" icon={PackageCheck} action={<Badge variant="danger">高 2</Badge>}>
+              <WorkbenchPanel title="制作价值判断" icon={ShieldCheck} action={<Badge variant="warning">待定</Badge>}>
+                <div className="space-y-2">
+                  {previewValueChecks.map((check) => (
+                    <div key={check.label} className="rounded-md border border-border bg-background px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-foreground">{check.label}</p>
+                        <Badge variant={statusVariant(check.status)}>{check.value}</Badge>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">{check.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </WorkbenchPanel>
+
+              <WorkbenchPanel title="上下文约束" icon={GitBranch} action={<Badge variant="outline">资料 5</Badge>}>
+                <ContextStack
+                  rows={[
+                    { label: '人物状态', value: '林夏克制紧张，顾言迟疑停步', icon: Users },
+                    { label: '地点风格', value: '老城区窄巷、坏路灯、低照度雨夜', icon: Film },
+                    { label: '剧情道具', value: '破损旧伞和纸条必须可被镜头解释', icon: PackageCheck },
+                    { label: '生成落点', value: '确认后进入制作项生成工作台', icon: Wand2 },
+                  ]}
+                />
+              </WorkbenchPanel>
+
+              <WorkbenchPanel title="预演缺口" icon={PackageCheck} action={<Badge variant="danger">影响判断 2</Badge>}>
                 <div className="space-y-2">
                   {previewMissingAssets.map((asset) => (
                     <div key={asset.name} className="rounded-md border border-border bg-background px-3 py-3">
@@ -1537,29 +1675,37 @@ function ProductionPreviewWorkspace() {
                         </div>
                         <Badge variant={asset.priority === '高' ? 'danger' : 'warning'}>{asset.priority}</Badge>
                       </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant={asset.impact === '影响判断' ? 'warning' : 'outline'}>{asset.impact}</Badge>
+                        <Badge variant="secondary">{asset.placeholder}</Badge>
+                      </div>
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">{asset.detail}</p>
                     </div>
                   ))}
                 </div>
               </WorkbenchPanel>
 
-              <WorkbenchPanel title="下一步决策" icon={ClipboardCheck}>
+              <WorkbenchPanel title="预演门禁" icon={ClipboardCheck} action={<Badge variant="warning">2 项未过</Badge>}>
+                <GateChecklist rows={previewGates} />
+              </WorkbenchPanel>
+
+              <WorkbenchPanel title="下一步决策" icon={Settings2}>
                 <div className="space-y-2">
                   <Button className="w-full justify-start gap-2">
-                    <PackageCheck size={15} />
-                    先处理素材缺口
+                    <Image size={15} />
+                    生成低清关键帧
                   </Button>
                   <Button variant="outline" className="w-full justify-start gap-2">
-                    <Image size={15} />
-                    确认关键帧候选
+                    <PackageCheck size={15} />
+                    补临时占位素材
                   </Button>
                   <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/segments')}>
                     <Layers size={15} />
-                    调整片段结构
+                    调整分镜再预演
                   </Button>
                   <Button variant="outline" className="w-full justify-start gap-2">
                     <CheckCircle2 size={15} />
-                    确认制作预演
+                    继续进入正式制作
                   </Button>
                 </div>
               </WorkbenchPanel>
@@ -1571,7 +1717,7 @@ function ProductionPreviewWorkspace() {
   )
 }
 
-function PreviewSegmentButton({ segment, selected }: { segment: PreviewPlanSegment; selected: boolean }) {
+function PreviewWorkTaskCard({ task, selected, compact = false }: { task: PreviewWorkTask; selected: boolean; compact?: boolean }) {
   return (
     <button
       type="button"
@@ -1582,7 +1728,44 @@ function PreviewSegmentButton({ segment, selected }: { segment: PreviewPlanSegme
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{segment.title}</p>
+          <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{task.scope}</p>
+        </div>
+        <Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge>
+      </div>
+      {!compact && (
+        <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
+          <div className="min-w-0 rounded border border-border bg-background/70 px-2 py-2">
+            <p className="text-muted-foreground">方式</p>
+            <p className="mt-1 truncate text-foreground">{task.method}</p>
+          </div>
+          <div className="min-w-0 rounded border border-border bg-background/70 px-2 py-2">
+            <p className="text-muted-foreground">产出</p>
+            <p className="mt-1 truncate text-foreground">{task.output}</p>
+          </div>
+        </div>
+      )}
+      {task.blocker ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-amber-600">{task.blocker}</p> : null}
+      <div className="mt-3 flex items-center gap-2">
+        <Badge variant={task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(task.priority)}</Badge>
+        <Progress value={task.progress} className="h-1.5" />
+      </div>
+    </button>
+  )
+}
+
+function PreviewOverviewNode({ segment, index, selected }: { segment: PreviewPlanSegment; index: number; selected: boolean }) {
+  return (
+    <div
+      className={cn(
+        'min-w-0 rounded-md border px-3 py-3',
+        selected ? 'border-primary/60 bg-primary/5' : 'border-border bg-background',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] tabular-nums text-muted-foreground">段落 {index + 1}</p>
+          <p className="mt-1 truncate text-sm font-medium text-foreground">{segment.title}</p>
           <p className="mt-1 truncate text-xs text-muted-foreground">{segment.subtitle}</p>
         </div>
         <Badge variant={previewStatusVariant(segment.status)}>{previewStatusLabel(segment.status)}</Badge>
@@ -1594,7 +1777,20 @@ function PreviewSegmentButton({ segment, selected }: { segment: PreviewPlanSegme
         {segment.gaps > 0 ? <span className="text-amber-600">缺口 {segment.gaps}</span> : null}
       </div>
       <Progress value={segment.readiness} className="mt-3 h-1.5" />
-    </button>
+    </div>
+  )
+}
+
+function PreviewRunSignalCard({ signal }: { signal: PreviewRunSignal }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">{signal.label}</p>
+        <Badge variant={previewStatusVariant(signal.status)}>{previewStatusLabel(signal.status)}</Badge>
+      </div>
+      <p className="mt-2 text-sm font-semibold text-foreground">{signal.value}</p>
+      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{signal.detail}</p>
+    </div>
   )
 }
 
@@ -1664,10 +1860,10 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
     icon: PackageCheck,
   },
   production: {
-    title: '内容生成工作台',
+    title: '制作项生成工作台',
     stage: 'generation',
     description: '复用现有画布工作流来串联制作项、提示词、关键帧、视频候选、返工和正式输出。',
-    canvasName: '内容生成画布',
+    canvasName: '制作项生成画布',
     icon: Wand2,
   },
 }

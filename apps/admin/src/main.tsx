@@ -2,12 +2,13 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Bug, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound } from 'lucide-react'
+import { Bot, Bug, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage, UsageLogsPage, UserManagementPage } from '@admin/pages/admin/AdminPage'
+import AgentDebugPage from '@admin/pages/admin/AgentDebugPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
 import { UIPreviewPage } from '@admin/pages/admin/UIPreviewPage'
 import { Toaster } from '@/components/ui/Toaster'
@@ -93,9 +94,14 @@ const navItems = [
   { to: '/usage', label: '用量日志', icon: ScrollText },
   { to: '/storage', label: '资源存储', icon: HardDrive },
   { to: '/cloud-files', label: '输入中转', icon: CloudUpload },
+  { to: '/agent-debug', label: 'Agent 调试', icon: Bot },
   { to: '/debug', label: '调试', icon: Bug },
   { to: '/ui-preview', label: 'UI 预览', icon: SlidersHorizontal },
 ]
+
+const adminBasename = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+  ? '/admin'
+  : undefined
 
 function AdminShell({ children }: { children: React.ReactNode }) {
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
@@ -151,7 +157,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={adminBasename}>
       <Toaster />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -163,6 +169,7 @@ function App() {
         <Route path="/usage" element={<AdminShell><UsageLogsPage /></AdminShell>} />
         <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
         <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
+        <Route path="/agent-debug" element={<AdminShell><AgentDebugPage /></AdminShell>} />
         <Route path="/debug" element={<AdminShell><DebugPage /></AdminShell>} />
         <Route path="/ui-preview" element={<AdminShell><UIPreviewPage /></AdminShell>} />
         <Route path="*" element={<Navigate to="/" replace />} />

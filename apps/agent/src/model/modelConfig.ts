@@ -1,0 +1,429 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
+
+export interface RuntimeModelConfig {
+  provider: 'backend-model-config'
+  modelConfigId: number
+  model: string
+  useForChat: boolean
+  useForPlanner: boolean
+  updatedAt: string
+}
+
+export interface RuntimeModelConfigPublic {
+  configured: boolean
+  provider: 'backend-model-config'
+  modelConfigId?: number
+  model: string
+  useForChat: boolean
+  useForPlanner: boolean
+  updatedAt?: string
+  source: 'file' | 'none'
+}
+
+export interface RuntimeModelConfigInput {
+  modelConfigId?: unknown
+  model?: unknown
+  useForChat?: unknown
+  useForPlanner?: unknown
+}
+
+export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { modelConfigId: number }
+
+export interface RuntimeModelAuthContext {
+  backendAuthToken?: string
+}
+
+export interface RuntimeModelRequestSnapshot {
+  url: string
+  method: 'POST'
+  headers: Record<string, string>
+  body: {
+    model: string
+    messages: RuntimeModelChatMessage[]
+    temperature?: number
+    response_format?: { type: 'json_object' }
+    tools?: RuntimeModelChatTool[]
+    tool_choice?: RuntimeModelToolChoice
+  }
+}
+
+export interface RuntimeModelResponseSnapshot {
+  status: number
+  statusText: string
+  ok: boolean
+  headers: Record<string, string>
+  bodyText: string
+  parsedBody?: unknown
+  content?: string
+}
+
+export interface RuntimeModelHTTPTrace {
+  request: RuntimeModelRequestSnapshot
+  response?: RuntimeModelResponseSnapshot
+  latencyMs: number
+}
+
+export interface RuntimeModelTestResult {
+  ok: boolean
+  provider: string
+  model: string
+  modelConfigId: number
+  latencyMs: number
+  content: string
+  request: RuntimeModelRequestSnapshot
+}
+
+export interface RuntimeModelChatToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+export interface RuntimeModelChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | null
+  tool_call_id?: string
+  tool_calls?: RuntimeModelChatToolCall[]
+}
+
+export interface RuntimeModelChatTool {
+  type: 'function'
+  function: {
+    name: string
+    description?: string
+    parameters?: unknown
+  }
+}
+
+export type RuntimeModelToolChoice = 'none' | 'auto' | 'required' | {
+  type: 'function'
+  function: {
+    name: string
+  }
+}
+
+export type RuntimeModelTraceCallback = (event: { phase: 'request' | 'response' | 'error'; trace: RuntimeModelHTTPTrace; error?: string }) => void
+
+const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'
+const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'
+
+export class RuntimeModelConfigStore {
+  readonly filePath: string
+
+  constructor(filePath = resolveRuntimeModelConfigPath()) {
+    this.filePath = filePath
+  }
+
+  getEffectiveConfig(): RuntimeModelConfig | undefined {
+    return this.readFileConfig()
+  }
+
+  getFileConfig(): RuntimeModelConfig | undefined {
+    return this.readFileConfig()
+  }
+
+  getPublicConfig(): RuntimeModelConfigPublic {
+    const fileConfig = this.readFileConfig()
+    if (!fileConfig) {
+      return {
+        configured: false,
+        provider: 'backend-model-config',
+        model: DEFAULT_BACKEND_MODEL,
+        useForChat: true,
+        useForPlanner: true,
+        source: 'none',
+      }
+    }
+    return {
+      configured: true,
+      provider: 'backend-model-config',
+      modelConfigId: fileConfig.modelConfigId,
+      model: fileConfig.model,
+      useForChat: fileConfig.useForChat,
+      useForPlanner: fileConfig.useForPlanner,
+      updatedAt: fileConfig.updatedAt,
+      source: 'file',
+    }
+  }
+
+  save(input: RuntimeModelConfigInput): RuntimeModelConfigPublic {
+    const existing = this.readFileConfig()
+    const modelConfigId = normalizePositiveInteger(input.modelConfigId) ?? existing?.modelConfigId
+    if (!modelConfigId) throw new Error('backend model config id is required')
+    const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? backendModelID(modelConfigId)
+    const config: RuntimeModelConfig = {
+      provider: 'backend-model-config',
+      modelConfigId,
+      model,
+      useForChat: typeof input.useForChat === 'boolean' ? input.useForChat : existing?.useForChat ?? true,
+      useForPlanner: typeof input.useForPlanner === 'boolean' ? input.useForPlanner : existing?.useForPlanner ?? true,
+      updatedAt: new Date().toISOString(),
+    }
+    atomicWriteJSON(this.filePath, config)
+    return this.getPublicConfig()
+  }
+
+  async test(input: { message?: unknown } = {}, auth: RuntimeModelAuthContext = {}): Promise<RuntimeModelTestResult> {
+    const config = this.getEffectiveConfig()
+    if (!config?.modelConfigId) throw new Error('backend model config is not configured')
+    const messages = buildTestMessages(normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
+    const request = buildBackendGatewayChatRequest(config, messages, auth)
+    const started = Date.now()
+    const content = await callBackendGatewayChat(request)
+    return {
+      ok: true,
+      provider: config.provider,
+      model: config.model,
+      modelConfigId: config.modelConfigId,
+      latencyMs: Date.now() - started,
+      content,
+      request: publicRequestSnapshot(request),
+    }
+  }
+
+  private readFileConfig(): RuntimeModelConfig | undefined {
+    if (!existsSync(this.filePath)) return undefined
+    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<RuntimeModelConfig>
+    const modelConfigId = normalizePositiveInteger(parsed.modelConfigId)
+    if (!modelConfigId) return undefined
+    return {
+      provider: 'backend-model-config',
+      modelConfigId,
+      model: normalizeNonEmptyString(parsed.model) ?? backendModelID(modelConfigId),
+      useForChat: parsed.useForChat !== false,
+      useForPlanner: parsed.useForPlanner !== false,
+      updatedAt: normalizeNonEmptyString(parsed.updatedAt) ?? new Date(0).toISOString(),
+    }
+  }
+}
+
+export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath()): string {
+  if (process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH) return process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.model-config.json')
+  return join(statePath, 'model-config.json')
+}
+
+export function resolveRuntimeChatModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
+  const config = store.getEffectiveConfig()
+  return config?.modelConfigId && config.useForChat ? config : undefined
+}
+
+export function resolveRuntimeChatFileModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
+  const config = store.getFileConfig()
+  return config?.modelConfigId && config.useForChat ? config : undefined
+}
+
+export function resolveRuntimePlannerModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
+  const config = store.getEffectiveConfig()
+  return config?.modelConfigId && config.useForPlanner ? config : undefined
+}
+
+export function buildBackendGatewayChatRequest(
+  config: ConfiguredRuntimeModelConfig,
+  messages: RuntimeModelChatMessage[],
+  auth: RuntimeModelAuthContext = {},
+  options: { temperature?: number; jsonMode?: boolean; tools?: RuntimeModelChatTool[]; toolChoice?: RuntimeModelToolChoice } = {},
+): RuntimeModelRequestSnapshot {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (auth.backendAuthToken) {
+    headers.Authorization = `Bearer ${auth.backendAuthToken}`
+  }
+  return {
+    url: `${resolveBackendAPIBaseURL()}/model-gateway/chat/completions`,
+    method: 'POST',
+    headers,
+    body: {
+      model: backendModelID(config.modelConfigId),
+      messages,
+      ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
+      ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
+      ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
+    },
+  }
+}
+
+export async function callBackendGatewayChat(request: RuntimeModelRequestSnapshot): Promise<string> {
+  return callBackendGatewayChatWithTrace(request).then((result) => result.content)
+}
+
+export async function callBackendGatewayChatWithTrace(
+  request: RuntimeModelRequestSnapshot,
+  onTrace?: RuntimeModelTraceCallback,
+): Promise<{ content: string; assistantMessage: RuntimeModelChatMessage; trace: RuntimeModelHTTPTrace }> {
+  const started = Date.now()
+  const publicRequest = publicRequestSnapshot(request)
+  let trace: RuntimeModelHTTPTrace = {
+    request: publicRequest,
+    latencyMs: 0,
+  }
+  onTrace?.({ phase: 'request', trace })
+
+  let response: Response
+  try {
+    response = await fetch(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+    })
+  } catch (error) {
+    trace = {
+      request: publicRequest,
+      latencyMs: Date.now() - started,
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    onTrace?.({ phase: 'error', trace, error: message })
+    throw error
+  }
+  const responseText = await response.text()
+  const parsed = parseJSONResponse(responseText)
+  const assistantMessage = extractAssistantMessage(parsed)
+  const content = extractAssistantContent(parsed)
+  trace = {
+    request: publicRequest,
+    response: {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      headers: publicHeadersSnapshot(Object.fromEntries(response.headers.entries())),
+      bodyText: responseText,
+      ...(parsed !== undefined ? { parsedBody: parsed } : {}),
+      ...(content ? { content } : {}),
+    },
+    latencyMs: Date.now() - started,
+  }
+  onTrace?.({ phase: 'response', trace })
+
+  if (!response.ok) {
+    const error = `backend model gateway HTTP ${response.status}: ${responseText}`
+    onTrace?.({ phase: 'error', trace, error })
+    throw new Error(error)
+  }
+  if (parsed === undefined) {
+    const error = 'backend model gateway returned invalid JSON'
+    onTrace?.({ phase: 'error', trace, error })
+    throw new Error(error)
+  }
+  if (!content) {
+    const error = 'backend model gateway returned no assistant content'
+    onTrace?.({ phase: 'error', trace, error })
+    throw new Error(error)
+  }
+  return { content, assistantMessage, trace }
+}
+
+function publicRequestSnapshot(request: RuntimeModelRequestSnapshot): RuntimeModelRequestSnapshot {
+  return { ...request, headers: publicHeadersSnapshot(request.headers) }
+}
+
+function publicHeadersSnapshot(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([key]) => !isSensitiveHeaderName(key)),
+  )
+}
+
+function isSensitiveHeaderName(key: string): boolean {
+  return [
+    'authorization',
+    'proxy-authorization',
+    'cookie',
+    'set-cookie',
+    'x-api-key',
+    'api-key',
+  ].includes(key.toLowerCase())
+}
+
+function parseJSONResponse(responseText: string): { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> } | undefined {
+  try {
+    return JSON.parse(responseText) as { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> }
+  } catch {
+    return undefined
+  }
+}
+
+function extractAssistantMessage(parsed: { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> } | undefined): RuntimeModelChatMessage {
+  const message = parsed?.choices?.[0]?.message
+  const content = typeof message?.content === 'string' ? message.content : null
+  const toolCalls = normalizeRuntimeToolCalls(message?.tool_calls)
+  return {
+    role: 'assistant',
+    content,
+    ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+  }
+}
+
+function extractAssistantContent(parsed: { choices?: Array<{ message?: { content?: string | null; tool_calls?: unknown[] } }> } | undefined): string | undefined {
+  const message = parsed?.choices?.[0]?.message
+  const content = typeof message?.content === 'string' ? message.content.trim() : ''
+  if (content) return content
+  if (Array.isArray(message?.tool_calls) && message.tool_calls.length > 0) {
+    return JSON.stringify({ tool_calls: message.tool_calls })
+  }
+  return undefined
+}
+
+function normalizeRuntimeToolCalls(value: unknown): RuntimeModelChatToolCall[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): RuntimeModelChatToolCall[] => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const fn = record.function && typeof record.function === 'object' ? record.function as Record<string, unknown> : undefined
+    const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : undefined
+    const name = typeof fn?.name === 'string' && fn.name.trim() ? fn.name.trim() : undefined
+    const args = typeof fn?.arguments === 'string' ? fn.arguments : ''
+    if (!id || !name) return []
+    return [{
+      id,
+      type: 'function',
+      function: {
+        name,
+        arguments: args,
+      },
+    }]
+  })
+}
+
+function buildTestMessages(message: string): RuntimeModelChatMessage[] {
+  return [
+    {
+      role: 'system',
+      content: 'You are a concise connection test for MovScript Agent.',
+    },
+    {
+      role: 'user',
+      content: message,
+    },
+  ]
+}
+
+function resolveBackendAPIBaseURL(): string {
+  return normalizeBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || DEFAULT_BACKEND_API_BASE_URL)
+}
+
+function backendModelID(modelConfigId: number): string {
+  return `model_config:${modelConfigId}`
+}
+
+function normalizeBaseURL(value: string): string {
+  return value.trim().replace(/\/+$/, '')
+}
+
+function normalizeNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function normalizePositiveInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim())
+    return parsed > 0 ? parsed : undefined
+  }
+  return undefined
+}

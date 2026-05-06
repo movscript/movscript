@@ -124,7 +124,7 @@ func (s *Service) CreateRef(ctx context.Context, projectID uint, input dto.Scrip
 	if ref.Source == "" {
 		ref.Source = "manual"
 	}
-	if err := s.db.WithContext(ctx).Create(&ref).Error; err != nil {
+	if err := s.createCoreEntityWithRelations(ctx, &ref); err != nil {
 		return ref, err
 	}
 	_ = s.db.WithContext(ctx).Preload("Setting").First(&ref, ref.ID).Error
@@ -140,7 +140,7 @@ func (s *Service) UpdateRef(ctx context.Context, id uint, input dto.ScriptSettin
 		return ref, err
 	}
 	dto.ApplyScriptSettingRefInput(&ref, input)
-	if err := s.db.WithContext(ctx).Save(&ref).Error; err != nil {
+	if err := s.saveCoreEntityWithRelations(ctx, &ref); err != nil {
 		return ref, err
 	}
 	_ = s.db.WithContext(ctx).Preload("Setting").First(&ref, ref.ID).Error
@@ -155,7 +155,7 @@ func (s *Service) DeleteRef(ctx context.Context, id uint) error {
 		}
 		return err
 	}
-	return s.db.WithContext(ctx).Delete(&ref).Error
+	return s.deleteCoreEntityWithRelations(ctx, &ref)
 }
 
 func (s *Service) ListRelationships(ctx context.Context, filter RelationshipFilter) ([]model.SettingRelationship, error) {
@@ -182,7 +182,7 @@ func (s *Service) CreateRelationship(ctx context.Context, projectID uint, input 
 	if s.relationshipExists(ctx, &item, 0) {
 		return item, ErrConflict
 	}
-	if err := s.db.WithContext(ctx).Create(&item).Error; err != nil {
+	if err := s.createCoreEntityWithRelations(ctx, &item); err != nil {
 		return item, err
 	}
 	_ = s.db.WithContext(ctx).Preload("SourceSetting").Preload("TargetSetting").First(&item, item.ID).Error
@@ -205,7 +205,7 @@ func (s *Service) UpdateRelationship(ctx context.Context, id uint, input dto.Set
 	if s.relationshipExists(ctx, &item, item.ID) {
 		return item, ErrConflict
 	}
-	if err := s.db.WithContext(ctx).Save(&item).Error; err != nil {
+	if err := s.saveCoreEntityWithRelations(ctx, &item); err != nil {
 		return item, err
 	}
 	_ = s.db.WithContext(ctx).Preload("SourceSetting").Preload("TargetSetting").First(&item, item.ID).Error
@@ -220,7 +220,31 @@ func (s *Service) DeleteRelationship(ctx context.Context, id uint) error {
 		}
 		return err
 	}
-	return s.db.WithContext(ctx).Delete(&item).Error
+	return s.deleteCoreEntityWithRelations(ctx, &item)
+}
+
+func (s *Service) createCoreEntityWithRelations(ctx context.Context, item any) error {
+	db := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	if err := db.Create(item).Error; err != nil {
+		return err
+	}
+	return model.SyncCoreEntityRelations(db, item)
+}
+
+func (s *Service) saveCoreEntityWithRelations(ctx context.Context, item any) error {
+	db := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	if err := db.Save(item).Error; err != nil {
+		return err
+	}
+	return model.SyncCoreEntityRelations(db, item)
+}
+
+func (s *Service) deleteCoreEntityWithRelations(ctx context.Context, item any) error {
+	db := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	if err := db.Delete(item).Error; err != nil {
+		return err
+	}
+	return model.DeleteCoreEntityRelations(db, item)
 }
 
 func normalizeSetting(item *model.Setting) {

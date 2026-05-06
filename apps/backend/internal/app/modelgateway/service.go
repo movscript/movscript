@@ -53,8 +53,7 @@ type CreateAPIKeyInput struct {
 	ProjectID       *uint
 	AllowedModelIDs []uint
 	AllowedScopes   []string
-	RateLimitRPM    int
-	MonthlyBudget   float64
+	Commercial      CommercialAPIKeyCreateInput
 }
 
 type UpdateAPIKeyInput struct {
@@ -64,9 +63,8 @@ type UpdateAPIKeyInput struct {
 	Name            *string
 	AllowedModelIDs []uint
 	AllowedScopes   []string
-	RateLimitRPM    *int
-	MonthlyBudget   *float64
 	IsEnabled       *bool
+	Commercial      CommercialAPIKeyUpdateInput
 }
 
 type CreateAPIKeyResult struct {
@@ -141,10 +139,9 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		ProjectID:       input.ProjectID,
 		AllowedModelIDs: mustJSONString(input.AllowedModelIDs),
 		AllowedScopes:   mustJSONString(scopes),
-		RateLimitRPM:    input.RateLimitRPM,
-		MonthlyBudget:   input.MonthlyBudget,
 		IsEnabled:       true,
 	}
+	applyAPIKeyCommercialCreateFields(&key, input.Commercial)
 	if err := s.db.WithContext(ctx).Create(&key).Error; err != nil {
 		return CreateAPIKeyResult{}, err
 	}
@@ -166,15 +163,10 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (mo
 	if input.AllowedScopes != nil {
 		updates["allowed_scopes"] = mustJSONString(input.AllowedScopes)
 	}
-	if input.RateLimitRPM != nil {
-		updates["rate_limit_rpm"] = *input.RateLimitRPM
-	}
-	if input.MonthlyBudget != nil {
-		updates["monthly_budget"] = *input.MonthlyBudget
-	}
 	if input.IsEnabled != nil {
 		updates["is_enabled"] = *input.IsEnabled
 	}
+	applyAPIKeyCommercialUpdateFields(updates, input.Commercial)
 	if len(updates) > 0 {
 		if err := s.db.WithContext(ctx).Model(&key).Updates(updates).Error; err != nil {
 			return key, err

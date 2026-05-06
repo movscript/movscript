@@ -253,7 +253,7 @@ export default function ContentsPage() {
     mutationFn: (item: ContentUnitViewModel) => {
       if (!projectId) throw new Error('请先选择项目')
       return api.post('/canvases', {
-        name: `${item.unit.title || `制作项 #${item.unit.ID}`} · 内容生成`,
+        name: `${item.unit.title || `制作项 #${item.unit.ID}`} · 制作项生成`,
         project_id: projectId,
         canvas_type: 'workflow',
         stage: 'generation',
@@ -475,7 +475,7 @@ export default function ContentsPage() {
             <Button className="gap-2" asChild>
               <Link to="/workbench/production">
                 <Wand2 size={15} />
-                内容生成
+                制作项生成
               </Link>
             </Button>
           </div>

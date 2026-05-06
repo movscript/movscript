@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
@@ -148,12 +147,8 @@ func (s *AIService) ReleaseReservation(ctx context.Context, reservationID uint, 
 		if reservation.Status != ReservationStatusReserved {
 			return nil
 		}
-		if reservation.EstimatedCost > 0 && !s.usesOrgBudget(tx, reservation.OrgID) {
-			if err := tx.Model(&model.UserQuota{}).
-				Where("user_id = ?", reservation.UserID).
-				UpdateColumn("balance", gorm.Expr("balance + ?", reservation.EstimatedCost)).Error; err != nil {
-				return err
-			}
+		if err := s.releaseReservedSpend(tx, reservation); err != nil {
+			return err
 		}
 		return tx.Model(&reservation).Updates(map[string]any{
 			"status":         ReservationStatusReleased,
@@ -184,10 +179,8 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 			if err := s.reserveSpend(tx, userID, firstUint(billing.OrgID, reservation.OrgID), diff, "additional actual cost"); err != nil {
 				return err
 			}
-		} else if diff < 0 && !s.usesOrgBudget(tx, firstUint(billing.OrgID, reservation.OrgID)) {
-			if err := tx.Model(&model.UserQuota{}).
-				Where("user_id = ?", userID).
-				UpdateColumn("balance", gorm.Expr("balance + ?", -diff)).Error; err != nil {
+		} else if diff < 0 {
+			if err := s.refundSettledSpend(tx, userID, firstUint(billing.OrgID, reservation.OrgID), -diff); err != nil {
 				return err
 			}
 		}
@@ -240,100 +233,6 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 		}
 		return tx.Create(&entry).Error
 	})
-}
-
-func (s *AIService) reserveSpend(tx *gorm.DB, userID uint, orgID *uint, cost float64, label string) error {
-	if cost <= 0 {
-		return nil
-	}
-	if err := s.enforceOrgStatus(tx, orgID); err != nil {
-		return err
-	}
-	if s.usesOrgBudget(tx, orgID) {
-		return s.enforceOrgMonthlyBudget(tx, *orgID, cost, label)
-	}
-	var quota model.UserQuota
-	if err := tx.Clauses(lockingUpdate()).Where("user_id = ?", userID).First(&quota).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("%w: balance 0.0000 is below %s %.4f", ErrInsufficientQuota, label, cost)
-		}
-		return err
-	}
-	if quota.Balance < cost {
-		return fmt.Errorf("%w: balance %.4f is below %s %.4f", ErrInsufficientQuota, quota.Balance, label, cost)
-	}
-	return tx.Model(&quota).UpdateColumn("balance", gorm.Expr("balance - ?", cost)).Error
-}
-
-func (s *AIService) usesOrgBudget(tx *gorm.DB, orgID *uint) bool {
-	if orgID == nil {
-		return false
-	}
-	var org model.Organization
-	if err := tx.Select("is_personal, status").First(&org, *orgID).Error; err != nil {
-		return false
-	}
-	return !org.IsPersonal
-}
-
-func (s *AIService) enforceOrgStatus(tx *gorm.DB, orgID *uint) error {
-	if orgID == nil {
-		return nil
-	}
-	var org model.Organization
-	if err := tx.Select("is_personal, status").First(&org, *orgID).Error; err != nil {
-		return nil
-	}
-	if org.IsPersonal {
-		return nil
-	}
-	switch org.Status {
-	case "", "active", "trialing":
-		return nil
-	case "past_due", "suspended":
-		return fmt.Errorf("%w: org status %s blocks AI usage", ErrInsufficientQuota, org.Status)
-	default:
-		return fmt.Errorf("%w: org status %s is not allowed", ErrInsufficientQuota, org.Status)
-	}
-}
-
-func (s *AIService) enforceOrgMonthlyBudget(tx *gorm.DB, orgID uint, cost float64, label string) error {
-	var quota model.OrgQuota
-	if err := tx.Clauses(lockingUpdate()).Where("org_id = ?", orgID).First(&quota).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-	if quota.MonthlyBudget <= 0 {
-		return nil
-	}
-	spent, err := s.orgMonthSpend(tx, orgID)
-	if err != nil {
-		return err
-	}
-	if spent+cost > quota.MonthlyBudget {
-		return fmt.Errorf("%w: org monthly spend %.4f plus %s %.4f exceeds %.4f", ErrInsufficientQuota, spent, label, cost, quota.MonthlyBudget)
-	}
-	return nil
-}
-
-func (s *AIService) orgMonthSpend(tx *gorm.DB, orgID uint) (float64, error) {
-	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	var usageTotal float64
-	if err := tx.Model(&model.UsageLog{}).
-		Where("org_id = ? AND created_at >= ?", orgID, monthStart).
-		Select("COALESCE(SUM(cost), 0)").Scan(&usageTotal).Error; err != nil {
-		return 0, err
-	}
-	var reservedTotal float64
-	if err := tx.Model(&model.UsageReservation{}).
-		Where("org_id = ? AND status = ? AND created_at >= ?", orgID, ReservationStatusReserved, monthStart).
-		Select("COALESCE(SUM(estimated_cost), 0)").Scan(&reservedTotal).Error; err != nil {
-		return 0, err
-	}
-	return usageTotal + reservedTotal, nil
 }
 
 func estimateUsageCost(cfg model.AIModelConfig, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {

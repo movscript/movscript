@@ -9,6 +9,22 @@ export const PRODUCTION_ORCHESTRATION_OUTPUT_SCHEMA = {
     schema: { type: 'string', enum: ['movscript.production_orchestration_analysis.v1'] },
     mode: { type: 'string', enum: ['analysis_only', 'proposal_ready'] },
     production_id: { type: ['number', 'string', 'null'] },
+    creative_source: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        source_type: {
+          type: 'string',
+          enum: ['script', 'brief', 'outline', 'treatment', 'shot_list', 'reference_board', 'product_spec', 'interview_transcript', 'footage', 'prompt_seed', 'mixed', 'unknown'],
+        },
+        entity_type: { type: ['string', 'null'] },
+        entity_id: { type: ['number', 'string', 'null'] },
+        title: { type: ['string', 'null'] },
+        version: { type: ['string', 'number', 'null'] },
+        summary: { type: ['string', 'null'] },
+      },
+      required: ['source_type', 'entity_type', 'entity_id', 'title', 'version', 'summary'],
+    },
     script_source: {
       type: 'object',
       additionalProperties: false,
@@ -86,7 +102,7 @@ export const PRODUCTION_ORCHESTRATION_OUTPUT_SCHEMA = {
       required: ['kind', 'action_policy', 'segments'],
     },
   },
-  required: ['schema', 'mode', 'production_id', 'script_source', 'stages', 'proposal'],
+  required: ['schema', 'mode', 'production_id', 'creative_source', 'stages', 'proposal'],
   $defs: {
     evidence: {
       type: 'object',
@@ -190,7 +206,7 @@ export const PRODUCTION_ORCHESTRATION_OUTPUT_SCHEMA = {
       type: 'object',
       additionalProperties: false,
       properties: {
-        type: { type: 'string', enum: ['missing_script', 'ambiguous_character', 'ambiguous_location', 'conflict', 'insufficient_evidence'] },
+        type: { type: 'string', enum: ['missing_source', 'missing_script', 'ambiguous_character', 'ambiguous_location', 'conflict', 'insufficient_evidence'] },
         message: { type: 'string' },
         blocking: { type: 'boolean' },
       },
@@ -264,13 +280,15 @@ export const PRODUCTION_ORCHESTRATION_OUTPUT_SCHEMA = {
 export const PRODUCTION_ORCHESTRATION_CONTRACT = [
   'Production orchestration analyzer contract:',
   'Return only one valid JSON object matching schema movscript.production_orchestration_analysis.v1. Do not wrap it in markdown.',
+  'A full script is not required. Treat scripts, briefs, outlines, treatments, shot lists, reference boards, product specs, interview transcripts, existing footage, and prompt seeds as creative sources.',
+  'Always describe the primary or mixed input in creative_source. Include script_source only when a script or script_version is actually present.',
   'Use this internal sequence before emitting the final object: extraction -> canonicalization -> relations -> validation -> proposal.',
   'Do not expose hidden chain-of-thought. Put only concise evidence, rationale, warnings, unresolved items, and confidence in the JSON fields.',
   'For analysis-only runs, set mode="analysis_only" and still include proposal.segments as the best normalized draft tree when enough evidence exists.',
   'Before proposing reusable CreativeReferences, prefer project-level reuse from read_production_context/search/conflict tool results over creating duplicates.',
   'Confirmed entities must be preserved. Use action="update" only when the user explicitly asks to modify confirmed data; otherwise propose additive create/reuse nodes.',
   'Draft entities in the same production/scope may be superseded by a newer production_proposal draft.',
-  'Every extracted entity and story moment must include evidence quotes from the script when available.',
+  'Every extracted entity and story moment must include evidence quotes or source notes when available; for visual or footage sources, summarize the observed evidence.',
 ].join('\n')
 
 export const READ_PRODUCTION_CONTEXT_SCHEMA = {

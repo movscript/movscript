@@ -26,7 +26,10 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 	if snapshotErr != nil {
 		if err := h.db.Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
 			finishedAt := time.Now()
-			h.db.Model(&model.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{"status": "failed", "error": "canvas not found", "finished_at": &finishedAt})
+			run.Status = "failed"
+			run.Error = "canvas not found"
+			run.FinishedAt = &finishedAt
+			_ = h.saveCanvasRunWithRelations(&run)
 			return
 		}
 	}
@@ -128,13 +131,13 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 			run.Status = "failed"
 			run.Error = err.Error()
 			run.FinishedAt = &finishedAt
-			_ = h.db.Save(&run).Error
+			_ = h.saveCanvasRunWithRelations(&run)
 			return
 		}
 	}
 	if raw := canvasruntime.MarshalPortOutputs(workflowOutputs); raw != "" {
 		run.OutputValues = raw
-		_ = h.db.Save(&run).Error
+		_ = h.saveCanvasRunWithRelations(&run)
 	}
 	h.updateRunStatus(&run.ID)
 }

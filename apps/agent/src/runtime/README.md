@@ -10,6 +10,9 @@ The standalone agent process owns agent state and orchestration. CLI, Electron, 
 | `types.ts` | Shared agent API contracts for threads, messages, runs, steps, tool calls, and outcomes. |
 | `contracts/` | Runtime extension contracts. Domain modules can contribute structured output requirements, tool schema overrides, command overrides, and model requirements without being hardcoded into the core runtime. |
 | `run/runFactory.ts` | Factory for `AgentRun` creation and run metadata assembly. |
+| `run/runTrace.ts` | Builders for run steps and trace events. The runtime owns persistence; this module owns trace object shape and data normalization. |
+| `preview/` | Preview-time model probing and policy planning. It predicts tool calls and approvals without creating or executing a run. |
+| `commands/` | Command parsing and deterministic runtime command handlers such as `/context` and `/memory`. |
 | `loop/` | Agentic loop pipeline: context build, model call, policy gate, tool execution, and final loop result. |
 | `input/` | Request normalization, default run policy, approval merging, and round identifiers. |
 | `context.ts` | Parse `movscript.get_context_pack` results into runtime context such as current project id. |

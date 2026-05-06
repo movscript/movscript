@@ -119,17 +119,15 @@ type createGatewayAPIKeyRequest struct {
 	ProjectID       *uint    `json:"project_id"`
 	AllowedModelIDs []uint   `json:"allowed_model_ids"`
 	AllowedScopes   []string `json:"allowed_scopes"`
-	RateLimitRPM    int      `json:"rate_limit_rpm"`
-	MonthlyBudget   float64  `json:"monthly_budget"`
+	Commercial      gatewayAPIKeyCreateCommercialRequest
 }
 
 type updateGatewayAPIKeyRequest struct {
 	Name            *string  `json:"name"`
 	AllowedModelIDs []uint   `json:"allowed_model_ids"`
 	AllowedScopes   []string `json:"allowed_scopes"`
-	RateLimitRPM    *int     `json:"rate_limit_rpm"`
-	MonthlyBudget   *float64 `json:"monthly_budget"`
 	IsEnabled       *bool    `json:"is_enabled"`
+	Commercial      gatewayAPIKeyUpdateCommercialRequest
 }
 
 type gatewayAPIKeyCreateResponse struct {

@@ -54,7 +54,6 @@ export default function OnboardingPage() {
         apiBaseURL: LOCAL_API_URL,
         onboardingCompleted: false,
         localDisplayName: displayName.trim(),
-        showDeveloperTools: false,
       })
       await waitForLocalBackend()
       const session = await api.post('/auth/local-bootstrap', {

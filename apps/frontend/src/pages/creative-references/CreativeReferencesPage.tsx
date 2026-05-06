@@ -353,7 +353,7 @@ export default function CreativeReferencesPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">设定资料库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              人物、地点、道具、产品和风格作为可复用资料被情景引用，帮助制作预演、资产准备和内容生产保持连续性。
+              人物、地点、道具、产品和风格作为可复用资料被情景引用，帮助制作预演、资产准备和内容制作保持连续性。
             </p>
           </div>
           <div className="flex items-center gap-2">

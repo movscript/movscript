@@ -6,12 +6,14 @@
 
 ## 一、背景与目标
 
-用户通过 agent 对话，将剧本分析成制作所需的结构化实体，然后在前端确认、修改、应用。
+用户通过 agent 对话，将剧本、brief、参考图、产品资料、已有素材或 prompt 种子分析成制作所需的结构化实体，然后在前端确认、修改、应用。
+
+底层架构边界见 [Creative Source and Production Graph Architecture](script-production-graph-architecture.md)：创作来源层负责保留输入事实，故事意图层负责结构化故事、卖点、受众、视觉目标和连续性，编排层负责把这些事实转成可执行的分镜、素材绑定、生成任务和交付版本。
 
 核心流程：
 
 ```
-剧本 → agent 分析 → 提案（draft）→ 用户确认 → 写入后端
+创作来源 → agent 分析 → 提案（draft）→ 用户确认 → 写入后端
 ```
 
 分析产出的实体层级：

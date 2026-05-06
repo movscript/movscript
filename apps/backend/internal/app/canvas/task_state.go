@@ -73,7 +73,7 @@ func (h *Service) updateRunStatus(runID *uint) {
 		run.FinishedAt = &t
 	}
 	run.Status = status
-	_ = h.db.Save(&run).Error
+	_ = h.saveCanvasRunWithRelations(&run)
 }
 
 func CanvasRunTaskFailureSummary(tasks []model.CanvasTask) string {

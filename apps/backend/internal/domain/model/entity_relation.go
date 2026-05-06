@@ -46,7 +46,6 @@ const (
 
 	EntityRelationStatusConfirmed = "confirmed"
 	EntityRelationSourceSystem    = "system"
-	EntityRelationSourceMigration = "migration"
 )
 
 // EntityRelation is the normalized semantic relation graph between project

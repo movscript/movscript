@@ -103,7 +103,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 		SnapshotEdgeCount: snapshotEdgeCount,
 		StartedAt:         &now,
 	}
-	if err := h.db.Create(&run).Error; err != nil {
+	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, err
 	}
 

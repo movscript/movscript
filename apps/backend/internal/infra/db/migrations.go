@@ -90,7 +90,7 @@ func RegisteredMigrations() []Migration {
 			Version: "000004",
 			Name:    "add_entity_relations",
 			Up: func(db *gorm.DB) error {
-				return model.BackfillCoreEntityRelations(db, model.EntityRelationSourceMigration)
+				return backfillCoreEntityRelations(db)
 			},
 		},
 		{

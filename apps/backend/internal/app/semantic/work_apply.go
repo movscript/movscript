@@ -14,6 +14,7 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 	now := time.Now().UTC().Format(time.RFC3339)
 	var applyErr error
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		next := *item
 		ApplyWorkItemUpdates(&next, updates)
 		next.ResultType = fallbackString(next.ResultType, "none")
@@ -28,6 +29,9 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 		if err := tx.Save(&next).Error; err != nil {
 			return err
 		}
+		if err := model.SyncCoreEntityRelations(tx, &next); err != nil {
+			return err
+		}
 		if next.ResultType != "none" {
 			applyErr = applyWorkItemResult(tx, projectID, next, actorID, now)
 			if applyErr != nil {
@@ -39,6 +43,9 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 			if err := tx.Save(&next).Error; err != nil {
 				return err
 			}
+			if err := model.SyncCoreEntityRelations(tx, &next); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -47,7 +54,7 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 			failed := *item
 			failed.ApplyStatus = "failed"
 			failed.ApplyError = applyErr.Error()
-			_ = s.db.WithContext(ctx).Save(&failed).Error
+			_ = saveCoreEntityWithRelations(s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true}), &failed)
 			return failed, ErrInvalidInput{Err: applyErr}
 		}
 		return *item, err
@@ -117,7 +124,7 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	targetSlot.Status = "locked"
 	targetSlot.LockedAssetSlotID = &lockedAssetSlotID
 	targetSlot.ResourceID = candidate.CandidateAssetSlot.ResourceID
-	if err := tx.Save(&targetSlot).Error; err != nil {
+	if err := saveCoreEntityWithRelations(tx, &targetSlot); err != nil {
 		return err
 	}
 	var rejected []model.AssetSlotCandidate
@@ -126,12 +133,12 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	}
 	for i := range rejected {
 		rejected[i].Status = "rejected"
-		if err := tx.Save(&rejected[i]).Error; err != nil {
+		if err := saveCoreEntityWithRelations(tx, &rejected[i]); err != nil {
 			return err
 		}
 	}
 	candidate.Status = "selected"
-	if err := tx.Save(&candidate).Error; err != nil {
+	if err := saveCoreEntityWithRelations(tx, &candidate); err != nil {
 		return err
 	}
 	targetID := item.TargetID
@@ -152,6 +159,9 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	if err := tx.Create(&decision).Error; err != nil {
 		return err
 	}
+	if err := model.SyncCoreEntityRelations(tx, &decision); err != nil {
+		return err
+	}
 	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
 }
 
@@ -166,7 +176,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 		target.Status = status
-		if err := tx.Save(&target).Error; err != nil {
+		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
 	case "keyframe":
@@ -175,7 +185,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 		target.Status = status
-		if err := tx.Save(&target).Error; err != nil {
+		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
 	case "asset_slot":
@@ -184,7 +194,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 		target.Status = status
-		if err := tx.Save(&target).Error; err != nil {
+		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
 	case "delivery_version":
@@ -193,7 +203,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 		target.Status = status
-		if err := tx.Save(&target).Error; err != nil {
+		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
 	default:
@@ -224,7 +234,17 @@ func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.Wo
 	if err := tx.Create(&event).Error; err != nil {
 		return err
 	}
+	if err := model.SyncCoreEntityRelations(tx, &event); err != nil {
+		return err
+	}
 	return nil
+}
+
+func saveCoreEntityWithRelations(tx *gorm.DB, item any) error {
+	if err := tx.Save(item).Error; err != nil {
+		return err
+	}
+	return model.SyncCoreEntityRelations(tx, item)
 }
 
 func workItemApplyMetadata(workItemID uint) string {

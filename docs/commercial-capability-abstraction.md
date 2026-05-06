@@ -253,6 +253,26 @@ AuditEvent
 
 其中只放接口、枚举和最小 DTO，不放商业实现。
 
+## 企业实现仓库边界
+
+当前工程方向调整为：
+
+- `movscript` 仓库构建社区版。
+- `enterprise` 仓库构建商业版。
+- `movscript` 仓库只保留商业能力的共享接口、共享数据模型字段和社区实现。
+- 新的商业实现、企业路由、企业部署脚本和商业授权逻辑应进入 `enterprise` 仓库的 MovScript overlay。
+
+因此，社区仓中的 `//go:build enterprise` 文件只作为迁移期遗留存在。后续不要继续在社区仓新增企业实现文件；如果需要新增商业能力，应先在社区仓补稳定接口或社区默认实现，再在 enterprise overlay 中实现商业版本。
+
+目标构建关系：
+
+```text
+movscript                         -> community build
+enterprise + movscript checkout   -> enterprise build
+```
+
+`enterprise` 仓库当前通过 `overlays/movscript` 叠加商业文件，并用 `-tags enterprise` 产出商业后端。
+
 ## 条件编译与企业 Overlay
 
 第一步落地采用“社区默认实现 + 企业 overlay 替换”的方式：

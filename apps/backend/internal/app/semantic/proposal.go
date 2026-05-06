@@ -2,6 +2,8 @@ package semantic
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
@@ -106,15 +108,50 @@ type ProposalApplyCounts struct {
 }
 
 func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, req ApplyProductionProposalRequest) (*ApplyProductionProposalResponse, error) {
+	if projectID == 0 {
+		return nil, ErrInvalidInput{Err: errors.New("project id is required")}
+	}
+	if req.ProductionID == 0 {
+		return nil, ErrInvalidInput{Err: errors.New("production_id is required")}
+	}
+	if req.Proposal == nil {
+		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
+	}
+	if err := s.ensureProductionInProject(ctx, projectID, req.ProductionID); err != nil {
+		return nil, err
+	}
 	resp := &ApplyProductionProposalResponse{ProductionID: req.ProductionID}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txSvc := NewService(tx)
 
 		for i, segNode := range req.Proposal.Segments {
 			var segmentID uint
-			if segNode.Action == "reuse" && segNode.ID != nil {
+			switch normalizeProposalAction(segNode.Action) {
+			case "reuse":
+				if segNode.ID == nil {
+					return missingProposalID("segment", segNode.ClientID, "reuse")
+				}
+				if err := txSvc.ensureSegmentInProject(ctx, projectID, *segNode.ID); err != nil {
+					return err
+				}
 				segmentID = *segNode.ID
-			} else if segNode.Action == "create" || segNode.Action == "" {
+			case "update":
+				if segNode.ID == nil {
+					return missingProposalID("segment", segNode.ClientID, "update")
+				}
+				seg, err := txSvc.PatchSegment(ctx, projectID, fmt.Sprint(*segNode.ID), PatchSegmentInput{
+					ProductionID: &req.ProductionID,
+					Kind:         segNode.Kind,
+					Order:        segNode.Order,
+					Title:        segNode.Title,
+					Summary:      segNode.Summary,
+					Status:       segNode.Status,
+				})
+				if err != nil {
+					return err
+				}
+				segmentID = seg.ID
+			case "create":
 				seg, err := txSvc.CreateSegment(ctx, projectID, CreateSegmentInput{
 					ProductionID: &req.ProductionID,
 					Kind:         fallbackString(segNode.Kind, "section"),
@@ -129,13 +166,42 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 				resp.Segments = append(resp.Segments, seg)
 				resp.Counts.SegmentsCreated++
 				segmentID = seg.ID
+			default:
+				return invalidProposalAction("segment", segNode.ClientID, segNode.Action)
 			}
 
 			for j, smNode := range segNode.SceneMoments {
 				var sceneMomentID uint
-				if smNode.Action == "reuse" && smNode.ID != nil {
+				switch normalizeProposalAction(smNode.Action) {
+				case "reuse":
+					if smNode.ID == nil {
+						return missingProposalID("scene_moment", smNode.ClientID, "reuse")
+					}
+					if err := txSvc.ensureSceneMomentInProject(ctx, projectID, *smNode.ID); err != nil {
+						return err
+					}
 					sceneMomentID = *smNode.ID
-				} else if smNode.Action == "create" || smNode.Action == "" {
+				case "update":
+					if smNode.ID == nil {
+						return missingProposalID("scene_moment", smNode.ClientID, "update")
+					}
+					segIDPtr := &segmentID
+					sm, err := txSvc.PatchSceneMoment(ctx, projectID, fmt.Sprint(*smNode.ID), PatchSceneMomentInput{
+						SegmentID:    segIDPtr,
+						Order:        smNode.Order,
+						Title:        smNode.Title,
+						Description:  smNode.Description,
+						TimeText:     smNode.TimeText,
+						LocationText: smNode.LocationText,
+						ActionText:   smNode.ActionText,
+						Mood:         smNode.Mood,
+						Status:       smNode.Status,
+					})
+					if err != nil {
+						return err
+					}
+					sceneMomentID = sm.ID
+				case "create":
 					segIDPtr := &segmentID
 					sm, err := txSvc.CreateSceneMoment(ctx, projectID, CreateSceneMomentInput{
 						SegmentID:    segIDPtr,
@@ -154,13 +220,35 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 					resp.SceneMoments = append(resp.SceneMoments, sm)
 					resp.Counts.SceneMomentsCreated++
 					sceneMomentID = sm.ID
+				default:
+					return invalidProposalAction("scene_moment", smNode.ClientID, smNode.Action)
 				}
 
 				for _, crNode := range smNode.CreativeReferences {
 					var refID uint
-					if crNode.Action == "reuse" && crNode.ID != nil {
+					switch normalizeProposalAction(crNode.Action) {
+					case "reuse":
+						if crNode.ID == nil {
+							return missingProposalID("creative_reference", crNode.ClientID, "reuse")
+						}
+						if err := txSvc.ensureCreativeReferenceInProject(ctx, projectID, *crNode.ID); err != nil {
+							return err
+						}
 						refID = *crNode.ID
-					} else if crNode.Action == "create" || crNode.Action == "" {
+					case "update":
+						if crNode.ID == nil {
+							return missingProposalID("creative_reference", crNode.ClientID, "update")
+						}
+						ref, err := txSvc.PatchCreativeReference(ctx, projectID, fmt.Sprint(*crNode.ID), CreativeReferenceInput{
+							Kind:   crNode.Kind,
+							Name:   crNode.Name,
+							Status: "draft",
+						})
+						if err != nil {
+							return err
+						}
+						refID = ref.ID
+					case "create":
 						ref, err := txSvc.CreateCreativeReference(ctx, projectID, CreativeReferenceInput{
 							Kind:       fallbackString(crNode.Kind, "character"),
 							Name:       crNode.Name,
@@ -172,6 +260,8 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						}
 						resp.Counts.CreativeReferencesCreated++
 						refID = ref.ID
+					default:
+						return invalidProposalAction("creative_reference", crNode.ClientID, crNode.Action)
 					}
 
 					if refID > 0 && sceneMomentID > 0 {
@@ -210,8 +300,41 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 				}
 
 				for k, cuNode := range smNode.ContentUnits {
-					if cuNode.Action == "reuse" {
+					switch normalizeProposalAction(cuNode.Action) {
+					case "reuse":
+						if cuNode.ID == nil {
+							return missingProposalID("content_unit", cuNode.ClientID, "reuse")
+						}
+						if err := txSvc.ensureContentUnitInProject(ctx, projectID, *cuNode.ID); err != nil {
+							return err
+						}
 						continue
+					case "update":
+						if cuNode.ID == nil {
+							return missingProposalID("content_unit", cuNode.ClientID, "update")
+						}
+						smIDPtr := &sceneMomentID
+						prodIDPtr := &req.ProductionID
+						segIDPtr := &segmentID
+						if _, err := txSvc.PatchContentUnit(ctx, projectID, fmt.Sprint(*cuNode.ID), ContentUnitInput{
+							ProductionID:  prodIDPtr,
+							SegmentID:     segIDPtr,
+							SceneMomentID: smIDPtr,
+							Kind:          cuNode.Kind,
+							Order:         cuNode.Order,
+							Title:         cuNode.Title,
+							Description:   cuNode.Description,
+							ShotSize:      cuNode.ShotSize,
+							CameraAngle:   cuNode.CameraAngle,
+							DurationSec:   cuNode.DurationSec,
+							Status:        cuNode.Status,
+						}); err != nil {
+							return err
+						}
+						continue
+					case "create":
+					default:
+						return invalidProposalAction("content_unit", cuNode.ClientID, cuNode.Action)
 					}
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
@@ -237,8 +360,37 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 				}
 
 				for _, asNode := range smNode.AssetSlots {
-					if asNode.Action == "reuse" {
+					switch normalizeProposalAction(asNode.Action) {
+					case "reuse":
+						if asNode.ID == nil {
+							return missingProposalID("asset_slot", asNode.ClientID, "reuse")
+						}
+						if err := txSvc.ensureAssetSlotInProject(ctx, projectID, *asNode.ID); err != nil {
+							return err
+						}
 						continue
+					case "update":
+						if asNode.ID == nil {
+							return missingProposalID("asset_slot", asNode.ClientID, "update")
+						}
+						smIDPtr := &sceneMomentID
+						prodIDPtr := &req.ProductionID
+						if _, err := txSvc.PatchAssetSlot(ctx, projectID, fmt.Sprint(*asNode.ID), PatchAssetSlotInput{
+							ProductionID: prodIDPtr,
+							OwnerType:    "scene_moment",
+							OwnerID:      smIDPtr,
+							Kind:         asNode.Kind,
+							Name:         asNode.Name,
+							Description:  asNode.Description,
+							Priority:     asNode.Priority,
+							Status:       "draft",
+						}); err != nil {
+							return err
+						}
+						continue
+					case "create":
+					default:
+						return invalidProposalAction("asset_slot", asNode.ClientID, asNode.Action)
 					}
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
@@ -266,4 +418,19 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 		return nil, err
 	}
 	return resp, nil
+}
+
+func normalizeProposalAction(action string) string {
+	if action == "" {
+		return "create"
+	}
+	return action
+}
+
+func missingProposalID(kind string, clientID string, action string) error {
+	return ErrInvalidInput{Err: fmt.Errorf("%s proposal %q requires id for action %q", kind, clientID, action)}
+}
+
+func invalidProposalAction(kind string, clientID string, action string) error {
+	return ErrInvalidInput{Err: fmt.Errorf("%s proposal %q has unsupported action %q", kind, clientID, action)}
 }

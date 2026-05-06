@@ -10,6 +10,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	"gorm.io/gorm"
 )
 
 func (h *Service) persistWorkflowOutputsToResources(ctx context.Context, user *model.User, cv model.Canvas, runID uint, outputs map[string]canvasPortValue) error {
@@ -150,8 +151,9 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 	if cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
 		return
 	}
+	db := h.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
 	var sourceSlot model.AssetSlot
-	if err := h.db.First(&sourceSlot, target.OwnerID).Error; err != nil || sourceSlot.ProjectID != *cv.ProjectID {
+	if err := db.First(&sourceSlot, target.OwnerID).Error; err != nil || sourceSlot.ProjectID != *cv.ProjectID {
 		return
 	}
 	name := strings.TrimSpace(sourceSlot.Name)
@@ -159,7 +161,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		name = fmt.Sprintf("素材位 #%d", sourceSlot.ID)
 	}
 	var candidateSlot model.AssetSlot
-	err := h.db.
+	err := db.
 		Where("project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", *cv.ProjectID, "asset_slot", sourceSlot.ID, *value.ResourceID).
 		Order("id asc").
 		First(&candidateSlot).Error
@@ -181,13 +183,16 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 			ResourceID:               value.ResourceID,
 			MetadataJSON:             canvasOutputMetadataJSON(cv.ID, runID, target, value),
 		}
-		if err := h.db.Create(&candidateSlot).Error; err != nil {
+		if err := db.Create(&candidateSlot).Error; err != nil {
+			return
+		}
+		if err := model.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
 			return
 		}
 	}
 	sourceID := runID
 	var existingBinding model.ResourceBinding
-	if err := h.db.
+	if err := db.
 		Where("project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?", *cv.ProjectID, *value.ResourceID, "asset_slot", candidateSlot.ID, "output", target.PortID, 1).
 		First(&existingBinding).Error; err != nil {
 		_ = h.createBinding(ctx, model.ResourceBinding{
@@ -206,7 +211,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		})
 	}
 	var existing model.AssetSlotCandidate
-	err = h.db.
+	err = db.
 		Where("project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", *cv.ProjectID, sourceSlot.ID, candidateSlot.ID).
 		First(&existing).Error
 	if err != nil {
@@ -219,21 +224,34 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 			Status:               "candidate",
 			Note:                 "由素材生成画布写回",
 		}
-		_ = h.db.Create(&existing).Error
+		if err := db.Create(&existing).Error; err != nil {
+			return
+		}
+		if err := model.SyncCoreEntityRelations(db, &existing); err != nil {
+			return
+		}
 	} else {
 		existing.SourceType = "canvas"
 		existing.SourceID = &runID
 		if existing.Status == "" || existing.Status == "pending" {
 			existing.Status = "candidate"
 		}
-		_ = h.db.Save(&existing).Error
+		if err := db.Save(&existing).Error; err != nil {
+			return
+		}
+		if err := model.SyncCoreEntityRelations(db, &existing); err != nil {
+			return
+		}
 	}
 	raw, _ := json.Marshal(value)
 	target.CanvasRunID = &runID
 	target.ResourceID = value.ResourceID
 	target.ValueJSON = string(raw)
 	target.Status = "attached"
-	_ = h.db.Save(&target).Error
+	if err := db.Save(&target).Error; err != nil {
+		return
+	}
+	_ = model.SyncCoreEntityRelations(db, &target)
 }
 
 func canvasOutputMetadataJSON(canvasID uint, runID uint, target model.CanvasOutput, value canvasPortValue) string {

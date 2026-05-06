@@ -1,11 +1,6 @@
 package model
 
-import (
-	"fmt"
-	"strings"
-
-	"gorm.io/gorm"
-)
+import "gorm.io/gorm"
 
 // SyncCoreEntityRelations rebuilds normalized relations for one core semantic
 // entity using the entity's current database state. It is safe to call after
@@ -276,76 +271,4 @@ func DeleteCoreEntityRelations(db *gorm.DB, item any) error {
 	default:
 		return nil
 	}
-}
-
-func BackfillCoreEntityRelations(db *gorm.DB, source string) error {
-	if db == nil {
-		return nil
-	}
-	source = strings.TrimSpace(source)
-	if source == "" {
-		source = EntityRelationSourceMigration
-	}
-	if err := db.AutoMigrate(&EntityRelation{}); err != nil {
-		return err
-	}
-	if err := db.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&EntityRelation{}).Error; err != nil {
-		return err
-	}
-	backfills := []struct {
-		name string
-		run  func() error
-	}{
-		{"script_versions", func() error { return backfillByRows[ScriptVersion](db, source) }},
-		{"productions", func() error { return backfillByRows[Production](db, source) }},
-		{"production_text_blocks", func() error { return backfillByRows[ProductionTextBlock](db, source) }},
-		{"creative_references", func() error { return backfillByRows[CreativeReference](db, source) }},
-		{"creative_reference_states", func() error { return backfillByRows[CreativeReferenceState](db, source) }},
-		{"creative_reference_usages", func() error { return backfillByRows[CreativeReferenceUsage](db, source) }},
-		{"creative_relationships", func() error { return backfillByRows[CreativeRelationship](db, source) }},
-		{"setting_relationships", func() error { return backfillByRows[SettingRelationship](db, source) }},
-		{"script_setting_refs", func() error { return backfillByRows[ScriptSettingRef](db, source) }},
-		{"segments", func() error { return backfillByRows[Segment](db, source) }},
-		{"scene_moments", func() error { return backfillByRows[SceneMoment](db, source) }},
-		{"content_units", func() error { return backfillByRows[ContentUnit](db, source) }},
-		{"asset_slots", func() error { return backfillByRows[AssetSlot](db, source) }},
-		{"storyboard_scripts", func() error { return backfillByRows[StoryboardScript](db, source) }},
-		{"storyboard_versions", func() error { return backfillByRows[StoryboardVersion](db, source) }},
-		{"storyboard_lines", func() error { return backfillByRows[StoryboardLine](db, source) }},
-		{"keyframes", func() error { return backfillByRows[Keyframe](db, source) }},
-		{"preview_timelines", func() error { return backfillByRows[PreviewTimeline](db, source) }},
-		{"preview_timeline_items", func() error { return backfillByRows[PreviewTimelineItem](db, source) }},
-		{"asset_slot_candidates", func() error { return backfillByRows[AssetSlotCandidate](db, source) }},
-		{"candidate_decisions", func() error { return backfillByRows[CandidateDecision](db, source) }},
-		{"review_events", func() error { return backfillByRows[ReviewEvent](db, source) }},
-		{"work_items", func() error { return backfillByRows[WorkItem](db, source) }},
-		{"work_dependencies", func() error { return backfillByRows[WorkDependency](db, source) }},
-		{"delivery_versions", func() error { return backfillByRows[DeliveryVersion](db, source) }},
-		{"delivery_timeline_items", func() error { return backfillByRows[DeliveryTimelineItem](db, source) }},
-		{"export_records", func() error { return backfillByRows[ExportRecord](db, source) }},
-		{"canvases", func() error { return backfillByRows[Canvas](db, source) }},
-		{"canvas_runs", func() error { return backfillByRows[CanvasRun](db, source) }},
-		{"canvas_outputs", func() error { return backfillByRows[CanvasOutput](db, source) }},
-		{"resource_bindings", func() error { return backfillByRows[ResourceBinding](db, source) }},
-	}
-	for _, backfill := range backfills {
-		if err := backfill.run(); err != nil {
-			return fmt.Errorf("backfill entity relations from %s: %w", backfill.name, err)
-		}
-	}
-	return nil
-}
-
-func backfillByRows[T any](db *gorm.DB, source string) error {
-	_ = source
-	var rows []T
-	if err := db.Find(&rows).Error; err != nil {
-		return err
-	}
-	for i := range rows {
-		if err := db.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows[i]).Error; err != nil {
-			return err
-		}
-	}
-	return nil
 }

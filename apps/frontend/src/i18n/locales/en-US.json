@@ -180,10 +180,6 @@
     "testFailedWithReason": "Connection failed: {{reason}}",
     "resetDefault": "Reset Default",
     "savedReloading": "Saved. Reloading the client...",
-    "developerToolsTitle": "Developer Tools",
-    "developerToolsHint": "Expose local debug entry points for the agent, plugins, and runtime state.",
-    "showDeveloperTools": "Show developer tools entry",
-    "showDeveloperToolsHelp": "When enabled, the sidebar shows Agent Debug. Super admins always see it.",
     "returnToLogin": "Back to login"
   },
   "backendBoot": {

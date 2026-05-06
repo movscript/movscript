@@ -38,19 +38,6 @@ func TestPolicyServiceCanCallChatRejectsWrongProject(t *testing.T) {
 	}
 }
 
-func TestPolicyServiceEnforceKeyLimitsHonorsBudget(t *testing.T) {
-	db := openModelGatewayPolicyTestDB(t)
-	policy := NewPolicyService(db)
-	key := &model.GatewayAPIKey{
-		MonthlyBudget: 10,
-	}
-
-	err := policy.EnforceKeyLimits(context.Background(), key, 11)
-	if err == nil || err.Error() == "" {
-		t.Fatal("expected monthly budget error")
-	}
-}
-
 func openModelGatewayPolicyTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})

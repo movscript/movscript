@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
+	"github.com/movscript/movscript/internal/app/workflowio"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	"github.com/movscript/movscript/internal/domain/workflow"
 )
 
 type AssetSlotFilter struct {
@@ -214,7 +214,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		return model.AssetSlotCandidate{}, err
 	}
 	if input.ResourceID != nil && *input.ResourceID > 0 {
-		result, err := workflow.NewEntityIOService(s.db).AttachAssetSlotCandidate(ctx, workflow.AttachAssetSlotCandidateInput{
+		result, err := workflowio.NewEntityIOService(s.db).AttachAssetSlotCandidate(ctx, workflowio.AttachAssetSlotCandidateInput{
 			ProjectID:   projectID,
 			AssetSlotID: input.AssetSlotID,
 			ResourceID:  *input.ResourceID,

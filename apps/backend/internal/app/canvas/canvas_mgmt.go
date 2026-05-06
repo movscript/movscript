@@ -201,7 +201,7 @@ func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, orgI
 		tagsRaw, _ := json.Marshal(workflowmarket.CleanTags(input.Tags))
 		cv.WorkflowTags = string(tagsRaw)
 	}
-	if err := h.db.WithContext(ctx).Save(&cv).Error; err != nil {
+	if err := saveCanvasWithRelations(h.db.WithContext(ctx), &cv); err != nil {
 		return cv, err
 	}
 	if err := h.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&cv, cv.ID).Error; err != nil {
@@ -215,19 +215,34 @@ func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, org
 	if err != nil {
 		return err
 	}
-	if err := h.db.WithContext(ctx).Where("canvas_run_id IN (?)", h.db.Model(&model.CanvasRun{}).Select("id").Where("canvas_id = ?", cv.ID)).Delete(&model.CanvasTask{}).Error; err != nil {
-		return err
-	}
-	if err := h.db.WithContext(ctx).Where("canvas_id = ?", cv.ID).Delete(&model.CanvasRun{}).Error; err != nil {
-		return err
-	}
-	if err := h.db.WithContext(ctx).Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{}).Error; err != nil {
-		return err
-	}
-	if err := h.db.WithContext(ctx).Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{}).Error; err != nil {
-		return err
-	}
-	return h.db.WithContext(ctx).Delete(&cv).Error
+	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
+		var runs []model.CanvasRun
+		if err := tx.Select("id").Where("canvas_id = ?", cv.ID).Find(&runs).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("canvas_run_id IN (?)", tx.Model(&model.CanvasRun{}).Select("id").Where("canvas_id = ?", cv.ID)).Delete(&model.CanvasTask{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasRun{}).Error; err != nil {
+			return err
+		}
+		for i := range runs {
+			if err := model.DeleteCoreEntityRelations(tx, &runs[i]); err != nil {
+				return err
+			}
+		}
+		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasEdge{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&cv).Error; err != nil {
+			return err
+		}
+		return model.DeleteCoreEntityRelations(tx, &cv)
+	})
 }
 
 func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasSaveInput) (model.Canvas, error) {
@@ -239,6 +254,7 @@ func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID
 		cv.Name = input.Name
 	}
 	err = h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Where("canvas_id = ?", cv.ID).Delete(&model.CanvasNode{}).Error; err != nil {
 			return err
 		}
@@ -263,7 +279,7 @@ func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID
 				return err
 			}
 		}
-		return tx.Save(&cv).Error
+		return saveCanvasWithRelations(tx, &cv)
 	})
 	if err != nil {
 		return cv, err

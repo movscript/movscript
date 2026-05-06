@@ -31,7 +31,6 @@ const titleKeys: Record<string, string> = {
   '/resources': 'header.titles.resources',
   '/jobs': 'header.titles.jobs',
   '/plugins': 'header.titles.plugins',
-  '/agent/debug': 'header.titles.agentDebug',
   '/collaboration': 'header.titles.collaboration',
   '/delivery': 'header.titles.delivery',
   '/user': 'header.titles.user',

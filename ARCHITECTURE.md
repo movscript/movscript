@@ -99,6 +99,23 @@ Project
 
 Raw media is stored as `RawResource` rows with object-storage keys and optional folder permissions.
 
+## Creative Source and Production Graphs
+
+Movscript treats production orchestration as linked graphs rather than one large workflow object:
+
+```text
+Creative Source Graph
+  Scripts, briefs, outlines, treatments, reference boards, product specs, interview transcripts, footage, and prompt seeds.
+
+Story Intent Graph
+  Story structure, segments, scene moments, audience intent, selling points, creative references, and continuity constraints.
+
+Production Graph
+  Storyboard scripts, content units, asset bindings, generation tasks, preview timelines, and delivery versions.
+```
+
+The production graph should reference source and story-intent graph objects instead of duplicating upstream facts. The detailed boundary is recorded in [docs/script-production-graph-architecture.md](docs/script-production-graph-architecture.md).
+
 ## Key Patterns
 
 ### Backend DDD Boundaries

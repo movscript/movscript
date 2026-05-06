@@ -37,7 +37,6 @@ import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectHomePage from './pages/project-home/ProjectHomePage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
-import AgentDebugPage from './pages/agent/AgentDebugPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import SegmentsPage from './pages/segments/SegmentsPage'
 import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
@@ -171,10 +170,17 @@ function Padded({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-auto p-6">{children}</div>
 }
 
-function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
-  const { pathname } = useLocation()
-  const showAgentPanel = !pathname.startsWith('/agent/debug')
+function LegacyAgentDebugRedirect() {
+  const adminBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL.replace(/\/+$/, ''))
 
+  useEffect(() => {
+    window.location.replace(`${adminBaseURL}/admin/agent-debug`)
+  }, [adminBaseURL])
+
+  return null
+}
+
+function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const shell = (
     <div className="flex h-screen bg-background text-foreground">
       <RedirectListener />
@@ -186,11 +192,9 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
             <div className="flex-1 min-w-0 overflow-hidden rounded-md border border-border bg-background">
               <RouteErrorBoundary>{children}</RouteErrorBoundary>
             </div>
-            {showAgentPanel && (
-              <div className="h-full min-h-0 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm">
-                <AIAgentPanel />
-              </div>
-            )}
+            <div className="h-full min-h-0 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm">
+              <AIAgentPanel />
+            </div>
           </div>
         </main>
       </div>
@@ -318,10 +322,10 @@ export default function App() {
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/plugins" element={<ClientPluginsPage />} />
 
-              {/* Agent */}
-              <Route path="/agent/debug" element={<AgentDebugPage />} />
-              <Route path="/agent/settings" element={<Navigate to="/agent/debug" replace />} />
-              <Route path="/agents" element={<Navigate to="/agent/debug" replace />} />
+              {/* Agent debug moved to the admin application. */}
+              <Route path="/agent/debug" element={<LegacyAgentDebugRedirect />} />
+              <Route path="/agent/settings" element={<LegacyAgentDebugRedirect />} />
+              <Route path="/agents" element={<LegacyAgentDebugRedirect />} />
               </Routes>
             </ShellLayout>
           } />

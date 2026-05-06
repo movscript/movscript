@@ -61,7 +61,7 @@ func TestBackfillCoreEntityRelationsIncludesSettingRelations(t *testing.T) {
 		t.Fatalf("create setting relationship: %v", err)
 	}
 
-	if err := model.BackfillCoreEntityRelations(db, "test"); err != nil {
+	if err := backfillCoreEntityRelations(db); err != nil {
 		t.Fatalf("backfill: %v", err)
 	}
 
