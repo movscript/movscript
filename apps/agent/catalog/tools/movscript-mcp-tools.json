@@ -40,6 +40,19 @@
       }
     },
     {
+      "name": "movscript_create_project",
+      "description": "Create a formal MovScript project after user approval. Use this when the user explicitly asks to create a project, especially when no current project exists.",
+      "permission": "project.write",
+      "risk": "write",
+      "projectScoped": false,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_create_project",
+        "mode": "allow",
+        "approval": "always"
+      }
+    },
+    {
       "name": "movscript_read_entity",
       "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, setting, asset_slot, segment, scene_moment, storyboard_script, storyboard_line, content_unit, keyframe, preview_timeline, and delivery_version.",
       "permission": "project.read",

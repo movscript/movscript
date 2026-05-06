@@ -14,6 +14,7 @@ const (
 	EntityRelationCategoryAsset     = "asset"
 	EntityRelationCategoryWorkflow  = "workflow"
 	EntityRelationCategoryDelivery  = "delivery"
+	EntityRelationCategorySetting   = "setting"
 
 	EntityRelationTypeOwns         = "owns"
 	EntityRelationTypeContains     = "contains"
@@ -25,6 +26,7 @@ const (
 	EntityRelationTypeNeedsAsset   = "needs_asset"
 	EntityRelationTypeUsesAsset    = "uses_asset"
 	EntityRelationTypeUsesResource = "uses_resource"
+	EntityRelationTypeHasState     = "has_state"
 	EntityRelationTypeBasedOn      = "based_on"
 	EntityRelationTypeRepresents   = "represents"
 	EntityRelationTypeHasKeyframe  = "has_keyframe"

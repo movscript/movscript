@@ -3,6 +3,7 @@ package aiadmin
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
@@ -115,16 +116,19 @@ func (s *Service) GetMyQuota(ctx context.Context, userID uint) (MyQuotaSummary, 
 		return MyQuotaSummary{}, err
 	}
 
+	monthStart := time.Now().Local()
+	monthStart = time.Date(monthStart.Year(), monthStart.Month(), 1, 0, 0, 0, 0, monthStart.Location())
+
 	var totalCost float64
 	if err := s.db.WithContext(ctx).Model(&model.UsageLog{}).
-		Where("user_id = ? AND created_at >= date_trunc('month', now())", userID).
+		Where("user_id = ? AND created_at >= ?", userID, monthStart).
 		Select("COALESCE(SUM(cost), 0)").Scan(&totalCost).Error; err != nil {
 		return MyQuotaSummary{}, err
 	}
 
 	var totalTokens int64
 	if err := s.db.WithContext(ctx).Model(&model.UsageLog{}).
-		Where("user_id = ? AND created_at >= date_trunc('month', now())", userID).
+		Where("user_id = ? AND created_at >= ?", userID, monthStart).
 		Select("COALESCE(SUM(input_tokens + output_tokens), 0)").Scan(&totalTokens).Error; err != nil {
 		return MyQuotaSummary{}, err
 	}

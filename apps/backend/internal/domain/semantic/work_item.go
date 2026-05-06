@@ -180,6 +180,48 @@ func ValidJSONObject(raw string) bool {
 	return json.Unmarshal([]byte(raw), &value) == nil
 }
 
+func FallbackString(value string, fallback string) string {
+	if strings.TrimSpace(value) != "" {
+		return value
+	}
+	return fallback
+}
+
+func FallbackInt(value int, fallback int) int {
+	if value != 0 {
+		return value
+	}
+	return fallback
+}
+
+func CompactUpdates(values map[string]any) map[string]any {
+	updates := map[string]any{}
+	for key, value := range values {
+		switch v := value.(type) {
+		case string:
+			if strings.TrimSpace(v) == "" {
+				continue
+			}
+		case *uint:
+			if v == nil {
+				continue
+			}
+		case nil:
+			continue
+		}
+		updates[key] = value
+	}
+	return updates
+}
+
+func TruthyFilter(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes", "y", "on":
+		return true
+	}
+	return value == "true" || value == "1"
+}
+
 func InitialWorkItemApplyStatus(resultType string) string {
 	if FallbackString(resultType, "none") == "none" {
 		return "not_applicable"
@@ -262,31 +304,4 @@ func IsWorkItemManagerRole(role string) bool {
 	default:
 		return false
 	}
-}
-
-func FallbackString(value string, fallback string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
-	}
-	return fallback
-}
-
-func CompactUpdates(values map[string]any) map[string]any {
-	updates := map[string]any{}
-	for key, value := range values {
-		switch v := value.(type) {
-		case string:
-			if strings.TrimSpace(v) == "" {
-				continue
-			}
-		case *uint:
-			if v == nil {
-				continue
-			}
-		case nil:
-			continue
-		}
-		updates[key] = value
-	}
-	return updates
 }

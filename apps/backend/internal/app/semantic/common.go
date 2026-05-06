@@ -3,9 +3,9 @@ package semantic
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"gorm.io/gorm"
 )
 
@@ -238,35 +238,13 @@ func (s *Service) ensureContentUnitInProject(ctx context.Context, projectID uint
 }
 
 func fallbackString(value string, fallback string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
-	}
-	return fallback
+	return domainsemantic.FallbackString(value, fallback)
 }
 
 func fallbackInt(value int, fallback int) int {
-	if value != 0 {
-		return value
-	}
-	return fallback
+	return domainsemantic.FallbackInt(value, fallback)
 }
 
 func compactUpdates(values map[string]any) map[string]any {
-	updates := map[string]any{}
-	for key, value := range values {
-		switch v := value.(type) {
-		case string:
-			if strings.TrimSpace(v) == "" {
-				continue
-			}
-		case *uint:
-			if v == nil {
-				continue
-			}
-		case nil:
-			continue
-		}
-		updates[key] = value
-	}
-	return updates
+	return domainsemantic.CompactUpdates(values)
 }

@@ -33,6 +33,7 @@ type handlers struct {
 	workflowMarket   *handler.WorkflowMarketHandler
 	audit            *handler.AuditHandler
 	cloudFileConfig  *handler.CloudFileConfigHandler
+	entitlement      *handler.EntitlementHandler
 	org              *handler.OrgHandler
 	ws               *wsiface.Handler
 }
@@ -51,7 +52,7 @@ func newHandlers(deps Dependencies) handlers {
 		artifactRefs:     handler.NewArtifactRefHandler(db),
 		settings:         handler.NewSettingHandler(db),
 		users:            handler.NewUserHandler(db),
-		auth:             handler.NewAuthHandler(db, tokens),
+		auth:             handler.NewAuthHandlerWithConfig(db, tokens, cfg),
 		ai:               handler.NewAIHandler(db, cfg.EncryptionKey, registry),
 		resources:        handler.NewResourceHandler(db, store),
 		resourceBindings: handler.NewResourceBindingHandler(db),
@@ -73,6 +74,7 @@ func newHandlers(deps Dependencies) handlers {
 		workflowMarket:   handler.NewWorkflowMarketHandler(db),
 		audit:            handler.NewAuditHandler(db),
 		cloudFileConfig:  handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey),
+		entitlement:      handler.NewEntitlementHandler(deps.Entitlements),
 		org:              handler.NewOrgHandler(db),
 		ws:               wsiface.NewHandler(),
 	}

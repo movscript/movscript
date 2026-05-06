@@ -26,8 +26,9 @@ var (
 )
 
 type Service struct {
-	db     *gorm.DB
-	tokens *tokenauth.Manager
+	db           *gorm.DB
+	tokens       *tokenauth.Manager
+	localAppMode bool
 }
 
 func NewService(db *gorm.DB, tokens ...*tokenauth.Manager) *Service {
@@ -38,10 +39,21 @@ func NewService(db *gorm.DB, tokens ...*tokenauth.Manager) *Service {
 	return &Service{db: db, tokens: manager}
 }
 
+func NewLocalService(db *gorm.DB, tokens ...*tokenauth.Manager) *Service {
+	service := NewService(db, tokens...)
+	service.localAppMode = true
+	return service
+}
+
 type RegisterInput struct {
-	Username string
-	Password string
-	Email    string
+	Username             string
+	Password             string
+	Email                string
+	BootstrapSystemAdmin bool
+}
+
+type LocalBootstrapInput struct {
+	DisplayName string
 }
 
 type ProfileInput struct {
@@ -123,21 +135,102 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 		hash = string(value)
 	}
 
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&model.User{}).Count(&count).Error; err != nil {
-		return model.User{}, err
-	}
 	var verifiedAt *int64
 	if input.Email != "" {
 		now := time.Now().UTC().Unix()
 		verifiedAt = &now
 	}
-	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, count, verifiedAt)
+	bootstrapSystemAdmin, err := s.canBootstrapSystemAdmin(ctx, input.BootstrapSystemAdmin)
+	if err != nil {
+		return model.User{}, err
+	}
+	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, bootstrapSystemAdmin, verifiedAt)
 	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
 		return model.User{}, err
 	}
 	_ = orgapp.CreatePersonalOrg(s.db.WithContext(ctx), &u)
 	return u, nil
+}
+
+func (s *Service) canBootstrapSystemAdmin(ctx context.Context, requested bool) (bool, error) {
+	if !requested {
+		return false, nil
+	}
+	if !s.localAppMode {
+		return false, ErrInvalidInput
+	}
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&model.User{}).Where("system_role = ?", "super_admin").Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
+func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput) (model.User, error) {
+	if !s.localAppMode {
+		return model.User{}, ErrInvalidInput
+	}
+	var existing model.User
+	if err := s.db.WithContext(ctx).Where("system_role = ?", "super_admin").First(&existing).Error; err == nil {
+		return model.User{}, ErrConflict
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.User{}, err
+	}
+
+	displayName := strings.TrimSpace(input.DisplayName)
+	if displayName == "" {
+		displayName = "Local User"
+	}
+	username := localUsername(displayName)
+	for i := 0; ; i++ {
+		candidate := username
+		if i > 0 {
+			candidate = fmt.Sprintf("%s%d", username, i+1)
+		}
+		var count int64
+		if err := s.db.WithContext(ctx).Model(&model.User{}).Where("username = ?", candidate).Count(&count).Error; err != nil {
+			return model.User{}, err
+		}
+		if count == 0 {
+			username = candidate
+			break
+		}
+	}
+
+	rawPassword, err := randomToken(32)
+	if err != nil {
+		return model.User{}, err
+	}
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(rawPassword), 12)
+	if err != nil {
+		return model.User{}, err
+	}
+	u := domainauth.NewRegisteredUser(username, string(hashBytes), "", true, nil)
+	u.DisplayName = displayName
+	if err := s.db.WithContext(ctx).Create(&u).Error; err != nil {
+		return model.User{}, err
+	}
+	_ = orgapp.CreatePersonalOrg(s.db.WithContext(ctx), &u)
+	return u, nil
+}
+
+func localUsername(displayName string) string {
+	base := strings.ToLower(strings.TrimSpace(displayName))
+	var b strings.Builder
+	for _, r := range base {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_':
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "local"
+	}
+	return b.String()
 }
 
 func (s *Service) Login(ctx context.Context, input LoginInput) (model.User, error) {

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	entitlementapp "github.com/movscript/movscript/internal/app/entitlement"
 	hubapp "github.com/movscript/movscript/internal/app/hub"
+	"github.com/movscript/movscript/internal/domain/commercial"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/config"
@@ -21,14 +23,15 @@ import (
 )
 
 type App struct {
-	Config    *config.Config
-	DB        *gorm.DB
-	Store     storage.Storage
-	Tokens    *auth.Manager
-	Registry  *ai.Registry
-	AIService *ai.AIService
-	Worker    *jobrunner.Worker
-	Router    *gin.Engine
+	Config       *config.Config
+	DB           *gorm.DB
+	Store        storage.Storage
+	Tokens       *auth.Manager
+	Registry     *ai.Registry
+	AIService    *ai.AIService
+	Entitlements commercial.EntitlementService
+	Worker       *jobrunner.Worker
+	Router       *gin.Engine
 }
 
 func New() (*App, error) {
@@ -42,25 +45,23 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect database: %w", err)
 	}
-	if err := db.EnsureMigrationsCurrent(database); err != nil {
-		return nil, fmt.Errorf("check database migrations: %w", err)
+	if cfg.AppMode == "local" && cfg.DBDriver == "sqlite" {
+		if err := db.RunMigrations(database); err != nil {
+			return nil, fmt.Errorf("run local database migrations: %w", err)
+		}
+	} else {
+		if err := db.EnsureMigrationsCurrent(database); err != nil {
+			return nil, fmt.Errorf("check database migrations: %w", err)
+		}
 	}
 
-	store, err := storage.NewMinIOStorage(
-		cfg.MinIOEndpoint,
-		cfg.MinIOAccessKey,
-		cfg.MinIOSecretKey,
-		cfg.MinIOBucket,
-		cfg.MinIOUseSSL,
-	)
+	store, err := storage.New(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize object storage: %w", err)
 	}
 	observability.Logger().Info(
 		"storage_initialized",
-		slog.String("backend", "minio"),
-		slog.String("endpoint", cfg.MinIOEndpoint),
-		slog.String("bucket", cfg.MinIOBucket),
+		slog.String("backend", store.Backend()),
 	)
 	if err := hubapp.NewService(database, store).Seed(context.Background()); err != nil {
 		return nil, fmt.Errorf("seed hub packages: %w", err)
@@ -78,6 +79,7 @@ func New() (*App, error) {
 
 	registry := ai.NewRegistry(database, encKey)
 	aiService := ai.NewAIService(database, registry)
+	entitlements := entitlementapp.NewService(database, cfg)
 	worker := jobrunner.NewWorker(database, aiService, store, encKey)
 
 	engine := router.New(router.Dependencies{
@@ -87,18 +89,20 @@ func New() (*App, error) {
 		Tokens:        tokens,
 		Registry:      registry,
 		AIService:     aiService,
+		Entitlements:  entitlements,
 		EncryptionKey: encKey,
 	})
 
 	return &App{
-		Config:    cfg,
-		DB:        database,
-		Store:     store,
-		Tokens:    tokens,
-		Registry:  registry,
-		AIService: aiService,
-		Worker:    worker,
-		Router:    engine,
+		Config:       cfg,
+		DB:           database,
+		Store:        store,
+		Tokens:       tokens,
+		Registry:     registry,
+		AIService:    aiService,
+		Entitlements: entitlements,
+		Worker:       worker,
+		Router:       engine,
 	}, nil
 }
 

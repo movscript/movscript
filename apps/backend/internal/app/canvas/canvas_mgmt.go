@@ -5,18 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 
 var (
-	ErrInvalidCanvasType  = errors.New("invalid canvas type")
-	ErrRefIDRequired      = errors.New("ref_id is required when ref_type is set")
-	ErrUnsupportedRefType = errors.New("unsupported ref_type")
+	ErrInvalidCanvasType  = canvasruntime.ErrInvalidCanvasType
+	ErrRefIDRequired      = canvasruntime.ErrRefIDRequired
+	ErrUnsupportedRefType = canvasruntime.ErrUnsupportedRefType
 	ErrCanvasForbidden    = errors.New("canvas forbidden")
 	ErrProjectNotFound    = errors.New("project not found")
 	ErrProjectOutsideOrg  = errors.New("project is outside current org")
@@ -32,17 +32,7 @@ type CanvasListFilter struct {
 	CanvasType string
 }
 
-type CanvasCreateInput struct {
-	OwnerID     uint
-	OrgID       *uint
-	Name        string
-	Description string
-	ProjectID   *uint
-	CanvasType  string
-	Stage       string
-	RefType     string
-	RefID       *uint
-}
+type CanvasCreateInput = canvasruntime.CanvasCreateInput
 
 type CanvasPatchInput struct {
 	Name        *string
@@ -133,34 +123,13 @@ func (h *Service) GetCanvas(ctx context.Context, id string) (model.Canvas, error
 }
 
 func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (model.Canvas, error) {
-	if input.CanvasType == "" {
-		input.CanvasType = "inspiration"
-	}
-	if !slices.Contains([]string{"inspiration", "workflow"}, input.CanvasType) {
-		return model.Canvas{}, ErrInvalidCanvasType
-	}
-	input.RefType = strings.TrimSpace(input.RefType)
-	if input.RefType != "" && input.RefID == nil {
-		return model.Canvas{}, ErrRefIDRequired
-	}
-	if input.RefType != "" && !slices.Contains([]string{"script", "setting", "asset_slot", "content_unit"}, input.RefType) {
-		return model.Canvas{}, ErrUnsupportedRefType
+	if err := canvasruntime.NormalizeCreateInput(&input); err != nil {
+		return model.Canvas{}, err
 	}
 	if err := h.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
 		return model.Canvas{}, err
 	}
-	cv := model.Canvas{
-		OwnerID:     input.OwnerID,
-		OrgID:       input.OrgID,
-		Name:        input.Name,
-		Description: strings.TrimSpace(input.Description),
-		ProjectID:   input.ProjectID,
-		CanvasType:  input.CanvasType,
-		Stage:       input.Stage,
-		RefType:     input.RefType,
-		RefID:       input.RefID,
-		Visibility:  "private",
-	}
+	cv := canvasruntime.NewCanvas(input)
 	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&cv).Error; err != nil {
 			return err
@@ -172,27 +141,10 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (mo
 			return nil
 		}
 
-		inputData, _ := json.Marshal(map[string]any{
-			"source":     "manual",
-			"inputValue": "",
-			"paramName":  "input",
-			"paramType":  "text",
-		})
-		outputData, _ := json.Marshal(map[string]any{
-			"source":            "manual",
-			"label":             "最终输出",
-			"paramName":         "final_output",
-			"paramType":         "resource",
-			"lockedFinalOutput": true,
-		})
-		nodes := []model.CanvasNode{
-			{CanvasID: cv.ID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
-			{CanvasID: cv.ID, NodeID: "final-output", Type: "output", Label: "最终输出", PosX: 560, PosY: 160, Data: string(outputData)},
-		}
+		nodes, edge := canvasruntime.WorkflowBootstrapGraph(cv.ID)
 		if err := tx.Create(&nodes).Error; err != nil {
 			return err
 		}
-		edge := model.CanvasEdge{CanvasID: cv.ID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
 		return tx.Create(&edge).Error
 	})
 	if err != nil {
@@ -206,7 +158,7 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (mo
 
 func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCreateInput) (model.Canvas, bool, error) {
 	input.RefType = strings.TrimSpace(input.RefType)
-	if input.RefID == nil || !singleCanvasRefType(input.RefType) {
+	if input.RefID == nil || !canvasruntime.SingleCanvasRefType(input.RefType) {
 		return model.Canvas{}, false, nil
 	}
 	canvasType := input.CanvasType
@@ -338,15 +290,6 @@ func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, o
 
 func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error) {
 	return h.getOwnedCanvas(ctx, id, ownerID, orgID)
-}
-
-func singleCanvasRefType(refType string) bool {
-	switch strings.TrimSpace(refType) {
-	case "production", "content_unit", "asset_slot":
-		return true
-	default:
-		return false
-	}
 }
 
 func (h *Service) GetNode(ctx context.Context, canvasID uint, nodeID string) (model.CanvasNode, error) {

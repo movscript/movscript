@@ -4,8 +4,9 @@ import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '@/lib/api'
-import { getAPIBaseURL } from '@/lib/config'
+import { getAPIBaseURL, isLocalLaunchMode } from '@/lib/config'
 import { translateApiError } from '@/lib/apiError'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/store/userStore'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -47,6 +48,7 @@ function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
 export default function AuthPage() {
   const { t } = useTranslation()
   const setSession = useUserStore((s) => s.setSession)
+  const settings = useAppSettingsStore((s) => s.settings)
   const [tab, setTab] = useState<Tab>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -60,7 +62,11 @@ export default function AuthPage() {
   })
 
   const register = useMutation({
-    mutationFn: () => api.post('/auth/register', { username, password }).then((r) => r.data as AuthSession),
+    mutationFn: () => api.post('/auth/register', {
+      username,
+      password,
+      localAdmin: isLocalLaunchMode(settings),
+    }).then((r) => r.data as AuthSession),
     onSuccess: setSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
   })
@@ -139,6 +145,9 @@ export default function AuthPage() {
 
         <p className="mt-4 truncate text-center text-xs text-muted-foreground">
           {t('appSettings.currentApi')}: <span className="font-mono">{getAPIBaseURL()}</span>
+        </p>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          {t('appSettings.launchMode')}: {isLocalLaunchMode(settings) ? t('appSettings.localMode') : t('appSettings.cloudMode')}
         </p>
 
         {tab === 'login' && (

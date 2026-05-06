@@ -316,6 +316,9 @@ func loadAppliedMigrations(db *gorm.DB) (map[string]AppliedMigration, error) {
 }
 
 func schemaMigrationsTableExists(db *gorm.DB) (bool, error) {
+	if db.Dialector.Name() == "sqlite" {
+		return db.Migrator().HasTable(&AppliedMigration{}), nil
+	}
 	var name sql.NullString
 	if err := db.Raw("SELECT to_regclass('schema_migrations')::text").Scan(&name).Error; err != nil {
 		return false, fmt.Errorf("check schema_migrations table: %w", err)

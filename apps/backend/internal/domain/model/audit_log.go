@@ -13,5 +13,5 @@ type AuditLog struct {
 	ProjectID  *uint  `gorm:"index" json:"project_id,omitempty"`
 	IPAddress  string `json:"ip_address,omitempty"`
 	UserAgent  string `json:"user_agent,omitempty"`
-	Metadata   string `gorm:"type:jsonb" json:"metadata,omitempty"`
+	Metadata   string `gorm:"type:text" json:"metadata,omitempty"`
 }

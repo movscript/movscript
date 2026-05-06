@@ -14,6 +14,12 @@ files:
 extraResources:
   - from: ../../assets/logo.png
     to: logo.png
+  - from: ../backend/bin
+    to: backend
+    filter:
+      - server
+      - server.exe
+      - admin/**
   - from: ../agent
     to: movscript-agent
     filter:

@@ -129,13 +129,47 @@
     "registerFailed": "Registration failed",
     "passwordMismatch": "Passwords do not match"
   },
+  "onboarding": {
+    "title": "Choose How to Use Movscript",
+    "description": "Choose where your data and services run. You can change the connection later in App Settings.",
+    "localFailed": "Failed to create local workspace",
+    "local": {
+      "title": "Use Locally",
+      "description": "Keep data on this computer. Best for personal projects and your own model API keys.",
+      "action": "Start on this computer"
+    },
+    "cloud": {
+      "title": "Cloud Service",
+      "description": "Connect to Movscript Cloud or a team service for sync, collaboration, and cloud capabilities.",
+      "action": "Log in to cloud"
+    },
+    "localIdentity": {
+      "title": "Your Local Identity",
+      "description": "This is not a cloud account. It only identifies this local workspace.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Example: Qian",
+      "create": "Create local workspace"
+    },
+    "cloudConnect": {
+      "title": "Connect to Cloud",
+      "description": "Use Movscript Cloud or your team service URL.",
+      "continue": "Continue to login"
+    }
+  },
   "appSettings": {
     "title": "App Settings",
-    "description": "Configure the Movscript cloud service used by this client. This is stored locally and can be changed before sign-in.",
-    "cloudApiTitle": "Cloud API",
+    "description": "Configure how this client starts and which service it connects to. This is stored locally and can be changed before sign-in.",
+    "launchMode": "Launch mode",
+    "launchModeTitle": "Launch Mode",
+    "launchModeHint": "Local launch requests system admin initialization during registration. Cloud launch only connects to the remote service.",
+    "cloudMode": "Cloud Launch",
+    "cloudModeHelp": "Connect to Movscript Cloud or a team service without creating a system admin during registration.",
+    "localMode": "Local Launch",
+    "localModeHelp": "Connect to a local backend and initialize one system admin during registration.",
+    "cloudApiTitle": "Service API",
     "cloudApiHint": "Login, assets, projects, and agent requests will use this service.",
-    "apiBaseURL": "Cloud API URL",
-    "apiBaseURLHelp": "Enter the service root, such as https://api.example.com. The app will use /api/v1 automatically.",
+    "apiBaseURL": "Service API URL",
+    "apiBaseURLHelp": "Enter the service root, such as http://localhost:8765 or https://api.example.com. The app will use /api/v1 automatically.",
     "currentApi": "Current API",
     "effectiveEndpoint": "Effective endpoint",
     "invalidURL": "Enter a URL that starts with http:// or https://.",

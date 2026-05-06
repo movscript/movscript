@@ -3,7 +3,6 @@ package resourcebinding
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
@@ -11,10 +10,10 @@ import (
 )
 
 var (
-	ErrInvalidInput      = errors.New("invalid resource binding input")
+	ErrInvalidInput      = domainbinding.ErrInvalidInput
 	ErrOwnerNotFound     = errors.New("resource binding owner not found")
 	ErrOwnerWrongProject = errors.New("resource binding owner does not belong to project")
-	ErrOwnerInvalidType  = errors.New("resource binding owner type is invalid")
+	ErrOwnerInvalidType  = domainbinding.ErrOwnerInvalidType
 	ErrResourceNotFound  = errors.New("resource not found")
 	ErrResourceForbidden = errors.New("resource is not visible to user")
 	ErrBindingNotFound   = errors.New("resource binding not found")
@@ -28,43 +27,11 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-type Filter struct {
-	ProjectID  uint
-	OwnerType  string
-	OwnerID    uint
-	Role       string
-	Status     string
-	ResourceID uint
-}
+type Filter = domainbinding.Filter
 
-type CreateInput struct {
-	ProjectID    uint
-	ResourceID   uint
-	OwnerType    string
-	OwnerID      uint
-	Role         string
-	Slot         string
-	SortOrder    *int
-	Version      int
-	IsPrimary    bool
-	Status       string
-	SourceType   string
-	SourceID     *uint
-	MetadataJSON string
-	CreatedByID  *uint
-}
+type CreateInput = domainbinding.CreateInput
 
-type UpdateInput struct {
-	Role         *string
-	Slot         *string
-	SortOrder    *int
-	Version      *int
-	IsPrimary    *bool
-	Status       *string
-	SourceType   *string
-	SourceID     *uint
-	MetadataJSON *string
-}
+type UpdateInput = domainbinding.UpdateInput
 
 func (s *Service) List(ctx context.Context, filter Filter) ([]model.ResourceBinding, error) {
 	items := make([]model.ResourceBinding, 0)
@@ -369,24 +336,7 @@ func applyFilters(q *gorm.DB, filter Filter) *gorm.DB {
 }
 
 func normalizeCreateInput(input *CreateInput) {
-	input.OwnerType = NormalizeOwnerType(input.OwnerType)
-	input.Role = NormalizeRole(input.Role)
-	if input.Role == "" {
-		input.Role = "attachment"
-	}
-	input.Slot = strings.TrimSpace(input.Slot)
-	if input.Version <= 0 {
-		input.Version = 1
-	}
-	input.Status = NormalizeStatus(input.Status)
-	if input.Status == "" {
-		input.Status = "draft"
-	}
-	input.SourceType = NormalizeSourceType(input.SourceType)
-	if input.SourceType == "" {
-		input.SourceType = "manual"
-	}
-	input.MetadataJSON = strings.TrimSpace(input.MetadataJSON)
+	domainbinding.NormalizeCreateInput(input)
 }
 
 func normalizeBinding(binding *model.ResourceBinding) {
@@ -394,65 +344,18 @@ func normalizeBinding(binding *model.ResourceBinding) {
 }
 
 func validateCreateInput(input CreateInput) error {
-	switch {
-	case input.ProjectID == 0 || input.ResourceID == 0 || input.OwnerID == 0:
-		return ErrInvalidInput
-	case !ValidOwnerType(input.OwnerType):
+	if err := domainbinding.ValidateCreateInput(input); errors.Is(err, domainbinding.ErrOwnerInvalidType) {
 		return ErrOwnerInvalidType
-	case !ValidRole(input.Role):
-		return ErrInvalidInput
-	case !ValidStatus(input.Status):
-		return ErrInvalidInput
-	case !ValidSourceType(input.SourceType):
+	} else if err != nil {
 		return ErrInvalidInput
 	}
 	return nil
 }
 
 func buildUpdates(input UpdateInput) (map[string]any, error) {
-	updates := map[string]any{}
-	if input.Role != nil {
-		role := NormalizeRole(*input.Role)
-		if !ValidRole(role) {
-			return nil, ErrInvalidInput
-		}
-		updates["role"] = role
-	}
-	if input.Slot != nil {
-		updates["slot"] = strings.TrimSpace(*input.Slot)
-	}
-	if input.SortOrder != nil {
-		updates["sort_order"] = *input.SortOrder
-	}
-	if input.Version != nil {
-		version := *input.Version
-		if version <= 0 {
-			version = 1
-		}
-		updates["version"] = version
-	}
-	if input.IsPrimary != nil {
-		updates["is_primary"] = *input.IsPrimary
-	}
-	if input.Status != nil {
-		status := NormalizeStatus(*input.Status)
-		if !ValidStatus(status) {
-			return nil, ErrInvalidInput
-		}
-		updates["status"] = status
-	}
-	if input.SourceType != nil {
-		sourceType := NormalizeSourceType(*input.SourceType)
-		if !ValidSourceType(sourceType) {
-			return nil, ErrInvalidInput
-		}
-		updates["source_type"] = sourceType
-	}
-	if input.SourceID != nil {
-		updates["source_id"] = *input.SourceID
-	}
-	if input.MetadataJSON != nil {
-		updates["metadata_json"] = strings.TrimSpace(*input.MetadataJSON)
+	updates, err := domainbinding.BuildUpdates(input)
+	if err != nil {
+		return nil, ErrInvalidInput
 	}
 	return updates, nil
 }

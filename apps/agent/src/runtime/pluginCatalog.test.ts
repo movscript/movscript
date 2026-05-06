@@ -63,10 +63,13 @@ test('loads bundled MovScript platform catalog by default', () => {
     assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.workflow.safe-drafts'))
     assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_get_context_pack'))
     assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_list_productions'))
+    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_project'))
     assert.ok(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.content-unit-draft-creation'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_get_context_pack'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_list_productions'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_create_project' && grant.approval === 'always'))
     assert.ok(catalog.registry.get('movscript_create_draft'))
+    assert.equal(catalog.registry.get('movscript_create_project')?.projectScoped, false)
     assert.ok(catalog.registry.get('movscript_list_productions'))
     assert.deepEqual(catalog.warnings, [])
   } finally {

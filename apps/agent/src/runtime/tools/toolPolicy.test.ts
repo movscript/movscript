@@ -26,6 +26,23 @@ test('tool policy blocks project scoped tools without a current project', () => 
   assert.deepEqual(result.warnings, ['当前没有选中项目'])
 })
 
+test('tool policy allows approved project creation without a current project', () => {
+  const blocked = applyToolPolicy([
+    { name: 'movscript_create_project', args: { name: '测试项目' } },
+  ], {})
+
+  assert.deepEqual(blocked.toolCalls, [])
+  assert.equal(blocked.blockedToolCalls[0].reason, 'approval_required')
+
+  const approved = applyToolPolicy([
+    { name: 'movscript_create_project', args: { name: '测试项目' } },
+  ], { approvedToolNames: ['movscript_create_project'] })
+
+  assert.deepEqual(approved.warnings, [])
+  assert.equal(approved.toolCalls[0].name, 'movscript_create_project')
+  assert.equal(approved.toolCalls[0].args?.projectId, undefined)
+})
+
 test('tool policy blocks tools outside the whitelist', () => {
   const result = applyToolPolicy([
     { name: 'movscript.delete_entity', args: { entityId: 1 } },

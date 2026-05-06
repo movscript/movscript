@@ -253,6 +253,51 @@ AuditEvent
 
 其中只放接口、枚举和最小 DTO，不放商业实现。
 
+## 条件编译与企业 Overlay
+
+第一步落地采用“社区默认实现 + 企业 overlay 替换”的方式：
+
+```text
+apps/backend/internal/domain/commercial/
+  commercial.go              # 稳定接口、枚举、DTO，社区版和企业版共享
+
+apps/backend/internal/app/entitlement/
+  service.go                 # 对外构造函数
+  edition_community.go       # //go:build !enterprise，社区默认实现
+
+enterprise/overlays/backend/
+  internal/app/entitlement/
+    edition_enterprise.go    # //go:build enterprise，企业实现
+```
+
+社区版必须始终满足：
+
+- 不依赖 `enterprise/` 目录。
+- 不需要 license 即可编译和运行。
+- `go build ./cmd/server` 使用 `!enterprise` 默认实现。
+- 默认实现可以返回 plan/status/capability 快照，但不得开启平台 key、远程计量、托管 worker/storage、SSO/SCIM、审计导出等企业能力。
+
+企业版构建时由发布脚本把 `enterprise/overlays/backend` 中的同路径文件覆盖或挂载到 `apps/backend` module 内，再执行：
+
+```bash
+go build -tags enterprise ./cmd/server
+```
+
+由于 Go 的 `internal/` 规则，企业后端实现不能作为旁边独立 Go module 直接 import `apps/backend/internal/...`。企业实现要么以 overlay 方式进入同一个 module 编译，要么通过 RPC/进程级插件与社区 backend 通信。短期推荐 overlay，后续如果商业能力需要独立部署，再拆 RPC 边界。
+
+插件机制用于扩展商业模板、workflow、Hub 分发和企业 UI，不用于单独强制 license、扣费、预算、provider raw key 可见性等核心商业判断。这些判断必须落在 `EntitlementService`、`GatewayPolicyService`、`QuotaService` 和 `AuditSink` 一类后端接口上。
+
+## 当前已落地的社区版切口
+
+社区版已经先落了一个最小可演进切口：
+
+- `internal/domain/commercial`：商业边界接口和 DTO。
+- `internal/app/entitlement`：社区默认权益实现。
+- `GET /api/v1/entitlement`：返回当前 workspace 的 entitlement snapshot。
+- `MOVSCRIPT_DEPLOYMENT_MODE`：显式区分 `personal-local`、`self-hosted-team` 等部署模式。
+
+这个切口不引入企业依赖，不影响 `go build ./cmd/server`，后续企业版只要覆盖同路径实现即可。
+
 ## 实现优先级
 
 ### 第一阶段
@@ -280,4 +325,3 @@ AuditEvent
 3. 所有商业决策都在后端做。
 4. 开源版可以跑完整闭环，但不等于提供所有托管能力。
 5. 商业边界优先通过服务实现和授权状态表达，而不是通过前端隐藏按钮。
-

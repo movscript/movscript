@@ -38,7 +38,7 @@ func (item *CreativeReferenceState) AfterSave(tx *gorm.DB) error {
 }
 
 func syncCreativeReferenceStateRelations(tx *gorm.DB, item *CreativeReferenceState) error {
-	if err := deleteTargetEntityRelations(tx, "creative_reference_state", item.ID, EntityRelationCategoryCreative, relationTypeList("has_state")); err != nil {
+	if err := deleteTargetEntityRelations(tx, "creative_reference_state", item.ID, EntityRelationCategoryCreative, relationTypeList(EntityRelationTypeHasState)); err != nil {
 		return err
 	}
 	return syncEntityRelations(tx, nil, []entityRelationSeed{{
@@ -48,7 +48,7 @@ func syncCreativeReferenceStateRelations(tx *gorm.DB, item *CreativeReferenceSta
 		TargetType: "creative_reference_state",
 		TargetID:   item.ID,
 		Category:   EntityRelationCategoryCreative,
-		Type:       "has_state",
+		Type:       EntityRelationTypeHasState,
 		ScopeType:  item.ScopeType,
 		ScopeID:    item.ScopeID,
 		Status:     relationStatus(item.Status),

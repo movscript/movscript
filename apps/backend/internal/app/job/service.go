@@ -64,28 +64,14 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 	return &Service{db: db, ai: svc}
 }
 
-type ListFilter struct {
-	UserID     uint
-	OrgID      *uint
-	ProjectID  *uint
-	Status     string
-	FeatureKey string
-	JobType    string
-	ExactType  bool
-	Limit      int
-	Offset     int
-}
+type ListFilter = domainjob.ListFilter
 
 type ListResult struct {
 	Items []model.Job
 	Total int64
 }
 
-type InputResourcesResult struct {
-	Resources  []model.RawResource
-	ImageCount int
-	VideoCount int
-}
+type InputResourcesResult = domainjob.InputResourcesResult
 
 type ResponseLookups struct {
 	ResourcesByID   map[uint]model.RawResource
@@ -127,6 +113,7 @@ type EnqueueInput struct {
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
+	spec := domainjob.BuildListSpec(filter)
 	q := s.db.WithContext(ctx).Model(&model.Job{}).Where("user_id = ?", filter.UserID)
 	q = s.applyOrgScope(ctx, q, filter.OrgID, filter.UserID)
 	if filter.ProjectID != nil {
@@ -138,12 +125,10 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, erro
 	if filter.FeatureKey != "" {
 		q = q.Where("feature_key = ?", filter.FeatureKey)
 	}
-	if filter.JobType != "" {
-		if filter.JobType == "image" && !filter.ExactType {
-			q = q.Where("job_type IN ?", []string{"image", "image_edit"})
-		} else {
-			q = q.Where("job_type = ?", filter.JobType)
-		}
+	if len(spec.JobTypes) == 1 {
+		q = q.Where("job_type = ?", spec.JobTypes[0])
+	} else if len(spec.JobTypes) > 1 {
+		q = q.Where("job_type IN ?", spec.JobTypes)
 	}
 
 	var total int64
@@ -151,7 +136,7 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, erro
 		return ListResult{}, err
 	}
 	jobs := make([]model.Job, 0)
-	if err := q.Preload("OutputResource").Order("id desc").Limit(filter.Limit).Offset(filter.Offset).Find(&jobs).Error; err != nil {
+	if err := q.Preload("OutputResource").Order("id desc").Limit(spec.Limit).Offset(spec.Offset).Find(&jobs).Error; err != nil {
 		return ListResult{}, err
 	}
 	return ListResult{Items: jobs, Total: total}, nil
@@ -185,19 +170,12 @@ func (s *Service) LoadInputResources(ctx context.Context, ids []uint, userID uin
 	if len(resources) != len(ids) {
 		return InputResourcesResult{}, ErrResourceOutsideOrg
 	}
-	result := InputResourcesResult{Resources: resources}
 	for _, r := range resources {
 		if !s.inOrgScope(ctx, r.OrgID, orgID, r.OwnerID, userID) {
 			return InputResourcesResult{}, ErrResourceOutsideOrg
 		}
-		switch r.Type {
-		case "image":
-			result.ImageCount++
-		case "video":
-			result.VideoCount++
-		}
 	}
-	return result, nil
+	return domainjob.CountInputResources(resources), nil
 }
 
 func (s *Service) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {

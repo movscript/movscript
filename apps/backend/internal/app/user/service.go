@@ -24,7 +24,11 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]model.User, er
 	users := make([]model.User, 0)
 	q := s.db.WithContext(ctx)
 	if filter.Query != "" {
-		q = q.Where("username ILIKE ?", "%"+filter.Query+"%").Limit(10)
+		if s.db.Dialector.Name() == "postgres" {
+			q = q.Where("username ILIKE ?", "%"+filter.Query+"%").Limit(10)
+		} else {
+			q = q.Where("LOWER(username) LIKE LOWER(?)", "%"+filter.Query+"%").Limit(10)
+		}
 	}
 	err := q.Find(&users).Error
 	return users, err

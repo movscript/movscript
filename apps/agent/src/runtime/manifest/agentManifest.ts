@@ -54,11 +54,11 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
     {
       id: 'movscript.default.safe-project-assistant',
       name: 'Safe Project Assistant',
-      description: 'Read project context, search entities, and create local drafts without changing project data.',
+      description: 'Read project context, create projects with approval, search entities, and create local drafts without changing existing project data.',
       enabled: true,
       priority: 100,
-      instruction: '优先读取当前项目上下文；需要产出内容时创建本地 draft，不直接修改正式项目实体。',
-      toolHints: ['movscript_list_projects', 'movscript_search_entities', 'movscript_read_project_structure', 'movscript_read_entity', 'movscript_create_draft'],
+      instruction: '优先读取当前项目上下文；如果用户明确要求新建项目且当前没有项目，可以调用 movscript_create_project，但必须经过用户确认；需要产出内容时创建本地 draft，不直接修改既有正式项目实体。',
+      toolHints: ['movscript_list_projects', 'movscript_create_project', 'movscript_search_entities', 'movscript_read_project_structure', 'movscript_read_entity', 'movscript_create_draft'],
     },
   ],
   permissions: [
@@ -73,6 +73,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
   tools: [
     { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
+    { name: 'movscript_create_project', mode: 'allow', approval: 'always' },
     { name: 'movscript_search_entities', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_entity', mode: 'allow', approval: 'never' },

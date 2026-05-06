@@ -3,6 +3,9 @@ export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
 
 export interface AppSettings {
   apiBaseURL: string
+  launchMode: 'cloud' | 'local'
+  onboardingCompleted: boolean
+  localDisplayName?: string
   showDeveloperTools: boolean
 }
 
@@ -31,6 +34,10 @@ function readStoredAPIBaseURL(): string | null {
   } catch {
     return null
   }
+}
+
+export function isLocalLaunchMode(settings?: Pick<AppSettings, 'launchMode'> | null): boolean {
+  return settings?.launchMode === 'local'
 }
 
 export function getDefaultAPIBaseURL(): string {

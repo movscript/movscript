@@ -15,6 +15,7 @@ import { executeTool } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { buildApplyDraftPreview } from '../store/draftApply.js'
 import type { AgentCommandRuntime } from '../commands/commandRouter.js'
+import { isProductionOrchestrationAnalyzer } from '../production/orchestrationContract.js'
 
 export interface AgentGraphInput {
   run: AgentRun
@@ -245,6 +246,8 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     toolChoice: tools.length > 0 ? 'auto' : undefined,
     config: input.config,
     auth: input.auth,
+    temperature: shouldReturnStructuredJSON(input.manifest) ? 0.1 : undefined,
+    jsonMode: shouldReturnStructuredJSON(input.manifest),
     onTrace: (event) => {
       input.onTrace({
         kind: 'model_call',
@@ -290,6 +293,10 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     requestedCalls: modelResult.tool_calls.map(toToolCall),
     modelContent: modelResult.content,
   }
+}
+
+function shouldReturnStructuredJSON(manifest: AgentManifest): boolean {
+  return isProductionOrchestrationAnalyzer(manifest.id) || /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(manifest.soul ?? '')
 }
 
 async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {

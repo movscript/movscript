@@ -1890,7 +1890,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     attachments.length > 0 ? t('agents.chat.attachmentsCount', { count: attachments.length }) : null,
   ].filter(Boolean) as string[]
-  const canSend = (!!input.trim() || attachments.length > 0) && !!currentProject && !loading && !uploading && !buildingSendDraft
+  const canSend = (!!input.trim() || attachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
@@ -2276,10 +2276,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
 
   const send = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || uploading || buildingSendDraft) return
-    if (!currentProject) {
-      addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.projectRequiredMessage') })
-      return
-    }
     if (!modelId && !localRuntimeEnabled) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
@@ -2871,7 +2867,7 @@ export function AIAgentPanel() {
 
   return (
     <div className={cn(
-      'ai-agent-panel shrink-0 border-l border-sidebar-border bg-background flex flex-col overflow-hidden transition-all duration-200',
+      'ai-agent-panel h-full shrink-0 bg-background flex flex-col overflow-hidden transition-all duration-200',
       open ? 'w-[420px]' : 'w-11'
     )}>
       <div className="flex items-center h-11 border-b border-border shrink-0 px-2.5 gap-2">

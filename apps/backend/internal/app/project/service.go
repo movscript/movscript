@@ -127,7 +127,8 @@ func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, o
 			return err
 		}
 		if project.OwnerID != 0 {
-			return tx.Create(domainproject.OwnerMember(project.ID, project.OwnerID)).Error
+			member := domainproject.OwnerMember(project.ID, project.OwnerID)
+			return tx.Create(&member).Error
 		}
 		return nil
 	})

@@ -2,13 +2,16 @@ import React, { useEffect } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
 import { Header } from './components/layout/Header'
+import { AIAgentPanel } from './components/layout/AIAgentPanel'
 import { Toaster } from './components/ui/Toaster'
 import { useProjectStore } from './store/projectStore'
 import { useUserStore } from './store/userStore'
+import { useAppSettingsStore } from './store/appSettingsStore'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import AssetSlotsPage from './pages/asset-slots/AssetSlotsPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
 import AuthPage from './pages/AuthPage'
+import OnboardingPage from './pages/onboarding/OnboardingPage'
 import AppSettingsPage from './pages/app-settings/AppSettingsPage'
 import CanvasListPage from './pages/canvas/CanvasListPage'
 import CanvasEditorPage from './pages/canvas/CanvasEditorPage'
@@ -109,15 +112,25 @@ function Padded({ children }: { children: React.ReactNode }) {
 }
 
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
+  const { pathname } = useLocation()
+  const showAgentPanel = !pathname.startsWith('/agent/debug')
+
   const shell = (
     <div className="flex h-screen bg-background text-foreground">
       <RedirectListener />
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header />
-        <main className="flex-1 min-h-0 overflow-hidden flex">
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+        <main className="flex-1 min-h-0 overflow-hidden bg-muted/20 p-3">
+          <div className="flex h-full min-h-0 gap-3">
+            <div className="flex-1 min-w-0 overflow-hidden rounded-md border border-border bg-background">
+              <RouteErrorBoundary>{children}</RouteErrorBoundary>
+            </div>
+            {showAgentPanel && (
+              <div className="h-full min-h-0 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm">
+                <AIAgentPanel />
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -152,6 +165,7 @@ const AppRouter = typeof window !== 'undefined' && window.location.protocol === 
 
 export default function App() {
   const user = useUserStore((s) => s.currentUser)
+  const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
 
   if (!user) {
     return (
@@ -161,7 +175,8 @@ export default function App() {
         <Routes>
           <Route path="/invite/:token" element={<InvitePage />} />
           <Route path="/app/settings" element={<AppSettingsPage />} />
-          <Route path="*" element={<AuthPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
         </Routes>
       </AppRouter>
     )

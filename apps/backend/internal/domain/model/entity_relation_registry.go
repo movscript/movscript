@@ -57,6 +57,12 @@ func SyncCoreEntityRelations(db *gorm.DB, item any) error {
 			return err
 		}
 		return syncCreativeRelationshipRelations(db, &current)
+	case *SettingRelationship:
+		var current SettingRelationship
+		if err := db.First(&current, v.ID).Error; err != nil {
+			return err
+		}
+		return syncSettingRelationshipRelations(db, &current)
 	case *Segment:
 		var current Segment
 		if err := db.First(&current, v.ID).Error; err != nil {
@@ -213,6 +219,8 @@ func DeleteCoreEntityRelations(db *gorm.DB, item any) error {
 		return deleteMetadataEntityRelations(db, "creative_reference_usage_id", v.ID)
 	case *CreativeRelationship:
 		return deleteMetadataEntityRelations(db, "creative_relationship_id", v.ID)
+	case *SettingRelationship:
+		return deleteMetadataEntityRelations(db, "setting_relationship_id", v.ID)
 	case *Segment:
 		return deleteEntityRelations(db, "segment", v.ID)
 	case *SceneMoment:
@@ -287,6 +295,7 @@ func BackfillCoreEntityRelations(db *gorm.DB, source string) error {
 		{"creative_reference_states", func() error { return backfillByRows[CreativeReferenceState](db, source) }},
 		{"creative_reference_usages", func() error { return backfillByRows[CreativeReferenceUsage](db, source) }},
 		{"creative_relationships", func() error { return backfillByRows[CreativeRelationship](db, source) }},
+		{"setting_relationships", func() error { return backfillByRows[SettingRelationship](db, source) }},
 		{"segments", func() error { return backfillByRows[Segment](db, source) }},
 		{"scene_moments", func() error { return backfillByRows[SceneMoment](db, source) }},
 		{"content_units", func() error { return backfillByRows[ContentUnit](db, source) }},

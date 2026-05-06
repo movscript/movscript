@@ -23,6 +23,29 @@ func TestMergeIDsDeduplicatesAndPreservesOrder(t *testing.T) {
 	}
 }
 
+func TestBuildListSpecExpandsImageType(t *testing.T) {
+	spec := BuildListSpec(ListFilter{JobType: "image"})
+	if len(spec.JobTypes) != 2 || spec.JobTypes[0] != "image" || spec.JobTypes[1] != "image_edit" {
+		t.Fatalf("job types = %#v", spec.JobTypes)
+	}
+	spec = BuildListSpec(ListFilter{JobType: "image", ExactType: true})
+	if len(spec.JobTypes) != 1 || spec.JobTypes[0] != "image" {
+		t.Fatalf("exact job types = %#v", spec.JobTypes)
+	}
+}
+
+func TestCountInputResources(t *testing.T) {
+	result := CountInputResources([]model.RawResource{
+		{Type: "image"},
+		{Type: "video"},
+		{Type: "file"},
+		{Type: "image"},
+	})
+	if result.ImageCount != 2 || result.VideoCount != 1 {
+		t.Fatalf("resource counts = %+v", result)
+	}
+}
+
 func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 	raw := BuildContextSnapshot(ContextSnapshotInput{
 		Model:          model.AIModelConfig{ModelDefID: "gpt-image", CredentialID: 8},

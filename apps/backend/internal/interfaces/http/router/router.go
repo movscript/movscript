@@ -27,6 +27,9 @@ func New(deps Dependencies) *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	if deps.Config != nil {
+		registerAdminStaticRoutes(r, deps.Config.AdminStaticDir)
+	}
 
 	// MCP endpoint removed — tools are now provided by the client.
 

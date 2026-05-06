@@ -47,11 +47,39 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"GET /api/v1/projects/:id/entities/asset-slots",
 		"GET /api/v1/admin/projects",
 		"GET /api/v1/admin/debug/jobs",
+		"GET /api/hub/packages",
+		"GET /api/hub/packages/:id/download",
 	}
 
 	for _, route := range expected {
 		if !routes[route] {
 			t.Fatalf("expected route %q to be registered", route)
+		}
+	}
+}
+
+func TestNewCommunityRoutesDoNotExposeHubAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := New(Dependencies{Config: &config.Config{}})
+
+	routes := map[string]bool{}
+	for _, route := range r.Routes() {
+		routes[route.Method+" "+route.Path] = true
+	}
+
+	for _, route := range []string{
+		"POST /api/hub/packages",
+		"GET /api/hub/admin/packages",
+		"PATCH /api/hub/admin/packages/:id",
+		"POST /api/hub/admin/packages/:id/approve",
+		"POST /api/hub/admin/packages/:id/reject",
+		"POST /api/hub/admin/packages/:id/take-down",
+		"POST /api/v1/workflows/:id/publish",
+		"POST /api/v1/workflows/:id/unpublish",
+		"POST /api/v1/workflows/:id/clone",
+	} {
+		if routes[route] {
+			t.Fatalf("community router should not register %q", route)
 		}
 	}
 }

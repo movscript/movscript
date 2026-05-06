@@ -21,6 +21,7 @@ import { buildApplyDraftPreview, rejectDraft } from './store/draftApply.js'
 import { BackendApplyClient } from './store/backendApplyClient.js'
 import { runAgentGraph } from './loop/agentGraph.js'
 import { buildContext, buildPromptPreview } from './loop/contextBuilder.js'
+import { isProductionOrchestrationAnalyzer } from './production/orchestrationContract.js'
 import type {
   AgentApprovalRequest,
   AgentInputRequest,
@@ -910,6 +911,7 @@ export class AgentRuntime {
         backendApplyClient: this.backendApplyClient,
         registry: this.toolRegistry,
         memoryManager: this.memoryManager,
+        ...(isProductionOrchestrationAnalyzer(agentManifest.id) ? { command: { name: 'chat', payload: lastUser.content, contextProfile: 'production_context', outputMode: 'json', requiredTools: [], systemContract: 'Production orchestration analyzer run.' } } : {}),
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
         ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),
         onTrace: (traceInput) => {

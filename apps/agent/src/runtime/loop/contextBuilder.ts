@@ -11,6 +11,13 @@ import type { AgentMemory } from '../memory/types.js'
 import type { RuntimeModelChatMessage, RuntimeModelChatTool } from '../model/modelConfig.js'
 import { parseAgentCommand, type AgentCommandRuntime } from '../commands/commandRouter.js'
 import { renderDebugContextText, renderMemoriesText, renderToolCatalogText } from '../contextText.js'
+import {
+  CHECK_ENTITY_CONFLICTS_SCHEMA,
+  PRODUCTION_ORCHESTRATION_CONTRACT,
+  PROPOSE_PRODUCTION_ENTITIES_SCHEMA,
+  READ_PRODUCTION_CONTEXT_SCHEMA,
+  isProductionOrchestrationAnalyzer,
+} from '../production/orchestrationContract.js'
 
 export interface ContextBuilderInput {
   manifest: AgentManifest
@@ -74,6 +81,9 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   ]
   if (input.manifest.soul) {
     identityLines.push('', '[Agent-specific output contract]', input.manifest.soul)
+  }
+  if (isProductionOrchestrationAnalyzer(input.manifest.id)) {
+    identityLines.push('', '[Production orchestration structured contract]', PRODUCTION_ORCHESTRATION_CONTRACT)
   }
   debugParts.push({
     id: 'agent.identity',
@@ -168,7 +178,11 @@ export function buildOpenAIChatTools(catalog: ResolvedToolCatalog): RuntimeModel
       ...(tool.inputSchema !== undefined ? { parameters: tool.inputSchema } : {}),
       ...(tool.inputSchema === undefined && tool.name === 'movscript_request_user_input' ? { parameters: USER_INPUT_TOOL_SCHEMA } : {}),
       ...(tool.inputSchema === undefined && tool.name === 'movscript_search_memories' ? { parameters: SEARCH_MEMORIES_TOOL_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && tool.name === 'movscript_create_project' ? { parameters: CREATE_PROJECT_TOOL_SCHEMA } : {}),
       ...(tool.inputSchema === undefined && tool.name === 'movscript_create_script' ? { parameters: CREATE_SCRIPT_TOOL_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && tool.name === 'movscript_read_production_context' ? { parameters: READ_PRODUCTION_CONTEXT_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && tool.name === 'movscript_check_entity_conflicts' ? { parameters: CHECK_ENTITY_CONFLICTS_SCHEMA } : {}),
+      ...(tool.inputSchema === undefined && tool.name === 'movscript_propose_production_entities' ? { parameters: PROPOSE_PRODUCTION_ENTITIES_SCHEMA } : {}),
     },
   }))
 }
@@ -248,6 +262,18 @@ const USER_INPUT_TOOL_SCHEMA = {
     },
   },
   required: ['title', 'question'],
+} satisfies Record<string, unknown>
+
+const CREATE_PROJECT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string', description: 'Required project name.' },
+    description: { type: 'string', description: 'Optional short project description.' },
+    status: { type: 'string', description: 'Optional initial project status, for example planning.' },
+    total_episodes: { type: 'number', description: 'Optional planned episode count.' },
+  },
+  required: ['name'],
 } satisfies Record<string, unknown>
 
 const CREATE_SCRIPT_TOOL_SCHEMA = {

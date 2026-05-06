@@ -67,6 +67,9 @@ func syncWorkItemRelations(tx *gorm.DB, item *WorkItem) error {
 	if err := deleteSourceEntityRelations(tx, "work_item", item.ID, EntityRelationCategoryWorkflow, relationTypeList(EntityRelationTypeTargets, EntityRelationTypeProduces)); err != nil {
 		return err
 	}
+	if err := deleteTargetEntityRelations(tx, "work_item", item.ID, EntityRelationCategoryWorkflow, relationTypeList(EntityRelationTypeContains)); err != nil {
+		return err
+	}
 	seeds := []entityRelationSeed{{
 		ProjectID:    item.ProjectID,
 		SourceType:   "work_item",

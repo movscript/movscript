@@ -1,9 +1,16 @@
-.PHONY: build build-runtime build-apps build-backend build-frontend build-movcli build-packages build-plugins dev-runtime dev-backend dev-frontend dev-movcli migrate-backend migrate-backend-status test test-backend typecheck-frontend typecheck-packages tidy
+.PHONY: build build-runtime build-apps build-admin build-backend build-backend-with-admin build-frontend build-movcli build-packages build-plugins dev-runtime dev-backend dev-frontend dev-frontend-local dev-frontend-cloud dev-movcli migrate-backend migrate-backend-status test test-backend typecheck-frontend typecheck-packages tidy
 
-build: build-backend build-packages build-apps build-plugins
+build: build-packages build-admin build-backend build-apps build-plugins
+
+build-admin:
+	pnpm --filter movscript-admin build
 
 build-backend:
 	cd apps/backend && go build -o bin/server ./cmd/server
+
+build-backend-with-admin: build-admin build-backend
+	rm -rf apps/backend/bin/admin
+	cp -R apps/admin/dist apps/backend/bin/admin
 
 build-packages:
 	pnpm run build:packages
@@ -33,7 +40,13 @@ migrate-backend-status:
 	cd apps/backend && go run ./cmd/migrate status
 
 dev-frontend:
-	pnpm --filter movscript-frontend dev
+	MOVSCRIPT_BACKEND_POLICY=external pnpm --filter movscript-frontend dev
+
+dev-frontend-local: build-backend-with-admin
+	MOVSCRIPT_BACKEND_POLICY=spawn pnpm --filter movscript-frontend dev
+
+dev-frontend-cloud:
+	MOVSCRIPT_BACKEND_POLICY=cloud pnpm --filter movscript-frontend dev
 
 dev-runtime:
 	pnpm --filter movscript-agent dev

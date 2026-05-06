@@ -270,6 +270,19 @@ function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_create_project',
+      description: 'Create a formal MovScript project. Use only when the user explicitly asks to create a new project or confirms the project name.',
+      inputSchema: objectSchema(
+        {
+          name: { type: 'string' },
+          description: { type: 'string' },
+          status: { type: 'string' },
+          total_episodes: { type: 'number' },
+        },
+        ['name']
+      ),
+    },
+    {
       name: 'movscript_read_entity',
       description: 'Read one project entity by type and id from MovScript backend APIs.',
       inputSchema: objectSchema(
@@ -415,6 +428,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await getContextPack())
     case 'movscript_list_projects':
       return toolText(await listProjects(args))
+    case 'movscript_create_project':
+      return toolText(await createProject(args))
     case 'movscript_read_entity':
       return toolText(await readEntity(args))
     case 'movscript_search_entities':
@@ -467,6 +482,28 @@ async function listProjects(args: Record<string, unknown>): Promise<unknown> {
   return {
     count: projects.length,
     projects: projects.slice(0, limit).map(summarizeProject),
+  }
+}
+
+async function createProject(args: Record<string, unknown>): Promise<unknown> {
+  const name = getRequiredString(args, 'name').trim()
+  if (!name) throw new Error('name is required')
+  const payload: Record<string, unknown> = { name }
+  const description = typeof args.description === 'string' ? args.description.trim() : ''
+  const status = typeof args.status === 'string' ? args.status.trim() : ''
+  const totalEpisodes = getOptionalNumber(args, 'total_episodes')
+  if (description) payload.description = description
+  if (status) payload.status = status
+  if (totalEpisodes !== undefined) payload.total_episodes = totalEpisodes
+
+  const project = await backendPost('/projects', payload)
+  const summary = summarizeProject(project)
+  return {
+    status: 'created',
+    project: summary,
+    message: isRecord(summary) && typeof summary.id === 'number'
+      ? `项目「${name}」已创建（project#${summary.id}）。`
+      : `项目「${name}」已创建。`,
   }
 }
 
@@ -1010,6 +1047,22 @@ async function backendGet(path: string): Promise<any> {
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Backend GET ${path} failed: HTTP ${res.status} ${text}`)
+  }
+  return res.json()
+}
+
+async function backendPost(path: string, body: Record<string, unknown>): Promise<any> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
+
+  const res = await fetch(`${apiBaseURL}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Backend POST ${path} failed: HTTP ${res.status} ${text}`)
   }
   return res.json()
 }

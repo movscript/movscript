@@ -99,6 +99,14 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
+    name: 'movscript_create_project',
+    description: 'Create a formal MovScript project after user approval.',
+    permission: 'project.write',
+    risk: 'write',
+    projectScoped: false,
+    requiresApprovalByDefault: true,
+  },
+  {
     name: 'movscript_create_draft',
     description: 'Create a local draft artifact without writing project entities.',
     permission: 'draft.write',

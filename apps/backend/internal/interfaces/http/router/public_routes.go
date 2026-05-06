@@ -16,6 +16,7 @@ func registerPublicAPIRoutes(v1 *gin.RouterGroup, h handlers) {
 	v1.POST("/auth/code/start", h.auth.StartCode)
 	v1.POST("/auth/code/verify", h.auth.VerifyCode)
 	v1.POST("/auth/register", h.auth.Register)
+	v1.POST("/auth/local-bootstrap", h.auth.LocalBootstrap)
 	v1.POST("/auth/login", h.auth.Login)
 	v1.POST("/auth/logout", h.auth.Logout)
 	v1.PATCH("/auth/profile", h.auth.UpdateProfile)

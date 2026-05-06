@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { startBackend, stopBackend } from './backend'
+import { getBackendLaunchPolicy, startBackend, stopBackend } from './backend'
 import { ensureProductionRuntimeRunning, setProductionRuntimeAPIBaseURL, stopProductionRuntime } from './productionRuntime'
 import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
@@ -54,7 +54,7 @@ async function startProductionRuntimeOnAppReady(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  await startBackend()
+  await startBackend(getBackendLaunchPolicy())
   await startMCPServer()
   void startProductionRuntimeOnAppReady()
   createWindow()
@@ -85,7 +85,12 @@ ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
   updateMCPContextSnapshot(snapshot)
 })
 
-ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string }) => {
+ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; launchMode?: 'cloud' | 'local' }) => {
+  if (settings?.launchMode === 'local') {
+    await startBackend('spawn')
+  } else if (settings?.launchMode === 'cloud') {
+    await stopBackend()
+  }
   if (!settings?.apiBaseURL) return
   setMCPAPIBaseURL(settings.apiBaseURL)
   await setProductionRuntimeAPIBaseURL(settings.apiBaseURL)

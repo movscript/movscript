@@ -11,6 +11,7 @@ import (
 	authapp "github.com/movscript/movscript/internal/app/auth"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/auth"
+	"github.com/movscript/movscript/internal/infra/config"
 	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
@@ -23,6 +24,13 @@ type AuthHandler struct {
 
 func NewAuthHandler(db *gorm.DB, tokens *auth.Manager) *AuthHandler {
 	return &AuthHandler{db: db, service: authapp.NewService(db, tokens)}
+}
+
+func NewAuthHandlerWithConfig(db *gorm.DB, tokens *auth.Manager, cfg *config.Config) *AuthHandler {
+	if cfg != nil && strings.TrimSpace(cfg.AppMode) == "local" {
+		return &AuthHandler{db: db, service: authapp.NewLocalService(db, tokens)}
+	}
+	return NewAuthHandler(db, tokens)
 }
 
 type authResponse struct {
@@ -51,13 +59,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Password    string `json:"password"`
 		ChallengeID string `json:"challengeId"`
 		Code        string `json:"code"`
+		LocalAdmin  bool   `json:"localAdmin"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	input := authapp.RegisterInput{Username: req.Username, Password: req.Password}
+	input := authapp.RegisterInput{Username: req.Username, Password: req.Password, BootstrapSystemAdmin: req.LocalAdmin}
 	if req.ChallengeID != "" || req.Code != "" {
 		challenge, err := h.verifyChallengeRequest(c, req.ChallengeID, req.Code)
 		if err != nil {
@@ -84,6 +93,46 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	actorID := u.ID
 	audit.Record(c, h.db, audit.Event{
 		Action:     "auth.register",
+		TargetType: "user",
+		TargetID:   audit.TargetID(u.ID),
+		ActorID:    &actorID,
+		Metadata: map[string]any{
+			"system_role": u.SystemRole,
+		},
+	})
+	h.respondWithCredential(c, http.StatusCreated, u)
+}
+
+func (h *AuthHandler) LocalBootstrap(c *gin.Context) {
+	var req struct {
+		DisplayName string `json:"displayName"`
+		Name        string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	displayName := strings.TrimSpace(req.DisplayName)
+	if displayName == "" {
+		displayName = strings.TrimSpace(req.Name)
+	}
+	u, err := h.service.LocalBootstrap(c.Request.Context(), authapp.LocalBootstrapInput{DisplayName: displayName})
+	if err != nil {
+		if errors.Is(err, authapp.ErrConflict) {
+			c.JSON(http.StatusConflict, gin.H{"error": "本地工作区已初始化"})
+			return
+		}
+		if errors.Is(err, authapp.ErrInvalidInput) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "本地初始化只允许在本地模式下使用"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	actorID := u.ID
+	audit.Record(c, h.db, audit.Event{
+		Action:     "auth.local_bootstrap",
 		TargetType: "user",
 		TargetID:   audit.TargetID(u.ID),
 		ActorID:    &actorID,

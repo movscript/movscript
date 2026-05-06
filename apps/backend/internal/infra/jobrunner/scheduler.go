@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	"gorm.io/gorm"
 )
 
 // Start launches n worker goroutines. Cancel ctx to stop them gracefully.
@@ -33,8 +34,28 @@ func (w *Worker) processOne(ctx context.Context) {
 	w.requeueStaleRunningJobs(ctx)
 
 	var job model.Job
-	// Atomically claim a pending job using PostgreSQL FOR UPDATE SKIP LOCKED.
-	result := w.db.Raw(`
+	var err error
+	if w.db.Dialector.Name() == "postgres" {
+		err = w.claimPostgresJob(&job).Error
+	} else {
+		err = w.claimLocalJob(&job)
+	}
+
+	if err != nil || job.ID == 0 {
+		return
+	}
+
+	maxAttempts := effectiveMaxAttempts(&job)
+	newJobStateMachine(w, &job).enter(StateClaimed, fmt.Sprintf("worker claimed job (attempt %d/%d)", job.AttemptCount, maxAttempts))
+	log.Printf("[job] picked job #%d type=%s user=%d attempt=%d/%d", job.ID, job.JobType, job.UserID, job.AttemptCount, maxAttempts)
+
+	if err := w.execute(ctx, &job); err != nil {
+		w.completeFailure(&job, err)
+	}
+}
+
+func (w *Worker) claimPostgresJob(job *model.Job) *gorm.DB {
+	return w.db.Raw(`
 		UPDATE jobs
 		SET status='running',
 			started_at=NOW(),
@@ -55,19 +76,49 @@ func (w *Worker) processOne(ctx context.Context) {
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING *
-	`).Scan(&job)
+	`).Scan(job)
+}
 
-	if result.Error != nil || job.ID == 0 {
-		return
-	}
+func (w *Worker) claimLocalJob(job *model.Job) error {
+	now := time.Now()
+	return w.db.Transaction(func(tx *gorm.DB) error {
+		var candidate model.Job
+		if err := tx.
+			Where("status = ?", StatusPending).
+			Where("deleted_at IS NULL").
+			Where("(next_run_at IS NULL OR next_run_at <= ?)", now).
+			Where("((max_attempts <= 0 OR attempt_count < max_attempts) OR COALESCE(provider_task_id, '') <> '')").
+			Order("COALESCE(next_run_at, created_at), created_at").
+			First(&candidate).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
 
-	maxAttempts := effectiveMaxAttempts(&job)
-	newJobStateMachine(w, &job).enter(StateClaimed, fmt.Sprintf("worker claimed job (attempt %d/%d)", job.AttemptCount, maxAttempts))
-	log.Printf("[job] picked job #%d type=%s user=%d attempt=%d/%d", job.ID, job.JobType, job.UserID, job.AttemptCount, maxAttempts)
-
-	if err := w.execute(ctx, &job); err != nil {
-		w.completeFailure(&job, err)
-	}
+		updates := map[string]any{
+			"status":            StatusRunning,
+			"started_at":        &now,
+			"finished_at":       nil,
+			"next_run_at":       nil,
+			"last_heartbeat_at": &now,
+			"error_msg":         "",
+			"updated_at":        now,
+		}
+		if candidate.ProviderTaskID == "" {
+			updates["attempt_count"] = gorm.Expr("attempt_count + 1")
+		}
+		result := tx.Model(&model.Job{}).
+			Where("id = ? AND status = ?", candidate.ID, StatusPending).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		return tx.First(job, candidate.ID).Error
+	})
 }
 
 func (w *Worker) completeFailure(job *model.Job, err error) {

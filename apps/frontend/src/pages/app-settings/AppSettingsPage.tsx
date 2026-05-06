@@ -22,6 +22,7 @@ export default function AppSettingsPage() {
   const navigate = useNavigate()
   const user = useUserStore((s) => s.currentUser)
   const settings = useAppSettingsStore((s) => s.settings)
+  const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
   const setShowDeveloperTools = useAppSettingsStore((s) => s.setShowDeveloperTools)
   const resetSettings = useAppSettingsStore((s) => s.reset)
@@ -98,6 +99,43 @@ export default function AppSettingsPage() {
           <div>
             <h1 className="text-xl font-semibold">{t('appSettings.title')}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{t('appSettings.description')}</p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Settings size={18} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold">{t('appSettings.launchModeTitle')}</h2>
+                <p className="text-xs text-muted-foreground">{t('appSettings.launchModeHint')}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(['cloud', 'local'] as const).map((mode) => {
+                const selected = settings.launchMode === mode
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setLaunchMode(mode)}
+                    className={`rounded-md border px-3 py-3 text-left transition-colors ${
+                      selected
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                    }`}
+                  >
+                    <span className="block text-sm font-medium">
+                      {mode === 'cloud' ? t('appSettings.cloudMode') : t('appSettings.localMode')}
+                    </span>
+                    <span className="mt-1 block text-xs">
+                      {mode === 'cloud' ? t('appSettings.cloudModeHelp') : t('appSettings.localModeHelp')}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="rounded-lg border border-border bg-card p-5 shadow-sm">

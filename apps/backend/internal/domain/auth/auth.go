@@ -18,18 +18,18 @@ func NormalizeEmail(value string) string {
 	return value
 }
 
-func SystemRoleForNewUser(existingUserCount int64) string {
-	if existingUserCount == 0 {
+func SystemRoleForNewUser(bootstrapSystemAdmin bool) string {
+	if bootstrapSystemAdmin {
 		return "super_admin"
 	}
 	return "user"
 }
 
-func NewRegisteredUser(username string, passwordHash string, email string, existingUserCount int64, verifiedAt *int64) model.User {
+func NewRegisteredUser(username string, passwordHash string, email string, bootstrapSystemAdmin bool, verifiedAt *int64) model.User {
 	user := model.User{
 		Username:     strings.TrimSpace(username),
 		PasswordHash: passwordHash,
-		SystemRole:   SystemRoleForNewUser(existingUserCount),
+		SystemRole:   SystemRoleForNewUser(bootstrapSystemAdmin),
 		Status:       "active",
 	}
 	if email != "" {

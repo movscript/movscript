@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/movscript/movscript/internal/domain/model"
@@ -75,21 +74,16 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResourc
 	}
 	q = applyListFilters(q, input)
 	if input.Page > 0 || input.PageSize > 0 {
-		page := max(1, input.Page)
-		pageSize := max(1, input.PageSize)
-		if pageSize > 100 {
-			pageSize = 100
-		}
-		offset := (page - 1) * pageSize
+		page := domainresource.NormalizePage(domainresource.PageInput{Page: input.Page, PageSize: input.PageSize})
 		var total int64
 		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Count(&total).Error; err != nil {
 			return nil, nil, err
 		}
 		resources := make([]model.RawResource, 0)
-		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(pageSize).Offset(offset).Find(&resources).Error; err != nil {
+		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(page.PageSize).Offset(page.Offset).Find(&resources).Error; err != nil {
 			return nil, nil, err
 		}
-		return resources, &Page{Total: total, Items: resources, Page: page, PageSize: pageSize}, nil
+		return resources, &Page{Total: total, Items: resources, Page: page.Page, PageSize: page.PageSize}, nil
 	}
 	resources := make([]model.RawResource, 0)
 	err = q.Order("created_at desc").Find(&resources).Error
@@ -332,22 +326,14 @@ func resourceInOrgScope(resourceOrgID, currentOrgID *uint, ownerID uint, userID 
 }
 
 func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
-	if typ := strings.TrimSpace(input.Type); typ != "" && typ != "all" {
-		parts := strings.Split(typ, ",")
-		types := make([]string, 0, len(parts))
-		for _, p := range parts {
-			if v := strings.TrimSpace(p); v != "" {
-				types = append(types, v)
-			}
-		}
-		if len(types) == 1 {
-			q = q.Where("type = ?", types[0])
-		} else if len(types) > 1 {
-			q = q.Where("type IN ?", types)
-		}
+	filters := domainresource.ParseListFilters(input.Type, input.Query)
+	if len(filters.Types) == 1 {
+		q = q.Where("type = ?", filters.Types[0])
+	} else if len(filters.Types) > 1 {
+		q = q.Where("type IN ?", filters.Types)
 	}
-	if keyword := strings.TrimSpace(input.Query); keyword != "" {
-		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(keyword)+"%")
+	if filters.Keyword != "" {
+		q = q.Where("LOWER(name) LIKE ?", "%"+filters.Keyword+"%")
 	}
 	return q
 }

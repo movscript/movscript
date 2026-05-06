@@ -7,7 +7,7 @@ Movscript 是一个开源的短剧生产与 AI 辅助视频创作桌面工作台
 ## 可以用它做什么
 
 - 管理短剧项目中的剧本、素材、分集、分场、分镜和镜头。
-- 上传并复用媒体资源，通过 MinIO/S3-compatible 对象存储保存文件。
+- 上传并复用媒体资源，支持本地文件系统或 MinIO/S3-compatible 对象存储保存文件。
 - 在管理页配置 AI 凭证、模型能力、功能路由、积分价格和调试调用。
 - 异步执行文本、文生图、图像编辑、文生视频、图生视频和视频生视频任务。
 - 使用画布组合手动媒体节点、AI 节点、工具节点、审批节点和插件节点。
@@ -48,10 +48,14 @@ pnpm install
 ### 2. 启动本地基础设施
 
 ```bash
-docker compose up -d db minio createbuckets
+docker compose up -d db
 ```
 
-这会启动 PostgreSQL `localhost:5432`、MinIO `localhost:9000`，以及 MinIO Console `localhost:9001`。
+这会启动 PostgreSQL `localhost:5432`。如果要使用 MinIO/S3-compatible 对象存储而不是本地文件系统：
+
+```bash
+docker compose up -d db minio createbuckets
+```
 
 ### 3. 配置后端
 
@@ -61,6 +65,17 @@ openssl rand -hex 32
 ```
 
 把生成的 64 位十六进制值写入 `apps/backend/.env` 的 `ENCRYPTION_KEY`。
+开发本地版时可以设置：
+
+```env
+MOVSCRIPT_APP_MODE=local
+DB_DRIVER=sqlite
+DB_PATH=$HOME/.movscript/movscript.db
+STORAGE_BACKEND=filesystem
+MOVSCRIPT_DATA_DIR=$HOME/.movscript
+```
+
+此模式会把数据库写入 `$HOME/.movscript/movscript.db`，资源文件写入 `$HOME/.movscript/resources`，不需要启动 MinIO；SQLite 模式也不需要 PostgreSQL。
 
 ### 4. 启动后端和前端
 

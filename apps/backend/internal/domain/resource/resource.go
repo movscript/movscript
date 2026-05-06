@@ -6,6 +6,52 @@ import (
 	"strings"
 )
 
+type PageInput struct {
+	Page     int
+	PageSize int
+}
+
+type PageSpec struct {
+	Page     int
+	PageSize int
+	Offset   int
+}
+
+type ListFilters struct {
+	Types   []string
+	Keyword string
+}
+
+func NormalizePage(input PageInput) PageSpec {
+	page := max(1, input.Page)
+	pageSize := max(1, input.PageSize)
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return PageSpec{
+		Page:     page,
+		PageSize: pageSize,
+		Offset:   (page - 1) * pageSize,
+	}
+}
+
+func ParseListFilters(resourceType, query string) ListFilters {
+	filters := ListFilters{Keyword: strings.ToLower(strings.TrimSpace(query))}
+	if typ := strings.TrimSpace(resourceType); typ != "" && typ != "all" {
+		parts := strings.Split(typ, ",")
+		filters.Types = make([]string, 0, len(parts))
+		for _, p := range parts {
+			if v := strings.TrimSpace(p); v != "" {
+				filters.Types = append(filters.Types, v)
+			}
+		}
+	}
+	if filters.Types == nil {
+		filters.Types = []string{}
+	}
+	return filters
+}
+
 func MimeToType(mime, filename string) string {
 	switch {
 	case strings.HasPrefix(mime, "image/"):
@@ -63,4 +109,11 @@ func sameOrg(a, b *uint) bool {
 		return a == nil && b == nil
 	}
 	return *a == *b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

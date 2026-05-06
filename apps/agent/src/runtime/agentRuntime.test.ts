@@ -11,6 +11,7 @@ import { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from './manifest/agentManifest.js'
 import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from './store/backendApplyClient.js'
 import type { ApplyDraftReview } from './store/draftApply.js'
+import { PRODUCTION_ORCHESTRATE_ANALYZER_ID } from './production/orchestrationContract.js'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
 
@@ -69,6 +70,18 @@ function installDefaultModelFetch(): void {
     }
     if (/记忆|memory|偏好|默认镜头风格/i.test(userMsg) && toolNames.has('movscript_search_memories')) {
       callsToMake.push({ id: 'call_memory_1', name: 'movscript_search_memories', args: { query: userMsg.slice(0, 40), limit: 8, ...(projectId !== undefined ? { projectId } : {}) } })
+    }
+    if (/创建.*项目|新建.*项目|create.*project/i.test(userMsg) && toolNames.has('movscript_create_project')) {
+      const quoted = userMsg.match(/[「“"]([^」”"]+)[」”"]/)?.[1]
+      const name = quoted ?? '测试项目'
+      callsToMake.push({
+        id: 'call_create_project_1',
+        name: 'movscript_create_project',
+        args: {
+          name,
+          description: '由 agent 创建的测试项目。',
+        },
+      })
     }
     if (/草稿|draft/i.test(userMsg) && !/应用|apply/i.test(userMsg) && toolNames.has('movscript_create_draft')) {
       const draftContent = memoriesSection
@@ -162,6 +175,7 @@ class FakeMCPClient {
       { name: 'movscript_search_entities', description: 'Search project entities by keyword.', inputSchema: {} },
       { name: 'movscript_read_entity', description: 'Read a single project entity.', inputSchema: {} },
       { name: 'movscript_read_project_structure', description: 'Read project structure.', inputSchema: {} },
+      { name: 'movscript_create_project', description: 'Create a project.', inputSchema: {} },
       { name: 'movscript_list_productions', description: 'List productions.', inputSchema: {} },
       { name: 'movscript_read_production_context', description: 'Read production context.', inputSchema: {} },
       { name: 'movscript_check_entity_conflicts', description: 'Check entity conflicts.', inputSchema: {} },
@@ -402,6 +416,27 @@ test('runtime draft tools are available without MCP tool discovery', async () =>
   assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts']?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.source, 'runtime')
   assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.requiresApproval, true)
+})
+
+test('create_project is available without a current project and runs after approval', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = null
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个项目「测试项目」' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+
+  assert.equal(run.status, 'requires_action')
+  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_project')
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
+
+  runtime.approveRun(run.id)
+  const resumed = await waitForRun(runtime, run.id)
+  const call = client.calls.find((item) => item.name === 'movscript_create_project')
+
+  assert.equal(resumed.status, 'completed')
+  assert.equal(call?.args.name, '测试项目')
+  assert.equal(call?.args.projectId, undefined)
 })
 
 test('create_script requires approval and creates a backend script after approval', async () => {
@@ -1004,6 +1039,78 @@ test('context command returns fallback diagnostics when MCP context pack is unav
   assert.throws(() => JSON.parse(assistant?.content ?? ''))
   assert.equal(run.traceEvents?.some((event) => event.title === 'Context pack failed'), true)
   assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
+})
+
+test('production orchestration analyzer uses JSON mode and structured tool schemas', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-json-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 21, model: 'model_config:21' })
+
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+      const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
+      assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
+      assert.match(systemText, /Production orchestration structured contract/)
+      assert.match(systemText, /movscript\.production_orchestration_analysis\.v1/)
+      assert.ok(Array.isArray(body.tools))
+      assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_read_production_context' && !!tool.function?.parameters))
+      assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_check_entity_conflicts' && !!tool.function?.parameters))
+      assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_propose_production_entities' && !!tool.function?.parameters))
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              schema: 'movscript.production_orchestration_analysis.v1',
+              mode: 'analysis_only',
+              production_id: 4,
+              script_source: { entity_type: 'script', entity_id: 10, title: 'Demo script', version: 'v1' },
+              stages: {
+                extraction: { characters: [], locations: [], props: [], story_moments: [] },
+                canonicalization: { references: [], aliases: [] },
+                relations: { usages: [], dependencies: [] },
+                validation: { confidence: 1, warnings: [], unresolved: [] },
+              },
+              proposal: {
+                kind: 'production_proposal',
+                action_policy: {
+                  confirmed_entities: 'preserve',
+                  draft_entities: 'supersede_same_scope',
+                  creative_references: 'reuse_project_level_when_possible',
+                },
+                segments: [],
+              },
+            }),
+          },
+          finish_reason: 'stop',
+        }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      defaultAgentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        id: PRODUCTION_ORCHESTRATE_ANALYZER_ID,
+        soul: '输出JSON',
+      },
+    })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
+    const run = await createAndWaitForRun(runtime, thread.id)
+
+    assert.equal(run.status, 'completed')
+    assert.match(runtime.getThread(thread.id)?.messages.find((m) => m.role === 'assistant')?.content ?? '', /movscript\.production_orchestration_analysis\.v1/)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
 })
 
 test('memory command returns opened memory file refs without content or model gateway call', async () => {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	billingapp "github.com/movscript/movscript/internal/app/billing"
 	orgapp "github.com/movscript/movscript/internal/app/org"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
@@ -14,11 +15,12 @@ import (
 
 type OrgHandler struct {
 	service *orgapp.Service
+	billing *billingapp.Service
 	db      *gorm.DB
 }
 
 func NewOrgHandler(db *gorm.DB) *OrgHandler {
-	return &OrgHandler{service: orgapp.NewService(db), db: db}
+	return &OrgHandler{service: orgapp.NewService(db), billing: billingapp.NewService(db), db: db}
 }
 
 func currentOrgMember(c *gin.Context) *model.OrganizationMember {
@@ -382,9 +384,9 @@ func (h *OrgHandler) GetUsage(c *gin.Context) {
 }
 
 func (h *OrgHandler) AdminGetQuota(c *gin.Context) {
-	quota, err := h.service.GetQuota(c.Request.Context(), parseID(c.Param("id")))
+	quota, err := h.billing.GetQuota(c.Request.Context(), parseID(c.Param("id")))
 	if err != nil {
-		if err == orgapp.ErrNotFound {
+		if err == billingapp.ErrNotFound {
 			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
 			return
 		}
@@ -404,9 +406,9 @@ func (h *OrgHandler) AdminSetQuota(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	quota, err := h.service.SetQuota(c.Request.Context(), parseID(c.Param("id")), orgapp.QuotaInput{MonthlyBudget: req.MonthlyBudget, Plan: req.Plan, Status: req.Status})
+	quota, err := h.billing.SetQuota(c.Request.Context(), parseID(c.Param("id")), billingapp.QuotaInput{MonthlyBudget: req.MonthlyBudget, Plan: req.Plan, Status: req.Status})
 	if err != nil {
-		if err == orgapp.ErrNotFound {
+		if err == billingapp.ErrNotFound {
 			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
 			return
 		}

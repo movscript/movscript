@@ -1,0 +1,109 @@
+package canvasruntime
+
+import (
+	"encoding/json"
+	"errors"
+	"strings"
+
+	"github.com/movscript/movscript/internal/domain/model"
+)
+
+var (
+	ErrInvalidCanvasType  = errors.New("invalid canvas type")
+	ErrRefIDRequired      = errors.New("ref_id is required when ref_type is set")
+	ErrUnsupportedRefType = errors.New("unsupported ref_type")
+)
+
+type CanvasCreateInput struct {
+	OwnerID     uint
+	OrgID       *uint
+	Name        string
+	Description string
+	ProjectID   *uint
+	CanvasType  string
+	Stage       string
+	RefType     string
+	RefID       *uint
+}
+
+func NormalizeCreateInput(input *CanvasCreateInput) error {
+	if input.CanvasType == "" {
+		input.CanvasType = "inspiration"
+	}
+	if !ValidCanvasType(input.CanvasType) {
+		return ErrInvalidCanvasType
+	}
+	input.RefType = strings.TrimSpace(input.RefType)
+	if input.RefType != "" && input.RefID == nil {
+		return ErrRefIDRequired
+	}
+	if input.RefType != "" && !ValidRefType(input.RefType) {
+		return ErrUnsupportedRefType
+	}
+	input.Description = strings.TrimSpace(input.Description)
+	return nil
+}
+
+func NewCanvas(input CanvasCreateInput) model.Canvas {
+	return model.Canvas{
+		OwnerID:     input.OwnerID,
+		OrgID:       input.OrgID,
+		Name:        input.Name,
+		Description: input.Description,
+		ProjectID:   input.ProjectID,
+		CanvasType:  input.CanvasType,
+		Stage:       input.Stage,
+		RefType:     input.RefType,
+		RefID:       input.RefID,
+		Visibility:  "private",
+	}
+}
+
+func ValidCanvasType(value string) bool {
+	switch value {
+	case "inspiration", "workflow":
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidRefType(value string) bool {
+	switch value {
+	case "script", "setting", "asset_slot", "content_unit":
+		return true
+	default:
+		return false
+	}
+}
+
+func SingleCanvasRefType(refType string) bool {
+	switch strings.TrimSpace(refType) {
+	case "production", "content_unit", "asset_slot":
+		return true
+	default:
+		return false
+	}
+}
+
+func WorkflowBootstrapGraph(canvasID uint) ([]model.CanvasNode, model.CanvasEdge) {
+	inputData, _ := json.Marshal(map[string]any{
+		"source":     "manual",
+		"inputValue": "",
+		"paramName":  "input",
+		"paramType":  "text",
+	})
+	outputData, _ := json.Marshal(map[string]any{
+		"source":            "manual",
+		"label":             "最终输出",
+		"paramName":         "final_output",
+		"paramType":         "resource",
+		"lockedFinalOutput": true,
+	})
+	nodes := []model.CanvasNode{
+		{CanvasID: canvasID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
+		{CanvasID: canvasID, NodeID: "final-output", Type: "output", Label: "最终输出", PosX: 560, PosY: 160, Data: string(outputData)},
+	}
+	edge := model.CanvasEdge{CanvasID: canvasID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
+	return nodes, edge
+}

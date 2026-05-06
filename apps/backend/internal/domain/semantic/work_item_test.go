@@ -99,3 +99,28 @@ func TestApplyWorkItemUpdatesCopiesResultFields(t *testing.T) {
 		t.Fatalf("unexpected item after updates: %+v", item)
 	}
 }
+
+func TestCompactUpdatesSkipsEmptyValues(t *testing.T) {
+	id := uint(9)
+	updates := CompactUpdates(map[string]any{
+		"name":   "",
+		"status": "draft",
+		"id":     &id,
+		"none":   nil,
+	})
+	if _, ok := updates["name"]; ok {
+		t.Fatalf("empty string should be omitted: %#v", updates)
+	}
+	if updates["status"] != "draft" || updates["id"] != &id {
+		t.Fatalf("unexpected updates: %#v", updates)
+	}
+}
+
+func TestTruthyFilter(t *testing.T) {
+	if !TruthyFilter("on") || !TruthyFilter("true") || !TruthyFilter("1") {
+		t.Fatal("expected truthy values")
+	}
+	if TruthyFilter("false") || TruthyFilter("off") {
+		t.Fatal("expected falsey values")
+	}
+}

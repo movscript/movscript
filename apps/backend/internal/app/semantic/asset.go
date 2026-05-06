@@ -2,10 +2,10 @@ package semantic
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"github.com/movscript/movscript/internal/domain/workflow"
 )
 
@@ -468,13 +468,5 @@ func (s *Service) ensureAssetSlotInProject(ctx context.Context, projectID uint, 
 }
 
 func truthyFilter(value string) bool {
-	if parsed, err := strconv.ParseBool(strings.TrimSpace(value)); err == nil {
-		return parsed
-	}
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "yes", "y", "on":
-		return true
-	default:
-		return false
-	}
+	return domainsemantic.TruthyFilter(value)
 }

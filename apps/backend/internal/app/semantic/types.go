@@ -4,6 +4,7 @@ type RelationFilter struct {
 	ProjectID  uint
 	Category   string
 	Type       string
+	Source     string
 	SourceType string
 	SourceID   uint
 	TargetType string

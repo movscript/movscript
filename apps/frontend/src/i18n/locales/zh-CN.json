@@ -129,13 +129,47 @@
     "registerFailed": "注册失败",
     "passwordMismatch": "两次密码不一致"
   },
+  "onboarding": {
+    "title": "选择使用方式",
+    "description": "先决定数据和服务运行在哪里。之后仍然可以在应用设置里切换连接方式。",
+    "localFailed": "本地工作区创建失败",
+    "local": {
+      "title": "本地使用",
+      "description": "数据保存在这台电脑上，适合个人创作、本地项目和自带模型 API key。",
+      "action": "在本机开始"
+    },
+    "cloud": {
+      "title": "云服务",
+      "description": "连接 Movscript Cloud 或团队服务，适合多设备同步、协作和云端能力。",
+      "action": "登录云服务"
+    },
+    "localIdentity": {
+      "title": "你的本地身份",
+      "description": "这不是云端账号，只用于这台电脑上的本地工作区。",
+      "nameLabel": "名称",
+      "namePlaceholder": "例如：钱",
+      "create": "创建本地工作区"
+    },
+    "cloudConnect": {
+      "title": "连接云服务",
+      "description": "使用 Movscript Cloud 或你的团队服务地址。",
+      "continue": "继续登录"
+    }
+  },
   "appSettings": {
     "title": "应用设置",
-    "description": "配置当前客户端连接的 Movscript 云端服务。该设置保存在本机，登录前也可以修改。",
-    "cloudApiTitle": "云端 API",
+    "description": "配置当前客户端的启动方式和连接服务。该设置保存在本机，登录前也可以修改。",
+    "launchMode": "启动方式",
+    "launchModeTitle": "启动方式",
+    "launchModeHint": "本地启动会在注册时请求初始化系统管理员；云端启动只连接远程服务。",
+    "cloudMode": "云端启动",
+    "cloudModeHelp": "连接 Movscript 云端或团队服务，不在注册时创建系统管理员。",
+    "localMode": "本地启动",
+    "localModeHelp": "连接本机后端，注册时初始化一个系统管理员。",
+    "cloudApiTitle": "服务 API",
     "cloudApiHint": "客户端登录、素材、项目和 Agent 请求都会连接到这个服务。",
-    "apiBaseURL": "云端 API 地址",
-    "apiBaseURLHelp": "填写服务根地址即可，例如 https://api.example.com；系统会自动使用 /api/v1。",
+    "apiBaseURL": "服务 API 地址",
+    "apiBaseURLHelp": "填写服务根地址即可，例如 http://localhost:8765 或 https://api.example.com；系统会自动使用 /api/v1。",
     "currentApi": "当前 API",
     "effectiveEndpoint": "实际接口",
     "invalidURL": "请输入以 http:// 或 https:// 开头的地址。",

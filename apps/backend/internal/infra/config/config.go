@@ -13,12 +13,15 @@ import (
 
 type Config struct {
 	AppMode            string
+	DeploymentMode     string
 	DataDir            string
+	DBDriver           string
 	DBHost             string
 	DBPort             string
 	DBUser             string
 	DBPassword         string
 	DBName             string
+	DBPath             string
 	ServerPort         string
 	EncryptionKey      string // 32-byte hex string for AES-256-GCM
 	MCPToken           string // optional Bearer token for MCP endpoint; empty = no auth
@@ -26,6 +29,7 @@ type Config struct {
 	AuthTokenTTLHours  int
 	HubAdminToken      string
 	CORSAllowedOrigins []string
+	AdminStaticDir     string
 
 	// Object storage
 	StorageBackend string
@@ -48,12 +52,15 @@ func Load() *Config {
 	dataDir := getEnv("MOVSCRIPT_DATA_DIR", defaultDataDir())
 	return &Config{
 		AppMode:            getEnv("MOVSCRIPT_APP_MODE", "cloud"),
+		DeploymentMode:     getEnv("MOVSCRIPT_DEPLOYMENT_MODE", defaultDeploymentMode(getEnv("MOVSCRIPT_APP_MODE", "cloud"))),
 		DataDir:            dataDir,
+		DBDriver:           getEnv("DB_DRIVER", "postgres"),
 		DBHost:             getEnv("DB_HOST", "localhost"),
 		DBPort:             getEnv("DB_PORT", "5432"),
 		DBUser:             getEnv("DB_USER", "postgres"),
 		DBPassword:         getEnv("DB_PASSWORD", "postgres"),
 		DBName:             getEnv("DB_NAME", "movscript"),
+		DBPath:             getEnv("DB_PATH", dataDir+"/movscript.db"),
 		ServerPort:         getEnv("SERVER_PORT", "8765"),
 		EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
 		MCPToken:           getEnv("MCP_TOKEN", ""),
@@ -61,6 +68,7 @@ func Load() *Config {
 		AuthTokenTTLHours:  getEnvInt("AUTH_TOKEN_TTL_HOURS", 24),
 		HubAdminToken:      getEnv("HUB_ADMIN_TOKEN", ""),
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
+		AdminStaticDir:     getEnv("MOVSCRIPT_ADMIN_DIR", "admin"),
 
 		StorageBackend:        getEnv("STORAGE_BACKEND", "minio"),
 		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", dataDir+"/resources"),
@@ -84,8 +92,17 @@ func (c *Config) ValidateStartup() error {
 	if c.AuthTokenTTLHours <= 0 {
 		problems = append(problems, "AUTH_TOKEN_TTL_HOURS must be greater than 0")
 	}
-	if c.DBHost == "" || c.DBPort == "" || c.DBUser == "" || c.DBName == "" {
-		problems = append(problems, "database settings DB_HOST, DB_PORT, DB_USER, and DB_NAME are required")
+	switch c.DBDriver {
+	case "postgres":
+		if c.DBHost == "" || c.DBPort == "" || c.DBUser == "" || c.DBName == "" {
+			problems = append(problems, "database settings DB_HOST, DB_PORT, DB_USER, and DB_NAME are required when DB_DRIVER=postgres")
+		}
+	case "sqlite":
+		if c.DBPath == "" {
+			problems = append(problems, "DB_PATH or MOVSCRIPT_DATA_DIR is required when DB_DRIVER=sqlite")
+		}
+	default:
+		problems = append(problems, "DB_DRIVER must be one of: postgres, sqlite")
 	}
 	switch c.StorageBackend {
 	case "minio":
@@ -108,10 +125,13 @@ func (c *Config) ValidateStartup() error {
 func (c *Config) SafeSummary() map[string]any {
 	return map[string]any{
 		"app_mode":             c.AppMode,
+		"deployment_mode":      c.DeploymentMode,
 		"data_dir":             c.DataDir,
+		"db_driver":            c.DBDriver,
 		"db_host":              c.DBHost,
 		"db_port":              c.DBPort,
 		"db_name":              c.DBName,
+		"db_path":              c.DBPath,
 		"server_port":          c.ServerPort,
 		"auth_ttl_hours":       c.AuthTokenTTLHours,
 		"cors_allowed_origins": c.CORSAllowedOrigins,
@@ -123,6 +143,16 @@ func (c *Config) SafeSummary() map[string]any {
 		"mcp_token_set":        c.MCPToken != "",
 		"auth_secret_set":      c.AuthTokenSecret != "",
 		"hub_admin_token_set":  c.HubAdminToken != "",
+		"admin_static_dir":     c.AdminStaticDir,
+	}
+}
+
+func defaultDeploymentMode(appMode string) string {
+	switch appMode {
+	case "local":
+		return "personal-local"
+	default:
+		return "self-hosted-team"
 	}
 }
 

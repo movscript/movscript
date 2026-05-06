@@ -72,9 +72,40 @@ func (s *Service) ListRelations(ctx context.Context, filter RelationFilter) ([]m
 	if filter.TargetID > 0 {
 		q = q.Where("target_id = ?", filter.TargetID)
 	}
+	if source := strings.TrimSpace(filter.Source); source != "" {
+		q = q.Where("source = ?", source)
+	}
 	if status := strings.TrimSpace(filter.Status); status != "" {
 		q = q.Where("status = ?", status)
 	}
 	err := q.Order("category, type, source_type, source_id, \"order\", target_type, target_id, id").Find(&items).Error
 	return items, err
+}
+
+func (s *Service) ListRelationsByEntity(ctx context.Context, projectID uint, entityType string, entityID uint, category string, relationType string) ([]model.EntityRelation, error) {
+	filter := RelationFilter{
+		ProjectID: projectID,
+		Category:  category,
+		Type:      relationType,
+	}
+	if strings.TrimSpace(entityType) != "" && entityID > 0 {
+		filter.SourceType = entityType
+		filter.SourceID = entityID
+	}
+	return s.ListRelations(ctx, filter)
+}
+
+func (s *Service) ListRelationsBySource(ctx context.Context, projectID uint, sourceType string, sourceID uint, category string, relationType string) ([]model.EntityRelation, error) {
+	return s.ListRelationsByEntity(ctx, projectID, sourceType, sourceID, category, relationType)
+}
+
+func (s *Service) ListRelationsByTarget(ctx context.Context, projectID uint, targetType string, targetID uint, category string, relationType string) ([]model.EntityRelation, error) {
+	filter := RelationFilter{
+		ProjectID:  projectID,
+		Category:   category,
+		Type:       relationType,
+		TargetType: targetType,
+		TargetID:   targetID,
+	}
+	return s.ListRelations(ctx, filter)
 }

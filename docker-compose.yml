@@ -49,8 +49,8 @@ services:
 
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     restart: unless-stopped
     command: ["/bin/sh", "-c", "./migrate up && ./server"]
     ports:

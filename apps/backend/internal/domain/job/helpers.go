@@ -23,6 +23,30 @@ type ContextSnapshotInput struct {
 	CreatedAt      time.Time
 }
 
+type ListFilter struct {
+	UserID     uint
+	OrgID      *uint
+	ProjectID  *uint
+	Status     string
+	FeatureKey string
+	JobType    string
+	ExactType  bool
+	Limit      int
+	Offset     int
+}
+
+type ListSpec struct {
+	JobTypes []string
+	Limit    int
+	Offset   int
+}
+
+type InputResourcesResult struct {
+	Resources  []model.RawResource
+	ImageCount int
+	VideoCount int
+}
+
 type contextSnapshot struct {
 	Model          modelSnapshot      `json:"model"`
 	JobType        string             `json:"job_type"`
@@ -54,6 +78,34 @@ type resourceSnapshot struct {
 	Type     string `json:"type"`
 	MimeType string `json:"mime_type,omitempty"`
 	Size     int64  `json:"size,omitempty"`
+}
+
+func BuildListSpec(filter ListFilter) ListSpec {
+	spec := ListSpec{
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}
+	if filter.JobType == "image" && !filter.ExactType {
+		spec.JobTypes = []string{"image", "image_edit"}
+	} else if filter.JobType != "" {
+		spec.JobTypes = []string{filter.JobType}
+	} else {
+		spec.JobTypes = []string{}
+	}
+	return spec
+}
+
+func CountInputResources(resources []model.RawResource) InputResourcesResult {
+	result := InputResourcesResult{Resources: resources}
+	for _, r := range resources {
+		switch r.Type {
+		case "image":
+			result.ImageCount++
+		case "video":
+			result.VideoCount++
+		}
+	}
+	return result
 }
 
 func IDOrNil(id *uint) []uint {
