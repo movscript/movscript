@@ -6,7 +6,7 @@
 
 Movscript 不适合优先走纯闭源桌面软件路线。更合适的方向是：
 
-> 开源个人版作为获客和生态基础，组织版、托管模型网关、企业能力和生产服务作为主要收费来源。
+> 开源个人版和组织协作版作为获客和生态基础，托管模型网关、企业能力和生产服务作为主要收费来源。
 
 个人用户应该可以低门槛本地使用，自己配置模型 provider key，完成单人生产流程。团队和组织一旦需要统一管理模型、资源、成员、权限、额度、审计和协作，就应该进入付费路径。
 
@@ -87,7 +87,7 @@ Movscript 已经具备商业化所需的关键骨架：
 - AI 生成和 agent 写入需要审计。
 - 组织需要预算、额度、风控和停用能力。
 
-因此，非 personal organization 应成为商业化边界。可以允许小团队免费试用，但正式团队功能应该付费。
+因此，organization 本身不应成为商业化边界。可以允许小团队免费试用，但正式的托管治理、企业身份和合规能力才应该付费。
 
 自部署需要单独划线：Self-hosted Core 可以允许个人或小团队免费使用核心生产能力，但不应默认开放全套企业能力。全功能自部署应归入 Self-hosted Enterprise，通过商业 license、升级包和支持服务收费。
 
@@ -167,8 +167,8 @@ Movscript 可以借鉴 Cursor 的商业逻辑，但不必复制闭源路线。Mo
 
 短期优先做以下产品边界：
 
-1. 明确 `personal organization` 和 `paid organization` 的差异。
-2. 为 organization 增加 plan/status 字段，例如 `free`、`team`、`enterprise`、`trialing`、`past_due`。
+1. 明确 `personal workspace` 和 `organization workspace` 的差异，但不要把 organization 本身设成付费边界。
+2. 为 organization 增加 plan/status 字段，例如 `free`、`team`、`enterprise`、`trialing`、`past_due`，用于状态和治理，不直接等于收费。
 3. 将 gateway API key 创建、组织级 credential、组织用量报表统一绑定到 org scope。
 4. 明确哪些 API 在 personal mode 可用，哪些 API 需要 team plan。
 5. 把 provider raw key 管理从普通成员界面隐藏，只允许 owner/admin 操作。
@@ -199,7 +199,7 @@ Movscript 可以借鉴 Cursor 的商业逻辑，但不必复制闭源路线。Mo
 
 第二阶段：把现有 organization、gateway、usage、quota、audit 能力收束成 Team Self-hosted Beta。
 
-第三阶段：引入商业 plan/entitlement 机制，明确 personal 免费、organization 收费。
+第三阶段：引入商业 plan/entitlement 机制，明确 personal 免费、organization 社区可用、企业治理收费。
 
 第四阶段：推出 Hosted Cloud，把部署、模型网关、任务 worker、存储、备份和升级变成付费服务。
 

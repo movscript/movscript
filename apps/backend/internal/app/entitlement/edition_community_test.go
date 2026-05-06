@@ -38,12 +38,18 @@ func TestCommunityResolvePersonalOrg(t *testing.T) {
 	if !hasCapability(snapshot, commercial.CapabilityBasicGateway) {
 		t.Fatalf("community personal snapshot missing %q", commercial.CapabilityBasicGateway)
 	}
+	if !hasCapability(snapshot, commercial.CapabilityUsageLogging) {
+		t.Fatalf("community personal snapshot missing %q", commercial.CapabilityUsageLogging)
+	}
+	if !snapshot.CommercialFlags["organization"] {
+		t.Fatal("community snapshot should mark organization=true")
+	}
 	if snapshot.CommercialFlags["enterprise"] {
 		t.Fatal("community snapshot should not mark enterprise=true")
 	}
 }
 
-func TestCommunityResolveTeamOrgWithoutCommercialLimits(t *testing.T) {
+func TestCommunityResolveOrgWithoutCommercialLimits(t *testing.T) {
 	db := openEntitlementTestDB(t)
 	orgID := createEntitlementTestOrg(t, db, model.Organization{
 		Name:       "Team",
@@ -59,8 +65,8 @@ func TestCommunityResolveTeamOrgWithoutCommercialLimits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if snapshot.Plan != commercial.PlanTeam {
-		t.Fatalf("Plan = %q, want %q", snapshot.Plan, commercial.PlanTeam)
+	if snapshot.Plan != commercial.PlanFree {
+		t.Fatalf("Plan = %q, want %q", snapshot.Plan, commercial.PlanFree)
 	}
 	if snapshot.Status != commercial.StatusTrialing {
 		t.Fatalf("Status = %q, want %q", snapshot.Status, commercial.StatusTrialing)
@@ -71,8 +77,8 @@ func TestCommunityResolveTeamOrgWithoutCommercialLimits(t *testing.T) {
 	if hasCapability(snapshot, commercial.CapabilityOrgBudget) {
 		t.Fatalf("community snapshot should not include %q", commercial.CapabilityOrgBudget)
 	}
-	if hasCapability(snapshot, commercial.CapabilityUsageLogging) {
-		t.Fatalf("community snapshot should not include %q", commercial.CapabilityUsageLogging)
+	if !hasCapability(snapshot, commercial.CapabilityUsageLogging) {
+		t.Fatalf("community snapshot missing %q", commercial.CapabilityUsageLogging)
 	}
 }
 

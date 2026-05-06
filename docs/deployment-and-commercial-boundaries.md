@@ -16,7 +16,7 @@
 
 如果用户完全本地运行、完全使用自己的 provider key、数据和任务都不经过 Movscript 云端，Movscript 不承担持续资源成本，这部分应该作为开源免费核心。
 
-如果用户请求经过 Movscript 平台，或者使用平台 key、托管存储、托管 worker、云同步、托管 gateway、组织治理能力，就进入收费边界。
+如果用户请求经过 Movscript 平台，或者使用平台 key、托管存储、托管 worker、云同步、托管 gateway、企业治理能力，就进入收费边界。
 
 ## 运行形态
 
@@ -296,7 +296,7 @@ DEPLOYMENT_MODE=enterprise-private
 
 推荐使用这条总规则：
 
-> 凡是请求经过 Movscript 平台、使用 Movscript 平台 key、使用 Movscript 托管存储/同步/worker/gateway，或使用组织治理和企业能力，都收费；凡是用户完全本地或自部署运行、完全使用自己的 key、只使用开源核心，尽量不管也不收费。
+> 凡是请求经过 Movscript 平台、使用 Movscript 平台 key、使用 Movscript 托管存储/同步/worker/gateway，或使用企业治理能力，都收费；凡是用户完全本地或自部署运行、完全使用自己的 key、只使用开源核心，尽量不管也不收费。
 
 对应产品边界：
 

@@ -2408,8 +2408,18 @@
     },
     "tabs": {
       "members": "成员",
+      "usage": "用量",
       "invitations": "邀请",
       "settings": "设置"
+    },
+    "usage": {
+      "month": "月份",
+      "totalCost": "本月总费用",
+      "totalTokens": "本月总 Token",
+      "user": "成员",
+      "tokens": "Token",
+      "cost": "费用",
+      "empty": "本月暂无用量记录"
     },
     "membersCount": "{{count}} 位成员",
     "addMember": "添加成员",

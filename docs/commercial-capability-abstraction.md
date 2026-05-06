@@ -136,7 +136,7 @@ type AuditSink interface {
 
 建议继续开放：
 
-- 个人组织
+- 个人组织和基础组织
 - 基础组织 CRUD
 - 基础成员关系
 - 本地 provider 配置

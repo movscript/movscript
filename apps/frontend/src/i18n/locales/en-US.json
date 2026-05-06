@@ -2408,8 +2408,18 @@
     },
     "tabs": {
       "members": "Members",
+      "usage": "Usage",
       "invitations": "Invitations",
       "settings": "Settings"
+    },
+    "usage": {
+      "month": "Month",
+      "totalCost": "This month cost",
+      "totalTokens": "This month tokens",
+      "user": "Member",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "empty": "No usage records this month"
     },
     "membersCount": "{{count}} members",
     "addMember": "Add member",

@@ -40,11 +40,12 @@ type EntityWriteResult struct {
 }
 
 type EntityIOService struct {
-	db *gorm.DB
+	db   *gorm.DB
+	repo repository
 }
 
 func NewEntityIOService(db *gorm.DB) *EntityIOService {
-	return &EntityIOService{db: db}
+	return &EntityIOService{db: db, repo: &gormRepository{db: db}}
 }
 
 func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (map[string]EntityPortValue, error) {

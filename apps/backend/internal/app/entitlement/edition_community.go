@@ -38,10 +38,12 @@ func (s *communityService) Resolve(ctx context.Context, subject commercial.Subje
 			commercial.CapabilityBasicGateway,
 			commercial.CapabilityGatewayAPIKeys,
 			commercial.CapabilityBasicAudit,
+			commercial.CapabilityUsageLogging,
 		},
 		Limits: commercial.LimitSnapshot{},
 		CommercialFlags: map[string]bool{
 			"community":              true,
+			"organization":           true,
 			"enterprise":             false,
 			"hosted_cloud":           false,
 			"remote_metering":        false,
@@ -62,8 +64,6 @@ func (s *communityService) Resolve(ctx context.Context, subject commercial.Subje
 	}
 	if org.IsPersonal {
 		snapshot.Plan = commercial.PlanPersonal
-	} else if org.Plan != "" {
-		snapshot.Plan = commercial.Plan(org.Plan)
 	}
 	if org.Status != "" {
 		snapshot.Status = commercial.Status(org.Status)

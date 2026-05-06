@@ -10,9 +10,9 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
-import { API_V1_BASE_URL } from '@/lib/config'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
+import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
@@ -242,7 +242,7 @@ function buildAgentContext(options: {
   return sections.join('\n\n')
 }
 
-type AgentSendRoute = 'cloud-chat' | 'local-runtime'
+type AgentSendRoute = 'local-runtime'
 
 interface AgentSendDraft {
   id: string
@@ -343,32 +343,32 @@ function safeJSONStringify(value: unknown) {
 }
 
 function buildDebugHttpRequests(options: {
-  route: AgentSendRoute
   modelId: number | null
+  modelName?: string
   messages: AgentSendDraft['outbound']['messages']
   localRuntime?: AgentSendDraft['localRuntime']
 }): DebugHttpRequest[] {
-  if (options.route === 'cloud-chat') {
-    return [{
-      id: 'cloud-chat',
-      label: 'Cloud chat completion',
+  const baseURL = localAgentClient.baseURL
+  const requests: DebugHttpRequest[] = []
+  if (options.modelId) {
+    requests.push({
+      id: 'local-save-model-config',
+      label: 'Sync runtime model config',
       method: 'POST',
-      url: `${API_V1_BASE_URL}/ai/chat`,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer <session-token>',
-      },
+      url: `${baseURL}/model-config`,
+      headers: { 'Content-Type': 'application/json' },
       body: {
-        model_config_id: options.modelId,
-        messages: options.messages,
+        modelConfigId: options.modelId,
+        model: options.modelName ?? `model_config:${options.modelId}`,
+        useForChat: true,
+        useForPlanner: true,
       },
-    }]
+    })
   }
 
-  const baseURL = localAgentClient.baseURL
   const threadId = options.localRuntime?.threadId
   const resolvedThreadId = threadId ?? '{threadId from POST /threads}'
-  const requests: DebugHttpRequest[] = threadId
+  const threadRequests: DebugHttpRequest[] = threadId
     ? [{
       id: 'local-get-thread',
       label: 'Load existing local thread',
@@ -388,6 +388,7 @@ function buildDebugHttpRequests(options: {
     }]
 
   requests.push(
+    ...threadRequests,
     {
       id: 'local-add-message',
       label: 'Append user message',
@@ -1619,13 +1620,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   const [approvingLocalRun, setApprovingLocalRun] = useState(false)
   const [startingLocalAgent, setStartingLocalAgent] = useState(false)
   const [localAgentStartError, setLocalAgentStartError] = useState<string | null>(null)
-  const [localRuntimeEnabled, setLocalRuntimeEnabledState] = useState(() => {
-    try {
-      return localStorage.getItem(LOCAL_AGENT_MODE_KEY) !== 'false'
-    } catch {
-      return true
-    }
-  })
+  const localRuntimeEnabled = true
   const [debugBeforeSend, setDebugBeforeSendState] = useState(() => {
     try {
       return localStorage.getItem(AGENT_DEBUG_PREVIEW_KEY) === 'true'
@@ -1695,11 +1690,6 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     }
     setCurrentProject(null)
   }, [projects, loadingProjects, currentProject, setCurrentProject])
-
-  function setLocalRuntimeEnabled(next: boolean) {
-    setLocalRuntimeEnabledState(next)
-    try { localStorage.setItem(LOCAL_AGENT_MODE_KEY, String(next)) } catch {}
-  }
 
   function setDebugBeforeSend(next: boolean) {
     setDebugBeforeSendState(next)
@@ -1843,15 +1833,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     const sentAttachments = attachments
     const visibleUserContent = text || t('agents.chat.attachmentOnlyMessage')
     const runtimeMessage = normalizeAgentCommandMessage(visibleUserContent, settings.mode)
-    const diagnosticCommand = localRuntimeEnabled && isDiagnosticAgentCommand(runtimeMessage)
+    const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
     const clientInput = buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
     })
-    const useLocalRuntime = localRuntimeEnabled
-    const agentContext = useLocalRuntime
-      ? ''
-      : buildAgentContext({
+    const agentContext = buildAgentContext({
         mode: settings.mode,
         permissionMode: settings.permissionMode,
         autoPlan: settings.autoPlan,
@@ -1860,58 +1847,51 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         includeProjectContext: settings.includeProjectContext,
         includeRecentResources: settings.includeRecentResources,
       })
-    const enrichedUserContent = useLocalRuntime
-      ? visibleUserContent
-      : `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
-    const messages = useLocalRuntime
-      ? [{ role: 'user' as const, content: enrichedUserContent }]
-      : [
+    const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
+    const messages = [
         { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
         ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
         { role: 'user' as const, content: enrichedUserContent },
       ]
     const warnings: string[] = []
-    let localRuntime: AgentSendDraft['localRuntime']
+    const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
+    const localRuntime: AgentSendDraft['localRuntime'] = {
+      ...(threadId ? { threadId } : {}),
+      title: conv.title,
+      clientInput,
+      diagnosticCommand,
+    }
 
-    if (useLocalRuntime) {
-      const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
-      localRuntime = {
-        ...(threadId ? { threadId } : {}),
-        title: conv.title,
-        clientInput,
-        diagnosticCommand,
-      }
-
-      if (options.includeRuntimePreview) {
-        try {
-          if (!localAgentOnline) {
-            await localAgentClient.ensureRunning()
-            await refetchLocalAgentHealth()
-          }
-          try {
-            localRuntime.preview = await localAgentClient.previewRun({
-              ...(threadId ? { threadId } : {}),
-              clientInput,
-            })
-          } catch (e) {
-            if (!threadId) throw e
-            warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
-            localRuntime.preview = await localAgentClient.previewRun({
-              clientInput,
-            })
-          }
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e)
-          localRuntime.previewError = message
-          warnings.push(`Local runtime dry-run failed: ${message}`)
+    if (options.includeRuntimePreview) {
+      try {
+        if (!localAgentOnline) {
+          await localAgentClient.ensureRunning()
+          await refetchLocalAgentHealth()
         }
+        await syncRuntimeModelConfig(modelId, activeModel ? publicModelLabel(activeModel) : undefined)
+        try {
+          localRuntime.preview = await localAgentClient.previewRun({
+            ...(threadId ? { threadId } : {}),
+            clientInput,
+          })
+        } catch (e) {
+          if (!threadId) throw e
+          warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
+          localRuntime.preview = await localAgentClient.previewRun({
+            clientInput,
+          })
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        localRuntime.previewError = message
+        warnings.push(`Local runtime dry-run failed: ${message}`)
       }
     }
 
     return {
       id: makeTraceId(),
       createdAt: Date.now(),
-      route: useLocalRuntime ? 'local-runtime' : 'cloud-chat',
+      route: 'local-runtime',
       visibleUserContent,
       attachments: sentAttachments,
       model: {
@@ -1941,12 +1921,12 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
         messages,
       },
       httpRequests: buildDebugHttpRequests({
-        route: useLocalRuntime ? 'local-runtime' : 'cloud-chat',
         modelId,
+        ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
         messages,
-        ...(localRuntime ? { localRuntime } : {}),
+        localRuntime,
       }),
-      ...(localRuntime ? { localRuntime } : {}),
+      localRuntime,
       warnings,
     }
   }, [
@@ -1971,7 +1951,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
   ])
 
   const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {
-    if (!draft.model.id && draft.route !== 'local-runtime') {
+    if (!draft.model.id) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
     }
@@ -1986,7 +1966,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
       attachments: draft.attachments,
       meta: {
         modelId: draft.model.id,
-        agentName: draft.route === 'local-runtime' ? 'Local Agent Runtime' : draft.agent.name,
+        agentName: 'Local Agent Runtime',
         mode: draft.settings.mode,
         permissionMode: draft.settings.permissionMode,
         contextLabels: draft.contextLabels,
@@ -1998,55 +1978,39 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
     }
 
     try {
-      if (draft.route === 'local-runtime') {
-        if (!localAgentOnline) {
-          await localAgentClient.ensureRunning()
-          await refetchLocalAgentHealth()
-        }
-        const { run, thread } = await localAgentClient.runMessage({
-          threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
-          message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
-          clientInput: draft.localRuntime?.clientInput,
-          title: draft.localRuntime?.title ?? conv.title,
-        }, {
-          onRunUpdate: setActiveLocalRun,
-          agentManifest: draft.localRuntime?.agentManifest,
-        })
-        if (!draft.localRuntime?.diagnosticCommand) {
-          setLocalAgentThreadIds((cur) => {
-            const next = { ...cur, [conv.id]: thread.id }
-            writeLocalAgentThreadIds(next)
-            return next
-          })
-        }
-        const content = formatLocalAgentAssistantContent(run, thread)
-        addMessage(userId, conv.id, {
-          role: 'assistant',
-          content,
-          meta: { contextLabels: [`run ${run.status}`] },
-        })
-        return
+      if (!localAgentOnline) {
+        await localAgentClient.ensureRunning()
+        await refetchLocalAgentHealth()
       }
-
-      const { data } = await api.post('/ai/chat', { model_config_id: draft.model.id, messages: draft.outbound.messages })
-      addMessage(userId, conv.id, { role: 'assistant', content: data.content })
+      await syncRuntimeModelConfig(draft.model.id, draft.model.name)
+      const { run, thread } = await localAgentClient.runMessage({
+        threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
+        message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
+        clientInput: draft.localRuntime?.clientInput,
+        title: draft.localRuntime?.title ?? conv.title,
+      }, {
+        onRunUpdate: setActiveLocalRun,
+        agentManifest: draft.localRuntime?.agentManifest,
+      })
+      if (!draft.localRuntime?.diagnosticCommand) {
+        setLocalAgentThreadIds((cur) => {
+          const next = { ...cur, [conv.id]: thread.id }
+          writeLocalAgentThreadIds(next)
+          return next
+        })
+      }
+      const content = formatLocalAgentAssistantContent(run, thread)
+      addMessage(userId, conv.id, {
+        role: 'assistant',
+        content,
+        meta: { contextLabels: [`run ${run.status}`] },
+      })
     } catch (e: any) {
-      if (draft.route === 'local-runtime') {
-        const message = e instanceof Error ? e.message : String(e)
-        addMessage(userId, conv.id, {
-          role: 'assistant',
-          content: `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
-        })
-        return
-      }
-      const rawErr: string = e?.response?.data?.error ?? e?.response?.data?.message ?? String(e)
-      const errMsg = translateApiError(e?.response?.data)
-      if (rawErr.includes('not found') || rawErr.includes('disabled')) {
-        updateSettings({ modelId: null })
-        addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.modelInvalid') })
-      } else {
-        addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.errorMessage', { message: errMsg }) })
-      }
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, {
+        role: 'assistant',
+        content: `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
+      })
     } finally {
       setLoading(false)
     }
@@ -2066,7 +2030,7 @@ function ChatView({ conv, userId, onBack }: { conv: Conversation; userId: string
 
   const send = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || uploading || buildingSendDraft) return
-    if (!modelId && !localRuntimeEnabled) {
+    if (!modelId) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
     }

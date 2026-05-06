@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy, Plus, Trash2, UserMinus } from 'lucide-react'
+import { Check, Coins, Copy, Plus, Trash2, UserMinus } from 'lucide-react'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { Button } from '@movscript/ui'
@@ -13,7 +13,19 @@ import { Badge } from '@movscript/ui'
 import { translateApiError } from '@/lib/apiError'
 import type { Organization, OrganizationMember, OrgInvitation } from '@/types'
 
-type Tab = 'members' | 'invitations' | 'settings'
+type Tab = 'members' | 'usage' | 'invitations' | 'settings'
+
+type OrgUsageRow = {
+  user_id: number
+  username: string
+  cost: number
+  tokens: number
+}
+
+type OrgUsageResult = {
+  month: string
+  by_user: OrgUsageRow[]
+}
 
 function MembersTab({ orgId }: { orgId: number }) {
   const { t } = useTranslation()
@@ -311,6 +323,71 @@ function InvitationsTab({ orgId }: { orgId: number }) {
   )
 }
 
+function UsageTab({ orgId }: { orgId: number }) {
+  const { t } = useTranslation()
+
+  const { data } = useQuery<OrgUsageResult>({
+    queryKey: ['org', orgId, 'usage'],
+    queryFn: () => api.get(`/orgs/${orgId}/usage`).then((r) => r.data),
+  })
+
+  const rows = data?.by_user ?? []
+  const totalCost = rows.reduce((sum, row) => sum + row.cost, 0)
+  const totalTokens = rows.reduce((sum, row) => sum + row.tokens, 0)
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">{t('org.usage.month')}</p>
+          <p className="mt-1 text-sm font-medium text-foreground">{data?.month ?? '—'}</p>
+        </div>
+        <div className="rounded-lg border border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">{t('org.usage.totalTokens')}</p>
+          <p className="mt-1 text-sm font-medium text-foreground tabular-nums">{totalTokens.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-foreground px-4 py-3 text-background">
+        <div className="flex items-center gap-2 text-xs opacity-70">
+          <Coins size={13} />
+          <span>{t('org.usage.totalCost')}</span>
+        </div>
+        <div className="mt-1 text-2xl font-semibold tabular-nums">{totalCost.toFixed(3)}</div>
+        <div className="mt-0.5 text-xs opacity-60">{t('common.credits')}</div>
+      </div>
+
+      <div className="border border-border rounded-lg overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-card border-b border-border">
+            <tr>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">{t('org.usage.user')}</th>
+              <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">{t('org.usage.tokens')}</th>
+              <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">{t('org.usage.cost')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((row) => (
+              <tr key={row.user_id} className="hover:bg-card">
+                <td className="px-4 py-2.5 text-foreground">{row.username}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{row.tokens.toLocaleString()}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium">{row.cost.toFixed(3)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
+                  {t('org.usage.empty')}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function SettingsTab({ orgId }: { orgId: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -363,6 +440,7 @@ export default function OrgSettingsPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'members', label: t('org.tabs.members') },
+    { key: 'usage', label: t('org.tabs.usage') },
     { key: 'invitations', label: t('org.tabs.invitations') },
     { key: 'settings', label: t('org.tabs.settings') },
   ]
@@ -388,6 +466,7 @@ export default function OrgSettingsPage() {
       </div>
 
       {tab === 'members' && <MembersTab orgId={currentOrgID} />}
+      {tab === 'usage' && <UsageTab orgId={currentOrgID} />}
       {tab === 'invitations' && <InvitationsTab orgId={currentOrgID} />}
       {tab === 'settings' && <SettingsTab orgId={currentOrgID} />}
     </div>
