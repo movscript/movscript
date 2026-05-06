@@ -9,6 +9,29 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestNewCanvasRunCapturesSnapshotAndStartsRun(t *testing.T) {
+	cv := model.Canvas{Model: gorm.Model{ID: 7}, Nodes: []model.CanvasNode{{NodeID: "input"}}, Edges: []model.CanvasEdge{{EdgeID: "edge"}}}
+	run := NewCanvasRun(cv, map[string]string{"input": "hello"}, testTime())
+	if run.CanvasID != 7 || run.Status != CanvasRunStatusRunning || run.StartedAt == nil {
+		t.Fatalf("unexpected run identity/status: %+v", run)
+	}
+	if run.InputValues != `{"input":"hello"}` || run.GraphSnapshot == "" || run.SnapshotHash == "" || run.SnapshotNodeCount != 1 || run.SnapshotEdgeCount != 1 {
+		t.Fatalf("unexpected run snapshot: %+v", run)
+	}
+}
+
+func TestNewCanvasTaskUsesPendingStatusAndNodeSnapshot(t *testing.T) {
+	runID := uint(9)
+	node := model.CanvasNode{Model: gorm.Model{ID: 3}, NodeID: "n1", Label: "Render", Type: "image"}
+	task := NewCanvasTask(node, &runID, `{"prompt":[]}`)
+	if task.CanvasNodeID != 3 || task.CanvasRunID == nil || *task.CanvasRunID != runID {
+		t.Fatalf("unexpected task identity: %+v", task)
+	}
+	if task.NodeID != "n1" || task.NodeLabel != "Render" || task.NodeType != "image" || task.Status != CanvasTaskStatusPending || task.InputValues != `{"prompt":[]}` {
+		t.Fatalf("unexpected task snapshot: %+v", task)
+	}
+}
+
 func TestCanvasRunTaskFailureSummaryUsesLabelAndError(t *testing.T) {
 	tasks := []model.CanvasTask{
 		{Status: "done", NodeLabel: "Ignored"},

@@ -2,7 +2,6 @@ package canvas
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -614,7 +613,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 			if name == "" {
 				name = fmt.Sprintf("素材位 #%d", sourceSlot.ID)
 			}
-			candidateSlot = model.AssetSlot{
+			candidateSlot = domainsemantic.NewAssetSlot(domainsemantic.AssetSlotSpec{
 				ProjectID:                input.ProjectID,
 				ProductionID:             sourceSlot.ProductionID,
 				CreativeReferenceID:      sourceSlot.CreativeReferenceID,
@@ -630,7 +629,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 				Priority:                 canvasruntime.FirstNonEmptyString(sourceSlot.Priority, "normal"),
 				ResourceID:               &input.ResourceID,
 				MetadataJSON:             input.BindingMeta,
-			}
+			})
 			if err := db.Create(&candidateSlot).Error; err != nil {
 				return nil
 			}
@@ -661,7 +660,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 	if err := db.
 		Where("project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?", input.ProjectID, input.ResourceID, domainresourcebinding.OwnerTypeAssetSlot, candidateSlot.ID, domainresourcebinding.RoleOutput, slot, 1).
 		First(&existingBinding).Error; err != nil {
-		_ = r.CreateResourceBinding(ctx, model.ResourceBinding{
+		_ = r.CreateResourceBinding(ctx, domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
 			ProjectID:    input.ProjectID,
 			ResourceID:   input.ResourceID,
 			OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
@@ -674,14 +673,14 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 			IsPrimary:    true,
 			MetadataJSON: meta,
 			CreatedByID:  &input.UserID,
-		})
+		}))
 	}
 	var existing model.AssetSlotCandidate
 	err := db.
 		Where("project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", input.ProjectID, sourceSlot.ID, candidateSlot.ID).
 		First(&existing).Error
 	if err != nil {
-		existing = model.AssetSlotCandidate{
+		existing = domainsemantic.NewAssetSlotCandidate(domainsemantic.AssetSlotCandidateSpec{
 			ProjectID:            input.ProjectID,
 			AssetSlotID:          sourceSlot.ID,
 			CandidateAssetSlotID: candidateSlot.ID,
@@ -689,7 +688,7 @@ func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, 
 			SourceID:             &sourceID,
 			Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 			Note:                 canvasruntime.FirstNonEmptyString(input.CandidateNote, "由素材生成画布写回"),
-		}
+		})
 		if err := db.Create(&existing).Error; err != nil {
 			return nil
 		}
@@ -759,44 +758,12 @@ func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *model.Canvas) error {
 	if err := tx.First(&slot, *cv.RefID).Error; err != nil {
 		return err
 	}
-	title := strings.TrimSpace(slot.Name)
-	if title == "" {
-		title = fmt.Sprintf("素材位 #%d", slot.ID)
-	}
-	data, _ := json.Marshal(map[string]any{
-		"source":        "manual",
-		"label":         title,
-		"entityKind":    "asset_slot",
-		"entityId":      slot.ID,
-		"entityTitle":   title,
-		"assetSlotKind": slot.Kind,
-		"textContent":   title,
-		"inputPorts": []map[string]any{
-			{"id": "candidates", "type": assetSlotCanvasPortType(slot.Kind), "label": "候选集", "maxCount": 12},
-			{"id": "candidate_item", "type": assetSlotCanvasPortType(slot.Kind), "label": "单个候选"},
-		},
-		"outputPorts": []map[string]any{
-			{"id": "reference", "type": "resource", "label": "参考图"},
-			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
-			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
-		},
+	node := canvasruntime.NewAssetSlotTargetNode(canvasruntime.AssetSlotTargetNodeInput{
+		CanvasID:      cv.ID,
+		AssetSlotID:   slot.ID,
+		AssetKind:     slot.Kind,
+		AssetName:     slot.Name,
+		FallbackLabel: fmt.Sprintf("素材位 #%d", slot.ID),
 	})
-	return tx.Create(&model.CanvasNode{
-		CanvasID: cv.ID,
-		NodeID:   "asset-slot-target",
-		Type:     "entity_card",
-		Label:    title,
-		PosX:     520,
-		PosY:     180,
-		Data:     string(data),
-	}).Error
-}
-
-func assetSlotCanvasPortType(kind string) string {
-	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "image", "video", "audio", "text":
-		return strings.ToLower(strings.TrimSpace(kind))
-	default:
-		return "resource"
-	}
+	return tx.Create(&node).Error
 }

@@ -11,45 +11,23 @@ import (
 )
 
 func applyWorkItemResult(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
-	switch fallbackString(item.ResultType, domainsemantic.WorkItemResultNone) {
-	case domainsemantic.WorkItemResultStatusChange:
-		return applyWorkItemStatusChange(tx, projectID, item, actorID, appliedAt)
-	case domainsemantic.WorkItemResultLockAssetCandidate:
-		return applyWorkItemAssetCandidate(tx, projectID, item, actorID, appliedAt)
-	case domainsemantic.WorkItemResultAcceptKeyframe:
-		return applyWorkItemTargetStatus(tx, projectID, item, "keyframe", "accepted", actorID, appliedAt)
-	case domainsemantic.WorkItemResultApproveDeliveryVersion:
-		return applyWorkItemTargetStatus(tx, projectID, item, "delivery_version", "approved", actorID, appliedAt)
+	application, err := domainsemantic.WorkItemResultApplicationFor(item)
+	if err != nil {
+		return err
+	}
+	switch application.Kind {
+	case domainsemantic.WorkItemResultApplicationTargetStatus:
+		return applyWorkItemTargetStatus(tx, projectID, item, application.TargetType, application.TargetStatus, actorID, appliedAt)
+	case domainsemantic.WorkItemResultApplicationLockAssetSlotCandidate:
+		return applyWorkItemAssetCandidate(tx, projectID, item, application, actorID, appliedAt)
 	default:
 		return nil
 	}
 }
 
-func applyWorkItemStatusChange(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
-	payload, err := DecodeWorkItemResultJSON(item.ResultJSON)
-	if err != nil {
-		return err
-	}
-	status := fallbackString(payload.Status, payload.TargetStatus)
-	if status == "" {
-		return errors.New("status_change 需要在 result_json.status 中声明目标状态")
-	}
-	return applyWorkItemTargetStatus(tx, projectID, item, item.TargetType, status, actorID, appliedAt)
-}
-
-func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
-	if item.TargetType != "asset_slot" {
-		return errors.New("lock_asset_candidate 只能应用到 asset_slot 任务")
-	}
-	payload, err := DecodeWorkItemResultJSON(item.ResultJSON)
-	if err != nil {
-		return err
-	}
-	if payload.AssetSlotCandidateID == 0 {
-		return errors.New("lock_asset_candidate 需要 result_json.asset_slot_candidate_id")
-	}
+func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkItem, application domainsemantic.WorkItemResultApplication, actorID *uint, appliedAt string) error {
 	var candidate model.AssetSlotCandidate
-	if err := tx.Preload("CandidateAssetSlot").Where("project_id = ?", projectID).First(&candidate, payload.AssetSlotCandidateID).Error; err != nil {
+	if err := tx.Preload("CandidateAssetSlot").Where("project_id = ?", projectID).First(&candidate, application.AssetSlotCandidateID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("素材候选不存在")
 		}
@@ -89,7 +67,7 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 		ProjectID:     projectID,
 		CandidateType: domainsemantic.CandidateDecisionTypeAssetSlotCandidate,
 		CandidateID:   &candidateID,
-		TargetType:    "asset_slot",
+		TargetType:    domainsemantic.WorkItemTargetTypeAssetSlot,
 		TargetID:      &targetID,
 		Decision:      domainsemantic.CandidateDecisionAccept,
 		Status:        domainsemantic.CandidateDecisionStatusApplied,
@@ -112,7 +90,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 		return errors.New("任务结果类型与目标类型不匹配")
 	}
 	switch targetType {
-	case "content_unit":
+	case domainsemantic.WorkItemTargetTypeContentUnit:
 		var target model.ContentUnit
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
@@ -121,7 +99,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
-	case "keyframe":
+	case domainsemantic.WorkItemTargetTypeKeyframe:
 		var target model.Keyframe
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
@@ -130,7 +108,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
-	case "asset_slot":
+	case domainsemantic.WorkItemTargetTypeAssetSlot:
 		var target model.AssetSlot
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
@@ -139,7 +117,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 		if err := saveCoreEntityWithRelations(tx, &target); err != nil {
 			return err
 		}
-	case "delivery_version":
+	case domainsemantic.WorkItemTargetTypeDeliveryVersion:
 		var target model.DeliveryVersion
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err

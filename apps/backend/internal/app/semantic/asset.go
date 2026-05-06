@@ -195,11 +195,11 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 			ProjectID:   projectID,
 			AssetSlotID: input.AssetSlotID,
 			ResourceID:  *input.ResourceID,
-			SourceType:  fallbackString(input.SourceType, "manual"),
+			SourceType:  input.SourceType,
 			SourceID:    input.SourceID,
 			UserID:      userID,
 			Score:       input.Score,
-			Note:        fallbackString(input.Note, "由素材库加入"),
+			Note:        input.Note,
 			Slot:        "candidate",
 		})
 		if err != nil {

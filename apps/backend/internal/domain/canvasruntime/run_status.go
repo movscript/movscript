@@ -1,6 +1,7 @@
 package canvasruntime
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -24,6 +25,38 @@ const (
 	CanvasOutputStatusApplied  = "applied"
 	CanvasOutputStatusRejected = "rejected"
 )
+
+func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) model.CanvasRun {
+	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := BuildRunSnapshot(cv)
+	rawInputValues := "{}"
+	if inputValues != nil {
+		if b, err := json.Marshal(inputValues); err == nil {
+			rawInputValues = string(b)
+		}
+	}
+	run := model.CanvasRun{
+		CanvasID:          cv.ID,
+		InputValues:       rawInputValues,
+		GraphSnapshot:     snapshot,
+		SnapshotHash:      snapshotHash,
+		SnapshotNodeCount: snapshotNodeCount,
+		SnapshotEdgeCount: snapshotEdgeCount,
+	}
+	StartCanvasRun(&run, startedAt)
+	return run
+}
+
+func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) model.CanvasTask {
+	return model.CanvasTask{
+		CanvasNodeID: node.ID,
+		CanvasRunID:  runID,
+		NodeID:       node.NodeID,
+		NodeLabel:    node.Label,
+		NodeType:     node.Type,
+		Status:       CanvasTaskStatusPending,
+		InputValues:  inputValues,
+	}
+}
 
 func StartCanvasRun(run *model.CanvasRun, startedAt time.Time) {
 	run.Status = CanvasRunStatusRunning

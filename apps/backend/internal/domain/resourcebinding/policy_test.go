@@ -68,6 +68,34 @@ func TestNormalizeCreateInputDefaults(t *testing.T) {
 	}
 }
 
+func TestNewBindingAppliesNormalizedCreateInput(t *testing.T) {
+	sortOrder := 4
+	sourceID := uint(5)
+	createdBy := uint(6)
+	binding := NewBinding(CreateInput{
+		ProjectID:    1,
+		ResourceID:   2,
+		OwnerType:    "Asset-Slot",
+		OwnerID:      3,
+		Role:         "Output",
+		Slot:         " result ",
+		SortOrder:    &sortOrder,
+		SourceType:   "Canvas",
+		SourceID:     &sourceID,
+		CreatedByID:  &createdBy,
+		MetadataJSON: " {} ",
+	})
+	if binding.OwnerType != OwnerTypeAssetSlot || binding.Role != RoleOutput || binding.Slot != "result" || binding.Version != 1 {
+		t.Fatalf("unexpected binding identity: %+v", binding)
+	}
+	if binding.SortOrder != sortOrder || binding.Status != StatusDraft || binding.SourceType != SourceTypeCanvas || binding.MetadataJSON != "{}" {
+		t.Fatalf("unexpected binding defaults: %+v", binding)
+	}
+	if binding.SourceID == nil || *binding.SourceID != sourceID || binding.CreatedByID == nil || *binding.CreatedByID != createdBy {
+		t.Fatalf("unexpected binding pointers: %+v", binding)
+	}
+}
+
 func TestValidateCreateInputRejectsUnknownOwner(t *testing.T) {
 	input := CreateInput{
 		ProjectID:  1,

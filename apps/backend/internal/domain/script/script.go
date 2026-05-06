@@ -7,13 +7,33 @@ import (
 )
 
 const ScriptVersionStatusActive = "active"
+const ScriptSourceTypeRaw = "raw"
+
+func NewInitialVersion(item model.Script, createdByID *uint) model.ScriptVersion {
+	sourceType := item.SourceType
+	if sourceType == "" {
+		sourceType = ScriptSourceTypeRaw
+	}
+	return model.ScriptVersion{
+		ProjectID:     item.ProjectID,
+		ScriptID:      item.ID,
+		VersionNumber: 1,
+		Title:         item.Title,
+		SourceType:    sourceType,
+		Content:       item.Content,
+		RawSource:     item.RawSource,
+		Summary:       item.Summary,
+		Status:        ScriptVersionStatusActive,
+		CreatedByID:   createdByID,
+	}
+}
 
 func NormalizeDefaults(item *model.Script) {
 	if item.ScriptType == "" {
 		item.ScriptType = "uncategorized"
 	}
 	if item.SourceType == "" {
-		item.SourceType = "raw"
+		item.SourceType = ScriptSourceTypeRaw
 	}
 	if item.Version == 0 {
 		item.Version = 1

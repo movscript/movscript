@@ -70,25 +70,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput, userID uint) (m
 		return created, false, err
 	}
 
-	binding = model.ResourceBinding{
-		ProjectID:    input.ProjectID,
-		ResourceID:   input.ResourceID,
-		OwnerType:    input.OwnerType,
-		OwnerID:      input.OwnerID,
-		Role:         input.Role,
-		Slot:         input.Slot,
-		SortOrder:    0,
-		Version:      input.Version,
-		IsPrimary:    input.IsPrimary,
-		Status:       input.Status,
-		SourceType:   input.SourceType,
-		SourceID:     input.SourceID,
-		MetadataJSON: input.MetadataJSON,
-		CreatedByID:  input.CreatedByID,
-	}
-	if input.SortOrder != nil {
-		binding.SortOrder = *input.SortOrder
-	}
+	binding = domainbinding.NewBinding(input)
 	if err := s.repo.CreateBinding(ctx, &binding); err != nil {
 		return binding, false, err
 	}

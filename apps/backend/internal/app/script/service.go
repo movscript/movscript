@@ -157,21 +157,7 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 		}
 		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, updates)
 	}
-	version = model.ScriptVersion{
-		ProjectID:     item.ProjectID,
-		ScriptID:      item.ID,
-		VersionNumber: 1,
-		Title:         item.Title,
-		SourceType:    item.SourceType,
-		Content:       item.Content,
-		RawSource:     item.RawSource,
-		Summary:       item.Summary,
-		Status:        domainscript.ScriptVersionStatusActive,
-		CreatedByID:   createdByID,
-	}
-	if version.SourceType == "" {
-		version.SourceType = "raw"
-	}
+	version = domainscript.NewInitialVersion(*item, createdByID)
 	return s.repo.CreateScriptVersionWithRelations(ctx, &version)
 }
 

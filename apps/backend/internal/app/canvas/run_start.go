@@ -2,7 +2,6 @@ package canvas
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
@@ -14,14 +13,7 @@ func (h *Service) StartNode(ctx context.Context, user *model.User, cv model.Canv
 	if err != nil {
 		return model.CanvasTask{}, err
 	}
-	task := model.CanvasTask{
-		CanvasNodeID: node.ID,
-		NodeID:       node.NodeID,
-		NodeLabel:    node.Label,
-		NodeType:     node.Type,
-		Status:       canvasruntime.CanvasTaskStatusPending,
-		InputValues:  canvasruntime.MarshalPortInputs(inputs),
-	}
+	task := canvasruntime.NewCanvasTask(node, nil, canvasruntime.MarshalPortInputs(inputs))
 	if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 		return model.CanvasTask{}, err
 	}
@@ -37,24 +29,8 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 	if err := canvasruntime.ValidateRequiredInputs(cv, inputValues); err != nil {
 		return model.CanvasRun{}, nil, err
 	}
-	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := canvasruntime.BuildRunSnapshot(cv)
-
-	rawInputValues := "{}"
-	if inputValues != nil {
-		if b, err := json.Marshal(inputValues); err == nil {
-			rawInputValues = string(b)
-		}
-	}
 	now := time.Now()
-	run := model.CanvasRun{
-		CanvasID:          cv.ID,
-		InputValues:       rawInputValues,
-		GraphSnapshot:     snapshot,
-		SnapshotHash:      snapshotHash,
-		SnapshotNodeCount: snapshotNodeCount,
-		SnapshotEdgeCount: snapshotEdgeCount,
-	}
-	canvasruntime.StartCanvasRun(&run, now)
+	run := canvasruntime.NewCanvasRun(cv, inputValues, now)
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, nil, err
 	}
@@ -65,14 +41,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 		if node == nil {
 			continue
 		}
-		task := model.CanvasTask{
-			CanvasNodeID: node.ID,
-			CanvasRunID:  &run.ID,
-			NodeID:       node.NodeID,
-			NodeLabel:    node.Label,
-			NodeType:     node.Type,
-			Status:       canvasruntime.CanvasTaskStatusPending,
-		}
+		task := canvasruntime.NewCanvasTask(*node, &run.ID, "")
 		if err := h.canvasRepo().CreateTask(context.Background(), &task); err != nil {
 			return run, tasks, err
 		}

@@ -77,8 +77,8 @@ func TestNewStoryboardFactoriesApplyDefaults(t *testing.T) {
 		t.Fatalf("unexpected storyboard script defaults: %+v", script)
 	}
 
-	version := NewStoryboardVersion(StoryboardVersionSpec{ProjectID: 1})
-	if version.Source != CandidateDecisionSourceManual || version.Status != ProposalDraftStatusValue {
+	version := NewStoryboardVersion(StoryboardVersionSpec{ProjectID: 1, VersionNumber: 3})
+	if version.Title != "Storyboard v3" || version.Source != CandidateDecisionSourceManual || version.Status != ProposalDraftStatusValue {
 		t.Fatalf("unexpected storyboard version defaults: %+v", version)
 	}
 
@@ -90,7 +90,7 @@ func TestNewStoryboardFactoriesApplyDefaults(t *testing.T) {
 
 func TestNewCreativeFactoriesApplyDefaults(t *testing.T) {
 	ref := NewCreativeReference(CreativeReferenceSpec{ProjectID: 1})
-	if ref.Importance != "supporting" || ref.Status != ProposalDraftStatusValue {
+	if ref.Kind != "character" || ref.Importance != "supporting" || ref.Status != ProposalDraftStatusValue {
 		t.Fatalf("unexpected creative reference defaults: %+v", ref)
 	}
 

@@ -41,17 +41,15 @@ func (s *Service) PatchWorkItem(ctx context.Context, projectID uint, id string, 
 		if !WorkItemInputKeepsAssignment(item, input) {
 			return item, ErrForbidden{Message: "执行人只能更新状态、交付说明和关联产出"}
 		}
-		switch fallbackString(input.Status, item.Status) {
-		case "running", "review":
-		default:
+		if !domainsemantic.WorkItemAssigneeCanAdvanceTo(domainsemantic.WorkItemStatusForPatch(item, input.domainPatch())) {
 			return item, ErrForbidden{Message: "执行人只能将任务推进到进行中或待审核"}
 		}
 	}
-	if !isManager && (input.Status == "done" || input.Status == "cancelled") {
+	if !isManager && domainsemantic.WorkItemStatusRequiresManager(domainsemantic.WorkItemStatusForPatch(item, input.domainPatch())) {
 		return item, ErrForbidden{Message: "只有项目负责人或导演可以完成或取消任务"}
 	}
 	updates := workItemUpdates(item, input)
-	if fallbackString(input.Status, item.Status) == "done" {
+	if domainsemantic.WorkItemPatchCompletes(item, input.domainPatch()) {
 		return s.completeWorkItem(ctx, projectID, &item, updates, &auth.UserID)
 	}
 	if err := s.PatchItem(ctx, &item, updates); err != nil {

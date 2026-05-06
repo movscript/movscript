@@ -453,6 +453,44 @@ func TestAttachAssetSlotCandidateSyncsRelationsWithoutHooks(t *testing.T) {
 	assertRelationWithMetadataExists(t, db, "resource_binding_id", result.ResourceBinding.ID)
 }
 
+func TestAttachAssetSlotCandidateDefaultsManualSourceWithoutCanvasContext(t *testing.T) {
+	db := newWorkflowIOTestDB(t)
+	ctx := context.Background()
+	ownerID := uint(88)
+	slot := model.AssetSlot{
+		ProjectID: 1,
+		OwnerType: "content_unit",
+		OwnerID:   &ownerID,
+		Kind:      "image",
+		Name:      "Primary slot",
+		Status:    "missing",
+	}
+	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "attached.png", FilePath: "/tmp/attached.png"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewEntityIOService(db.Session(&gorm.Session{SkipHooks: true}))
+	result, err := svc.AttachAssetSlotCandidate(ctx, AttachAssetSlotCandidateInput{
+		ProjectID:   1,
+		AssetSlotID: slot.ID,
+		ResourceID:  resource.ID,
+		UserID:      2,
+	})
+	if err != nil {
+		t.Fatalf("attach candidate: %v", err)
+	}
+	if result.Candidate.SourceType != "manual" {
+		t.Fatalf("candidate source type = %q, want manual", result.Candidate.SourceType)
+	}
+	if result.ResourceBinding.SourceType != "manual" {
+		t.Fatalf("binding source type = %q, want manual", result.ResourceBinding.SourceType)
+	}
+}
+
 func newWorkflowIOTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "workflowio.db")), &gorm.Config{

@@ -1,6 +1,10 @@
 package semantic
 
-import "github.com/movscript/movscript/internal/domain/model"
+import (
+	"strconv"
+
+	"github.com/movscript/movscript/internal/domain/model"
+)
 
 type SegmentSpec struct {
 	ProjectID       uint
@@ -438,7 +442,7 @@ func NewStoryboardVersion(spec StoryboardVersionSpec) model.StoryboardVersion {
 		StoryboardScriptID: spec.StoryboardScriptID,
 		ParentVersionID:    spec.ParentVersionID,
 		VersionNumber:      spec.VersionNumber,
-		Title:              spec.Title,
+		Title:              FallbackString(spec.Title, "Storyboard v"+strconv.Itoa(spec.VersionNumber)),
 		Source:             FallbackString(spec.Source, CandidateDecisionSourceManual),
 		Status:             SemanticDraftStatus(spec.Status),
 		SnapshotJSON:       spec.SnapshotJSON,
@@ -504,7 +508,7 @@ func NewCreativeReference(spec CreativeReferenceSpec) model.CreativeReference {
 		SourceScriptID:   spec.SourceScriptID,
 		SourceAnalysisID: spec.SourceAnalysisID,
 		LegacySettingID:  spec.LegacySettingID,
-		Kind:             spec.Kind,
+		Kind:             FallbackString(spec.Kind, "character"),
 		Name:             spec.Name,
 		Alias:            spec.Alias,
 		Description:      spec.Description,

@@ -57,6 +57,21 @@ type MarketItem struct {
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
+func TemplateCanvas(ownerID uint, tpl TemplateDef, name string, projectID *uint, stage string) model.Canvas {
+	tagsRaw, _ := json.Marshal(tpl.Tags)
+	return model.Canvas{
+		OwnerID:      ownerID,
+		Name:         name,
+		Description:  tpl.Description,
+		CanvasType:   "workflow",
+		ProjectID:    projectID,
+		Stage:        stage,
+		Visibility:   "private",
+		WorkflowKey:  "template:" + tpl.Key,
+		WorkflowTags: string(tagsRaw),
+	}
+}
+
 func BuiltinTemplates() []TemplateDef {
 	return []TemplateDef{
 		{

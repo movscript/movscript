@@ -7,6 +7,7 @@ export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
 export interface AgentPanelDraftPayload {
   requestId?: string
   message: string
+  displayMessage?: string
   title?: string
   mode?: AgentWorkMode
   newConversation?: boolean

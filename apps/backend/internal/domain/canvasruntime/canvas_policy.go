@@ -26,6 +26,14 @@ type CanvasCreateInput struct {
 	RefID       *uint
 }
 
+type AssetSlotTargetNodeInput struct {
+	CanvasID      uint
+	AssetSlotID   uint
+	AssetKind     string
+	AssetName     string
+	FallbackLabel string
+}
+
 func NormalizeCreateInput(input *CanvasCreateInput) error {
 	if input.CanvasType == "" {
 		input.CanvasType = "inspiration"
@@ -106,4 +114,51 @@ func WorkflowBootstrapGraph(canvasID uint) ([]model.CanvasNode, model.CanvasEdge
 	}
 	edge := model.CanvasEdge{CanvasID: canvasID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
 	return nodes, edge
+}
+
+func NewAssetSlotTargetNode(input AssetSlotTargetNodeInput) model.CanvasNode {
+	title := strings.TrimSpace(input.AssetName)
+	if title == "" {
+		title = strings.TrimSpace(input.FallbackLabel)
+	}
+	if title == "" {
+		title = "素材位"
+	}
+	portType := AssetSlotCanvasPortType(input.AssetKind)
+	data, _ := json.Marshal(map[string]any{
+		"source":        "manual",
+		"label":         title,
+		"entityKind":    "asset_slot",
+		"entityId":      input.AssetSlotID,
+		"entityTitle":   title,
+		"assetSlotKind": input.AssetKind,
+		"textContent":   title,
+		"inputPorts": []map[string]any{
+			{"id": "candidates", "type": portType, "label": "候选集", "maxCount": 12},
+			{"id": "candidate_item", "type": portType, "label": "单个候选"},
+		},
+		"outputPorts": []map[string]any{
+			{"id": "reference", "type": "resource", "label": "参考图"},
+			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
+			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
+		},
+	})
+	return model.CanvasNode{
+		CanvasID: input.CanvasID,
+		NodeID:   "asset-slot-target",
+		Type:     "entity_card",
+		Label:    title,
+		PosX:     520,
+		PosY:     180,
+		Data:     string(data),
+	}
+}
+
+func AssetSlotCanvasPortType(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "image", "video", "audio", "text":
+		return strings.ToLower(strings.TrimSpace(kind))
+	default:
+		return "resource"
+	}
 }

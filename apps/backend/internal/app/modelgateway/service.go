@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
@@ -123,22 +124,17 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 	if err := s.policy.EnsureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
-	scopes := input.AllowedScopes
-	if len(scopes) == 0 {
-		scopes = []string{"model:chat"}
-	}
 	rawKey := GenerateAPIKey()
-	key := model.GatewayAPIKey{
-		Name:            strings.TrimSpace(input.Name),
+	key := domainmodelgateway.NewAPIKey(domainmodelgateway.NewAPIKeySpec{
+		Name:            input.Name,
 		KeyPrefix:       KeyPrefix(rawKey),
 		KeyHash:         HashAPIKey(rawKey),
 		OwnerUserID:     input.OwnerUserID,
 		OrgID:           input.OrgID,
 		ProjectID:       input.ProjectID,
-		AllowedModelIDs: mustJSONString(input.AllowedModelIDs),
-		AllowedScopes:   mustJSONString(scopes),
-		IsEnabled:       true,
-	}
+		AllowedModelIDs: input.AllowedModelIDs,
+		AllowedScopes:   input.AllowedScopes,
+	})
 	applyAPIKeyCommercialCreateFields(&key, input.Commercial)
 	if err := s.repo.CreateAPIKey(ctx, &key); err != nil {
 		return CreateAPIKeyResult{}, err

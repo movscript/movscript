@@ -1149,9 +1149,9 @@ function AssetPreparationWorkbench() {
         ) : isError ? (
           <EmptyWorkbenchState title="素材数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。 " />
         ) : (
-          <div className="space-y-5">
+          <div className="asset-prep-workbench space-y-5">
             <MetricStrip metrics={metrics} />
-            <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+            <div className="asset-prep-layout grid gap-5">
               <SpecializedQueue
                 items={rows.map((row) => ({
                   id: row.id,
@@ -1188,7 +1188,7 @@ function AssetPreparationWorkbench() {
                   <CandidateComparison rows={candidateRows} primaryLabel="可用性" emptyText="当前素材需求还没有候选素材" />
                 </WorkbenchPanel>
               </div>
-              <div className="min-w-0 space-y-5">
+              <div className="asset-prep-side min-w-0 space-y-5">
                 <WorkbenchPanel title="素材验收标准" icon={ShieldCheck}>
                   <GateChecklist rows={standards} />
                 </WorkbenchPanel>

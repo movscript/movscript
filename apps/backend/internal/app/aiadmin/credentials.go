@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
@@ -49,18 +50,15 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 	if def != nil {
 		baseURL = def.DefaultBaseURL
 	}
-	if v := input.Credentials["base_url"]; v != "" {
-		baseURL = v
-	}
+	baseURL = domainaiadmin.ResolveBaseURL(baseURL, input.Credentials)
 
-	cred := model.AICredential{
+	cred := domainaiadmin.NewCredential(domainaiadmin.NewCredentialSpec{
 		AdapterType:     input.AdapterType,
 		DisplayName:     input.DisplayName,
 		BaseURL:         baseURL,
-		IsEnabled:       true,
 		FilesAPIEnabled: input.FilesAPIEnabled,
 		FilesAPIBaseURL: input.FilesAPIBaseURL,
-	}
+	})
 	if input.FilesAPIKey != "" {
 		encFilesKey, _, err := s.registry.EncryptRawKey(input.FilesAPIKey)
 		if err != nil {

@@ -187,6 +187,29 @@ func NormalizeCreateInput(input *CreateInput) {
 	input.MetadataJSON = strings.TrimSpace(input.MetadataJSON)
 }
 
+func NewBinding(input CreateInput) model.ResourceBinding {
+	NormalizeCreateInput(&input)
+	binding := model.ResourceBinding{
+		ProjectID:    input.ProjectID,
+		ResourceID:   input.ResourceID,
+		OwnerType:    input.OwnerType,
+		OwnerID:      input.OwnerID,
+		Role:         input.Role,
+		Slot:         input.Slot,
+		Version:      input.Version,
+		IsPrimary:    input.IsPrimary,
+		Status:       input.Status,
+		SourceType:   input.SourceType,
+		SourceID:     input.SourceID,
+		MetadataJSON: input.MetadataJSON,
+		CreatedByID:  input.CreatedByID,
+	}
+	if input.SortOrder != nil {
+		binding.SortOrder = *input.SortOrder
+	}
+	return binding
+}
+
 func ValidateCreateInput(input CreateInput) error {
 	switch {
 	case input.ProjectID == 0 || input.ResourceID == 0 || input.OwnerID == 0:

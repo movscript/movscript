@@ -62,6 +62,37 @@ func TestWorkItemPatchKeepsAssignmentAllowsStatusAndSubmissionChanges(t *testing
 	}
 }
 
+func TestWorkItemStatusRulesForPatch(t *testing.T) {
+	item := model.WorkItem{Status: WorkItemStatusTodo}
+	patch := WorkItemPatch{Status: WorkItemStatusReview}
+
+	got := WorkItemStatusForPatch(item, patch)
+	if got != WorkItemStatusReview {
+		t.Fatalf("status for patch = %q, want %q", got, WorkItemStatusReview)
+	}
+	if !WorkItemAssigneeCanAdvanceTo(got) {
+		t.Fatalf("expected assignee to advance to %q", got)
+	}
+	if WorkItemStatusRequiresManager(got) {
+		t.Fatalf("did not expect manager-only status for %q", got)
+	}
+	if WorkItemPatchCompletes(item, patch) {
+		t.Fatal("review patch should not complete the item")
+	}
+}
+
+func TestWorkItemStatusRulesForDonePatch(t *testing.T) {
+	item := model.WorkItem{Status: WorkItemStatusReview}
+	patch := WorkItemPatch{Status: WorkItemStatusDone}
+
+	if !WorkItemStatusRequiresManager(WorkItemStatusForPatch(item, patch)) {
+		t.Fatal("done status should require manager")
+	}
+	if !WorkItemPatchCompletes(item, patch) {
+		t.Fatal("done patch should complete the item")
+	}
+}
+
 func TestDecodeWorkItemResultJSONParsesAssetSlotCandidate(t *testing.T) {
 	payload, err := DecodeWorkItemResultJSON(`{"asset_slot_candidate_id":42}`)
 	if err != nil {
@@ -69,6 +100,54 @@ func TestDecodeWorkItemResultJSONParsesAssetSlotCandidate(t *testing.T) {
 	}
 	if payload.AssetSlotCandidateID != 42 {
 		t.Fatalf("asset slot candidate id = %d, want 42", payload.AssetSlotCandidateID)
+	}
+}
+
+func TestWorkItemResultApplicationForStatusChange(t *testing.T) {
+	item := model.WorkItem{
+		TargetType: WorkItemTargetTypeContentUnit,
+		ResultType: WorkItemResultStatusChange,
+		ResultJSON: `{"target_status":"confirmed"}`,
+	}
+
+	app, err := WorkItemResultApplicationFor(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app.Kind != WorkItemResultApplicationTargetStatus || app.TargetType != WorkItemTargetTypeContentUnit || app.TargetStatus != "confirmed" {
+		t.Fatalf("unexpected application: %+v", app)
+	}
+}
+
+func TestWorkItemResultApplicationForPresetTargetStatuses(t *testing.T) {
+	keyframeApp, err := WorkItemResultApplicationFor(model.WorkItem{ResultType: WorkItemResultAcceptKeyframe})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if keyframeApp.TargetType != WorkItemTargetTypeKeyframe || keyframeApp.TargetStatus != KeyframeStatusAccepted {
+		t.Fatalf("unexpected keyframe application: %+v", keyframeApp)
+	}
+
+	deliveryApp, err := WorkItemResultApplicationFor(model.WorkItem{ResultType: WorkItemResultApproveDeliveryVersion})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deliveryApp.TargetType != WorkItemTargetTypeDeliveryVersion || deliveryApp.TargetStatus != DeliveryVersionStatusApprove {
+		t.Fatalf("unexpected delivery application: %+v", deliveryApp)
+	}
+}
+
+func TestWorkItemResultApplicationForAssetCandidate(t *testing.T) {
+	app, err := WorkItemResultApplicationFor(model.WorkItem{
+		TargetType: WorkItemTargetTypeAssetSlot,
+		ResultType: WorkItemResultLockAssetCandidate,
+		ResultJSON: `{"asset_slot_candidate_id":42}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app.Kind != WorkItemResultApplicationLockAssetSlotCandidate || app.AssetSlotCandidateID != 42 {
+		t.Fatalf("unexpected asset candidate application: %+v", app)
 	}
 }
 

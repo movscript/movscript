@@ -2,7 +2,6 @@ package semantic
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
@@ -140,7 +139,7 @@ func (s *Service) CreateStoryboardVersion(ctx context.Context, projectID uint, i
 		StoryboardScriptID: input.StoryboardScriptID,
 		ParentVersionID:    input.ParentVersionID,
 		VersionNumber:      versionNumber,
-		Title:              fallbackString(input.Title, "Storyboard v"+strconv.Itoa(versionNumber)),
+		Title:              input.Title,
 		Source:             input.Source,
 		Status:             input.Status,
 		SnapshotJSON:       input.SnapshotJSON,

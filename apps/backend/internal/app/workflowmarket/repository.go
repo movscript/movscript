@@ -2,7 +2,6 @@ package workflowmarket
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
@@ -40,18 +39,7 @@ func (r *gormRepository) FindWorkflowCanvasesByKey(ctx context.Context, key stri
 }
 
 func (r *gormRepository) CreateCanvasFromTemplate(ctx context.Context, ownerID uint, tpl domainmarket.TemplateDef, name string, projectID *uint, stage string) (model.Canvas, error) {
-	tagsRaw, _ := json.Marshal(tpl.Tags)
-	cv := model.Canvas{
-		OwnerID:      ownerID,
-		Name:         name,
-		Description:  tpl.Description,
-		CanvasType:   "workflow",
-		ProjectID:    projectID,
-		Stage:        stage,
-		Visibility:   "private",
-		WorkflowKey:  "template:" + tpl.Key,
-		WorkflowTags: string(tagsRaw),
-	}
+	cv := domainmarket.TemplateCanvas(ownerID, tpl, name, projectID, stage)
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Create(&cv).Error; err != nil {

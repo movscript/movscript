@@ -304,6 +304,22 @@ function makeTraceId() {
   return `trace_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
+const DEBUG_TEXT_MAX_CHARS = 4000
+
+function compactDebugValue(value: unknown, maxChars = DEBUG_TEXT_MAX_CHARS): unknown {
+  if (typeof value === 'string') {
+    if (value.length <= maxChars) return value
+    return `${value.slice(0, maxChars)}\n...[truncated ${value.length - maxChars} chars for debug preview]`
+  }
+  if (Array.isArray(value)) return value.map((item) => compactDebugValue(item, maxChars))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, compactDebugValue(item, maxChars)]),
+    )
+  }
+  return value
+}
+
 function compactProject(project: Project | null): AgentSendDraft['context']['project'] | undefined {
   if (!project) return undefined
   return {
@@ -434,7 +450,10 @@ function buildDebugHttpRequests(options: {
       url: `${baseURL}/threads/${resolvedThreadId}`,
     },
   )
-  return requests
+  return requests.map((request) => ({
+    ...request,
+    ...(request.body !== undefined ? { body: compactDebugValue(request.body) } : {}),
+  }))
 }
 
 function LocalAgentWorkflow({
@@ -1870,6 +1889,7 @@ function ChatView({
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
   const [localAgentThreadIds, setLocalAgentThreadIds] = useState<Record<string, string>>(() => readLocalAgentThreadIds())
+  const threadRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -1886,7 +1906,11 @@ function ChatView({
     refetchInterval: localRuntimeEnabled ? 5000 : false,
   })
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [conv.messages, loading, activeLocalRun])
+  useEffect(() => {
+    const thread = threadRef.current
+    if (!thread) return
+    thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' })
+  }, [conv.messages, loading, activeLocalRun])
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
   // Auto-clear stale modelId
   useEffect(() => {
@@ -2074,21 +2098,24 @@ function ChatView({
     }
   }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
 
-  const buildSendDraft = useCallback(async (options: {
-    includeRuntimePreview?: boolean
-    message?: string
-    title?: string
-    projectId?: number
-    clientInput?: AgentClientInput
-    agentManifest?: AgentManifest
-    requestId?: string
-    timeoutMs?: number
-  } = {}): Promise<AgentSendDraft> => {
-    const text = (options.message ?? input).trim()
-    const sentAttachments = attachments
-    const visibleUserContent = text || t('agents.chat.attachmentOnlyMessage')
-    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
-    const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
+	  const buildSendDraft = useCallback(async (options: {
+	    includeRuntimePreview?: boolean
+	    message?: string
+	    displayMessage?: string
+	    title?: string
+	    projectId?: number
+	    clientInput?: AgentClientInput
+	    agentManifest?: AgentManifest
+	    requestId?: string
+	    timeoutMs?: number
+	    omitDebugArtifacts?: boolean
+	  } = {}): Promise<AgentSendDraft> => {
+	    const text = (options.message ?? input).trim()
+	    const sentAttachments = attachments
+	    const visibleText = (options.displayMessage ?? text).trim()
+	    const visibleUserContent = visibleText || t('agents.chat.attachmentOnlyMessage')
+	    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
+	    const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
     const clientInput = options.clientInput ?? buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
@@ -2105,11 +2132,12 @@ function ChatView({
       includeRecentResources: settings.includeRecentResources,
     })
     const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
-    const messages = [
-      { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
-      ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user' as const, content: enrichedUserContent },
-    ]
+	    const messages = [
+	      { role: 'system' as const, content: [systemPrompt, agentContext].filter(Boolean).join('\n\n') },
+	      ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
+	      { role: 'user' as const, content: enrichedUserContent },
+	    ]
+	    const debugMessages = options.omitDebugArtifacts ? [] : messages
     const warnings: string[] = []
     const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
     const localRuntime: AgentSendDraft['localRuntime'] = {
@@ -2177,18 +2205,20 @@ function ChatView({
         ...(compactProject(currentProject) ? { project: compactProject(currentProject) } : {}),
         recentResources: recentResources.slice(0, 8).map(compactResource),
       },
-      outbound: {
-        systemPrompt,
-        agentContext,
-        enrichedUserContent,
-        messages,
-      },
-      httpRequests: buildDebugHttpRequests({
-        modelId,
-        ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
-        messages,
-        localRuntime,
-      }),
+	      outbound: {
+	        systemPrompt,
+	        agentContext,
+	        enrichedUserContent,
+	        messages: debugMessages,
+	      },
+	      httpRequests: options.omitDebugArtifacts
+	        ? []
+	        : buildDebugHttpRequests({
+	          modelId,
+	          ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
+	          messages,
+	          localRuntime,
+	        }),
       localRuntime,
       warnings,
     }
@@ -2398,7 +2428,7 @@ function ChatView({
   }, [pendingSendDraft, loading, commitSendDraft])
 
   return (
-    <AgentMain>
+    <AgentMain className="ai-agent-panel-main">
       <AgentDebugPreviewDialog
         draft={pendingSendDraft}
         sending={loading}
@@ -2407,7 +2437,7 @@ function ChatView({
       />
       <AgentHeader>
         <AgentHeaderContent>
-          <AgentTitle>{conv.title}</AgentTitle>
+          <AgentTitle className="ai-agent-panel-conversation-title">{conv.title}</AgentTitle>
           <AgentSubtitle>Local Agent Runtime</AgentSubtitle>
         </AgentHeaderContent>
         <AgentHeaderActions>
@@ -2421,7 +2451,7 @@ function ChatView({
       </AgentHeader>
 
       <AgentBody>
-        <AgentThread>
+        <AgentThread ref={threadRef}>
           {conv.messages.length === 0 && (
             <AgentEmpty className="min-h-0 py-6">
               <p className="text-sm font-medium text-foreground">
@@ -2474,154 +2504,168 @@ function ChatView({
         </AgentThread>
       </AgentBody>
 
-      <div className="min-w-0 shrink-0 space-y-2 px-3 py-2.5">
-        <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
-          <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
-            <span className={cn('min-w-0 truncate font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
-              {localAgentOnline ? 'Local Runtime online' : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting Local Runtime' : 'Checking Local Runtime') : 'Local Runtime offline')}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => startLocalAgent()}
-              disabled={checkingLocalAgent || startingLocalAgent}
-              className="h-5 px-1 text-[10px] text-muted-foreground"
-            >
-              {checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting' : 'Checking') : (canAutoStartLocalAgent ? 'Start' : 'Refresh')}
-            </Button>
-          </div>
-          {!localAgentOnline && (
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
-              {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
-            </p>
-          )}
-          {localAgentErrorMessage && (
-            <p className="line-clamp-2 text-[10px] leading-relaxed text-destructive">
-              {localAgentErrorMessage}
-            </p>
-          )}
-          {localAgentThreadIds[conv.id] && (
-            <p className="truncate text-[10px] text-muted-foreground/70">
-              Thread: <code className="rounded bg-muted px-1 py-0.5">{localAgentThreadIds[conv.id]}</code>
-            </p>
-          )}
-        </div>
-        <ProjectRequirementPanel
-          project={currentProject}
-          projects={projects}
-          loading={loadingProjects}
-          creating={createProject.isPending}
-          onSelect={setCurrentProject}
-          onCreate={(payload) => createProject.mutate(payload)}
-        />
-        {activeModel && (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
-            <Wand2 size={10} />
-            <span className="truncate">{publicModelLabel(activeModel, true)}</span>
-          </div>
-        )}
-        {showContext && (
-          <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={settings.includeProjectContext}
-                  onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
-                  className="h-3 w-3"
-                />
-                {t('agents.chat.projectContext')}
-              </label>
-              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={settings.includeRecentResources}
-                  onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
-                  className="h-3 w-3"
-                />
-                {t('agents.chat.resourceContext')}
-              </label>
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={settings.autoPlan}
-                  onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
-                  className="h-3 w-3"
-                />
-                <span className="truncate">{t('agents.chat.autoPlan')}</span>
-              </label>
-              {debugBeforeSend && (
-                <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
-                  Debug preview
-                </Badge>
-              )}
-              <Select
-                value={settings.permissionMode}
-                onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
+      <div className="ai-agent-panel-footer min-w-0 shrink-0 px-3 py-2.5">
+        <div className="ai-agent-panel-footer-scroll space-y-2">
+          <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
+            <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
+              <span className={cn('min-w-0 truncate font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
+                {localAgentOnline ? 'Local Runtime online' : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting Local Runtime' : 'Checking Local Runtime') : 'Local Runtime offline')}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => startLocalAgent()}
+                disabled={checkingLocalAgent || startingLocalAgent}
+                className="h-5 px-1 text-[10px] text-muted-foreground"
               >
-                <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
-                  <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
-                  <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
-                </SelectContent>
-              </Select>
+                {checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting' : 'Checking') : (canAutoStartLocalAgent ? 'Start' : 'Refresh')}
+              </Button>
             </div>
-            {contextLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {contextLabels.map((label) => (
-                  <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
-                ))}
-              </div>
+            {!localAgentOnline && (
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
+              </p>
+            )}
+            {localAgentErrorMessage && (
+              <p className="line-clamp-2 text-[10px] leading-relaxed text-destructive">
+                {localAgentErrorMessage}
+              </p>
+            )}
+            {localAgentThreadIds[conv.id] && (
+              <p className="truncate text-[10px] text-muted-foreground/70">
+                Thread: <code className="rounded bg-muted px-1 py-0.5">{localAgentThreadIds[conv.id]}</code>
+              </p>
             )}
           </div>
-        )}
-        {attachments.length > 0 && (
-          <div className="grid grid-cols-2 gap-1.5">
-            {attachments.map((attachment) => (
-              <div key={attachment.id} className="relative">
-                <AttachmentPreview attachment={attachment} compact />
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant="secondary"
-                  onClick={() => removeAttachment(attachment.id)}
-                  className="absolute right-1 top-1 h-5 w-5 text-muted-foreground hover:text-destructive"
-                >
-                  <X size={10} />
-                </Button>
+          <ProjectRequirementPanel
+            project={currentProject}
+            projects={projects}
+            loading={loadingProjects}
+            creating={createProject.isPending}
+            onSelect={setCurrentProject}
+            onCreate={(payload) => createProject.mutate(payload)}
+          />
+          {activeModel && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+              <Wand2 size={10} />
+              <span className="truncate">{publicModelLabel(activeModel, true)}</span>
+            </div>
+          )}
+          {showContext && (
+            <div className="ai-agent-panel-context-card rounded-md border border-border bg-background/60 p-2 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={settings.includeProjectContext}
+                    onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
+                    className="h-3 w-3"
+                  />
+                  {t('agents.chat.projectContext')}
+                </label>
+                <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={settings.includeRecentResources}
+                    onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
+                    className="h-3 w-3"
+                  />
+                  {t('agents.chat.resourceContext')}
+                </label>
               </div>
-            ))}
-          </div>
-        )}
-        {showContext && (
-          <>
-            <DraftPanel
-              project={currentProject}
-              threadId={localAgentThreadIds[conv.id]}
-              online={localAgentOnline}
-              onRunUpdate={setActiveLocalRun}
-              onAppliedRun={(run, thread) => {
-                const content = formatLocalAgentAssistantContent(run, thread)
-                addMessage(userId, conv.id, {
-                  role: 'assistant',
-                  content,
-                  meta: { contextLabels: [`run ${run.status}`, 'Draft apply'], localRunActivity: compactRunActivity(run) },
-                })
-              }}
-            />
-            <MemoryPanel
-              project={currentProject}
-              threadId={localAgentThreadIds[conv.id]}
-              online={localAgentOnline}
-            />
-          </>
-        )}
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoPlan}
+                    onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
+                    className="h-3 w-3"
+                  />
+                  <span className="truncate">{t('agents.chat.autoPlan')}</span>
+                </label>
+                {debugBeforeSend && (
+                  <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+                    Debug preview
+                  </Badge>
+                )}
+                <Select
+                  value={settings.permissionMode}
+                  onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
+                >
+                  <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
+                    <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
+                    <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {contextLabels.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {contextLabels.map((label) => (
+                    <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {attachments.length > 0 && (
+            <div className="grid grid-cols-2 gap-1.5">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="relative">
+                  <AttachmentPreview attachment={attachment} compact />
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="secondary"
+                    onClick={() => removeAttachment(attachment.id)}
+                    className="absolute right-1 top-1 h-5 w-5 text-muted-foreground hover:text-destructive"
+                  >
+                    <X size={10} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showContext && (
+            <div className="ai-agent-panel-context-stack">
+              <DraftPanel
+                project={currentProject}
+                threadId={localAgentThreadIds[conv.id]}
+                online={localAgentOnline}
+                onRunUpdate={setActiveLocalRun}
+                onAppliedRun={(run, thread) => {
+                  const content = formatLocalAgentAssistantContent(run, thread)
+                  addMessage(userId, conv.id, {
+                    role: 'assistant',
+                    content,
+                    meta: { contextLabels: [`run ${run.status}`, 'Draft apply'], localRunActivity: compactRunActivity(run) },
+                  })
+                }}
+              />
+              <MemoryPanel
+                project={currentProject}
+                threadId={localAgentThreadIds[conv.id]}
+                online={localAgentOnline}
+              />
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => setShowContext((v) => !v)}
+            className="h-6 shrink-0 px-1 text-[10px] text-muted-foreground"
+          >
+            <Eye size={10} /> {showContext ? t('agents.chat.hideContext') : t('agents.chat.showContext')}
+          </Button>
+          <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">{t('agents.chat.inputHint')}</p>
+        </div>
         <AgentComposer
           onSubmit={(e) => {
             e.preventDefault()
@@ -2675,18 +2719,6 @@ function ChatView({
             </AgentComposerSubmit>
           </AgentComposerToolbar>
         </AgentComposer>
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => setShowContext((v) => !v)}
-            className="h-6 shrink-0 px-1 text-[10px] text-muted-foreground"
-          >
-            <Eye size={10} /> {showContext ? t('agents.chat.hideContext') : t('agents.chat.showContext')}
-          </Button>
-          <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">{t('agents.chat.inputHint')}</p>
-        </div>
       </div>
     </AgentMain>
   )

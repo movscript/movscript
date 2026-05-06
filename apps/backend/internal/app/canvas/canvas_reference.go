@@ -78,23 +78,8 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 	if err := canvasruntime.ValidateRequiredInputs(ref, inputValues); err != nil {
 		return model.CanvasRun{}, err
 	}
-	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := canvasruntime.BuildRunSnapshot(ref)
-	rawInputValues := "{}"
-	if len(inputValues) > 0 {
-		if b, err := json.Marshal(inputValues); err == nil {
-			rawInputValues = string(b)
-		}
-	}
 	now := time.Now()
-	run := model.CanvasRun{
-		CanvasID:          ref.ID,
-		InputValues:       rawInputValues,
-		GraphSnapshot:     snapshot,
-		SnapshotHash:      snapshotHash,
-		SnapshotNodeCount: snapshotNodeCount,
-		SnapshotEdgeCount: snapshotEdgeCount,
-	}
-	canvasruntime.StartCanvasRun(&run, now)
+	run := canvasruntime.NewCanvasRun(ref, inputValues, now)
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, err
 	}
@@ -104,14 +89,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 		if node == nil {
 			continue
 		}
-		task := model.CanvasTask{
-			CanvasNodeID: node.ID,
-			CanvasRunID:  &run.ID,
-			NodeID:       node.NodeID,
-			NodeLabel:    node.Label,
-			NodeType:     node.Type,
-			Status:       canvasruntime.CanvasTaskStatusPending,
-		}
+		task := canvasruntime.NewCanvasTask(*node, &run.ID, "")
 		if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 			return run, err
 		}

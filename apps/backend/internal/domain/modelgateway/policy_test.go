@@ -24,6 +24,21 @@ func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 	}
 }
 
+func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
+	key := NewAPIKey(NewAPIKeySpec{
+		Name:        " Test Key ",
+		KeyPrefix:   "mgw_prefix",
+		KeyHash:     "hash",
+		OwnerUserID: 1,
+	})
+	if key.Name != "Test Key" || key.KeyPrefix != "mgw_prefix" || key.KeyHash != "hash" || !key.IsEnabled {
+		t.Fatalf("unexpected key: %+v", key)
+	}
+	if !KeyAllowsScope(&key, DefaultAPIScopeChat) {
+		t.Fatalf("expected default chat scope, got %q", key.AllowedScopes)
+	}
+}
+
 func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
 	orgID := uint(5)
 	projectID := uint(11)

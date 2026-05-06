@@ -14,14 +14,13 @@ var (
 )
 
 type Service struct {
-	db            *gorm.DB
 	repo          repository
 	encryptionKey []byte
 	registry      *ai.Registry
 }
 
 func NewService(db *gorm.DB, encryptionKey []byte, registry *ai.Registry) *Service {
-	return &Service{db: db, repo: newRepository(db), encryptionKey: encryptionKey, registry: registry}
+	return &Service{repo: newRepository(db), encryptionKey: encryptionKey, registry: registry}
 }
 
 type TestResult struct {

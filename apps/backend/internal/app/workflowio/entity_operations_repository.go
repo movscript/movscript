@@ -38,10 +38,7 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 	if input.ResourceID == 0 {
 		return result, fmt.Errorf("resource_id is required")
 	}
-	sourceType := strings.TrimSpace(input.SourceType)
-	if sourceType == "" {
-		sourceType = domainresourcebinding.SourceTypeCanvas
-	}
+	sourceType := attachAssetSlotCandidateSourceType(input)
 	slot := strings.TrimSpace(input.Slot)
 	if slot == "" {
 		slot = "candidate"
@@ -104,6 +101,17 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 	return result, err
 }
 
+func attachAssetSlotCandidateSourceType(input AttachAssetSlotCandidateInput) string {
+	sourceType := strings.TrimSpace(input.SourceType)
+	if sourceType != "" {
+		return sourceType
+	}
+	if input.CanvasID != 0 || input.RunID != 0 || strings.TrimSpace(input.NodeID) != "" {
+		return domainresourcebinding.SourceTypeCanvas
+	}
+	return domainresourcebinding.SourceTypeManual
+}
+
 func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sourceSlot model.AssetSlot, resource model.RawResource, input AttachAssetSlotCandidateInput) (model.AssetSlot, error) {
 	var candidateSlot model.AssetSlot
 	err := r.db.WithContext(ctx).
@@ -122,7 +130,7 @@ func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sou
 		name = fmt.Sprintf("素材位 #%d", sourceSlot.ID)
 	}
 	resourceType := firstNonEmpty(resource.Type, sourceSlot.Kind, "image")
-	candidateSlot = model.AssetSlot{
+	candidateSlot = domainsemantic.NewAssetSlot(domainsemantic.AssetSlotSpec{
 		ProjectID:                input.ProjectID,
 		ProductionID:             sourceSlot.ProductionID,
 		CreativeReferenceID:      sourceSlot.CreativeReferenceID,
@@ -138,7 +146,7 @@ func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sou
 		Priority:                 firstNonEmpty(sourceSlot.Priority, "normal"),
 		ResourceID:               &input.ResourceID,
 		MetadataJSON:             operationMetadataJSON(input, "attach_candidate"),
-	}
+	})
 	if err := r.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 		return candidateSlot, err
 	}
@@ -160,7 +168,7 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 	if err != gorm.ErrRecordNotFound {
 		return binding, err
 	}
-	binding = model.ResourceBinding{
+	binding = domainresourcebinding.NewBinding(domainresourcebinding.CreateInput{
 		ProjectID:    input.ProjectID,
 		ResourceID:   input.ResourceID,
 		OwnerType:    domainresourcebinding.OwnerTypeAssetSlot,
@@ -174,7 +182,7 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 		SourceID:     input.SourceID,
 		MetadataJSON: operationMetadataJSON(input, "attach_candidate"),
 		CreatedByID:  uintPtrOrNil(input.UserID),
-	}
+	})
 	if err := r.createEntityResourceBinding(ctx, &binding); err != nil {
 		return binding, err
 	}
@@ -218,7 +226,7 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 	if note == "" {
 		note = "由实体操作写入候选"
 	}
-	candidate = model.AssetSlotCandidate{
+	candidate = domainsemantic.NewAssetSlotCandidate(domainsemantic.AssetSlotCandidateSpec{
 		ProjectID:            input.ProjectID,
 		AssetSlotID:          sourceSlot.ID,
 		CandidateAssetSlotID: candidateSlot.ID,
@@ -227,7 +235,7 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 		Score:                input.Score,
 		Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
 		Note:                 note,
-	}
+	})
 	if err := r.db.WithContext(ctx).Create(&candidate).Error; err != nil {
 		return candidate, err
 	}

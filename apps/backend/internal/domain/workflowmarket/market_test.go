@@ -37,6 +37,21 @@ func TestBuiltinWorkflowTemplatesExposeReusablePorts(t *testing.T) {
 	}
 }
 
+func TestTemplateCanvasAppliesWorkflowDefaults(t *testing.T) {
+	tpl := TemplateDef{Key: "image-generation", Name: "Image Generation", Description: "desc", Tags: []string{"image"}}
+	projectID := uint(9)
+	cv := TemplateCanvas(7, tpl, "My Flow", &projectID, "generation")
+	if cv.OwnerID != 7 || cv.Name != "My Flow" || cv.Description != "desc" {
+		t.Fatalf("unexpected canvas identity: %+v", cv)
+	}
+	if cv.CanvasType != "workflow" || cv.Visibility != "private" || cv.WorkflowKey != "template:image-generation" {
+		t.Fatalf("unexpected workflow defaults: %+v", cv)
+	}
+	if cv.ProjectID == nil || *cv.ProjectID != projectID || cv.Stage != "generation" || cv.WorkflowTags != `["image"]` {
+		t.Fatalf("unexpected canvas project/tags: %+v", cv)
+	}
+}
+
 func TestWorkflowMarketItemMatchSearchesTags(t *testing.T) {
 	item := MarketItem{Key: "template:image-generation", Name: "Image Generation", Tags: []string{"starter"}}
 	if !MarketItemMatches(item, "starter") {

@@ -10,10 +10,11 @@ import type { RawResource, ParamDef } from '@/types'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 
-// Fetch a blob URL for a resource using the authed api instance.
-// Returns a revocable blob: URL, or the direct_url if available.
-async function fetchBlobUrl(resource: RawResource): Promise<string> {
-  const src = resource.direct_url ?? `${API_BASE}${resource.url}`
+// Fetch a media URL for a resource. Backend resource URLs become revocable blob URLs;
+// public direct URLs can be assigned as-is.
+async function fetchChipMediaUrl(resource: RawResource): Promise<string> {
+  if (resource.direct_url) return resource.direct_url
+  const src = `${API_BASE}${resource.url}`
   const res = await api.get(src, { baseURL: '', responseType: 'blob' })
   return URL.createObjectURL(res.data)
 }
@@ -181,6 +182,7 @@ export function GenInputCard({
   const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
+  const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
 
   const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? 'image/*' : 'image/*,video/*'
@@ -250,9 +252,9 @@ export function GenInputCard({
     setMentionQuery(null)
     onPromptChange(serialize(editorRef.current))
 
-    // Fetch blob URL via authed api and set directly on the media element.
+    // Fetch media URL via authed api and set directly on the media element.
     // Errors are suppressed (no toast) because responseType=blob is excluded in the interceptor.
-    fetchBlobUrl(resource).then((blobUrl) => {
+    fetchChipMediaUrl(resource).then((mediaUrl) => {
       // If the media element was detached by the browser's editing engine, find it again by resource ID
       let target: HTMLImageElement | HTMLVideoElement | null = media
       if (!media.isConnected && editorRef.current) {
@@ -260,11 +262,18 @@ export function GenInputCard({
         target = chip?.querySelector('img, video') as HTMLImageElement | HTMLVideoElement | null
       }
       if (target) {
-        target.src = blobUrl
+        if (target.src.startsWith('blob:')) {
+          URL.revokeObjectURL(target.src)
+          chipObjectUrlsRef.current.delete(target.src)
+        }
+        target.src = mediaUrl
+        if (mediaUrl.startsWith('blob:')) chipObjectUrlsRef.current.add(mediaUrl)
         if (resource.type === 'video') {
           const vid = target as HTMLVideoElement
           vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0.1 }, { once: true })
         }
+      } else if (mediaUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(mediaUrl)
       }
     }).catch((e) => { console.error('[chip thumb] fetch failed', resource.url, e?.response?.status, e?.message) })
   }
@@ -273,10 +282,19 @@ export function GenInputCard({
   const prevPromptRef = useRef(prompt)
   useEffect(() => {
     if (prompt === '' && prevPromptRef.current !== '' && editorRef.current) {
+      for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
+      chipObjectUrlsRef.current.clear()
       editorRef.current.innerHTML = ''
     }
     prevPromptRef.current = prompt
   }, [prompt])
+
+  useEffect(() => {
+    return () => {
+      for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
+      chipObjectUrlsRef.current.clear()
+    }
+  }, [])
 
   return (
     <div className="space-y-0">

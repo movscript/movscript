@@ -154,7 +154,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 			case "create":
 				seg, err := txSvc.CreateSegment(ctx, projectID, CreateSegmentInput{
 					ProductionID: &req.ProductionID,
-					Kind:         fallbackString(segNode.Kind, "section"),
+					Kind:         segNode.Kind,
 					Order:        fallbackInt(segNode.Order, i+1),
 					Title:        segNode.Title,
 					Summary:      segNode.Summary,
@@ -250,10 +250,9 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						refID = ref.ID
 					case "create":
 						ref, err := txSvc.CreateCreativeReference(ctx, projectID, CreativeReferenceInput{
-							Kind:       fallbackString(crNode.Kind, "character"),
-							Name:       crNode.Name,
-							Importance: "supporting",
-							Status:     domainsemantic.ProposalDraftStatusValue,
+							Kind:   crNode.Kind,
+							Name:   crNode.Name,
+							Status: domainsemantic.ProposalDraftStatusValue,
 						})
 						if err != nil {
 							return err
@@ -343,7 +342,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						ProductionID:  prodIDPtr,
 						SegmentID:     segIDPtr,
 						SceneMomentID: smIDPtr,
-						Kind:          fallbackString(cuNode.Kind, "shot"),
+						Kind:          cuNode.Kind,
 						Order:         fallbackInt(cuNode.Order, k+1),
 						Title:         cuNode.Title,
 						Description:   cuNode.Description,
@@ -398,10 +397,10 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						ProductionID: prodIDPtr,
 						OwnerType:    "scene_moment",
 						OwnerID:      smIDPtr,
-						Kind:         fallbackString(asNode.Kind, "image"),
+						Kind:         asNode.Kind,
 						Name:         asNode.Name,
 						Description:  asNode.Description,
-						Priority:     fallbackString(asNode.Priority, "normal"),
+						Priority:     asNode.Priority,
 						Status:       domainsemantic.ProposalDraftStatusValue,
 					})
 					if err != nil {

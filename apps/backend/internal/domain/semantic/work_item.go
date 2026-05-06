@@ -38,6 +38,13 @@ type WorkItemResultPayload struct {
 	AssetSlotCandidateID uint   `json:"asset_slot_candidate_id"`
 }
 
+type WorkItemResultApplication struct {
+	Kind                 string
+	TargetType           string
+	TargetStatus         string
+	AssetSlotCandidateID uint
+}
+
 const (
 	WorkItemResultNone                   = "none"
 	WorkItemResultStatusChange           = "status_change"
@@ -56,6 +63,18 @@ const (
 	WorkItemApplyStatusPending       = "pending"
 	WorkItemApplyStatusApplied       = "applied"
 	WorkItemApplyStatusFailed        = "failed"
+
+	WorkItemResultApplicationNone                   = "none"
+	WorkItemResultApplicationTargetStatus           = "target_status"
+	WorkItemResultApplicationLockAssetSlotCandidate = "lock_asset_slot_candidate"
+
+	WorkItemTargetTypeContentUnit     = "content_unit"
+	WorkItemTargetTypeKeyframe        = "keyframe"
+	WorkItemTargetTypeAssetSlot       = "asset_slot"
+	WorkItemTargetTypeDeliveryVersion = "delivery_version"
+
+	KeyframeStatusAccepted       = "accepted"
+	DeliveryVersionStatusApprove = "approved"
 )
 
 func NewWorkItem(projectID uint, patch WorkItemPatch) model.WorkItem {
@@ -141,6 +160,32 @@ func WorkItemPatchKeepsAssignment(item model.WorkItem, patch WorkItemPatch) bool
 	return true
 }
 
+func WorkItemStatusForPatch(item model.WorkItem, patch WorkItemPatch) string {
+	return FallbackString(patch.Status, item.Status)
+}
+
+func WorkItemAssigneeCanAdvanceTo(status string) bool {
+	switch status {
+	case WorkItemStatusRunning, WorkItemStatusReview:
+		return true
+	default:
+		return false
+	}
+}
+
+func WorkItemStatusRequiresManager(status string) bool {
+	switch status {
+	case WorkItemStatusDone, WorkItemStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+func WorkItemPatchCompletes(item model.WorkItem, patch WorkItemPatch) bool {
+	return WorkItemStatusForPatch(item, patch) == WorkItemStatusDone
+}
+
 func sameUintPtr(a, b *uint) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
@@ -193,6 +238,58 @@ func DecodeWorkItemResultJSON(raw string) (WorkItemResultPayload, error) {
 		return payload, errors.New("任务结果 JSON 无效")
 	}
 	return payload, nil
+}
+
+func WorkItemResultApplicationFor(item model.WorkItem) (WorkItemResultApplication, error) {
+	resultType := FallbackString(item.ResultType, WorkItemResultNone)
+	switch resultType {
+	case WorkItemResultNone:
+		return WorkItemResultApplication{Kind: WorkItemResultApplicationNone}, nil
+	case WorkItemResultStatusChange:
+		payload, err := DecodeWorkItemResultJSON(item.ResultJSON)
+		if err != nil {
+			return WorkItemResultApplication{}, err
+		}
+		status := FallbackString(payload.Status, payload.TargetStatus)
+		if status == "" {
+			return WorkItemResultApplication{}, errors.New("status_change 需要在 result_json.status 中声明目标状态")
+		}
+		return WorkItemResultApplication{
+			Kind:         WorkItemResultApplicationTargetStatus,
+			TargetType:   item.TargetType,
+			TargetStatus: status,
+		}, nil
+	case WorkItemResultLockAssetCandidate:
+		if item.TargetType != WorkItemTargetTypeAssetSlot {
+			return WorkItemResultApplication{}, errors.New("lock_asset_candidate 只能应用到 asset_slot 任务")
+		}
+		payload, err := DecodeWorkItemResultJSON(item.ResultJSON)
+		if err != nil {
+			return WorkItemResultApplication{}, err
+		}
+		if payload.AssetSlotCandidateID == 0 {
+			return WorkItemResultApplication{}, errors.New("lock_asset_candidate 需要 result_json.asset_slot_candidate_id")
+		}
+		return WorkItemResultApplication{
+			Kind:                 WorkItemResultApplicationLockAssetSlotCandidate,
+			TargetType:           WorkItemTargetTypeAssetSlot,
+			AssetSlotCandidateID: payload.AssetSlotCandidateID,
+		}, nil
+	case WorkItemResultAcceptKeyframe:
+		return WorkItemResultApplication{
+			Kind:         WorkItemResultApplicationTargetStatus,
+			TargetType:   WorkItemTargetTypeKeyframe,
+			TargetStatus: KeyframeStatusAccepted,
+		}, nil
+	case WorkItemResultApproveDeliveryVersion:
+		return WorkItemResultApplication{
+			Kind:         WorkItemResultApplicationTargetStatus,
+			TargetType:   WorkItemTargetTypeDeliveryVersion,
+			TargetStatus: DeliveryVersionStatusApprove,
+		}, nil
+	default:
+		return WorkItemResultApplication{Kind: WorkItemResultApplicationNone}, nil
+	}
 }
 
 func ValidJSONObject(raw string) bool {

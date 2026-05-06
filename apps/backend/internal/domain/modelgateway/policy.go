@@ -10,12 +10,44 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
-const DefaultChatModel = "movscript-default-chat"
+const (
+	DefaultChatModel    = "movscript-default-chat"
+	DefaultAPIScopeChat = "model:chat"
+)
+
+type NewAPIKeySpec struct {
+	Name            string
+	KeyPrefix       string
+	KeyHash         string
+	OwnerUserID     uint
+	OrgID           *uint
+	ProjectID       *uint
+	AllowedModelIDs []uint
+	AllowedScopes   []string
+}
+
+func NewAPIKey(spec NewAPIKeySpec) model.GatewayAPIKey {
+	scopes := spec.AllowedScopes
+	if len(scopes) == 0 {
+		scopes = []string{DefaultAPIScopeChat}
+	}
+	return model.GatewayAPIKey{
+		Name:            strings.TrimSpace(spec.Name),
+		KeyPrefix:       spec.KeyPrefix,
+		KeyHash:         spec.KeyHash,
+		OwnerUserID:     spec.OwnerUserID,
+		OrgID:           spec.OrgID,
+		ProjectID:       spec.ProjectID,
+		AllowedModelIDs: mustJSONString(spec.AllowedModelIDs),
+		AllowedScopes:   mustJSONString(scopes),
+		IsEnabled:       true,
+	}
+}
 
 func KeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
 	scopes := parseStringArray(key.AllowedScopes)
 	if len(scopes) == 0 {
-		return scope == "model:chat"
+		return scope == DefaultAPIScopeChat
 	}
 	for _, s := range scopes {
 		if s == scope || s == "*" {
@@ -114,4 +146,12 @@ func parseUintArray(raw string) []uint {
 	}
 	_ = json.Unmarshal([]byte(raw), &values)
 	return values
+}
+
+func mustJSONString(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
 }

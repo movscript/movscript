@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
@@ -15,6 +15,7 @@ export function MCPContextBridge() {
   }, [location.pathname, location.search])
   const user = useUserStore((s) => s.currentUser)
   const token = useUserStore((s) => s.token)
+  const lastSentSnapshotRef = useRef('')
 
   const snapshot = useMemo(() => ({
     route: {
@@ -37,18 +38,38 @@ export function MCPContextBridge() {
     } : null,
     auth: token ? { token } : null,
     selection: null,
-    updatedAt: new Date().toISOString(),
-  }), [location.hash, location.pathname, location.search, productionId, project, token, user])
+  }), [
+    location.hash,
+    location.pathname,
+    location.search,
+    productionId,
+    project?.ID,
+    project?.description,
+    project?.name,
+    project?.status,
+    project?.total_episodes,
+    token,
+    user?.ID,
+    user?.system_role,
+    user?.username,
+  ])
 
   useEffect(() => {
-    window.api?.updateMCPContext?.(snapshot)
+    const stableSnapshot = JSON.stringify(snapshot)
+    if (stableSnapshot === lastSentSnapshotRef.current) return
+    lastSentSnapshotRef.current = stableSnapshot
+    window.api?.updateMCPContext?.({
+      ...snapshot,
+      updatedAt: new Date().toISOString(),
+    })
   }, [snapshot])
 
   useEffect(() => {
     return window.api?.onMCPOpenRoute?.((route) => {
-      navigate(route)
+      const currentRoute = `${location.pathname}${location.search}${location.hash}`
+      if (route !== currentRoute) navigate(route)
     })
-  }, [navigate])
+  }, [location.hash, location.pathname, location.search, navigate])
 
   return null
 }
