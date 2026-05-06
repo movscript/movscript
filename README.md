@@ -19,8 +19,8 @@ Movscript is an open-source desktop production workspace for short drama and AI-
 movscript/
 ├── apps/backend/          Go API server, database models, AI adapters, job worker
 ├── apps/frontend/         Electron + Vite + React desktop application
-├── apps/agent/ Local agent HTTP service and experiments
-├── apps/movcli/           CLI for plugin packaging and runtime smoke tests
+├── apps/agent/            Local agent HTTP service and experiments
+├── apps/movcli/           CLI for plugin packaging and agent smoke tests
 ├── packages/plugin-sdk/   TypeScript plugin SDK
 ├── packages/tokens/       Shared design tokens
 ├── packages/ui/           Shared React UI primitives
@@ -87,7 +87,7 @@ curl http://localhost:8765/health
 ```bash
 make dev-backend          # Go API server
 make dev-frontend         # Electron desktop app
-make dev-runtime          # Local agent
+make dev-agent            # Local agent
 make test                 # Backend tests + workspace typechecks
 make build                # Backend, packages, apps, and plugins
 pnpm run typecheck        # TypeScript typechecks where available

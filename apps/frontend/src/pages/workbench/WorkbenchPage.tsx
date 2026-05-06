@@ -2327,11 +2327,11 @@ function ScriptSplitWorkbench() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <ScrollText size={14} />
-              <span>剧本工作台</span>
+              <span>剧本拆分工作台</span>
               <ChevronRight size={13} />
               <span>总稿拆分</span>
             </div>
-            <h1 className="mt-1 text-lg font-semibold text-foreground">总剧本拆成多份剧本</h1>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">剧本拆分工作台</h1>
             <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
               把一份多集总稿拆成多个剧本，自动识别集标题后批量创建为独立剧本，并保留一份总稿作为来源。
             </p>

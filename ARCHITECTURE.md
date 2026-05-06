@@ -74,7 +74,7 @@ apps/agent/
   src/runtime/             Thread/run lifecycle, planner, policy, memory, manifest logic
 
 apps/movcli/
-  src/commands/            CLI commands for plugins and local runtime smoke tests
+  src/commands/            CLI commands for plugins and local agent smoke tests
 ```
 
 ## Core Domain Model

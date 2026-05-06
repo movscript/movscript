@@ -25,7 +25,7 @@ make dev-frontend
 Optional local agent:
 
 ```bash
-make dev-runtime
+make dev-agent
 ```
 
 ## Before Opening a Pull Request

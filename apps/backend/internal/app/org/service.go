@@ -23,11 +23,11 @@ var (
 )
 
 type Service struct {
-	db *gorm.DB
+	repo repository
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{repo: &gormRepository{db: db}}
 }
 
 func IsDuplicateKey(err error) bool {
@@ -72,62 +72,26 @@ type UsageResult struct {
 }
 
 func (s *Service) List(ctx context.Context, userID uint) ([]OrgWithRole, error) {
-	var members []model.OrganizationMember
-	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error; err != nil {
-		return nil, err
-	}
-	result := make([]OrgWithRole, 0, len(members))
-	for _, m := range members {
-		var org model.Organization
-		if err := s.db.WithContext(ctx).First(&org, m.OrgID).Error; err != nil {
-			continue
-		}
-		result = append(result, OrgWithRole{Organization: org, Role: m.Role})
-	}
-	return result, nil
+	return s.repo.List(ctx, userID)
 }
 
 func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (model.Organization, error) {
-	var org model.Organization
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		code, err := generateUniqueJoinCode(tx)
-		if err != nil {
-			return err
-		}
-		org = model.Organization{Name: input.Name, Slug: input.Slug, JoinCode: code, IsPersonal: false, Plan: "team", Status: "trialing", CreatedBy: ownerID}
-		if err := tx.Create(&org).Error; err != nil {
-			return err
-		}
-		member := model.OrganizationMember{OrgID: org.ID, UserID: ownerID, Role: "owner"}
-		return tx.Create(&member).Error
-	})
-	return org, err
+	return s.repo.Create(ctx, ownerID, input)
 }
 
 func (s *Service) Get(ctx context.Context, orgID uint) (model.Organization, error) {
-	var org model.Organization
-	if err := s.db.WithContext(ctx).First(&org, orgID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return org, ErrNotFound
-		}
-		return org, err
-	}
-	return org, nil
+	return s.repo.Get(ctx, orgID)
 }
 
 func (s *Service) Update(ctx context.Context, member model.OrganizationMember, name string) error {
 	if !IsAdminOrAbove(member.Role) {
 		return ErrForbidden
 	}
-	return s.db.WithContext(ctx).Model(&model.Organization{}).Where("id = ?", member.OrgID).Update("name", name).Error
+	return s.repo.UpdateName(ctx, member.OrgID, name)
 }
 
 func (s *Service) ListMembers(ctx context.Context, orgID uint) ([]model.OrganizationMember, error) {
-	var members []model.OrganizationMember
-	if err := s.db.WithContext(ctx).Preload("User").Where("org_id = ?", orgID).Find(&members).Error; err != nil {
-		return nil, err
-	}
-	return members, nil
+	return s.repo.ListMembers(ctx, orgID)
 }
 
 func (s *Service) AddMember(ctx context.Context, caller model.OrganizationMember, input MemberInput) (model.OrganizationMember, error) {
@@ -136,41 +100,28 @@ func (s *Service) AddMember(ctx context.Context, caller model.OrganizationMember
 	}
 	role := domainorg.DefaultMemberRole(input.Role)
 	member := model.OrganizationMember{OrgID: caller.OrgID, UserID: input.UserID, Role: role}
-	if err := s.db.WithContext(ctx).Create(&member).Error; err != nil {
-		return member, err
-	}
-	if err := s.db.WithContext(ctx).Preload("User").First(&member, member.ID).Error; err != nil {
-		return member, err
-	}
-	return member, nil
+	return s.repo.CreateMember(ctx, member)
 }
 
 func (s *Service) UpdateMember(ctx context.Context, caller model.OrganizationMember, targetUserID uint, role string) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
-	return s.db.WithContext(ctx).Model(&model.OrganizationMember{}).
-		Where("org_id = ? AND user_id = ?", caller.OrgID, targetUserID).
-		Update("role", role).Error
+	return s.repo.UpdateMemberRole(ctx, caller.OrgID, targetUserID, role)
 }
 
 func (s *Service) RemoveMember(ctx context.Context, caller model.OrganizationMember, targetUserID uint) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
-	return s.db.WithContext(ctx).Where("org_id = ? AND user_id = ?", caller.OrgID, targetUserID).
-		Delete(&model.OrganizationMember{}).Error
+	return s.repo.DeleteMember(ctx, caller.OrgID, targetUserID)
 }
 
 func (s *Service) ListInvitations(ctx context.Context, caller model.OrganizationMember) ([]model.OrgInvitation, error) {
 	if !IsAdminOrAbove(caller.Role) {
 		return nil, ErrForbidden
 	}
-	var invitations []model.OrgInvitation
-	if err := s.db.WithContext(ctx).Where("org_id = ?", caller.OrgID).Order("id desc").Find(&invitations).Error; err != nil {
-		return nil, err
-	}
-	return invitations, nil
+	return s.repo.ListInvitations(ctx, caller.OrgID)
 }
 
 func (s *Service) CreateInvitation(ctx context.Context, caller model.OrganizationMember, creatorID uint, input InvitationInput) (model.OrgInvitation, error) {
@@ -190,25 +141,19 @@ func (s *Service) CreateInvitation(ctx context.Context, caller model.Organizatio
 		CreatedBy: creatorID,
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
-	if err := s.db.WithContext(ctx).Create(&inv).Error; err != nil {
-		return inv, err
-	}
-	return inv, nil
+	return s.repo.CreateInvitation(ctx, inv)
 }
 
 func (s *Service) RevokeInvitation(ctx context.Context, caller model.OrganizationMember, invID uint) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
-	return s.db.WithContext(ctx).Where("id = ? AND org_id = ?", invID, caller.OrgID).Delete(&model.OrgInvitation{}).Error
+	return s.repo.DeleteInvitation(ctx, caller.OrgID, invID)
 }
 
 func (s *Service) GetInvitation(ctx context.Context, token string) (model.OrgInvitation, model.Organization, error) {
-	var inv model.OrgInvitation
-	if err := s.db.WithContext(ctx).Where("token = ?", token).First(&inv).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return inv, model.Organization{}, ErrInviteNotFound
-		}
+	inv, err := s.repo.FindInvitationByToken(ctx, token)
+	if err != nil {
 		return inv, model.Organization{}, err
 	}
 	if inv.UsedAt != nil {
@@ -217,17 +162,16 @@ func (s *Service) GetInvitation(ctx context.Context, token string) (model.OrgInv
 	if time.Now().After(inv.ExpiresAt) {
 		return inv, model.Organization{}, ErrInviteExpired
 	}
-	var org model.Organization
-	_ = s.db.WithContext(ctx).First(&org, inv.OrgID).Error
+	org, err := s.repo.Get(ctx, inv.OrgID)
+	if err != nil {
+		return inv, model.Organization{}, err
+	}
 	return inv, org, nil
 }
 
 func (s *Service) AcceptInvitation(ctx context.Context, token string, user *model.User, registration *RegistrationInput) (uint, error) {
-	var inv model.OrgInvitation
-	if err := s.db.WithContext(ctx).Where("token = ?", token).First(&inv).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, ErrInviteNotFound
-		}
+	inv, err := s.repo.FindInvitationByToken(ctx, token)
+	if err != nil {
 		return 0, err
 	}
 	if inv.UsedAt != nil {
@@ -240,8 +184,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 		if registration == nil {
 			return 0, ErrForbidden
 		}
-		var existing model.User
-		if s.db.WithContext(ctx).Where("username = ?", registration.Username).First(&existing).Error == nil {
+		exists, err := s.repo.UsernameExists(ctx, registration.Username)
+		if err != nil {
+			return 0, err
+		}
+		if exists {
 			return 0, ErrConflict
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(registration.Password), 12)
@@ -249,26 +196,17 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 			return 0, err
 		}
 		user = &model.User{Username: registration.Username, PasswordHash: string(hash), SystemRole: "user"}
-		if err := s.db.WithContext(ctx).Create(user).Error; err != nil {
+		if err := s.repo.CreateUser(ctx, user); err != nil {
 			return 0, err
 		}
-		if err := CreatePersonalOrg(s.db.WithContext(ctx), user); err != nil {
+		if err := s.repo.CreatePersonalOrg(ctx, user); err != nil {
 			// non-fatal
 		}
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing model.OrganizationMember
-		if tx.Where("org_id = ? AND user_id = ?", inv.OrgID, user.ID).First(&existing).Error == nil {
-			return nil
-		}
-		member := model.OrganizationMember{OrgID: inv.OrgID, UserID: user.ID, Role: inv.Role}
-		if err := tx.Create(&member).Error; err != nil {
-			return err
-		}
-		now := time.Now()
-		return tx.Model(&inv).Updates(map[string]any{"used_by": user.ID, "used_at": now}).Error
-	})
-	return inv.OrgID, err
+	if err := s.repo.AcceptInvitation(ctx, inv, user.ID); err != nil {
+		return 0, err
+	}
+	return inv.OrgID, nil
 }
 
 func (s *Service) JoinByCode(ctx context.Context, token string, user model.User) (uint, error) {
@@ -276,29 +214,11 @@ func (s *Service) JoinByCode(ctx context.Context, token string, user model.User)
 	if code == "" {
 		return 0, ErrInvalidCode
 	}
-	var org model.Organization
-	if err := s.db.WithContext(ctx).Where("join_code = ? AND is_personal = ?", code, false).First(&org).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, ErrInvalidCode
-		}
-		return 0, err
-	}
-	member := model.OrganizationMember{OrgID: org.ID, UserID: user.ID, Role: "member"}
-	if err := s.db.WithContext(ctx).Create(&member).Error; err != nil {
-		if IsDuplicateKey(err) {
-			return org.ID, nil
-		}
-		return 0, err
-	}
-	return org.ID, nil
+	return s.repo.JoinByCode(ctx, code, user)
 }
 
 func (s *Service) ListGroups(ctx context.Context, orgID uint) ([]model.UserGroup, error) {
-	var groups []model.UserGroup
-	if err := s.db.WithContext(ctx).Preload("Members.User").Where("org_id = ?", orgID).Find(&groups).Error; err != nil {
-		return nil, err
-	}
-	return groups, nil
+	return s.repo.ListGroups(ctx, orgID)
 }
 
 func (s *Service) CreateGroup(ctx context.Context, caller model.OrganizationMember, input GroupInput) (model.UserGroup, error) {
@@ -306,10 +226,7 @@ func (s *Service) CreateGroup(ctx context.Context, caller model.OrganizationMemb
 		return model.UserGroup{}, ErrForbidden
 	}
 	group := model.UserGroup{OrgID: caller.OrgID, Name: input.Name}
-	if err := s.db.WithContext(ctx).Create(&group).Error; err != nil {
-		return group, err
-	}
-	return group, nil
+	return s.repo.CreateGroup(ctx, group)
 }
 
 func (s *Service) AddGroupMember(ctx context.Context, caller model.OrganizationMember, groupID uint, userID uint) (model.UserGroupMember, error) {
@@ -317,36 +234,22 @@ func (s *Service) AddGroupMember(ctx context.Context, caller model.OrganizationM
 		return model.UserGroupMember{}, ErrForbidden
 	}
 	gm := model.UserGroupMember{GroupID: groupID, UserID: userID}
-	if err := s.db.WithContext(ctx).Create(&gm).Error; err != nil {
-		return gm, err
-	}
-	return gm, nil
+	return s.repo.CreateGroupMember(ctx, gm)
 }
 
 func (s *Service) RemoveGroupMember(ctx context.Context, caller model.OrganizationMember, groupID uint, userID uint) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
-	return s.db.WithContext(ctx).Where("group_id = ? AND user_id = ?", groupID, userID).Delete(&model.UserGroupMember{}).Error
+	return s.repo.DeleteGroupMember(ctx, groupID, userID)
 }
 
 func (s *Service) GetUsage(ctx context.Context, orgID uint) (UsageResult, error) {
-	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	var rows []UsageRow
-	if err := s.db.WithContext(ctx).Table("usage_logs ul").
-		Select("ul.user_id, u.username, SUM(ul.cost) as total_cost, SUM(ul.input_tokens + ul.output_tokens) as total_tokens").
-		Joins("JOIN users u ON u.id = ul.user_id").
-		Where("ul.org_id = ? AND ul.created_at >= ? AND ul.deleted_at IS NULL", orgID, startOfMonth).
-		Group("ul.user_id, u.username").
-		Scan(&rows).Error; err != nil {
-		return UsageResult{}, err
-	}
-	return UsageResult{Month: startOfMonth.Format("2006-01"), Rows: rows}, nil
+	return s.repo.GetUsage(ctx, orgID)
 }
 
 func (s *Service) CreatePersonalOrg(ctx context.Context, user *model.User) error {
-	return CreatePersonalOrg(s.db.WithContext(ctx), user)
+	return s.repo.CreatePersonalOrg(ctx, user)
 }
 
 type OrgWithRole struct {
