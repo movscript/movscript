@@ -5,6 +5,7 @@ import { app } from 'electron'
 
 const DEFAULT_PRODUCTION_RUNTIME_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
+const MIN_AGENT_RUNTIME_API_VERSION = 1
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<AgentRuntimeStatus> | null = null
@@ -27,10 +28,17 @@ interface AgentRuntimeLaunch {
   env?: Record<string, string>
 }
 
+interface AgentRuntimeHealthCheck {
+  ok: boolean
+  compatible: boolean
+  apiVersion?: number
+  error?: string
+}
+
 export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}): Promise<AgentRuntimeStatus> {
   const baseURL = normalizeBaseURL(input.baseURL)
   const health = await getAgentRuntimeHealth(baseURL)
-  if (health.ok && health.supportsModelConfig) {
+  if (health.ok && health.compatible) {
     return {
       ok: true,
       running: true,
@@ -40,18 +48,18 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
       pid: proc?.pid,
     }
   }
-  if (health.ok && !health.supportsModelConfig && proc && !proc.killed) {
+  if (health.ok && !health.compatible && proc && !proc.killed) {
     proc.kill()
     proc = null
     await new Promise((resolve) => setTimeout(resolve, 250))
-  } else if (health.ok && !health.supportsModelConfig) {
+  } else if (health.ok && !health.compatible) {
     return {
       ok: false,
       running: true,
       managed: false,
       started: false,
       baseURL,
-      error: 'Agent is running but does not support /model-config. Stop the old runtime process and restart the desktop app.',
+      error: health.error ?? 'Agent is running but is not compatible with this desktop app. Stop the old runtime process and restart the desktop app.',
     }
   }
 
@@ -170,25 +178,42 @@ async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const health = await getAgentRuntimeHealth(baseURL)
-    if (health.ok && health.supportsModelConfig) return
+    if (health.ok && health.compatible) return
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`movscript-agent did not become healthy with model config support at ${baseURL} within ${timeoutMs}ms`)
+  throw new Error(`movscript-agent did not become compatible at ${baseURL} within ${timeoutMs}ms`)
 }
 
-async function getAgentRuntimeHealth(baseURL: string): Promise<{ ok: boolean; supportsModelConfig: boolean }> {
+async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealthCheck> {
   try {
     const res = await fetch(`${baseURL}/health`)
-    if (!res.ok) return { ok: false, supportsModelConfig: false }
-    const body = await res.json() as { ok?: unknown; modelConfig?: { provider?: unknown } }
-    if (body.ok !== true) return { ok: false, supportsModelConfig: false }
-    const modelConfigRes = await fetch(`${baseURL}/model-config`)
-    if (!modelConfigRes.ok) return { ok: true, supportsModelConfig: false }
-    const modelConfig = await modelConfigRes.json() as { provider?: unknown }
-    const provider = modelConfig.provider ?? body.modelConfig?.provider
-    return { ok: true, supportsModelConfig: provider === 'backend-model-config' }
+    if (!res.ok) return { ok: false, compatible: false }
+    const body = await res.json() as { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown } }
+    if (body.ok !== true) return { ok: false, compatible: false }
+    const capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
+    if (!capabilityRes.ok) {
+      return {
+        ok: true,
+        compatible: false,
+        error: 'Agent is running but does not expose /runtime/capabilities.',
+      }
+    }
+    const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown } }
+    const runtime = capabilities.runtime ?? body.runtime
+    const apiVersion = typeof runtime?.apiVersion === 'number' ? runtime.apiVersion : undefined
+    const features = Array.isArray(runtime?.features) ? runtime.features : []
+    const hasRequiredFeatures = features.includes('model-config') && features.includes('runtime-capabilities')
+    if (!apiVersion || apiVersion < MIN_AGENT_RUNTIME_API_VERSION || !hasRequiredFeatures) {
+      return {
+        ok: true,
+        compatible: false,
+        apiVersion,
+        error: `Agent runtime is incompatible. Required apiVersion>=${MIN_AGENT_RUNTIME_API_VERSION} with model-config/runtime-capabilities features.`,
+      }
+    }
+    return { ok: true, compatible: true, apiVersion }
   } catch {
-    return { ok: false, supportsModelConfig: false }
+    return { ok: false, compatible: false }
   }
 }
 

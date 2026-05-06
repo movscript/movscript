@@ -9,6 +9,7 @@ import (
 
 type Service struct {
 	db        *gorm.DB
+	repo      repository
 	registry  *ai.Registry
 	svc       *ai.AIService
 	entityIO  *workflowio.EntityIOService
@@ -22,6 +23,7 @@ func NewService(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, entityIO 
 	}
 	return Service{
 		db:        db,
+		repo:      newRepository(db),
 		registry:  registry,
 		svc:       svc,
 		entityIO:  entityIO,

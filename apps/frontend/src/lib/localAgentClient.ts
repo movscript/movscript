@@ -381,6 +381,18 @@ export interface AgentHealth {
   service: string
   mode: string
   mcpEndpoint: string
+  runtime?: {
+    apiVersion: number
+    features: string[]
+    endpoints: string[]
+  }
+  paths?: {
+    statePath: string
+    memoryPath: string
+    draftPath: string
+    productionStatePath: string
+    modelConfigPath: string
+  }
   modelConfigPath?: string
   modelConfig?: RuntimeModelConfigPublic
   pluginCatalog?: {

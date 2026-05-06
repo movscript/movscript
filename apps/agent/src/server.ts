@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import { AgentRuntime } from './runtime/agentRuntime.js'
-import { FileAgentDraftStore, normalizeDraftKind, normalizeDraftStatus, resolveAgentDraftPath } from './runtime/store/draftStore.js'
+import { normalizeDraftKind, normalizeDraftStatus } from './runtime/store/draftStore.js'
 import {
   createAgentServerContext,
   getAgentRuntimeCapabilities,
@@ -17,7 +17,6 @@ const {
   client,
   agentRuntime,
   productionRuntime,
-  backendApplyClient,
   modelConfigStore,
   pluginCatalog,
 } = context
@@ -38,6 +37,9 @@ const server = createServer(async (req, res) => {
       writeJSON(res, 200, {
         ...getAgentRuntimeCapabilities(context),
         ok: true,
+        draftPath: paths.draftPath,
+        productionStatePath: paths.productionStatePath,
+        modelConfigPath: paths.modelConfigPath,
         modelConfig: modelConfigStore.getPublicConfig(),
       })
       return
