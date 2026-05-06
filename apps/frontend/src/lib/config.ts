@@ -41,6 +41,9 @@ export function isLocalLaunchMode(settings?: Pick<AppSettings, 'launchMode'> | n
 }
 
 export function getDefaultAPIBaseURL(): string {
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    return normalizeAPIBaseURL(window.location.origin)
+  }
   return normalizeAPIBaseURL(import.meta.env.VITE_API_BASE_URL || DEFAULT_API_ORIGIN)
 }
 

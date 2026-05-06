@@ -153,9 +153,9 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     shortTitle: '预演',
     href: '/workbench/production-plan',
     icon: Clapperboard,
-    purpose: '基于分集编排全览，用低成本关键帧、占位素材和粗时间线验证整集是否跑通。',
-    decision: '判断继续制作、补素材再预演、调整编排或放弃当前方案。',
-    output: '分集预演全览、当前风险、关键帧候选、占位素材和价值判断记录。',
+    purpose: '只看当前分集有没有预演候选，以及这些候选是否已经被处理。',
+    decision: '有候选就审阅、采用、忽略或重新生成；没有候选就先生成候选。',
+    output: '分集预演候选状态、候选清单和处理记录。',
   },
   {
     value: 'creative',

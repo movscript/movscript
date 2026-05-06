@@ -22,6 +22,8 @@ export default function OnboardingPage() {
   const setSession = useUserStore((s) => s.setSession)
   const [mode, setMode] = useState<Mode | null>(null)
   const [displayName, setDisplayName] = useState('')
+  const [localPassword, setLocalPassword] = useState('')
+  const [localPasswordConfirm, setLocalPasswordConfirm] = useState('')
   const [cloudURL, setCloudURL] = useState(getDefaultAPIBaseURL())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -34,7 +36,9 @@ export default function OnboardingPage() {
     }
   }, [cloudURL])
   const cloudURLValid = /^https?:\/\/.+/i.test(normalizedCloudURL)
-  const canStartLocal = displayName.trim().length > 0
+  const localPasswordValid = localPassword.length >= 8
+  const localPasswordMatches = localPassword === localPasswordConfirm
+  const canStartLocal = displayName.trim().length > 0 && localPasswordValid && localPasswordMatches
 
   async function startLocal() {
     if (!canStartLocal || loading) return
@@ -58,6 +62,7 @@ export default function OnboardingPage() {
       await waitForLocalBackend()
       const session = await api.post('/auth/local-bootstrap', {
         displayName: displayName.trim(),
+        password: localPassword,
       }).then((r) => r.data as AuthSession)
       setSession(session)
       completeOnboarding({
@@ -159,6 +164,33 @@ export default function OnboardingPage() {
                 placeholder={t('onboarding.localIdentity.namePlaceholder')}
                 autoFocus
               />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="localPassword">{t('onboarding.localIdentity.passwordLabel')}</Label>
+              <Input
+                id="localPassword"
+                type="password"
+                value={localPassword}
+                onChange={(e) => setLocalPassword(e.target.value)}
+                placeholder={t('onboarding.localIdentity.passwordPlaceholder')}
+              />
+              {localPassword && !localPasswordValid && (
+                <p className="text-xs text-destructive">{t('onboarding.localIdentity.passwordHelp')}</p>
+              )}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="localPasswordConfirm">{t('onboarding.localIdentity.confirmPasswordLabel')}</Label>
+              <Input
+                id="localPasswordConfirm"
+                type="password"
+                value={localPasswordConfirm}
+                onChange={(e) => setLocalPasswordConfirm(e.target.value)}
+              />
+              {localPasswordConfirm && !localPasswordMatches && (
+                <p className="text-xs text-destructive">{t('auth.passwordMismatch')}</p>
+              )}
             </div>
 
             {error && <p className="mt-3 text-xs text-destructive">{error}</p>}

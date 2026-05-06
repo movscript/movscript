@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -67,7 +68,7 @@ func backfillEntityRelationsByRows[T any](db *gorm.DB) error {
 		return err
 	}
 	for i := range rows {
-		if err := model.SyncCoreEntityRelations(db, &rows[i]); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(db, &rows[i]); err != nil {
 			return err
 		}
 	}

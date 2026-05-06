@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import (
 	"testing"
@@ -60,8 +60,11 @@ func TestCreativeReferenceStateUsesNamedRelationType(t *testing.T) {
 	}
 
 	ref := CreativeReference{ProjectID: 1, Kind: "character", Name: "Hero", Importance: "supporting", Status: "draft"}
-	if err := db.Create(&ref).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&ref).Error; err != nil {
 		t.Fatalf("create reference: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &ref); err != nil {
+		t.Fatalf("sync reference relations: %v", err)
 	}
 	state := CreativeReferenceState{
 		ProjectID:           1,
@@ -70,8 +73,11 @@ func TestCreativeReferenceStateUsesNamedRelationType(t *testing.T) {
 		Name:                "Hero state",
 		Status:              "draft",
 	}
-	if err := db.Create(&state).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&state).Error; err != nil {
 		t.Fatalf("create state: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &state); err != nil {
+		t.Fatalf("sync state relations: %v", err)
 	}
 
 	var relation EntityRelation

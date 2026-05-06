@@ -1,10 +1,6 @@
-package model
+package entityrelation
 
 import "gorm.io/gorm"
-
-func (item *DeliveryVersion) AfterSave(tx *gorm.DB) error {
-	return syncDeliveryVersionRelations(tx, item)
-}
 
 func syncDeliveryVersionRelations(tx *gorm.DB, item *DeliveryVersion) error {
 	if err := deleteSourceEntityRelations(tx, "delivery_version", item.ID, EntityRelationCategoryDelivery, relationTypeList(EntityRelationTypeDerivedFrom)); err != nil {
@@ -18,14 +14,6 @@ func syncDeliveryVersionRelations(tx *gorm.DB, item *DeliveryVersion) error {
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "delivery_version", SourceID: item.ID, TargetType: "preview_timeline", TargetID: *item.PreviewTimelineID, Category: EntityRelationCategoryDelivery, Type: EntityRelationTypeDerivedFrom, Status: relationStatus(item.Status)})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *DeliveryVersion) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "delivery_version", item.ID)
-}
-
-func (item *DeliveryTimelineItem) AfterSave(tx *gorm.DB) error {
-	return syncDeliveryTimelineItemRelations(tx, item)
 }
 
 func syncDeliveryTimelineItemRelations(tx *gorm.DB, item *DeliveryTimelineItem) error {
@@ -48,14 +36,6 @@ func syncDeliveryTimelineItemRelations(tx *gorm.DB, item *DeliveryTimelineItem) 
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *DeliveryTimelineItem) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "delivery_timeline_item", item.ID)
-}
-
-func (item *ExportRecord) AfterSave(tx *gorm.DB) error {
-	return syncExportRecordRelations(tx, item)
-}
-
 func syncExportRecordRelations(tx *gorm.DB, item *ExportRecord) error {
 	if err := deleteSourceEntityRelations(tx, "export_record", item.ID, EntityRelationCategoryDelivery, relationTypeList(EntityRelationTypeExports, EntityRelationTypeProduces)); err != nil {
 		return err
@@ -65,8 +45,4 @@ func syncExportRecordRelations(tx *gorm.DB, item *ExportRecord) error {
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "export_record", SourceID: item.ID, TargetType: "raw_resource", TargetID: *item.ResourceID, Category: EntityRelationCategoryDelivery, Type: EntityRelationTypeProduces, Status: relationStatus(item.Status)})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *ExportRecord) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "export_record", item.ID)
 }

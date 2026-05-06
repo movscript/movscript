@@ -10,6 +10,7 @@ import (
 	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -228,7 +229,7 @@ func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, org
 			return err
 		}
 		for i := range runs {
-			if err := model.DeleteCoreEntityRelations(tx, &runs[i]); err != nil {
+			if err := entityrelation.DeleteCoreEntityRelations(tx, &runs[i]); err != nil {
 				return err
 			}
 		}
@@ -241,7 +242,7 @@ func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, org
 		if err := tx.Delete(&cv).Error; err != nil {
 			return err
 		}
-		return model.DeleteCoreEntityRelations(tx, &cv)
+		return entityrelation.DeleteCoreEntityRelations(tx, &cv)
 	})
 }
 

@@ -1,10 +1,6 @@
-package model
+package entityrelation
 
 import "gorm.io/gorm"
-
-func (item *ScriptVersion) AfterSave(tx *gorm.DB) error {
-	return syncScriptVersionRelations(tx, item)
-}
 
 func syncScriptVersionRelations(tx *gorm.DB, item *ScriptVersion) error {
 	if err := deleteTargetEntityRelations(tx, "script_version", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeHasVersion, EntityRelationTypeDerivedFrom)); err != nil {
@@ -35,14 +31,6 @@ func syncScriptVersionRelations(tx *gorm.DB, item *ScriptVersion) error {
 		})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *ScriptVersion) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "script_version", item.ID)
-}
-
-func (item *Production) AfterSave(tx *gorm.DB) error {
-	return syncProductionRelations(tx, item)
 }
 
 func syncProductionRelations(tx *gorm.DB, item *Production) error {
@@ -77,14 +65,6 @@ func syncProductionRelations(tx *gorm.DB, item *Production) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *Production) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "production", item.ID)
-}
-
-func (item *ProductionTextBlock) AfterSave(tx *gorm.DB) error {
-	return syncProductionTextBlockRelations(tx, item)
-}
-
 func syncProductionTextBlockRelations(tx *gorm.DB, item *ProductionTextBlock) error {
 	if err := deleteTargetEntityRelations(tx, "production_text_block", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeContains)); err != nil {
 		return err
@@ -114,14 +94,6 @@ func syncProductionTextBlockRelations(tx *gorm.DB, item *ProductionTextBlock) er
 		})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *ProductionTextBlock) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "production_text_block", item.ID)
-}
-
-func (item *Segment) AfterSave(tx *gorm.DB) error {
-	return syncSegmentRelations(tx, item)
 }
 
 func syncSegmentRelations(tx *gorm.DB, item *Segment) error {
@@ -158,14 +130,6 @@ func syncSegmentRelations(tx *gorm.DB, item *Segment) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *Segment) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "segment", item.ID)
-}
-
-func (item *SceneMoment) AfterSave(tx *gorm.DB) error {
-	return syncSceneMomentRelations(tx, item)
-}
-
 func syncSceneMomentRelations(tx *gorm.DB, item *SceneMoment) error {
 	if err := deleteTargetEntityRelations(tx, "scene_moment", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeContains)); err != nil {
 		return err
@@ -184,14 +148,6 @@ func syncSceneMomentRelations(tx *gorm.DB, item *SceneMoment) error {
 		Order:      item.Order,
 		Status:     relationStatus(item.Status),
 	}})
-}
-
-func (item *SceneMoment) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "scene_moment", item.ID)
-}
-
-func (item *ContentUnit) AfterSave(tx *gorm.DB) error {
-	return syncContentUnitRelations(tx, item)
 }
 
 func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
@@ -231,14 +187,6 @@ func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *ContentUnit) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "content_unit", item.ID)
-}
-
-func (item *StoryboardScript) AfterSave(tx *gorm.DB) error {
-	return syncStoryboardScriptRelations(tx, item)
-}
-
 func syncStoryboardScriptRelations(tx *gorm.DB, item *StoryboardScript) error {
 	if err := deleteSourceEntityRelations(tx, "storyboard_script", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn)); err != nil {
 		return err
@@ -256,14 +204,6 @@ func syncStoryboardScriptRelations(tx *gorm.DB, item *StoryboardScript) error {
 		Type:       EntityRelationTypeBasedOn,
 		Status:     relationStatus(item.Status),
 	}})
-}
-
-func (item *StoryboardScript) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "storyboard_script", item.ID)
-}
-
-func (item *StoryboardVersion) AfterSave(tx *gorm.DB) error {
-	return syncStoryboardVersionRelations(tx, item)
 }
 
 func syncStoryboardVersionRelations(tx *gorm.DB, item *StoryboardVersion) error {
@@ -295,14 +235,6 @@ func syncStoryboardVersionRelations(tx *gorm.DB, item *StoryboardVersion) error 
 		})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *StoryboardVersion) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "storyboard_version", item.ID)
-}
-
-func (item *StoryboardLine) AfterSave(tx *gorm.DB) error {
-	return syncStoryboardLineRelations(tx, item)
 }
 
 func syncStoryboardLineRelations(tx *gorm.DB, item *StoryboardLine) error {
@@ -345,14 +277,6 @@ func syncStoryboardLineRelations(tx *gorm.DB, item *StoryboardLine) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *StoryboardLine) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "storyboard_line", item.ID)
-}
-
-func (item *Keyframe) AfterSave(tx *gorm.DB) error {
-	return syncKeyframeRelations(tx, item)
-}
-
 func syncKeyframeRelations(tx *gorm.DB, item *Keyframe) error {
 	if err := deleteTargetEntityRelations(tx, "keyframe", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeHasKeyframe)); err != nil {
 		return err
@@ -373,14 +297,6 @@ func syncKeyframeRelations(tx *gorm.DB, item *Keyframe) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *Keyframe) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "keyframe", item.ID)
-}
-
-func (item *PreviewTimeline) AfterSave(tx *gorm.DB) error {
-	return syncPreviewTimelineRelations(tx, item)
-}
-
 func syncPreviewTimelineRelations(tx *gorm.DB, item *PreviewTimeline) error {
 	if err := deleteSourceEntityRelations(tx, "preview_timeline", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeDerivedFrom)); err != nil {
 		return err
@@ -393,14 +309,6 @@ func syncPreviewTimelineRelations(tx *gorm.DB, item *PreviewTimeline) error {
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "preview_timeline", SourceID: item.ID, TargetType: "script_version", TargetID: *item.ScriptVersionID, Category: EntityRelationCategoryStructure, Type: EntityRelationTypeDerivedFrom, Status: relationStatus(item.Status)})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *PreviewTimeline) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "preview_timeline", item.ID)
-}
-
-func (item *PreviewTimelineItem) AfterSave(tx *gorm.DB) error {
-	return syncPreviewTimelineItemRelations(tx, item)
 }
 
 func syncPreviewTimelineItemRelations(tx *gorm.DB, item *PreviewTimelineItem) error {
@@ -424,8 +332,4 @@ func syncPreviewTimelineItemRelations(tx *gorm.DB, item *PreviewTimelineItem) er
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "preview_timeline_item", SourceID: item.ID, TargetType: "keyframe", TargetID: *item.KeyframeID, Category: EntityRelationCategoryStructure, Type: EntityRelationTypeUses, Order: item.Order, Status: relationStatus(item.Status)})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *PreviewTimelineItem) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "preview_timeline_item", item.ID)
 }

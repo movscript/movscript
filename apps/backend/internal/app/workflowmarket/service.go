@@ -9,6 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -136,7 +137,11 @@ func (s *Service) createCanvasFromTemplate(ctx context.Context, ownerID uint, tp
 		WorkflowTags: string(tagsRaw),
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Create(&cv).Error; err != nil {
+			return err
+		}
+		if err := entityrelation.SyncCoreEntityRelations(tx, &cv); err != nil {
 			return err
 		}
 		nodes := TemplateNodesForCanvas(cv.ID, tpl.Nodes)

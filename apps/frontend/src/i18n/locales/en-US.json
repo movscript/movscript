@@ -148,6 +148,10 @@
       "description": "This is not a cloud account. It only identifies this local workspace.",
       "nameLabel": "Name",
       "namePlaceholder": "Example: Qian",
+      "passwordLabel": "Admin password",
+      "passwordPlaceholder": "At least 8 characters",
+      "passwordHelp": "Password must be at least 8 characters.",
+      "confirmPasswordLabel": "Confirm password",
       "create": "Create local workspace"
     },
     "cloudConnect": {

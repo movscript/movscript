@@ -2,12 +2,6 @@ package model
 
 import "gorm.io/gorm"
 
-type UserQuota struct {
-	gorm.Model
-	UserID  uint    `gorm:"uniqueIndex;not null" json:"user_id"`
-	Balance float64 `gorm:"default:0" json:"balance"`
-}
-
 type UsageLog struct {
 	gorm.Model
 	UserID             uint          `gorm:"not null" json:"user_id"`

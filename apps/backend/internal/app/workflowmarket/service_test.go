@@ -1,11 +1,16 @@
 package workflowmarket
 
 import (
+	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	"github.com/movscript/movscript/internal/domain/model"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestBuiltinWorkflowTemplatesExposeReusablePorts(t *testing.T) {
@@ -46,4 +51,34 @@ func TestWorkflowMarketItemMatchSearchesTags(t *testing.T) {
 	if domainmarket.MarketItemMatches(item, "storyboard") {
 		t.Fatal("did not expect unrelated query to match")
 	}
+}
+
+func TestInstallTemplateCreatesWorkflowCanvasWithoutHooks(t *testing.T) {
+	db := newWorkflowMarketTestDB(t)
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+
+	cv, err := service.InstallTemplate(context.Background(), 7, "image-generation", InstallInput{Name: "Demo workflow"})
+	if err != nil {
+		t.Fatalf("install template: %v", err)
+	}
+	if cv.CanvasType != "workflow" || cv.WorkflowKey != "template:image-generation" {
+		t.Fatalf("unexpected canvas: %+v", cv)
+	}
+	if len(cv.Nodes) == 0 || len(cv.Edges) == 0 {
+		t.Fatalf("expected template nodes and edges to persist: %+v", cv)
+	}
+}
+
+func newWorkflowMarketTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "workflowmarket.db")), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Canvas{}, &model.CanvasNode{}, &model.CanvasEdge{}); err != nil {
+		t.Fatalf("migrate workflow market db: %v", err)
+	}
+	return db
 }

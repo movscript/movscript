@@ -223,6 +223,10 @@ type AuditSink interface {
 Plan
 Entitlement
 Subscription
+Order
+Invoice
+PaymentIntent
+WalletSnapshot
 LicenseToken
 PolicyRule
 UsageLedger
@@ -234,6 +238,9 @@ AuditEvent
 - `Plan`：产品层级，如 free/team/enterprise。
 - `Entitlement`：某个 subject 实际拥有的能力集合。
 - `Subscription`：商业合同或订阅状态。
+- `WalletSnapshot`：账户余额与冻结金额快照。
+- `PaymentIntent`：收款渠道的一次支付意图。
+- `Order` / `Invoice`：交易单据与账单。
 - `LicenseToken`：私有部署或离线授权。
 - `PolicyRule`：模型路由、key、feature、预算规则。
 - `UsageLedger`：统一账本。
@@ -260,6 +267,7 @@ AuditEvent
 - `movscript` 仓库构建社区版。
 - `enterprise` 仓库构建商业版。
 - `movscript` 仓库只保留商业能力的共享接口、共享数据模型字段和社区实现。
+- 社区版不创建 `user_quota`、`org_quota`、钱包、订单、支付、发票表。
 - 新的商业实现、企业路由、企业部署脚本和商业授权逻辑应进入 `enterprise` 仓库的 MovScript overlay。
 
 因此，社区仓中的 `//go:build enterprise` 文件只作为迁移期遗留存在。后续不要继续在社区仓新增企业实现文件；如果需要新增商业能力，应先在社区仓补稳定接口或社区默认实现，再在 enterprise overlay 中实现商业版本。

@@ -43,7 +43,7 @@ func TestCommunityResolvePersonalOrg(t *testing.T) {
 	}
 }
 
-func TestCommunityResolveTeamOrgWithoutCommercialBudget(t *testing.T) {
+func TestCommunityResolveTeamOrgWithoutCommercialLimits(t *testing.T) {
 	db := openEntitlementTestDB(t)
 	orgID := createEntitlementTestOrg(t, db, model.Organization{
 		Name:       "Team",
@@ -53,9 +53,6 @@ func TestCommunityResolveTeamOrgWithoutCommercialBudget(t *testing.T) {
 		Status:     "trialing",
 		CreatedBy:  1,
 	})
-	if err := db.Create(&model.OrgQuota{OrgID: orgID, MonthlyBudget: 120}).Error; err != nil {
-		t.Fatalf("create quota: %v", err)
-	}
 	service := NewService(db, &config.Config{DeploymentMode: string(commercial.DeploymentSelfHostedTeam)})
 
 	snapshot, err := service.Resolve(context.Background(), commercial.SubjectRef{UserID: 1, OrgID: &orgID})
@@ -97,7 +94,7 @@ func openEntitlementTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Organization{}, &model.OrgQuota{}); err != nil {
+	if err := db.AutoMigrate(&model.Organization{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

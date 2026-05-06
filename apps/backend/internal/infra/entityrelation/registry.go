@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import "gorm.io/gorm"
 

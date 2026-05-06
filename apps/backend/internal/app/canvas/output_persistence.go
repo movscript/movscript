@@ -10,6 +10,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -186,7 +187,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		if err := db.Create(&candidateSlot).Error; err != nil {
 			return
 		}
-		if err := model.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
 			return
 		}
 	}
@@ -227,7 +228,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		if err := db.Create(&existing).Error; err != nil {
 			return
 		}
-		if err := model.SyncCoreEntityRelations(db, &existing); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(db, &existing); err != nil {
 			return
 		}
 	} else {
@@ -239,7 +240,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		if err := db.Save(&existing).Error; err != nil {
 			return
 		}
-		if err := model.SyncCoreEntityRelations(db, &existing); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(db, &existing); err != nil {
 			return
 		}
 	}
@@ -251,7 +252,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 	if err := db.Save(&target).Error; err != nil {
 		return
 	}
-	_ = model.SyncCoreEntityRelations(db, &target)
+	_ = entityrelation.SyncCoreEntityRelations(db, &target)
 }
 
 func canvasOutputMetadataJSON(canvasID uint, runID uint, target model.CanvasOutput, value canvasPortValue) string {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
 	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
@@ -215,8 +216,15 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint)
 	if r.StorageKey != "" {
 		_ = s.store.Delete(ctx, r.StorageKey)
 	}
-	if err := s.db.WithContext(ctx).Where("resource_id = ?", r.ID).Delete(&model.ResourceBinding{}).Error; err != nil {
+	var bindings []model.ResourceBinding
+	if err := s.db.WithContext(ctx).Select("id").Where("resource_id = ?", r.ID).Find(&bindings).Error; err != nil {
 		return err
+	}
+	bindingSvc := resourcebinding.NewService(s.db)
+	for i := range bindings {
+		if err := bindingSvc.Delete(ctx, bindings[i].ID); err != nil {
+			return err
+		}
 	}
 	if err := s.db.WithContext(ctx).Delete(&r).Error; err != nil {
 		return err

@@ -1,14 +1,10 @@
-package model
+package entityrelation
 
 import (
 	"strings"
 
 	"gorm.io/gorm"
 )
-
-func (item *CreativeReference) AfterSave(tx *gorm.DB) error {
-	return syncCreativeReferenceRelations(tx, item)
-}
 
 func syncCreativeReferenceRelations(tx *gorm.DB, item *CreativeReference) error {
 	if err := deleteTargetEntityRelations(tx, "creative_reference", item.ID, EntityRelationCategoryCreative, relationTypeList(EntityRelationTypeOwns)); err != nil {
@@ -29,14 +25,6 @@ func syncCreativeReferenceRelations(tx *gorm.DB, item *CreativeReference) error 
 	)
 }
 
-func (item *CreativeReference) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "creative_reference", item.ID)
-}
-
-func (item *CreativeReferenceState) AfterSave(tx *gorm.DB) error {
-	return syncCreativeReferenceStateRelations(tx, item)
-}
-
 func syncCreativeReferenceStateRelations(tx *gorm.DB, item *CreativeReferenceState) error {
 	if err := deleteTargetEntityRelations(tx, "creative_reference_state", item.ID, EntityRelationCategoryCreative, relationTypeList(EntityRelationTypeHasState)); err != nil {
 		return err
@@ -53,14 +41,6 @@ func syncCreativeReferenceStateRelations(tx *gorm.DB, item *CreativeReferenceSta
 		ScopeID:    item.ScopeID,
 		Status:     relationStatus(item.Status),
 	}})
-}
-
-func (item *CreativeReferenceState) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "creative_reference_state", item.ID)
-}
-
-func (item *CreativeReferenceUsage) AfterSave(tx *gorm.DB) error {
-	return syncCreativeReferenceUsageRelations(tx, item)
 }
 
 func syncCreativeReferenceUsageRelations(tx *gorm.DB, item *CreativeReferenceUsage) error {
@@ -85,14 +65,6 @@ func syncCreativeReferenceUsageRelations(tx *gorm.DB, item *CreativeReferenceUsa
 			MetadataJSON: relationMetadata(map[string]any{"creative_reference_usage_id": item.ID, "role": item.Role, "creative_reference_state_id": item.CreativeReferenceStateID}),
 		}},
 	)
-}
-
-func (item *CreativeReferenceUsage) AfterDelete(tx *gorm.DB) error {
-	return deleteMetadataEntityRelations(tx, "creative_reference_usage_id", item.ID)
-}
-
-func (item *CreativeRelationship) AfterSave(tx *gorm.DB) error {
-	return syncCreativeRelationshipRelations(tx, item)
 }
 
 func syncCreativeRelationshipRelations(tx *gorm.DB, item *CreativeRelationship) error {
@@ -126,8 +98,4 @@ func syncCreativeRelationshipRelations(tx *gorm.DB, item *CreativeRelationship) 
 			MetadataJSON: relationMetadata(map[string]any{"creative_relationship_id": item.ID, "description": item.Description}),
 		}},
 	)
-}
-
-func (item *CreativeRelationship) AfterDelete(tx *gorm.DB) error {
-	return deleteMetadataEntityRelations(tx, "creative_relationship_id", item.ID)
 }

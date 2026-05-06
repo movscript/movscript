@@ -11,6 +11,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -590,7 +591,7 @@ func (s *EntityIOService) createEntityResourceBinding(ctx context.Context, bindi
 	if err := db.Create(binding).Error; err != nil {
 		return err
 	}
-	if err := model.SyncCoreEntityRelations(db, binding); err != nil {
+	if err := entityrelation.SyncCoreEntityRelations(db, binding); err != nil {
 		return err
 	}
 	if binding.IsPrimary {
@@ -611,7 +612,7 @@ func (s *EntityIOService) createEntityResourceBinding(ctx context.Context, bindi
 		if update.RowsAffected > 0 {
 			slot := model.AssetSlot{}
 			slot.ID = binding.OwnerID
-			if err := model.SyncCoreEntityRelations(db, &slot); err != nil {
+			if err := entityrelation.SyncCoreEntityRelations(db, &slot); err != nil {
 				return err
 			}
 		}
@@ -663,7 +664,7 @@ func (s *EntityIOService) writeAssetSlotCandidates(ctx context.Context, slotID u
 		if err := s.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 			return bindingIDs, err
 		}
-		if err := model.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidateSlot); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidateSlot); err != nil {
 			return bindingIDs, err
 		}
 		candidate := model.AssetSlotCandidate{
@@ -680,7 +681,7 @@ func (s *EntityIOService) writeAssetSlotCandidates(ctx context.Context, slotID u
 		if err := s.db.WithContext(ctx).Create(&candidate).Error; err != nil {
 			return bindingIDs, err
 		}
-		if err := model.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidate); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidate); err != nil {
 			return bindingIDs, err
 		}
 		binding := model.ResourceBinding{
@@ -712,23 +713,23 @@ func syncEntityRelationsForKind(db *gorm.DB, kind string, id uint) error {
 	case "segment":
 		item := model.Segment{}
 		item.ID = id
-		return model.SyncCoreEntityRelations(db, &item)
+		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case "scene_moment":
 		item := model.SceneMoment{}
 		item.ID = id
-		return model.SyncCoreEntityRelations(db, &item)
+		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case "creative_reference":
 		item := model.CreativeReference{}
 		item.ID = id
-		return model.SyncCoreEntityRelations(db, &item)
+		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case "asset_slot":
 		item := model.AssetSlot{}
 		item.ID = id
-		return model.SyncCoreEntityRelations(db, &item)
+		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case "content_unit":
 		item := model.ContentUnit{}
 		item.ID = id
-		return model.SyncCoreEntityRelations(db, &item)
+		return entityrelation.SyncCoreEntityRelations(db, &item)
 	default:
 		return nil
 	}

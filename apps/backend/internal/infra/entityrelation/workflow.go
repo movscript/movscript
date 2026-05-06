@@ -1,14 +1,10 @@
-package model
+package entityrelation
 
 import (
 	"strings"
 
 	"gorm.io/gorm"
 )
-
-func (item *CandidateDecision) AfterSave(tx *gorm.DB) error {
-	return syncCandidateDecisionRelations(tx, item)
-}
 
 func syncCandidateDecisionRelations(tx *gorm.DB, item *CandidateDecision) error {
 	if err := deleteSourceEntityRelations(tx, "candidate_decision", item.ID, EntityRelationCategoryWorkflow, relationTypeList(EntityRelationTypeDecides, EntityRelationTypeAppliesTo)); err != nil {
@@ -22,14 +18,6 @@ func syncCandidateDecisionRelations(tx *gorm.DB, item *CandidateDecision) error 
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "candidate_decision", SourceID: item.ID, TargetType: item.TargetType, TargetID: *item.TargetID, Category: EntityRelationCategoryWorkflow, Type: EntityRelationTypeAppliesTo, Label: item.Decision, Status: relationStatus(item.Status), Source: relationSource(item.Source), Evidence: item.Note})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *CandidateDecision) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "candidate_decision", item.ID)
-}
-
-func (item *ReviewEvent) AfterSave(tx *gorm.DB) error {
-	return syncReviewEventRelations(tx, item)
 }
 
 func syncReviewEventRelations(tx *gorm.DB, item *ReviewEvent) error {
@@ -53,14 +41,6 @@ func syncReviewEventRelations(tx *gorm.DB, item *ReviewEvent) error {
 		Evidence:     item.Comment,
 		MetadataJSON: relationMetadata(map[string]any{"from_status": item.FromStatus, "to_status": item.ToStatus, "reason": item.Reason}),
 	}})
-}
-
-func (item *ReviewEvent) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "review_event", item.ID)
-}
-
-func (item *WorkItem) AfterSave(tx *gorm.DB) error {
-	return syncWorkItemRelations(tx, item)
 }
 
 func syncWorkItemRelations(tx *gorm.DB, item *WorkItem) error {
@@ -88,14 +68,6 @@ func syncWorkItemRelations(tx *gorm.DB, item *WorkItem) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *WorkItem) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "work_item", item.ID)
-}
-
-func (item *WorkDependency) AfterSave(tx *gorm.DB) error {
-	return syncWorkDependencyRelations(tx, item)
-}
-
 func syncWorkDependencyRelations(tx *gorm.DB, item *WorkDependency) error {
 	if err := deleteMetadataEntityRelations(tx, "work_dependency_id", item.ID); err != nil {
 		return err
@@ -118,14 +90,6 @@ func syncWorkDependencyRelations(tx *gorm.DB, item *WorkDependency) error {
 	}})
 }
 
-func (item *WorkDependency) AfterDelete(tx *gorm.DB) error {
-	return deleteMetadataEntityRelations(tx, "work_dependency_id", item.ID)
-}
-
-func (item *Canvas) AfterSave(tx *gorm.DB) error {
-	return syncCanvasRelations(tx, item)
-}
-
 func syncCanvasRelations(tx *gorm.DB, item *Canvas) error {
 	if err := deleteSourceEntityRelations(tx, "canvas", item.ID, EntityRelationCategoryWorkflow, relationTypeList(EntityRelationTypeAttachedTo)); err != nil {
 		return err
@@ -134,14 +98,6 @@ func syncCanvasRelations(tx *gorm.DB, item *Canvas) error {
 		return nil
 	}
 	return syncEntityRelations(tx, nil, []entityRelationSeed{{ProjectID: *item.ProjectID, SourceType: "canvas", SourceID: item.ID, TargetType: item.RefType, TargetID: *item.RefID, Category: EntityRelationCategoryWorkflow, Type: EntityRelationTypeAttachedTo, Label: item.Stage, Status: "active"}})
-}
-
-func (item *Canvas) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "canvas", item.ID)
-}
-
-func (item *CanvasRun) AfterSave(tx *gorm.DB) error {
-	return syncCanvasRunRelations(tx, item)
 }
 
 func syncCanvasRunRelations(tx *gorm.DB, item *CanvasRun) error {
@@ -155,14 +111,6 @@ func syncCanvasRunRelations(tx *gorm.DB, item *CanvasRun) error {
 	return syncEntityRelations(tx, nil, []entityRelationSeed{{ProjectID: *canvas.ProjectID, SourceType: "canvas_run", SourceID: item.ID, TargetType: "canvas", TargetID: item.CanvasID, Category: EntityRelationCategoryWorkflow, Type: EntityRelationTypeDerivedFrom, Status: relationStatus(item.Status)}})
 }
 
-func (item *CanvasRun) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "canvas_run", item.ID)
-}
-
-func (item *CanvasOutput) AfterSave(tx *gorm.DB) error {
-	return syncCanvasOutputRelations(tx, item)
-}
-
 func syncCanvasOutputRelations(tx *gorm.DB, item *CanvasOutput) error {
 	if err := deleteSourceEntityRelations(tx, "canvas_output", item.ID, EntityRelationCategoryWorkflow, relationTypeList(EntityRelationTypeProduces, EntityRelationTypeAppliesTo)); err != nil {
 		return err
@@ -172,8 +120,4 @@ func syncCanvasOutputRelations(tx *gorm.DB, item *CanvasOutput) error {
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "canvas_output", SourceID: item.ID, TargetType: "raw_resource", TargetID: *item.ResourceID, Category: EntityRelationCategoryWorkflow, Type: EntityRelationTypeProduces, Label: item.OutputType, Status: relationStatus(item.Status)})
 	}
 	return syncEntityRelations(tx, nil, seeds)
-}
-
-func (item *CanvasOutput) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "canvas_output", item.ID)
 }

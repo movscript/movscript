@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -82,7 +83,7 @@ func (s *EntityIOService) AttachAssetSlotCandidate(ctx context.Context, input At
 			if err := txSvc.db.WithContext(ctx).Model(&sourceSlot).Update("status", "candidate").Error; err != nil {
 				return err
 			}
-			if err := model.SyncCoreEntityRelations(txSvc.db.WithContext(ctx), &sourceSlot); err != nil {
+			if err := entityrelation.SyncCoreEntityRelations(txSvc.db.WithContext(ctx), &sourceSlot); err != nil {
 				return err
 			}
 			sourceSlot.Status = "candidate"
@@ -145,7 +146,7 @@ func (s *EntityIOService) findOrCreateCandidateAssetSlot(ctx context.Context, so
 	if err := s.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 		return candidateSlot, err
 	}
-	if err := model.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidateSlot); err != nil {
+	if err := entityrelation.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidateSlot); err != nil {
 		return candidateSlot, err
 	}
 	return candidateSlot, nil
@@ -207,7 +208,7 @@ func (s *EntityIOService) findOrCreateAssetSlotCandidate(ctx context.Context, so
 			return candidate, err
 		}
 		_ = s.db.WithContext(ctx).First(&candidate, candidate.ID).Error
-		if err := model.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidate); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidate); err != nil {
 			return candidate, err
 		}
 		return candidate, nil
@@ -232,7 +233,7 @@ func (s *EntityIOService) findOrCreateAssetSlotCandidate(ctx context.Context, so
 	if err := s.db.WithContext(ctx).Create(&candidate).Error; err != nil {
 		return candidate, err
 	}
-	if err := model.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidate); err != nil {
+	if err := entityrelation.SyncCoreEntityRelations(s.db.WithContext(ctx), &candidate); err != nil {
 		return candidate, err
 	}
 	return candidate, nil

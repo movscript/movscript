@@ -7,6 +7,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +27,7 @@ func (s *Service) CreateItem(ctx context.Context, item any) error {
 		if err := tx.Create(item).Error; err != nil {
 			return err
 		}
-		return model.SyncCoreEntityRelations(tx, item)
+		return entityrelation.SyncCoreEntityRelations(tx, item)
 	}); err != nil {
 		return err
 	}
@@ -49,7 +50,7 @@ func (s *Service) PatchItem(ctx context.Context, item any, updates map[string]an
 		if err := tx.Save(item).Error; err != nil {
 			return err
 		}
-		return model.SyncCoreEntityRelations(tx, item)
+		return entityrelation.SyncCoreEntityRelations(tx, item)
 	}); err != nil {
 		return err
 	}
@@ -68,7 +69,7 @@ func (s *Service) DeleteItem(ctx context.Context, item any) error {
 		if err := tx.Delete(item).Error; err != nil {
 			return err
 		}
-		return model.DeleteCoreEntityRelations(tx, item)
+		return entityrelation.DeleteCoreEntityRelations(tx, item)
 	}); err != nil {
 		return err
 	}

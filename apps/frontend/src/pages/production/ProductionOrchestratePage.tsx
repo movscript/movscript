@@ -1100,130 +1100,6 @@ export default function ProductionOrchestratePage() {
         />
       </div>
 
-      {/* Legacy dialogs kept only for records still opened before the UI swap */}
-      {false && (
-        <>
-          <OrchestrationRail
-            filter={filter}
-            items={railItems}
-            filterCounts={filterCounts}
-            pendingCandidateCount={pendingCandidateCount}
-            selectedEntityId={selectedEntityId}
-            onFilterChange={handleFilterChange}
-            onSelectItem={(entityId) => setSelectedEntityId(entityId)}
-            onAddItem={() => { if (filter !== 'all') setCreateType(filter) }}
-          />
-          <WorkspaceHeader
-            filter={filter}
-            selectedRecord={selectedRecord}
-            selectedRecordLabel={getSelectedRecordLabel()}
-            selectedRecordSummary={getSelectedRecordSummary()}
-            contextOverview={contextOverview}
-            filterCounts={filterCounts}
-            totalCount={railItems.length}
-            metrics={buildOverviewMetrics(filter, selectedRecord, {
-              segments: allSegments,
-              sceneMoments: allSceneMoments,
-              creativeReferences: allCreativeReferences,
-              assetSlots: allAssetSlots,
-              contentUnits: allContentUnits,
-              lookup,
-            })}
-            candidates={candidates}
-            onAdd={() => setCreateType(filter)}
-            onClearSelection={() => setSelectedEntityId(null)}
-            onPrimaryAction={handleContextPrimaryAction}
-          />
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
-            {filter === 'all' ? (
-              <AllView
-                segments={allSegments}
-                sceneMoments={allSceneMoments}
-                creativeReferences={allCreativeReferences}
-                assetSlots={allAssetSlots}
-                contentUnits={allContentUnits}
-                lookup={lookup}
-                projectId={projectId}
-                productionId={effectiveProductionId}
-                queryKey={queryKey}
-                expandedIds={expandedIds}
-                onToggleExpand={toggleExpand}
-                onEdit={(type, record) => setEditEntry({ type, record })}
-                onCreateChild={(type) => setCreateType(type)}
-                onAddSegment={() => setCreateType('segments')}
-                onAddReference={() => setCreateType('creativeReferences')}
-                onAddAsset={() => setCreateType('assetSlots')}
-                onAcceptSegmentCandidate={acceptSegmentCandidate}
-                onAcceptCreativeReferenceCandidate={acceptCreativeReferenceCandidate}
-                onAcceptAssetSlotCandidate={acceptAssetSlotCandidate}
-                candidates={candidates}
-                showDiff={Boolean(candidates)}
-                onAcceptCandidate={handleAcceptCandidate}
-                onRejectCandidate={handleRejectCandidate}
-                onConflictDecision={handleConflictDecision}
-                onAnalyze={handleAnalyzeTarget}
-              />
-            ) : (
-              <TypeSection
-                type={filter}
-                label={filterDefs.find((item) => item.key === filter)?.label ?? '结构'}
-                icon={filter === 'segments' ? GitBranch : filter === 'sceneMoments' ? Route : filter === 'creativeReferences' ? Sparkles : filter === 'assetSlots' ? PackageCheck : Film}
-                items={railItems}
-                renderRow={(item) => renderRecordRow(filter, item.id)}
-                pendingCandidates={getPendingCandidatesForFilter(filter, candidates)}
-                renderCandidate={(c) => renderCandidateRow(filter, c)}
-                onAdd={() => setCreateType(filter)}
-              />
-            )}
-          </div>
-          <AgentChatSidebar
-            projectId={projectId}
-            production={selectedProduction}
-            selectedSegment={selectedSegment}
-            segments={allSegments}
-            sceneMoments={allSceneMoments}
-            creativeReferences={allCreativeReferences}
-            assetSlots={allAssetSlots}
-            contentUnits={allContentUnits}
-            guideCounts={guideCounts}
-            pendingCounts={guidePendingCounts}
-            orchestrationPrompt={orchestrationPrompt}
-            onOrchestrationPromptChange={setOrchestrationPrompt}
-            candidateWorkbench={
-              <CandidateWorkbench
-                candidates={candidates}
-                onClear={handleClearCandidates}
-                renderCandidate={(type, candidate) => renderCandidateRow(type, candidate)}
-              />
-            }
-            onClose={() => setAIPanelOpen(false)}
-            onResult={(result) => {
-              const toStatus = (d: unknown): CandidateStatus => {
-                const cs = (d as { conflict_status?: string }).conflict_status
-                return cs === 'duplicate' || cs === 'supersedes' ? 'conflict_pending' : 'pending'
-              }
-              setCandidates({
-                segments: result.segments.map((d) => ({ data: d as AISegmentCandidate & ConflictInfo, status: toStatus(d) })),
-                scene_moments: result.scene_moments.map((d) => ({ data: d as AISceneMomentCandidate & ConflictInfo, status: toStatus(d) })),
-                creative_references: result.creative_references.map((d) => ({ data: d as AICreativeReferenceCandidate & ConflictInfo, status: toStatus(d) })),
-                asset_slots: result.asset_slots.map((d) => ({ data: d as AIAssetSlotCandidate & ConflictInfo, status: toStatus(d) })),
-                content_units: result.content_units.map((d) => ({ data: d as AIContentUnitCandidate & ConflictInfo, status: toStatus(d) })),
-              })
-              const conflictCount = [
-                ...result.segments, ...result.scene_moments, ...result.creative_references,
-                ...result.asset_slots, ...result.content_units,
-              ].filter((d) => d.conflict_status === 'duplicate' || d.conflict_status === 'supersedes').length
-              const msg = `AI分析完成：${result.segments.length} 剧本段落，${result.scene_moments.length} 情景，${result.creative_references.length} 资料，${result.asset_slots.length} 素材，${result.content_units.length} 制作项`
-              if (conflictCount > 0) {
-                toast.info(`${msg}（${conflictCount} 个与已有实体冲突，请选择覆盖或并行）`)
-              } else {
-                toast.success(msg)
-              }
-            }}
-          />
-        </>
-      )}
-
       {/* CRUD dialogs */}
       {createType && createType !== 'all' && (
         <SemanticEntityCrudDialog
@@ -1395,6 +1271,301 @@ function RailMetric({ label, value }: { label: string; value: number }) {
       <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   )
+}
+
+function ProductionPackageWorkspace({
+  productionName,
+  scriptVersionTitle,
+  scriptTextLength,
+  proposalDraft,
+  baseline,
+  isPreview,
+  onRefresh,
+}: {
+  productionName: string
+  scriptVersionTitle: string
+  scriptTextLength: number
+  proposalDraft: ProposalDraftContent
+  baseline: {
+    segments: number
+    sceneMoments: number
+    creativeReferences: number
+    assetSlots: number
+    contentUnits: number
+  }
+  isPreview: boolean
+  onRefresh: () => void
+}) {
+  const segments = proposalDraft.proposal?.segments ?? []
+  const [selectedKey, setSelectedKey] = useState(() => segments[0]?.client_id ?? 'segment-0')
+  const totals = useMemo(() => countProposalTotals(segments), [segments])
+  const actionCounts = useMemo(() => countProposalActions(segments), [segments])
+  const selected = findProposalSelection(segments, selectedKey) ?? { kind: 'segment' as const, segment: segments[0], moment: undefined }
+  const selectedSegment = selected.segment
+  const selectedMoment = selected.moment
+  const selectedTitle = selectedMoment?.title || selectedSegment?.title || '未选择结构节点'
+  const selectedDescription = selectedMoment
+    ? selectedMoment.action_text || selectedMoment.description || selectedMoment.rationale || '暂无情景说明。'
+    : selectedSegment?.summary || selectedSegment?.rationale || '暂无段落摘要。'
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4">
+      <section className="rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <PackageCheck size={12} />
+              分集生产包
+              {isPreview && <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">UI 预览</Badge>}
+            </div>
+            <h1 className="mt-1 truncate text-lg font-semibold text-foreground">{productionName}</h1>
+            <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+              {proposalDraft.summary || '审阅本次分集结构、复用关系和写入影响，再决定哪些节点进入项目。'}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onRefresh}>
+              <RefreshCw size={13} />
+              刷新基线
+            </Button>
+            <Button size="sm" className="h-8 gap-1.5 text-xs" disabled>
+              <CheckCheck size={13} />
+              等待审阅决策
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 md:grid-cols-4">
+          <PackageStageStep icon={ScrollText} label="剧本输入" active detail={scriptVersionTitle || '未绑定剧本'} />
+          <PackageStageStep icon={Wand2} label="生成提案" active detail={`${segments.length} 个段落建议`} />
+          <PackageStageStep icon={CheckCheck} label="人工审阅" active detail="右侧逐项决策" />
+          <PackageStageStep icon={Target} label="写入项目" detail="按接受结果落库" />
+        </div>
+      </section>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <DecisionMetric icon={GitBranch} label="提案段落" value={segments.length} />
+        <DecisionMetric icon={Route} label="提案情景" value={totals.sceneMoments} />
+        <DecisionMetric icon={Film} label="制作项" value={totals.contentUnits} />
+        <DecisionMetric icon={PackageCheck} label="素材缺口" value={totals.assetSlots} tone={totals.assetSlots > 0 ? 'warn' : 'muted'} />
+      </div>
+
+      <div className="grid min-h-[520px] gap-4 xl:grid-cols-[1fr_420px]">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">分集结构预览</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">一个分集就是一个生产包；段落、情景、资料、素材和制作项在这里统一审阅。</p>
+            </div>
+            <div className="flex gap-1.5 text-[10px]">
+              <span className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">新建 {actionCounts.create}</span>
+              <span className="rounded bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300">复用 {actionCounts.reuse}</span>
+              <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">更新 {actionCounts.update}</span>
+            </div>
+          </div>
+
+          <div className="grid min-h-[460px] lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-w-0 divide-y divide-border overflow-y-auto">
+              {segments.length === 0 ? (
+                <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">暂无提案结构</div>
+              ) : (
+                segments.map((segment, index) => (
+                  <ProposalStructureSegment
+                    key={segment.client_id ?? `segment-${index}`}
+                    segment={segment}
+                    index={index}
+                    selectedKey={selectedKey}
+                    onSelect={setSelectedKey}
+                  />
+                ))
+              )}
+            </div>
+
+            <aside className="border-t border-border bg-muted/20 p-4 lg:border-l lg:border-t-0">
+              <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                <Target size={12} />
+                当前选中
+              </div>
+              <h2 className="mt-1 text-base font-semibold text-foreground">{selectedTitle}</h2>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{selectedDescription}</p>
+
+              <div className="mt-4 grid gap-2">
+                <PackageDetailLine icon={GitBranch} label="所属段落" value={selectedSegment?.title || '-'} />
+                <PackageDetailLine icon={Route} label="情景数量" value={`${selectedSegment?.scene_moments?.length ?? 0}`} />
+                <PackageDetailLine icon={Film} label="制作项" value={`${selectedMoment?.content_units?.length ?? countSegmentContentUnits(selectedSegment)}`} />
+                <PackageDetailLine icon={Sparkles} label="资料引用" value={`${selectedMoment?.creative_references?.length ?? countSegmentReferences(selectedSegment)}`} />
+                <PackageDetailLine icon={PackageCheck} label="素材需求" value={`${selectedMoment?.asset_slots?.length ?? countSegmentAssetSlots(selectedSegment)}`} />
+              </div>
+
+              {selectedMoment && (
+                <div className="mt-4 rounded-md border border-border bg-background p-3">
+                  <p className="text-[11px] font-semibold text-foreground">情景执行条件</p>
+                  <div className="mt-2 grid gap-1.5 text-[11px] text-muted-foreground">
+                    <span>{[selectedMoment.time_text, selectedMoment.location_text].filter(Boolean).join(' / ') || '未标注时间地点'}</span>
+                    <span>{selectedMoment.mood ? `情绪：${selectedMoment.mood}` : '未标注情绪'}</span>
+                    <span>{selectedMoment.content_units?.length ? '已拆制作项' : '等待拆制作项'}</span>
+                  </div>
+                </div>
+              )}
+            </aside>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center gap-2">
+            <Layers3 size={14} className="text-primary" />
+            <p className="text-sm font-semibold text-foreground">基线对比</p>
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+            提案不会直接替换现有结构，复用和更新会在写入前保留明确动作。
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <PackageCompareMetric label="已有段落" current={baseline.segments} next={segments.length} />
+            <PackageCompareMetric label="已有情景" current={baseline.sceneMoments} next={totals.sceneMoments} />
+            <PackageCompareMetric label="已有资料" current={baseline.creativeReferences} next={totals.creativeReferences} />
+            <PackageCompareMetric label="已有素材" current={baseline.assetSlots} next={totals.assetSlots} />
+            <PackageCompareMetric label="已有制作项" current={baseline.contentUnits} next={totals.contentUnits} />
+            <PackageCompareMetric label="剧本文本" current={scriptTextLength} next={scriptTextLength} suffix="字" />
+          </div>
+          <div className="mt-4 rounded-md border border-border bg-background p-3">
+            <p className="text-[11px] font-semibold text-foreground">写入策略</p>
+            <div className="mt-2 space-y-2 text-[11px] leading-4 text-muted-foreground">
+              <p>新建节点进入当前分集；复用节点引用项目级资料或已有素材；更新节点只记录变更意图。</p>
+              <p>右侧审阅完成后，写入动作应只提交被接受的结构节点。</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function PackageStageStep({ icon: Icon, label, detail, active = false }: { icon: LucideIcon; label: string; detail: string; active?: boolean }) {
+  return (
+    <div className={cn('rounded-md border px-3 py-2', active ? 'border-primary/25 bg-primary/5' : 'border-border bg-background')}>
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+        <Icon size={12} className={active ? 'text-primary' : 'text-muted-foreground'} />
+        {label}
+      </div>
+      <p className="mt-1 truncate text-[10px] text-muted-foreground">{detail}</p>
+    </div>
+  )
+}
+
+function ProposalStructureSegment({
+  segment,
+  index,
+  selectedKey,
+  onSelect,
+}: {
+  segment: ProposalSegmentNode
+  index: number
+  selectedKey: string
+  onSelect: (key: string) => void
+}) {
+  const segmentKey = segment.client_id ?? `segment-${index}`
+  const active = selectedKey === segmentKey
+  return (
+    <div className="p-3">
+      <button
+        type="button"
+        onClick={() => onSelect(segmentKey)}
+        className={cn('flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-muted/50', active && 'bg-primary/5')}
+      >
+        <ActionBadge action={segment.action} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-foreground">{segment.title || `剧本段落 ${index + 1}`}</span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">{segment.scene_moments?.length ?? 0} 情景</span>
+          </div>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{segment.summary || segment.rationale || '暂无摘要'}</p>
+        </div>
+      </button>
+      <div className="ml-5 mt-2 space-y-1.5 border-l border-border pl-3">
+        {(segment.scene_moments ?? []).map((moment, momentIndex) => {
+          const momentKey = moment.client_id ?? `${segmentKey}-moment-${momentIndex}`
+          const momentActive = selectedKey === momentKey
+          return (
+            <button
+              key={momentKey}
+              type="button"
+              onClick={() => onSelect(momentKey)}
+              className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/50', momentActive && 'bg-primary/5')}
+            >
+              <ActionBadge action={moment.action} compact />
+              <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">{moment.title || `情景 ${momentIndex + 1}`}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{moment.content_units?.length ?? 0} 制作项</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PackageDetailLine({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-2.5 py-2">
+      <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Icon size={12} />
+        {label}
+      </span>
+      <span className="truncate text-[11px] font-medium text-foreground">{value}</span>
+    </div>
+  )
+}
+
+function PackageCompareMetric({ label, current, next, suffix = '' }: { label: string; current: number; next: number; suffix?: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <span className="text-base font-semibold text-foreground">{current}{suffix}</span>
+        <span className="text-[10px] text-muted-foreground">/ 提案 {next}{suffix}</span>
+      </div>
+    </div>
+  )
+}
+
+function countProposalTotals(segments: ProposalSegmentNode[]) {
+  return segments.reduce((totals, segment) => {
+    const moments = segment.scene_moments ?? []
+    totals.sceneMoments += moments.length
+    for (const moment of moments) {
+      totals.contentUnits += moment.content_units?.length ?? 0
+      totals.creativeReferences += moment.creative_references?.length ?? 0
+      totals.assetSlots += moment.asset_slots?.length ?? 0
+      totals.duration += (moment.content_units ?? []).reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0)
+    }
+    return totals
+  }, { sceneMoments: 0, contentUnits: 0, creativeReferences: 0, assetSlots: 0, duration: 0 })
+}
+
+function findProposalSelection(segments: ProposalSegmentNode[], key: string) {
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i]
+    if ((segment.client_id ?? `segment-${i}`) === key) return { kind: 'segment' as const, segment, moment: undefined }
+    const moments = segment.scene_moments ?? []
+    for (let j = 0; j < moments.length; j += 1) {
+      const moment = moments[j]
+      if ((moment.client_id ?? `${segment.client_id ?? `segment-${i}`}-moment-${j}`) === key) {
+        return { kind: 'scene_moment' as const, segment, moment }
+      }
+    }
+  }
+  return null
+}
+
+function countSegmentContentUnits(segment?: ProposalSegmentNode) {
+  return (segment?.scene_moments ?? []).reduce((sum, moment) => sum + (moment.content_units?.length ?? 0), 0)
+}
+
+function countSegmentReferences(segment?: ProposalSegmentNode) {
+  return (segment?.scene_moments ?? []).reduce((sum, moment) => sum + (moment.creative_references?.length ?? 0), 0)
+}
+
+function countSegmentAssetSlots(segment?: ProposalSegmentNode) {
+  return (segment?.scene_moments ?? []).reduce((sum, moment) => sum + (moment.asset_slots?.length ?? 0), 0)
 }
 
 function WorkspaceHeader({
@@ -4258,11 +4429,11 @@ function AgentChatSidebar({
 function ProposalReviewSidebar({
   projectId,
   proposalDraft,
-  onOpenAgent,
+  previewOnly,
 }: {
   projectId?: number
   proposalDraft: ProposalDraftContent
-  onOpenAgent: () => void
+  previewOnly: boolean
 }) {
   return (
     <aside className="flex w-[420px] shrink-0 flex-col border-l border-border bg-card">
@@ -4272,18 +4443,15 @@ function ProposalReviewSidebar({
             <Eye size={15} className="text-primary" />
             <span className="text-sm font-semibold text-foreground">分集生产包</span>
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">审阅结构、复用和写入影响；Agent 稳定后会接入真实提案。</p>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">审阅结构、复用关系和写入影响。</p>
         </div>
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={onOpenAgent}>
-          <Sparkles size={12} />
-          Agent
-        </Button>
+        {previewOnly && <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">预览</Badge>}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ProposalReviewPanel
           projectId={projectId}
           proposalDraft={proposalDraft}
-          previewOnly
+          previewOnly={previewOnly}
           onAccepted={() => undefined}
           onDiscard={() => undefined}
         />

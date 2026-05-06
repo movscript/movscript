@@ -2,6 +2,7 @@ package canvas
 
 import (
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -10,7 +11,7 @@ func (h *Service) createCanvasRunWithRelations(run *model.CanvasRun) error {
 	if err := db.Create(run).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(db, run)
+	return entityrelation.SyncCoreEntityRelations(db, run)
 }
 
 func (h *Service) saveCanvasRunWithRelations(run *model.CanvasRun) error {
@@ -18,7 +19,7 @@ func (h *Service) saveCanvasRunWithRelations(run *model.CanvasRun) error {
 	if err := db.Save(run).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(db, run)
+	return entityrelation.SyncCoreEntityRelations(db, run)
 }
 
 func saveCanvasWithRelations(db *gorm.DB, cv *model.Canvas) error {
@@ -26,5 +27,5 @@ func saveCanvasWithRelations(db *gorm.DB, cv *model.Canvas) error {
 	if err := db.Save(cv).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(db, cv)
+	return entityrelation.SyncCoreEntityRelations(db, cv)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"github.com/movscript/movscript/internal/infra/cache"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -181,7 +182,11 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 		if version.Status == "" {
 			updates["status"] = "active"
 		}
-		return s.db.WithContext(ctx).Model(&version).Updates(updates).Error
+		versionDB := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+		if err := versionDB.Model(&version).Updates(updates).Error; err != nil {
+			return err
+		}
+		return entityrelation.SyncCoreEntityRelations(versionDB, &version)
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -201,7 +206,15 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 	if version.SourceType == "" {
 		version.SourceType = "raw"
 	}
-	return s.db.WithContext(ctx).Create(&version).Error
+	return s.createScriptVersionWithRelations(ctx, &version)
+}
+
+func (s *Service) createScriptVersionWithRelations(ctx context.Context, version *model.ScriptVersion) error {
+	db := s.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	if err := db.Create(version).Error; err != nil {
+		return err
+	}
+	return entityrelation.SyncCoreEntityRelations(db, version)
 }
 
 func wrapVersionSync(err error) error {

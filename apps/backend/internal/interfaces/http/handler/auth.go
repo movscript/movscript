@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -107,16 +108,21 @@ func (h *AuthHandler) LocalBootstrap(c *gin.Context) {
 	var req struct {
 		DisplayName string `json:"displayName"`
 		Name        string `json:"name"`
+		Password    string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !isLoopbackRequest(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "本地初始化只允许从本机访问"})
 		return
 	}
 	displayName := strings.TrimSpace(req.DisplayName)
 	if displayName == "" {
 		displayName = strings.TrimSpace(req.Name)
 	}
-	u, err := h.service.LocalBootstrap(c.Request.Context(), authapp.LocalBootstrapInput{DisplayName: displayName})
+	u, err := h.service.LocalBootstrap(c.Request.Context(), authapp.LocalBootstrapInput{DisplayName: displayName, Password: req.Password})
 	if err != nil {
 		if errors.Is(err, authapp.ErrConflict) {
 			c.JSON(http.StatusConflict, gin.H{"error": "本地工作区已初始化"})
@@ -141,6 +147,11 @@ func (h *AuthHandler) LocalBootstrap(c *gin.Context) {
 		},
 	})
 	h.respondWithCredential(c, http.StatusCreated, u)
+}
+
+func isLoopbackRequest(c *gin.Context) bool {
+	ip := net.ParseIP(c.ClientIP())
+	return ip != nil && ip.IsLoopback()
 }
 
 func (h *AuthHandler) Config(c *gin.Context) {

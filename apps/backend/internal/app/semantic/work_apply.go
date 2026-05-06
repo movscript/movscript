@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +30,7 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 		if err := tx.Save(&next).Error; err != nil {
 			return err
 		}
-		if err := model.SyncCoreEntityRelations(tx, &next); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
 			return err
 		}
 		if next.ResultType != "none" {
@@ -43,7 +44,7 @@ func (s *Service) completeWorkItem(ctx context.Context, projectID uint, item *mo
 			if err := tx.Save(&next).Error; err != nil {
 				return err
 			}
-			if err := model.SyncCoreEntityRelations(tx, &next); err != nil {
+			if err := entityrelation.SyncCoreEntityRelations(tx, &next); err != nil {
 				return err
 			}
 		}
@@ -159,7 +160,7 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	if err := tx.Create(&decision).Error; err != nil {
 		return err
 	}
-	if err := model.SyncCoreEntityRelations(tx, &decision); err != nil {
+	if err := entityrelation.SyncCoreEntityRelations(tx, &decision); err != nil {
 		return err
 	}
 	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
@@ -234,7 +235,7 @@ func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.Wo
 	if err := tx.Create(&event).Error; err != nil {
 		return err
 	}
-	if err := model.SyncCoreEntityRelations(tx, &event); err != nil {
+	if err := entityrelation.SyncCoreEntityRelations(tx, &event); err != nil {
 		return err
 	}
 	return nil
@@ -244,7 +245,7 @@ func saveCoreEntityWithRelations(tx *gorm.DB, item any) error {
 	if err := tx.Save(item).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(tx, item)
+	return entityrelation.SyncCoreEntityRelations(tx, item)
 }
 
 func workItemApplyMetadata(workItemID uint) string {

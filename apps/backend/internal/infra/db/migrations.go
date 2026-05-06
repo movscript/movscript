@@ -47,13 +47,12 @@ func RegisteredMigrations() []Migration {
 			Version: "000002",
 			Name:    "add_organization_support",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(
+				models := []any{
 					&model.Organization{},
 					&model.OrganizationMember{},
 					&model.UserGroup{},
 					&model.UserGroupMember{},
 					&model.OrgInvitation{},
-					&model.OrgQuota{},
 					&model.Project{},
 					&model.AICredential{},
 					&model.FeatureConfig{},
@@ -62,7 +61,9 @@ func RegisteredMigrations() []Migration {
 					&model.UsageLog{},
 					&model.UsageReservation{},
 					&model.AuditLog{},
-				); err != nil {
+				}
+				models = append(models, commercialMigrationModels()...)
+				if err := db.AutoMigrate(models...); err != nil {
 					return err
 				}
 				return seedDefaultOrg(db)
@@ -332,7 +333,7 @@ func migrationChecksum(migration Migration) string {
 }
 
 func allModels() []any {
-	return []any{
+	entities := []any{
 		&model.User{},
 		&model.AuthSession{},
 		&model.AuthChallenge{},
@@ -369,7 +370,6 @@ func allModels() []any {
 		&model.SettingRelationship{},
 		&model.AICredential{},
 		&model.AIModelConfig{},
-		&model.UserQuota{},
 		&model.UsageReservation{},
 		&model.UsageLog{},
 		&model.ResourceFolder{},
@@ -401,6 +401,6 @@ func allModels() []any {
 		&model.UserGroup{},
 		&model.UserGroupMember{},
 		&model.OrgInvitation{},
-		&model.OrgQuota{},
 	}
+	return append(entities, commercialMigrationModels()...)
 }

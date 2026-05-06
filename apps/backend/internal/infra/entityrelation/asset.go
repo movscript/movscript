@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import (
 	"strings"
@@ -20,10 +20,6 @@ func assetOwnerRelationType(slot AssetSlot) string {
 
 func assetOwnerRelationTypes(slot AssetSlot) []string {
 	return []string{EntityRelationTypeNeedsAsset, EntityRelationTypeUsesAsset}
-}
-
-func (item *AssetSlot) AfterSave(tx *gorm.DB) error {
-	return syncAssetSlotRelations(tx, item)
 }
 
 func syncAssetSlotRelations(tx *gorm.DB, item *AssetSlot) error {
@@ -105,14 +101,6 @@ func syncAssetSlotRelations(tx *gorm.DB, item *AssetSlot) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
-func (item *AssetSlot) AfterDelete(tx *gorm.DB) error {
-	return deleteEntityRelations(tx, "asset_slot", item.ID)
-}
-
-func (item *AssetSlotCandidate) AfterSave(tx *gorm.DB) error {
-	return syncAssetSlotCandidateRelations(tx, item)
-}
-
 func syncAssetSlotCandidateRelations(tx *gorm.DB, item *AssetSlotCandidate) error {
 	if err := deleteMetadataEntityRelations(tx, "asset_slot_candidate_id", item.ID); err != nil {
 		return err
@@ -134,14 +122,6 @@ func syncAssetSlotCandidateRelations(tx *gorm.DB, item *AssetSlotCandidate) erro
 			MetadataJSON: relationMetadata(map[string]any{"asset_slot_candidate_id": item.ID, "source_id": item.SourceID}),
 		}},
 	)
-}
-
-func (item *AssetSlotCandidate) AfterDelete(tx *gorm.DB) error {
-	return deleteMetadataEntityRelations(tx, "asset_slot_candidate_id", item.ID)
-}
-
-func (item *ResourceBinding) AfterSave(tx *gorm.DB) error {
-	return syncResourceBindingRelations(tx, item)
 }
 
 func syncResourceBindingRelations(tx *gorm.DB, item *ResourceBinding) error {
@@ -170,8 +150,4 @@ func syncResourceBindingRelations(tx *gorm.DB, item *ResourceBinding) error {
 			CreatedByID:  item.CreatedByID,
 		}},
 	)
-}
-
-func (item *ResourceBinding) AfterDelete(tx *gorm.DB) error {
-	return deleteMetadataEntityRelations(tx, "resource_binding_id", item.ID)
 }

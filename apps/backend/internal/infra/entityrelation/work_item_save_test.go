@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import (
 	"os"
@@ -36,14 +36,20 @@ func TestWorkItemSaveSyncsEntityRelations(t *testing.T) {
 		Status:       "todo",
 		Priority:     "normal",
 	}
-	if err := db.Create(&item).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&item).Error; err != nil {
 		t.Fatalf("create item: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &item); err != nil {
+		t.Fatalf("sync initial item relations: %v", err)
 	}
 
 	item.ProductionID = nil
 	item.Status = "running"
-	if err := db.Save(&item).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Save(&item).Error; err != nil {
 		t.Fatalf("save item: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &item); err != nil {
+		t.Fatalf("sync item relations: %v", err)
 	}
 
 	var relations []EntityRelation

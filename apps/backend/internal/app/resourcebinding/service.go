@@ -6,6 +6,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/model"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -124,7 +125,7 @@ func (s *Service) CreateBinding(ctx context.Context, binding *model.ResourceBind
 		if err := tx.Create(binding).Error; err != nil {
 			return err
 		}
-		if err := model.SyncCoreEntityRelations(tx, binding); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(tx, binding); err != nil {
 			return err
 		}
 		if binding.IsPrimary {
@@ -174,7 +175,7 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (model
 					return err
 				}
 			}
-			return model.SyncCoreEntityRelations(tx, &binding)
+			return entityrelation.SyncCoreEntityRelations(tx, &binding)
 		}); err != nil {
 			return binding, err
 		}
@@ -198,7 +199,7 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 		if err := tx.Delete(&binding).Error; err != nil {
 			return err
 		}
-		return model.DeleteCoreEntityRelations(tx, &binding)
+		return entityrelation.DeleteCoreEntityRelations(tx, &binding)
 	}); err != nil {
 		return err
 	}
@@ -437,7 +438,7 @@ func (s *Service) backfillAssetSlotResource(ctx context.Context, binding model.R
 	}
 	slot := model.AssetSlot{}
 	slot.ID = binding.OwnerID
-	return model.SyncCoreEntityRelations(db, &slot)
+	return entityrelation.SyncCoreEntityRelations(db, &slot)
 }
 
 func (s *Service) clearAssetSlotResourceIfDeleted(ctx context.Context, binding model.ResourceBinding) error {
@@ -460,7 +461,7 @@ func (s *Service) clearAssetSlotResourceIfDeleted(ctx context.Context, binding m
 		if update.RowsAffected > 0 {
 			slot := model.AssetSlot{}
 			slot.ID = binding.OwnerID
-			return model.SyncCoreEntityRelations(db, &slot)
+			return entityrelation.SyncCoreEntityRelations(db, &slot)
 		}
 		return nil
 	}
@@ -478,5 +479,5 @@ func (s *Service) clearAssetSlotResourceIfDeleted(ctx context.Context, binding m
 	}
 	slot := model.AssetSlot{}
 	slot.ID = binding.OwnerID
-	return model.SyncCoreEntityRelations(db, &slot)
+	return entityrelation.SyncCoreEntityRelations(db, &slot)
 }

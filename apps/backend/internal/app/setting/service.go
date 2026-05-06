@@ -9,6 +9,7 @@ import (
 	dto "github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsetting "github.com/movscript/movscript/internal/domain/setting"
+	"github.com/movscript/movscript/internal/infra/entityrelation"
 	"gorm.io/gorm"
 )
 
@@ -228,7 +229,7 @@ func (s *Service) createCoreEntityWithRelations(ctx context.Context, item any) e
 	if err := db.Create(item).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(db, item)
+	return entityrelation.SyncCoreEntityRelations(db, item)
 }
 
 func (s *Service) saveCoreEntityWithRelations(ctx context.Context, item any) error {
@@ -236,7 +237,7 @@ func (s *Service) saveCoreEntityWithRelations(ctx context.Context, item any) err
 	if err := db.Save(item).Error; err != nil {
 		return err
 	}
-	return model.SyncCoreEntityRelations(db, item)
+	return entityrelation.SyncCoreEntityRelations(db, item)
 }
 
 func (s *Service) deleteCoreEntityWithRelations(ctx context.Context, item any) error {
@@ -244,7 +245,7 @@ func (s *Service) deleteCoreEntityWithRelations(ctx context.Context, item any) e
 	if err := db.Delete(item).Error; err != nil {
 		return err
 	}
-	return model.DeleteCoreEntityRelations(db, item)
+	return entityrelation.DeleteCoreEntityRelations(db, item)
 }
 
 func normalizeSetting(item *model.Setting) {

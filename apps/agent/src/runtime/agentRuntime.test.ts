@@ -1066,6 +1066,9 @@ test('production orchestration analyzer uses JSON mode and structured tool schem
       assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_read_production_context' && !!tool.function?.parameters))
       assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_check_entity_conflicts' && !!tool.function?.parameters))
       assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_propose_production_entities' && !!tool.function?.parameters))
+      const proposeTool = (body.tools as Array<{ function?: { name?: string; parameters?: any } }>).find((tool) => tool.function?.name === 'movscript_propose_production_entities')
+      assert.deepEqual(proposeTool?.function?.parameters?.required, ['proposal'])
+      assert.equal(proposeTool?.function?.parameters?.properties?.proposal?.properties?.schema?.enum?.[0], 'movscript.production_orchestration_analysis.v1')
       return new Response(JSON.stringify({
         choices: [{
           message: {
@@ -1253,6 +1256,165 @@ test('create_draft writes local draft lifecycle metadata and list_drafts returns
   runtime.addMessage(thread.id, { role: 'user', content: '列出当前项目已有的 Agent 草稿。' })
   await createAndWaitForRun(runtime, thread.id)
   assert.equal(client.calls.some((call) => call.name === 'movscript_list_drafts'), false)
+})
+
+test('runtime list_drafts filters by kind and status locally', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const kept = draftStore.createDraft({
+    projectId: 42,
+    kind: 'production_proposal',
+    title: 'Active proposal',
+    content: '{}',
+  })
+  const rejected = draftStore.createDraft({
+    projectId: 42,
+    kind: 'production_proposal',
+    title: 'Rejected proposal',
+    content: '{}',
+  })
+  draftStore.updateDraft(rejected.id, { status: 'rejected' })
+  draftStore.createDraft({
+    projectId: 42,
+    kind: 'note',
+    title: 'Unrelated note',
+    content: '{}',
+  })
+  const runtime = createTestRuntime({ mcpClient: client, draftStore })
+
+  const run = runtime.createToolRun({
+    toolCall: {
+      name: 'movscript_list_drafts',
+      args: {
+        projectId: 42,
+        kind: 'production_proposal',
+        status: 'draft',
+      },
+    },
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.read'],
+      tools: [{ name: 'movscript_list_drafts', mode: 'allow', approval: 'never' }],
+    },
+  })
+  const completed = await waitForRun(runtime, run.id)
+  const step = completed.steps.find((item) => item.toolName === 'movscript_list_drafts')
+  const drafts = ((step?.result as any)?.drafts ?? []) as Array<{ id: string }>
+
+  assert.equal(completed.status, 'completed')
+  assert.deepEqual(drafts.map((draft) => draft.id), [kept.id])
+  assert.equal(client.calls.some((call) => call.name === 'movscript_list_drafts'), false)
+})
+
+test('propose_production_entities writes a local production proposal draft and supersedes the previous one', async () => {
+  const originalFetch = globalThis.fetch
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const oldDraft = draftStore.createDraft({
+    projectId: 42,
+    kind: 'production_proposal',
+    title: '旧编排提案',
+    content: JSON.stringify({ productionId: 4, proposal: { segments: [] } }),
+    source: { entityType: 'production', entityId: 4 },
+  })
+  const runtime = createTestRuntime({ mcpClient: client, draftStore })
+  let callCount = 0
+
+  try {
+    globalThis.fetch = (async () => {
+      callCount += 1
+      if (callCount === 1) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_propose_production',
+                type: 'function',
+                function: {
+                  name: 'movscript_propose_production_entities',
+                  arguments: JSON.stringify({
+                    project_id: '42',
+                    analysis_scope: 'production',
+                    summary: '测试编排提案',
+                    proposal: {
+                      schema: 'movscript.production_orchestration_analysis.v1',
+                      production_id: '4',
+                      segments: [{
+                        client_id: 'segment-1',
+                        action: 'create',
+                        title: '开场',
+                        scene_moments: [{
+                          client_id: 'scene-moment-1',
+                          action: 'create',
+                          title: '雨夜出场',
+                          creative_references: [{
+                            client_id: 'ref-1',
+                            action: 'reuse',
+                            id: 7,
+                            name: '林夏',
+                          }],
+                          content_units: [{
+                            client_id: 'content-unit-1',
+                            action: 'create',
+                            title: '手机特写',
+                          }],
+                          asset_slots: [{
+                            client_id: 'asset-slot-1',
+                            action: 'create',
+                            name: '林夏角色参考图',
+                          }],
+                        }],
+                      }],
+                    },
+                  }),
+                },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: 'proposal written' }, finish_reason: 'stop' }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '生成分集编排提案' }] })
+    const run = await createAndWaitForRun(runtime, thread.id, {
+      agentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        permissions: ['project.read', 'draft.write'],
+        tools: [
+          { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
+        ],
+      },
+    })
+    const activeDraft = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft' })[0]
+    const supersededDraft = runtime.getDraft(oldDraft.id)
+    const content = JSON.parse(activeDraft.content) as Record<string, any>
+    const step = run.steps.find((item) => item.toolName === 'movscript_propose_production_entities')
+
+    assert.equal(run.status, 'completed')
+    assert.ok(activeDraft)
+    assert.notEqual(activeDraft.id, oldDraft.id)
+    assert.equal(activeDraft.createdByRunId, run.id)
+    assert.equal(activeDraft.source?.entityType, 'production')
+    assert.equal(activeDraft.source?.entityId, 4)
+    assert.equal(content.productionId, 4)
+    assert.equal(content.analysisScope, 'production')
+    assert.equal(content.summary, '测试编排提案')
+    assert.equal(content.proposal.segments.length, 1)
+    assert.equal(supersededDraft?.status, 'superseded')
+    assert.deepEqual(activeDraft.metadata?.supersededDraftIds, [oldDraft.id])
+    assert.equal((step?.result as any)?.counts.scene_moments, 1)
+    assert.equal(client.calls.some((call) => call.name === 'movscript_propose_production_entities'), false)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 })
 
 test('file draft store persists drafts across runtime rebuilds', () => {

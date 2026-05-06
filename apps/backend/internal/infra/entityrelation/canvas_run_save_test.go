@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import (
 	"os"
@@ -28,13 +28,19 @@ func TestCanvasRunSaveSyncsEntityRelations(t *testing.T) {
 		t.Fatalf("create canvas: %v", err)
 	}
 	run := CanvasRun{CanvasID: canvas.ID, Status: "pending"}
-	if err := db.Create(&run).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&run).Error; err != nil {
 		t.Fatalf("create run: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &run); err != nil {
+		t.Fatalf("sync initial run relations: %v", err)
 	}
 
 	run.Status = "done"
-	if err := db.Save(&run).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Save(&run).Error; err != nil {
 		t.Fatalf("save run: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &run); err != nil {
+		t.Fatalf("sync run relations: %v", err)
 	}
 
 	var relations []EntityRelation

@@ -58,10 +58,3 @@ type OrgInvitation struct {
 	ExpiresAt time.Time  `gorm:"not null" json:"expires_at"`
 	UsedAt    *time.Time `json:"used_at,omitempty"`
 }
-
-// OrgQuota stores the monthly budget cap for an organization.
-type OrgQuota struct {
-	gorm.Model
-	OrgID         uint    `gorm:"uniqueIndex;not null" json:"org_id"`
-	MonthlyBudget float64 `gorm:"default:0" json:"monthly_budget"`
-}

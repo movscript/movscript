@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import (
 	"fmt"
@@ -40,8 +40,11 @@ func TestScriptSettingRefSyncsToEntityRelation(t *testing.T) {
 		Source:     "manual",
 		Confidence: 0.85,
 	}
-	if err := db.Create(&ref).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&ref).Error; err != nil {
 		t.Fatalf("create ref: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &ref); err != nil {
+		t.Fatalf("sync ref: %v", err)
 	}
 
 	var relation EntityRelation
@@ -80,11 +83,17 @@ func TestScriptSettingRefDeleteCleansEntityRelation(t *testing.T) {
 	}
 
 	ref := ScriptSettingRef{ProjectID: project.ID, ScriptID: script.ID, SettingID: setting.ID, Source: "manual"}
-	if err := db.Create(&ref).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&ref).Error; err != nil {
 		t.Fatalf("create ref: %v", err)
 	}
-	if err := db.Delete(&ref).Error; err != nil {
+	if err := SyncCoreEntityRelations(db, &ref); err != nil {
+		t.Fatalf("sync ref: %v", err)
+	}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Delete(&ref).Error; err != nil {
 		t.Fatalf("delete ref: %v", err)
+	}
+	if err := DeleteCoreEntityRelations(db, &ref); err != nil {
+		t.Fatalf("delete relations: %v", err)
 	}
 
 	var count int64

@@ -148,6 +148,10 @@
       "description": "这不是云端账号，只用于这台电脑上的本地工作区。",
       "nameLabel": "名称",
       "namePlaceholder": "例如：钱",
+      "passwordLabel": "管理员密码",
+      "passwordPlaceholder": "至少 8 位",
+      "passwordHelp": "密码至少需要 8 位。",
+      "confirmPasswordLabel": "确认密码",
       "create": "创建本地工作区"
     },
     "cloudConnect": {

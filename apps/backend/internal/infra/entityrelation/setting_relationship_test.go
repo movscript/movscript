@@ -1,4 +1,4 @@
-package model
+package entityrelation
 
 import (
 	"fmt"
@@ -47,8 +47,11 @@ func TestSettingRelationshipSyncsToEntityRelation(t *testing.T) {
 		Description:     "角色别名关系",
 		Source:          "manual",
 	}
-	if err := db.Create(&item).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&item).Error; err != nil {
 		t.Fatalf("create relationship: %v", err)
+	}
+	if err := SyncCoreEntityRelations(db, &item); err != nil {
+		t.Fatalf("sync relationship: %v", err)
 	}
 
 	var relation EntityRelation
@@ -92,11 +95,17 @@ func TestSettingRelationshipDeleteCleansEntityRelation(t *testing.T) {
 		TargetSettingID: target.ID,
 		Type:            "same_as",
 	}
-	if err := db.Create(&item).Error; err != nil {
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&item).Error; err != nil {
 		t.Fatalf("create relationship: %v", err)
 	}
-	if err := db.Delete(&item).Error; err != nil {
+	if err := SyncCoreEntityRelations(db, &item); err != nil {
+		t.Fatalf("sync relationship: %v", err)
+	}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Delete(&item).Error; err != nil {
 		t.Fatalf("delete relationship: %v", err)
+	}
+	if err := DeleteCoreEntityRelations(db, &item); err != nil {
+		t.Fatalf("delete relations: %v", err)
 	}
 
 	var count int64

@@ -54,6 +54,7 @@ type RegisterInput struct {
 
 type LocalBootstrapInput struct {
 	DisplayName string
+	Password    string
 }
 
 type ProfileInput struct {
@@ -170,9 +171,28 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	if !s.localAppMode {
 		return model.User{}, ErrInvalidInput
 	}
+	password := strings.TrimSpace(input.Password)
+	if len(password) < 8 {
+		return model.User{}, ErrInvalidInput
+	}
 	var existing model.User
 	if err := s.db.WithContext(ctx).Where("system_role = ?", "super_admin").First(&existing).Error; err == nil {
-		return model.User{}, ErrConflict
+		hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+		if err != nil {
+			return model.User{}, err
+		}
+		updates := map[string]any{"password_hash": string(hashBytes)}
+		displayName := strings.TrimSpace(input.DisplayName)
+		if displayName != "" && strings.TrimSpace(existing.DisplayName) == "" {
+			updates["display_name"] = displayName
+		}
+		if err := s.db.WithContext(ctx).Model(&existing).Updates(updates).Error; err != nil {
+			return model.User{}, err
+		}
+		if err := s.db.WithContext(ctx).First(&existing, existing.ID).Error; err != nil {
+			return model.User{}, err
+		}
+		return existing, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return model.User{}, err
 	}
@@ -197,11 +217,7 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 		}
 	}
 
-	rawPassword, err := randomToken(32)
-	if err != nil {
-		return model.User{}, err
-	}
-	hashBytes, err := bcrypt.GenerateFromPassword([]byte(rawPassword), 12)
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return model.User{}, err
 	}

@@ -2,7 +2,6 @@ import type {
   AgentClientAttachmentRef,
   AgentClientResourceRef,
   AgentClientUISnapshot,
-} from '../types.js'
 } from '../state/types.js'
 
 export type NormalizedClientInput = {
