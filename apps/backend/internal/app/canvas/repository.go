@@ -30,6 +30,18 @@ type repository interface {
 	IsInOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool
 	EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error
 	ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error)
+	CreateTask(ctx context.Context, task *model.CanvasTask) error
+	UpdateTask(ctx context.Context, task *model.CanvasTask, updates map[string]any) error
+	SaveTask(ctx context.Context, task *model.CanvasTask) error
+	FindTask(ctx context.Context, taskID uint) (model.CanvasTask, error)
+	SaveNode(ctx context.Context, node *model.CanvasNode) error
+	CreateCanvasRun(ctx context.Context, run *model.CanvasRun) error
+	SaveCanvasRun(ctx context.Context, run *model.CanvasRun) error
+	FindCanvasRun(ctx context.Context, runID uint) (model.CanvasRun, error)
+	ListCanvasRunTasks(ctx context.Context, runID uint) ([]model.CanvasTask, error)
+	CanvasBillingScope(ctx context.Context, canvasID uint) (*uint, *uint, error)
+	CanvasOrgID(ctx context.Context, canvasID uint) (*uint, error)
+	LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (model.CanvasTask, bool, error)
 }
 
 type gormRepository struct {
@@ -337,4 +349,91 @@ func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint)
 		return false
 	}
 	return org.IsPersonal
+}
+
+func (r *gormRepository) CreateTask(ctx context.Context, task *model.CanvasTask) error {
+	return r.db.WithContext(ctx).Create(task).Error
+}
+
+func (r *gormRepository) UpdateTask(ctx context.Context, task *model.CanvasTask, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(task).Updates(updates).Error
+}
+
+func (r *gormRepository) SaveTask(ctx context.Context, task *model.CanvasTask) error {
+	return r.db.WithContext(ctx).Save(task).Error
+}
+
+func (r *gormRepository) FindTask(ctx context.Context, taskID uint) (model.CanvasTask, error) {
+	var task model.CanvasTask
+	if err := r.db.WithContext(ctx).First(&task, taskID).Error; err != nil {
+		return task, err
+	}
+	return task, nil
+}
+
+func (r *gormRepository) SaveNode(ctx context.Context, node *model.CanvasNode) error {
+	return r.db.WithContext(ctx).Save(node).Error
+}
+
+func (r *gormRepository) CreateCanvasRun(ctx context.Context, run *model.CanvasRun) error {
+	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	if err := db.Create(run).Error; err != nil {
+		return err
+	}
+	return entityrelation.SyncCoreEntityRelations(db, run)
+}
+
+func (r *gormRepository) SaveCanvasRun(ctx context.Context, run *model.CanvasRun) error {
+	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	if err := db.Save(run).Error; err != nil {
+		return err
+	}
+	return entityrelation.SyncCoreEntityRelations(db, run)
+}
+
+func (r *gormRepository) FindCanvasRun(ctx context.Context, runID uint) (model.CanvasRun, error) {
+	var run model.CanvasRun
+	if err := r.db.WithContext(ctx).First(&run, runID).Error; err != nil {
+		return run, err
+	}
+	return run, nil
+}
+
+func (r *gormRepository) ListCanvasRunTasks(ctx context.Context, runID uint) ([]model.CanvasTask, error) {
+	tasks := make([]model.CanvasTask, 0)
+	if err := r.db.WithContext(ctx).Where("canvas_run_id = ?", runID).Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
+func (r *gormRepository) CanvasBillingScope(ctx context.Context, canvasID uint) (*uint, *uint, error) {
+	var cv model.Canvas
+	if err := r.db.WithContext(ctx).Select("id, org_id, project_id").First(&cv, canvasID).Error; err != nil {
+		return nil, nil, err
+	}
+	return cv.OrgID, cv.ProjectID, nil
+}
+
+func (r *gormRepository) CanvasOrgID(ctx context.Context, canvasID uint) (*uint, error) {
+	var cv model.Canvas
+	if err := r.db.WithContext(ctx).Select("id, org_id").First(&cv, canvasID).Error; err != nil {
+		return nil, err
+	}
+	return cv.OrgID, nil
+}
+
+func (r *gormRepository) LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (model.CanvasTask, bool, error) {
+	var task model.CanvasTask
+	err := r.db.WithContext(ctx).Where("canvas_node_id = ? AND status = ?", canvasNodeID, "done").Order("id desc").First(&task).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return task, false, nil
+		}
+		return task, false, err
+	}
+	return task, true, nil
 }

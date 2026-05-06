@@ -3,12 +3,14 @@ import { useUserStore } from '@/store/userStore'
 import { toast } from '@/store/toastStore'
 import { getAPIV1BaseURL } from '@/lib/config'
 import { translateApiError, type APIErrorBody } from '@/lib/apiError'
+import { isBackendBootError, waitForLocalBackendReady } from '@/lib/backendBoot'
 
 export const api = axios.create({
   baseURL: getAPIV1BaseURL()
 })
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  await waitForLocalBackendReady()
   const { token, currentOrgID } = useUserStore.getState()
   config.baseURL = getAPIV1BaseURL()
   if (token) {
@@ -23,6 +25,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    if (isBackendBootError(err)) {
+      if (toast.isDebug()) {
+        toast.error(err.message)
+      }
+      return Promise.reject(err)
+    }
+
     // Blob requests (resource thumbnails etc.) don't show user-facing toasts.
     // In debug mode, log the error to console so it's visible in devtools.
     if (err.config?.responseType === 'blob') {

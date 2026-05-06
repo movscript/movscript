@@ -31,3 +31,10 @@ func NewService(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, entityIO 
 		uploadDir: "/tmp/movscript-canvas",
 	}
 }
+
+func (h *Service) canvasRepo() repository {
+	if h.repo == nil && h.db != nil {
+		h.repo = newRepository(h.db)
+	}
+	return h.repo
+}

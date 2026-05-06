@@ -1,6 +1,7 @@
 package canvas
 
 import (
+	"context"
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
@@ -36,7 +37,7 @@ func (h *Service) LazyBackfillCanvasTaskOutputs(task *model.CanvasTask, nodeType
 	}
 	normalizeCanvasTaskForResponse(task, nodeType)
 	if strings.TrimSpace(task.OutputValues) != "" {
-		h.db.Model(task).Update("output_values", task.OutputValues)
+		_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"output_values": task.OutputValues})
 	}
 }
 
@@ -45,7 +46,7 @@ func (h *Service) updateTaskInputValues(task *model.CanvasTask, inputs canvasPor
 		return
 	}
 	if raw := canvasruntime.MarshalPortInputs(inputs); raw != "" {
-		h.db.Model(task).Update("input_values", raw)
+		_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"input_values": raw})
 		task.InputValues = raw
 	}
 }
@@ -55,7 +56,7 @@ func (h *Service) updateTaskOutputValues(task *model.CanvasTask, outputs map[str
 		return
 	}
 	if raw := canvasruntime.MarshalPortOutputs(outputs); raw != "" {
-		h.db.Model(task).Update("output_values", raw)
+		_ = h.canvasRepo().UpdateTask(context.Background(), task, map[string]any{"output_values": raw})
 		task.OutputValues = raw
 	}
 }

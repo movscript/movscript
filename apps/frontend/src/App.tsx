@@ -7,6 +7,7 @@ import { Toaster } from './components/ui/Toaster'
 import { useProjectStore } from './store/projectStore'
 import { useUserStore } from './store/userStore'
 import { useAppSettingsStore } from './store/appSettingsStore'
+import { isBackendBootStatus, type BackendBootStatus } from './lib/backendBoot'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import AssetSlotsPage from './pages/asset-slots/AssetSlotsPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
@@ -84,23 +85,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-type BackendBootStatus = {
-  state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
-  baseURL: string
-  pid?: number
-  message?: string
-}
-
-function isBackendBootStatus(value: unknown): value is BackendBootStatus {
-  if (!value || typeof value !== 'object') return false
-  const status = value as Partial<BackendBootStatus>
-  return status.state === 'idle'
-    || status.state === 'starting'
-    || status.state === 'ready'
-    || status.state === 'error'
-    || status.state === 'stopped'
-}
-
 function BackendBootOverlay() {
   const settings = useAppSettingsStore((s) => s.settings)
   const [status, setStatus] = React.useState<BackendBootStatus | null>(null)
@@ -120,9 +104,13 @@ function BackendBootOverlay() {
   }, [])
 
   if (settings.launchMode !== 'local') return null
-  if (!status || status.state === 'ready' || status.state === 'idle' || status.state === 'stopped') return null
+  if (status?.state === 'ready') return null
 
-  const isError = status.state === 'error'
+  const displayStatus: BackendBootStatus = status ?? {
+    state: 'starting',
+    baseURL: settings.apiBaseURL,
+  }
+  const isError = displayStatus.state === 'error'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/92 px-6 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-lg">
@@ -133,10 +121,10 @@ function BackendBootOverlay() {
           {isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
         </h2>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {isError ? (status.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
+          {isError ? (displayStatus.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
         </p>
         <p className="mt-4 truncate rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-          {status.baseURL}
+          {displayStatus.baseURL}
         </p>
       </div>
     </div>

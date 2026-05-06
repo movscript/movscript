@@ -5,6 +5,7 @@ import { app } from 'electron'
 import { createHash } from 'crypto'
 
 let proc: ChildProcess | null = null
+let startPromise: Promise<BackendStatus> | null = null
 export type BackendLaunchPolicy = 'external' | 'spawn' | 'cloud'
 
 export interface BackendStatus {
@@ -44,10 +45,26 @@ export async function startBackend(
     return setBackendStatus({ state: 'idle', baseURL: LOCAL_BACKEND_URL }, onStatus)
   }
   if (proc) {
-    const status: BackendStatus = { state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: proc.pid }
-    return setBackendStatus(status, onStatus)
+    if (currentStatus.state === 'ready') {
+      const status: BackendStatus = { state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: proc.pid }
+      return setBackendStatus(status, onStatus)
+    }
+    if (startPromise) return startPromise
+    startPromise = waitForExistingBackend(onStatus).finally(() => {
+      startPromise = null
+    })
+    return startPromise
   }
 
+  if (startPromise) return startPromise
+
+  startPromise = spawnBackend(onStatus).finally(() => {
+    startPromise = null
+  })
+  return startPromise
+}
+
+async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise<BackendStatus> {
   const bin = resolveBackendBinary()
   const adminDir = resolveAdminDir()
   const dataDir = resolveLocalDataDir()
@@ -90,6 +107,18 @@ export async function startBackend(
     const message = error instanceof Error ? error.message : 'Local backend failed to start'
     const status: BackendStatus = { state: 'error', baseURL: LOCAL_BACKEND_URL, pid: proc.pid, message }
     return setBackendStatus(status, onStatus)
+  }
+}
+
+async function waitForExistingBackend(onStatus?: (status: BackendStatus) => void): Promise<BackendStatus> {
+  const pid = proc?.pid
+  setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, pid, message: 'Waiting for local backend' }, onStatus)
+  try {
+    await waitForBackendReady(LOCAL_BACKEND_URL)
+    return setBackendStatus({ state: 'ready', baseURL: LOCAL_BACKEND_URL, pid }, onStatus)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Local backend failed to start'
+    return setBackendStatus({ state: 'error', baseURL: LOCAL_BACKEND_URL, pid, message }, onStatus)
   }
 }
 

@@ -22,7 +22,7 @@ func (h *Service) StartNode(ctx context.Context, user *model.User, cv model.Canv
 		Status:       "pending",
 		InputValues:  canvasruntime.MarshalPortInputs(inputs),
 	}
-	if err := h.db.Create(&task).Error; err != nil {
+	if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 		return model.CanvasTask{}, err
 	}
 	go h.ExecuteSingleWorkflowNode(user, cv, &node, &task, inputs)
@@ -74,7 +74,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 			NodeType:     node.Type,
 			Status:       "pending",
 		}
-		if err := h.db.Create(&task).Error; err != nil {
+		if err := h.canvasRepo().CreateTask(context.Background(), &task); err != nil {
 			return run, tasks, err
 		}
 		tasks = append(tasks, task)

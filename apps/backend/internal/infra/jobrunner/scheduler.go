@@ -9,6 +9,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // Start launches n worker goroutines. Cancel ctx to stop them gracefully.
@@ -102,6 +103,7 @@ func (w *Worker) claimLocalJob(job *model.Job) error {
 	return w.db.Transaction(func(tx *gorm.DB) error {
 		var candidate model.Job
 		if err := tx.
+			Session(&gorm.Session{Logger: ignoreRecordNotFoundLogger{Interface: tx.Logger}}).
 			Where("status = ?", StatusPending).
 			Where("deleted_at IS NULL").
 			Where("(next_run_at IS NULL OR next_run_at <= ?)", now).
@@ -139,6 +141,17 @@ func (w *Worker) claimLocalJob(job *model.Job) error {
 		}
 		return tx.First(job, candidate.ID).Error
 	})
+}
+
+type ignoreRecordNotFoundLogger struct {
+	logger.Interface
+}
+
+func (l ignoreRecordNotFoundLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return
+	}
+	l.Interface.Trace(ctx, begin, fc, err)
 }
 
 func (w *Worker) completeFailure(job *model.Job, err error) {

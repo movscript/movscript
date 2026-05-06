@@ -1,8 +1,11 @@
 package jobrunner
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +13,7 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func TestCallProviderWithTimeout(t *testing.T) {
@@ -102,6 +106,28 @@ func TestClaimLocalProviderPollDoesNotIncrementAttempt(t *testing.T) {
 	}
 }
 
+func TestClaimLocalJobEmptyQueueDoesNotLogRecordNotFound(t *testing.T) {
+	var logs bytes.Buffer
+	db := openJobRunnerTestDBWithLogger(t, gormlogger.New(log.New(&logs, "", 0), gormlogger.Config{
+		LogLevel:                  gormlogger.Warn,
+		IgnoreRecordNotFoundError: false,
+	}))
+	worker := NewWorker(db, nil, nil, nil)
+
+	var claimed model.Job
+	if err := worker.claimLocalJob(&claimed); err != nil {
+		t.Fatalf("claim empty queue: %v", err)
+	}
+	if claimed.ID != 0 {
+		t.Fatalf("claimed job id = %d, want 0", claimed.ID)
+	}
+
+	output := logs.String()
+	if strings.Contains(output, "record not found") {
+		t.Fatalf("claim empty queue logged record not found: %s", output)
+	}
+}
+
 func TestRenewLeaseOnlyForOwningWorker(t *testing.T) {
 	db := openJobRunnerTestDB(t)
 	now := time.Now()
@@ -185,7 +211,16 @@ func TestRequeueStaleRunningJobsClearsExpiredLease(t *testing.T) {
 
 func openJobRunnerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	return openJobRunnerTestDBWithLogger(t, nil)
+}
+
+func openJobRunnerTestDBWithLogger(t *testing.T, gormLogger gormlogger.Interface) *gorm.DB {
+	t.Helper()
+	config := &gorm.Config{}
+	if gormLogger != nil {
+		config.Logger = gormLogger
+	}
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), config)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

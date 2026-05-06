@@ -1,6 +1,7 @@
 package canvas
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 func (h *Service) failTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, errMsg string) {
 	task.Status = "failed"
 	task.Error = errMsg
-	_ = h.db.Save(task).Error
+	_ = h.canvasRepo().SaveTask(context.Background(), task)
 	nd.Status = "failed"
 	nd.Error = errMsg
 	if task.CanvasRunID == nil {
@@ -33,19 +34,21 @@ func (h *Service) updateNodeData(node *model.CanvasNode, nd nodeData) {
 	}
 	b, _ = json.Marshal(existing)
 	node.Data = string(b)
-	_ = h.db.Save(node).Error
+	_ = h.canvasRepo().SaveNode(context.Background(), node)
 }
 
 func (h *Service) updateRunStatus(runID *uint) {
 	if runID == nil {
 		return
 	}
-	var run model.CanvasRun
-	if err := h.db.First(&run, *runID).Error; err != nil {
+	run, err := h.canvasRepo().FindCanvasRun(context.Background(), *runID)
+	if err != nil {
 		return
 	}
-	var tasks []model.CanvasTask
-	h.db.Where("canvas_run_id = ?", run.ID).Find(&tasks)
+	tasks, err := h.canvasRepo().ListCanvasRunTasks(context.Background(), run.ID)
+	if err != nil {
+		return
+	}
 	if len(tasks) == 0 {
 		return
 	}
