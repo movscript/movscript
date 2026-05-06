@@ -161,7 +161,6 @@ func (h *Service) billingContextForNode(ctx context.Context, node *model.CanvasN
 	if task != nil {
 		billing.JobID = &task.ID
 	}
-	var cv model.Canvas
 	if node != nil && node.CanvasID != 0 {
 		if orgID, projectID, err := h.canvasRepo().CanvasBillingScope(ctx, node.CanvasID); err == nil {
 			billing.OrgID = orgID
@@ -172,7 +171,6 @@ func (h *Service) billingContextForNode(ctx context.Context, node *model.CanvasN
 }
 
 func (h *Service) orgIDForNode(ctx context.Context, node *model.CanvasNode) *uint {
-	var cv model.Canvas
 	if node == nil || node.CanvasID == 0 {
 		return nil
 	}
