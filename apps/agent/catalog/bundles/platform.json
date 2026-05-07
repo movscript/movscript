@@ -1,0 +1,19 @@
+{
+  "id": "movscript.bundle.platform",
+  "name": "MovScript Platform",
+  "description": "Core project context, search, navigation, and memory capabilities.",
+  "category": "platform",
+  "skills": [
+    "movscript.platform.concepts"
+  ],
+  "tools": [
+    "movscript_get_context_pack",
+    "movscript_list_projects",
+    "movscript_create_project",
+    "movscript_search_entities",
+    "movscript_read_entity",
+    "movscript_read_project_structure",
+    "movscript_search_memories",
+    "movscript_open_entity"
+  ]
+}

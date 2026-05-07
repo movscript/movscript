@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	jobapp "github.com/movscript/movscript/internal/app/job"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 )
 
 // List returns the current user's generation jobs (newest first).
@@ -97,5 +97,5 @@ func (h *JobHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, h.buildJobResponses(c, []model.Job{job})[0])
+	c.JSON(http.StatusOK, h.buildJobResponses(c, []domainjob.Job{job})[0])
 }

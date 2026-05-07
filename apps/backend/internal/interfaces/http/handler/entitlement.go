@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/domain/commercial"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 )
@@ -25,8 +24,9 @@ func (h *EntitlementHandler) GetCurrent(c *gin.Context) {
 	}
 	user := currentUser(c)
 	subject := commercial.SubjectRef{UserID: user.ID}
-	if memberValue, ok := c.Get(middleware.ContextOrgMemberKey); ok {
-		if member, ok := memberValue.(*model.OrganizationMember); ok {
+	if _, ok := c.Get(middleware.ContextOrgMemberKey); ok {
+		member := currentDomainOrgMember(c)
+		if member.ID != 0 {
 			subject.OrgID = &member.OrgID
 		}
 	}

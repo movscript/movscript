@@ -6,18 +6,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 func TestExecuteCanvasNodePropagatesInlineText(t *testing.T) {
 	h := &CanvasHandler{}
-	user := &model.User{Model: gorm.Model{ID: 1}}
-	cv := model.Canvas{}
+	userID := uint(1)
+	cv := canvasruntime.Canvas{}
 
 	inputData, _ := json.Marshal(nodeData{InputValue: "hello canvas", ParamType: "text"})
-	inputNode := &model.CanvasNode{NodeID: "input-1", Type: "input", Data: string(inputData)}
-	inputOutputs := h.executeCanvasNode(context.Background(), user, cv, inputNode, nil, nil)
+	inputNode := canvasruntime.CanvasNode{NodeID: "input-1", Type: "input", Data: string(inputData)}
+	inputOutputs := h.executeCanvasNode(context.Background(), userID, cv, inputNode, nil, nil)
 	inputValue := inputOutputs["value"]
 	if inputValue.Type != "text" || inputValue.Text != "hello canvas" {
 		t.Fatalf("expected inline text output, got %#v", inputValue)
@@ -27,12 +27,12 @@ func TestExecuteCanvasNodePropagatesInlineText(t *testing.T) {
 	}
 
 	outputData, _ := json.Marshal(nodeData{})
-	outputNode := &model.CanvasNode{NodeID: "output-1", Type: "output", Data: string(outputData)}
+	outputNode := canvasruntime.CanvasNode{NodeID: "output-1", Type: "output", Data: string(outputData)}
 	outputInputs := canvasPortInputMap{
 		"input": []canvasPortValue{inputValue},
 		"":      []canvasPortValue{inputValue},
 	}
-	outputs := h.executeCanvasNode(context.Background(), user, cv, outputNode, nil, outputInputs)
+	outputs := h.executeCanvasNode(context.Background(), userID, cv, outputNode, nil, outputInputs)
 	outputValue := outputs["value"]
 	if outputValue.Type != "text" || outputValue.Text != "hello canvas" {
 		t.Fatalf("expected output node to preserve inline text, got %#v", outputValue)
@@ -53,7 +53,7 @@ func TestValidateCanvasRequiredInputsRejectsUnconnectedFullRunInput(t *testing.T
 		},
 	}
 
-	err := validateCanvasRequiredInputs(cv, nil)
+	err := validateCanvasRequiredInputs(canvasruntime.CanvasFromModel(cv), nil)
 	if err == nil || !strings.Contains(err.Error(), `node "text-1" required input "prompt" is missing`) {
 		t.Fatalf("expected missing required input error, got %v", err)
 	}
@@ -75,7 +75,7 @@ func TestValidateCanvasRequiredInputsAcceptsConnectedFullRunInput(t *testing.T) 
 		},
 	}
 
-	if err := validateCanvasRequiredInputs(cv, nil); err != nil {
+	if err := validateCanvasRequiredInputs(canvasruntime.CanvasFromModel(cv), nil); err != nil {
 		t.Fatalf("expected connected required input to pass, got %v", err)
 	}
 }
@@ -92,7 +92,7 @@ func TestCollectSingleNodeInputsRejectsUnconnectedRequiredInput(t *testing.T) {
 		},
 	}
 
-	_, err := h.collectSingleNodeInputs(context.Background(), &model.User{}, cv, "text-1", nil)
+	_, err := h.collectSingleNodeInputs(context.Background(), 0, canvasruntime.CanvasFromModel(cv), "text-1", nil)
 	if err == nil || !strings.Contains(err.Error(), `required input "prompt" is missing`) {
 		t.Fatalf("expected missing required input error, got %v", err)
 	}
@@ -115,7 +115,7 @@ func TestCollectSingleNodeInputsIgnoresOverridesForConnectedPorts(t *testing.T) 
 		},
 	}
 
-	inputs, err := h.collectSingleNodeInputs(context.Background(), &model.User{}, cv, "text-1", map[string]canvasPortValue{
+	inputs, err := h.collectSingleNodeInputs(context.Background(), 0, canvasruntime.CanvasFromModel(cv), "text-1", map[string]canvasPortValue{
 		"prompt": {Type: "text", Text: "from override"},
 	})
 	if err != nil {
@@ -133,7 +133,8 @@ func TestNormalizeCanvasTaskForResponseBackfillsLegacyResourceOutput(t *testing.
 		ResourceID: &rid,
 	}
 
-	normalizeCanvasTaskForResponse(&task, "")
+	updatedTask := normalizeCanvasTaskForResponse(canvasruntime.CanvasTaskFromModel(task), "")
+	updatedTask.ApplyToModel(&task)
 
 	outputs := decodeCanvasPortOutputs(task.OutputValues)
 	if outputs["image"].ResourceID == nil || *outputs["image"].ResourceID != rid {
@@ -185,7 +186,7 @@ func TestBuildCanvasExecutionPlanCreatesTasksOnlyForRunnableNodes(t *testing.T) 
 		},
 	}
 
-	plan, err := buildCanvasExecutionPlan(cv)
+	plan, err := buildCanvasExecutionPlan(canvasruntime.CanvasFromModel(cv))
 	if err != nil {
 		t.Fatalf("expected execution plan, got %v", err)
 	}
@@ -201,11 +202,11 @@ func TestBuildCanvasExecutionPlanCreatesTasksOnlyForRunnableNodes(t *testing.T) 
 
 func TestRegisterWorkflowOutputUsesNodeIDAndParamName(t *testing.T) {
 	outputData := nodeData{ParamName: "final_text", ParamType: "text"}
-	node := &model.CanvasNode{NodeID: "output-1", Type: "output", Label: "Final"}
+	node := canvasruntime.CanvasNodeFromModel(model.CanvasNode{NodeID: "output-1", Type: "output", Label: "Final"})
 	value := canvasPortValue{Type: "text", Text: "done"}
 	outputs := map[string]canvasPortValue{}
 
-	registerWorkflowOutput(outputs, node, outputData, map[string]canvasPortValue{"value": value})
+	registerWorkflowOutput(outputs, &node, outputData, map[string]canvasPortValue{"value": value})
 
 	if got := outputs["output-1"]; got.Type != "text" || got.Text != "done" {
 		t.Fatalf("expected output keyed by node id, got %#v", got)
@@ -223,7 +224,7 @@ func TestCanvasReferenceInputValuesMapPortsToReferencedInputNodes(t *testing.T) 
 		},
 	}
 
-	values := (&CanvasHandler{}).canvasReferenceInputValues(ref, nodeData{}, canvasPortInputMap{
+	values := (&CanvasHandler{}).canvasReferenceInputValues(canvasruntime.CanvasFromModel(ref), nodeData{}, canvasPortInputMap{
 		"seed": []canvasPortValue{{Type: "text", Text: "hello from parent"}},
 	})
 
@@ -240,7 +241,7 @@ func TestCanvasReferenceInputValuesMapsDefaultInputWhenReferenceHasSingleInput(t
 		},
 	}
 
-	values := (&CanvasHandler{}).canvasReferenceInputValues(ref, nodeData{}, canvasPortInputMap{
+	values := (&CanvasHandler{}).canvasReferenceInputValues(canvasruntime.CanvasFromModel(ref), nodeData{}, canvasPortInputMap{
 		"input": []canvasPortValue{{Type: "text", Text: "legacy edge value"}},
 		"":      []canvasPortValue{{Type: "text", Text: "legacy edge value"}},
 	})
@@ -251,10 +252,10 @@ func TestCanvasReferenceInputValuesMapsDefaultInputWhenReferenceHasSingleInput(t
 }
 
 func TestCanvasRunTaskFailureSummaryIncludesFailedNodeDetails(t *testing.T) {
-	summary := canvasRunTaskFailureSummary([]model.CanvasTask{
+	summary := canvasRunTaskFailureSummary(canvasruntime.CanvasTasksFromModels([]model.CanvasTask{
 		{NodeLabel: "Generate image", NodeID: "image-1", Status: "failed", Error: "no model selected for this node"},
 		{NodeLabel: "Final output", NodeID: "output-1", Status: "done"},
-	})
+	}))
 
 	if summary != "workflow task failed: Generate image: no model selected for this node" {
 		t.Fatalf("expected specific task failure summary, got %q", summary)
@@ -262,12 +263,12 @@ func TestCanvasRunTaskFailureSummaryIncludesFailedNodeDetails(t *testing.T) {
 }
 
 func TestCanvasRunTaskFailureSummaryFallsBackToNodeIDAndLimitsFailures(t *testing.T) {
-	summary := canvasRunTaskFailureSummary([]model.CanvasTask{
+	summary := canvasRunTaskFailureSummary(canvasruntime.CanvasTasksFromModels([]model.CanvasTask{
 		{NodeID: "node-1", Status: "failed", Error: "first"},
 		{NodeID: "node-2", Status: "failed", Error: "second"},
 		{NodeID: "node-3", Status: "failed", Error: "third"},
 		{NodeID: "node-4", Status: "failed", Error: "fourth"},
-	})
+	}))
 
 	if summary != "workflow tasks failed: node-1: first; node-2: second; node-3: third; 1 more failed" {
 		t.Fatalf("expected compact multi-failure summary, got %q", summary)

@@ -27,11 +27,19 @@ func normalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {
 	dbTask.OutputValues = canvasruntime.MarshalPortOutputs(outputs)
 }
 
-func NormalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {
-	normalizeCanvasTaskForResponse(dbTask, nodeType)
+func NormalizeCanvasTaskForResponse(task canvasruntime.CanvasTask, nodeType string) canvasruntime.CanvasTask {
+	row := task.ToModel()
+	normalizeCanvasTaskForResponse(&row, nodeType)
+	return canvasruntime.CanvasTaskFromModel(row)
 }
 
-func (h *Service) LazyBackfillCanvasTaskOutputs(task *model.CanvasTask, nodeType string) {
+func (h *Service) LazyBackfillCanvasTaskOutputs(task canvasruntime.CanvasTask, nodeType string) canvasruntime.CanvasTask {
+	row := task.ToModel()
+	h.lazyBackfillCanvasTaskOutputs(&row, nodeType)
+	return canvasruntime.CanvasTaskFromModel(row)
+}
+
+func (h *Service) lazyBackfillCanvasTaskOutputs(task *model.CanvasTask, nodeType string) {
 	if task == nil || strings.TrimSpace(task.OutputValues) != "" || task.ResourceID == nil {
 		return
 	}

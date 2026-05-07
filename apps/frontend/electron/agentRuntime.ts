@@ -10,6 +10,7 @@ const MIN_AGENT_RUNTIME_API_VERSION = 1
 let proc: ChildProcess | null = null
 let startPromise: Promise<AgentRuntimeStatus> | null = null
 let backendAPIBaseURL = normalizeBackendAPIBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || '')
+const supportsProcessGroups = process.platform !== 'win32'
 
 export interface AgentRuntimeStatus {
   ok: boolean
@@ -72,7 +73,7 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
 
 export async function stopAgentRuntime(): Promise<void> {
   if (!proc) return
-  proc.kill()
+  terminateAgentProcess(proc)
   proc = null
 }
 
@@ -92,6 +93,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
     console.info(`[agent] spawning ${launch.command} ${launch.args.join(' ')} cwd=${launch.cwd}`)
     proc = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
+      detached: supportsProcessGroups,
       env: {
         ...process.env,
         ...launch.env,
@@ -104,6 +106,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
       },
       stdio: app.isPackaged ? 'ignore' : 'inherit',
     })
+    if (supportsProcessGroups) proc.unref()
 
     proc.on('error', (err) => console.error('[agent]', err))
     proc.on('exit', (code, signal) => {
@@ -121,7 +124,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
       pid: proc?.pid,
     }
   } catch (error) {
-    if (proc && !proc.killed) proc.kill()
+    if (proc && !proc.killed) terminateAgentProcess(proc)
     proc = null
     return {
       ok: false,
@@ -131,6 +134,18 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
       baseURL,
       error: error instanceof Error ? error.message : String(error),
     }
+  }
+}
+
+function terminateAgentProcess(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void {
+  try {
+    if (supportsProcessGroups && child.pid) {
+      process.kill(-child.pid, signal)
+      return
+    }
+    child.kill(signal)
+  } catch {
+    // The runtime may already be gone when shutdown races with exit handling.
   }
 }
 

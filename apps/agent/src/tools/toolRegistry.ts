@@ -6,6 +6,9 @@ export interface RegisteredTool {
   permission: string
   risk: ToolRiskLevel
   source?: 'runtime' | 'plugin'
+  category?: string
+  categories?: string[]
+  appliesWhen?: string
   projectScoped: boolean
   requiresApprovalByDefault: boolean
 }
@@ -60,191 +63,15 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     permission,
     risk,
     source: input.source === 'runtime' ? 'runtime' : 'plugin',
+    ...(nonEmptyString(input.category) ? { category: nonEmptyString(input.category) } : {}),
+    ...(stringArray(input.categories).length > 0 ? { categories: stringArray(input.categories) } : {}),
+    ...(nonEmptyString(input.appliesWhen) ? { appliesWhen: nonEmptyString(input.appliesWhen) } : {}),
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
   }
 }
 
-export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
-  {
-    name: 'movscript_search_entities',
-    description: 'Search project entities by keyword.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_read_entity',
-    description: 'Read a single project entity.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_read_project_structure',
-    description: 'Read compact project structure for scripts, creative references, semantic production entities, asset slots, and pipeline nodes.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_list_projects',
-    description: 'List all visible projects as Markdown-friendly project summaries.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_create_project',
-    description: 'Create a formal MovScript project after user approval.',
-    permission: 'project.write',
-    risk: 'write',
-    projectScoped: false,
-    requiresApprovalByDefault: true,
-  },
-  {
-    name: 'movscript_create_draft',
-    description: 'Create a local draft artifact without writing project entities.',
-    permission: 'draft.write',
-    risk: 'draft',
-    source: 'runtime',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_get_draft',
-    description: 'Read one local draft artifact by id.',
-    permission: 'draft.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_list_drafts',
-    description: 'List local draft artifacts.',
-    permission: 'draft.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_update_draft',
-    description: 'Update local draft title, content, target, status, or metadata without writing formal project entities.',
-    permission: 'draft.write',
-    risk: 'draft',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_patch_draft',
-    description: 'Apply JSON Pointer patch operations to a JSON draft content field without writing formal project entities.',
-    permission: 'draft.write',
-    risk: 'draft',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_validate_draft',
-    description: 'Validate one local draft artifact and return structured issues for UI review.',
-    permission: 'draft.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_search_memories',
-    description: 'Search local agent memories by query, scope, kind, project, or thread. Use this when older preferences, decisions, warnings, entity references, or draft notes may matter.',
-    permission: 'memory.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_request_user_input',
-    description: 'Pause the agent run and ask the user for missing context, a choice, confirmation, or free-form input before continuing.',
-    permission: 'agent.input',
-    risk: 'ui',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_open_entity',
-    description: 'Navigate the MovScript UI to an entity page.',
-    permission: 'ui.navigate',
-    risk: 'ui',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_list_productions',
-    description: 'List productions for the current project so the agent can choose the correct production before orchestration.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_read_production_context',
-    description: 'Read full production orchestration context before generating production candidates.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_check_entity_conflicts',
-    description: 'Check proposed production candidates against existing entities before creating a local client-review proposal draft.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_propose_production_entities',
-    description: 'Create a local client-review production proposal draft. This does not write backend project entities.',
-    permission: 'draft.write',
-    risk: 'draft',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_apply_draft',
-    description: 'Apply an approved local draft through the explicit write flow and produce before/after review metadata.',
-    permission: 'project.write',
-    risk: 'write',
-    source: 'runtime',
-    projectScoped: true,
-    requiresApprovalByDefault: true,
-  },
-  {
-    name: 'movscript_create_script',
-    description: 'Create a formal script entity in the current project after user approval.',
-    permission: 'project.write',
-    risk: 'write',
-    source: 'runtime',
-    projectScoped: true,
-    requiresApprovalByDefault: true,
-  },
-  {
-    name: 'movscript_create_generation_job',
-    description: 'Create an AI image or video generation job through MovScript and return the generated output resource for review.',
-    permission: 'generation.create',
-    risk: 'generate',
-    projectScoped: true,
-    requiresApprovalByDefault: true,
-  },
-])
+export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([])
 
 function normalizeRisk(value: unknown): ToolRiskLevel | undefined {
   return value === 'read'
@@ -259,6 +86,11 @@ function normalizeRisk(value: unknown): ToolRiskLevel | undefined {
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

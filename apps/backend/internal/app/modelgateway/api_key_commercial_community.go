@@ -5,17 +5,18 @@ package modelgateway
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 )
 
 type CommercialAPIKeyCreateInput struct{}
 
 type CommercialAPIKeyUpdateInput struct{}
 
-func applyAPIKeyCommercialCreateFields(key *model.GatewayAPIKey, input CommercialAPIKeyCreateInput) {}
+func applyAPIKeyCommercialCreateFields(key *domainmodelgateway.APIKey, input CommercialAPIKeyCreateInput) {
+}
 
 func applyAPIKeyCommercialUpdateFields(updates map[string]any, input CommercialAPIKeyUpdateInput) {}
 
-func (p *PolicyService) enforceKeyCommercialLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {
+func (p *PolicyService) enforceKeyCommercialLimits(ctx context.Context, key *domainmodelgateway.APIKey, estimatedCost float64) error {
 	return nil
 }

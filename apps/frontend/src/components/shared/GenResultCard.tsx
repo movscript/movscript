@@ -305,7 +305,7 @@ function ResourceContextChip({ resource }: { resource: ContextResource }) {
   )
 }
 
-export function JobContextSummary({ job, className }: { job: Job; className?: string }) {
+export function JobContextSummary({ job, className, includeProvider = false }: { job: Job; className?: string; includeProvider?: boolean }) {
   const { t } = useTranslation()
   const snapshot = parseRequestContext(job.request_context)
   const model = getModelLabel(job, snapshot)
@@ -322,7 +322,7 @@ export function JobContextSummary({ job, className }: { job: Job; className?: st
         <div className="flex items-center gap-2 min-w-0">
           <Cpu size={11} className="shrink-0 text-muted-foreground" />
           <span className="w-10 shrink-0 text-muted-foreground">{t('shared.genResult.context.model')}</span>
-          <span className="truncate text-foreground">{model.provider ? `${model.provider} / ` : ''}{model.name}</span>
+          <span className="truncate text-foreground">{includeProvider && model.provider ? `${model.provider} / ` : ''}{model.name}</span>
           {model.identifier && model.identifier !== model.name && (
             <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">{model.identifier}</span>
           )}

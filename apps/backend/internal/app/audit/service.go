@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainaudit "github.com/movscript/movscript/internal/domain/audit"
 	"gorm.io/gorm"
 )
 
@@ -29,10 +29,10 @@ type ListFilter struct {
 }
 
 type Page struct {
-	Items    []model.AuditLog `json:"items"`
-	Total    int64            `json:"total"`
-	Page     int              `json:"page"`
-	PageSize int              `json:"page_size"`
+	Items    []domainaudit.Log `json:"items"`
+	Total    int64             `json:"total"`
+	Page     int               `json:"page"`
+	PageSize int               `json:"page_size"`
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) (Page, error) {

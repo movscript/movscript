@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 
+	domainaudit "github.com/movscript/movscript/internal/domain/audit"
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
@@ -59,5 +60,5 @@ func (r *gormRepository) ListLogs(ctx context.Context, filter ListFilter) (Page,
 	if err := q.Offset((page - 1) * pageSize).Limit(pageSize).Find(&logs).Error; err != nil {
 		return Page{}, err
 	}
-	return Page{Items: logs, Total: total, Page: page, PageSize: pageSize}, nil
+	return Page{Items: domainaudit.LogsFromModels(logs), Total: total, Page: page, PageSize: pageSize}, nil
 }

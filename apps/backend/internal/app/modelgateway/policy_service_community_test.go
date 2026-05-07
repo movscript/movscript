@@ -6,13 +6,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 )
 
 func TestPolicyServiceCommunitySkipsCommercialKeyLimits(t *testing.T) {
 	db := openModelGatewayPolicyTestDB(t)
 	policy := NewPolicyService(db)
-	key := &model.GatewayAPIKey{
+	key := &domainmodelgateway.APIKey{
 		MonthlyBudget: 10,
 	}
 

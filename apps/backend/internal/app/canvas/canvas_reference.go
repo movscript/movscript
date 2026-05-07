@@ -58,7 +58,7 @@ func (h *Service) loadReferencedWorkflowCanvas(nd nodeData, user *model.User) (m
 	if ref.CanvasType != "workflow" {
 		return model.Canvas{}, fmt.Errorf("only workflow canvases can be referenced")
 	}
-	return ref, nil
+	return ref.ToModel(), nil
 }
 
 func (h *Service) resolveCanvasReferenceOutputs(ref model.Canvas, nd nodeData) (map[string]canvasPortValue, *uint, error) {
@@ -74,7 +74,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 	if err != nil {
 		return model.CanvasRun{}, fmt.Errorf("cycle detected in referenced workflow")
 	}
-	inputValues := h.CanvasReferenceInputValues(ref, nd, inputs)
+	inputValues := h.canvasReferenceInputValuesModel(ref, nd, inputs)
 	if err := canvasruntime.ValidateRequiredInputs(ref, inputValues); err != nil {
 		return model.CanvasRun{}, err
 	}
@@ -108,7 +108,11 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 	return run, nil
 }
 
-func (h *Service) CanvasReferenceInputValues(ref model.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
+func (h *Service) CanvasReferenceInputValues(ref canvasruntime.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
+	return h.canvasReferenceInputValuesModel(ref.ToModel(), nd, inputs)
+}
+
+func (h *Service) canvasReferenceInputValuesModel(ref model.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
 	values := map[string]canvasPortValue{}
 	inputNodeIDs := map[string]bool{}
 	paramNameToNodeID := map[string]string{}

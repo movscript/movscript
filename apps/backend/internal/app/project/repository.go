@@ -15,6 +15,7 @@ type repository interface {
 	ForceSetOwner(ctx context.Context, projectID uint, ownerID uint) (domainproject.Project, error)
 	Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (domainproject.Project, error)
 	Get(ctx context.Context, id uint, orgID *uint) (domainproject.Project, error)
+	BelongsToOrg(ctx context.Context, projectID uint, orgID uint) (bool, error)
 	ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (domainproject.Role, error)
 	Update(ctx context.Context, id uint, input UpdateInput, orgID *uint) (domainproject.Project, error)
 	Delete(ctx context.Context, id uint, orgID *uint) error
@@ -132,6 +133,17 @@ func (r *gormRepository) Get(ctx context.Context, id uint, orgID *uint) (domainp
 		return domainproject.Project{}, err
 	}
 	return domainproject.ProjectFromModel(project), nil
+}
+
+func (r *gormRepository) BelongsToOrg(ctx context.Context, projectID uint, orgID uint) (bool, error) {
+	var project model.Project
+	if err := r.db.WithContext(ctx).Select("id, org_id").Where("id = ?", projectID).First(&project).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, ErrProjectNotFound
+		}
+		return false, err
+	}
+	return project.OrgID != nil && *project.OrgID == orgID, nil
 }
 
 func (r *gormRepository) ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (domainproject.Role, error) {

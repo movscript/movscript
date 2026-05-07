@@ -29,19 +29,5 @@ func (s *Service) Create(ctx context.Context, input dto.UserCreateInput) (domain
 		Username: input.Username,
 		Status:   domainauth.UserStatusActive,
 	}
-	if err := s.repo.CreateUser(ctx, &u); err != nil {
-		return domainauth.UserProfile{}, err
-	}
-	return domainauth.UserProfile{
-		ID:              u.ID,
-		Username:        u.Username,
-		SystemRole:      u.SystemRole,
-		PrimaryEmail:    u.PrimaryEmail,
-		PrimaryPhone:    u.PrimaryPhone,
-		DisplayName:     u.DisplayName,
-		AvatarURL:       u.AvatarURL,
-		Locale:          u.Locale,
-		Status:          u.Status,
-		EmailVerifiedAt: u.EmailVerifiedAt,
-	}, nil
+	return s.repo.CreateUser(ctx, &u)
 }

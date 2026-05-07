@@ -1,0 +1,17 @@
+{
+  "tools": [
+    {
+      "name": "movscript_create_generation_job",
+      "description": "Create an AI image or video generation job through MovScript and return the generated output resource for review.",
+      "permission": "generation.create",
+      "risk": "generate",
+      "projectScoped": true,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_create_generation_job",
+        "mode": "allow",
+        "approval": "always"
+      }
+    }
+  ]
+}

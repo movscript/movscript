@@ -4,29 +4,31 @@ import (
 	"context"
 	"errors"
 
+	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	GetCredential(ctx context.Context, id uint) (model.AICredential, error)
+	GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error)
 	ListJobs(ctx context.Context, status string, limit, offset int) (JobPage, error)
-	GetJob(ctx context.Context, id string) (model.Job, error)
+	GetJob(ctx context.Context, id string) (domainjob.Job, error)
 }
 
 type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) GetCredential(ctx context.Context, id uint) (model.AICredential, error) {
+func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
 	var cred model.AICredential
 	if err := r.db.WithContext(ctx).First(&cred, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cred, ErrNotFound
+			return domainaiadmin.Credential{}, ErrNotFound
 		}
-		return cred, err
+		return domainaiadmin.Credential{}, err
 	}
-	return cred, nil
+	return domainaiadmin.CredentialFromModel(cred), nil
 }
 
 func (r *gormRepository) ListJobs(ctx context.Context, status string, limit, offset int) (JobPage, error) {
@@ -44,16 +46,16 @@ func (r *gormRepository) ListJobs(ctx context.Context, status string, limit, off
 	if err := q.Order("id DESC").Limit(limit).Offset(offset).Find(&items).Error; err != nil {
 		return JobPage{}, err
 	}
-	return JobPage{Items: items, Total: total}, nil
+	return JobPage{Items: domainjob.JobsFromModels(items), Total: total}, nil
 }
 
-func (r *gormRepository) GetJob(ctx context.Context, id string) (model.Job, error) {
+func (r *gormRepository) GetJob(ctx context.Context, id string) (domainjob.Job, error) {
 	var job model.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return job, ErrNotFound
+			return domainjob.Job{}, ErrNotFound
 		}
-		return job, err
+		return domainjob.Job{}, err
 	}
-	return job, nil
+	return domainjob.JobFromModel(job), nil
 }

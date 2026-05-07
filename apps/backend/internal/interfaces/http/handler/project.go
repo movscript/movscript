@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
@@ -24,9 +23,11 @@ func NewProjectHandler(db *gorm.DB, cacheStore ...cache.Cache) *ProjectHandler {
 }
 
 func currentOrgID(c *gin.Context) *uint {
-	if m, ok := c.Get(middleware.ContextOrgMemberKey); ok {
-		member := m.(*model.OrganizationMember)
-		return &member.OrgID
+	if _, ok := c.Get(middleware.ContextOrgMemberKey); ok {
+		member := currentDomainOrgMember(c)
+		if member.ID != 0 {
+			return &member.OrgID
+		}
 	}
 	if raw := c.GetHeader("X-Org-ID"); raw != "" {
 		if id := parseID(raw); id != 0 {
@@ -100,8 +101,8 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		return
 	}
 	var ownerID uint
-	if u, ok := c.Get(middleware.ContextUserKey); ok {
-		ownerID = u.(*model.User).ID
+	if user := currentUser(c); user != nil {
+		ownerID = user.ID
 	}
 	project, err := h.projects.Create(c.Request.Context(), req, ownerID, currentOrgID(c))
 	if err != nil {

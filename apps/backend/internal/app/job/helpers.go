@@ -4,20 +4,19 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 type ContextSnapshotInput struct {
-	Model          model.AIModelConfig
-	Credential     model.AICredential
+	Model          domainjob.AIModelConfig
+	Credential     domainjob.AICredential
 	Prompt         string
 	ExtraParams    string
 	AspectRatio    string
 	Duration       int
 	JobType        string
 	FeatureKey     string
-	InputResources []model.RawResource
+	InputResources []domainjob.InputResource
 	CreatedAt      time.Time
 }
 
@@ -29,14 +28,12 @@ func MergeIDs(arr []uint, single *uint) []uint {
 	return domainjob.MergeIDs(arr, single)
 }
 
-func ParseInputIDs(job model.Job) []uint {
-	return domainjob.ParseInputIDs(domainjob.JobFromModel(job))
+func ParseInputIDs(job domainjob.Job) []uint {
+	return domainjob.ParseInputIDs(job)
 }
 
-func OrderedResources(resources []model.RawResource, ids []uint) []model.RawResource {
-	domainResources := inputResourcesFromModel(resources)
-	ordered := domainjob.OrderedResources(domainResources, ids)
-	return inputResourcesToModel(ordered)
+func OrderedResources(resources []domainjob.InputResource, ids []uint) []domainjob.InputResource {
+	return domainjob.OrderedResources(resources, ids)
 }
 
 func BuildContextSnapshot(input ContextSnapshotInput) string {
@@ -55,7 +52,7 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 		Duration:       input.Duration,
 		JobType:        input.JobType,
 		FeatureKey:     input.FeatureKey,
-		InputResources: inputResourcesFromModel(input.InputResources),
+		InputResources: input.InputResources,
 		CreatedAt:      input.CreatedAt,
 	})
 }
@@ -64,14 +61,14 @@ func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, 
 	return domainjob.CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
 }
 
-func ModelDisplay(mcfg model.AIModelConfig) string {
+func ModelDisplay(mcfg domainjob.AIModelConfig) string {
 	return domainjob.ModelDisplay(domainjob.ModelConfigInput{
 		CustomDisplayName: mcfg.CustomDisplayName,
 		ModelDefID:        mcfg.ModelDefID,
 	})
 }
 
-func ModelIdentifier(mcfg model.AIModelConfig) string {
+func ModelIdentifier(mcfg domainjob.AIModelConfig) string {
 	return domainjob.ModelIdentifier(domainjob.ModelConfigInput{
 		ModelIDOverride: mcfg.ModelIDOverride,
 		ModelDefID:      mcfg.ModelDefID,
@@ -86,39 +83,11 @@ func FirstNonEmpty(values ...string) string {
 	return domainjob.FirstNonEmpty(values...)
 }
 
-func CountInputResources(resources []model.RawResource) InputResourcesResult {
-	result := domainjob.CountInputResources(inputResourcesFromModel(resources))
+func CountInputResources(resources []domainjob.InputResource) InputResourcesResult {
+	result := domainjob.CountInputResources(resources)
 	return InputResourcesResult{
-		Resources:  resources,
+		Resources:  result.Resources,
 		ImageCount: result.ImageCount,
 		VideoCount: result.VideoCount,
 	}
-}
-
-func inputResourcesFromModel(resources []model.RawResource) []domainjob.InputResource {
-	out := make([]domainjob.InputResource, 0, len(resources))
-	for _, resource := range resources {
-		out = append(out, domainjob.InputResource{
-			ID:       resource.ID,
-			Name:     resource.Name,
-			Type:     resource.Type,
-			MimeType: resource.MimeType,
-			Size:     resource.Size,
-		})
-	}
-	return out
-}
-
-func inputResourcesToModel(resources []domainjob.InputResource) []model.RawResource {
-	out := make([]model.RawResource, 0, len(resources))
-	for _, resource := range resources {
-		out = append(out, model.RawResource{
-			Name:     resource.Name,
-			Type:     resource.Type,
-			MimeType: resource.MimeType,
-			Size:     resource.Size,
-		})
-		out[len(out)-1].ID = resource.ID
-	}
-	return out
 }

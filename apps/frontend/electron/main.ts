@@ -60,6 +60,12 @@ async function shutdownManagedServices(): Promise<void> {
   await stopBackend(broadcastBackendStatus)
 }
 
+async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
+  await shutdownManagedServices()
+  const exitCode = signal === 'SIGINT' ? 130 : 143
+  app.exit(exitCode)
+}
+
 async function startAgentRuntimeOnAppReady(): Promise<void> {
   const status = await ensureAgentRuntimeRunning()
   if (!status.ok) {
@@ -105,6 +111,14 @@ app.on('window-all-closed', async () => {
 
 app.on('before-quit', () => {
   void shutdownManagedServices()
+})
+
+process.once('SIGINT', () => {
+  void shutdownFromSignal('SIGINT')
+})
+
+process.once('SIGTERM', () => {
+  void shutdownFromSignal('SIGTERM')
 })
 
 ipcMain.handle('dialog:openFile', async () => {

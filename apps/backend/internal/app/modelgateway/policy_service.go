@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"gorm.io/gorm"
 )
@@ -38,7 +37,7 @@ func (p *PolicyService) CanCallChat(ctx context.Context, principal Principal, mo
 	return nil
 }
 
-func (p *PolicyService) EnforceKeyLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {
+func (p *PolicyService) EnforceKeyLimits(ctx context.Context, key *domainmodelgateway.APIKey, estimatedCost float64) error {
 	return p.enforceKeyCommercialLimits(ctx, key, estimatedCost)
 }
 

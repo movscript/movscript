@@ -299,7 +299,9 @@ export interface PublicModel {
   credential_id: number        // parent AICredential ID (for admin inline edit)
   display_name: string
   short_name?: string
-  provider_name: string        // credential display_name, e.g. "我的 OpenAI"
+  provider_name?: string       // admin/debug only; product UI should not expose providers
+  logical_model_id?: string
+  provider_variant_count?: number
   capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
   accepts_image_input: boolean // true for image_edit and i2v models
   is_default?: boolean         // true when admin-pinned as default for a feature

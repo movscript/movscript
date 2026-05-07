@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 )
 
 const (
@@ -25,33 +27,41 @@ const (
 )
 
 type CanvasRun struct {
-	ID                uint
-	CanvasID          uint
-	Status            string
-	InputValues       string
-	OutputValues      string
-	Error             string
-	GraphSnapshot     string
-	SnapshotHash      string
-	SnapshotNodeCount int
-	SnapshotEdgeCount int
-	StartedAt         *time.Time
-	FinishedAt        *time.Time
+	ID                uint         `json:"ID"`
+	CanvasID          uint         `json:"canvas_id"`
+	Status            string       `json:"status"`
+	InputValues       string       `json:"input_values,omitempty"`
+	OutputValues      string       `json:"output_values,omitempty"`
+	Error             string       `json:"error,omitempty"`
+	GraphSnapshot     string       `json:"graph_snapshot,omitempty"`
+	SnapshotHash      string       `json:"snapshot_hash,omitempty"`
+	SnapshotNodeCount int          `json:"snapshot_node_count"`
+	SnapshotEdgeCount int          `json:"snapshot_edge_count"`
+	StartedAt         *time.Time   `json:"started_at,omitempty"`
+	FinishedAt        *time.Time   `json:"finished_at,omitempty"`
+	Tasks             []CanvasTask `json:"tasks,omitempty"`
+	CreatedAt         time.Time    `json:"CreatedAt"`
+	UpdatedAt         time.Time    `json:"UpdatedAt"`
+	DeletedAt         *time.Time   `json:"DeletedAt"`
 }
 
 type CanvasTask struct {
-	ID             uint
-	CanvasNodeID   uint
-	CanvasRunID    *uint
-	NodeID         string
-	NodeLabel      string
-	NodeType       string
-	Status         string
-	ProviderTaskID string
-	Error          string
-	InputValues    string
-	OutputValues   string
-	ResourceID     *uint
+	ID             uint                        `json:"ID"`
+	CanvasNodeID   uint                        `json:"canvas_node_id"`
+	CanvasRunID    *uint                       `json:"canvas_run_id,omitempty"`
+	NodeID         string                      `json:"node_id,omitempty"`
+	NodeLabel      string                      `json:"node_label,omitempty"`
+	NodeType       string                      `json:"node_type,omitempty"`
+	Status         string                      `json:"status"`
+	ProviderTaskID string                      `json:"provider_task_id,omitempty"`
+	Error          string                      `json:"error,omitempty"`
+	InputValues    string                      `json:"input_values,omitempty"`
+	OutputValues   string                      `json:"output_values,omitempty"`
+	ResourceID     *uint                       `json:"resource_id,omitempty"`
+	Resource       *domainresource.RawResource `json:"resource,omitempty"`
+	CreatedAt      time.Time                   `json:"CreatedAt"`
+	UpdatedAt      time.Time                   `json:"UpdatedAt"`
+	DeletedAt      *time.Time                  `json:"DeletedAt"`
 }
 
 type CanvasOutput struct {

@@ -4,10 +4,11 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 )
 
 func CanvasFromModel(canvas model.Canvas) Canvas {
-	return Canvas{
+	domainCanvas := Canvas{
 		ID:           canvas.ID,
 		OwnerID:      canvas.OwnerID,
 		OrgID:        canvas.OrgID,
@@ -22,7 +23,20 @@ func CanvasFromModel(canvas model.Canvas) Canvas {
 		WorkflowKey:  canvas.WorkflowKey,
 		WorkflowTags: canvas.WorkflowTags,
 		PublishedAt:  canvas.PublishedAt,
+		CreatedAt:    canvas.CreatedAt,
+		UpdatedAt:    canvas.UpdatedAt,
 	}
+	if canvas.DeletedAt.Valid {
+		deletedAt := canvas.DeletedAt.Time
+		domainCanvas.DeletedAt = &deletedAt
+	}
+	if len(canvas.Nodes) > 0 {
+		domainCanvas.Nodes = CanvasNodesFromModels(canvas.Nodes)
+	}
+	if len(canvas.Edges) > 0 {
+		domainCanvas.Edges = CanvasEdgesFromModels(canvas.Edges)
+	}
+	return domainCanvas
 }
 
 func (canvas Canvas) ToModel() model.Canvas {
@@ -46,19 +60,44 @@ func (canvas Canvas) ApplyToModel(target *model.Canvas) {
 	target.WorkflowKey = canvas.WorkflowKey
 	target.WorkflowTags = canvas.WorkflowTags
 	target.PublishedAt = canvas.PublishedAt
+	target.CreatedAt = canvas.CreatedAt
+	target.UpdatedAt = canvas.UpdatedAt
+	if canvas.DeletedAt != nil {
+		target.DeletedAt.Time = *canvas.DeletedAt
+		target.DeletedAt.Valid = true
+	}
+	if len(canvas.Nodes) > 0 {
+		target.Nodes = make([]model.CanvasNode, 0, len(canvas.Nodes))
+		for _, node := range canvas.Nodes {
+			target.Nodes = append(target.Nodes, node.ToModel())
+		}
+	}
+	if len(canvas.Edges) > 0 {
+		target.Edges = make([]model.CanvasEdge, 0, len(canvas.Edges))
+		for _, edge := range canvas.Edges {
+			target.Edges = append(target.Edges, edge.ToModel())
+		}
+	}
 }
 
 func CanvasNodeFromModel(node model.CanvasNode) CanvasNode {
-	return CanvasNode{
-		ID:       node.ID,
-		CanvasID: node.CanvasID,
-		NodeID:   node.NodeID,
-		Type:     node.Type,
-		Label:    node.Label,
-		PosX:     node.PosX,
-		PosY:     node.PosY,
-		Data:     node.Data,
+	domainNode := CanvasNode{
+		ID:        node.ID,
+		CanvasID:  node.CanvasID,
+		NodeID:    node.NodeID,
+		Type:      node.Type,
+		Label:     node.Label,
+		PosX:      node.PosX,
+		PosY:      node.PosY,
+		Data:      node.Data,
+		CreatedAt: node.CreatedAt,
+		UpdatedAt: node.UpdatedAt,
 	}
+	if node.DeletedAt.Valid {
+		deletedAt := node.DeletedAt.Time
+		domainNode.DeletedAt = &deletedAt
+	}
+	return domainNode
 }
 
 func (node CanvasNode) ToModel() model.CanvasNode {
@@ -76,10 +115,16 @@ func (node CanvasNode) ApplyToModel(target *model.CanvasNode) {
 	target.PosX = node.PosX
 	target.PosY = node.PosY
 	target.Data = node.Data
+	target.CreatedAt = node.CreatedAt
+	target.UpdatedAt = node.UpdatedAt
+	if node.DeletedAt != nil {
+		target.DeletedAt.Time = *node.DeletedAt
+		target.DeletedAt.Valid = true
+	}
 }
 
 func CanvasEdgeFromModel(edge model.CanvasEdge) CanvasEdge {
-	return CanvasEdge{
+	domainEdge := CanvasEdge{
 		ID:           edge.ID,
 		CanvasID:     edge.CanvasID,
 		EdgeID:       edge.EdgeID,
@@ -87,7 +132,14 @@ func CanvasEdgeFromModel(edge model.CanvasEdge) CanvasEdge {
 		Target:       edge.Target,
 		SourceHandle: edge.SourceHandle,
 		TargetHandle: edge.TargetHandle,
+		CreatedAt:    edge.CreatedAt,
+		UpdatedAt:    edge.UpdatedAt,
 	}
+	if edge.DeletedAt.Valid {
+		deletedAt := edge.DeletedAt.Time
+		domainEdge.DeletedAt = &deletedAt
+	}
+	return domainEdge
 }
 
 func (edge CanvasEdge) ToModel() model.CanvasEdge {
@@ -104,10 +156,16 @@ func (edge CanvasEdge) ApplyToModel(target *model.CanvasEdge) {
 	target.Target = edge.Target
 	target.SourceHandle = edge.SourceHandle
 	target.TargetHandle = edge.TargetHandle
+	target.CreatedAt = edge.CreatedAt
+	target.UpdatedAt = edge.UpdatedAt
+	if edge.DeletedAt != nil {
+		target.DeletedAt.Time = *edge.DeletedAt
+		target.DeletedAt.Valid = true
+	}
 }
 
 func EntityWriteAuditFromModel(audit model.CanvasEntityWriteAudit) EntityWriteAudit {
-	return EntityWriteAudit{
+	domainAudit := EntityWriteAudit{
 		ID:                 audit.ID,
 		CanvasID:           audit.CanvasID,
 		CanvasRunID:        audit.CanvasRunID,
@@ -119,7 +177,14 @@ func EntityWriteAuditFromModel(audit model.CanvasEntityWriteAudit) EntityWriteAu
 		OldValueJSON:       audit.OldValueJSON,
 		NewValueJSON:       audit.NewValueJSON,
 		ResourceBindingIDs: audit.ResourceBindingIDs,
+		CreatedAt:          audit.CreatedAt,
+		UpdatedAt:          audit.UpdatedAt,
 	}
+	if audit.DeletedAt.Valid {
+		deletedAt := audit.DeletedAt.Time
+		domainAudit.DeletedAt = &deletedAt
+	}
+	return domainAudit
 }
 
 func (audit EntityWriteAudit) ToModel() model.CanvasEntityWriteAudit {
@@ -140,10 +205,16 @@ func (audit EntityWriteAudit) ApplyToModel(target *model.CanvasEntityWriteAudit)
 	target.OldValueJSON = audit.OldValueJSON
 	target.NewValueJSON = audit.NewValueJSON
 	target.ResourceBindingIDs = audit.ResourceBindingIDs
+	target.CreatedAt = audit.CreatedAt
+	target.UpdatedAt = audit.UpdatedAt
+	if audit.DeletedAt != nil {
+		target.DeletedAt.Time = *audit.DeletedAt
+		target.DeletedAt.Valid = true
+	}
 }
 
 func CanvasRunFromModel(run model.CanvasRun) CanvasRun {
-	return CanvasRun{
+	domainRun := CanvasRun{
 		ID:                run.ID,
 		CanvasID:          run.CanvasID,
 		Status:            run.Status,
@@ -156,7 +227,17 @@ func CanvasRunFromModel(run model.CanvasRun) CanvasRun {
 		SnapshotEdgeCount: run.SnapshotEdgeCount,
 		StartedAt:         run.StartedAt,
 		FinishedAt:        run.FinishedAt,
+		CreatedAt:         run.CreatedAt,
+		UpdatedAt:         run.UpdatedAt,
 	}
+	if run.DeletedAt.Valid {
+		deletedAt := run.DeletedAt.Time
+		domainRun.DeletedAt = &deletedAt
+	}
+	if len(run.Tasks) > 0 {
+		domainRun.Tasks = CanvasTasksFromModels(run.Tasks)
+	}
+	return domainRun
 }
 
 func (run CanvasRun) ToModel() model.CanvasRun {
@@ -178,10 +259,22 @@ func (run CanvasRun) ApplyToModel(target *model.CanvasRun) {
 	target.SnapshotEdgeCount = run.SnapshotEdgeCount
 	target.StartedAt = run.StartedAt
 	target.FinishedAt = run.FinishedAt
+	target.CreatedAt = run.CreatedAt
+	target.UpdatedAt = run.UpdatedAt
+	if run.DeletedAt != nil {
+		target.DeletedAt.Time = *run.DeletedAt
+		target.DeletedAt.Valid = true
+	}
+	if len(run.Tasks) > 0 {
+		target.Tasks = make([]model.CanvasTask, 0, len(run.Tasks))
+		for _, task := range run.Tasks {
+			target.Tasks = append(target.Tasks, task.ToModel())
+		}
+	}
 }
 
 func CanvasTaskFromModel(task model.CanvasTask) CanvasTask {
-	return CanvasTask{
+	domainTask := CanvasTask{
 		ID:             task.ID,
 		CanvasNodeID:   task.CanvasNodeID,
 		CanvasRunID:    task.CanvasRunID,
@@ -194,7 +287,18 @@ func CanvasTaskFromModel(task model.CanvasTask) CanvasTask {
 		InputValues:    task.InputValues,
 		OutputValues:   task.OutputValues,
 		ResourceID:     task.ResourceID,
+		CreatedAt:      task.CreatedAt,
+		UpdatedAt:      task.UpdatedAt,
 	}
+	if task.DeletedAt.Valid {
+		deletedAt := task.DeletedAt.Time
+		domainTask.DeletedAt = &deletedAt
+	}
+	if task.Resource != nil {
+		resource := domainresource.RawResourceFromModel(*task.Resource)
+		domainTask.Resource = &resource
+	}
+	return domainTask
 }
 
 func (task CanvasTask) ToModel() model.CanvasTask {
@@ -216,6 +320,64 @@ func (task CanvasTask) ApplyToModel(target *model.CanvasTask) {
 	target.InputValues = task.InputValues
 	target.OutputValues = task.OutputValues
 	target.ResourceID = task.ResourceID
+	target.CreatedAt = task.CreatedAt
+	target.UpdatedAt = task.UpdatedAt
+	if task.DeletedAt != nil {
+		target.DeletedAt.Time = *task.DeletedAt
+		target.DeletedAt.Valid = true
+	}
+	if task.Resource != nil {
+		resource := task.Resource.ToModel()
+		target.Resource = &resource
+	}
+}
+
+func CanvasesFromModels(canvases []model.Canvas) []Canvas {
+	out := make([]Canvas, 0, len(canvases))
+	for _, canvas := range canvases {
+		out = append(out, CanvasFromModel(canvas))
+	}
+	return out
+}
+
+func CanvasNodesFromModels(nodes []model.CanvasNode) []CanvasNode {
+	out := make([]CanvasNode, 0, len(nodes))
+	for _, node := range nodes {
+		out = append(out, CanvasNodeFromModel(node))
+	}
+	return out
+}
+
+func CanvasEdgesFromModels(edges []model.CanvasEdge) []CanvasEdge {
+	out := make([]CanvasEdge, 0, len(edges))
+	for _, edge := range edges {
+		out = append(out, CanvasEdgeFromModel(edge))
+	}
+	return out
+}
+
+func CanvasRunsFromModels(runs []model.CanvasRun) []CanvasRun {
+	out := make([]CanvasRun, 0, len(runs))
+	for _, run := range runs {
+		out = append(out, CanvasRunFromModel(run))
+	}
+	return out
+}
+
+func CanvasTasksFromModels(tasks []model.CanvasTask) []CanvasTask {
+	out := make([]CanvasTask, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, CanvasTaskFromModel(task))
+	}
+	return out
+}
+
+func EntityWriteAuditsFromModels(audits []model.CanvasEntityWriteAudit) []EntityWriteAudit {
+	out := make([]EntityWriteAudit, 0, len(audits))
+	for _, audit := range audits {
+		out = append(out, EntityWriteAuditFromModel(audit))
+	}
+	return out
 }
 
 func CanvasGraphFromModel(cv model.Canvas) CanvasGraph {

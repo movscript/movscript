@@ -23,8 +23,9 @@ func NewModelsHandler(svc *ai.AIService, cacheStore ...cache.Cache) *ModelsHandl
 // ?feature takes precedence when both are supplied.
 func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 	featureKey := c.Query("feature")
+	providerVariants := c.Query("provider_variants") == "true" || c.Query("include_provider_variants") == "true"
 	if featureKey != "" {
-		models, err := h.service.ListForFeature(c.Request.Context(), featureKey)
+		models, err := h.service.ListForFeature(c.Request.Context(), featureKey, providerVariants)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
@@ -34,11 +35,7 @@ func (h *ModelsHandler) ListByCapability(c *gin.Context) {
 	}
 
 	capability := c.Query("capability")
-	if capability == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "capability or feature query param required"})
-		return
-	}
-	models, err := h.service.ListByCapability(c.Request.Context(), capability)
+	models, err := h.service.ListByCapability(c.Request.Context(), capability, providerVariants)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

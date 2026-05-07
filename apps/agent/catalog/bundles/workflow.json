@@ -1,0 +1,25 @@
+{
+  "id": "movscript.bundle.workflow",
+  "name": "Draft Workflow",
+  "description": "Reusable draft, approval, writing, progress review, and user input capabilities.",
+  "category": "workflow",
+  "skills": [
+    "movscript.workflow.safe-drafts",
+    "movscript.intent.script-writing",
+    "movscript.intent.project-progress",
+    "movscript.intent.storyboard-gap-review",
+    "movscript.intent.content-unit-draft-creation",
+    "movscript.policy.approval-boundaries"
+  ],
+  "tools": [
+    "movscript_create_draft",
+    "movscript_get_draft",
+    "movscript_list_drafts",
+    "movscript_update_draft",
+    "movscript_patch_draft",
+    "movscript_validate_draft",
+    "movscript_request_user_input",
+    "movscript_apply_draft",
+    "movscript_create_script"
+  ]
+}

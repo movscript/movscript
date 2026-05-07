@@ -21,6 +21,67 @@ type CredentialInput struct {
 	DisplayName string
 }
 
+type AICredential struct {
+	ID                uint       `json:"ID"`
+	AdapterType       string     `json:"adapter_type"`
+	DisplayName       string     `json:"display_name"`
+	BaseURL           string     `json:"base_url"`
+	MaskedKey         string     `json:"masked_key"`
+	IsEnabled         bool       `json:"is_enabled"`
+	OrgID             *uint      `json:"org_id,omitempty"`
+	FilesAPIEnabled   bool       `json:"files_api_enabled"`
+	FilesAPIBaseURL   string     `json:"files_api_base_url"`
+	FilesAPIMaskedKey string     `json:"files_api_masked_key"`
+	CreatedAt         time.Time  `json:"CreatedAt"`
+	UpdatedAt         time.Time  `json:"UpdatedAt"`
+	DeletedAt         *time.Time `json:"DeletedAt"`
+}
+
+type AIModelConfig struct {
+	ID                    uint       `json:"ID"`
+	CredentialID          uint       `json:"credential_id"`
+	ModelDefID            string     `json:"model_def_id"`
+	ModelIDOverride       string     `json:"model_id_override"`
+	IsEnabled             bool       `json:"is_enabled"`
+	Priority              int        `json:"priority"`
+	CreditsInputPer1M     float64    `json:"credits_input_per_1m"`
+	CreditsOutputPer1M    float64    `json:"credits_output_per_1m"`
+	CreditsPerImage       float64    `json:"credits_per_image"`
+	CreditsPerSecond      float64    `json:"credits_per_second"`
+	CreditsPerCall        float64    `json:"credits_per_call"`
+	CustomDisplayName     string     `json:"custom_display_name"`
+	ShortName             string     `json:"short_name"`
+	CustomCapabilities    string     `json:"custom_capabilities"`
+	CustomBillingMode     string     `json:"custom_billing_mode"`
+	CustomAcceptsImage    bool       `json:"custom_accepts_image"`
+	CustomMaxInputImages  int        `json:"custom_max_input_images"`
+	CustomMaxInputVideos  int        `json:"custom_max_input_videos"`
+	CustomImageEditField  string     `json:"custom_image_edit_field"`
+	CustomSupportedParams string     `json:"custom_supported_params"`
+	CreatedAt             time.Time  `json:"CreatedAt"`
+	UpdatedAt             time.Time  `json:"UpdatedAt"`
+	DeletedAt             *time.Time `json:"DeletedAt"`
+}
+
+type RawResource struct {
+	ID             uint       `json:"ID"`
+	OwnerID        uint       `json:"owner_id"`
+	OrgID          *uint      `json:"org_id,omitempty"`
+	FolderID       *uint      `json:"folder_id,omitempty"`
+	Type           string     `json:"type"`
+	Name           string     `json:"name"`
+	URL            string     `json:"url"`
+	Size           int64      `json:"size"`
+	MimeType       string     `json:"mime_type"`
+	StorageBackend string     `json:"storage_backend"`
+	StorageKey     string     `json:"storage_key"`
+	IsShared       bool       `json:"is_shared"`
+	DirectURL      string     `json:"direct_url,omitempty"`
+	CreatedAt      time.Time  `json:"CreatedAt"`
+	UpdatedAt      time.Time  `json:"UpdatedAt"`
+	DeletedAt      *time.Time `json:"DeletedAt"`
+}
+
 type InputResource struct {
 	ID       uint
 	Name     string
@@ -84,37 +145,43 @@ type NewQueuedJobSpec struct {
 }
 
 type Job struct {
-	ID                 uint
-	UserID             uint
-	OrgID              *uint
-	ModelConfigID      uint
-	JobType            string
-	FeatureKey         string
-	Status             string
-	AttemptCount       int
-	MaxAttempts        int
-	NextRunAt          *time.Time
-	Prompt             string
-	ExtraParams        string
-	AspectRatio        string
-	Duration           int
-	RequestContext     string
-	InputResourceID    *uint
-	InputResourceIDs   string
-	OutputResourceID   *uint
-	UsageReservationID *uint
-	ProviderTaskID     string
-	ProviderTaskKind   string
-	ProviderTaskStatus string
-	ErrorMsg           string
-	DebugInfo          string
-	ExecutionState     string
-	LockedBy           string
-	LeaseUntil         *time.Time
-	LastHeartbeatAt    *time.Time
-	StartedAt          *time.Time
-	FinishedAt         *time.Time
-	ProjectID          *uint
+	ID                  uint         `json:"ID"`
+	UserID              uint         `json:"user_id"`
+	OrgID               *uint        `json:"org_id,omitempty"`
+	ModelConfigID       uint         `json:"model_config_id"`
+	JobType             string       `json:"job_type"`
+	FeatureKey          string       `json:"feature_key,omitempty"`
+	Status              string       `json:"status"`
+	AttemptCount        int          `json:"attempt_count"`
+	MaxAttempts         int          `json:"max_attempts"`
+	NextRunAt           *time.Time   `json:"next_run_at,omitempty"`
+	Prompt              string       `json:"prompt"`
+	ExtraParams         string       `json:"extra_params,omitempty"`
+	AspectRatio         string       `json:"aspect_ratio,omitempty"`
+	Duration            int          `json:"duration,omitempty"`
+	RequestContext      string       `json:"request_context,omitempty"`
+	InputResourceID     *uint        `json:"input_resource_id,omitempty"`
+	InputResourceIDs    string       `json:"input_resource_ids,omitempty"`
+	OutputResourceID    *uint        `json:"output_resource_id,omitempty"`
+	UsageReservationID  *uint        `json:"usage_reservation_id,omitempty"`
+	ProviderTaskID      string       `json:"provider_task_id,omitempty"`
+	ProviderTaskKind    string       `json:"provider_task_kind,omitempty"`
+	ProviderTaskStatus  string       `json:"provider_task_status,omitempty"`
+	ProviderTaskHistory string       `json:"provider_task_history,omitempty"`
+	ErrorMsg            string       `json:"error_msg,omitempty"`
+	DebugInfo           string       `json:"debug_info,omitempty"`
+	ExecutionState      string       `json:"execution_state,omitempty"`
+	StateTrace          string       `json:"state_trace,omitempty"`
+	LockedBy            string       `json:"locked_by,omitempty"`
+	LeaseUntil          *time.Time   `json:"lease_until,omitempty"`
+	LastHeartbeatAt     *time.Time   `json:"last_heartbeat_at,omitempty"`
+	StartedAt           *time.Time   `json:"started_at,omitempty"`
+	FinishedAt          *time.Time   `json:"finished_at,omitempty"`
+	ProjectID           *uint        `json:"project_id,omitempty"`
+	OutputResource      *RawResource `json:"output_resource,omitempty"`
+	CreatedAt           time.Time    `json:"CreatedAt"`
+	UpdatedAt           time.Time    `json:"UpdatedAt"`
+	DeletedAt           *time.Time   `json:"DeletedAt"`
 }
 
 // Job status constants match the jobs.status DB column values.

@@ -3,7 +3,8 @@ package workflowio
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 type AttachAssetSlotCandidateInput struct {
@@ -22,10 +23,10 @@ type AttachAssetSlotCandidateInput struct {
 }
 
 type AttachAssetSlotCandidateResult struct {
-	AssetSlot       model.AssetSlot          `json:"asset_slot"`
-	CandidateSlot   model.AssetSlot          `json:"candidate_asset_slot"`
-	Candidate       model.AssetSlotCandidate `json:"candidate"`
-	ResourceBinding model.ResourceBinding    `json:"resource_binding"`
+	AssetSlot       domainsemantic.AssetSlot          `json:"asset_slot"`
+	CandidateSlot   domainsemantic.AssetSlot          `json:"candidate_asset_slot"`
+	Candidate       domainsemantic.AssetSlotCandidate `json:"candidate"`
+	ResourceBinding domainresourcebinding.Binding     `json:"resource_binding"`
 }
 
 func (s *EntityIOService) AttachAssetSlotCandidate(ctx context.Context, input AttachAssetSlotCandidateInput) (AttachAssetSlotCandidateResult, error) {

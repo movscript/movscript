@@ -3,21 +3,21 @@ package job
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 )
 
 type Response struct {
-	model.Job
-	InputResources  []model.RawResource  `json:"input_resources,omitempty"`
-	ModelConfig     *model.AIModelConfig `json:"model_config,omitempty"`
-	ProviderName    string               `json:"provider_name,omitempty"`
-	ModelDisplay    string               `json:"model_display,omitempty"`
-	ModelIdentifier string               `json:"model_identifier,omitempty"`
+	domainjob.Job
+	InputResources  []domainjob.RawResource  `json:"input_resources,omitempty"`
+	ModelConfig     *domainjob.AIModelConfig `json:"model_config,omitempty"`
+	ProviderName    string                   `json:"provider_name,omitempty"`
+	ModelDisplay    string                   `json:"model_display,omitempty"`
+	ModelIdentifier string                   `json:"model_identifier,omitempty"`
 }
 
 type ResourceURLFunc func(uint) string
 
-func (s *Service) BuildResponses(ctx context.Context, jobs []model.Job, resourceURL ResourceURLFunc) []Response {
+func (s *Service) BuildResponses(ctx context.Context, jobs []domainjob.Job, resourceURL ResourceURLFunc) []Response {
 	if len(jobs) == 0 {
 		return []Response{}
 	}
@@ -59,7 +59,7 @@ func (s *Service) BuildResponses(ctx context.Context, jobs []model.Job, resource
 	for _, job := range jobs {
 		item := Response{Job: job}
 		inputIDs := ParseInputIDs(job)
-		item.InputResources = make([]model.RawResource, 0, len(inputIDs))
+		item.InputResources = make([]domainjob.RawResource, 0, len(inputIDs))
 		seenResources := make(map[uint]bool, len(inputIDs))
 		for _, id := range inputIDs {
 			if seenResources[id] {

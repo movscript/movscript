@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	jobapp "github.com/movscript/movscript/internal/app/job"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 )
 
 // Create enqueues a new generation job and returns immediately with status=pending.
@@ -54,7 +54,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 		h.writeJobCreateError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, h.buildJobResponses(c, []model.Job{job})[0])
+	c.JSON(http.StatusCreated, h.buildJobResponses(c, []domainjob.Job{job})[0])
 }
 
 func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {

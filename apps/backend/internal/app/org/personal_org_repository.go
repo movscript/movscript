@@ -37,10 +37,10 @@ func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
 	return db.Model(org).Update("join_code", code).Error
 }
 
-func CreatePersonalOrg(db *gorm.DB, user *model.User) error {
+func CreatePersonalOrg(db *gorm.DB, user domainorg.User) error {
 	var count int64
 	db.Model(&model.Organization{}).Where("slug = ?", user.Username).Count(&count)
-	org := domainorg.NewPersonalOrg(domainorg.UserIdentityFromModel(*user), count > 0).ToModel()
+	org := domainorg.NewPersonalOrg(domainorg.UserIdentity{ID: user.ID, Username: user.Username}, count > 0).ToModel()
 	if err := db.Create(&org).Error; err != nil {
 		return err
 	}

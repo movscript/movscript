@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
 	"gorm.io/gorm"
 )
@@ -21,7 +20,6 @@ var (
 )
 
 type PortDef = canvasruntime.PortDef
-type nodeData = canvasruntime.NodeData
 type TemplateDef = domainmarket.TemplateDef
 type TemplateNode = domainmarket.TemplateNode
 type TemplateEdge = domainmarket.TemplateEdge
@@ -49,10 +47,10 @@ func (s *Service) ListTemplates() []MarketItem {
 	return items
 }
 
-func (s *Service) InstallTemplate(ctx context.Context, ownerID uint, key string, input InstallInput) (model.Canvas, error) {
+func (s *Service) InstallTemplate(ctx context.Context, ownerID uint, key string, input InstallInput) (canvasruntime.Canvas, error) {
 	tpl, ok := domainmarket.FindTemplate(key)
 	if !ok {
-		return model.Canvas{}, ErrTemplateNotFound
+		return canvasruntime.Canvas{}, ErrTemplateNotFound
 	}
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
@@ -114,51 +112,9 @@ func (s *Service) GetByKey(ctx context.Context, key string, userID uint) (Market
 	return domainmarket.PublicCanvasMarketItem(selected), nil
 }
 
-func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []model.CanvasNode {
-	domainNodes := domainmarket.TemplateNodesForCanvas(canvasID, defs)
-	nodes := make([]model.CanvasNode, 0, len(domainNodes))
-	for _, node := range domainNodes {
-		nodes = append(nodes, node.ToModel())
-	}
-	return nodes
-}
-
-func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []model.CanvasEdge {
-	domainEdges := domainmarket.TemplateEdgesForCanvas(canvasID, defs)
-	edges := make([]model.CanvasEdge, 0, len(domainEdges))
-	for _, edge := range domainEdges {
-		edges = append(edges, edge.ToModel())
-	}
-	return edges
-}
-
 func BuiltinTemplates() []TemplateDef               { return domainmarket.BuiltinTemplates() }
 func FindTemplate(key string) (TemplateDef, bool)   { return domainmarket.FindTemplate(key) }
 func TemplateMarketItem(tpl TemplateDef) MarketItem { return domainmarket.TemplateMarketItem(tpl) }
-func PublicCanvasMarketItem(cv model.Canvas) MarketItem {
-	return domainmarket.PublicCanvasMarketItem(publicCanvasFromModel(cv))
-}
-func CanvasWorkflowInputs(cv model.Canvas) []PortDef {
-	return domainmarket.CanvasWorkflowInputs(publicCanvasFromModel(cv))
-}
-func CanvasWorkflowOutputs(cv model.Canvas) []PortDef {
-	return domainmarket.CanvasWorkflowOutputs(publicCanvasFromModel(cv))
-}
-func publicCanvasFromModel(cv model.Canvas) domainmarket.PublicCanvas {
-	nodes := make([]canvasruntime.CanvasNode, 0, len(cv.Nodes))
-	for _, node := range cv.Nodes {
-		nodes = append(nodes, canvasruntime.CanvasNodeFromModel(node))
-	}
-	edges := make([]canvasruntime.CanvasEdge, 0, len(cv.Edges))
-	for _, edge := range cv.Edges {
-		edges = append(edges, canvasruntime.CanvasEdgeFromModel(edge))
-	}
-	return domainmarket.PublicCanvas{
-		Canvas: canvasruntime.CanvasFromModel(cv),
-		Nodes:  nodes,
-		Edges:  edges,
-	}
-}
 func MarketItemMatches(item MarketItem, query string) bool {
 	return domainmarket.MarketItemMatches(item, query)
 }

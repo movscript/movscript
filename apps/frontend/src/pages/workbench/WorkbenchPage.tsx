@@ -39,7 +39,7 @@ import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelatio
 import { api } from '@/lib/api'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
-import { localAgentClient, type AgentDraft, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
@@ -733,7 +733,7 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
 function buildProductionCandidateRows(jobs: Job[]) {
   return jobs.slice(0, 6).map((job) => ({
     name: `任务 #${job.ID} · ${job.job_type}`,
-    source: firstText(job.model_display, job.provider_name, job.model_identifier, `模型 #${job.model_config_id}`),
+    source: firstText(job.model_display, job.model_identifier, `模型 #${job.model_config_id}`),
     fit: job.output_resource_id ? `输出资源 #${job.output_resource_id}` : job.status === 'succeeded' ? '已完成' : job.status,
     issue: firstText(job.error_msg, trimText(job.prompt, 36), job.feature_key, '无提示词'),
     status: jobToWorkStatus(job),
@@ -1673,10 +1673,15 @@ function buildScriptSplitAgentMessage(input: {
   ].join('\n')
 }
 
-function parseScriptSplitAgentContent(content: string, scripts: Script[], fallbackText: string): ScriptSplitDraft[] {
+function parseScriptSplitAgentDocument(content: string): ScriptSplitAgentResult {
   const parsed = parseJSONFromAssistantContent(content) as ScriptSplitAgentResult | undefined
   if (!parsed || typeof parsed !== 'object') throw new Error('Agent 没有返回有效 JSON')
   if (parsed.schema !== 'movscript.script_split_analysis.v1') throw new Error('Agent 返回的 schema 不匹配')
+  return parsed
+}
+
+function parseScriptSplitAgentContent(content: string, scripts: Script[], fallbackText: string): ScriptSplitDraft[] {
+  const parsed = parseScriptSplitAgentDocument(content)
   const globalSettings = normalizeGlobalContext(parsed.global_settings ?? parsed.globalSettings)
   const rawEpisodes = Array.isArray(parsed.episode_drafts)
     ? parsed.episode_drafts
@@ -1704,13 +1709,15 @@ function findScriptSplitDraftIdFromRun(run: AgentRun): string | undefined {
   return undefined
 }
 
-async function parseScriptSplitDraftsFromRun(run: AgentRun, scripts: Script[], fallbackText: string): Promise<{ drafts: ScriptSplitDraft[]; agentDraft?: AgentDraft }> {
+async function parseScriptSplitDraftsFromRun(run: AgentRun, scripts: Script[], fallbackText: string): Promise<{ drafts: ScriptSplitDraft[]; agentDraft?: AgentDraft; draftDocument?: ScriptSplitAgentResult }> {
   const draftId = findScriptSplitDraftIdFromRun(run)
   if (draftId) {
     const agentDraft = await localAgentClient.getDraft(draftId)
+    const draftDocument = parseScriptSplitAgentDocument(agentDraft.content)
     return {
       drafts: parseScriptSplitAgentContent(agentDraft.content, scripts, fallbackText),
       agentDraft,
+      draftDocument,
     }
   }
 
@@ -1726,7 +1733,10 @@ async function parseScriptSplitDraftsFromRun(run: AgentRun, scripts: Script[], f
         : undefined
     if (!content) continue
     try {
-      return { drafts: parseScriptSplitAgentContent(content, scripts, fallbackText) }
+      return {
+        drafts: parseScriptSplitAgentContent(content, scripts, fallbackText),
+        draftDocument: parseScriptSplitAgentDocument(content),
+      }
     } catch {
       // Keep scanning; the run may contain unrelated drafts.
     }
@@ -1782,6 +1792,88 @@ function normalizeAgentEpisodeDraft(
     existingScriptId: existing?.ID ?? null,
     action,
   }]
+}
+
+function buildScriptSplitDraftContent(input: {
+  agentDraft?: AgentDraft | null
+  drafts: ScriptSplitDraft[]
+  sourceTitle: string
+  sourceText: string
+}): string {
+  let base: ScriptSplitAgentResult = { schema: 'movscript.script_split_analysis.v1' }
+  if (input.agentDraft?.content) {
+    try {
+      base = parseScriptSplitAgentDocument(input.agentDraft.content)
+    } catch {
+      base = { schema: 'movscript.script_split_analysis.v1' }
+    }
+  }
+  const globalContext = input.drafts.reduce<ScriptSplitGlobalContext | null>((merged, draft) => {
+    if (!merged) return { ...draft.globalContext, episodeRelevance: [] }
+    return { ...mergeGlobalContext(merged, draft.globalContext), episodeRelevance: [] }
+  }, null)
+  const nextDocument = {
+    ...base,
+    schema: 'movscript.script_split_analysis.v1',
+    source_title: stringValue(base.source_title ?? base.sourceTitle).trim() || input.sourceTitle,
+    source_summary: stringValue(base.source_summary ?? base.sourceSummary).trim() || summarizeText(input.sourceText, 160),
+    source_script: {
+      ...(isRecord(base.source_script) ? base.source_script : {}),
+      title: stringValue(base.source_script?.title).trim() || input.sourceTitle,
+      summary: stringValue(base.source_script?.summary).trim() || summarizeText(input.sourceText, 160),
+      content: stringValue(base.source_script?.content).trim() || input.sourceText,
+    },
+    global_settings: isRecord(base.global_settings)
+      ? base.global_settings
+      : serializeGlobalContext(globalContext ?? normalizeGlobalContext(undefined), false),
+    episode_drafts: input.drafts.map(serializeScriptSplitEpisodeDraft),
+  }
+  return JSON.stringify(nextDocument, null, 2)
+}
+
+function serializeScriptSplitEpisodeDraft(draft: ScriptSplitDraft): Record<string, unknown> {
+  return {
+    order: draft.order,
+    title: draft.title,
+    summary: draft.summary,
+    content: draft.bodyContent || draft.content,
+    global_context: serializeGlobalContext(draft.globalContext, true),
+    start: draft.start,
+    end: draft.end,
+    action: draft.action,
+    existing_script_id: draft.existingScriptId,
+  }
+}
+
+function serializeGlobalContext(context: ScriptSplitGlobalContext, includeEpisodeRelevance: boolean): Record<string, unknown> {
+  return {
+    story_world: context.storyWorld,
+    core_rules: context.coreRules,
+    character_relationships: context.characterRelationships,
+    key_characters: context.keyCharacters,
+    key_locations: context.keyLocations,
+    key_props: context.keyProps,
+    continuity_notes: context.continuityNotes,
+    ...(includeEpisodeRelevance ? { episode_relevance: context.episodeRelevance } : {}),
+  }
+}
+
+function scriptSplitDraftStatusLabel(status?: AgentDraft['status']) {
+  if (status === 'draft') return '待确认'
+  if (status === 'accepted') return '已接受'
+  if (status === 'rejected') return '已拒绝'
+  if (status === 'applied') return '已写入'
+  if (status === 'superseded') return '已替换'
+  return '未生成'
+}
+
+function scriptSplitDraftStatusVariant(status?: AgentDraft['status']) {
+  if (status === 'applied') return 'success' as const
+  if (status === 'rejected') return 'danger' as const
+  if (status === 'superseded') return 'secondary' as const
+  if (status === 'accepted') return 'warning' as const
+  if (status === 'draft') return 'outline' as const
+  return 'outline' as const
 }
 
 function normalizeGlobalContext(value: unknown): ScriptSplitGlobalContext {
@@ -2456,6 +2548,11 @@ function ScriptSplitWorkbench() {
   const [drafts, setDrafts] = useState<ScriptSplitDraft[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [result, setResult] = useState<ScriptSplitResult | null>(null)
+  const [agentDraft, setAgentDraft] = useState<AgentDraft | null>(null)
+  const [agentDraftDirty, setAgentDraftDirty] = useState(false)
+  const [agentDraftValidation, setAgentDraftValidation] = useState<AgentDraftValidationResult | null>(null)
+  const [draftSyncing, setDraftSyncing] = useState(false)
+  const [draftRejecting, setDraftRejecting] = useState(false)
   const [lastAgentRunId, setLastAgentRunId] = useState<string | null>(null)
   const scriptSplitToolCleanupRef = useRef<(() => void) | null>(null)
 
@@ -2493,6 +2590,9 @@ function ScriptSplitWorkbench() {
   function resetAgentDrafts() {
     syncDrafts([])
     setResult(null)
+    setAgentDraft(null)
+    setAgentDraftDirty(false)
+    setAgentDraftValidation(null)
     setLastAgentRunId(null)
   }
 
@@ -2546,6 +2646,17 @@ function ScriptSplitWorkbench() {
         const parsed = await parseScriptSplitDraftsFromRun(run, sortedScripts, normalized)
         const nextDrafts = parsed.drafts
         syncDrafts(nextDrafts)
+        setAgentDraft(parsed.agentDraft ?? null)
+        setAgentDraftDirty(false)
+        if (parsed.agentDraft?.id) {
+          try {
+            setAgentDraftValidation(await localAgentClient.validateDraft(parsed.agentDraft.id))
+          } catch {
+            setAgentDraftValidation(null)
+          }
+        } else {
+          setAgentDraftValidation(null)
+        }
         setLastAgentRunId(run.id)
         setResult({
           sourceTitle: baseTitle,
@@ -2564,6 +2675,7 @@ function ScriptSplitWorkbench() {
 
     openAgentPanelDraft({
       requestId,
+      taskType: 'script_split',
       message: displayMessage,
       title: `剧本拆分: ${baseTitle}`,
       mode: 'create',
@@ -2573,6 +2685,7 @@ function ScriptSplitWorkbench() {
       clientInput,
       agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
       timeoutMs: 900_000,
+      renderMode: 'page',
     })
 
     return { baseTitle }
@@ -2607,7 +2720,7 @@ function ScriptSplitWorkbench() {
       return openScriptSplitAgentSession(normalized)
     },
     onSuccess: () => {
-      toast.success('已打开剧本拆分会话，请在右侧对话框协作并让 Agent 应用拆分结论')
+      toast.success('已打开剧本拆分会话，请在右侧对话框协作并让 Agent 产出 Draft')
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Agent 拆分失败')
@@ -2618,8 +2731,77 @@ function ScriptSplitWorkbench() {
     splitWithAgent.mutate()
   }
 
-  function updateDraft(id: string, patch: Partial<ScriptSplitDraft>) {
+  function updateEpisodeDraftState(id: string, patch: Partial<ScriptSplitDraft>) {
     setDrafts((current) => current.map((draft) => (draft.id === id ? { ...draft, ...patch } : draft)))
+    setAgentDraftDirty(!!agentDraft)
+    setAgentDraftValidation(null)
+  }
+
+  async function syncAgentDraft(nextDrafts = drafts): Promise<AgentDraft | null> {
+    if (!agentDraft) return null
+    if (agentDraft.status !== 'draft' && agentDraft.status !== 'accepted') {
+      throw new Error(`当前 Agent Draft ${scriptSplitDraftStatusLabel(agentDraft.status)}，不能继续修改`)
+    }
+    const normalized = sourceText.trim()
+    const nextContent = buildScriptSplitDraftContent({
+      agentDraft,
+      drafts: nextDrafts,
+      sourceTitle: sourceTitle.trim() || inferSourceScriptTitle(normalized),
+      sourceText: normalized,
+    })
+    setDraftSyncing(true)
+    try {
+      const updated = await localAgentClient.updateDraft(agentDraft.id, {
+        content: nextContent,
+        metadata: {
+          uiEditedAt: new Date().toISOString(),
+          uiEpisodeCount: nextDrafts.length,
+        },
+      })
+      setAgentDraft(updated)
+      setAgentDraftDirty(false)
+      try {
+        setAgentDraftValidation(await localAgentClient.validateDraft(updated.id))
+      } catch {
+        setAgentDraftValidation(null)
+      }
+      return updated
+    } finally {
+      setDraftSyncing(false)
+    }
+  }
+
+  async function refreshAgentDraft() {
+    if (!agentDraft) return
+    setDraftSyncing(true)
+    try {
+      const latest = await localAgentClient.getDraft(agentDraft.id)
+      const nextDrafts = parseScriptSplitAgentContent(latest.content, sortedScripts, sourceText.trim())
+      setAgentDraft(latest)
+      syncDrafts(nextDrafts)
+      setAgentDraftDirty(false)
+      setAgentDraftValidation(await localAgentClient.validateDraft(latest.id))
+      toast.success('已刷新 Agent Draft')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '刷新 Agent Draft 失败')
+    } finally {
+      setDraftSyncing(false)
+    }
+  }
+
+  async function rejectAgentDraft() {
+    if (!agentDraft) return
+    setDraftRejecting(true)
+    try {
+      const rejected = await localAgentClient.rejectDraft(agentDraft.id, '用户在剧本拆分页面拒绝了该提案')
+      setAgentDraft(rejected)
+      setAgentDraftDirty(false)
+      toast.success('已拒绝 Agent Draft')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '拒绝 Agent Draft 失败')
+    } finally {
+      setDraftRejecting(false)
+    }
   }
 
   async function upsertScript(payload: {
@@ -2682,12 +2864,24 @@ function ScriptSplitWorkbench() {
       let agentRunId = lastAgentRunId ?? undefined
       let nextDrafts = drafts
       if (nextDrafts.length === 0) {
-        throw new Error('请先通过右侧 Agent 会话完成拆分，并让 Agent 应用拆分结论')
+        throw new Error('请先通过右侧 Agent 会话完成拆分，并生成 Agent Draft')
       }
       if (nextDrafts.length === 0) throw new Error('没有可拆分的剧本内容')
+      if (!agentDraft) throw new Error('当前拆分结果没有关联的 Agent Draft，请重新运行 Agent 拆分')
+      if (agentDraft.status === 'rejected') throw new Error('当前 Agent Draft 已拒绝，不能写入')
+      if (agentDraft.status === 'applied') throw new Error('当前 Agent Draft 已写入，请重新生成新的拆分提案')
 
       let sourceScriptId: number | null = null
       const sourceScriptTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
+      const syncedDraft = await syncAgentDraft(nextDrafts)
+      if (syncedDraft) {
+        const validation = await localAgentClient.validateDraft(syncedDraft.id)
+        setAgentDraftValidation(validation)
+        if (!validation.ok) {
+          const firstIssue = validation.issues.find((issue) => issue.severity === 'error')
+          throw new Error(firstIssue?.message || 'Agent Draft 校验失败')
+        }
+      }
 
       if (saveSourceScript) {
         const sourceScript = await upsertScript({
@@ -2756,6 +2950,23 @@ function ScriptSplitWorkbench() {
         else createdCount += 1
       }
 
+      let appliedDraft = syncedDraft
+      if (syncedDraft) {
+        appliedDraft = await localAgentClient.updateDraft(syncedDraft.id, {
+          status: 'applied',
+          metadata: {
+            appliedFrom: 'workbench.script_split',
+            appliedAt: new Date().toISOString(),
+            sourceScriptId,
+            savedScriptIds: createdScripts.map((script) => script.ID),
+            createdCount,
+            updatedCount,
+          },
+        })
+        setAgentDraft(appliedDraft)
+        setAgentDraftDirty(false)
+      }
+
       return {
         sourceTitle: sourceScriptTitle,
         sourceScriptId,
@@ -2763,7 +2974,8 @@ function ScriptSplitWorkbench() {
         updatedCount,
         episodeCount: createdScripts.length,
         agentRunId,
-        agentDraftId: result?.agentDraftId,
+        agentDraftId: appliedDraft?.id ?? result?.agentDraftId,
+        savedScripts: createdScripts,
       } satisfies ScriptSplitResult
     },
     onSuccess: (next) => {
@@ -2777,8 +2989,10 @@ function ScriptSplitWorkbench() {
     },
   })
 
-  const recentScripts = useMemo(() => sortedScripts.slice(0, 8), [sortedScripts])
   const selectedAction = selectedDraft ? (selectedDraft.action === 'update' ? '将更新已有剧本' : '将创建新剧本') : '先拆分，再批量创建'
+  const agentDraftWriteBlocked = !agentDraft || agentDraft.status === 'rejected' || agentDraft.status === 'applied' || agentDraft.status === 'superseded'
+  const writeDisabled = !sourceText.trim() || drafts.length === 0 || agentDraftWriteBlocked || createAll.isPending || importingFile || splitWithAgent.isPending || draftSyncing
+  const validationErrors = agentDraftValidation?.issues.filter((issue) => issue.severity === 'error') ?? []
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
@@ -2815,8 +3029,8 @@ function ScriptSplitWorkbench() {
               {splitWithAgent.isPending ? <Loader2 size={14} className="animate-spin" /> : <Scissors size={14} />}
               {splitWithAgent.isPending ? 'Agent 拆分中' : 'Agent 拆分'}
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}>
-              {createAll.isPending ? '写入中' : '拆分并写入'}
+            <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={writeDisabled}>
+              {createAll.isPending ? '写入中' : draftSyncing ? '同步草稿中' : '确认写入'}
             </Button>
           </div>
         </div>
@@ -2835,6 +3049,24 @@ function ScriptSplitWorkbench() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <main className="min-w-0 flex-1 overflow-y-auto bg-muted/20 p-5">
+          <section className="mb-5 rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">拆分概览</p>
+                <p className="mt-1 text-xs text-muted-foreground">先确认当前总稿、Agent Draft 和项目内已有剧本状态，再处理拆分结果。</p>
+              </div>
+              {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本</Badge>}
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitleLabel} />
+              <WorkbenchMiniStat label="拆分集数" value={drafts.length || '0'} detail="自动识别出来的分集数量" />
+              <WorkbenchMiniStat label="Agent" value={lastAgentRunId ? '已运行' : '待运行'} detail={lastAgentRunId ? `run ${lastAgentRunId}` : '使用现有本地 Agent 会话'} />
+              <WorkbenchMiniStat label="Draft" value={agentDraftDirty ? '待同步' : scriptSplitDraftStatusLabel(agentDraft?.status)} detail={agentDraft?.id ?? '尚未生成'} />
+              <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
+              <WorkbenchMiniStat label="已有分集剧本" value={episodeScripts.length} detail="当前项目内的分集脚本数量" />
+            </div>
+          </section>
+
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
@@ -2886,8 +3118,8 @@ function ScriptSplitWorkbench() {
                     >
                       {splitWithAgent.isPending ? 'Agent 拆分中' : 'Agent 拆分'}
                     </Button>
-                    <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}>
-                      {createAll.isPending ? '写入中' : '写入剧本'}
+                    <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={writeDisabled}>
+                      {createAll.isPending ? '写入中' : draftSyncing ? '同步中' : '确认写入'}
                     </Button>
                   </div>
                 </div>
@@ -2902,6 +3134,58 @@ function ScriptSplitWorkbench() {
                   <p className="mt-1 text-xs text-muted-foreground">先拆分，再确认每一集的标题和正文。</p>
                 </div>
                 <Badge variant={drafts.length > 0 ? 'success' : 'outline'}>{drafts.length || 0} 集</Badge>
+              </div>
+              <div className="mt-4 rounded-md border border-border bg-background px-3 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">Agent Draft</p>
+                      <Badge variant={scriptSplitDraftStatusVariant(agentDraft?.status)}>
+                        {agentDraftDirty ? '有未同步修改' : scriptSplitDraftStatusLabel(agentDraft?.status)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                      {agentDraft?.id ?? '运行 Agent 后会生成可审阅的 script_split draft'}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => void refreshAgentDraft()}
+                      disabled={!agentDraft || draftSyncing || createAll.isPending}
+                    >
+                      <RefreshCw size={13} className={draftSyncing ? 'animate-spin' : ''} />
+                      刷新
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => void syncAgentDraft()}
+                      disabled={!agentDraft || !agentDraftDirty || draftSyncing || createAll.isPending || agentDraft.status !== 'draft'}
+                    >
+                      <ClipboardCheck size={13} />
+                      同步草稿
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-destructive"
+                      onClick={() => void rejectAgentDraft()}
+                      disabled={!agentDraft || draftRejecting || createAll.isPending || agentDraft.status !== 'draft'}
+                    >
+                      {draftRejecting ? <Loader2 size={13} className="animate-spin" /> : <AlertTriangle size={13} />}
+                      拒绝
+                    </Button>
+                  </div>
+                </div>
+                {validationErrors.length > 0 && (
+                  <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
+                    {validationErrors[0]?.message}
+                  </div>
+                )}
               </div>
               <div className="mt-4 space-y-3">
                 {drafts.length === 0 ? (
@@ -2953,7 +3237,8 @@ function ScriptSplitWorkbench() {
                       <Label className="mb-1 text-xs text-muted-foreground">剧本标题</Label>
                       <Input
                         value={selectedDraft.title}
-                        onChange={(event) => updateDraft(selectedDraft.id, { title: event.target.value })}
+                        onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { title: event.target.value })}
+                        disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
                       />
                     </div>
                     <div>
@@ -2961,7 +3246,12 @@ function ScriptSplitWorkbench() {
                       <Textarea
                         className="min-h-52 resize-none font-mono text-xs leading-relaxed"
                         value={selectedDraft.content}
-                        onChange={(event) => updateDraft(selectedDraft.id, { content: event.target.value, summary: summarizeText(event.target.value, 120) })}
+                        onChange={(event) => updateEpisodeDraftState(selectedDraft.id, {
+                          content: event.target.value,
+                          bodyContent: event.target.value,
+                          summary: summarizeText(event.target.value, 120),
+                        })}
+                        disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
                       />
                     </div>
                   </div>
@@ -2972,20 +3262,6 @@ function ScriptSplitWorkbench() {
         </main>
 
         <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-card p-4">
-          <section className="mb-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">拆分概览</p>
-              {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本</Badge>}
-            </div>
-            <div className="mt-3 grid gap-2">
-                <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitleLabel} />
-                <WorkbenchMiniStat label="拆分集数" value={drafts.length || '0'} detail="自动识别出来的分集数量" />
-                <WorkbenchMiniStat label="Agent" value={lastAgentRunId ? '已运行' : '待运行'} detail={lastAgentRunId ? `run ${lastAgentRunId}` : '使用现有本地 Agent 会话'} />
-                <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
-                <WorkbenchMiniStat label="已有分集剧本" value={episodeScripts.length} detail="当前项目内的分集脚本数量" />
-              </div>
-          </section>
-
           {result && (
             <section className="mb-4 rounded-md border border-border bg-background p-3">
               <p className="text-sm font-semibold text-foreground">最近一次结果</p>
@@ -3025,31 +3301,6 @@ function ScriptSplitWorkbench() {
               </Button>
             </section>
           )}
-
-          <section className="mb-4">
-            <p className="text-sm font-semibold text-foreground">最近剧本</p>
-            <div className="mt-3 space-y-2">
-              {sortedScripts.length === 0 ? (
-                <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-xs text-muted-foreground">
-                  当前项目还没有剧本
-                </div>
-              ) : (
-                recentScripts.map((script) => (
-                  <div key={script.ID} className="rounded-md border border-border bg-background px-3 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">{script.title}</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {normalizeScriptType(script.script_type)} · {script.content ? script.content.length : 0} 字
-                        </p>
-                      </div>
-                      <Badge variant="outline">#{script.ID}</Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
         </aside>
       </div>
     </div>

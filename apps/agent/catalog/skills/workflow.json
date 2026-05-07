@@ -1,32 +1,14 @@
 {
   "skills": [
     {
-      "id": "movscript.platform.concepts",
-      "name": "MovScript Platform Concepts",
-      "description": "Understand MovScript entities, production flow, and local-first project boundaries.",
-      "version": "0.1.0",
-      "enabled": true,
-      "priority": 1000,
-      "instruction": "MovScript is a local-first short-drama production workspace. Treat a project as the top-level container. Core entities are: script for source text; creative_reference for characters, locations, world rules, props, and reusable story context; semantic production entities for segments, scene moments, storyboard scripts/lines, content units, keyframes, timelines, delivery versions, and reviews; asset_slot for all missing, candidate, or locked media/material requirements; raw_resource and resource_binding for uploaded or generated files. For project-level progress, gap review, or planning, first read the project structure, then inspect exact entities when IDs are available. Use the semantic flow Project -> Script/CreativeReference -> Segment/SceneMoment -> StoryboardLine -> ContentUnit/Keyframe -> AssetSlot -> Preview/Delivery. If entity IDs are present, read the exact entity. If IDs are absent, search before answering.",
-      "outputContract": "When answering about project state, state what was read or searched. Separate facts from recommendations. Do not invent entity IDs, statuses, or approvals.",
-      "toolHints": [
-        "movscript_get_context_pack",
-        "movscript_read_project_structure",
-        "movscript_search_entities",
-        "movscript_read_entity"
-      ],
-      "metadata": {
-        "source": "builtin"
-      }
-    },
-    {
       "id": "movscript.workflow.safe-drafts",
       "name": "Safe Draft Workflow",
-      "description": "Create local client-review artifacts for proposed changes and avoid direct formal data writes.",
+      "description": "Create local review artifacts for proposed changes and avoid direct formal data writes.",
       "version": "0.1.0",
+      "category": "workflow",
       "enabled": true,
       "priority": 900,
-      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer movscript_create_draft. A draft is a local runtime/client review artifact and does not modify formal project entities. Use drafts for script ideas, creative-reference notes, storyboard-line suggestions, content-unit plans, prompt drafts, asset-slot notes, review notes, planning notes, and production_proposal review objects. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
+      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer movscript_create_draft. A draft is a local runtime/client review artifact and does not modify formal project items. Use drafts for script ideas, creative-material notes, scene-beat suggestions, shot-plan notes, asset-need notes, keyframe notes, review notes, planning notes, and production proposal review objects. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
       "outputContract": "For any draft creation, include the draft title, kind, and the next action the user can take. State clearly whether the artifact is only a local review object or an approved backend write target. Keep draft content actionable and scoped.",
       "toolHints": [
         "movscript_create_draft",
@@ -42,6 +24,7 @@
       "name": "Script Writing",
       "description": "Brainstorm, draft, revise, and save source scripts with the user.",
       "version": "0.1.0",
+      "category": "script_writing",
       "enabled": true,
       "priority": 850,
       "appliesWhen": "剧本,写剧本,新剧本,screenplay,script writing,故事大纲,短剧",
@@ -63,10 +46,11 @@
       "name": "Project Progress Review",
       "description": "Summarize current project progress and identify missing production work.",
       "version": "0.1.0",
+      "category": "project_progress",
       "enabled": true,
       "priority": 820,
       "appliesWhen": "进度,progress,总结当前项目,project status,缺口,missing,还差什么",
-      "instruction": "When asked for project progress, inspect available project context and read the compact project structure before searching/reading individual scripts, creative references, semantic production entities, asset slots, resources, or pipeline nodes. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available context is partial, say so and suggest exactly which entities should be opened or searched next.",
+      "instruction": "When asked for project progress, inspect available project context and read the compact project structure before searching or reading individual scripts, creative references, business items, asset slots, resources, or pipeline nodes. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available context is partial, say so and suggest exactly which items should be opened or searched next.",
       "outputContract": "Use three sections: 已确认, 缺口, 下一步. Keep claims tied to read/search results.",
       "toolHints": [
         "movscript_get_context_pack",
@@ -84,10 +68,11 @@
       "name": "Storyboard Gap Review",
       "description": "Review scene moments, storyboard lines, content units, and asset slots for missing visual planning and execution gaps.",
       "version": "0.1.0",
+      "category": "storyboard_review",
       "enabled": true,
       "priority": 810,
       "appliesWhen": "分镜,storyboard line,镜头,内容单元,content unit,场景缺口,visual gap,审查分镜,检查场景",
-      "instruction": "For visual planning review, read project structure first when the user asks for gaps across a scene moment, segment, content unit, or current project. Then read the referenced semantic entity when an ID is provided; otherwise search by user keywords. Check whether location/time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing entities.",
+      "instruction": "For visual planning review, read project structure first when the user asks for gaps across a scene moment, segment, content unit, or current project. Then read the referenced business item when an ID is provided; otherwise search by user keywords. Check whether location, time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing project items.",
       "outputContract": "Return issues ordered by severity, then concrete draftable fixes. If creating a draft, make it a note, storyboard-line, content-unit, or asset-slot draft as appropriate.",
       "toolHints": [
         "movscript_read_project_structure",
@@ -104,6 +89,7 @@
       "name": "Content Unit Draft Creation",
       "description": "Generate content-unit or prompt drafts from story context without applying them to formal data.",
       "version": "0.1.0",
+      "category": "content_unit",
       "enabled": true,
       "priority": 800,
       "appliesWhen": "生成镜头,镜头草稿,内容单元草稿,content unit draft,content unit list,提示词,prompt,画面,镜头设计",
@@ -123,33 +109,15 @@
       "name": "Approval Boundaries",
       "description": "Respect risk boundaries for reads, drafts, writes, generation, navigation, and destructive actions.",
       "version": "0.1.0",
+      "category": "policy",
       "enabled": true,
       "priority": 700,
-      "instruction": "Read-only tools can be used to answer context questions. Draft tools can be used for proposed work. Navigation tools may be used only when it helps the user inspect a relevant entity. Formal writes, generation jobs, cost-bearing actions, destructive actions, and external network work require explicit approval and must not be implied as completed before the runtime reports success. If approval is required, explain the exact action, target, and risk.",
+      "instruction": "Read-only tools can be used to answer context questions. Draft tools can be used for proposed work. Navigation tools may be used only when it helps the user inspect a relevant item. Formal writes, generation jobs, cost-bearing actions, destructive actions, and external network work require explicit approval and must not be implied as completed before the runtime reports success. If approval is required, explain the exact action, target, and risk.",
       "outputContract": "Never say formal project data was changed unless a write tool reports success. For blocked actions, state the needed approval or missing context.",
       "toolHints": [
         "movscript_open_entity",
         "movscript_apply_draft",
         "movscript_create_generation_job"
-      ],
-      "metadata": {
-        "source": "builtin"
-      }
-    },
-    {
-      "id": "movscript.intent.visual-generation",
-      "name": "Visual Generation",
-      "description": "Create inline image or video outputs from prompts and references.",
-      "version": "0.1.0",
-      "enabled": true,
-      "priority": 650,
-      "appliesWhen": "生成图片,生成视频,出图,文生图,图生图,文生视频,视频生成,画面展示,visual generation,image generation,video generation",
-      "instruction": "When the user asks for an image or video, gather the needed prompt, style, references, aspect ratio, and duration if relevant. If the request should be fulfilled directly in chat, call movscript_create_generation_job after approval and return the generated media resource clearly. Prefer image generation for still frames and video generation for motion requests. Mention the generated resource ID and concise result status after the tool finishes.",
-      "outputContract": "The answer should include the generated media and a short result summary. If the tool returns an output resource, treat it as the primary artifact.",
-      "toolHints": [
-        "movscript_create_generation_job",
-        "movscript_search_entities",
-        "movscript_read_entity"
       ],
       "metadata": {
         "source": "builtin"

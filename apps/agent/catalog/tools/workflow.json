@@ -1,0 +1,130 @@
+{
+  "tools": [
+    {
+      "name": "movscript_create_draft",
+      "description": "Create a local runtime/client review artifact for proposed scripts, creative materials, scene beats, shot plans, asset needs, keyframes, production proposals, or notes. This does not write formal project items.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_create_draft",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_get_draft",
+      "description": "Read one local draft artifact by reference.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_get_draft",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_list_drafts",
+      "description": "List local runtime/client review artifacts for the current or specified project. Use to review previous agent proposals before any backend write flow.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_drafts",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_update_draft",
+      "description": "Update local draft title, content, target, status, or metadata without writing formal project items.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_update_draft",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_patch_draft",
+      "description": "Apply JSON Pointer patch operations to a JSON draft content field without writing formal project items.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_patch_draft",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_validate_draft",
+      "description": "Validate one local draft artifact and return structured issues for UI review.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_validate_draft",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_request_user_input",
+      "description": "Pause the current agent run and ask the user for missing context, a choice, confirmation, or free-form input. Use this when the next step would be a guess.",
+      "permission": "agent.input",
+      "risk": "ui",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_request_user_input",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_apply_draft",
+      "description": "Apply an approved local draft through the explicit write flow and produce before/after review metadata.",
+      "permission": "project.write",
+      "risk": "write",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_apply_draft",
+        "mode": "allow",
+        "approval": "always"
+      }
+    },
+    {
+      "name": "movscript_create_script",
+      "description": "Create a formal script record in the current project after user approval. For brainstorming, first use movscript_create_draft; use this only when the user wants the generated script saved into the project.",
+      "permission": "project.write",
+      "risk": "write",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_create_script",
+        "mode": "allow",
+        "approval": "always"
+      }
+    }
+  ]
+}

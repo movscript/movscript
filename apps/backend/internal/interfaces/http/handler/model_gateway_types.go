@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
@@ -40,8 +40,8 @@ type gatewayMessage struct {
 }
 
 type gatewayPrincipal struct {
-	User *model.User
-	Key  *model.GatewayAPIKey
+	UserID uint
+	Key    *domainmodelgateway.APIKey
 }
 
 type openAIErrorResponse struct {
@@ -144,6 +144,6 @@ type updateGatewayAPIKeyRequest struct {
 }
 
 type gatewayAPIKeyCreateResponse struct {
-	model.GatewayAPIKey
+	domainmodelgateway.APIKey
 	Key string `json:"key"`
 }

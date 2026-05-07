@@ -8,6 +8,7 @@ export type ExportRecordStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 export interface DeliveryVersion {
   ID: number
   project_id: number
+  production_id?: number | null
   preview_timeline_id?: number | null
   name: string
   description?: string
@@ -57,6 +58,7 @@ export interface ExportRecord {
 export interface PreviewTimeline {
   ID: number
   project_id: number
+  production_id?: number | null
   script_version_id?: number | null
   name: string
   duration_sec: number
@@ -67,6 +69,7 @@ export interface PreviewTimeline {
 export interface ContentUnit {
   ID: number
   project_id: number
+  production_id?: number | null
   title: string
   kind: string
   order: number
@@ -90,7 +93,7 @@ export interface ContentUnit {
 
 export type DeliveryVersionPayload = Partial<Pick<
   DeliveryVersion,
-  'preview_timeline_id' | 'name' | 'description' | 'status' | 'is_primary' | 'duration_sec' | 'metadata_json'
+  'production_id' | 'preview_timeline_id' | 'name' | 'description' | 'status' | 'is_primary' | 'duration_sec' | 'metadata_json'
 >>
 
 export type DeliveryTimelineItemPayload = Partial<Pick<
@@ -116,8 +119,30 @@ export function resourceFromId(id: number, type: RawResource['type'] = 'video', 
   }
 }
 
-export async function listDeliveryVersions(projectId: number) {
-  const { data } = await api.get<DeliveryVersion[]>(`/projects/${projectId}/entities/delivery-versions`)
+export interface Production {
+  ID: number
+  project_id: number
+  script_version_id?: number | null
+  preview_timeline_id?: number | null
+  name: string
+  description?: string
+  status: string
+  source_type?: string
+  owner_label?: string
+  progress?: number
+  CreatedAt?: string
+  UpdatedAt?: string
+}
+
+export async function listProductions(projectId: number) {
+  const { data } = await api.get<Production[]>(`/projects/${projectId}/entities/productions`)
+  return data
+}
+
+export async function listDeliveryVersions(projectId: number, productionId?: number | null) {
+  const { data } = await api.get<DeliveryVersion[]>(`/projects/${projectId}/entities/delivery-versions`, {
+    params: productionId ? { production_id: productionId } : undefined,
+  })
   return data
 }
 
@@ -164,12 +189,16 @@ export async function createExportRecord(projectId: number, payload: ExportRecor
   return data
 }
 
-export async function listPreviewTimelines(projectId: number) {
-  const { data } = await api.get<PreviewTimeline[]>(`/projects/${projectId}/entities/preview-timelines`)
+export async function listPreviewTimelines(projectId: number, productionId?: number | null) {
+  const { data } = await api.get<PreviewTimeline[]>(`/projects/${projectId}/entities/preview-timelines`, {
+    params: productionId ? { production_id: productionId } : undefined,
+  })
   return data
 }
 
-export async function listContentUnits(projectId: number) {
-  const { data } = await api.get<ContentUnit[]>(`/projects/${projectId}/entities/content-units`)
+export async function listContentUnits(projectId: number, productionId?: number | null) {
+  const { data } = await api.get<ContentUnit[]>(`/projects/${projectId}/entities/content-units`, {
+    params: productionId ? { production_id: productionId } : undefined,
+  })
   return data
 }

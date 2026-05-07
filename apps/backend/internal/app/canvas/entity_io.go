@@ -100,7 +100,7 @@ func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv mode
 	if h == nil || cv.ProjectID == nil || kind != domainworkflow.EntityKindAssetSlot || entityID == 0 || resourceID == 0 {
 		return
 	}
-	_ = h.canvasRepo().AttachGeneratedAssetSlotCandidate(ctx, AttachGeneratedAssetSlotCandidateInput{
+	_ = h.canvasRepo().attachGeneratedAssetSlotCandidate(ctx, attachGeneratedAssetSlotCandidateInput{
 		CanvasID:      cv.ID,
 		CanvasRunID:   runID,
 		ProjectID:     *cv.ProjectID,

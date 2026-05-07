@@ -1,0 +1,24 @@
+{
+  "skills": [
+    {
+      "id": "movscript.intent.visual-generation",
+      "name": "Visual Generation",
+      "description": "Create inline image or video outputs from prompts and references.",
+      "version": "0.1.0",
+      "category": "visual_generation",
+      "enabled": true,
+      "priority": 650,
+      "appliesWhen": "生成图片,生成视频,出图,文生图,图生图,文生视频,视频生成,画面展示,visual generation,image generation,video generation",
+      "instruction": "When the user asks for an image or video, gather the needed prompt, style, references, aspect ratio, and duration if relevant. If the request should be fulfilled directly in chat, call movscript_create_generation_job after approval and return the generated media resource clearly. Prefer image generation for still frames and video generation for motion requests. Mention the generated resource ID and concise result status after the tool finishes.",
+      "outputContract": "The answer should include the generated media and a short result summary. If the tool returns an output resource, treat it as the primary artifact.",
+      "toolHints": [
+        "movscript_create_generation_job",
+        "movscript_search_entities",
+        "movscript_read_entity"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    }
+  ]
+}

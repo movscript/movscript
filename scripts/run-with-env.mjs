@@ -19,18 +19,66 @@ if (Object.keys(envAssignments).length === 0 || !command) {
   process.exit(1)
 }
 
+const isWindows = process.platform === 'win32'
 const child = spawn(command, args, {
   stdio: 'inherit',
-  shell: process.platform === 'win32',
+  shell: isWindows,
+  detached: !isWindows,
   env: {
     ...process.env,
     ...envAssignments,
   },
 })
 
+let shuttingDown = false
+
+function getSignalExitCode(signal) {
+  if (signal === 'SIGINT') return 130
+  if (signal === 'SIGTERM') return 143
+  if (signal === 'SIGHUP') return 129
+  return 1
+}
+
+function killChild(signal = 'SIGTERM') {
+  if (!child.pid) return
+  try {
+    if (isWindows) {
+      child.kill(signal)
+      return
+    }
+    process.kill(-child.pid, signal)
+  } catch (error) {
+    if (error?.code !== 'ESRCH') {
+      console.error(error)
+    }
+  }
+}
+
+function handleSignal(signal) {
+  if (shuttingDown) return
+  shuttingDown = true
+  killChild(signal)
+
+  const timeout = setTimeout(() => {
+    killChild('SIGKILL')
+    process.exit(getSignalExitCode(signal))
+  }, 5_000)
+  timeout.unref()
+
+  child.once('exit', () => {
+    clearTimeout(timeout)
+    process.exit(getSignalExitCode(signal))
+  })
+}
+
+process.once('SIGINT', () => handleSignal('SIGINT'))
+process.once('SIGTERM', () => handleSignal('SIGTERM'))
+process.once('SIGHUP', () => handleSignal('SIGHUP'))
+
 child.on('exit', (code, signal) => {
+  if (shuttingDown) return
   if (signal) {
-    process.kill(process.pid, signal)
+    process.exit(getSignalExitCode(signal))
     return
   }
   process.exit(code ?? 0)

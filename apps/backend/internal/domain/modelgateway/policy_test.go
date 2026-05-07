@@ -65,6 +65,7 @@ func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
 func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
 	models := []ai.PublicModel{
 		{ID: 4, ModelDefID: "gpt-like", ModelIDOverride: "public-name"},
+		{ID: 5, ModelDefID: "provider-hidden", LogicalModelID: "logical-name"},
 	}
 
 	id, name, err := ResolveTextModel(models, "", 4, nil)
@@ -80,5 +81,10 @@ func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
 	id, name, err = ResolveTextModel(models, "model_config:4", 0, nil)
 	if err != nil || id != 4 || name != "model_config:4" {
 		t.Fatalf("expected model_config model, got id=%d name=%q err=%v", id, name, err)
+	}
+
+	id, name, err = ResolveTextModel(models, "logical-name", 0, nil)
+	if err != nil || id != 5 || name != "logical-name" {
+		t.Fatalf("expected logical model, got id=%d name=%q err=%v", id, name, err)
 	}
 }

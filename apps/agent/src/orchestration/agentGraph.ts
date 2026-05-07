@@ -508,12 +508,12 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   const effectiveRoundSource = currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0
     ? 'runtime_rule' as const
     : 'model' as const
-  const turnResults: Array<{ toolCall: ToolCall; content: string }> = []
   const toolOutcomes = [...state.toolOutcomes]
   const warnings = [...state.warnings]
+  const requestedCalls = state.requestedCalls
+  const canRunConcurrently = requestedCalls.length > 1 && requestedCalls.every((call) => canExecuteConcurrently(call, input.registry))
 
-  for (const call of state.requestedCalls) {
-    throwIfAborted(input.signal)
+  const executeOne = async (call: ToolCall): Promise<{ outcome: ToolCallOutcome; turnResult: { toolCall: ToolCall; content: string }; warning?: string }> => {
     const stepId = input.onStepCreate('tool_call', currentRoundIndex, roundLabel, effectiveRoundSource, call.name)
     try {
       const execResult = await executeTool(call, {
@@ -527,7 +527,6 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         signal: input.signal,
       })
       throwIfAborted(input.signal)
-      toolOutcomes.push({ call, ...(execResult.error ? { error: execResult.error } : { result: execResult.result }) })
       input.onStepComplete(stepId, execResult.result, undefined, execResult.sandboxed)
       input.onTrace({
         kind: 'tool_call',
@@ -541,15 +540,16 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         toolName: call.name,
         data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed },
       })
-      turnResults.push({
-        toolCall: normalizeToolCall(call),
-        content: JSON.stringify({ result: execResult.result ?? null, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
-      })
+      return {
+        outcome: { call, ...(execResult.error ? { error: execResult.error } : { result: execResult.result }) },
+        turnResult: {
+          toolCall: normalizeToolCall(call),
+          content: JSON.stringify({ result: execResult.result ?? null, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
+        },
+      }
     } catch (error) {
       if (isAbortError(error) || input.signal?.aborted) throw error
       const message = error instanceof Error ? error.message : String(error)
-      warnings.push(`${formatToolNameForDisplay(call.name)} 未完成：${message}`)
-      toolOutcomes.push({ call, error: message })
       input.onStepComplete(stepId, undefined, message)
       input.onTrace({
         kind: 'tool_call',
@@ -563,11 +563,50 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         toolName: call.name,
         data: { error: message },
       })
-      turnResults.push({
-        toolCall: normalizeToolCall(call),
-        content: JSON.stringify({ error: message, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
-      })
+      return {
+        outcome: { call, error: message },
+        warning: `${formatToolNameForDisplay(call.name)} 未完成：${message}`,
+        turnResult: {
+          toolCall: normalizeToolCall(call),
+          content: JSON.stringify({ error: message, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
+        },
+      }
     }
+  }
+
+  const executed = canRunConcurrently
+    ? await Promise.all(requestedCalls.map((call) => {
+      throwIfAborted(input.signal)
+      return executeOne(call)
+    }))
+    : []
+
+  const results = canRunConcurrently ? executed : []
+  if (!canRunConcurrently) {
+    for (const call of requestedCalls) {
+      throwIfAborted(input.signal)
+      results.push(await executeOne(call))
+    }
+  }
+
+  for (const result of results) {
+    toolOutcomes.push(result.outcome)
+    if (result.warning) warnings.push(result.warning)
+  }
+
+  const turnResults: Array<{ toolCall: ToolCall; content: string }> = results.map((result) => result.turnResult)
+
+  if (canRunConcurrently) {
+    input.onTrace({
+      kind: 'tool_call',
+      title: 'Read tools executed concurrently',
+      summary: `${requestedCalls.length} read tool call(s) completed in parallel.`,
+      status: 'completed',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: effectiveRoundSource,
+      data: { toolNames: requestedCalls.map((call) => call.name) },
+    })
   }
 
   const nextHistory: RuntimeModelChatMessage[] = turnResults.flatMap(({ toolCall, content }) => ([
@@ -579,7 +618,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       history: nextHistory,
       toolOutcomes,
       warnings,
-      toolCallCount: state.toolCallCount + state.requestedCalls.length,
+      toolCallCount: state.toolCallCount + requestedCalls.length,
       roundIndex: currentRoundIndex + 1,
       status: 'completed',
       finalContent: '',
@@ -590,9 +629,14 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     history: nextHistory,
     toolOutcomes,
     warnings,
-    toolCallCount: state.toolCallCount + state.requestedCalls.length,
+    toolCallCount: state.toolCallCount + requestedCalls.length,
     roundIndex: currentRoundIndex + 1,
   }
+}
+
+function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean {
+  const tool = registry.get(call.name)
+  return tool?.risk === 'read'
 }
 
 function normalizeToolCall(call: ToolCall): ToolCall {

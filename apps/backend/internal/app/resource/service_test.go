@@ -7,6 +7,7 @@ import (
 
 	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -50,7 +51,7 @@ func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
 		Status:     "selected",
 		SourceType: "manual",
 	}
-	if err := resourcebinding.NewService(db.Session(&gorm.Session{SkipHooks: true})).CreateBinding(ctx, &binding); err != nil {
+	if _, err := resourcebinding.NewService(db.Session(&gorm.Session{SkipHooks: true})).CreateBinding(ctx, domainbinding.BindingFromModel(binding)); err != nil {
 		t.Fatalf("create binding: %v", err)
 	}
 

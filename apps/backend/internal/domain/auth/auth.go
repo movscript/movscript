@@ -50,13 +50,15 @@ type UserProfile struct {
 }
 
 type AuthChallenge struct {
-	ID         uint
-	Channel    string
-	Target     string
-	CodeHash   string
-	ExpiresAt  time.Time
-	ConsumedAt *time.Time
-	Attempts   int
+	ID         uint       `json:"ID"`
+	Channel    string     `json:"channel"`
+	Target     string     `json:"target"`
+	CodeHash   string     `json:"-"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	ConsumedAt *time.Time `json:"consumed_at,omitempty"`
+	Attempts   int        `json:"attempts"`
+	CreatedAt  time.Time  `json:"CreatedAt"`
+	UpdatedAt  time.Time  `json:"UpdatedAt"`
 }
 
 type AuthSession struct {

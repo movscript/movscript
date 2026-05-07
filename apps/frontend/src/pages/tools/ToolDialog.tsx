@@ -204,7 +204,7 @@ function GenerationCard({
       error={job.error_msg}
       timestamp={job.CreatedAt}
       onReuse={onReuse}
-      contextPanel={<JobContextSummary job={job} />}
+      contextPanel={<JobContextSummary job={job} includeProvider={debugMode} />}
       debugPanel={debugMode ? <DebugPanel job={job} /> : undefined}
       compact
     />

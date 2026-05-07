@@ -90,14 +90,17 @@ func PersonalOrgSlug(username string, userID uint, slugExists bool) string {
 }
 
 type Organization struct {
-	ID         uint
-	Name       string
-	Slug       string
-	JoinCode   string
-	IsPersonal bool
-	Plan       string
-	Status     string
-	CreatedBy  uint
+	ID         uint       `json:"ID"`
+	Name       string     `json:"name"`
+	Slug       string     `json:"slug"`
+	JoinCode   string     `json:"join_code"`
+	IsPersonal bool       `json:"is_personal"`
+	Plan       string     `json:"plan"`
+	Status     string     `json:"status"`
+	CreatedBy  uint       `json:"created_by"`
+	CreatedAt  time.Time  `json:"CreatedAt"`
+	UpdatedAt  time.Time  `json:"UpdatedAt"`
+	DeletedAt  *time.Time `json:"DeletedAt"`
 }
 
 type UserIdentity struct {
@@ -106,34 +109,65 @@ type UserIdentity struct {
 }
 
 type OrganizationMember struct {
-	ID     uint
-	OrgID  uint
-	UserID uint
-	Role   string
+	ID        uint       `json:"ID"`
+	OrgID     uint       `json:"org_id"`
+	UserID    uint       `json:"user_id"`
+	Role      string     `json:"role"`
+	User      *User      `json:"user,omitempty"`
+	CreatedAt time.Time  `json:"CreatedAt"`
+	UpdatedAt time.Time  `json:"UpdatedAt"`
+	DeletedAt *time.Time `json:"DeletedAt"`
 }
 
 type Invitation struct {
-	ID        uint
-	OrgID     uint
-	Token     string
-	Role      string
-	Note      string
-	CreatedBy uint
-	UsedBy    *uint
-	ExpiresAt time.Time
-	UsedAt    *time.Time
+	ID        uint       `json:"ID"`
+	OrgID     uint       `json:"org_id"`
+	Token     string     `json:"token"`
+	Role      string     `json:"role"`
+	Note      string     `json:"note,omitempty"`
+	CreatedBy uint       `json:"created_by"`
+	UsedBy    *uint      `json:"used_by,omitempty"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
+	CreatedAt time.Time  `json:"CreatedAt"`
+	UpdatedAt time.Time  `json:"UpdatedAt"`
+	DeletedAt *time.Time `json:"DeletedAt"`
 }
 
 type UserGroup struct {
-	ID    uint
-	OrgID uint
-	Name  string
+	ID        uint              `json:"ID"`
+	OrgID     uint              `json:"org_id"`
+	Name      string            `json:"name"`
+	Members   []UserGroupMember `json:"members,omitempty"`
+	CreatedAt time.Time         `json:"CreatedAt"`
+	UpdatedAt time.Time         `json:"UpdatedAt"`
+	DeletedAt *time.Time        `json:"DeletedAt"`
 }
 
 type UserGroupMember struct {
-	ID      uint
-	GroupID uint
-	UserID  uint
+	ID        uint       `json:"ID"`
+	GroupID   uint       `json:"group_id"`
+	UserID    uint       `json:"user_id"`
+	User      *User      `json:"user,omitempty"`
+	CreatedAt time.Time  `json:"CreatedAt"`
+	UpdatedAt time.Time  `json:"UpdatedAt"`
+	DeletedAt *time.Time `json:"DeletedAt"`
+}
+
+type User struct {
+	ID              uint       `json:"ID"`
+	Username        string     `json:"username"`
+	SystemRole      string     `json:"system_role"`
+	PrimaryEmail    *string    `json:"primary_email,omitempty"`
+	PrimaryPhone    *string    `json:"primary_phone,omitempty"`
+	DisplayName     string     `json:"display_name,omitempty"`
+	AvatarURL       string     `json:"avatar_url,omitempty"`
+	Locale          string     `json:"locale,omitempty"`
+	Status          string     `json:"status"`
+	EmailVerifiedAt *int64     `json:"email_verified_at,omitempty"`
+	CreatedAt       time.Time  `json:"CreatedAt"`
+	UpdatedAt       time.Time  `json:"UpdatedAt"`
+	DeletedAt       *time.Time `json:"DeletedAt"`
 }
 
 func NewPersonalOrg(user UserIdentity, slugExists bool) Organization {

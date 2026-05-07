@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	orgapp "github.com/movscript/movscript/internal/app/org"
-	"github.com/movscript/movscript/internal/domain/model"
+	projectapp "github.com/movscript/movscript/internal/app/project"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
 )
@@ -18,53 +18,35 @@ const ContextOrgMemberKey = "currentOrgMember"
 // It prefers X-Org-ID when provided, otherwise falls back to the personal org,
 // then any other org membership if no personal org exists.
 func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
+	orgService := orgapp.NewService(db)
 	return func(c *gin.Context) {
-		u, ok := c.Get(ContextUserKey)
+		user, ok := CurrentUserFromContext(c)
 		if !ok {
 			c.Next()
 			return
 		}
-		user := u.(*model.User)
 
-		var members []model.OrganizationMember
-		if err := db.Where("user_id = ?", user.ID).Find(&members).Error; err != nil || len(members) == 0 {
-			_ = orgapp.CreatePersonalOrg(db.WithContext(c.Request.Context()), user)
-			if err := db.Where("user_id = ?", user.ID).Find(&members).Error; err != nil || len(members) == 0 {
-				c.Next()
-				return
-			}
-		}
-
-		selected := members[0]
+		var preferredOrgID *uint
 		if raw := strings.TrimSpace(c.GetHeader("X-Org-ID")); raw != "" {
-			orgID, err := strconv.ParseUint(raw, 10, 64)
-			if err != nil || orgID == 0 {
+			parsed, err := strconv.ParseUint(raw, 10, 64)
+			if err != nil || parsed == 0 {
 				c.AbortWithStatusJSON(http.StatusBadRequest, apierr.InvalidInput("无效的组织 ID"))
 				return
 			}
-			for _, member := range members {
-				if member.OrgID == uint(orgID) {
-					selected = member
-					c.Set(ContextOrgMemberKey, &selected)
-					c.Next()
-					return
-				}
-			}
+			orgID := uint(parsed)
+			preferredOrgID = &orgID
+		}
+
+		member, found, err := orgService.ResolveCurrentMember(c.Request.Context(), user.ID, preferredOrgID)
+		if err == orgapp.ErrForbidden {
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("你没有权限访问该工作区"))
 			return
 		}
-
-		for _, member := range members {
-			var org model.Organization
-			if err := db.Select("id, is_personal").First(&org, member.OrgID).Error; err == nil && org.IsPersonal {
-				selected = member
-				c.Set(ContextOrgMemberKey, &selected)
-				c.Next()
-				return
-			}
+		if err != nil || !found {
+			c.Next()
+			return
 		}
-
-		c.Set(ContextOrgMemberKey, &selected)
+		c.Set(ContextOrgMemberKey, member)
 		c.Next()
 	}
 }
@@ -72,13 +54,13 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 // RequireProjectInCurrentOrg aborts when :id does not belong to the current workspace.
 // It is intended for /projects/:id and nested project routes.
 func RequireProjectInCurrentOrg(db *gorm.DB) gin.HandlerFunc {
+	projectService := projectapp.NewService(db)
 	return func(c *gin.Context) {
-		m, ok := c.Get(ContextOrgMemberKey)
+		member, ok := CurrentOrgMemberFromContext(c)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("无工作区信息"))
 			return
 		}
-		member := m.(*model.OrganizationMember)
 
 		projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 		if err != nil || projectID == 0 {
@@ -86,12 +68,16 @@ func RequireProjectInCurrentOrg(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var project model.Project
-		if err := db.Select("id, org_id").Where("id = ?", uint(projectID)).First(&project).Error; err != nil {
+		belongs, err := projectService.BelongsToOrg(c.Request.Context(), uint(projectID), member.OrgID)
+		if err == projectapp.ErrProjectNotFound {
 			c.AbortWithStatusJSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
 			return
 		}
-		if project.OrgID == nil || *project.OrgID != member.OrgID {
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, apierr.Internal("项目校验失败"))
+			return
+		}
+		if !belongs {
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.ForbiddenProject("项目不属于当前工作区"))
 			return
 		}
@@ -102,13 +88,13 @@ func RequireProjectInCurrentOrg(db *gorm.DB) gin.HandlerFunc {
 // InjectOrgMember loads the OrganizationMember for the current user + :orgId path param.
 // Sets ContextOrgMemberKey in gin context. Aborts with 403 if user is not a member.
 func InjectOrgMember(db *gorm.DB) gin.HandlerFunc {
+	orgService := orgapp.NewService(db)
 	return func(c *gin.Context) {
-		u, ok := c.Get(ContextUserKey)
+		user, ok := CurrentUserFromContext(c)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
 			return
 		}
-		user := u.(*model.User)
 
 		orgIDStr := c.Param("orgId")
 		orgID, err := strconv.ParseUint(orgIDStr, 10, 64)
@@ -117,13 +103,13 @@ func InjectOrgMember(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var member model.OrganizationMember
-		if err := db.Where("org_id = ? AND user_id = ?", orgID, user.ID).First(&member).Error; err != nil {
+		member, err := orgService.GetMemberForUser(c.Request.Context(), uint(orgID), user.ID)
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("你不是该组织的成员"))
 			return
 		}
 
-		c.Set(ContextOrgMemberKey, &member)
+		c.Set(ContextOrgMemberKey, member)
 		c.Next()
 	}
 }
@@ -132,12 +118,11 @@ func InjectOrgMember(db *gorm.DB) gin.HandlerFunc {
 // Must be used after InjectOrgMember.
 func RequireOrgRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		m, ok := c.Get(ContextOrgMemberKey)
+		member, ok := CurrentOrgMemberFromContext(c)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("无组织成员信息"))
 			return
 		}
-		member := m.(*model.OrganizationMember)
 		for _, r := range roles {
 			if member.Role == r {
 				c.Next()

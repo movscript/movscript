@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
 	"github.com/movscript/movscript/internal/infra/pluginkit"
 	"gorm.io/gorm"
 )
@@ -20,7 +20,7 @@ func NewService(db *gorm.DB) *Service {
 }
 
 type ImportResult struct {
-	Plugin  model.Plugin
+	Plugin  domainplugin.Plugin
 	Created bool
 }
 
@@ -42,31 +42,31 @@ type WorkflowContribution struct {
 	pluginkit.WorkflowContribution
 }
 
-func (s *Service) List(ctx context.Context) ([]model.Plugin, error) {
+func (s *Service) List(ctx context.Context) ([]domainplugin.Plugin, error) {
 	return s.repo.ListPlugins(ctx)
 }
 
 func (s *Service) Import(ctx context.Context, req pluginkit.ImportRequest) (ImportResult, error) {
-	result, err := s.repo.ImportPlugin(ctx, req)
+	plugin, created, err := s.repo.ImportPlugin(ctx, req)
 	if err != nil {
 		return ImportResult{}, err
 	}
-	return ImportResult{Plugin: result.Plugin, Created: result.Created}, nil
+	return ImportResult{Plugin: plugin, Created: created}, nil
 }
 
-func (s *Service) SetEnabled(ctx context.Context, id uint, enabled bool) (model.Plugin, error) {
+func (s *Service) SetEnabled(ctx context.Context, id uint, enabled bool) (domainplugin.Plugin, error) {
 	plugin, err := s.repo.GetPlugin(ctx, id)
 	if err != nil {
 		return plugin, err
 	}
-	if err := s.repo.SetEnabled(ctx, &plugin, enabled); err != nil {
+	plugin, err = s.repo.SetEnabled(ctx, plugin, enabled)
+	if err != nil {
 		return plugin, err
 	}
-	plugin.Enabled = enabled
 	return plugin, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uint) (model.Plugin, error) {
+func (s *Service) Delete(ctx context.Context, id uint) (domainplugin.Plugin, error) {
 	plugin, err := s.repo.GetPlugin(ctx, id)
 	if err != nil {
 		return plugin, err
@@ -77,7 +77,7 @@ func (s *Service) Delete(ctx context.Context, id uint) (model.Plugin, error) {
 	return plugin, nil
 }
 
-func (s *Service) ToolCatalog(ctx context.Context) ([]model.PluginTool, error) {
+func (s *Service) ToolCatalog(ctx context.Context) ([]domainplugin.PluginTool, error) {
 	return s.repo.ToolCatalog(ctx)
 }
 
@@ -135,7 +135,7 @@ func (s *Service) WorkflowCatalog(ctx context.Context) ([]WorkflowContribution, 
 	return out, nil
 }
 
-func parseStoredManifest(p model.Plugin) (*pluginkit.Manifest, bool) {
+func parseStoredManifest(p domainplugin.Plugin) (*pluginkit.Manifest, bool) {
 	m, _, err := pluginkit.ParseManifest([]byte(p.Manifest))
 	return m, err == nil
 }

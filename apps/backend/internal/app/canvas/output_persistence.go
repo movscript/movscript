@@ -164,7 +164,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 		return
 	}
 	raw, _ := json.Marshal(value)
-	_ = h.canvasRepo().AttachGeneratedAssetSlotCandidate(ctx, AttachGeneratedAssetSlotCandidateInput{
+	_ = h.canvasRepo().attachGeneratedAssetSlotCandidate(ctx, attachGeneratedAssetSlotCandidateInput{
 		CanvasID:       cv.ID,
 		CanvasRunID:    runID,
 		ProjectID:      *cv.ProjectID,

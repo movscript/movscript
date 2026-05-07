@@ -47,55 +47,69 @@ type EntityWriteAuditSpec struct {
 }
 
 type Canvas struct {
-	ID           uint
-	OwnerID      uint
-	OrgID        *uint
-	Name         string
-	Description  string
-	CanvasType   string
-	ProjectID    *uint
-	Stage        string
-	RefType      string
-	RefID        *uint
-	Visibility   string
-	WorkflowKey  string
-	WorkflowTags string
-	PublishedAt  *time.Time
+	ID           uint         `json:"ID"`
+	OwnerID      uint         `json:"owner_id"`
+	OrgID        *uint        `json:"org_id,omitempty"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description,omitempty"`
+	CanvasType   string       `json:"canvas_type"`
+	ProjectID    *uint        `json:"project_id,omitempty"`
+	Stage        string       `json:"stage"`
+	RefType      string       `json:"ref_type"`
+	RefID        *uint        `json:"ref_id,omitempty"`
+	Visibility   string       `json:"visibility"`
+	WorkflowKey  string       `json:"workflow_key,omitempty"`
+	WorkflowTags string       `json:"workflow_tags,omitempty"`
+	PublishedAt  *time.Time   `json:"published_at,omitempty"`
+	Nodes        []CanvasNode `json:"nodes,omitempty"`
+	Edges        []CanvasEdge `json:"edges,omitempty"`
+	CreatedAt    time.Time    `json:"CreatedAt"`
+	UpdatedAt    time.Time    `json:"UpdatedAt"`
+	DeletedAt    *time.Time   `json:"DeletedAt"`
 }
 
 type CanvasNode struct {
-	ID       uint
-	CanvasID uint
-	NodeID   string
-	Type     string
-	Label    string
-	PosX     float64
-	PosY     float64
-	Data     string
+	ID        uint       `json:"ID"`
+	CanvasID  uint       `json:"canvas_id"`
+	NodeID    string     `json:"node_id"`
+	Type      string     `json:"type"`
+	Label     string     `json:"label"`
+	PosX      float64    `json:"pos_x"`
+	PosY      float64    `json:"pos_y"`
+	Data      string     `json:"data"`
+	CreatedAt time.Time  `json:"CreatedAt"`
+	UpdatedAt time.Time  `json:"UpdatedAt"`
+	DeletedAt *time.Time `json:"DeletedAt"`
 }
 
 type CanvasEdge struct {
-	ID           uint
-	CanvasID     uint
-	EdgeID       string
-	Source       string
-	Target       string
-	SourceHandle string
-	TargetHandle string
+	ID           uint       `json:"ID"`
+	CanvasID     uint       `json:"canvas_id"`
+	EdgeID       string     `json:"edge_id"`
+	Source       string     `json:"source"`
+	Target       string     `json:"target"`
+	SourceHandle string     `json:"source_handle,omitempty"`
+	TargetHandle string     `json:"target_handle,omitempty"`
+	CreatedAt    time.Time  `json:"CreatedAt"`
+	UpdatedAt    time.Time  `json:"UpdatedAt"`
+	DeletedAt    *time.Time `json:"DeletedAt"`
 }
 
 type EntityWriteAudit struct {
-	ID                 uint
-	CanvasID           uint
-	CanvasRunID        uint
-	CanvasNodeID       string
-	PortID             string
-	EntityKind         string
-	EntityID           uint
-	UserID             uint
-	OldValueJSON       string
-	NewValueJSON       string
-	ResourceBindingIDs string
+	ID                 uint       `json:"ID"`
+	CanvasID           uint       `json:"canvas_id"`
+	CanvasRunID        uint       `json:"canvas_run_id"`
+	CanvasNodeID       string     `json:"canvas_node_id"`
+	PortID             string     `json:"port_id"`
+	EntityKind         string     `json:"entity_kind"`
+	EntityID           uint       `json:"entity_id"`
+	UserID             uint       `json:"user_id"`
+	OldValueJSON       string     `json:"old_value_json,omitempty"`
+	NewValueJSON       string     `json:"new_value_json,omitempty"`
+	ResourceBindingIDs string     `json:"resource_binding_ids,omitempty"`
+	CreatedAt          time.Time  `json:"CreatedAt"`
+	UpdatedAt          time.Time  `json:"UpdatedAt"`
+	DeletedAt          *time.Time `json:"DeletedAt"`
 }
 
 func NormalizeCreateInput(input *CanvasCreateInput) error {

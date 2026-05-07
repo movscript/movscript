@@ -10,7 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
 	"gorm.io/gorm"
@@ -32,7 +33,7 @@ func NewService(db *gorm.DB, encryptionKey ...[]byte) *Service {
 }
 
 type JobPage struct {
-	Items []model.Job
+	Items []domainjob.Job
 	Total int64
 }
 
@@ -68,11 +69,11 @@ type ProviderCallInput struct {
 }
 
 type JobDetail struct {
-	model.Job
+	domainjob.Job
 	DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
 }
 
-func (s *Service) GetCredential(ctx context.Context, id uint) (model.AICredential, error) {
+func (s *Service) getCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
 	return s.repo.GetCredential(ctx, id)
 }
 
@@ -83,7 +84,7 @@ func (s *Service) RawCall(ctx context.Context, input RawCallInput) RawCallResult
 	}
 
 	if input.CredentialID != nil {
-		if cred, err := s.GetCredential(ctx, *input.CredentialID); err == nil {
+		if cred, err := s.getCredential(ctx, *input.CredentialID); err == nil {
 			apiKey := ""
 			if cred.EncryptedKey != "" {
 				if plain, err := crypto.Decrypt(cred.EncryptedKey, s.encryptionKey); err == nil {
@@ -184,7 +185,7 @@ func (s *Service) ListJobDetails(ctx context.Context, status string, limit, offs
 	return jobDetails(page.Items), page.Total, nil
 }
 
-func (s *Service) GetJob(ctx context.Context, id string) (model.Job, error) {
+func (s *Service) GetJob(ctx context.Context, id string) (domainjob.Job, error) {
 	return s.repo.GetJob(ctx, id)
 }
 
@@ -196,7 +197,7 @@ func (s *Service) GetJobDetail(ctx context.Context, id string) (JobDetail, error
 	return jobDetail(job), nil
 }
 
-func jobDetails(jobs []model.Job) []JobDetail {
+func jobDetails(jobs []domainjob.Job) []JobDetail {
 	out := make([]JobDetail, 0, len(jobs))
 	for _, job := range jobs {
 		out = append(out, jobDetail(job))
@@ -204,7 +205,7 @@ func jobDetails(jobs []model.Job) []JobDetail {
 	return out
 }
 
-func jobDetail(job model.Job) JobDetail {
+func jobDetail(job domainjob.Job) JobDetail {
 	d := JobDetail{Job: job}
 	if job.DebugInfo != "" {
 		var dr ai.DebugCallResult

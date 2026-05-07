@@ -188,6 +188,8 @@ export default function BrainstormPage() {
         modelConfigId: selectedModelId,
         timeoutMs: 60_000,
         pollMs: 400,
+        sessionId: `brainstorm_${entryId}`,
+        sessionTaskType: 'brainstorm',
       })
       const resp = formatLocalAgentAssistantContent(run, thread)
 

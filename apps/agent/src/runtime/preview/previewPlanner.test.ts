@@ -2,9 +2,21 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
 import { InMemoryAgentDraftStore } from '../store/draftStore.js'
-import { DEFAULT_TOOL_REGISTRY } from '../tools/toolRegistry.js'
+import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import { EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER } from '../contracts/runtimeContract.js'
 import { planPreviewToolRequests } from './previewPlanner.js'
+
+const registry = new StaticToolRegistry([
+  {
+    name: 'movscript_apply_draft',
+    description: 'Apply a draft.',
+    permission: 'project.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: true,
+    requiresApprovalByDefault: true,
+  },
+])
 
 test('planPreviewToolRequests predicts approval-gated draft apply calls with preview metadata', async () => {
   const draftStore = new InMemoryAgentDraftStore()
@@ -70,7 +82,7 @@ test('planPreviewToolRequests predicts approval-gated draft apply calls with pre
       systemContract: 'Chat.',
     },
     currentProjectId: 42,
-    registry: DEFAULT_TOOL_REGISTRY,
+    registry,
     draftStore,
     contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
     makeApprovalId: () => 'approval_1',
@@ -151,7 +163,7 @@ test('planPreviewToolRequests returns an empty plan without a model config', asy
       requiredTools: [],
       systemContract: 'Chat.',
     },
-    registry: DEFAULT_TOOL_REGISTRY,
+    registry,
     draftStore: new InMemoryAgentDraftStore(),
     contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
     makeApprovalId: () => 'approval_1',

@@ -4,7 +4,7 @@
 
 ## 现状
 
-当前页面不是直接调用 Agent 得到结果，而是通过一个前端事件桥把任务投递到右侧 AI 面板，再由 AI 面板驱动 local runtime 完成一次运行。
+当前页面不是直接调用 Agent 得到结果，而是通过一个前端任务桥把任务投递到右侧 AI 面板，再由 AI 面板驱动 local runtime 完成一次运行。任务桥背后由 `agentSessionStore` 承载任务队列、会话运行态和本地 thread 绑定，避免只依赖一次性浏览器事件。
 
 典型链路如下：
 
@@ -14,6 +14,7 @@
 4. local runtime 执行 `runMessage()` 或 `createToolRun()`。
 5. run 完成后，AI 面板通过 `notifyAgentPanelRunSettled()` 把 `run/thread` 回传给页面。
 6. 页面自己解析 assistant 文本，或者读取 runtime 生成的 draft/proposal 协议对象，再把结果写回本页面状态。
+7. 运行中的 `run/thread/status` 同步写入 `agentSessionStore`，面板折叠、重开或延后消费任务时仍能恢复进度。
 
 相关代码：
 
@@ -27,7 +28,7 @@
 
 1. 页面任务和聊天任务混在同一个面板里，用户不容易分辨这是“页面工作流”还是“普通聊天”。
 2. 多数页面仍依赖解析 assistant 文本，结构化程度不够。
-3. `agentPanelBridge` 目前是全局单例事件桥，任务并发、刷新、卸载时的状态可靠性有限。
+3. `agentPanelBridge` 已从全局单例事件桥升级为任务入口，但页面结果回调仍需要继续收束成结构化 artifact 协议。
 4. 页面功能依赖右侧面板的手工模型选择，闭环不够顺。
 5. Draft 面板更像调试工具，不像业务功能。
 
@@ -40,6 +41,7 @@
 核心原则：
 
 - 页面只描述任务，不关心 Agent 内部消息流。
+- 任务和运行态先进入 `agentSessionStore`，AI 面板只是消费和展示，不拥有会话真相。
 - 结果优先走结构化 artifact，不要依赖自然语言解析。
 - Draft / proposal / candidate 是 runtime 和客户端之间的协议对象，页面展示成业务化术语。
 - AI 面板保留为统一执行壳，但不承担页面业务语义本身。
@@ -101,7 +103,7 @@ AI 面板侧只做三件事：
 1. 统一页面任务入口，抽出 `PageAgentTask` 或同等抽象。
 2. 为现有页面任务补结构化输出契约。
 3. 把剧本拆分、分集编排、创意工作台这三条链路改成优先读结构化结果。
-4. 给 `agentPanelBridge` 增加更稳定的任务存储或任务队列，避免只靠单次事件。
+4. 给 `agentPanelBridge` 增加更稳定的任务存储或任务队列，避免只靠单次事件。当前已由 `agentSessionStore` 承接。
 5. 把 Draft 面板改成业务术语展示，不再直接暴露内部状态名。
 6. 后续再收束 page tool、result artifact、approval flow 的统一协议。
 
@@ -114,4 +116,4 @@ AI 面板侧只做三件事：
 
 ## 当前结论
 
-当前设计可以工作，但更像“调试态的工作流接线”。下一步应该把它收束成“页面任务 -> Agent 执行 -> 结构化结果回写”的产品模型。
+当前设计可以工作，但更像“调试态的工作流接线”。当前代码已把主干收束为“页面任务 -> session store -> Agent 执行 -> 结构化结果回写”，下一步应继续把更多页面结果从 assistant 文本解析迁移到结构化 artifact。

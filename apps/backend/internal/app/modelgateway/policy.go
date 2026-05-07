@@ -1,43 +1,35 @@
 package modelgateway
 
 import (
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 const DefaultChatModel = domainmodelgateway.DefaultChatModel
 
-func KeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
+func KeyAllowsScope(key *domainmodelgateway.APIKey, scope string) bool {
 	if key == nil {
 		return false
 	}
-	domainKey := domainmodelgateway.APIKeyFromModel(*key)
-	return domainmodelgateway.KeyAllowsScope(&domainKey, scope)
+	return domainmodelgateway.KeyAllowsScope(key, scope)
 }
 
-func KeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
+func KeyAllowsModel(key *domainmodelgateway.APIKey, modelConfigID uint) bool {
 	if key == nil {
 		return false
 	}
-	domainKey := domainmodelgateway.APIKeyFromModel(*key)
-	return domainmodelgateway.KeyAllowsModel(&domainKey, modelConfigID)
+	return domainmodelgateway.KeyAllowsModel(key, modelConfigID)
 }
 
-func KeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
+func KeyAllowsProject(key *domainmodelgateway.APIKey, requestedProjectID *uint) bool {
 	if key == nil {
 		return false
 	}
-	domainKey := domainmodelgateway.APIKeyFromModel(*key)
-	return domainmodelgateway.KeyAllowsProject(&domainKey, requestedProjectID)
+	return domainmodelgateway.KeyAllowsProject(key, requestedProjectID)
 }
 
-func BillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
-	if key == nil {
-		return domainmodelgateway.BillingContext(nil, projectID)
-	}
-	domainKey := domainmodelgateway.APIKeyFromModel(*key)
-	return domainmodelgateway.BillingContext(&domainKey, projectID)
+func BillingContext(key *domainmodelgateway.APIKey, projectID *uint) ai.BillingContext {
+	return domainmodelgateway.BillingContext(key, projectID)
 }
 
 func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID uint, defaultErr error) (uint, string, error) {

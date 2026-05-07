@@ -8,7 +8,7 @@ import (
 
 func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipal, bool) {
 	if user := currentUser(c); user != nil {
-		return &gatewayPrincipal{User: user}, true
+		return &gatewayPrincipal{UserID: user.ID}, true
 	}
 
 	bearer := strings.TrimSpace(c.GetHeader("Authorization"))
@@ -21,5 +21,5 @@ func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipa
 	if err != nil || !ok {
 		return nil, false
 	}
-	return &gatewayPrincipal{User: principal.User, Key: principal.Key}, true
+	return &gatewayPrincipal{UserID: principal.UserID, Key: principal.Key}, true
 }

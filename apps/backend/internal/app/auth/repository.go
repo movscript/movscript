@@ -7,25 +7,28 @@ import (
 	"time"
 
 	orgapp "github.com/movscript/movscript/internal/app/org"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"gorm.io/gorm"
 )
 
 type repository interface {
 	UsernameExists(ctx context.Context, username string) (bool, error)
 	EmailExists(ctx context.Context, email string) (bool, error)
-	CreateUser(ctx context.Context, user *model.User) error
+	CreateUser(ctx context.Context, user *domainauth.RegisteredUser) (domainauth.UserProfile, error)
 	SuperAdminCount(ctx context.Context) (int64, error)
-	FindSuperAdmin(ctx context.Context) (model.User, error)
+	FindSuperAdmin(ctx context.Context) (domainauth.RegisteredUser, error)
 	UpdateUser(ctx context.Context, userID uint, updates map[string]any) error
 	FindAvailableUsername(ctx context.Context, base string) (string, error)
-	FindUserForLogin(ctx context.Context, username string, email string) (model.User, error)
-	FindUserByID(ctx context.Context, userID uint) (model.User, error)
-	CreateChallenge(ctx context.Context, challenge *model.AuthChallenge) error
-	FindChallenge(ctx context.Context, id uint) (model.AuthChallenge, error)
-	IncrementChallengeAttempts(ctx context.Context, challenge *model.AuthChallenge) error
-	ConsumeChallenge(ctx context.Context, challenge *model.AuthChallenge, consumedAt time.Time) error
-	FindUserByEmail(ctx context.Context, email string) (model.User, error)
+	FindUserForLogin(ctx context.Context, username string, email string) (domainauth.RegisteredUser, error)
+	FindUserByID(ctx context.Context, userID uint) (domainauth.UserProfile, error)
+	FindUserModelByID(ctx context.Context, userID uint) (model.User, error)
+	CreateChallenge(ctx context.Context, challenge *domainauth.AuthChallenge) error
+	FindChallenge(ctx context.Context, id uint) (domainauth.AuthChallenge, error)
+	IncrementChallengeAttempts(ctx context.Context, challenge *domainauth.AuthChallenge) error
+	ConsumeChallenge(ctx context.Context, challenge *domainauth.AuthChallenge, consumedAt time.Time) error
+	FindUserByEmail(ctx context.Context, email string) (domainauth.UserProfile, error)
 	CreateSession(ctx context.Context, session *model.AuthSession) error
 	FindActiveSession(ctx context.Context, tokenHash string, now time.Time) (model.AuthSession, error)
 	TouchSession(ctx context.Context, session *model.AuthSession, seenAt time.Time) error
@@ -65,12 +68,14 @@ func (r *gormRepository) EmailExists(ctx context.Context, email string) (bool, e
 	return false, err
 }
 
-func (r *gormRepository) CreateUser(ctx context.Context, user *model.User) error {
-	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
-		return err
+func (r *gormRepository) CreateUser(ctx context.Context, user *domainauth.RegisteredUser) (domainauth.UserProfile, error) {
+	row := user.ToModel()
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return domainauth.UserProfile{}, err
 	}
-	_ = orgapp.CreatePersonalOrg(r.db.WithContext(ctx), user)
-	return nil
+	_ = orgapp.CreatePersonalOrg(r.db.WithContext(ctx), domainorg.UserFromModel(row))
+	*user = domainauth.RegisteredUserFromModel(row)
+	return domainauth.UserProfileFromModel(row), nil
 }
 
 func (r *gormRepository) SuperAdminCount(ctx context.Context) (int64, error) {
@@ -81,15 +86,15 @@ func (r *gormRepository) SuperAdminCount(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (r *gormRepository) FindSuperAdmin(ctx context.Context) (model.User, error) {
+func (r *gormRepository) FindSuperAdmin(ctx context.Context) (domainauth.RegisteredUser, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).Where("system_role = ?", "super_admin").First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return model.User{}, ErrNotFound
+			return domainauth.RegisteredUser{}, ErrNotFound
 		}
-		return model.User{}, err
+		return domainauth.RegisteredUser{}, err
 	}
-	return user, nil
+	return domainauth.RegisteredUserFromModel(user), nil
 }
 
 func (r *gormRepository) UpdateUser(ctx context.Context, userID uint, updates map[string]any) error {
@@ -115,7 +120,7 @@ func (r *gormRepository) FindAvailableUsername(ctx context.Context, base string)
 	}
 }
 
-func (r *gormRepository) FindUserForLogin(ctx context.Context, username string, email string) (model.User, error) {
+func (r *gormRepository) FindUserForLogin(ctx context.Context, username string, email string) (domainauth.RegisteredUser, error) {
 	var user model.User
 	query := r.db.WithContext(ctx)
 	if email != "" {
@@ -124,12 +129,20 @@ func (r *gormRepository) FindUserForLogin(ctx context.Context, username string, 
 		query = query.Where("username = ?", username)
 	}
 	if err := query.First(&user).Error; err != nil {
-		return model.User{}, err
+		return domainauth.RegisteredUser{}, err
 	}
-	return user, nil
+	return domainauth.RegisteredUserFromModel(user), nil
 }
 
-func (r *gormRepository) FindUserByID(ctx context.Context, userID uint) (model.User, error) {
+func (r *gormRepository) FindUserByID(ctx context.Context, userID uint) (domainauth.UserProfile, error) {
+	var user model.User
+	if err := r.db.WithContext(ctx).First(&user, userID).Error; err != nil {
+		return domainauth.UserProfile{}, err
+	}
+	return domainauth.UserProfileFromModel(user), nil
+}
+
+func (r *gormRepository) FindUserModelByID(ctx context.Context, userID uint) (model.User, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).First(&user, userID).Error; err != nil {
 		return model.User{}, err
@@ -137,32 +150,43 @@ func (r *gormRepository) FindUserByID(ctx context.Context, userID uint) (model.U
 	return user, nil
 }
 
-func (r *gormRepository) CreateChallenge(ctx context.Context, challenge *model.AuthChallenge) error {
-	return r.db.WithContext(ctx).Create(challenge).Error
+func (r *gormRepository) CreateChallenge(ctx context.Context, challenge *domainauth.AuthChallenge) error {
+	row := challenge.ToModel()
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	*challenge = domainauth.AuthChallengeFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) FindChallenge(ctx context.Context, id uint) (model.AuthChallenge, error) {
+func (r *gormRepository) FindChallenge(ctx context.Context, id uint) (domainauth.AuthChallenge, error) {
 	var challenge model.AuthChallenge
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&challenge).Error; err != nil {
-		return model.AuthChallenge{}, err
+		return domainauth.AuthChallenge{}, err
 	}
-	return challenge, nil
+	return domainauth.AuthChallengeFromModel(challenge), nil
 }
 
-func (r *gormRepository) IncrementChallengeAttempts(ctx context.Context, challenge *model.AuthChallenge) error {
-	return r.db.WithContext(ctx).Model(challenge).UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
+func (r *gormRepository) IncrementChallengeAttempts(ctx context.Context, challenge *domainauth.AuthChallenge) error {
+	row := challenge.ToModel()
+	return r.db.WithContext(ctx).Model(&row).UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
 }
 
-func (r *gormRepository) ConsumeChallenge(ctx context.Context, challenge *model.AuthChallenge, consumedAt time.Time) error {
-	return r.db.WithContext(ctx).Model(challenge).Updates(map[string]any{"consumed_at": &consumedAt}).Error
+func (r *gormRepository) ConsumeChallenge(ctx context.Context, challenge *domainauth.AuthChallenge, consumedAt time.Time) error {
+	row := challenge.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{"consumed_at": &consumedAt}).Error; err != nil {
+		return err
+	}
+	challenge.ConsumedAt = &consumedAt
+	return nil
 }
 
-func (r *gormRepository) FindUserByEmail(ctx context.Context, email string) (model.User, error) {
+func (r *gormRepository) FindUserByEmail(ctx context.Context, email string) (domainauth.UserProfile, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).Where("primary_email = ?", email).First(&user).Error; err != nil {
-		return model.User{}, err
+		return domainauth.UserProfile{}, err
 	}
-	return user, nil
+	return domainauth.UserProfileFromModel(user), nil
 }
 
 func (r *gormRepository) CreateSession(ctx context.Context, session *model.AuthSession) error {
@@ -199,7 +223,7 @@ func (r *gormRepository) OrgMemberships(ctx context.Context, userID uint) ([]Org
 	if len(members) == 0 {
 		var user model.User
 		if err := r.db.WithContext(ctx).First(&user, userID).Error; err == nil {
-			_ = orgapp.CreatePersonalOrg(r.db.WithContext(ctx), &user)
+			_ = orgapp.CreatePersonalOrg(r.db.WithContext(ctx), domainorg.UserFromModel(user))
 			_ = r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error
 		}
 	}

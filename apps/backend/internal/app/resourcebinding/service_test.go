@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -124,14 +125,15 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
 		Status:     "selected",
 		SourceType: "manual",
 	}
-	if err := svc.CreateBinding(ctx, &canvasBinding); err != nil {
+	createdCanvasBinding, err := svc.CreateBinding(ctx, domainbinding.BindingFromModel(canvasBinding))
+	if err != nil {
 		t.Fatalf("create canvas binding: %v", err)
 	}
-	assertResourceBindingRelationExists(t, db, "resource_binding_id", canvasBinding.ID)
-	if err := svc.Delete(ctx, canvasBinding.ID); err != nil {
+	assertResourceBindingRelationExists(t, db, "resource_binding_id", createdCanvasBinding.ID)
+	if err := svc.Delete(ctx, createdCanvasBinding.ID); err != nil {
 		t.Fatalf("delete canvas binding: %v", err)
 	}
-	assertResourceBindingRelationMissing(t, db, "resource_binding_id", canvasBinding.ID)
+	assertResourceBindingRelationMissing(t, db, "resource_binding_id", createdCanvasBinding.ID)
 
 	binding := model.ResourceBinding{
 		ProjectID:  1,
@@ -144,7 +146,8 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
 		SourceType: "manual",
 		IsPrimary:  true,
 	}
-	if err := svc.CreateBinding(ctx, &binding); err != nil {
+	createdBinding, err := svc.CreateBinding(ctx, domainbinding.BindingFromModel(binding))
+	if err != nil {
 		t.Fatalf("create binding: %v", err)
 	}
 
@@ -157,7 +160,7 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
 	}
 	assertResourceBindingEdgeExists(t, db, "asset_slot", slot.ID, "raw_resource", resource.ID, model.EntityRelationTypeUsesResource)
 
-	if err := svc.Delete(ctx, binding.ID); err != nil {
+	if err := svc.Delete(ctx, createdBinding.ID); err != nil {
 		t.Fatalf("delete binding: %v", err)
 	}
 	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {

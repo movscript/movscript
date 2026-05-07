@@ -8,9 +8,14 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	"gorm.io/gorm"
 )
 
-func (h *Service) ExecuteWorkflowRun(user *model.User, canvasID uint, runID uint, order []string) {
+func (h *Service) ExecuteWorkflowRun(userID uint, canvasID uint, runID uint, order []string) {
+	h.executeWorkflowRunModel(&model.User{Model: gorm.Model{ID: userID}}, canvasID, runID, order)
+}
+
+func (h *Service) executeWorkflowRunModel(user *model.User, canvasID uint, runID uint, order []string) {
 	h.executeWorkflowRunWithContext(context.Background(), user, canvasID, runID, order)
 }
 
@@ -102,11 +107,12 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 				portInputs[""] = append(portInputs[""], value)
 			}
 		}
-		outputs := h.ExecuteCanvasNode(ctx, user, cv, node, task, portInputs)
+		outputs := h.executeCanvasNodeModel(ctx, user, cv, node, task, portInputs)
 		if node.Type == "output" {
 			var nd nodeData
 			_ = json.Unmarshal([]byte(node.Data), &nd)
-			RegisterWorkflowOutput(workflowOutputs, node, nd, outputs)
+			domainNode := canvasruntime.CanvasNodeFromModel(*node)
+			RegisterWorkflowOutput(workflowOutputs, &domainNode, nd, outputs)
 		}
 		for handle, value := range outputs {
 			setProduced(nid, handle, value)

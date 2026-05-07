@@ -195,7 +195,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		if err != nil {
 			return domainsemantic.AssetSlotCandidate{}, ErrInvalidInput{Err: err}
 		}
-		item := result.Candidate
+		item := result.Candidate.ToModel()
 		return s.repo.ReloadAssetSlotCandidate(ctx, &item)
 	}
 	if err := s.ensureAssetSlotInProject(ctx, projectID, input.CandidateAssetSlotID); err != nil {

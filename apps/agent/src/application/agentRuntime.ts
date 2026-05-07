@@ -398,6 +398,8 @@ export class AgentRuntime {
       pluginCatalog: this.pluginCatalogInfo,
       warnings: this.pluginWarnings,
       updates: this.updateState,
+      activeSkills: skills,
+      userMessage: message,
     })
     const debugContext = buildDebugContext(contextResult, memories, clientInput)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode !== false })
@@ -683,7 +685,7 @@ export class AgentRuntime {
       ...(status ? { status } : {}),
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
       ...(typeof input.content === 'string' ? { content: input.content } : {}),
-      ...(isRecord(input.target) ? { target: input.target } : {}),
+      ...(isJSONRecord(input.target) ? { target: input.target } : {}),
       ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
     })
   }
@@ -839,6 +841,7 @@ export class AgentRuntime {
       const agentManifest = run.agentManifest ?? this.defaultAgentManifest
       const runtimeContract = this.contractResolver.find(agentManifest)
       const contextWarnings = contextError ? [`Context pack unavailable: ${contextError}`] : []
+      const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
       const capabilities = await resolveAgentCapabilities({
         mcpClient: this.mcpClient,
         manifest: agentManifest,
@@ -847,8 +850,9 @@ export class AgentRuntime {
         pluginCatalog: this.pluginCatalogInfo,
         warnings: [...this.pluginWarnings, ...contextWarnings],
         updates: this.updateState,
+        activeSkills: skills,
+        userMessage: lastUser.content,
       })
-      const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
       const setup = buildRunSetupMetadata({
         run,
         agentManifest,
@@ -906,6 +910,11 @@ export class AgentRuntime {
       })
 
       run.metadata = setup.metadata
+      run.metadata = {
+        ...(run.metadata ?? {}),
+        userRequest: lastUser.content,
+        ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
+      }
       this.store.updateRun(run)
       this.throwIfRunCancelled(run.id, signal)
 

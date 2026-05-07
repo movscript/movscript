@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   BadgeCheck,
@@ -31,6 +32,7 @@ import {
   listDeliveryVersions,
   listExportRecords,
   listPreviewTimelines,
+  listProductions,
   resourceFromId,
   updateDeliveryTimelineItem,
   updateDeliveryVersion,
@@ -38,6 +40,7 @@ import {
   type DeliveryTimelineItem,
   type DeliveryVersion,
   type ExportRecord,
+  type Production,
 } from '@/api/deliveryEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { MediaViewer } from '@/components/shared/MediaViewer'
@@ -71,6 +74,7 @@ export default function FinalVideosWorkspacePage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [filter, setFilter] = useState<VersionFilter>('all')
   const [search, setSearch] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
@@ -80,14 +84,25 @@ export default function FinalVideosWorkspacePage() {
   const [resourceSearch, setResourceSearch] = useState('')
   const [resourceType, setResourceType] = useState<ResourceTypeFilter>('video')
   const [resourcePage, setResourcePage] = useState(1)
+  const selectedProductionId = numberOrNull(searchParams.get('productionId'))
 
   const versionsQuery = useQuery({
-    queryKey: ['semantic-delivery-versions', projectId],
-    queryFn: () => listDeliveryVersions(projectId!),
+    queryKey: ['semantic-delivery-versions', projectId, selectedProductionId],
+    queryFn: () => listDeliveryVersions(projectId!, selectedProductionId),
     enabled: !!projectId,
   })
   const versions = versionsQuery.data ?? []
   const selectedVersion = versions.find((item) => item.ID === selectedVersionId) ?? null
+
+  const productionsQuery = useQuery({
+    queryKey: ['semantic-productions', projectId],
+    queryFn: () => listProductions(projectId!),
+    enabled: !!projectId,
+  })
+  const productions = productionsQuery.data ?? []
+  const selectedProduction = selectedProductionId
+    ? productions.find((item) => item.ID === selectedProductionId) ?? null
+    : null
 
   const itemsQuery = useQuery({
     queryKey: ['semantic-delivery-timeline-items', projectId, selectedVersionId],
@@ -107,13 +122,13 @@ export default function FinalVideosWorkspacePage() {
   const exportRecords = exportsQuery.data ?? []
 
   const previewTimelinesQuery = useQuery({
-    queryKey: ['semantic-preview-timelines', projectId],
-    queryFn: () => listPreviewTimelines(projectId!),
+    queryKey: ['semantic-preview-timelines', projectId, selectedProductionId],
+    queryFn: () => listPreviewTimelines(projectId!, selectedProductionId),
     enabled: !!projectId,
   })
   const contentUnitsQuery = useQuery({
-    queryKey: ['semantic-content-units', projectId],
-    queryFn: () => listContentUnits(projectId!),
+    queryKey: ['semantic-content-units', projectId, selectedProductionId],
+    queryFn: () => listContentUnits(projectId!, selectedProductionId),
     enabled: !!projectId,
   })
 
@@ -143,6 +158,13 @@ export default function FinalVideosWorkspacePage() {
       setSelectedVersionId(versions[0]?.ID ?? null)
     }
   }, [selectedVersionId, versions])
+
+  useEffect(() => {
+    setSelectedVersionId(null)
+    setSelectedItemId(null)
+    setEditingVersion(false)
+    setEditingItem(false)
+  }, [selectedProductionId])
 
   useEffect(() => {
     setSelectedItemId(timelineItems[0]?.ID ?? null)
@@ -223,12 +245,13 @@ export default function FinalVideosWorkspacePage() {
     ] as const
   }, [timelineItems, versionReadiness, selectedVersion])
 
-  const versionKey = ['semantic-delivery-versions', projectId]
+  const versionKey = ['semantic-delivery-versions', projectId, selectedProductionId]
   const itemsKey = ['semantic-delivery-timeline-items', projectId, selectedVersionId]
   const exportsKey = ['semantic-export-records', projectId, selectedVersionId]
 
   const createVersion = useMutation({
     mutationFn: () => createDeliveryVersion(projectId!, {
+      production_id: selectedProductionId,
       name: `交付版本 ${versions.length + 1}`,
       status: 'draft',
       is_primary: versions.length === 0,
@@ -298,6 +321,14 @@ export default function FinalVideosWorkspacePage() {
     exportsQuery.refetch()
     previewTimelinesQuery.refetch()
     contentUnitsQuery.refetch()
+    productionsQuery.refetch()
+  }
+
+  function selectProduction(productionId: number | null) {
+    const next = new URLSearchParams(searchParams)
+    if (productionId) next.set('productionId', String(productionId))
+    else next.delete('productionId')
+    setSearchParams(next, { replace: true })
   }
 
   function patchSelectedVersion(payload: Partial<DeliveryVersion>) {
@@ -319,12 +350,33 @@ export default function FinalVideosWorkspacePage() {
               <Film size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
+              {selectedProduction ? (
+                <>
+                  <span>{selectedProduction.name || `制作 #${selectedProduction.ID}`}</span>
+                  <ChevronRight size={13} />
+                </>
+              ) : null}
               <span>交付</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal">交付工作台</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              维护交付版本、时间线片段、资源锁定、审核状态和导出记录。只记录交付结果，不回写剧本结构或素材事实。
+              维护制作下的交付版本、时间线片段、资源锁定、审核状态和导出记录。只记录交付结果，不回写剧本结构或素材事实。
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <ProductionScopeSelect
+                productions={productions}
+                value={selectedProductionId}
+                loading={productionsQuery.isLoading}
+                onChange={selectProduction}
+              />
+              {selectedProduction ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  当前制作：{selectedProduction.status || '未标记状态'}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px]">全部制作</Badge>
+              )}
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={versionsQuery.isFetching || itemsQuery.isFetching}>
@@ -425,6 +477,7 @@ export default function FinalVideosWorkspacePage() {
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <StatusPill status={selectedVersion.status ?? 'draft'} />
                   {selectedVersion.is_primary && <span className="rounded bg-primary/10 px-2 py-1 text-xs text-primary">主版本</span>}
+                  {selectedVersion.production_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">制作 #{selectedVersion.production_id}</span>}
                   {selectedVersion.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">预演 #{selectedVersion.preview_timeline_id}</span>}
                 </div>
                 <div className="flex items-center justify-between gap-3">
@@ -453,6 +506,19 @@ export default function FinalVideosWorkspacePage() {
                 >
                   {['draft', 'checking', 'approved', 'exported', 'archived'].map((status) => <option key={status} value={status}>{deliveryStatusLabel(status)}</option>)}
                 </select>
+                </Field>
+                <Field label="关联制作">
+                  <select
+                    className="ms-input h-9 w-full"
+                    value={selectedVersion.production_id ?? ''}
+                    disabled={!editingVersion}
+                    onChange={(event) => patchSelectedVersion({ production_id: numberOrNull(event.target.value) })}
+                  >
+                    <option value="">未关联</option>
+                    {productions.map((production) => (
+                      <option key={production.ID} value={production.ID}>{production.name || `制作 #${production.ID}`}</option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="关联预演时间线">
                   <select
@@ -608,6 +674,37 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold">{value}</p>
     </div>
+  )
+}
+
+function ProductionScopeSelect({
+  productions,
+  value,
+  loading,
+  onChange,
+}: {
+  productions: Production[]
+  value: number | null
+  loading: boolean
+  onChange: (value: number | null) => void
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span>制作范围</span>
+      <select
+        className="ms-input h-8 min-w-48 bg-background text-xs"
+        value={value ?? ''}
+        disabled={loading}
+        onChange={(event) => onChange(numberOrNull(event.target.value))}
+      >
+        <option value="">全部制作</option>
+        {productions.map((production) => (
+          <option key={production.ID} value={production.ID}>
+            {production.name || `制作 #${production.ID}`}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
@@ -954,7 +1051,7 @@ function numberValue(value: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function numberOrNull(value: string): number | null {
+function numberOrNull(value: string | null | undefined): number | null {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }

@@ -17,11 +17,11 @@ import (
 type repository interface {
 	AttachAssetSlotCandidate(ctx context.Context, input AttachAssetSlotCandidateInput) (AttachAssetSlotCandidateResult, error)
 	WriteEntityPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue, projectID uint, sourceType string, meta EntityWriteMeta) (EntityWriteResult, error)
-	FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (model.ResourceBinding, bool, error)
-	FirstBindingByRole(ctx context.Context, ownerType string, ownerID uint, role string) (model.ResourceBinding, bool, error)
+	FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (resourceBindingProjection, bool, error)
+	FirstBindingByRole(ctx context.Context, ownerType string, ownerID uint, role string) (resourceBindingProjection, bool, error)
 	LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (map[string]any, error)
-	LoadScriptComputedFields(ctx context.Context, id uint) (model.Script, error)
-	ListAssetSlotCandidates(ctx context.Context, assetSlotID uint) ([]model.AssetSlotCandidate, error)
+	LoadScriptComputedFields(ctx context.Context, id uint) (scriptComputedProjection, error)
+	ListAssetSlotCandidates(ctx context.Context, assetSlotID uint) ([]assetSlotCandidateProjection, error)
 }
 
 type gormRepository struct {
@@ -93,10 +93,10 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 			return err
 		}
 
-		result.AssetSlot = sourceSlot
-		result.CandidateSlot = candidateSlot
-		result.Candidate = candidate
-		result.ResourceBinding = binding
+		result.AssetSlot = domainsemantic.AssetSlotFromModel(sourceSlot)
+		result.CandidateSlot = domainsemantic.AssetSlotFromModel(candidateSlot)
+		result.Candidate = domainsemantic.AssetSlotCandidateFromModel(candidate)
+		result.ResourceBinding = domainresourcebinding.BindingFromModel(binding)
 		return nil
 	})
 	return result, err

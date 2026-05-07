@@ -84,7 +84,7 @@ export class MemoryManager {
           scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
           threadId: typeof input.projectId === 'number' ? undefined : input.userMessage.threadId,
-          kind: 'entity_ref',
+          kind: 'item_ref',
           content: describeEntityRefMemory(outcome),
           sourceRunId: input.run.id,
           sourceMessageId: input.userMessage.id,
@@ -191,11 +191,11 @@ function describeDraftMemory(result: JSONValue | undefined): string {
 
 function describeEntityRefMemory(outcome: ToolCallOutcome): string {
   if (outcome.call.name === 'movscript_read_entity') {
-    return `Read ${String(outcome.call.args?.entityType ?? 'entity')} ${String(outcome.call.args?.entityId ?? '')}.`
+    return `Read business item ${String(outcome.call.args?.entityType ?? 'item')} ${String(outcome.call.args?.entityId ?? '')}.`
   }
   const parsed = parseToolResult(outcome.result ?? null)
   const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
-  return `Searched entities with query "${String(outcome.call.args?.query ?? '')}"${typeof count === 'number' ? `, found ${count}` : ''}.`
+  return `Searched business items with query "${String(outcome.call.args?.query ?? '')}"${typeof count === 'number' ? `, found ${count}` : ''}.`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

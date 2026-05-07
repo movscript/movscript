@@ -1,7 +1,5 @@
 package dto
 
-import "github.com/movscript/movscript/internal/domain/model"
-
 type ProjectCreateInput struct {
 	Name          string `json:"name" binding:"required"`
 	Description   string `json:"description"`
@@ -74,89 +72,6 @@ type ScriptInput struct {
 	EntityCandidates       string `json:"entity_candidates"`
 	RelationshipCandidates string `json:"relationship_candidates"`
 	Order                  int    `json:"order"`
-}
-
-func NewProject(in ProjectCreateInput, ownerID uint) model.Project {
-	return model.Project{
-		Name:          in.Name,
-		Description:   in.Description,
-		OwnerID:       ownerID,
-		TotalEpisodes: in.TotalEpisodes,
-	}
-}
-
-func NewUser(in UserCreateInput) model.User {
-	return model.User{Username: in.Username}
-}
-
-func NewAIModelConfig(in AIModelConfigInput, credentialID uint) model.AIModelConfig {
-	cfg := model.AIModelConfig{CredentialID: credentialID}
-	ApplyAIModelConfigInput(&cfg, in)
-	if in.IsEnabled == nil {
-		cfg.IsEnabled = true
-	}
-	return cfg
-}
-
-func ApplyAIModelConfigInput(cfg *model.AIModelConfig, in AIModelConfigInput) {
-	cfg.ModelDefID = in.ModelDefID
-	cfg.ModelIDOverride = in.ModelIDOverride
-	cfg.Priority = in.Priority
-	cfg.CreditsInputPer1M = in.CreditsInputPer1M
-	cfg.CreditsOutputPer1M = in.CreditsOutputPer1M
-	cfg.CreditsPerImage = in.CreditsPerImage
-	cfg.CreditsPerSecond = in.CreditsPerSecond
-	cfg.CreditsPerCall = in.CreditsPerCall
-	cfg.CustomDisplayName = in.CustomDisplayName
-	cfg.ShortName = in.ShortName
-	cfg.CustomCapabilities = in.CustomCapabilities
-	cfg.CustomBillingMode = in.CustomBillingMode
-	cfg.CustomAcceptsImage = in.CustomAcceptsImage
-	cfg.CustomMaxInputImages = in.CustomMaxInputImages
-	cfg.CustomMaxInputVideos = in.CustomMaxInputVideos
-	cfg.CustomImageEditField = in.CustomImageEditField
-	cfg.CustomSupportedParams = in.CustomSupportedParams
-	if in.IsEnabled != nil {
-		cfg.IsEnabled = *in.IsEnabled
-	}
-}
-
-func ApplyProjectUpdate(p *model.Project, in ProjectUpdateInput) {
-	p.Name = in.Name
-	p.Description = in.Description
-	p.TotalEpisodes = in.TotalEpisodes
-}
-
-func ApplyScriptInput(s *model.Script, in ScriptInput) {
-	s.Title = in.Title
-	s.Description = in.Description
-	s.Content = in.Content
-	s.RawSource = in.RawSource
-	s.ScriptType = in.ScriptType
-	s.SourceType = in.SourceType
-	s.Version = in.Version
-	s.ParentScriptID = in.ParentScriptID
-	s.AssigneeID = in.AssigneeID
-	s.Summary = in.Summary
-	s.Characters = in.Characters
-	s.CharacterRelationships = in.CharacterRelationships
-	s.CoreSettings = in.CoreSettings
-	s.Background = in.Background
-	s.ScenesDesc = in.ScenesDesc
-	s.Hook = in.Hook
-	s.PlotSummary = in.PlotSummary
-	s.ScriptPoints = in.ScriptPoints
-	s.PlannedSceneCount = in.PlannedSceneCount
-	s.PlannedCharacterCount = in.PlannedCharacterCount
-	s.TimeText = in.TimeText
-	s.LocationText = in.LocationText
-	s.StructuredCharacters = in.StructuredCharacters
-	s.PlotBeats = in.PlotBeats
-	s.Atmosphere = in.Atmosphere
-	s.StructureJSON = in.StructureJSON
-	s.EntityCandidates = in.EntityCandidates
-	s.RelationshipCandidates = in.RelationshipCandidates
-	s.Order = in.Order
 }
 
 var projectPatchFields = stringSet("name", "description", "total_episodes")

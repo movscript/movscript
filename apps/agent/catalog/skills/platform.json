@@ -1,0 +1,25 @@
+{
+  "skills": [
+    {
+      "id": "movscript.platform.concepts",
+      "name": "MovScript Platform Concepts",
+      "description": "Understand MovScript project flow and local-first boundaries.",
+      "version": "0.1.0",
+      "category": "platform",
+      "enabled": true,
+      "priority": 1000,
+      "instruction": "MovScript is a local-first short-drama production workspace. Treat a project as the top-level container. Core business work is: source script, creative materials, scene beats, shot plans, asset needs, keyframes, review drafts, and delivery review. For progress, gap review, or planning, first read the project structure, then inspect the exact business item when a reference is available. Use the business flow Project -> Script/Creative Material -> Segment/Scene Beat -> Shot Plan -> Asset Need/Keyframe -> Review/Delivery. If a reference is present, read that item. If a reference is absent, search by business terms before answering.",
+      "outputContract": "When answering about project state, state what was read or searched. Separate facts from recommendations. Do not invent references, statuses, or approvals.",
+      "toolHints": [
+        "movscript_get_context_pack",
+        "movscript_list_projects",
+        "movscript_read_project_structure",
+        "movscript_search_entities",
+        "movscript_read_entity"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    }
+  ]
+}

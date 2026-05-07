@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -12,7 +13,7 @@ import (
 func TestPolicyServiceCanCallChatRejectsWrongModel(t *testing.T) {
 	db := openModelGatewayPolicyTestDB(t)
 	policy := NewPolicyService(db)
-	key := &model.GatewayAPIKey{
+	key := &domainmodelgateway.APIKey{
 		AllowedScopes:   `["model:chat"]`,
 		AllowedModelIDs: `[2]`,
 	}
@@ -27,7 +28,7 @@ func TestPolicyServiceCanCallChatRejectsWrongProject(t *testing.T) {
 	db := openModelGatewayPolicyTestDB(t)
 	policy := NewPolicyService(db)
 	projectID := uint(9)
-	key := &model.GatewayAPIKey{
+	key := &domainmodelgateway.APIKey{
 		AllowedScopes: `["model:chat"]`,
 		ProjectID:     &projectID,
 	}

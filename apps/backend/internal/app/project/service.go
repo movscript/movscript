@@ -86,6 +86,10 @@ func (s *Service) Get(ctx context.Context, id uint, orgID *uint) (domainproject.
 	return s.repo.Get(ctx, id, orgID)
 }
 
+func (s *Service) BelongsToOrg(ctx context.Context, projectID uint, orgID uint) (bool, error) {
+	return s.repo.BelongsToOrg(ctx, projectID, orgID)
+}
+
 func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (domainproject.Role, error) {
 	return s.repo.ResolveRole(ctx, projectID, userID, systemRole)
 }

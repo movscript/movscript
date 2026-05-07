@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"gorm.io/gorm"
 )
@@ -34,8 +33,7 @@ type CreateInput = domainbinding.CreateInput
 type UpdateInput = domainbinding.UpdateInput
 
 func (s *Service) List(ctx context.Context, filter Filter) ([]domainbinding.Binding, error) {
-	items, err := s.repo.List(ctx, filter)
-	return bindingsFromModels(items), err
+	return s.repo.List(ctx, filter)
 }
 
 func (s *Service) ListByEntity(ctx context.Context, filter Filter) ([]domainbinding.Binding, error) {
@@ -43,81 +41,80 @@ func (s *Service) ListByEntity(ctx context.Context, filter Filter) ([]domainbind
 	if err := s.EnsureOwnerInProject(ctx, filter.ProjectID, filter.OwnerType, filter.OwnerID); err != nil {
 		return nil, err
 	}
-	items, err := s.repo.ListByEntity(ctx, filter)
-	return bindingsFromModels(items), err
+	return s.repo.ListByEntity(ctx, filter)
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput, userID uint) (domainbinding.Binding, bool, error) {
-	var binding model.ResourceBinding
 	normalizeCreateInput(&input)
 	if err := validateCreateInput(input); err != nil {
-		return domainbinding.BindingFromModel(binding), false, err
+		return domainbinding.Binding{}, false, err
 	}
 	if err := s.EnsureResourceVisibleToUser(ctx, input.ResourceID, userID); err != nil {
-		return domainbinding.BindingFromModel(binding), false, err
+		return domainbinding.Binding{}, false, err
 	}
 	if err := s.EnsureOwnerInProject(ctx, input.ProjectID, input.OwnerType, input.OwnerID); err != nil {
-		return domainbinding.BindingFromModel(binding), false, err
+		return domainbinding.Binding{}, false, err
 	}
 
 	existing, found, err := s.repo.FindBindingByUniqueKey(ctx, input.ProjectID, input.ResourceID, input.OwnerType, input.OwnerID, input.Role, input.Slot, input.Version)
 	if err != nil {
-		return domainbinding.BindingFromModel(binding), false, err
+		return domainbinding.Binding{}, false, err
 	}
 	if found {
 		if err := s.repo.BackfillAssetSlotResource(ctx, existing); err != nil {
-			return domainbinding.BindingFromModel(binding), false, err
+			return domainbinding.Binding{}, false, err
 		}
 		created, _, err := s.repo.GetBinding(ctx, existing.ID)
-		return domainbinding.BindingFromModel(created), false, err
+		return created, false, err
 	}
 
-	domainBinding := domainbinding.New(input)
-	binding = domainBinding.ToModel()
-	if err := s.repo.CreateBinding(ctx, &binding); err != nil {
-		return domainbinding.BindingFromModel(binding), false, err
+	binding, err := s.repo.CreateBinding(ctx, domainbinding.New(input))
+	if err != nil {
+		return binding, false, err
 	}
 	if err := s.repo.BackfillAssetSlotResource(ctx, binding); err != nil {
-		return domainbinding.BindingFromModel(binding), false, err
+		return binding, false, err
 	}
 	created, _, err := s.repo.GetBinding(ctx, binding.ID)
-	return domainbinding.BindingFromModel(created), true, err
+	return created, true, err
 }
 
-func (s *Service) CreateBinding(ctx context.Context, binding *model.ResourceBinding) error {
-	if binding == nil {
-		return ErrInvalidInput
+func (s *Service) CreateBinding(ctx context.Context, binding domainbinding.Binding) (domainbinding.Binding, error) {
+	created, err := s.createBinding(ctx, binding)
+	if err != nil {
+		return created, err
 	}
-	normalizeBinding(binding)
-	if err := s.repo.CreateBinding(ctx, binding); err != nil {
-		return err
+	return created, nil
+}
+
+func (s *Service) createBinding(ctx context.Context, binding domainbinding.Binding) (domainbinding.Binding, error) {
+	if binding.ProjectID == 0 {
+		return domainbinding.Binding{}, ErrInvalidInput
 	}
-	return s.repo.BackfillAssetSlotResource(ctx, *binding)
+	created, err := s.repo.CreateBinding(ctx, binding)
+	if err != nil {
+		return created, err
+	}
+	return created, s.repo.BackfillAssetSlotResource(ctx, created)
 }
 
 func (s *Service) Get(ctx context.Context, id uint) (domainbinding.Binding, bool, error) {
-	binding, found, err := s.repo.GetBinding(ctx, id)
-	return domainbinding.BindingFromModel(binding), found, err
+	return s.repo.GetBinding(ctx, id)
 }
 
 func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (domainbinding.Binding, error) {
 	binding, _, err := s.repo.GetBinding(ctx, id)
 	if err != nil {
-		return domainbinding.BindingFromModel(binding), err
+		return binding, err
 	}
 	updates, err := buildUpdates(input)
 	if err != nil {
-		return domainbinding.BindingFromModel(binding), err
+		return binding, err
 	}
 	if len(updates) > 0 {
-		if err := s.repo.UpdateBinding(ctx, &binding, updates); err != nil {
-			return domainbinding.BindingFromModel(binding), err
-		}
+		return s.repo.UpdateBinding(ctx, binding, updates)
 	}
-	if err := s.repo.ReloadBindingWithResource(ctx, &binding); err != nil {
-		return domainbinding.BindingFromModel(binding), err
-	}
-	return domainbinding.BindingFromModel(binding), nil
+	return binding, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id uint) error {
@@ -125,7 +122,7 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if err := s.repo.DeleteBinding(ctx, &binding); err != nil {
+	if err := s.repo.DeleteBinding(ctx, binding); err != nil {
 		return err
 	}
 	return s.repo.ClearAssetSlotResourceIfDeleted(ctx, binding)
@@ -145,18 +142,6 @@ func (s *Service) ProjectIDForOwner(ctx context.Context, ownerType string, owner
 
 func normalizeCreateInput(input *CreateInput) {
 	domainbinding.NormalizeCreateInput(input)
-}
-
-func normalizeBinding(binding *model.ResourceBinding) {
-	domainbinding.NormalizeBinding(binding)
-}
-
-func bindingsFromModels(items []model.ResourceBinding) []domainbinding.Binding {
-	out := make([]domainbinding.Binding, 0, len(items))
-	for _, item := range items {
-		out = append(out, domainbinding.BindingFromModel(item))
-	}
-	return out
 }
 
 func validateCreateInput(input CreateInput) error {

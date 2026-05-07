@@ -3,6 +3,7 @@ package ai
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
@@ -14,13 +15,17 @@ type PublicModel struct {
 	CredentialID      uint       `json:"credential_id"` // parent AICredential ID (for admin edit)
 	DisplayName       string     `json:"display_name"`
 	ShortName         string     `json:"short_name,omitempty"`
-	ProviderName      string     `json:"provider_name"`        // credential display_name (e.g. "我的 OpenAI")
-	Capabilities      []string   `json:"capabilities"`         // e.g. ["text"], ["image"], ["video_i2v"]
-	AcceptsImageInput bool       `json:"accepts_image_input"`  // true for image_edit and i2v models
-	IsDefault         bool       `json:"is_default,omitempty"` // true when this is the admin-pinned default for a feature
+	ProviderName      string     `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
+	Capabilities      []string   `json:"capabilities"`            // e.g. ["text"], ["image"], ["video_i2v"]
+	AcceptsImageInput bool       `json:"accepts_image_input"`     // true for image_edit and i2v models
+	IsDefault         bool       `json:"is_default,omitempty"`    // true when this is the admin-pinned default for a feature
+	LogicalModelID    string     `json:"logical_model_id,omitempty"`
+	ProviderVariants  int        `json:"provider_variant_count,omitempty"`
 	ModelDefID        string     `json:"model_def_id"`
 	ModelIDOverride   string     `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
 	SupportedParams   []ParamDef `json:"supported_params,omitempty"`
+
+	providerVariantIDs []uint
 }
 
 // AIService is the unified entry point for all AI calls.
@@ -168,41 +173,72 @@ func marshalParamsForValidation(params map[string]any) string {
 	return string(b)
 }
 
-// GetModelsByCapability returns enabled model configs whose resolved definition includes capability.
+// GetModelsByCapability returns enabled logical models whose resolved definition includes capability.
+// Provider variants with the same logical model ID are merged so product UI does
+// not expose provider choices. Use GetProviderModelsByCapability for admin
+// configuration and debugging surfaces.
 func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, error) {
+	return s.getModelsByCapability(capability, false)
+}
+
+// GetProviderModelsByCapability returns one item per enabled provider-backed
+// model config. Admin uses this to keep provider configuration explicit.
+func (s *AIService) GetProviderModelsByCapability(capability string) ([]PublicModel, error) {
+	return s.getModelsByCapability(capability, true)
+}
+
+func (s *AIService) getModelsByCapability(capability string, providerVariants bool) ([]PublicModel, error) {
 	var rows []modelConfigWithProvider
-	s.db.Model(&model.AIModelConfig{}).
+	if err := s.db.Model(&model.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
 		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows)
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
 
 	result := make([]PublicModel, 0)
+	groupIndex := map[string]int{}
 	for _, row := range rows {
 		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		found := false
-		for _, cap := range def.Capabilities {
-			if cap == capability {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !modelHasCapability(def, capability) {
 			continue
 		}
-		result = append(result, PublicModel{
+		item := PublicModel{
 			ID:                row.ID,
 			CredentialID:      row.CredentialID,
 			DisplayName:       def.DisplayName,
 			ShortName:         row.ShortName,
-			ProviderName:      row.ProviderName,
 			Capabilities:      def.Capabilities,
 			AcceptsImageInput: def.AcceptsImageInput,
+			LogicalModelID:    logicalModelID(row.AIModelConfig, def),
 			ModelDefID:        def.ID,
-			ModelIDOverride:   row.ModelIDOverride,
 			SupportedParams:   def.SupportedParams,
-		})
+			ProviderVariants:  1,
+			providerVariantIDs: []uint{
+				row.ID,
+			},
+		}
+		if providerVariants {
+			item.ProviderName = row.ProviderName
+			item.ModelIDOverride = row.ModelIDOverride
+			result = append(result, item)
+			continue
+		}
+		key := item.LogicalModelID
+		if key == "" {
+			key = fmt.Sprintf("config:%d", item.ID)
+		}
+		if idx, ok := groupIndex[key]; ok {
+			result[idx].ProviderVariants++
+			result[idx].providerVariantIDs = append(result[idx].providerVariantIDs, row.ID)
+			result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, def.Capabilities)
+			result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || def.AcceptsImageInput
+			continue
+		}
+		groupIndex[key] = len(result)
+		result = append(result, item)
 	}
 	return result, nil
 }
@@ -213,6 +249,15 @@ func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, err
 // If the feature has AllowedModelIDs configured, results are filtered to those IDs.
 // If the feature is disabled or not found, an empty list is returned without error.
 func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error) {
+	return s.getModelsForFeature(featureKey, false)
+}
+
+// GetProviderModelsForFeature returns provider variants for admin feature setup.
+func (s *AIService) GetProviderModelsForFeature(featureKey string) ([]PublicModel, error) {
+	return s.getModelsForFeature(featureKey, true)
+}
+
+func (s *AIService) getModelsForFeature(featureKey string, providerVariants bool) ([]PublicModel, error) {
 	featureKey = NormalizeFeatureKey(featureKey)
 	var cfg model.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&cfg).Error; err != nil {
@@ -222,7 +267,7 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 		if def == nil {
 			return nil, fmt.Errorf("feature %q not found", featureKey)
 		}
-		return s.GetModelsByCapability(def.RequiredCap)
+		return s.getModelsByCapability(def.RequiredCap, providerVariants)
 	}
 	if !cfg.IsEnabled {
 		return []PublicModel{}, nil
@@ -235,16 +280,17 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 	}
 
 	// Collect models across all compatible capabilities, deduplicating by ID.
-	seen := make(map[uint]bool)
+	seen := make(map[string]bool)
 	all := make([]PublicModel, 0)
 	for _, cap := range caps {
-		models, err := s.GetModelsByCapability(cap)
+		models, err := s.getModelsByCapability(cap, providerVariants)
 		if err != nil {
 			return nil, err
 		}
 		for _, m := range models {
-			if !seen[m.ID] {
-				seen[m.ID] = true
+			key := publicModelDedupKey(m, providerVariants)
+			if !seen[key] {
+				seen[key] = true
 				all = append(all, m)
 			}
 		}
@@ -262,7 +308,7 @@ func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error
 	}
 	out := make([]PublicModel, 0, len(all))
 	for _, m := range all {
-		if idSet[m.ID] {
+		if publicModelHasVariant(m, idSet) {
 			out = append(out, m)
 		}
 	}
@@ -344,13 +390,81 @@ func markDefault(models []PublicModel, defaultID *uint) {
 	}
 	if defaultID != nil {
 		for i := range models {
-			if models[i].ID == *defaultID {
+			if models[i].ID == *defaultID || containsUint(models[i].providerVariantIDs, *defaultID) {
 				models[i].IsDefault = true
 				return
 			}
 		}
 	}
 	models[0].IsDefault = true
+}
+
+func modelHasCapability(def *ModelDef, capability string) bool {
+	for _, cap := range def.Capabilities {
+		if cap == capability {
+			return true
+		}
+	}
+	return false
+}
+
+func logicalModelID(cfg model.AIModelConfig, def *ModelDef) string {
+	if value := strings.TrimSpace(cfg.ModelIDOverride); value != "" {
+		return value
+	}
+	if def != nil {
+		if value := strings.TrimSpace(def.ModelID); value != "" {
+			return value
+		}
+		if value := strings.TrimSpace(def.ID); value != "" {
+			return value
+		}
+	}
+	return strings.TrimSpace(cfg.ModelDefID)
+}
+
+func mergeCapabilities(left []string, right []string) []string {
+	seen := make(map[string]bool, len(left)+len(right))
+	out := make([]string, 0, len(left)+len(right))
+	for _, cap := range append(left, right...) {
+		if cap == "" || seen[cap] {
+			continue
+		}
+		seen[cap] = true
+		out = append(out, cap)
+	}
+	return out
+}
+
+func publicModelDedupKey(m PublicModel, providerVariants bool) string {
+	if providerVariants {
+		return fmt.Sprintf("config:%d", m.ID)
+	}
+	if m.LogicalModelID != "" {
+		return "logical:" + m.LogicalModelID
+	}
+	return fmt.Sprintf("config:%d", m.ID)
+}
+
+func publicModelHasVariant(m PublicModel, allowed map[uint]bool) bool {
+	if allowed[m.ID] {
+		return true
+	}
+	for _, id := range m.providerVariantIDs {
+		if allowed[id] {
+			return true
+		}
+	}
+	return false
+}
+
+func containsUint(values []uint, target uint) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func parseIDArray(s string) []uint {

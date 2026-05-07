@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	authapp "github.com/movscript/movscript/internal/app/auth"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/config"
 	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
@@ -292,9 +292,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user model.User) {
+func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user domainauth.UserProfile) {
 	credential, err := h.service.IssueCredential(c.Request.Context(), authapp.CredentialInput{
-		User:      user,
+		UserID:    user.ID,
 		UserAgent: c.Request.UserAgent(),
 		IPAddress: c.ClientIP(),
 	})
@@ -315,15 +315,15 @@ func (h *AuthHandler) respondWithCredential(c *gin.Context, status int, user mod
 	})
 }
 
-func (h *AuthHandler) verifyChallengeRequest(c *gin.Context, challengeID, code string) (model.AuthChallenge, error) {
+func (h *AuthHandler) verifyChallengeRequest(c *gin.Context, challengeID, code string) (domainauth.AuthChallenge, error) {
 	id, err := strconv.ParseUint(strings.TrimSpace(challengeID), 10, 64)
 	if err != nil || id == 0 {
-		return model.AuthChallenge{}, authapp.ErrInvalidChallenge
+		return domainauth.AuthChallenge{}, authapp.ErrInvalidChallenge
 	}
 	return h.service.VerifyChallenge(c.Request.Context(), authapp.ChallengeVerifyInput{ChallengeID: uint(id), Code: code})
 }
 
-func toAuthUser(user model.User) authUser {
+func toAuthUser(user domainauth.UserProfile) authUser {
 	return authUser{
 		ID:              strconv.FormatUint(uint64(user.ID), 10),
 		Username:        user.Username,

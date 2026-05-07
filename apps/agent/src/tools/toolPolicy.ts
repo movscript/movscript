@@ -95,12 +95,14 @@ function isSandboxAutoAllowed(tool: RegisteredTool, sandboxMode?: boolean): bool
 function mapCatalogReason(reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): BlockedToolCall['reason'] {
   if (reason === 'missing_project') return 'missing_project'
   if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return 'not_granted'
+  if (reason === 'inactive') return 'unknown_tool'
   return 'unknown_tool'
 }
 
 function catalogWarningMessage(toolName: string, reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): string {
   if (reason === 'missing_project') return '当前没有选中项目'
   if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return `${toolName} 未被当前 agent manifest 授权`
+  if (reason === 'inactive') return `${toolName} 未被当前请求激活`
   if (reason === 'unregistered') return `${toolName} 未注册到当前 agent 工具表中`
   if (reason === 'mcp_unavailable') return `${toolName} 当前 MCP tools/list 不可用`
   return `${toolName} 当前不可执行：${reason ?? 'unknown'}`

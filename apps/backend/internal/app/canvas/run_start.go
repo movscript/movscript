@@ -6,10 +6,16 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
+	"gorm.io/gorm"
 )
 
-func (h *Service) StartNode(ctx context.Context, user *model.User, cv model.Canvas, node model.CanvasNode, inputValues map[string]canvasPortValue) (model.CanvasTask, error) {
-	inputs, err := h.CollectSingleNodeInputs(ctx, user, cv, node.NodeID, inputValues)
+func (h *Service) StartNode(ctx context.Context, userID uint, cv canvasruntime.Canvas, node canvasruntime.CanvasNode, inputValues map[string]canvasPortValue) (canvasruntime.CanvasTask, error) {
+	task, err := h.startNodeModel(ctx, &model.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), node.ToModel(), inputValues)
+	return canvasruntime.CanvasTaskFromModel(task), err
+}
+
+func (h *Service) startNodeModel(ctx context.Context, user *model.User, cv model.Canvas, node model.CanvasNode, inputValues map[string]canvasPortValue) (model.CanvasTask, error) {
+	inputs, err := h.collectSingleNodeInputsModel(ctx, user, cv, node.NodeID, inputValues)
 	if err != nil {
 		return model.CanvasTask{}, err
 	}
@@ -17,11 +23,16 @@ func (h *Service) StartNode(ctx context.Context, user *model.User, cv model.Canv
 	if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 		return model.CanvasTask{}, err
 	}
-	go h.ExecuteSingleWorkflowNode(user, cv, &node, &task, inputs)
+	go h.executeSingleWorkflowNodeModel(user, cv, &node, &task, inputs)
 	return task, nil
 }
 
-func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues map[string]canvasPortValue) (model.CanvasRun, []model.CanvasTask, error) {
+func (h *Service) StartCanvasRun(userID uint, cv canvasruntime.Canvas, inputValues map[string]canvasPortValue) (canvasruntime.CanvasRun, []canvasruntime.CanvasTask, error) {
+	run, tasks, err := h.startCanvasRunModel(&model.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), inputValues)
+	return canvasruntime.CanvasRunFromModel(run), canvasruntime.CanvasTasksFromModels(tasks), err
+}
+
+func (h *Service) startCanvasRunModel(user *model.User, cv model.Canvas, inputValues map[string]canvasPortValue) (model.CanvasRun, []model.CanvasTask, error) {
 	plan, err := canvasruntime.BuildExecutionPlan(cv)
 	if err != nil {
 		return model.CanvasRun{}, nil, err
@@ -54,7 +65,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 			return run, tasks, err
 		}
 	} else {
-		go h.ExecuteWorkflowRun(user, cv.ID, run.ID, plan.Order)
+		go h.executeWorkflowRunModel(user, cv.ID, run.ID, plan.Order)
 	}
 	run.Tasks = tasks
 	return run, tasks, nil

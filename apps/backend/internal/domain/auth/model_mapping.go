@@ -18,6 +18,21 @@ func RegisteredUserFromModel(user model.User) RegisteredUser {
 	}
 }
 
+func UserProfileFromRegisteredUser(user RegisteredUser) UserProfile {
+	return UserProfile{
+		ID:              user.ID,
+		Username:        user.Username,
+		SystemRole:      user.SystemRole,
+		PrimaryEmail:    user.PrimaryEmail,
+		PrimaryPhone:    user.PrimaryPhone,
+		DisplayName:     user.DisplayName,
+		AvatarURL:       user.AvatarURL,
+		Locale:          user.Locale,
+		Status:          user.Status,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+	}
+}
+
 func UserProfileFromModel(user model.User) UserProfile {
 	return UserProfile{
 		ID:              user.ID,
@@ -64,6 +79,8 @@ func AuthChallengeFromModel(challenge model.AuthChallenge) AuthChallenge {
 		ExpiresAt:  challenge.ExpiresAt,
 		ConsumedAt: challenge.ConsumedAt,
 		Attempts:   challenge.Attempts,
+		CreatedAt:  challenge.CreatedAt,
+		UpdatedAt:  challenge.UpdatedAt,
 	}
 }
 
@@ -81,6 +98,8 @@ func (challenge AuthChallenge) ApplyToModel(target *model.AuthChallenge) {
 	target.ExpiresAt = challenge.ExpiresAt
 	target.ConsumedAt = challenge.ConsumedAt
 	target.Attempts = challenge.Attempts
+	target.CreatedAt = challenge.CreatedAt
+	target.UpdatedAt = challenge.UpdatedAt
 }
 
 func AuthSessionFromModel(session model.AuthSession) AuthSession {

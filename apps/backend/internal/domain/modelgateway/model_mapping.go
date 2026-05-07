@@ -17,6 +17,8 @@ func APIKeyFromModel(key model.GatewayAPIKey) APIKey {
 		MonthlyBudget:   key.MonthlyBudget,
 		IsEnabled:       key.IsEnabled,
 		LastUsedAt:      key.LastUsedAt,
+		CreatedAt:       key.CreatedAt,
+		UpdatedAt:       key.UpdatedAt,
 	}
 }
 
@@ -40,4 +42,6 @@ func (key APIKey) ApplyToModel(target *model.GatewayAPIKey) {
 	target.MonthlyBudget = key.MonthlyBudget
 	target.IsEnabled = key.IsEnabled
 	target.LastUsedAt = key.LastUsedAt
+	target.CreatedAt = key.CreatedAt
+	target.UpdatedAt = key.UpdatedAt
 }

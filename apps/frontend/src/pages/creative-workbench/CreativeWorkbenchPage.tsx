@@ -313,6 +313,7 @@ export default function CreativeWorkbenchPage() {
 
     openAgentPanelDraft({
       requestId,
+      taskType: 'creative_brainstorm',
       message,
       title: `头脑风暴: ${selected.title || current?.name || '故事素材'}`,
       mode: 'create',
@@ -328,6 +329,7 @@ export default function CreativeWorkbenchPage() {
         },
       }),
       timeoutMs: 120_000,
+      renderMode: 'page',
     })
   }
 

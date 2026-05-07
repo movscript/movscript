@@ -71,6 +71,8 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
     })) ?? [],
     memories: memories.map((m) => ({ id: m.id, scope: m.scope, kind: m.kind, content: m.content })),
     labels: ui?.labels ?? [],
+    statusDigest: buildStatusDigest(snapshot),
+    rawContextHints: buildRawContextHints(snapshot),
   }
 }
 
@@ -141,4 +143,66 @@ export function mergeDebugResources(base: AgentDebugContextPanel['recentResource
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function buildStatusDigest(snapshot: unknown): string[] {
+  if (!isRecord(snapshot)) return []
+  const lines: string[] = []
+  for (const key of ['production', 'currentProduction', 'script', 'currentScript']) {
+    const value = snapshot[key]
+    if (isRecord(value)) lines.push(`${labelize(key)}: ${summarizeRecord(value)}`)
+  }
+  for (const key of ['productions', 'scripts', 'creativeReferences', 'semanticEntities', 'assetSlots', 'drafts', 'recentResources']) {
+    const value = snapshot[key]
+    if (Array.isArray(value)) lines.push(`${labelize(key)}: ${value.length} item(s)${sampleRecords(value)}`)
+  }
+  for (const key of ['productionSummary', 'scriptSummary', 'currentStatus', 'status', 'summary']) {
+    const value = snapshot[key]
+    if (typeof value === 'string' && value.trim()) lines.push(`${labelize(key)}: ${value.trim().slice(0, 300)}`)
+  }
+  return Array.from(new Set(lines)).slice(0, 20)
+}
+
+function buildRawContextHints(snapshot: unknown): string[] {
+  if (!isRecord(snapshot)) return []
+  return Object.entries(snapshot)
+    .flatMap(([key, value]) => {
+      if (value === null || value === undefined) return []
+      if (Array.isArray(value)) return [`${key}: array(${value.length})`]
+      if (isRecord(value)) return [`${key}: object(${Object.keys(value).slice(0, 12).join(', ')})`]
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return [`${key}: ${String(value).slice(0, 160)}`]
+      return []
+    })
+    .slice(0, 30)
+}
+
+function sampleRecords(items: unknown[]): string {
+  const samples = items.slice(0, 3).flatMap((item) => isRecord(item) ? [summarizeRecord(item)] : [])
+  return samples.length > 0 ? `; samples: ${samples.join(' | ')}` : ''
+}
+
+function summarizeRecord(record: Record<string, unknown>): string {
+  const parts = [
+    readString(record, ['name', 'title', 'label']),
+    readString(record, ['status', 'kind', 'type']),
+    readString(record, ['summary', 'description']),
+  ].filter(Boolean)
+  const id = typeof record.id === 'number' || typeof record.id === 'string'
+    ? `#${record.id}`
+    : typeof record.ID === 'number' || typeof record.ID === 'string'
+      ? `#${record.ID}`
+      : undefined
+  return [id, ...parts].filter(Boolean).join(' ').slice(0, 240) || Object.keys(record).slice(0, 8).join(', ')
+}
+
+function readString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+function labelize(value: string): string {
+  return value.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
 }

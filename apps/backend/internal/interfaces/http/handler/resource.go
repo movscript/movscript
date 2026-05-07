@@ -11,11 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	appresource "github.com/movscript/movscript/internal/app/resource"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
-	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
 )
 
@@ -251,14 +249,6 @@ func (h *ResourceHandler) writeResourceError(c *gin.Context, err error) {
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
-}
-
-func currentUser(c *gin.Context) *model.User {
-	u, ok := c.Get(middleware.ContextUserKey)
-	if !ok {
-		return nil
-	}
-	return u.(*model.User)
 }
 
 func resourceURL(c *gin.Context, id uint) string {

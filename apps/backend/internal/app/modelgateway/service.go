@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
@@ -70,13 +69,13 @@ type UpdateAPIKeyInput struct {
 }
 
 type CreateAPIKeyResult struct {
-	Key    model.GatewayAPIKey
+	Key    domainmodelgateway.APIKey
 	RawKey string
 }
 
 type Principal struct {
-	User *model.User
-	Key  *model.GatewayAPIKey
+	UserID uint
+	Key    *domainmodelgateway.APIKey
 }
 
 type ChatInput struct {
@@ -115,17 +114,9 @@ func IsInsufficientQuota(err error) bool {
 	return errors.Is(err, ai.ErrInsufficientQuota)
 }
 
-func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint) ([]model.GatewayAPIKey, error) {
+func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint) ([]domainmodelgateway.APIKey, error) {
 	includeLegacy := orgID != nil && s.policy.IsPersonalOrg(ctx, *orgID)
-	keys, err := s.repo.ListAPIKeys(ctx, ownerUserID, orgID, includeLegacy)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]model.GatewayAPIKey, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, key.ToModel())
-	}
-	return out, nil
+	return s.repo.ListAPIKeys(ctx, ownerUserID, orgID, includeLegacy)
 }
 
 func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (CreateAPIKeyResult, error) {
@@ -143,19 +134,17 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		AllowedModelIDs: input.AllowedModelIDs,
 		AllowedScopes:   input.AllowedScopes,
 	})
-	key := domainKey.ToModel()
-	applyAPIKeyCommercialCreateFields(&key, input.Commercial)
-	domainKey = domainmodelgateway.APIKeyFromModel(key)
+	applyAPIKeyCommercialCreateFields(&domainKey, input.Commercial)
 	if err := s.repo.CreateAPIKey(ctx, &domainKey); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
-	return CreateAPIKeyResult{Key: domainKey.ToModel(), RawKey: rawKey}, nil
+	return CreateAPIKeyResult{Key: domainKey, RawKey: rawKey}, nil
 }
 
-func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (model.GatewayAPIKey, error) {
+func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (domainmodelgateway.APIKey, error) {
 	key, err := s.policy.FindOwnedAPIKey(ctx, input.ID, input.OwnerUserID, input.OrgID)
 	if err != nil {
-		return key.ToModel(), err
+		return key, err
 	}
 	updates := map[string]any{}
 	if input.Name != nil {
@@ -173,13 +162,13 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (mo
 	applyAPIKeyCommercialUpdateFields(updates, input.Commercial)
 	if len(updates) > 0 {
 		if err := s.repo.UpdateAPIKey(ctx, &key, updates); err != nil {
-			return key.ToModel(), err
+			return key, err
 		}
 	}
 	if err := s.repo.ReloadAPIKey(ctx, &key); err != nil {
-		return key.ToModel(), err
+		return key, err
 	}
-	return key.ToModel(), nil
+	return key, nil
 }
 
 func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) error {
@@ -211,12 +200,7 @@ func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Princi
 		return Principal{}, false, err
 	}
 	key.LastUsedAt = &now
-	keyModel := key.ToModel()
-	return Principal{User: &user, Key: &keyModel}, true, nil
-}
-
-func (s *Service) EnforceKeyLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {
-	return s.policy.EnforceKeyLimits(ctx, key, estimatedCost)
+	return Principal{UserID: user.ID, Key: &key}, true, nil
 }
 
 func (s *Service) ListChatModels(_ context.Context, principal Principal) ([]ai.PublicModel, error) {
@@ -231,7 +215,7 @@ func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, er
 	if err != nil {
 		return ChatResult{}, err
 	}
-	resp, err := s.ai.CallTextWithBilling(ctx, input.Principal.User.ID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
+	resp, err := s.ai.CallTextWithBilling(ctx, input.Principal.UserID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
 	}
@@ -243,7 +227,7 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 	if err != nil {
 		return ChatStreamResult{}, err
 	}
-	events, err := s.ai.CallTextStreamWithBilling(ctx, input.Principal.User.ID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
+	events, err := s.ai.CallTextStreamWithBilling(ctx, input.Principal.UserID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatStreamResult{}, err
 	}
@@ -255,13 +239,17 @@ func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, strin
 	if err != nil {
 		return 0, responseModel, ai.TextRequest{}, err
 	}
+	runtimeModelConfigID, err := s.ai.ResolveRuntimeTextModel(modelConfigID)
+	if err != nil {
+		return 0, responseModel, ai.TextRequest{}, err
+	}
 
 	textReq := input.Text
-	if _, err := s.ai.PreflightText(modelConfigID, &textReq); err != nil {
+	if _, err := s.ai.PreflightText(runtimeModelConfigID, &textReq); err != nil {
 		return 0, responseModel, ai.TextRequest{}, wrapErr(ErrUnsupportedParameter, err)
 	}
 	if input.Principal.Key != nil {
-		estimate, err := s.ai.EstimateTextCost(modelConfigID, textReq)
+		estimate, err := s.ai.EstimateTextCost(runtimeModelConfigID, textReq)
 		if err != nil {
 			return 0, responseModel, ai.TextRequest{}, err
 		}
@@ -269,7 +257,7 @@ func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, strin
 			return 0, responseModel, ai.TextRequest{}, err
 		}
 	}
-	return modelConfigID, responseModel, textReq, nil
+	return runtimeModelConfigID, responseModel, textReq, nil
 }
 
 func (s *Service) ResolveTextModel(_ context.Context, modelID string) (uint, string, error) {

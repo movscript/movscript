@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	"gorm.io/gorm"
 )
 
@@ -77,6 +76,48 @@ type GenerateResponse struct {
 	Keyframes     []Keyframe     `json:"keyframes"`
 	MissingAssets []MissingAsset `json:"missing_assets"`
 	GeneratedAt   string         `json:"generated_at"`
+}
+
+type segmentProjection struct {
+	ID      uint
+	Title   string
+	Summary string
+}
+
+type sceneMomentProjection struct {
+	ID          uint
+	SegmentID   *uint
+	Title       string
+	Description string
+}
+
+type contentUnitProjection struct {
+	ID            uint
+	SegmentID     *uint
+	SceneMomentID *uint
+	Order         int
+	Title         string
+	Kind          string
+	Description   string
+	DurationSec   float64
+}
+
+type keyframeProjection struct {
+	ID            uint
+	ContentUnitID *uint
+	Order         int
+	Title         string
+	Description   string
+	Prompt        string
+	ResourceID    *uint
+}
+
+type assetSlotProjection struct {
+	ID          uint
+	Name        string
+	Description string
+	Kind        string
+	Priority    string
 }
 
 func (s *Service) Generate(ctx context.Context, input GenerateInput) (GenerateResponse, error) {
@@ -150,7 +191,7 @@ func (s *Service) loadContentUnitPreview(ctx context.Context, projectID, unitID 
 		return err
 	}
 	resp.Entity = EntitySummary{ID: unit.ID, Title: unit.Title, Description: unit.Description}
-	resp.ContentUnits = contentUnitResponses([]model.ContentUnit{unit})
+	resp.ContentUnits = contentUnitResponses([]contentUnitProjection{unit})
 
 	if unit.SegmentID != nil {
 		if seg, err := s.repo.GetSegmentByID(ctx, *unit.SegmentID); err == nil {
@@ -163,13 +204,13 @@ func (s *Service) loadContentUnitPreview(ctx context.Context, projectID, unitID 
 		}
 	}
 
-	if err := s.loadKeyframesForUnits(ctx, projectID, []model.ContentUnit{unit}, resp); err != nil {
+	if err := s.loadKeyframesForUnits(ctx, projectID, []contentUnitProjection{unit}, resp); err != nil {
 		return err
 	}
 	return s.loadMissingAssetsForOwner(ctx, projectID, "content_unit", unitID, resp)
 }
 
-func contentUnitResponses(units []model.ContentUnit) []ContentUnit {
+func contentUnitResponses(units []contentUnitProjection) []ContentUnit {
 	out := make([]ContentUnit, 0, len(units))
 	for _, u := range units {
 		out = append(out, ContentUnit{
@@ -180,7 +221,7 @@ func contentUnitResponses(units []model.ContentUnit) []ContentUnit {
 	return out
 }
 
-func (s *Service) loadKeyframesForUnits(ctx context.Context, projectID uint, units []model.ContentUnit, resp *GenerateResponse) error {
+func (s *Service) loadKeyframesForUnits(ctx context.Context, projectID uint, units []contentUnitProjection, resp *GenerateResponse) error {
 	if len(units) == 0 {
 		return nil
 	}

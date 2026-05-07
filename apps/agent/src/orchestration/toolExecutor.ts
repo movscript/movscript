@@ -91,16 +91,16 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_get_draft') {
-    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
-    if (!draftId) throw new Error('get_draft requires draftId')
+    const draftId = draftRefArg(args)
+    if (!draftId) throw new Error('get_draft requires draftRef')
     const draft = draftStore.getDraft(draftId)
     if (!draft) throw new Error(`draft not found: ${draftId}`)
     return draft as unknown as JSONValue
   }
 
   if (toolName === 'movscript_update_draft') {
-    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
-    if (!draftId) throw new Error('update_draft requires draftId')
+    const draftId = draftRefArg(args)
+    if (!draftId) throw new Error('update_draft requires draftRef')
     const status = normalizeDraftStatus(args.status)
     const draft = draftStore.updateDraft(draftId, {
       ...(status ? { status } : {}),
@@ -117,8 +117,8 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_patch_draft') {
-    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
-    if (!draftId) throw new Error('patch_draft requires draftId')
+    const draftId = draftRefArg(args)
+    if (!draftId) throw new Error('patch_draft requires draftRef')
     const result = draftStore.patchDraft(draftId, {
       ops: args.ops,
       expectedUpdatedAt: args.expectedUpdatedAt ?? args.expected_updated_at,
@@ -132,11 +132,209 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_validate_draft') {
-    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
-    if (!draftId) throw new Error('validate_draft requires draftId')
+    const draftId = draftRefArg(args)
+    if (!draftId) throw new Error('validate_draft requires draftRef')
     const draft = draftStore.getDraft(draftId)
     if (!draft) throw new Error(`draft not found: ${draftId}`)
     return validateDraft(draft) as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_create_production_proposal') {
+    const projectId = numberField(args.projectId) ?? numberField(args.project_id)
+    const productionId = numberField(args.productionId) ?? numberField(args.production_id)
+    if (projectId === undefined) throw new Error('create_production_proposal requires projectId')
+    if (productionId === undefined) throw new Error('create_production_proposal requires productionId')
+    const analysisScope = stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production'
+    const summary = stringField(args.summary)
+    const now = new Date().toISOString()
+    const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id)
+    const content = {
+      productionId,
+      analysisScope,
+      ...(summary ? { summary } : {}),
+      proposal: { segments: [] },
+      proposedAt: now,
+    }
+    const draft = draftStore.createDraft({
+      projectId,
+      kind: 'production_proposal',
+      title: stringField(args.title) ?? `制作编排提案 - ${analysisScope}`,
+      content: JSON.stringify(content),
+      source: {
+        entityType: 'production',
+        entityId: productionId,
+        runId: run.id,
+        threadId: run.threadId,
+      },
+      createdByRunId: run.id,
+      createdByThreadId: run.threadId,
+      metadata: {
+        analysisScope,
+        productionId,
+        supersededDraftIds,
+      },
+    })
+    return {
+      proposalRef: draft.id,
+      draftRef: draft.id,
+      draftId: draft.id,
+      draft,
+      status: 'created',
+      counts: countProductionProposalNodes((content.proposal as Record<string, JSONValue>)),
+      supersededDraftIds,
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_get_production_proposal') {
+    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+    return {
+      draftRef: draft.id,
+      proposalRef: draft.id,
+      draft,
+      content: parseProductionProposalDraftContent(draft),
+      counts: countProductionProposalNodes(parseProductionProposalDraftContent(draft).proposal),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_inspect_production_proposal_context') {
+    const context = isRecord(run.metadata?.context) ? run.metadata.context as Record<string, JSONValue> : undefined
+    const contextProject = isRecord(context?.project) ? context.project : undefined
+    const productionId = numberField(args.productionId)
+      ?? numberField(args.production_id)
+      ?? numberField(context?.productionId)
+    const projectId = numberField(args.projectId)
+      ?? numberField(args.project_id)
+      ?? numberField(contextProject?.id)
+    const explicitDraftId = proposalRefArg(args)
+    const draft = explicitDraftId
+      ? requireProductionProposalDraft(draftStore, explicitDraftId)
+      : findLatestProductionProposalDraft(draftStore, projectId, productionId)
+    const content = draft ? parseProductionProposalDraftContent(draft) : undefined
+    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
+    const includeNodes = args.includeNodes !== false && args.include_nodes !== false
+    const nodes = content && includeNodes
+      ? listProductionProposalNodes(content.proposal).filter((node) => !nodeType || node.nodeType === nodeType)
+      : []
+    return {
+      project: contextProject ?? null,
+      productionId: productionId ?? content?.productionId ?? null,
+      userRequest: typeof run.metadata?.userRequest === 'string' ? run.metadata.userRequest : null,
+      attachments: Array.isArray(context?.attachments) ? context.attachments : [],
+      recentResources: Array.isArray(context?.recentResources) ? context.recentResources : [],
+      statusDigest: Array.isArray(context?.statusDigest) ? context.statusDigest : [],
+      rawContextHints: Array.isArray(context?.rawContextHints) ? context.rawContextHints : [],
+      currentSelection: isRecord(context?.selection) ? context.selection : null,
+      proposalRef: draft?.id ?? null,
+      draft: draft ?? null,
+      content: content ?? null,
+      nodes,
+      counts: content ? countProductionProposalNodes(content.proposal) : null,
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_upsert_proposal_scene_moment') {
+    return upsertProductionProposalBusinessNode(draftStore, args, 'scene_moment', args.sceneMoment ?? args.scene_moment, args.segment, 'scene_moment') as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_upsert_proposal_reference') {
+    return upsertProductionProposalBusinessNode(draftStore, args, 'creative_reference', args.reference, args.sceneMoment ?? args.scene_moment, 'creative_reference') as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_upsert_proposal_asset') {
+    return upsertProductionProposalBusinessNode(draftStore, args, 'asset_slot', args.asset, args.sceneMoment ?? args.scene_moment, 'asset_slot') as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_upsert_proposal_keyframe') {
+    const parent = isRecord(args.shot) ? args.shot : args.sceneMoment ?? args.scene_moment
+    return upsertProductionProposalBusinessNode(draftStore, args, 'keyframe', args.keyframe, parent, 'keyframe') as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_upsert_proposal_shot') {
+    const shot = isRecord(args.shot) ? { ...args.shot, kind: stringField(args.shot.kind) ?? 'shot' } : args.shot
+    return upsertProductionProposalBusinessNode(draftStore, args, 'content_unit', shot, args.sceneMoment ?? args.scene_moment, 'shot') as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_list_production_proposal_nodes') {
+    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+    const content = parseProductionProposalDraftContent(draft)
+    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
+    const parentClientId = stringField(args.parentClientId) ?? stringField(args.parent_client_id)
+    const limit = Math.max(1, Math.min(Math.floor(numberField(args.limit) ?? 200), 300))
+    const nodes = listProductionProposalNodes(content.proposal)
+      .filter((node) => !nodeType || node.nodeType === nodeType)
+      .filter((node) => !parentClientId || node.parentClientId === parentClientId)
+      .slice(0, limit)
+    return {
+      draftRef: draft.id,
+      draftId: draft.id,
+      productionId: content.productionId,
+      nodes,
+      count: nodes.length,
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_upsert_production_proposal_node') {
+    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
+    if (!nodeType) throw new Error('upsert_production_proposal_node requires nodeType')
+    const node = normalizeProposalNodeForType(nodeType, args.node)
+    const parent = isRecord(args.parent) ? args.parent : undefined
+    const content = parseProductionProposalDraftContent(draft)
+    const upsert = upsertProductionProposalNode(content.proposal, nodeType, node, parent, numberField(args.position))
+    const updated = draftStore.updateDraft(draft.id, {
+      content: JSON.stringify(content),
+      metadata: {
+        ...(isRecord(draft.metadata) ? draft.metadata : {}),
+        lastProposalNodeMutation: {
+          op: upsert.created ? 'create' : 'update',
+          nodeType,
+          path: upsert.path,
+          mutatedAt: new Date().toISOString(),
+        },
+      },
+    })
+    const updatedContent = parseProductionProposalDraftContent(updated)
+    return {
+      status: upsert.created ? 'created' : 'updated',
+      proposalRef: updated.id,
+      draft: updated,
+      node: upsert.node,
+      path: upsert.path,
+      counts: countProductionProposalNodes(updatedContent.proposal),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_delete_production_proposal_node') {
+    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
+    if (!nodeType) throw new Error('delete_production_proposal_node requires nodeType')
+    const content = parseProductionProposalDraftContent(draft)
+    const deleted = deleteProductionProposalNode(content.proposal, nodeType, {
+      id: numberField(args.id),
+      clientId: stringField(args.client_id) ?? stringField(args.clientId),
+      path: stringField(args.path),
+    })
+    const updated = draftStore.updateDraft(draft.id, {
+      content: JSON.stringify(content),
+      metadata: {
+        ...(isRecord(draft.metadata) ? draft.metadata : {}),
+        lastProposalNodeMutation: {
+          op: 'delete',
+          nodeType,
+          path: deleted.path,
+          mutatedAt: new Date().toISOString(),
+        },
+      },
+    })
+    const updatedContent = parseProductionProposalDraftContent(updated)
+    return {
+      status: 'deleted',
+      proposalRef: updated.id,
+      draft: updated,
+      deletedNode: deleted.node,
+      path: deleted.path,
+      counts: countProductionProposalNodes(updatedContent.proposal),
+    } as unknown as JSONValue
   }
 
   if (toolName === 'movscript_propose_production_entities') {
@@ -183,12 +381,14 @@ async function callRuntimeTool(
     const counts = countProductionProposalNodes(normalizedProposal)
     const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
     return {
+      proposalRef: draft.id,
+      draftRef: draft.id,
       draftId: draft.id,
       draft,
       status: 'proposed',
       counts,
       supersededDraftIds,
-      message: `已写入 ${total} 个候选实体${supersededDraftIds.length > 0 ? `，已替换 ${supersededDraftIds.length} 个旧提案` : ''}`,
+      message: `已写入 ${total} 个候选业务项${supersededDraftIds.length > 0 ? `，已替换 ${supersededDraftIds.length} 个旧提案` : ''}`,
     } as unknown as JSONValue
   }
 
@@ -237,8 +437,8 @@ async function callRuntimeTool(
       review: preview.review,
       draft: finalDraft,
       message: backendApply.performed
-        ? 'Draft applied and backend entity patch completed.'
-        : 'Draft marked applied in the local agent lifecycle. Backend entity patch was skipped.',
+        ? 'Draft applied and backend business item patch completed.'
+        : 'Draft marked applied in the local agent lifecycle. Backend business item patch was skipped.',
       backendApply,
     } as unknown as JSONValue
   }
@@ -259,7 +459,7 @@ async function callRuntimeTool(
       projectId,
       script: backendCreate.response ?? null,
       message: backendCreate.performed
-        ? 'Formal script created in the backend project.'
+        ? 'Formal script record created in the backend project.'
         : 'Formal script creation was skipped.',
       backendCreate,
     } as unknown as JSONValue
@@ -418,6 +618,7 @@ function normalizeProposalSceneMoment(value: unknown): Record<string, JSONValue>
   const creativeReferences = Array.isArray(value.creative_references) ? value.creative_references : []
   const contentUnits = Array.isArray(value.content_units) ? value.content_units : []
   const assetSlots = Array.isArray(value.asset_slots) ? value.asset_slots : []
+  const keyframes = Array.isArray(value.keyframes) ? value.keyframes : []
   return withClientId({
     ...value,
     creative_references: creativeReferences.flatMap((reference) => {
@@ -430,6 +631,10 @@ function normalizeProposalSceneMoment(value: unknown): Record<string, JSONValue>
     }),
     asset_slots: assetSlots.flatMap((slot) => {
       const normalized = normalizeProposalAssetSlot(slot)
+      return normalized ? [normalized] : []
+    }),
+    keyframes: keyframes.flatMap((keyframe) => {
+      const normalized = normalizeProposalKeyframe(keyframe)
       return normalized ? [normalized] : []
     }),
   })
@@ -445,9 +650,14 @@ function normalizeProposalCreativeReference(value: unknown): Record<string, JSON
 
 function normalizeProposalContentUnit(value: unknown): Record<string, JSONValue> | undefined {
   if (!isRecord(value)) return undefined
+  const keyframes = Array.isArray(value.keyframes) ? value.keyframes : []
   return withClientId({
     ...value,
     kind: stringField(value.kind) ?? stringField(value.type) ?? 'shot',
+    keyframes: keyframes.flatMap((keyframe) => {
+      const normalized = normalizeProposalKeyframe(keyframe)
+      return normalized ? [normalized] : []
+    }),
   })
 }
 
@@ -459,9 +669,20 @@ function normalizeProposalAssetSlot(value: unknown): Record<string, JSONValue> |
   })
 }
 
+function normalizeProposalKeyframe(value: unknown): Record<string, JSONValue> | undefined {
+  if (!isRecord(value)) return undefined
+  return withClientId({
+    ...value,
+    kind: 'keyframe',
+  })
+}
+
 function withClientId(value: Record<string, JSONValue>, fallback?: string): Record<string, JSONValue> {
-  const clientId = stringField(value.client_id) ?? stringField(value.local_id) ?? fallback
-  return clientId ? { ...value, client_id: clientId } : value
+  const clientId = stringField(value.localRef)
+    ?? stringField(value.client_id)
+    ?? stringField(value.local_id)
+    ?? fallback
+  return clientId ? { ...value, localRef: clientId, client_id: clientId } : value
 }
 
 function inferProductionProposalSummary(proposal: JSONValue | undefined): string | undefined {
@@ -502,13 +723,380 @@ function countProductionProposalNodes(proposal: Record<string, JSONValue>): Reco
   const contentUnits = sceneMoments.flatMap((sceneMoment) => getRecordArrayValue(sceneMoment.content_units))
   const creativeReferences = sceneMoments.flatMap((sceneMoment) => getRecordArrayValue(sceneMoment.creative_references))
   const assetSlots = sceneMoments.flatMap((sceneMoment) => getRecordArrayValue(sceneMoment.asset_slots))
+  const keyframes = [
+    ...sceneMoments.flatMap((sceneMoment) => getRecordArrayValue(sceneMoment.keyframes)),
+    ...contentUnits.flatMap((contentUnit) => getRecordArrayValue(contentUnit.keyframes)),
+  ]
   return {
     segments: segments.length,
     scene_moments: sceneMoments.length,
     content_units: contentUnits.length,
     creative_references: creativeReferences.length,
     asset_slots: assetSlots.length,
+    keyframes: keyframes.length,
   }
+}
+
+type ProductionProposalNodeType = 'segment' | 'scene_moment' | 'content_unit' | 'creative_reference' | 'asset_slot' | 'keyframe'
+
+interface ProductionProposalDraftContent {
+  productionId: number
+  analysisScope?: string
+  summary?: string
+  proposal: Record<string, JSONValue>
+  proposedAt?: string
+}
+
+interface ProductionProposalNodeSummary {
+  nodeType: ProductionProposalNodeType
+  path: string
+  parentPath?: string
+  parentClientId?: string
+  id?: number
+  localRef?: string
+  client_id?: string
+  action?: string
+  title?: string
+  name?: string
+  kind?: string
+  order?: number
+}
+
+function requireProductionProposalDraft(draftStore: AgentDraftStore, draftIdValue: unknown) {
+  const draftId = stringField(draftIdValue as JSONValue | undefined)
+  if (!draftId) throw new Error('production proposal tool requires proposalRef')
+  const draft = draftStore.getDraft(draftId)
+  if (!draft) throw new Error(`draft not found: ${draftId}`)
+  if (draft.kind !== 'production_proposal') throw new Error(`draft is not a production_proposal: ${draftId}`)
+  return draft
+}
+
+function parseProductionProposalDraftContent(draft: { content: string }): ProductionProposalDraftContent {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    throw new Error('production_proposal draft content must be JSON')
+  }
+  if (!isRecord(parsed)) throw new Error('production_proposal draft content must be an object')
+  const productionId = numberField(parsed.productionId) ?? numberField(parsed.production_id)
+  if (productionId === undefined) throw new Error('production_proposal draft content requires productionId')
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : { segments: [] }
+  if (!Array.isArray(proposal.segments)) proposal.segments = []
+  return {
+    productionId,
+    ...(stringField(parsed.analysisScope) ?? stringField(parsed.analysis_scope) ? { analysisScope: stringField(parsed.analysisScope) ?? stringField(parsed.analysis_scope) } : {}),
+    ...(stringField(parsed.summary) ? { summary: stringField(parsed.summary) } : {}),
+    proposal,
+    ...(stringField(parsed.proposedAt) ?? stringField(parsed.proposed_at) ? { proposedAt: stringField(parsed.proposedAt) ?? stringField(parsed.proposed_at) } : {}),
+  }
+}
+
+function normalizeProposalNodeType(value: JSONValue | undefined): ProductionProposalNodeType | undefined {
+  return value === 'segment'
+    || value === 'scene_moment'
+    || value === 'content_unit'
+    || value === 'creative_reference'
+    || value === 'asset_slot'
+    || value === 'keyframe'
+    ? value
+    : undefined
+}
+
+function normalizeProposalNodeForType(nodeType: ProductionProposalNodeType, value: JSONValue | undefined): Record<string, JSONValue> {
+  let normalized: Record<string, JSONValue> | undefined
+  if (nodeType === 'segment') normalized = normalizeProposalSegment(value)
+  if (nodeType === 'scene_moment') normalized = normalizeProposalSceneMoment(value)
+  if (nodeType === 'content_unit') normalized = normalizeProposalContentUnit(value)
+  if (nodeType === 'creative_reference') normalized = normalizeProposalCreativeReference(value)
+  if (nodeType === 'asset_slot') normalized = normalizeProposalAssetSlot(value)
+  if (nodeType === 'keyframe') normalized = normalizeProposalKeyframe(value)
+  if (!normalized) throw new Error(`invalid ${nodeType} node`)
+  normalized.action = stringField(normalized.action) ?? 'create'
+  return normalized
+}
+
+function proposalRefArg(args: Record<string, JSONValue>): unknown {
+  return args.proposalRef ?? args.proposal_ref ?? args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id ?? args.id
+}
+
+function draftRefArg(args: Record<string, JSONValue>): unknown {
+  return args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id ?? args.id
+}
+
+function listProductionProposalNodes(proposal: Record<string, JSONValue>): ProductionProposalNodeSummary[] {
+  const nodes: ProductionProposalNodeSummary[] = []
+  const segments = getRecordArrayValue(proposal.segments)
+  segments.forEach((segment, segmentIndex) => {
+    const segmentPath = `/proposal/segments/${segmentIndex}`
+    nodes.push(nodeSummary('segment', segment, segmentPath))
+    getRecordArrayValue(segment.scene_moments).forEach((sceneMoment, sceneMomentIndex) => {
+      const sceneMomentPath = `${segmentPath}/scene_moments/${sceneMomentIndex}`
+      nodes.push(nodeSummary('scene_moment', sceneMoment, sceneMomentPath, segmentPath, nodeLocalRef(segment)))
+      getRecordArrayValue(sceneMoment.content_units).forEach((contentUnit, contentUnitIndex) => {
+        nodes.push(nodeSummary('content_unit', contentUnit, `${sceneMomentPath}/content_units/${contentUnitIndex}`, sceneMomentPath, nodeLocalRef(sceneMoment)))
+      })
+      getRecordArrayValue(sceneMoment.creative_references).forEach((reference, referenceIndex) => {
+        nodes.push(nodeSummary('creative_reference', reference, `${sceneMomentPath}/creative_references/${referenceIndex}`, sceneMomentPath, nodeLocalRef(sceneMoment)))
+      })
+      getRecordArrayValue(sceneMoment.asset_slots).forEach((slot, slotIndex) => {
+        nodes.push(nodeSummary('asset_slot', slot, `${sceneMomentPath}/asset_slots/${slotIndex}`, sceneMomentPath, nodeLocalRef(sceneMoment)))
+      })
+      getRecordArrayValue(sceneMoment.keyframes).forEach((keyframe, keyframeIndex) => {
+        nodes.push(nodeSummary('keyframe', keyframe, `${sceneMomentPath}/keyframes/${keyframeIndex}`, sceneMomentPath, nodeLocalRef(sceneMoment)))
+      })
+      getRecordArrayValue(sceneMoment.content_units).forEach((contentUnit, contentUnitIndex) => {
+        const contentUnitPath = `${sceneMomentPath}/content_units/${contentUnitIndex}`
+        getRecordArrayValue(contentUnit.keyframes).forEach((keyframe, keyframeIndex) => {
+          nodes.push(nodeSummary('keyframe', keyframe, `${contentUnitPath}/keyframes/${keyframeIndex}`, contentUnitPath, nodeLocalRef(contentUnit)))
+        })
+      })
+    })
+  })
+  return nodes
+}
+
+function nodeSummary(
+  nodeType: ProductionProposalNodeType,
+  node: Record<string, JSONValue>,
+  path: string,
+  parentPath?: string,
+  parentClientId?: string,
+): ProductionProposalNodeSummary {
+  return {
+    nodeType,
+    path,
+    ...(parentPath ? { parentPath } : {}),
+    ...(parentClientId ? { parentClientId } : {}),
+    ...(numberField(node.id) !== undefined ? { id: numberField(node.id) } : {}),
+    ...(nodeLocalRef(node) ? { localRef: nodeLocalRef(node) } : {}),
+    ...(stringField(node.client_id) ? { client_id: stringField(node.client_id) } : {}),
+    ...(stringField(node.action) ? { action: stringField(node.action) } : {}),
+    ...(stringField(node.title) ? { title: stringField(node.title) } : {}),
+    ...(stringField(node.name) ? { name: stringField(node.name) } : {}),
+    ...(stringField(node.kind) ? { kind: stringField(node.kind) } : {}),
+    ...(numberField(node.order) !== undefined ? { order: numberField(node.order) } : {}),
+  }
+}
+
+function nodeLocalRef(node: Record<string, JSONValue>): string | undefined {
+  return stringField(node.localRef) ?? stringField(node.client_id) ?? stringField(node.local_id)
+}
+
+function upsertProductionProposalNode(
+  proposal: Record<string, JSONValue>,
+  nodeType: ProductionProposalNodeType,
+  node: Record<string, JSONValue>,
+  parent: Record<string, JSONValue> | undefined,
+  position?: number,
+): { created: boolean; node: Record<string, JSONValue>; path: string } {
+  const target = findProductionProposalNode(proposal, nodeType, {
+    id: numberField(node.id),
+    clientId: nodeLocalRef(node),
+  })
+  if (target) {
+    Object.assign(target.node, node)
+    return { created: false, node: target.node, path: target.path }
+  }
+
+  const container = resolveProposalContainer(proposal, nodeType, parent)
+  const index = position === undefined ? container.items.length : Math.max(0, Math.min(Math.floor(position), container.items.length))
+  container.items.splice(index, 0, node)
+  return { created: true, node, path: `${container.path}/${index}` }
+}
+
+function upsertProductionProposalBusinessNode(
+  draftStore: AgentDraftStore,
+  args: Record<string, JSONValue>,
+  nodeType: ProductionProposalNodeType,
+  rawNode: JSONValue | undefined,
+  rawParent: JSONValue | undefined,
+  label: string,
+): JSONValue {
+  const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+  const node = normalizeProposalNodeForType(nodeType, rawNode)
+  const parent = isRecord(rawParent) ? rawParent : undefined
+  const content = parseProductionProposalDraftContent(draft)
+  const upsert = upsertProductionProposalNode(content.proposal, nodeType, node, parent, numberField(args.position))
+  const updated = draftStore.updateDraft(draft.id, {
+    content: JSON.stringify(content),
+    metadata: {
+      ...(isRecord(draft.metadata) ? draft.metadata : {}),
+      lastProposalNodeMutation: {
+        op: upsert.created ? 'create' : 'update',
+        nodeType,
+        label,
+        path: upsert.path,
+        mutatedAt: new Date().toISOString(),
+      },
+    },
+  })
+  const updatedContent = parseProductionProposalDraftContent(updated)
+  return {
+    status: upsert.created ? 'created' : 'updated',
+    proposalRef: updated.id,
+    draft: updated,
+    node: upsert.node,
+    path: upsert.path,
+    counts: countProductionProposalNodes(updatedContent.proposal),
+  } as unknown as JSONValue
+}
+
+function deleteProductionProposalNode(
+  proposal: Record<string, JSONValue>,
+  nodeType: ProductionProposalNodeType,
+  locator: { id?: number; clientId?: string; path?: string },
+): { node: Record<string, JSONValue>; path: string } {
+  const target = locator.path
+    ? findProductionProposalNodeByPath(proposal, locator.path)
+    : findProductionProposalNode(proposal, nodeType, locator)
+  if (!target || target.nodeType !== nodeType) throw new Error(`production proposal ${nodeType} node not found`)
+  target.items.splice(target.index, 1)
+  return { node: target.node, path: target.path }
+}
+
+function resolveProposalContainer(
+  proposal: Record<string, JSONValue>,
+  nodeType: ProductionProposalNodeType,
+  parent: Record<string, JSONValue> | undefined,
+): { items: Record<string, JSONValue>[]; path: string } {
+  if (nodeType === 'segment') return { items: mutableRecordArray(proposal, 'segments'), path: '/proposal/segments' }
+
+  if (!parent) throw new Error(`${nodeType} upsert requires parent`)
+  if (nodeType === 'scene_moment') {
+    const segment = findProductionProposalNode(proposal, 'segment', {
+      id: numberField(parent.id),
+      clientId: stringField(parent.client_id) ?? stringField(parent.clientId),
+      path: stringField(parent.path),
+    })
+    if (!segment) throw new Error('parent segment not found')
+    return { items: mutableRecordArray(segment.node, 'scene_moments'), path: `${segment.path}/scene_moments` }
+  }
+
+  const sceneMoment = findProductionProposalNode(proposal, 'scene_moment', {
+    id: numberField(parent.id),
+    clientId: stringField(parent.client_id) ?? stringField(parent.clientId),
+    path: stringField(parent.path),
+  })
+  if (!sceneMoment && nodeType === 'keyframe') {
+    const contentUnit = findProductionProposalNode(proposal, 'content_unit', {
+      id: numberField(parent.id),
+      clientId: stringField(parent.client_id) ?? stringField(parent.clientId),
+      path: stringField(parent.path),
+    })
+    if (!contentUnit) throw new Error('parent scene_moment or shot not found')
+    return { items: mutableRecordArray(contentUnit.node, 'keyframes'), path: `${contentUnit.path}/keyframes` }
+  }
+  if (!sceneMoment) throw new Error('parent scene_moment not found')
+  if (nodeType === 'keyframe') return { items: mutableRecordArray(sceneMoment.node, 'keyframes'), path: `${sceneMoment.path}/keyframes` }
+  const key = childArrayKeyForNodeType(nodeType)
+  return { items: mutableRecordArray(sceneMoment.node, key), path: `${sceneMoment.path}/${key}` }
+}
+
+function childArrayKeyForNodeType(nodeType: ProductionProposalNodeType): 'content_units' | 'creative_references' | 'asset_slots' {
+  if (nodeType === 'content_unit') return 'content_units'
+  if (nodeType === 'creative_reference') return 'creative_references'
+  if (nodeType === 'asset_slot') return 'asset_slots'
+  throw new Error(`${nodeType} has no scene_moment child container`)
+}
+
+function findProductionProposalNode(
+  proposal: Record<string, JSONValue>,
+  nodeType: ProductionProposalNodeType,
+  locator: { id?: number; clientId?: string; path?: string },
+): ({ nodeType: ProductionProposalNodeType; node: Record<string, JSONValue>; path: string; items: Record<string, JSONValue>[]; index: number } | undefined) {
+  if (locator.path) return findProductionProposalNodeByPath(proposal, locator.path)
+  for (const candidate of iterateProductionProposalNodeRefs(proposal)) {
+    if (candidate.nodeType !== nodeType) continue
+    if (locator.id !== undefined && numberField(candidate.node.id) === locator.id) return candidate
+    if (locator.clientId && stringField(candidate.node.client_id) === locator.clientId) return candidate
+  }
+  return undefined
+}
+
+function findProductionProposalNodeByPath(
+  proposal: Record<string, JSONValue>,
+  path: string,
+): ({ nodeType: ProductionProposalNodeType; node: Record<string, JSONValue>; path: string; items: Record<string, JSONValue>[]; index: number } | undefined) {
+  return iterateProductionProposalNodeRefs(proposal).find((candidate) => candidate.path === path)
+}
+
+function iterateProductionProposalNodeRefs(proposal: Record<string, JSONValue>): Array<{
+  nodeType: ProductionProposalNodeType
+  node: Record<string, JSONValue>
+  path: string
+  items: Record<string, JSONValue>[]
+  index: number
+}> {
+  const refs: Array<{
+    nodeType: ProductionProposalNodeType
+    node: Record<string, JSONValue>
+    path: string
+    items: Record<string, JSONValue>[]
+    index: number
+  }> = []
+  const segments = mutableRecordArray(proposal, 'segments')
+  segments.forEach((segment, segmentIndex) => {
+    const segmentPath = `/proposal/segments/${segmentIndex}`
+    refs.push({ nodeType: 'segment', node: segment, path: segmentPath, items: segments, index: segmentIndex })
+    const sceneMoments = mutableRecordArray(segment, 'scene_moments')
+    sceneMoments.forEach((sceneMoment, sceneMomentIndex) => {
+      const sceneMomentPath = `${segmentPath}/scene_moments/${sceneMomentIndex}`
+      refs.push({ nodeType: 'scene_moment', node: sceneMoment, path: sceneMomentPath, items: sceneMoments, index: sceneMomentIndex })
+      const childSpecs: Array<[ProductionProposalNodeType, 'content_units' | 'creative_references' | 'asset_slots' | 'keyframes']> = [
+        ['content_unit', 'content_units'],
+        ['creative_reference', 'creative_references'],
+        ['asset_slot', 'asset_slots'],
+        ['keyframe', 'keyframes'],
+      ]
+      for (const [childType, childKey] of childSpecs) {
+        const children = mutableRecordArray(sceneMoment, childKey)
+        children.forEach((child, childIndex) => {
+          refs.push({ nodeType: childType, node: child, path: `${sceneMomentPath}/${childKey}/${childIndex}`, items: children, index: childIndex })
+          if (childType === 'content_unit') {
+            const keyframes = mutableRecordArray(child, 'keyframes')
+            keyframes.forEach((keyframe, keyframeIndex) => {
+              refs.push({ nodeType: 'keyframe', node: keyframe, path: `${sceneMomentPath}/${childKey}/${childIndex}/keyframes/${keyframeIndex}`, items: keyframes, index: keyframeIndex })
+            })
+          }
+        })
+      }
+    })
+  })
+  return refs
+}
+
+function mutableRecordArray(owner: Record<string, JSONValue>, key: string): Record<string, JSONValue>[] {
+  const current = owner[key]
+  if (!Array.isArray(current)) {
+    const next: Record<string, JSONValue>[] = []
+    owner[key] = next
+    return next
+  }
+  const records = current.filter((item): item is Record<string, JSONValue> => isRecord(item))
+  if (records.length !== current.length) {
+    owner[key] = records
+    return records
+  }
+  return current as Record<string, JSONValue>[]
+}
+
+function findLatestProductionProposalDraft(draftStore: AgentDraftStore, projectId?: number, productionId?: number) {
+  const drafts = draftStore.listDrafts({
+    ...(typeof projectId === 'number' ? { projectId } : {}),
+    kind: 'production_proposal',
+    status: 'draft',
+    limit: 100,
+  })
+  return drafts.find((draft) => {
+    if (productionId === undefined) return true
+    if (draft.source?.entityType === 'production' && String(draft.source.entityId) === String(productionId)) return true
+    try {
+      return parseProductionProposalDraftContent(draft).productionId === productionId
+    } catch {
+      return false
+    }
+  })
 }
 
 function getRecordArrayValue(value: JSONValue | undefined): Array<Record<string, JSONValue>> {
@@ -569,6 +1157,7 @@ function normalizeMemoryScope(value: JSONValue | undefined): AgentMemoryScope | 
 function normalizeMemoryKind(value: JSONValue | undefined): AgentMemoryKind | undefined {
   return value === 'preference'
     || value === 'fact'
+    || value === 'item_ref'
     || value === 'entity_ref'
     || value === 'draft'
     || value === 'decision'

@@ -1,0 +1,37 @@
+{
+  "skills": [
+    {
+      "id": "movscript.intent.production-proposal",
+      "name": "Production Proposal Drafting",
+      "description": "Analyze one production/episode script into a UI-reviewable production proposal draft.",
+      "version": "0.1.0",
+      "category": "production_proposal",
+      "enabled": true,
+      "priority": 830,
+      "appliesWhen": "分集编排,剧集编排,制作编排,生产包,production proposal,production_proposal,orchestrate production,episode package,拆分情节,素材需求,设定资料",
+      "instruction": "Production proposal is a preparation stage, not final execution. Your job is to turn one production/episode into a reviewable local production proposal that helps the user decide: 1) scene beats: break the source into production-facing scene beats with order, dramatic purpose, time/location, action, mood, and continuity notes; 2) creative materials: anchor which characters, locations, props, products, style rules, and world rules are required or reused, including state changes such as costume, emotion, props, and visual notes; 3) asset needs: identify concrete asset needs and keyframes needed to make the beats producible, including missing/candidate/locked priority and generation prompt hints when useful; 4) shot plans: plan shots only when they clarify production direction, not as an exhaustive storyboard unless asked. Treat production as the current episode or production unit. First understand the current situation: call movscript_get_context_pack when available, call movscript_read_production_context for the selected production, and call movscript_inspect_production_proposal_context before local edit batches. If production reference is missing or ambiguous, call movscript_list_productions. Prefer multiple read tools in the same model turn when they are independent. Create an empty proposal review draft with movscript_create_production_proposal, then fill it incrementally. Use movscript_upsert_production_proposal_node for segment-level edits; use business tools for detailed children: movscript_upsert_proposal_scene_moment, movscript_upsert_proposal_reference, movscript_upsert_proposal_asset, movscript_upsert_proposal_keyframe, and movscript_upsert_proposal_shot. Each node must carry action create, reuse, or update. Use reuse with a reference when an existing project item already matches, update with a reference only when the proposal should change an existing item, and create for genuinely new nodes. Use stable local references. Parent rules: scene beats belong to a segment; creative materials, asset needs, and shots belong to a scene beat; keyframes belong to a scene beat or shot. Before finalizing, verify with movscript_get_production_proposal or movscript_list_production_proposal_nodes, and call movscript_check_entity_conflicts when enough proposal shape exists so references and asset needs can be deduplicated. Do not call backend write tools to apply this proposal; the UI review flow applies it later.",
+      "outputContract": "After creating a production proposal draft, answer with the proposal reference, production reference, counts by segment, scene beat, shot plan, creative material, asset need, and keyframe, plus the main assumptions for scene beats, creative materials, asset needs, and shot plans. State that it is a local review draft, not applied project data.",
+      "toolHints": [
+        "movscript_list_productions",
+        "movscript_read_production_context",
+        "movscript_check_entity_conflicts",
+        "movscript_create_production_proposal",
+        "movscript_inspect_production_proposal_context",
+        "movscript_get_production_proposal",
+        "movscript_list_production_proposal_nodes",
+        "movscript_upsert_proposal_scene_moment",
+        "movscript_upsert_proposal_reference",
+        "movscript_upsert_proposal_asset",
+        "movscript_upsert_proposal_keyframe",
+        "movscript_upsert_proposal_shot",
+        "movscript_upsert_production_proposal_node",
+        "movscript_delete_production_proposal_node",
+        "movscript_propose_production_entities",
+        "movscript_list_drafts"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    }
+  ]
+}

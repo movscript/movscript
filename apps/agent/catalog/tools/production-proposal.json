@@ -1,0 +1,225 @@
+{
+  "tools": [
+    {
+      "name": "movscript_list_productions",
+      "description": "List productions in the current or specified project. Use this before production orchestration when the active production is missing or ambiguous.",
+      "permission": "project.read",
+      "risk": "read",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_productions",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_read_production_context",
+      "description": "Read the selected production/episode script, existing segments, scene beats, shot plans, creative materials, and asset needs before generating a production proposal draft.",
+      "permission": "project.read",
+      "risk": "read",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_read_production_context",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_check_entity_conflicts",
+      "description": "Check a proposed production proposal tree against existing business items so the agent can reuse or update instead of duplicating segments, scene beats, creative materials, asset needs, or shot plans. Pass scope='project' to check reusable creative materials across all productions and get reuse candidates.",
+      "permission": "project.read",
+      "risk": "read",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_check_entity_conflicts",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_create_production_proposal",
+      "description": "Create an empty local production proposal draft for one production/episode so the agent can fill it incrementally with business editing tools.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_create_production_proposal",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_inspect_production_proposal_context",
+      "description": "Inspect incremental context before editing a production proposal: current production reference, user request, attached/recent resources, latest proposal draft, and compact proposal node summaries.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_inspect_production_proposal_context",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_get_production_proposal",
+      "description": "Read one local production proposal draft as structured JSON for review or incremental editing.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_get_production_proposal",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_list_production_proposal_nodes",
+      "description": "List compact node summaries from a production proposal draft, including paths, node types, references, local references, titles, actions, and parent paths.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_production_proposal_nodes",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_upsert_proposal_scene_moment",
+      "description": "Create or update one scene beat in a production proposal draft under a specific segment.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_upsert_proposal_scene_moment",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_upsert_proposal_reference",
+      "description": "Create or update one creative material usage in a production proposal draft under a specific scene beat.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_upsert_proposal_reference",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_upsert_proposal_asset",
+      "description": "Create or update one asset need in a production proposal draft under a specific scene beat.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_upsert_proposal_asset",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_upsert_proposal_keyframe",
+      "description": "Create or update one keyframe under a scene beat or shot plan. This records a keyframe candidate in the draft for UI review.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_upsert_proposal_keyframe",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_upsert_proposal_shot",
+      "description": "Create or update one shot plan in a production proposal draft under a specific scene beat.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_upsert_proposal_shot",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_upsert_production_proposal_node",
+      "description": "Create or update one node inside a production proposal draft. Supports segment, scene beat, shot plan, creative material, and asset need nodes without rewriting the whole proposal JSON.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_upsert_production_proposal_node",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_delete_production_proposal_node",
+      "description": "Delete one node from a production proposal draft by node type plus reference or local reference. Deleting a segment or scene beat also removes its nested proposal nodes.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_delete_production_proposal_node",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_propose_production_entities",
+      "description": "Create a local client-review production proposal draft for one production/episode. The draft contains a proposal tree of segments, scene beats, shot plans, creative materials, and asset needs; it does not write backend project items.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_propose_production_entities",
+        "mode": "allow",
+        "approval": "never"
+      }
+    }
+  ]
+}

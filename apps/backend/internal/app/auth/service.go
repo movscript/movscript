@@ -11,7 +11,6 @@ import (
 	"time"
 
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
-	"github.com/movscript/movscript/internal/domain/model"
 	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -95,7 +94,7 @@ type OrgMembershipSummary struct {
 }
 
 type CredentialInput struct {
-	User      model.User
+	UserID    uint
 	UserAgent string
 	IPAddress string
 }
@@ -109,30 +108,30 @@ type Credential struct {
 	OrgMemberships   []OrgMembershipSummary
 }
 
-func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User, error) {
+func (s *Service) Register(ctx context.Context, input RegisterInput) (domainauth.UserProfile, error) {
 	input.Username = strings.TrimSpace(input.Username)
 	input.Email = normalizeEmail(input.Email)
 	if input.Username == "" {
-		return model.User{}, ErrInvalidInput
+		return domainauth.UserProfile{}, ErrInvalidInput
 	}
 	if strings.TrimSpace(input.Password) == "" && input.Email == "" {
-		return model.User{}, ErrInvalidInput
+		return domainauth.UserProfile{}, ErrInvalidInput
 	}
 
 	usernameExists, err := s.repo.UsernameExists(ctx, input.Username)
 	if err != nil {
-		return model.User{}, err
+		return domainauth.UserProfile{}, err
 	}
 	if usernameExists {
-		return model.User{}, ErrConflict
+		return domainauth.UserProfile{}, ErrConflict
 	}
 	if input.Email != "" {
 		emailExists, err := s.repo.EmailExists(ctx, input.Email)
 		if err != nil {
-			return model.User{}, err
+			return domainauth.UserProfile{}, err
 		}
 		if emailExists {
-			return model.User{}, ErrConflict
+			return domainauth.UserProfile{}, ErrConflict
 		}
 	}
 
@@ -140,7 +139,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 	if strings.TrimSpace(input.Password) != "" {
 		value, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 		if err != nil {
-			return model.User{}, err
+			return domainauth.UserProfile{}, err
 		}
 		hash = string(value)
 	}
@@ -152,13 +151,10 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 	}
 	bootstrapSystemAdmin, err := s.canBootstrapSystemAdmin(ctx, input.BootstrapSystemAdmin)
 	if err != nil {
-		return model.User{}, err
+		return domainauth.UserProfile{}, err
 	}
-	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, bootstrapSystemAdmin, verifiedAt).ToModel()
-	if err := s.repo.CreateUser(ctx, &u); err != nil {
-		return model.User{}, err
-	}
-	return u, nil
+	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, bootstrapSystemAdmin, verifiedAt)
+	return s.repo.CreateUser(ctx, &u)
 }
 
 func (s *Service) canBootstrapSystemAdmin(ctx context.Context, requested bool) (bool, error) {
@@ -175,18 +171,18 @@ func (s *Service) canBootstrapSystemAdmin(ctx context.Context, requested bool) (
 	return count == 0, nil
 }
 
-func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput) (model.User, error) {
+func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput) (domainauth.UserProfile, error) {
 	if !s.localAppMode {
-		return model.User{}, ErrInvalidInput
+		return domainauth.UserProfile{}, ErrInvalidInput
 	}
 	password := strings.TrimSpace(input.Password)
 	if len(password) < 8 {
-		return model.User{}, ErrInvalidInput
+		return domainauth.UserProfile{}, ErrInvalidInput
 	}
 	if existing, err := s.repo.FindSuperAdmin(ctx); err == nil {
 		hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 		if err != nil {
-			return model.User{}, err
+			return domainauth.UserProfile{}, err
 		}
 		updates := map[string]any{"password_hash": string(hashBytes)}
 		displayName := strings.TrimSpace(input.DisplayName)
@@ -194,15 +190,11 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 			updates["display_name"] = displayName
 		}
 		if err := s.repo.UpdateUser(ctx, existing.ID, updates); err != nil {
-			return model.User{}, err
+			return domainauth.UserProfile{}, err
 		}
-		existing, err = s.repo.FindUserByID(ctx, existing.ID)
-		if err != nil {
-			return model.User{}, err
-		}
-		return existing, nil
+		return s.repo.FindUserByID(ctx, existing.ID)
 	} else if !errors.Is(err, ErrNotFound) {
-		return model.User{}, err
+		return domainauth.UserProfile{}, err
 	}
 
 	displayName := strings.TrimSpace(input.DisplayName)
@@ -211,19 +203,16 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	}
 	username, err := s.repo.FindAvailableUsername(ctx, localUsername(displayName))
 	if err != nil {
-		return model.User{}, err
+		return domainauth.UserProfile{}, err
 	}
 
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
-		return model.User{}, err
+		return domainauth.UserProfile{}, err
 	}
-	u := domainauth.NewRegisteredUser(username, string(hashBytes), "", true, nil).ToModel()
+	u := domainauth.NewRegisteredUser(username, string(hashBytes), "", true, nil)
 	u.DisplayName = displayName
-	if err := s.repo.CreateUser(ctx, &u); err != nil {
-		return model.User{}, err
-	}
-	return u, nil
+	return s.repo.CreateUser(ctx, &u)
 }
 
 func localUsername(displayName string) string {
@@ -245,31 +234,31 @@ func localUsername(displayName string) string {
 	return b.String()
 }
 
-func (s *Service) Login(ctx context.Context, input LoginInput) (model.User, error) {
+func (s *Service) Login(ctx context.Context, input LoginInput) (domainauth.UserProfile, error) {
 	input.Username = strings.TrimSpace(input.Username)
 	email := normalizeEmail(input.Username)
 	u, err := s.repo.FindUserForLogin(ctx, input.Username, email)
 	if err != nil {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
 	if strings.TrimSpace(u.PasswordHash) == "" {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(input.Password)); err != nil {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
-	return u, nil
+	return domainauth.UserProfileFromRegisteredUser(u), nil
 }
 
-func (s *Service) CurrentUser(ctx context.Context, userID uint) (model.User, error) {
+func (s *Service) CurrentUser(ctx context.Context, userID uint) (domainauth.UserProfile, error) {
 	return s.repo.FindUserByID(ctx, userID)
 }
 
-func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileInput) (model.User, error) {
+func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileInput) (domainauth.UserProfile, error) {
 	updates := domainauth.ProfileUpdates(domainauth.ProfileInput(input))
 	if len(updates) > 0 {
 		if err := s.repo.UpdateUser(ctx, userID, updates); err != nil {
-			return model.User{}, err
+			return domainauth.UserProfile{}, err
 		}
 	}
 	return s.CurrentUser(ctx, userID)
@@ -292,7 +281,7 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	if err != nil {
 		return ChallengeStartResult{}, err
 	}
-	challenge := domainauth.NewAuthChallenge(channel, target, sha256Hex(code), time.Now().UTC()).ToModel()
+	challenge := domainauth.NewAuthChallenge(channel, target, sha256Hex(code), time.Now().UTC())
 	if err := s.repo.CreateChallenge(ctx, &challenge); err != nil {
 		return ChallengeStartResult{}, err
 	}
@@ -303,34 +292,34 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	}, nil
 }
 
-func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInput) (model.AuthChallenge, error) {
+func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInput) (domainauth.AuthChallenge, error) {
 	challenge, err := s.repo.FindChallenge(ctx, input.ChallengeID)
 	if err != nil {
-		return model.AuthChallenge{}, ErrInvalidChallenge
+		return domainauth.AuthChallenge{}, ErrInvalidChallenge
 	}
-	if !domainauth.ChallengeValidForVerification(domainauth.AuthChallengeFromModel(challenge), time.Now().UTC()) {
-		return model.AuthChallenge{}, ErrInvalidChallenge
+	if !domainauth.ChallengeValidForVerification(challenge, time.Now().UTC()) {
+		return domainauth.AuthChallenge{}, ErrInvalidChallenge
 	}
 	if challenge.CodeHash != sha256Hex(strings.TrimSpace(input.Code)) {
 		_ = s.repo.IncrementChallengeAttempts(ctx, &challenge)
-		return model.AuthChallenge{}, ErrInvalidChallenge
+		return domainauth.AuthChallenge{}, ErrInvalidChallenge
 	}
 	now := time.Now().UTC()
 	if err := s.repo.ConsumeChallenge(ctx, &challenge, now); err != nil {
-		return model.AuthChallenge{}, err
+		return domainauth.AuthChallenge{}, err
 	}
 	challenge.ConsumedAt = &now
 	return challenge, nil
 }
 
-func (s *Service) LoginWithEmail(ctx context.Context, email string) (model.User, error) {
+func (s *Service) LoginWithEmail(ctx context.Context, email string) (domainauth.UserProfile, error) {
 	email = normalizeEmail(email)
 	if email == "" {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
 	u, err := s.repo.FindUserByEmail(ctx, email)
 	if err != nil {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
 	return u, nil
 }
@@ -351,14 +340,14 @@ func (s *Service) CreateSession(ctx context.Context, userID uint, ttl time.Durat
 	return raw, expiresAt, nil
 }
 
-func (s *Service) UserForSession(ctx context.Context, raw string) (model.User, error) {
+func (s *Service) UserForSession(ctx context.Context, raw string) (domainauth.UserProfile, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
 	session, err := s.repo.FindActiveSession(ctx, sha256Hex(raw), time.Now().UTC())
 	if err != nil {
-		return model.User{}, ErrInvalidCredentials
+		return domainauth.UserProfile{}, ErrInvalidCredentials
 	}
 	now := time.Now().UTC()
 	_ = s.repo.TouchSession(ctx, &session, now)
@@ -378,11 +367,15 @@ func (s *Service) IssueCredential(ctx context.Context, input CredentialInput) (C
 	if s.tokens == nil {
 		return Credential{}, errors.New("auth token manager is required")
 	}
-	token, expiresAt, err := s.tokens.Issue(input.User)
+	user, err := s.repo.FindUserModelByID(ctx, input.UserID)
 	if err != nil {
 		return Credential{}, err
 	}
-	memberships, err := s.OrgMemberships(ctx, input.User.ID)
+	token, expiresAt, err := s.tokens.Issue(user)
+	if err != nil {
+		return Credential{}, err
+	}
+	memberships, err := s.OrgMemberships(ctx, input.UserID)
 	if err != nil {
 		return Credential{}, err
 	}
@@ -392,7 +385,7 @@ func (s *Service) IssueCredential(ctx context.Context, input CredentialInput) (C
 		ExpiresAt:      expiresAt,
 		OrgMemberships: memberships,
 	}
-	if raw, cookieExpiresAt, err := s.CreateSession(ctx, input.User.ID, time.Until(expiresAt), input.UserAgent, input.IPAddress); err == nil {
+	if raw, cookieExpiresAt, err := s.CreateSession(ctx, input.UserID, time.Until(expiresAt), input.UserAgent, input.IPAddress); err == nil {
 		credential.SessionToken = raw
 		credential.SessionExpiresAt = cookieExpiresAt
 	}

@@ -9,58 +9,58 @@ import (
 )
 
 type repository interface {
-	GetSegment(ctx context.Context, projectID uint, segmentID uint) (model.Segment, error)
-	GetSceneMoment(ctx context.Context, projectID uint, momentID uint) (model.SceneMoment, error)
-	GetSceneMomentByID(ctx context.Context, momentID uint) (model.SceneMoment, error)
-	GetContentUnit(ctx context.Context, projectID uint, unitID uint) (model.ContentUnit, error)
-	GetSegmentByID(ctx context.Context, segmentID uint) (model.Segment, error)
-	ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]model.ContentUnit, error)
-	ListKeyframesForUnits(ctx context.Context, projectID uint, ids []uint) ([]model.Keyframe, error)
-	ListMissingAssets(ctx context.Context, projectID uint, ownerType string, ownerID uint) ([]model.AssetSlot, error)
+	GetSegment(ctx context.Context, projectID uint, segmentID uint) (segmentProjection, error)
+	GetSceneMoment(ctx context.Context, projectID uint, momentID uint) (sceneMomentProjection, error)
+	GetSceneMomentByID(ctx context.Context, momentID uint) (sceneMomentProjection, error)
+	GetContentUnit(ctx context.Context, projectID uint, unitID uint) (contentUnitProjection, error)
+	GetSegmentByID(ctx context.Context, segmentID uint) (segmentProjection, error)
+	ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]contentUnitProjection, error)
+	ListKeyframesForUnits(ctx context.Context, projectID uint, ids []uint) ([]keyframeProjection, error)
+	ListMissingAssets(ctx context.Context, projectID uint, ownerType string, ownerID uint) ([]assetSlotProjection, error)
 }
 
 type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) GetSegment(ctx context.Context, projectID uint, segmentID uint) (model.Segment, error) {
+func (r *gormRepository) GetSegment(ctx context.Context, projectID uint, segmentID uint) (segmentProjection, error) {
 	var seg model.Segment
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, segmentID).First(&seg).Error; err != nil {
-		return seg, normalizeNotFound(err)
+		return segmentProjection{}, normalizeNotFound(err)
 	}
-	return seg, nil
+	return segmentFromModel(seg), nil
 }
 
-func (r *gormRepository) GetSceneMoment(ctx context.Context, projectID uint, momentID uint) (model.SceneMoment, error) {
+func (r *gormRepository) GetSceneMoment(ctx context.Context, projectID uint, momentID uint) (sceneMomentProjection, error) {
 	var moment model.SceneMoment
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, momentID).First(&moment).Error; err != nil {
-		return moment, normalizeNotFound(err)
+		return sceneMomentProjection{}, normalizeNotFound(err)
 	}
-	return moment, nil
+	return sceneMomentFromModel(moment), nil
 }
 
-func (r *gormRepository) GetSceneMomentByID(ctx context.Context, momentID uint) (model.SceneMoment, error) {
+func (r *gormRepository) GetSceneMomentByID(ctx context.Context, momentID uint) (sceneMomentProjection, error) {
 	var moment model.SceneMoment
 	if err := r.db.WithContext(ctx).Where("id = ?", momentID).First(&moment).Error; err != nil {
-		return moment, normalizeNotFound(err)
+		return sceneMomentProjection{}, normalizeNotFound(err)
 	}
-	return moment, nil
+	return sceneMomentFromModel(moment), nil
 }
 
-func (r *gormRepository) GetContentUnit(ctx context.Context, projectID uint, unitID uint) (model.ContentUnit, error) {
+func (r *gormRepository) GetContentUnit(ctx context.Context, projectID uint, unitID uint) (contentUnitProjection, error) {
 	var unit model.ContentUnit
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND id = ?", projectID, unitID).First(&unit).Error; err != nil {
-		return unit, normalizeNotFound(err)
+		return contentUnitProjection{}, normalizeNotFound(err)
 	}
-	return unit, nil
+	return contentUnitFromModel(unit), nil
 }
 
-func (r *gormRepository) GetSegmentByID(ctx context.Context, segmentID uint) (model.Segment, error) {
+func (r *gormRepository) GetSegmentByID(ctx context.Context, segmentID uint) (segmentProjection, error) {
 	var seg model.Segment
 	if err := r.db.WithContext(ctx).Where("id = ?", segmentID).First(&seg).Error; err != nil {
-		return seg, normalizeNotFound(err)
+		return segmentProjection{}, normalizeNotFound(err)
 	}
-	return seg, nil
+	return segmentFromModel(seg), nil
 }
 
 func normalizeNotFound(err error) error {
@@ -70,27 +70,88 @@ func normalizeNotFound(err error) error {
 	return err
 }
 
-func (r *gormRepository) ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]model.ContentUnit, error) {
+func (r *gormRepository) ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]contentUnitProjection, error) {
 	units := make([]model.ContentUnit, 0)
-	err := r.db.WithContext(ctx).Where("project_id = ? AND "+field+" = ?", projectID, id).
-		Order(`"order" asc, id asc`).Find(&units).Error
-	return units, err
+	if err := r.db.WithContext(ctx).Where("project_id = ? AND "+field+" = ?", projectID, id).
+		Order(`"order" asc, id asc`).Find(&units).Error; err != nil {
+		return nil, err
+	}
+	return contentUnitsFromModels(units), nil
 }
 
-func (r *gormRepository) ListKeyframesForUnits(ctx context.Context, projectID uint, ids []uint) ([]model.Keyframe, error) {
+func (r *gormRepository) ListKeyframesForUnits(ctx context.Context, projectID uint, ids []uint) ([]keyframeProjection, error) {
 	keyframes := make([]model.Keyframe, 0)
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND content_unit_id IN ?", projectID, ids).Order(`"order" asc, id asc`).Find(&keyframes).Error; err != nil {
 		return nil, err
 	}
-	return keyframes, nil
+	return keyframesFromModels(keyframes), nil
 }
 
-func (r *gormRepository) ListMissingAssets(ctx context.Context, projectID uint, ownerType string, ownerID uint) ([]model.AssetSlot, error) {
+func (r *gormRepository) ListMissingAssets(ctx context.Context, projectID uint, ownerType string, ownerID uint) ([]assetSlotProjection, error) {
 	slots := make([]model.AssetSlot, 0)
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND owner_type = ? AND owner_id = ? AND status IN ?",
 		projectID, ownerType, ownerID, []string{"missing", "candidate"}).
 		Order("priority desc, id asc").Find(&slots).Error; err != nil {
 		return nil, err
 	}
-	return slots, nil
+	return assetSlotsFromModels(slots), nil
+}
+
+func segmentFromModel(segment model.Segment) segmentProjection {
+	return segmentProjection{ID: segment.ID, Title: segment.Title, Summary: segment.Summary}
+}
+
+func sceneMomentFromModel(moment model.SceneMoment) sceneMomentProjection {
+	return sceneMomentProjection{ID: moment.ID, SegmentID: moment.SegmentID, Title: moment.Title, Description: moment.Description}
+}
+
+func contentUnitFromModel(unit model.ContentUnit) contentUnitProjection {
+	return contentUnitProjection{
+		ID:            unit.ID,
+		SegmentID:     unit.SegmentID,
+		SceneMomentID: unit.SceneMomentID,
+		Order:         unit.Order,
+		Title:         unit.Title,
+		Kind:          unit.Kind,
+		Description:   unit.Description,
+		DurationSec:   unit.DurationSec,
+	}
+}
+
+func contentUnitsFromModels(units []model.ContentUnit) []contentUnitProjection {
+	out := make([]contentUnitProjection, 0, len(units))
+	for _, unit := range units {
+		out = append(out, contentUnitFromModel(unit))
+	}
+	return out
+}
+
+func keyframesFromModels(keyframes []model.Keyframe) []keyframeProjection {
+	out := make([]keyframeProjection, 0, len(keyframes))
+	for _, keyframe := range keyframes {
+		out = append(out, keyframeProjection{
+			ID:            keyframe.ID,
+			ContentUnitID: keyframe.ContentUnitID,
+			Order:         keyframe.Order,
+			Title:         keyframe.Title,
+			Description:   keyframe.Description,
+			Prompt:        keyframe.Prompt,
+			ResourceID:    keyframe.ResourceID,
+		})
+	}
+	return out
+}
+
+func assetSlotsFromModels(slots []model.AssetSlot) []assetSlotProjection {
+	out := make([]assetSlotProjection, 0, len(slots))
+	for _, slot := range slots {
+		out = append(out, assetSlotProjection{
+			ID:          slot.ID,
+			Name:        slot.Name,
+			Description: slot.Description,
+			Kind:        slot.Kind,
+			Priority:    slot.Priority,
+		})
+	}
+	return out
 }

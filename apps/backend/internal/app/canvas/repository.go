@@ -17,9 +17,9 @@ import (
 )
 
 type repository interface {
-	ListCanvases(ctx context.Context, filter CanvasListFilter) ([]model.Canvas, error)
-	FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (model.Canvas, bool, error)
-	GetCanvas(ctx context.Context, id string) (model.Canvas, error)
+	ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasruntime.Canvas, error)
+	FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasruntime.Canvas, bool, error)
+	GetCanvas(ctx context.Context, id string) (canvasruntime.Canvas, error)
 	CreateCanvas(ctx context.Context, cv *model.Canvas) error
 	ReloadCanvas(ctx context.Context, cv *model.Canvas) error
 	SaveCanvasMetadata(ctx context.Context, cv *model.Canvas) error
@@ -28,7 +28,7 @@ type repository interface {
 	GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error)
 	GetNode(ctx context.Context, canvasID uint, nodeID string) (model.CanvasNode, error)
 	ListRuns(ctx context.Context, canvasID uint, status string, pageMode bool, page int, pageSize int) (CanvasRunListPage, error)
-	GetRun(ctx context.Context, canvasID uint, runID string) (model.CanvasRun, error)
+	GetRun(ctx context.Context, canvasID uint, runID string) (canvasruntime.CanvasRun, error)
 	ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]model.CanvasTask, error)
 	LatestNodeTask(ctx context.Context, canvasID string, nodeID string) (model.CanvasNode, model.CanvasTask, error)
 	ListNodeTasks(ctx context.Context, canvasID string, nodeID string) (model.CanvasNode, []model.CanvasTask, error)
@@ -59,7 +59,7 @@ type repository interface {
 	DeleteResource(ctx context.Context, resource *model.RawResource) error
 	UpdateResource(ctx context.Context, resource *model.RawResource, updates map[string]any) error
 	CreateResourceBinding(ctx context.Context, binding model.ResourceBinding) error
-	AttachGeneratedAssetSlotCandidate(ctx context.Context, input AttachGeneratedAssetSlotCandidateInput) error
+	attachGeneratedAssetSlotCandidate(ctx context.Context, input attachGeneratedAssetSlotCandidateInput) error
 	ListCanvasOutputTargets(ctx context.Context, filter CanvasOutputTargetFilter) ([]model.CanvasOutput, error)
 	FindEnabledPluginTool(ctx context.Context, toolKey string) (model.PluginTool, error)
 }
@@ -72,7 +72,7 @@ func newRepository(db *gorm.DB) repository {
 	return &gormRepository{db: db}
 }
 
-func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]model.Canvas, error) {
+func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasruntime.Canvas, error) {
 	canvases := make([]model.Canvas, 0)
 	q := r.db.WithContext(ctx).Where("owner_id = ?", filter.OwnerID)
 	q = r.applyOrgScope(ctx, q, filter.OrgID, filter.OwnerID)
@@ -94,10 +94,10 @@ func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilt
 	if err := q.Find(&canvases).Error; err != nil {
 		return nil, err
 	}
-	return canvases, nil
+	return canvasruntime.CanvasesFromModels(canvases), nil
 }
 
-func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (model.Canvas, bool, error) {
+func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasruntime.Canvas, bool, error) {
 	var existing model.Canvas
 	q := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
 		Where("owner_id = ? AND canvas_type = ? AND ref_type = ? AND ref_id = ?", ownerID, canvasType, refType, refID)
@@ -109,19 +109,19 @@ func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint
 	}
 	if err := q.Order("id asc").First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return model.Canvas{}, false, nil
+			return canvasruntime.Canvas{}, false, nil
 		}
-		return model.Canvas{}, false, err
+		return canvasruntime.Canvas{}, false, err
 	}
-	return existing, true, nil
+	return canvasruntime.CanvasFromModel(existing), true, nil
 }
 
-func (r *gormRepository) GetCanvas(ctx context.Context, id string) (model.Canvas, error) {
+func (r *gormRepository) GetCanvas(ctx context.Context, id string) (canvasruntime.Canvas, error) {
 	var cv model.Canvas
 	if err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&cv, id).Error; err != nil {
-		return cv, err
+		return canvasruntime.Canvas{}, err
 	}
-	return cv, nil
+	return canvasruntime.CanvasFromModel(cv), nil
 }
 
 func (r *gormRepository) CreateCanvas(ctx context.Context, cv *model.Canvas) error {
@@ -257,13 +257,15 @@ func (r *gormRepository) ListRuns(ctx context.Context, canvasID uint, status str
 	} else if err := q.Limit(20).Find(&items).Error; err != nil {
 		return CanvasRunListPage{}, err
 	}
-	return CanvasRunListPage{Items: items, Total: total}, nil
+	return CanvasRunListPage{Items: canvasruntime.CanvasRunsFromModels(items), Total: total}, nil
 }
 
-func (r *gormRepository) GetRun(ctx context.Context, canvasID uint, runID string) (model.CanvasRun, error) {
+func (r *gormRepository) GetRun(ctx context.Context, canvasID uint, runID string) (canvasruntime.CanvasRun, error) {
 	var run model.CanvasRun
-	err := r.db.WithContext(ctx).Where("canvas_id = ? AND id = ?", canvasID, runID).Preload("Tasks.Resource").First(&run).Error
-	return run, err
+	if err := r.db.WithContext(ctx).Where("canvas_id = ? AND id = ?", canvasID, runID).Preload("Tasks.Resource").First(&run).Error; err != nil {
+		return canvasruntime.CanvasRun{}, err
+	}
+	return canvasruntime.CanvasRunFromModel(run), nil
 }
 
 func (r *gormRepository) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]model.CanvasTask, error) {
@@ -352,7 +354,7 @@ func (r *gormRepository) ListEntityWriteAudits(ctx context.Context, filter Entit
 	if err := q.Order("canvas_entity_write_audits.id desc").Limit(filter.PageSize).Offset((filter.Page - 1) * filter.PageSize).Find(&items).Error; err != nil {
 		return EntityWriteAuditPage{}, err
 	}
-	return EntityWriteAuditPage{Items: items, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+	return EntityWriteAuditPage{Items: canvasruntime.EntityWriteAuditsFromModels(items), Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
 }
 
 func (r *gormRepository) applyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerID uint) *gorm.DB {
@@ -552,7 +554,7 @@ func (r *gormRepository) UpdateResource(ctx context.Context, resource *model.Raw
 	return r.db.WithContext(ctx).Model(resource).Updates(updates).Error
 }
 
-type AttachGeneratedAssetSlotCandidateInput struct {
+type attachGeneratedAssetSlotCandidateInput struct {
 	CanvasID       uint
 	CanvasRunID    uint
 	ProjectID      uint
@@ -580,10 +582,11 @@ type CanvasOutputTargetFilter struct {
 }
 
 func (r *gormRepository) CreateResourceBinding(ctx context.Context, binding model.ResourceBinding) error {
-	return resourcebinding.NewService(r.db).CreateBinding(ctx, &binding)
+	_, err := resourcebinding.NewService(r.db).CreateBinding(ctx, domainresourcebinding.BindingFromModel(binding))
+	return err
 }
 
-func (r *gormRepository) AttachGeneratedAssetSlotCandidate(ctx context.Context, input AttachGeneratedAssetSlotCandidateInput) error {
+func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, input attachGeneratedAssetSlotCandidateInput) error {
 	if input.ProjectID == 0 || input.ResourceID == 0 {
 		return nil
 	}

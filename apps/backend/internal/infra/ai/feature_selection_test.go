@@ -1,10 +1,12 @@
 package ai
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -86,5 +88,98 @@ func TestSelectFeatureModelRoundRobinsEqualPriority(t *testing.T) {
 
 	if !slices.Equal(got, []string{"alpha", "beta", "alpha", "beta"}) {
 		t.Fatalf("round robin sequence = %#v, want alpha/beta alternating", got)
+	}
+}
+
+func TestGetModelsByCapabilityMergesProviderVariants(t *testing.T) {
+	db := openAITestDB(t)
+	createProviderVariant(t, db, 1, "OpenAI A", "gpt-image-1", 10)
+	createProviderVariant(t, db, 2, "OpenAI B", "gpt-image-1", 10)
+	createProviderVariant(t, db, 3, "Other", "other-image", 5)
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	models, err := svc.GetModelsByCapability(CapabilityImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("logical model count = %d, want 2: %#v", len(models), models)
+	}
+	if models[0].LogicalModelID != "gpt-image-1" || models[0].ProviderVariants != 2 || models[0].ProviderName != "" {
+		t.Fatalf("unexpected merged model: %#v", models[0])
+	}
+}
+
+func TestGetProviderModelsByCapabilityKeepsProviderVariants(t *testing.T) {
+	db := openAITestDB(t)
+	createProviderVariant(t, db, 1, "OpenAI A", "gpt-image-1", 10)
+	createProviderVariant(t, db, 2, "OpenAI B", "gpt-image-1", 10)
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	models, err := svc.GetProviderModelsByCapability(CapabilityImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("provider variant count = %d, want 2", len(models))
+	}
+	if models[0].ProviderName == "" || models[1].ProviderName == "" {
+		t.Fatalf("provider variants should expose provider names: %#v", models)
+	}
+}
+
+func TestResolveRuntimeModelConfigRoundRobinsLogicalProviderVariants(t *testing.T) {
+	db := openAITestDB(t)
+	createProviderVariant(t, db, 1, "OpenAI A", "gpt-image-1", 10)
+	createProviderVariant(t, db, 2, "OpenAI B", "gpt-image-1", 10)
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	got := make([]uint, 0, 4)
+	for range 4 {
+		id, err := svc.ResolveRuntimeModelConfig(1, CapabilityImage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, id)
+	}
+	if !slices.Equal(got, []uint{1, 2, 1, 2}) {
+		t.Fatalf("runtime provider sequence = %#v, want 1/2 alternating", got)
+	}
+}
+
+func openAITestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "ai.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AICredential{}, &model.AIModelConfig{}); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+	return db
+}
+
+func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName, modelID string, priority int) {
+	t.Helper()
+	cred := model.AICredential{
+		Model:       gormModel(id),
+		AdapterType: AdapterOpenAICompat,
+		DisplayName: providerName,
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	cfg := model.AIModelConfig{
+		Model:              gormModel(id),
+		CredentialID:       cred.ID,
+		ModelDefID:         modelID,
+		IsEnabled:          true,
+		Priority:           priority,
+		CustomDisplayName:  modelID,
+		CustomCapabilities: CapabilityImage,
+	}
+	if err := db.Create(&cfg).Error; err != nil {
+		t.Fatalf("create model config: %v", err)
 	}
 }

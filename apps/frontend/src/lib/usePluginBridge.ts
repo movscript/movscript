@@ -56,7 +56,7 @@ async function dispatch(method: string, args: unknown[], mcp: ReturnType<typeof 
     case 'models':
       return api.get(`/models?capability=${encodeURIComponent(args[0] as string)}`).then((r) => r.data)
     case 'modelConfigs':
-      return api.get('/models').then((r) => r.data)
+      return api.get('/models?capability=image').then((r) => r.data)
     case 'resources':
       return api.get('/resources').then((r) => r.data)
     case 'generateImage':

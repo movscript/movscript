@@ -3,15 +3,14 @@ package modelgateway
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/ai"
-	"gorm.io/gorm"
 )
 
 func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 	projectID := uint(7)
 	otherID := uint(8)
-	key := &model.GatewayAPIKey{ProjectID: &projectID}
+	key := &domainmodelgateway.APIKey{ProjectID: &projectID}
 
 	if KeyAllowsProject(key, nil) {
 		t.Fatal("expected project-scoped key to reject requests without project_id")
@@ -27,7 +26,7 @@ func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
 	orgID := uint(5)
 	projectID := uint(11)
-	key := &model.GatewayAPIKey{Model: gorm.Model{ID: 3}, OrgID: &orgID}
+	key := &domainmodelgateway.APIKey{ID: 3, OrgID: &orgID}
 
 	ctx := BillingContext(key, &projectID)
 
@@ -52,6 +51,7 @@ func TestMonthlyBudgetErrorIsDistinct(t *testing.T) {
 func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
 	models := []ai.PublicModel{
 		{ID: 4, ModelDefID: "gpt-like", ModelIDOverride: "public-name"},
+		{ID: 5, ModelDefID: "provider-hidden", LogicalModelID: "logical-name"},
 	}
 
 	id, name, err := ResolveTextModel(models, "", 4, nil)
@@ -67,5 +67,10 @@ func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
 	id, name, err = ResolveTextModel(models, "model_config:4", 0, nil)
 	if err != nil || id != 4 || name != "model_config:4" {
 		t.Fatalf("expected model_config model, got id=%d name=%q err=%v", id, name, err)
+	}
+
+	id, name, err = ResolveTextModel(models, "logical-name", 0, nil)
+	if err != nil || id != 5 || name != "logical-name" {
+		t.Fatalf("expected logical model, got id=%d name=%q err=%v", id, name, err)
 	}
 }

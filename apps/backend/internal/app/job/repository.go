@@ -12,15 +12,15 @@ import (
 
 type repository interface {
 	List(ctx context.Context, filter ListFilter) (ListResult, error)
-	Get(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error)
-	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error)
+	Get(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
+	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
 	LoadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
 	ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error)
-	GetCredential(ctx context.Context, id uint) (model.AICredential, error)
-	Create(ctx context.Context, job model.Job) (model.Job, error)
-	Retry(ctx context.Context, job *model.Job, message string) (model.Job, error)
-	MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (model.Job, error)
-	Delete(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, bool, error)
+	GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error)
+	Create(ctx context.Context, job domainjob.Job) (domainjob.Job, error)
+	Retry(ctx context.Context, job *domainjob.Job, message string) (domainjob.Job, error)
+	MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error)
+	Delete(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, bool, error)
 	EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error
 }
 
@@ -59,14 +59,14 @@ func (r *gormRepository) List(ctx context.Context, filter ListFilter) (ListResul
 	if err := q.Preload("OutputResource").Order("id desc").Limit(spec.Limit).Offset(spec.Offset).Find(&jobs).Error; err != nil {
 		return ListResult{}, err
 	}
-	return ListResult{Items: jobs, Total: total}, nil
+	return ListResult{Items: domainjob.JobsFromModels(jobs), Total: total}, nil
 }
 
-func (r *gormRepository) Get(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (r *gormRepository) Get(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	return r.getOwned(ctx, id, userID, orgID)
 }
 
-func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	return r.getOwned(ctx, id, userID, orgID)
 }
 
@@ -86,14 +86,15 @@ func (r *gormRepository) LoadInputResources(ctx context.Context, ids []uint, use
 			return InputResourcesResult{}, ErrResourceOutsideOrg
 		}
 	}
-	return CountInputResources(resources), nil
+	result := domainjob.CountInputResources(domainjob.InputResourcesFromRawResources(domainjob.RawResourcesFromModels(resources)))
+	return InputResourcesResult{Resources: result.Resources, ImageCount: result.ImageCount, VideoCount: result.VideoCount}, nil
 }
 
 func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {
 	lookups := ResponseLookups{
-		ResourcesByID:   map[uint]model.RawResource{},
-		ConfigsByID:     map[uint]model.AIModelConfig{},
-		CredentialsByID: map[uint]model.AICredential{},
+		ResourcesByID:   map[uint]domainjob.RawResource{},
+		ConfigsByID:     map[uint]domainjob.AIModelConfig{},
+		CredentialsByID: map[uint]domainjob.AICredential{},
 	}
 	if len(resourceIDs) > 0 {
 		resources := make([]model.RawResource, 0)
@@ -101,7 +102,7 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 			return lookups, err
 		}
 		for _, resource := range resources {
-			lookups.ResourcesByID[resource.ID] = resource
+			lookups.ResourcesByID[resource.ID] = domainjob.RawResourceFromModel(resource)
 		}
 	}
 	credentialIDSet := map[uint]bool{}
@@ -111,7 +112,7 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 			return lookups, err
 		}
 		for _, cfg := range configs {
-			lookups.ConfigsByID[cfg.ID] = cfg
+			lookups.ConfigsByID[cfg.ID] = domainjob.AIModelConfigFromModel(cfg)
 			credentialIDSet[cfg.CredentialID] = true
 		}
 	}
@@ -125,37 +126,39 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 			return lookups, err
 		}
 		for _, cred := range creds {
-			lookups.CredentialsByID[cred.ID] = cred
+			lookups.CredentialsByID[cred.ID] = domainjob.AICredentialFromModel(cred)
 		}
 	}
 	return lookups, nil
 }
 
-func (r *gormRepository) GetCredential(ctx context.Context, id uint) (model.AICredential, error) {
+func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error) {
 	var cred model.AICredential
 	if err := r.db.WithContext(ctx).First(&cred, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return cred, ErrNotFound
+			return domainjob.AICredential{}, ErrNotFound
 		}
-		return cred, err
+		return domainjob.AICredential{}, err
 	}
-	return cred, nil
+	return domainjob.AICredentialFromModel(cred), nil
 }
 
-func (r *gormRepository) Create(ctx context.Context, job model.Job) (model.Job, error) {
-	if err := r.db.WithContext(ctx).Create(&job).Error; err != nil {
+func (r *gormRepository) Create(ctx context.Context, job domainjob.Job) (domainjob.Job, error) {
+	row := job.ToModel()
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return job, err
 	}
-	return job, nil
+	return domainjob.JobFromModel(row), nil
 }
 
-func (r *gormRepository) Retry(ctx context.Context, job *model.Job, message string) (model.Job, error) {
+func (r *gormRepository) Retry(ctx context.Context, job *domainjob.Job, message string) (domainjob.Job, error) {
 	now := time.Now()
 	maxAttempts := job.MaxAttempts
 	if maxAttempts <= 0 {
 		maxAttempts = domainjob.DefaultMaxAttempts
 	}
-	if err := r.db.WithContext(ctx).Model(job).Updates(map[string]any{
+	row := job.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
 		"status":                domainjob.StatusPending,
 		"attempt_count":         0,
 		"max_attempts":          maxAttempts,
@@ -173,17 +176,18 @@ func (r *gormRepository) Retry(ctx context.Context, job *model.Job, message stri
 	}).Error; err != nil {
 		return *job, err
 	}
-	MarkRetryScheduled(r.db.WithContext(ctx), job, message)
+	MarkRetryScheduled(r.db.WithContext(ctx), &row, message)
 	return r.reload(ctx, job.ID)
 }
 
-func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (model.Job, error) {
+func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error) {
 	job, err := r.getOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
 	}
 	now := time.Now()
-	if err := r.db.WithContext(ctx).Model(&job).Updates(map[string]any{
+	row := job.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
 		"status":               domainjob.StatusCancelled,
 		"provider_task_status": providerStatus,
 		"error_msg":            message,
@@ -198,15 +202,16 @@ func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint
 	return r.reload(ctx, job.ID)
 }
 
-func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, bool, error) {
+func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, bool, error) {
 	job, err := r.getOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, false, err
 	}
+	row := job.ToModel()
 	releaseReservation := false
 	if job.Status == domainjob.StatusPending {
 		now := time.Now()
-		if err := r.db.WithContext(ctx).Model(&job).Updates(map[string]any{
+		if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
 			"status":            domainjob.StatusCancelled,
 			"error_msg":         "cancelled by user",
 			"finished_at":       &now,
@@ -220,7 +225,7 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID
 		releaseReservation = job.UsageReservationID != nil
 	} else if job.Status == domainjob.StatusRunning {
 		return job, false, ErrRunningJobMustCancelDelete
-	} else if err := r.db.WithContext(ctx).Delete(&job).Error; err != nil {
+	} else if err := r.db.WithContext(ctx).Delete(&row).Error; err != nil {
 		return job, false, err
 	}
 	return job, releaseReservation, nil
@@ -243,29 +248,29 @@ func (r *gormRepository) EnsureProjectInOrg(ctx context.Context, projectID *uint
 	return nil
 }
 
-func (r *gormRepository) getOwned(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (r *gormRepository) getOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	var job model.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return job, ErrNotFound
+			return domainjob.Job{}, ErrNotFound
 		}
-		return job, err
+		return domainjob.Job{}, err
 	}
 	if job.UserID != userID {
-		return job, ErrForbidden
+		return domainjob.JobFromModel(job), ErrForbidden
 	}
 	if !r.inOrgScope(ctx, job.OrgID, orgID, job.UserID, userID) {
-		return job, ErrForbidden
+		return domainjob.JobFromModel(job), ErrForbidden
 	}
-	return job, nil
+	return domainjob.JobFromModel(job), nil
 }
 
-func (r *gormRepository) reload(ctx context.Context, id uint) (model.Job, error) {
+func (r *gormRepository) reload(ctx context.Context, id uint) (domainjob.Job, error) {
 	var job model.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
-		return job, err
+		return domainjob.Job{}, err
 	}
-	return job, nil
+	return domainjob.JobFromModel(job), nil
 }
 
 func (r *gormRepository) applyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, userID uint) *gorm.DB {

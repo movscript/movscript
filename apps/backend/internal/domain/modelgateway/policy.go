@@ -27,19 +27,21 @@ type NewAPIKeySpec struct {
 }
 
 type APIKey struct {
-	ID              uint
-	Name            string
-	KeyPrefix       string
-	KeyHash         string
-	OwnerUserID     uint
-	OrgID           *uint
-	ProjectID       *uint
-	AllowedModelIDs string
-	AllowedScopes   string
-	RateLimitRPM    int
-	MonthlyBudget   float64
-	IsEnabled       bool
-	LastUsedAt      *time.Time
+	ID              uint       `json:"ID"`
+	Name            string     `json:"name"`
+	KeyPrefix       string     `json:"key_prefix"`
+	KeyHash         string     `json:"-"`
+	OwnerUserID     uint       `json:"owner_user_id"`
+	OrgID           *uint      `json:"org_id,omitempty"`
+	ProjectID       *uint      `json:"project_id,omitempty"`
+	AllowedModelIDs string     `json:"allowed_model_ids"`
+	AllowedScopes   string     `json:"allowed_scopes"`
+	RateLimitRPM    int        `json:"rate_limit_rpm"`
+	MonthlyBudget   float64    `json:"monthly_budget"`
+	IsEnabled       bool       `json:"is_enabled"`
+	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt       time.Time  `json:"CreatedAt"`
+	UpdatedAt       time.Time  `json:"UpdatedAt"`
 }
 
 func NewAPIKey(spec NewAPIKeySpec) APIKey {
@@ -126,7 +128,7 @@ func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID 
 	}
 
 	for _, m := range models {
-		if requested == ModelID(m) || requested == m.ModelDefID || requested == m.ModelIDOverride {
+		if requested == ModelID(m) || requested == m.ModelDefID || requested == m.ModelIDOverride || requested == m.LogicalModelID {
 			return m.ID, requested, nil
 		}
 	}
@@ -136,6 +138,9 @@ func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID 
 func ModelID(m ai.PublicModel) string {
 	if m.ModelIDOverride != "" {
 		return m.ModelIDOverride
+	}
+	if m.LogicalModelID != "" {
+		return m.LogicalModelID
 	}
 	if m.ModelDefID != "" {
 		return m.ModelDefID

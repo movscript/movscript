@@ -7,7 +7,6 @@ import (
 	"time"
 
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -47,8 +46,9 @@ type CreateInput struct {
 }
 
 type MemberInput struct {
-	UserID uint
-	Role   string
+	UserID   uint
+	Username string
+	Role     string
 }
 
 type InvitationInput struct {
@@ -76,92 +76,142 @@ func (s *Service) List(ctx context.Context, userID uint) ([]OrgWithRole, error) 
 	return s.repo.List(ctx, userID)
 }
 
-func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (model.Organization, error) {
+func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (domainorg.Organization, error) {
 	return s.repo.Create(ctx, ownerID, input)
 }
 
-func (s *Service) Get(ctx context.Context, orgID uint) (model.Organization, error) {
+func (s *Service) Get(ctx context.Context, orgID uint) (domainorg.Organization, error) {
 	return s.repo.Get(ctx, orgID)
 }
 
-func (s *Service) Update(ctx context.Context, member model.OrganizationMember, name string) error {
+func (s *Service) ResolveCurrentMember(ctx context.Context, userID uint, preferredOrgID *uint) (domainorg.OrganizationMember, bool, error) {
+	members, err := s.repo.ListUserMembers(ctx, userID)
+	if err != nil {
+		return domainorg.OrganizationMember{}, false, err
+	}
+	if len(members) == 0 {
+		user, err := s.repo.FindUserByID(ctx, userID)
+		if err == nil {
+			_ = s.CreatePersonalOrg(ctx, user)
+			members, err = s.repo.ListUserMembers(ctx, userID)
+		}
+		if err != nil {
+			return domainorg.OrganizationMember{}, false, err
+		}
+		if len(members) == 0 {
+			return domainorg.OrganizationMember{}, false, nil
+		}
+	}
+
+	if preferredOrgID != nil {
+		for _, member := range members {
+			if member.OrgID == *preferredOrgID {
+				return member, true, nil
+			}
+		}
+		return domainorg.OrganizationMember{}, false, ErrForbidden
+	}
+
+	if member, ok, err := s.repo.FindPersonalMember(ctx, userID); err != nil {
+		return domainorg.OrganizationMember{}, false, err
+	} else if ok {
+		return member, true, nil
+	}
+	return members[0], true, nil
+}
+
+func (s *Service) GetMemberForUser(ctx context.Context, orgID uint, userID uint) (domainorg.OrganizationMember, error) {
+	return s.repo.FindUserMember(ctx, orgID, userID)
+}
+
+func (s *Service) Update(ctx context.Context, member domainorg.OrganizationMember, name string) error {
 	if !IsAdminOrAbove(member.Role) {
 		return ErrForbidden
 	}
 	return s.repo.UpdateName(ctx, member.OrgID, name)
 }
 
-func (s *Service) ListMembers(ctx context.Context, orgID uint) ([]model.OrganizationMember, error) {
+func (s *Service) ListMembers(ctx context.Context, orgID uint) ([]domainorg.OrganizationMember, error) {
 	return s.repo.ListMembers(ctx, orgID)
 }
 
-func (s *Service) AddMember(ctx context.Context, caller model.OrganizationMember, input MemberInput) (model.OrganizationMember, error) {
+func (s *Service) AddMember(ctx context.Context, caller domainorg.OrganizationMember, input MemberInput) (domainorg.OrganizationMember, error) {
 	if !IsAdminOrAbove(caller.Role) {
-		return model.OrganizationMember{}, ErrForbidden
+		return domainorg.OrganizationMember{}, ErrForbidden
 	}
-	member := domainorg.Member(caller.OrgID, input.UserID, input.Role).ToModel()
+	if input.UserID == 0 && strings.TrimSpace(input.Username) != "" {
+		user, err := s.repo.FindUserByUsername(ctx, input.Username)
+		if err != nil {
+			return domainorg.OrganizationMember{}, err
+		}
+		input.UserID = user.ID
+	}
+	if input.UserID == 0 {
+		return domainorg.OrganizationMember{}, ErrNotFound
+	}
+	member := domainorg.Member(caller.OrgID, input.UserID, input.Role)
 	return s.repo.CreateMember(ctx, member)
 }
 
-func (s *Service) UpdateMember(ctx context.Context, caller model.OrganizationMember, targetUserID uint, role string) error {
+func (s *Service) UpdateMember(ctx context.Context, caller domainorg.OrganizationMember, targetUserID uint, role string) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
 	return s.repo.UpdateMemberRole(ctx, caller.OrgID, targetUserID, role)
 }
 
-func (s *Service) RemoveMember(ctx context.Context, caller model.OrganizationMember, targetUserID uint) error {
+func (s *Service) RemoveMember(ctx context.Context, caller domainorg.OrganizationMember, targetUserID uint) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
 	return s.repo.DeleteMember(ctx, caller.OrgID, targetUserID)
 }
 
-func (s *Service) ListInvitations(ctx context.Context, caller model.OrganizationMember) ([]model.OrgInvitation, error) {
+func (s *Service) ListInvitations(ctx context.Context, caller domainorg.OrganizationMember) ([]domainorg.Invitation, error) {
 	if !IsAdminOrAbove(caller.Role) {
 		return nil, ErrForbidden
 	}
 	return s.repo.ListInvitations(ctx, caller.OrgID)
 }
 
-func (s *Service) CreateInvitation(ctx context.Context, caller model.OrganizationMember, creatorID uint, input InvitationInput) (model.OrgInvitation, error) {
+func (s *Service) CreateInvitation(ctx context.Context, caller domainorg.OrganizationMember, creatorID uint, input InvitationInput) (domainorg.Invitation, error) {
 	if !IsAdminOrAbove(caller.Role) {
-		return model.OrgInvitation{}, ErrForbidden
+		return domainorg.Invitation{}, ErrForbidden
 	}
 	token, err := generateInviteToken()
 	if err != nil {
-		return model.OrgInvitation{}, err
+		return domainorg.Invitation{}, err
 	}
-	inv := domainorg.NewInvitation(caller.OrgID, token, input.Role, input.Note, creatorID, time.Now().Add(7*24*time.Hour)).ToModel()
+	inv := domainorg.NewInvitation(caller.OrgID, token, input.Role, input.Note, creatorID, time.Now().Add(7*24*time.Hour))
 	return s.repo.CreateInvitation(ctx, inv)
 }
 
-func (s *Service) RevokeInvitation(ctx context.Context, caller model.OrganizationMember, invID uint) error {
+func (s *Service) RevokeInvitation(ctx context.Context, caller domainorg.OrganizationMember, invID uint) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
 	return s.repo.DeleteInvitation(ctx, caller.OrgID, invID)
 }
 
-func (s *Service) GetInvitation(ctx context.Context, token string) (model.OrgInvitation, model.Organization, error) {
+func (s *Service) GetInvitation(ctx context.Context, token string) (domainorg.Invitation, domainorg.Organization, error) {
 	inv, err := s.repo.FindInvitationByToken(ctx, token)
 	if err != nil {
-		return inv, model.Organization{}, err
+		return inv, domainorg.Organization{}, err
 	}
 	if inv.UsedAt != nil {
-		return inv, model.Organization{}, ErrInviteUsed
+		return inv, domainorg.Organization{}, ErrInviteUsed
 	}
 	if time.Now().After(inv.ExpiresAt) {
-		return inv, model.Organization{}, ErrInviteExpired
+		return inv, domainorg.Organization{}, ErrInviteExpired
 	}
 	org, err := s.repo.Get(ctx, inv.OrgID)
 	if err != nil {
-		return inv, model.Organization{}, err
+		return inv, domainorg.Organization{}, err
 	}
 	return inv, org, nil
 }
 
-func (s *Service) AcceptInvitation(ctx context.Context, token string, user *model.User, registration *RegistrationInput) (uint, error) {
+func (s *Service) AcceptInvitation(ctx context.Context, token string, user *domainorg.User, registration *RegistrationInput) (uint, error) {
 	inv, err := s.repo.FindInvitationByToken(ctx, token)
 	if err != nil {
 		return 0, err
@@ -187,14 +237,15 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 		if err != nil {
 			return 0, err
 		}
-		createdUser := domainauth.NewRegisteredUser(registration.Username, string(hash), "", false, nil).ToModel()
-		user = &createdUser
-		if err := s.repo.CreateUser(ctx, user); err != nil {
+		registeredUser := domainauth.NewRegisteredUser(registration.Username, string(hash), "", false, nil)
+		createdUser, err := s.repo.CreateUser(ctx, registeredUser)
+		if err != nil {
 			return 0, err
 		}
-		if err := s.repo.CreatePersonalOrg(ctx, user); err != nil {
+		if err := s.repo.CreatePersonalOrg(ctx, createdUser); err != nil {
 			// non-fatal
 		}
+		user = &createdUser
 	}
 	if err := s.repo.AcceptInvitation(ctx, inv, user.ID); err != nil {
 		return 0, err
@@ -202,35 +253,35 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 	return inv.OrgID, nil
 }
 
-func (s *Service) JoinByCode(ctx context.Context, token string, user model.User) (uint, error) {
+func (s *Service) JoinByCode(ctx context.Context, token string, user domainorg.User) (uint, error) {
 	code := normalizeJoinCode(token)
 	if code == "" {
 		return 0, ErrInvalidCode
 	}
-	return s.repo.JoinByCode(ctx, code, user)
+	return s.repo.JoinByCode(ctx, code, user.ID)
 }
 
-func (s *Service) ListGroups(ctx context.Context, orgID uint) ([]model.UserGroup, error) {
+func (s *Service) ListGroups(ctx context.Context, orgID uint) ([]domainorg.UserGroup, error) {
 	return s.repo.ListGroups(ctx, orgID)
 }
 
-func (s *Service) CreateGroup(ctx context.Context, caller model.OrganizationMember, input GroupInput) (model.UserGroup, error) {
+func (s *Service) CreateGroup(ctx context.Context, caller domainorg.OrganizationMember, input GroupInput) (domainorg.UserGroup, error) {
 	if !IsAdminOrAbove(caller.Role) {
-		return model.UserGroup{}, ErrForbidden
+		return domainorg.UserGroup{}, ErrForbidden
 	}
-	group := domainorg.NewUserGroup(caller.OrgID, input.Name).ToModel()
+	group := domainorg.NewUserGroup(caller.OrgID, input.Name)
 	return s.repo.CreateGroup(ctx, group)
 }
 
-func (s *Service) AddGroupMember(ctx context.Context, caller model.OrganizationMember, groupID uint, userID uint) (model.UserGroupMember, error) {
+func (s *Service) AddGroupMember(ctx context.Context, caller domainorg.OrganizationMember, groupID uint, userID uint) (domainorg.UserGroupMember, error) {
 	if !IsAdminOrAbove(caller.Role) {
-		return model.UserGroupMember{}, ErrForbidden
+		return domainorg.UserGroupMember{}, ErrForbidden
 	}
-	gm := domainorg.GroupMember(groupID, userID).ToModel()
+	gm := domainorg.GroupMember(groupID, userID)
 	return s.repo.CreateGroupMember(ctx, gm)
 }
 
-func (s *Service) RemoveGroupMember(ctx context.Context, caller model.OrganizationMember, groupID uint, userID uint) error {
+func (s *Service) RemoveGroupMember(ctx context.Context, caller domainorg.OrganizationMember, groupID uint, userID uint) error {
 	if !IsAdminOrAbove(caller.Role) {
 		return ErrForbidden
 	}
@@ -241,12 +292,12 @@ func (s *Service) GetUsage(ctx context.Context, orgID uint) (UsageResult, error)
 	return s.repo.GetUsage(ctx, orgID)
 }
 
-func (s *Service) CreatePersonalOrg(ctx context.Context, user *model.User) error {
+func (s *Service) CreatePersonalOrg(ctx context.Context, user domainorg.User) error {
 	return s.repo.CreatePersonalOrg(ctx, user)
 }
 
 type OrgWithRole struct {
-	model.Organization
+	domainorg.Organization
 	Role string `json:"role"`
 }
 

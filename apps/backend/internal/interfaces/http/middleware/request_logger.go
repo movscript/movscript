@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/observability"
 )
 
@@ -28,10 +27,8 @@ func RequestLogger() gin.HandlerFunc {
 		if rawQuery != "" {
 			attrs = append(attrs, "query", redactRawQuery(rawQuery))
 		}
-		if u, ok := c.Get(ContextUserKey); ok {
-			if user, ok := u.(*model.User); ok {
-				attrs = append(attrs, "user_id", user.ID, "system_role", user.SystemRole)
-			}
+		if user, ok := CurrentUserFromContext(c); ok {
+			attrs = append(attrs, "user_id", user.ID, "system_role", user.SystemRole)
 		}
 		if len(c.Errors) > 0 {
 			attrs = append(attrs, "errors", c.Errors.String())

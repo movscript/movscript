@@ -9,29 +9,45 @@ test('loads plugin catalog from json files and merges default grants', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
   const skillsDir = join(dir, 'skills')
   const toolsDir = join(dir, 'tools')
+  const bundlesDir = join(dir, 'bundles')
 
   try {
     writePluginFile(skillsDir, 'writer.json', {
-      id: 'studio.writer',
-      name: 'Writer',
-      description: 'Writes scene drafts',
-      enabled: true,
-      priority: 20,
-      instruction: 'Write in short scene beats.',
-      appliesWhen: 'scene',
-      toolHints: ['studio.script_outline'],
+      skills: [{
+        id: 'studio.writer',
+        name: 'Writer',
+        description: 'Writes scene drafts',
+        enabled: true,
+        priority: 20,
+        instruction: 'Write in short scene beats.',
+        appliesWhen: 'scene',
+        toolHints: ['studio.script_outline'],
+      }],
     })
     writePluginFile(toolsDir, 'outline.json', {
-      name: 'studio.script_outline',
-      description: 'Create a script outline draft.',
-      permission: 'draft.write',
-      risk: 'draft',
-      projectScoped: true,
-      requiresApprovalByDefault: false,
-      defaultGrant: { name: 'studio.script_outline', mode: 'allow', approval: 'never' },
+      tools: [{
+        name: 'studio.script_outline',
+        description: 'Create a script outline draft.',
+        permission: 'draft.write',
+        risk: 'draft',
+        projectScoped: true,
+        requiresApprovalByDefault: false,
+        defaultGrant: { name: 'studio.script_outline', mode: 'allow', approval: 'never' },
+      }],
+    })
+    writePluginFile(bundlesDir, 'writer.json', {
+      skills: ['studio.writer'],
+      tools: ['studio.script_outline'],
     })
 
-    const catalog = loadAgentPluginCatalog({ skillsDir, toolsDir })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      bundlesDir,
+      builtinBundlesDir: bundlesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
 
     assert.equal(catalog.skillsDir, skillsDir)
     assert.equal(catalog.toolsDir, toolsDir)
@@ -53,8 +69,8 @@ test('loads bundled MovScript platform catalog by default', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-empty-'))
   try {
     const catalog = loadAgentPluginCatalog({
-      skillsDir: join(dir, 'skills'),
-      toolsDir: join(dir, 'tools'),
+      bundlesDir: join(dir, 'bundles'),
+      builtinBundlesDir: join(dir, 'bundles'),
     })
 
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
@@ -72,6 +88,63 @@ test('loads bundled MovScript platform catalog by default', () => {
     assert.equal(catalog.registry.get('movscript_create_project')?.projectScoped, false)
     assert.ok(catalog.registry.get('movscript_list_productions'))
     assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads categorized catalog files recursively and annotates category metadata', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-categorized-'))
+  const bundlesDir = join(dir, 'bundles')
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(join(skillsDir, 'production'), 'proposal.json', {
+      skills: [{
+        id: 'studio.production_proposal',
+        name: 'Production Proposal',
+        description: 'Draft production proposals',
+        category: 'production_proposal',
+        enabled: true,
+        instruction: 'Draft production proposal nodes.',
+      }],
+    })
+    writePluginFile(join(toolsDir, 'production'), 'proposal.json', {
+      tools: [{
+        name: 'studio.read_production',
+        description: 'Read production context.',
+        permission: 'project.read',
+        risk: 'read',
+        category: 'production_proposal',
+        projectScoped: true,
+        requiresApprovalByDefault: false,
+        defaultGrant: { name: 'studio.read_production', mode: 'allow', approval: 'never' },
+      }],
+    })
+    writePluginFile(bundlesDir, 'proposal.json', {
+      category: 'production_proposal',
+      skills: ['studio.production_proposal'],
+      tools: ['studio.read_production'],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      bundlesDir,
+      builtinBundlesDir: bundlesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
+    const skill = catalog.skills.find((item) => item.id === 'studio.production_proposal')
+    const tool = catalog.tools.find((item) => item.name === 'studio.read_production')
+
+    assert.equal(skill?.category, 'production_proposal')
+    assert.deepEqual(skill?.categories, ['production_proposal'])
+    assert.equal(skill?.metadata?.category, 'production_proposal')
+    assert.equal(tool?.category, 'production_proposal')
+    assert.deepEqual(tool?.categories, ['production_proposal'])
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

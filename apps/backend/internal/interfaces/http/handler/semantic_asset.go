@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 )
@@ -207,14 +206,6 @@ func populateAssetSlotCandidateResourceURLs(c *gin.Context, items []domainsemant
 	for i := range items {
 		if items[i].CandidateAssetSlot != nil && items[i].CandidateAssetSlot.Resource != nil {
 			items[i].CandidateAssetSlot.Resource.URL = resourceURL(c, items[i].CandidateAssetSlot.Resource.ID)
-		}
-	}
-}
-
-func populateKeyframeResourceURLs(c *gin.Context, items []model.Keyframe) {
-	for i := range items {
-		if items[i].Resource != nil {
-			items[i].Resource.URL = resourceURL(c, items[i].Resource.ID)
 		}
 	}
 }

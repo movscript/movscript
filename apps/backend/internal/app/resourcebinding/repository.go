@@ -6,133 +6,139 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	List(ctx context.Context, filter Filter) ([]model.ResourceBinding, error)
-	ListByEntity(ctx context.Context, filter Filter) ([]model.ResourceBinding, error)
-	FindBindingByUniqueKey(ctx context.Context, projectID uint, resourceID uint, ownerType string, ownerID uint, role string, slot string, version int) (model.ResourceBinding, bool, error)
-	CreateBinding(ctx context.Context, binding *model.ResourceBinding) error
-	GetBinding(ctx context.Context, id uint) (model.ResourceBinding, bool, error)
-	ReloadBindingWithResource(ctx context.Context, binding *model.ResourceBinding) error
-	UpdateBinding(ctx context.Context, binding *model.ResourceBinding, updates map[string]any) error
-	DeleteBinding(ctx context.Context, binding *model.ResourceBinding) error
+	List(ctx context.Context, filter Filter) ([]domainbinding.Binding, error)
+	ListByEntity(ctx context.Context, filter Filter) ([]domainbinding.Binding, error)
+	FindBindingByUniqueKey(ctx context.Context, projectID uint, resourceID uint, ownerType string, ownerID uint, role string, slot string, version int) (domainbinding.Binding, bool, error)
+	CreateBinding(ctx context.Context, binding domainbinding.Binding) (domainbinding.Binding, error)
+	GetBinding(ctx context.Context, id uint) (domainbinding.Binding, bool, error)
+	UpdateBinding(ctx context.Context, binding domainbinding.Binding, updates map[string]any) (domainbinding.Binding, error)
+	DeleteBinding(ctx context.Context, binding domainbinding.Binding) error
 	EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint) error
 	EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error
 	ProjectIDForOwner(ctx context.Context, ownerType string, ownerID uint) (uint, error)
-	BackfillAssetSlotResource(ctx context.Context, binding model.ResourceBinding) error
-	ClearAssetSlotResourceIfDeleted(ctx context.Context, binding model.ResourceBinding) error
+	BackfillAssetSlotResource(ctx context.Context, binding domainbinding.Binding) error
+	ClearAssetSlotResourceIfDeleted(ctx context.Context, binding domainbinding.Binding) error
 }
 
 type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) List(ctx context.Context, filter Filter) ([]model.ResourceBinding, error) {
+func (r *gormRepository) List(ctx context.Context, filter Filter) ([]domainbinding.Binding, error) {
 	items := make([]model.ResourceBinding, 0)
 	q := r.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", filter.ProjectID)
 	q = applyFilters(q, filter)
-	err := q.Order("owner_type, owner_id, role, slot, sort_order, created_at").Find(&items).Error
-	return items, err
+	if err := q.Order("owner_type, owner_id, role, slot, sort_order, created_at").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return bindingsFromModels(items), nil
 }
 
-func (r *gormRepository) ListByEntity(ctx context.Context, filter Filter) ([]model.ResourceBinding, error) {
+func (r *gormRepository) ListByEntity(ctx context.Context, filter Filter) ([]domainbinding.Binding, error) {
 	items := make([]model.ResourceBinding, 0)
 	q := r.db.WithContext(ctx).Preload("Resource").
 		Where("project_id = ? AND owner_type = ? AND owner_id = ?", filter.ProjectID, filter.OwnerType, filter.OwnerID)
 	q = applyFilters(q, filter)
-	err := q.Order("role, slot, sort_order, created_at").Find(&items).Error
-	return items, err
+	if err := q.Order("role, slot, sort_order, created_at").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return bindingsFromModels(items), nil
 }
 
-func (r *gormRepository) FindBindingByUniqueKey(ctx context.Context, projectID uint, resourceID uint, ownerType string, ownerID uint, role string, slot string, version int) (model.ResourceBinding, bool, error) {
+func (r *gormRepository) FindBindingByUniqueKey(ctx context.Context, projectID uint, resourceID uint, ownerType string, ownerID uint, role string, slot string, version int) (domainbinding.Binding, bool, error) {
 	var existing model.ResourceBinding
 	err := r.db.WithContext(ctx).Where(
 		"project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?",
 		projectID, resourceID, ownerType, ownerID, role, slot, version,
 	).First(&existing).Error
 	if err == nil {
-		return existing, true, nil
+		return domainbinding.BindingFromModel(existing), true, nil
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return existing, false, nil
+		return domainbinding.Binding{}, false, nil
 	}
-	return existing, false, err
+	return domainbinding.Binding{}, false, err
 }
 
-func (r *gormRepository) CreateBinding(ctx context.Context, binding *model.ResourceBinding) error {
-	if binding == nil {
-		return ErrInvalidInput
+func (r *gormRepository) CreateBinding(ctx context.Context, binding domainbinding.Binding) (domainbinding.Binding, error) {
+	row := binding.ToModel()
+	if row.ProjectID == 0 {
+		return domainbinding.Binding{}, ErrInvalidInput
 	}
-	normalizeBinding(binding)
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	domainbinding.NormalizeBinding(&row)
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if binding.SortOrder == 0 {
-			binding.SortOrder = r.nextSortOrderWithDB(tx, binding.ProjectID, binding.OwnerType, binding.OwnerID, binding.Role, binding.Slot)
+		if row.SortOrder == 0 {
+			row.SortOrder = r.nextSortOrderWithDB(tx, row.ProjectID, row.OwnerType, row.OwnerID, row.Role, row.Slot)
 		}
-		if err := tx.Create(binding).Error; err != nil {
+		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		if err := entityrelation.SyncCoreEntityRelations(tx, binding); err != nil {
+		if err := entityrelation.SyncCoreEntityRelations(tx, &row); err != nil {
 			return err
 		}
-		if binding.IsPrimary {
-			return r.clearOtherPrimaryBindingsWithDB(tx, *binding)
+		if row.IsPrimary {
+			return r.clearOtherPrimaryBindingsWithDB(tx, row)
 		}
 		return nil
-	})
+	}); err != nil {
+		return domainbinding.BindingFromModel(row), err
+	}
+	return domainbinding.BindingFromModel(row), nil
 }
 
-func (r *gormRepository) GetBinding(ctx context.Context, id uint) (model.ResourceBinding, bool, error) {
+func (r *gormRepository) GetBinding(ctx context.Context, id uint) (domainbinding.Binding, bool, error) {
 	var binding model.ResourceBinding
 	if err := r.db.WithContext(ctx).Preload("Resource").First(&binding, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return binding, false, ErrBindingNotFound
+			return domainbinding.Binding{}, false, ErrBindingNotFound
 		}
-		return binding, false, err
+		return domainbinding.Binding{}, false, err
 	}
-	return binding, false, nil
+	return domainbinding.BindingFromModel(binding), true, nil
 }
 
-func (r *gormRepository) ReloadBindingWithResource(ctx context.Context, binding *model.ResourceBinding) error {
-	return r.db.WithContext(ctx).Preload("Resource").First(binding, binding.ID).Error
-}
-
-func (r *gormRepository) UpdateBinding(ctx context.Context, binding *model.ResourceBinding, updates map[string]any) error {
-	if binding == nil {
-		return ErrInvalidInput
-	}
+func (r *gormRepository) UpdateBinding(ctx context.Context, binding domainbinding.Binding, updates map[string]any) (domainbinding.Binding, error) {
+	row := binding.ToModel()
 	if len(updates) == 0 {
-		return nil
+		return binding, nil
 	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if err := tx.Model(binding).Updates(updates).Error; err != nil {
+		if err := tx.Model(&row).Updates(updates).Error; err != nil {
 			return err
 		}
-		if err := tx.First(binding, binding.ID).Error; err != nil {
+		if err := tx.First(&row, row.ID).Error; err != nil {
 			return err
 		}
-		if binding.IsPrimary {
-			if err := r.clearOtherPrimaryBindingsWithDB(tx, *binding); err != nil {
+		if row.IsPrimary {
+			if err := r.clearOtherPrimaryBindingsWithDB(tx, row); err != nil {
 				return err
 			}
 		}
-		return entityrelation.SyncCoreEntityRelations(tx, binding)
-	})
+		return entityrelation.SyncCoreEntityRelations(tx, &row)
+	}); err != nil {
+		return domainbinding.BindingFromModel(row), err
+	}
+	if err := r.db.WithContext(ctx).Preload("Resource").First(&row, row.ID).Error; err != nil {
+		return domainbinding.BindingFromModel(row), err
+	}
+	return domainbinding.BindingFromModel(row), nil
 }
 
-func (r *gormRepository) DeleteBinding(ctx context.Context, binding *model.ResourceBinding) error {
-	if binding == nil {
-		return ErrInvalidInput
-	}
+func (r *gormRepository) DeleteBinding(ctx context.Context, binding domainbinding.Binding) error {
+	row := binding.ToModel()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
-		if err := tx.Delete(binding).Error; err != nil {
+		if err := tx.Delete(&row).Error; err != nil {
 			return err
 		}
-		return entityrelation.DeleteCoreEntityRelations(tx, binding)
+		return entityrelation.DeleteCoreEntityRelations(tx, &row)
 	})
 }
 
@@ -249,7 +255,7 @@ func (r *gormRepository) ProjectIDForOwner(ctx context.Context, ownerType string
 	}
 }
 
-func (r *gormRepository) BackfillAssetSlotResource(ctx context.Context, binding model.ResourceBinding) error {
+func (r *gormRepository) BackfillAssetSlotResource(ctx context.Context, binding domainbinding.Binding) error {
 	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
 		return nil
 	}
@@ -268,7 +274,7 @@ func (r *gormRepository) BackfillAssetSlotResource(ctx context.Context, binding 
 	return entityrelation.SyncCoreEntityRelations(db, &slot)
 }
 
-func (r *gormRepository) ClearAssetSlotResourceIfDeleted(ctx context.Context, binding model.ResourceBinding) error {
+func (r *gormRepository) ClearAssetSlotResourceIfDeleted(ctx context.Context, binding domainbinding.Binding) error {
 	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
 		return nil
 	}
@@ -349,4 +355,12 @@ func ownerLookupError(err error) error {
 		return ErrOwnerNotFound
 	}
 	return err
+}
+
+func bindingsFromModels(items []model.ResourceBinding) []domainbinding.Binding {
+	out := make([]domainbinding.Binding, 0, len(items))
+	for _, item := range items {
+		out = append(out, domainbinding.BindingFromModel(item))
+	}
+	return out
 }

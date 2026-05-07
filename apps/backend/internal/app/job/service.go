@@ -8,7 +8,6 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
@@ -67,20 +66,20 @@ func NewService(db *gorm.DB, aiService ...*ai.AIService) *Service {
 type ListFilter = domainjob.ListFilter
 
 type ListResult struct {
-	Items []model.Job
+	Items []domainjob.Job
 	Total int64
 }
 
 type InputResourcesResult struct {
-	Resources  []model.RawResource
+	Resources  []domainjob.InputResource
 	ImageCount int
 	VideoCount int
 }
 
 type ResponseLookups struct {
-	ResourcesByID   map[uint]model.RawResource
-	ConfigsByID     map[uint]model.AIModelConfig
-	CredentialsByID map[uint]model.AICredential
+	ResourcesByID   map[uint]domainjob.RawResource
+	ConfigsByID     map[uint]domainjob.AIModelConfig
+	CredentialsByID map[uint]domainjob.AICredential
 }
 
 type CreateInput struct {
@@ -120,7 +119,7 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, erro
 	return s.repo.List(ctx, filter)
 }
 
-func (s *Service) Get(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (s *Service) Get(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	return s.repo.Get(ctx, id, userID, orgID)
 }
 
@@ -132,40 +131,44 @@ func (s *Service) ResponseLookups(ctx context.Context, resourceIDs []uint, model
 	return s.repo.ResponseLookups(ctx, resourceIDs, modelConfigIDs)
 }
 
-func (s *Service) GetCredential(ctx context.Context, id uint) (model.AICredential, error) {
+func (s *Service) GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error) {
 	return s.repo.GetCredential(ctx, id)
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput) (model.Job, error) {
-	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input)).ToModel()
+func (s *Service) Create(ctx context.Context, input CreateInput) (domainjob.Job, error) {
+	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input))
 	return s.repo.Create(ctx, job)
 }
 
-func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (model.Job, error) {
+func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (domainjob.Job, error) {
 	if s.ai == nil {
-		return model.Job{}, errors.New("ai service is required")
+		return domainjob.Job{}, errors.New("ai service is required")
 	}
 	if input.JobType == "" {
-		return model.Job{}, ErrJobTypeRequired
+		return domainjob.Job{}, ErrJobTypeRequired
 	}
 	switch input.JobType {
 	case ai.CapabilityImage, ai.CapabilityImageEdit,
 		ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
 	default:
-		return model.Job{}, InvalidJobTypeError{JobType: input.JobType}
+		return domainjob.Job{}, InvalidJobTypeError{JobType: input.JobType}
 	}
 	if err := s.repo.EnsureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
-		return model.Job{}, err
+		return domainjob.Job{}, err
 	}
 
 	allIDs := MergeIDs(input.InputResourceIDs, input.InputResourceID)
 	inputResources, err := s.LoadInputResources(ctx, allIDs, input.UserID, input.OrgID)
 	if err != nil {
-		return model.Job{}, wrapErr(ErrLoadInputResources, err)
+		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
 
+	runtimeModelConfigID, err := s.ai.ResolveRuntimeGenerationModel(input.ModelConfigID, input.JobType)
+	if err != nil {
+		return domainjob.Job{}, err
+	}
 	preflight, err := s.ai.PreflightGeneration(ai.GenerationPreflightRequest{
-		ModelConfigID: input.ModelConfigID,
+		ModelConfigID: runtimeModelConfigID,
 		OutputType:    input.JobType,
 		ExtraParams:   input.ExtraParams,
 		AspectRatio:   input.AspectRatio,
@@ -174,12 +177,12 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 		VideoCount:    inputResources.VideoCount,
 	})
 	if err != nil {
-		return model.Job{}, err
+		return domainjob.Job{}, err
 	}
 
 	cred, err := s.GetCredential(ctx, preflight.Config.CredentialID)
 	if err != nil {
-		return model.Job{}, ErrCredentialNotFound
+		return domainjob.Job{}, ErrCredentialNotFound
 	}
 
 	inputResourceIDsJSON := ""
@@ -197,7 +200,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 		createdAt = time.Now()
 	}
 	requestContext := BuildContextSnapshot(ContextSnapshotInput{
-		Model:          preflight.Config,
+		Model:          domainjob.AIModelConfigFromModel(preflight.Config),
 		Credential:     cred,
 		JobType:        input.JobType,
 		FeatureKey:     input.FeatureKey,
@@ -209,22 +212,22 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 		CreatedAt:      createdAt,
 	})
 
-	estimate, err := s.estimateJobCost(input.ModelConfigID, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
+	estimate, err := s.estimateJobCost(preflight.Config.ID, input.JobType, input.Duration, input.ExtraParams, input.AspectRatio)
 	if err != nil {
-		return model.Job{}, err
+		return domainjob.Job{}, err
 	}
-	reservation, err := s.ai.ReserveQuota(ctx, input.UserID, input.ModelConfigID, estimate, ai.BillingContext{OrgID: input.OrgID, ProjectID: input.ProjectID})
+	reservation, err := s.ai.ReserveQuota(ctx, input.UserID, preflight.Config.ID, estimate, ai.BillingContext{OrgID: input.OrgID, ProjectID: input.ProjectID})
 	if err != nil {
 		if errors.Is(err, ai.ErrInsufficientQuota) {
-			return model.Job{}, err
+			return domainjob.Job{}, err
 		}
-		return model.Job{}, wrapErr(ErrReserveQuota, err)
+		return domainjob.Job{}, wrapErr(ErrReserveQuota, err)
 	}
 
 	job, err := s.Create(ctx, CreateInput{
 		UserID:             input.UserID,
 		OrgID:              input.OrgID,
-		ModelConfigID:      input.ModelConfigID,
+		ModelConfigID:      preflight.Config.ID,
 		JobType:            input.JobType,
 		FeatureKey:         input.FeatureKey,
 		Prompt:             input.Prompt,
@@ -239,7 +242,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (mo
 	})
 	if err != nil {
 		_ = s.ai.ReleaseReservation(ctx, reservation.ID, "gen job create failed")
-		return model.Job{}, wrapErr(ErrCreateJob, err)
+		return domainjob.Job{}, wrapErr(ErrCreateJob, err)
 	}
 	_ = s.ai.SetReservationJob(ctx, reservation.ID, job.ID)
 	return job, nil
@@ -260,7 +263,7 @@ func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration i
 	}
 }
 
-func (s *Service) Retry(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (s *Service) Retry(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	job, err := s.repo.GetOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
@@ -274,7 +277,7 @@ func (s *Service) Retry(ctx context.Context, id uint, userID uint, orgID *uint) 
 	return s.repo.Retry(ctx, &job, "manual retry requested")
 }
 
-func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	job, err := s.repo.GetOwned(ctx, id, userID, orgID)
 	if err != nil {
 		return job, err
@@ -294,9 +297,9 @@ func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint
 	return job, nil
 }
 
-func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, error) {
+func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	if s.ai == nil {
-		return model.Job{}, errors.New("ai service is required")
+		return domainjob.Job{}, errors.New("ai service is required")
 	}
 	job, err := s.ValidateCancellation(ctx, id, userID, orgID)
 	if err != nil {
@@ -330,11 +333,11 @@ func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint)
 	return job, nil
 }
 
-func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (model.Job, error) {
+func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error) {
 	return s.repo.MarkCancelled(ctx, id, userID, orgID, providerStatus, message)
 }
 
-func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) (model.Job, bool, error) {
+func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, bool, error) {
 	return s.repo.Delete(ctx, id, userID, orgID)
 }
 

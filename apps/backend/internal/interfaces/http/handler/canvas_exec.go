@@ -35,7 +35,7 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&req)
 
-	task, err := h.CanvasExecService.StartNode(context.Background(), user, cv, node, req.InputValues)
+	task, err := h.CanvasExecService.StartNode(context.Background(), user.ID, cv, node, req.InputValues)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -60,7 +60,7 @@ func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&req)
 
-	run, tasks, err := h.CanvasExecService.StartCanvasRun(user, cv, req.InputValues)
+	run, tasks, err := h.CanvasExecService.StartCanvasRun(user.ID, cv, req.InputValues)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -341,7 +341,7 @@ export default function ProductionFramePage() {
                   </div>
                   <div className="grid gap-3 p-4 md:grid-cols-2">
                     {selected.areas.map((area) => (
-                      <AreaCard key={area.key} area={area} />
+                      <AreaCard key={area.key} area={area} production={selected} />
                     ))}
                   </div>
                 </div>
@@ -515,10 +515,11 @@ function ProductionListCard({ production, active, onSelect }: { production: Prod
   )
 }
 
-function AreaCard({ area }: { area: ProductionArea }) {
+function AreaCard({ area, production }: { area: ProductionArea; production: ProductionRecord }) {
   const Icon = area.icon
+  const href = productionAreaHref(area, production)
   return (
-    <Link to={area.href} className="rounded-md border border-border bg-background p-3 transition-colors hover:bg-muted/40">
+    <Link to={href} className="rounded-md border border-border bg-background p-3 transition-colors hover:bg-muted/40">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -765,7 +766,7 @@ function buildAreas(input: {
       count: input.finalCount,
       progress: input.finalCount > 0 ? 72 : 0,
       status: input.finalCount > 0 ? 'active' : 'waiting',
-      href: '/final-videos',
+      href: '/delivery',
     },
   ]
 }
@@ -945,14 +946,26 @@ function nextActionsForProduction(input: { blockedUnits: number; units: number; 
 
 function productionNextActionHref(action: string, production: ProductionRecord) {
   const lower = action.toLowerCase()
-  if (action.includes('素材') || action.includes('资料')) return '/asset-slots'
+  if (action.includes('素材') || action.includes('资料')) return `/asset-slots?production_id=${production.dbId}`
   if (action.includes('预演') || action.includes('时间线')) return '/segments'
   if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return `/contents?production_id=${production.dbId}`
-  if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return '/workbench/delivery'
-  if (lower.includes('archive') || action.includes('归档')) return '/final-videos'
-  return production.areas.find((area) => area.status === 'blocked')?.href ?? production.areas.find((area) => area.status === 'waiting' || area.status === 'active')?.href ?? `/contents?production_id=${production.dbId}`
+  if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return deliveryHref(production)
+  if (lower.includes('archive') || action.includes('归档')) return deliveryHref(production)
+  const area = production.areas.find((item) => item.status === 'blocked') ?? production.areas.find((item) => item.status === 'waiting' || item.status === 'active')
+  return area ? productionAreaHref(area, production) : `/contents?production_id=${production.dbId}`
 }
 
+function productionAreaHref(area: ProductionArea, production: ProductionRecord) {
+  if (area.key === 'final') return deliveryHref(production)
+  if (area.key === 'content') return `/contents?production_id=${production.dbId}`
+  if (area.key === 'assets') return `/asset-slots?production_id=${production.dbId}`
+  return area.href
+}
+
+function deliveryHref(production: ProductionRecord) {
+  const params = new URLSearchParams({ productionId: String(production.dbId) })
+  return `/delivery?${params.toString()}`
+}
 
 function productionPlaybackHref(production: ProductionRecord) {
   const params = new URLSearchParams({

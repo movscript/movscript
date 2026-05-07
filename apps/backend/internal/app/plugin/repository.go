@@ -5,54 +5,63 @@ import (
 	"errors"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
 	"github.com/movscript/movscript/internal/infra/pluginkit"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	ListPlugins(ctx context.Context) ([]model.Plugin, error)
-	ImportPlugin(ctx context.Context, req pluginkit.ImportRequest) (pluginkit.ImportResult, error)
-	GetPlugin(ctx context.Context, id uint) (model.Plugin, error)
-	SetEnabled(ctx context.Context, plugin *model.Plugin, enabled bool) error
+	ListPlugins(ctx context.Context) ([]domainplugin.Plugin, error)
+	ImportPlugin(ctx context.Context, req pluginkit.ImportRequest) (domainplugin.Plugin, bool, error)
+	GetPlugin(ctx context.Context, id uint) (domainplugin.Plugin, error)
+	SetEnabled(ctx context.Context, plugin domainplugin.Plugin, enabled bool) (domainplugin.Plugin, error)
 	DeletePlugin(ctx context.Context, id uint) error
-	ToolCatalog(ctx context.Context) ([]model.PluginTool, error)
-	EnabledPlugins(ctx context.Context) ([]model.Plugin, error)
+	ToolCatalog(ctx context.Context) ([]domainplugin.PluginTool, error)
+	EnabledPlugins(ctx context.Context) ([]domainplugin.Plugin, error)
 }
 
 type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) ListPlugins(ctx context.Context) ([]model.Plugin, error) {
+func (r *gormRepository) ListPlugins(ctx context.Context) ([]domainplugin.Plugin, error) {
 	plugins := make([]model.Plugin, 0)
 	err := r.db.WithContext(ctx).Preload("Tools").Order("id").Find(&plugins).Error
-	return plugins, err
+	if err != nil {
+		return nil, err
+	}
+	return domainplugin.PluginsFromModels(plugins), nil
 }
 
-func (r *gormRepository) ImportPlugin(ctx context.Context, req pluginkit.ImportRequest) (pluginkit.ImportResult, error) {
+func (r *gormRepository) ImportPlugin(ctx context.Context, req pluginkit.ImportRequest) (domainplugin.Plugin, bool, error) {
 	result, err := pluginkit.Import(r.db.WithContext(ctx), req)
 	if err != nil {
-		return pluginkit.ImportResult{}, err
+		return domainplugin.Plugin{}, false, err
 	}
 	if result == nil {
-		return pluginkit.ImportResult{}, nil
+		return domainplugin.Plugin{}, false, nil
 	}
-	return *result, nil
+	return domainplugin.PluginFromModel(result.Plugin), result.Created, nil
 }
 
-func (r *gormRepository) GetPlugin(ctx context.Context, id uint) (model.Plugin, error) {
+func (r *gormRepository) GetPlugin(ctx context.Context, id uint) (domainplugin.Plugin, error) {
 	var plugin model.Plugin
 	if err := r.db.WithContext(ctx).First(&plugin, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return plugin, ErrNotFound
+			return domainplugin.Plugin{}, ErrNotFound
 		}
-		return plugin, err
+		return domainplugin.Plugin{}, err
 	}
-	return plugin, nil
+	return domainplugin.PluginFromModel(plugin), nil
 }
 
-func (r *gormRepository) SetEnabled(ctx context.Context, plugin *model.Plugin, enabled bool) error {
-	return r.db.WithContext(ctx).Model(plugin).Update("enabled", enabled).Error
+func (r *gormRepository) SetEnabled(ctx context.Context, plugin domainplugin.Plugin, enabled bool) (domainplugin.Plugin, error) {
+	row := model.Plugin{Model: gorm.Model{ID: plugin.ID}}
+	if err := r.db.WithContext(ctx).Model(&row).Update("enabled", enabled).Error; err != nil {
+		return plugin, err
+	}
+	plugin.Enabled = enabled
+	return plugin, nil
 }
 
 func (r *gormRepository) DeletePlugin(ctx context.Context, id uint) error {
@@ -62,16 +71,22 @@ func (r *gormRepository) DeletePlugin(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&model.Plugin{}, id).Error
 }
 
-func (r *gormRepository) ToolCatalog(ctx context.Context) ([]model.PluginTool, error) {
+func (r *gormRepository) ToolCatalog(ctx context.Context) ([]domainplugin.PluginTool, error) {
 	tools := make([]model.PluginTool, 0)
 	err := r.db.WithContext(ctx).Preload("Plugin").Joins("JOIN plugins ON plugins.id = plugin_tools.plugin_id").
 		Where("plugins.enabled = ? AND plugins.deleted_at IS NULL AND plugin_tools.enabled = ?", true, true).
 		Order("plugin_tools.tool_key").Find(&tools).Error
-	return tools, err
+	if err != nil {
+		return nil, err
+	}
+	return domainplugin.PluginToolsFromModels(tools), nil
 }
 
-func (r *gormRepository) EnabledPlugins(ctx context.Context) ([]model.Plugin, error) {
+func (r *gormRepository) EnabledPlugins(ctx context.Context) ([]domainplugin.Plugin, error) {
 	plugins := make([]model.Plugin, 0)
 	err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&plugins).Error
-	return plugins, err
+	if err != nil {
+		return nil, err
+	}
+	return domainplugin.PluginsFromModels(plugins), nil
 }

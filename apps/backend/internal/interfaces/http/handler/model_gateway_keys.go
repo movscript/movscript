@@ -46,7 +46,7 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		writeGatewayAPIKeyError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{GatewayAPIKey: result.Key, Key: result.RawKey})
+	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{APIKey: result.Key, Key: result.RawKey})
 }
 
 func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {

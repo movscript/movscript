@@ -1988,8 +1988,8 @@ function FeatureRow({
 
   // Query models for this specific feature — backend decides which capabilities are compatible.
   const { data: availableModels = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', 'feature', feature.feature_key],
-    queryFn: () => api.get(`/models?feature=${feature.feature_key}`).then((r) => r.data),
+    queryKey: ['models', 'feature', feature.feature_key, 'provider-variants'],
+    queryFn: () => api.get(`/models?feature=${feature.feature_key}&provider_variants=true`).then((r) => r.data),
   })
 
   const allowed = new Set(feature.allowed_model_ids)

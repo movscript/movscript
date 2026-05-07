@@ -275,6 +275,8 @@ export interface AgentDebugContextPanel {
     content: string
   }>
   labels: string[]
+  statusDigest?: string[]
+  rawContextHints?: string[]
 }
 
 export interface AgentClientAttachmentRef {
@@ -334,6 +336,7 @@ export type ToolUnavailableReason =
   | 'unregistered'
   | 'not_granted'
   | 'denied'
+  | 'inactive'
   | 'missing_permission'
   | 'missing_project'
   | 'approval_required'
@@ -344,6 +347,8 @@ export interface AgentDebugTool {
   description?: string
   inputSchema?: JSONValue
   source: 'mcp' | 'runtime' | 'plugin'
+  category?: string
+  categories?: string[]
   registered: boolean
   granted: boolean
   permission?: string

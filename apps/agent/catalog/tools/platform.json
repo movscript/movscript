@@ -1,0 +1,109 @@
+{
+  "tools": [
+    {
+      "name": "movscript_get_context_pack",
+      "description": "Return current MovScript UI route, selected project, current user, selected project item, available project resources, and local draft count. Use this before project-specific work.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_get_context_pack",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_list_projects",
+      "description": "List all visible projects as numbered Markdown summaries.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_projects",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_create_project",
+      "description": "Create a formal MovScript project after user approval.",
+      "permission": "project.write",
+      "risk": "write",
+      "projectScoped": false,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_create_project",
+        "mode": "allow",
+        "approval": "always"
+      }
+    },
+    {
+      "name": "movscript_search_entities",
+      "description": "Search business items such as scripts, creative materials, scene beats, shot plans, and asset needs in the current or specified project. Use when the user names content without a direct reference.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_search_entities",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_read_entity",
+      "description": "Read a single MovScript business item by reference.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_read_entity",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_read_project_structure",
+      "description": "Read compact project structure across scripts, creative materials, scene beats, shot plans, asset needs, and pipeline nodes.",
+      "permission": "project.read",
+      "risk": "read",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_read_project_structure",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_search_memories",
+      "description": "Search local agent memories by query, scope, kind, project, or thread. Use when older preferences, decisions, warnings, item references, or draft notes may matter.",
+      "permission": "memory.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_search_memories",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_open_entity",
+      "description": "Navigate the MovScript UI to a project item page.",
+      "permission": "ui.navigate",
+      "risk": "ui",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_open_entity",
+        "mode": "allow",
+        "approval": "never"
+      }
+    }
+  ]
+}

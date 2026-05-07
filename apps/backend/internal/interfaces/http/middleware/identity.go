@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	authapp "github.com/movscript/movscript/internal/app/auth"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
@@ -22,8 +21,8 @@ func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
 		raw, ok := auth.BearerToken(c.GetHeader("Authorization"))
 		if !ok {
 			if session, err := c.Cookie(SessionCookieName); err == nil && session != "" {
-				if user, err := authService.UserForSession(c.Request.Context(), session); err == nil {
-					c.Set(ContextUserKey, &user)
+				if profile, err := authService.UserForSession(c.Request.Context(), session); err == nil {
+					c.Set(ContextUserKey, profile)
 				}
 			}
 			c.Next()
@@ -45,9 +44,8 @@ func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
 			return
 		}
 
-		var user model.User
-		if db.First(&user, claims.UserID).Error == nil {
-			c.Set(ContextUserKey, &user)
+		if profile, err := authService.CurrentUser(c.Request.Context(), claims.UserID); err == nil {
+			c.Set(ContextUserKey, profile)
 		}
 		c.Next()
 	}
@@ -67,12 +65,11 @@ func RequireAuth() gin.HandlerFunc {
 // RequireSystemRole aborts with 403 if the current user doesn't have one of the given system roles.
 func RequireSystemRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		u, ok := c.Get(ContextUserKey)
+		user, ok := CurrentUserFromContext(c)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
 			return
 		}
-		user := u.(*model.User)
 		for _, r := range roles {
 			if user.SystemRole == r {
 				c.Next()

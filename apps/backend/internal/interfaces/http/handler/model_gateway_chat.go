@@ -22,7 +22,7 @@ func (h *ModelGatewayHandler) ListModels(c *gin.Context) {
 		return
 	}
 
-	models, err := h.service.ListChatModels(c.Request.Context(), modelgatewayapp.Principal{User: principal.User, Key: principal.Key})
+	models, err := h.service.ListChatModels(c.Request.Context(), modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key})
 	if err != nil {
 		if errors.Is(err, modelgatewayapp.ErrInsufficientScope) {
 			writeOpenAIError(c, http.StatusForbidden, "gateway key is not allowed to list chat models", "insufficient_permissions", "", "insufficient_scope")
@@ -87,7 +87,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 		ToolChoice:  req.ToolChoice,
 	}
 	input := modelgatewayapp.ChatInput{
-		Principal: modelgatewayapp.Principal{User: principal.User, Key: principal.Key},
+		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
 		Model:     req.Model,
 		Text:      textReq,
 		ProjectID: req.ProjectID,

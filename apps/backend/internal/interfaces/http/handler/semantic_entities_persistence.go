@@ -7,9 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 )
 
 func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id string) {
@@ -18,6 +16,19 @@ func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id 
 	}
 	if err := h.semantic.DeleteItem(c.Request.Context(), item); err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *SemanticEntityHandler) DeleteSemanticItemByKind(c *gin.Context, kind string, id string) {
+	projectID := parseID(c.Param("id"))
+	if err := h.semantic.DeleteItemByKind(c.Request.Context(), projectID, kind, id); err != nil {
+		if errors.Is(err, semanticapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, apierr.NotFound("对象不存在"))
+			return
+		}
+		h.writeSemanticAppError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -73,8 +84,8 @@ func (h *SemanticEntityHandler) projectRole(c *gin.Context, projectID uint) (str
 }
 
 func currentUserID(c *gin.Context) *uint {
-	if u, ok := c.Get(middleware.ContextUserKey); ok {
-		id := u.(*model.User).ID
+	if user := currentUser(c); user != nil {
+		id := user.ID
 		return &id
 	}
 	return nil

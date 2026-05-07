@@ -4125,6 +4125,7 @@ function AgentChatSidebar({
 
       openAgentPanelDraft({
         requestId,
+        taskType: 'production_orchestration',
         message: displayMessage,
         title: `分集编排: ${production?.name ?? `#${productionId}`}`,
         mode: 'create',
@@ -4144,6 +4145,7 @@ function AgentChatSidebar({
         }),
         agentManifest: ORCHESTRATE_AGENT_MANIFEST,
         timeoutMs: 300_000,
+        renderMode: 'page',
       })
       toast.info('已打开分集编排会话，请在右侧对话框协作并让 Agent 应用编排结论')
     } catch (err) {
@@ -5212,6 +5214,17 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
     { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_create_production_proposal', mode: 'allow', approval: 'never' },
+    { name: 'movscript_inspect_production_proposal_context', mode: 'allow', approval: 'never' },
+    { name: 'movscript_get_production_proposal', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_proposal_scene_moment', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_proposal_reference', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_proposal_asset', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_proposal_keyframe', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_proposal_shot', mode: 'allow', approval: 'never' },
+    { name: 'movscript_list_production_proposal_nodes', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_production_proposal_node', mode: 'allow', approval: 'never' },
+    { name: 'movscript_delete_production_proposal_node', mode: 'allow', approval: 'never' },
     { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
     { name: 'movscript_search_entities', mode: 'allow', approval: 'never' },

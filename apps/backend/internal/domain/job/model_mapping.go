@@ -3,39 +3,52 @@ package job
 import "github.com/movscript/movscript/internal/domain/model"
 
 func JobFromModel(job model.Job) Job {
-	return Job{
-		ID:                 job.ID,
-		UserID:             job.UserID,
-		OrgID:              job.OrgID,
-		ModelConfigID:      job.ModelConfigID,
-		JobType:            job.JobType,
-		FeatureKey:         job.FeatureKey,
-		Status:             job.Status,
-		AttemptCount:       job.AttemptCount,
-		MaxAttempts:        job.MaxAttempts,
-		NextRunAt:          job.NextRunAt,
-		Prompt:             job.Prompt,
-		ExtraParams:        job.ExtraParams,
-		AspectRatio:        job.AspectRatio,
-		Duration:           job.Duration,
-		RequestContext:     job.RequestContext,
-		InputResourceID:    job.InputResourceID,
-		InputResourceIDs:   job.InputResourceIDs,
-		OutputResourceID:   job.OutputResourceID,
-		UsageReservationID: job.UsageReservationID,
-		ProviderTaskID:     job.ProviderTaskID,
-		ProviderTaskKind:   job.ProviderTaskKind,
-		ProviderTaskStatus: job.ProviderTaskStatus,
-		ErrorMsg:           job.ErrorMsg,
-		DebugInfo:          job.DebugInfo,
-		ExecutionState:     job.ExecutionState,
-		LockedBy:           job.LockedBy,
-		LeaseUntil:         job.LeaseUntil,
-		LastHeartbeatAt:    job.LastHeartbeatAt,
-		StartedAt:          job.StartedAt,
-		FinishedAt:         job.FinishedAt,
-		ProjectID:          job.ProjectID,
+	domainJob := Job{
+		ID:                  job.ID,
+		UserID:              job.UserID,
+		OrgID:               job.OrgID,
+		ModelConfigID:       job.ModelConfigID,
+		JobType:             job.JobType,
+		FeatureKey:          job.FeatureKey,
+		Status:              job.Status,
+		AttemptCount:        job.AttemptCount,
+		MaxAttempts:         job.MaxAttempts,
+		NextRunAt:           job.NextRunAt,
+		Prompt:              job.Prompt,
+		ExtraParams:         job.ExtraParams,
+		AspectRatio:         job.AspectRatio,
+		Duration:            job.Duration,
+		RequestContext:      job.RequestContext,
+		InputResourceID:     job.InputResourceID,
+		InputResourceIDs:    job.InputResourceIDs,
+		OutputResourceID:    job.OutputResourceID,
+		UsageReservationID:  job.UsageReservationID,
+		ProviderTaskID:      job.ProviderTaskID,
+		ProviderTaskKind:    job.ProviderTaskKind,
+		ProviderTaskStatus:  job.ProviderTaskStatus,
+		ErrorMsg:            job.ErrorMsg,
+		DebugInfo:           job.DebugInfo,
+		ExecutionState:      job.ExecutionState,
+		LockedBy:            job.LockedBy,
+		LeaseUntil:          job.LeaseUntil,
+		LastHeartbeatAt:     job.LastHeartbeatAt,
+		StartedAt:           job.StartedAt,
+		FinishedAt:          job.FinishedAt,
+		ProjectID:           job.ProjectID,
+		ProviderTaskHistory: job.ProviderTaskHistory,
+		StateTrace:          job.StateTrace,
+		CreatedAt:           job.CreatedAt,
+		UpdatedAt:           job.UpdatedAt,
 	}
+	if job.DeletedAt.Valid {
+		deletedAt := job.DeletedAt.Time
+		domainJob.DeletedAt = &deletedAt
+	}
+	if job.OutputResource != nil {
+		resource := RawResourceFromModel(*job.OutputResource)
+		domainJob.OutputResource = &resource
+	}
+	return domainJob
 }
 
 func (job Job) ToModel() model.Job {
@@ -76,4 +89,153 @@ func (job Job) ApplyToModel(target *model.Job) {
 	target.StartedAt = job.StartedAt
 	target.FinishedAt = job.FinishedAt
 	target.ProjectID = job.ProjectID
+	target.ProviderTaskHistory = job.ProviderTaskHistory
+	target.StateTrace = job.StateTrace
+	target.CreatedAt = job.CreatedAt
+	target.UpdatedAt = job.UpdatedAt
+	if job.DeletedAt != nil {
+		target.DeletedAt.Time = *job.DeletedAt
+		target.DeletedAt.Valid = true
+	}
+	if job.OutputResource != nil {
+		resource := job.OutputResource.ToModel()
+		target.OutputResource = &resource
+	}
+}
+
+func JobsFromModels(jobs []model.Job) []Job {
+	out := make([]Job, 0, len(jobs))
+	for _, job := range jobs {
+		out = append(out, JobFromModel(job))
+	}
+	return out
+}
+
+func RawResourceFromModel(resource model.RawResource) RawResource {
+	domainResource := RawResource{
+		ID:             resource.ID,
+		OwnerID:        resource.OwnerID,
+		OrgID:          resource.OrgID,
+		FolderID:       resource.FolderID,
+		Type:           resource.Type,
+		Name:           resource.Name,
+		URL:            resource.URL,
+		Size:           resource.Size,
+		MimeType:       resource.MimeType,
+		StorageBackend: resource.StorageBackend,
+		StorageKey:     resource.StorageKey,
+		IsShared:       resource.IsShared,
+		DirectURL:      resource.DirectURL,
+		CreatedAt:      resource.CreatedAt,
+		UpdatedAt:      resource.UpdatedAt,
+	}
+	if resource.DeletedAt.Valid {
+		deletedAt := resource.DeletedAt.Time
+		domainResource.DeletedAt = &deletedAt
+	}
+	return domainResource
+}
+
+func (resource RawResource) ToModel() model.RawResource {
+	var target model.RawResource
+	resource.ApplyToModel(&target)
+	return target
+}
+
+func (resource RawResource) ApplyToModel(target *model.RawResource) {
+	target.Model.ID = resource.ID
+	target.OwnerID = resource.OwnerID
+	target.OrgID = resource.OrgID
+	target.FolderID = resource.FolderID
+	target.Type = resource.Type
+	target.Name = resource.Name
+	target.URL = resource.URL
+	target.Size = resource.Size
+	target.MimeType = resource.MimeType
+	target.StorageBackend = resource.StorageBackend
+	target.StorageKey = resource.StorageKey
+	target.IsShared = resource.IsShared
+	target.DirectURL = resource.DirectURL
+	target.CreatedAt = resource.CreatedAt
+	target.UpdatedAt = resource.UpdatedAt
+	if resource.DeletedAt != nil {
+		target.DeletedAt.Time = *resource.DeletedAt
+		target.DeletedAt.Valid = true
+	}
+}
+
+func RawResourcesFromModels(resources []model.RawResource) []RawResource {
+	out := make([]RawResource, 0, len(resources))
+	for _, resource := range resources {
+		out = append(out, RawResourceFromModel(resource))
+	}
+	return out
+}
+
+func InputResourcesFromRawResources(resources []RawResource) []InputResource {
+	out := make([]InputResource, 0, len(resources))
+	for _, resource := range resources {
+		out = append(out, InputResource{
+			ID:       resource.ID,
+			Name:     resource.Name,
+			Type:     resource.Type,
+			MimeType: resource.MimeType,
+			Size:     resource.Size,
+		})
+	}
+	return out
+}
+
+func AICredentialFromModel(credential model.AICredential) AICredential {
+	domainCredential := AICredential{
+		ID:                credential.ID,
+		AdapterType:       credential.AdapterType,
+		DisplayName:       credential.DisplayName,
+		BaseURL:           credential.BaseURL,
+		MaskedKey:         credential.MaskedKey,
+		IsEnabled:         credential.IsEnabled,
+		OrgID:             credential.OrgID,
+		FilesAPIEnabled:   credential.FilesAPIEnabled,
+		FilesAPIBaseURL:   credential.FilesAPIBaseURL,
+		FilesAPIMaskedKey: credential.FilesAPIMaskedKey,
+		CreatedAt:         credential.CreatedAt,
+		UpdatedAt:         credential.UpdatedAt,
+	}
+	if credential.DeletedAt.Valid {
+		deletedAt := credential.DeletedAt.Time
+		domainCredential.DeletedAt = &deletedAt
+	}
+	return domainCredential
+}
+
+func AIModelConfigFromModel(config model.AIModelConfig) AIModelConfig {
+	domainConfig := AIModelConfig{
+		ID:                    config.ID,
+		CredentialID:          config.CredentialID,
+		ModelDefID:            config.ModelDefID,
+		ModelIDOverride:       config.ModelIDOverride,
+		IsEnabled:             config.IsEnabled,
+		Priority:              config.Priority,
+		CreditsInputPer1M:     config.CreditsInputPer1M,
+		CreditsOutputPer1M:    config.CreditsOutputPer1M,
+		CreditsPerImage:       config.CreditsPerImage,
+		CreditsPerSecond:      config.CreditsPerSecond,
+		CreditsPerCall:        config.CreditsPerCall,
+		CustomDisplayName:     config.CustomDisplayName,
+		ShortName:             config.ShortName,
+		CustomCapabilities:    config.CustomCapabilities,
+		CustomBillingMode:     config.CustomBillingMode,
+		CustomAcceptsImage:    config.CustomAcceptsImage,
+		CustomMaxInputImages:  config.CustomMaxInputImages,
+		CustomMaxInputVideos:  config.CustomMaxInputVideos,
+		CustomImageEditField:  config.CustomImageEditField,
+		CustomSupportedParams: config.CustomSupportedParams,
+		CreatedAt:             config.CreatedAt,
+		UpdatedAt:             config.UpdatedAt,
+	}
+	if config.DeletedAt.Valid {
+		deletedAt := config.DeletedAt.Time
+		domainConfig.DeletedAt = &deletedAt
+	}
+	return domainConfig
 }

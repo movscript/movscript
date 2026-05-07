@@ -5,10 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	orgapp "github.com/movscript/movscript/internal/app/org"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
-	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
 )
 
@@ -20,11 +18,6 @@ type OrgHandler struct {
 
 func NewOrgHandler(db *gorm.DB) *OrgHandler {
 	return &OrgHandler{service: orgapp.NewService(db), commercial: newOrgCommercialDeps(db), db: db}
-}
-
-func currentOrgMember(c *gin.Context) *model.OrganizationMember {
-	m, _ := c.Get(middleware.ContextOrgMemberKey)
-	return m.(*model.OrganizationMember)
 }
 
 func (h *OrgHandler) List(c *gin.Context) {
@@ -105,19 +98,11 @@ func (h *OrgHandler) AddMember(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if req.UserID == 0 && req.Username != "" {
-		var target model.User
-		if err := h.db.WithContext(c.Request.Context()).Where("username = ?", req.Username).First(&target).Error; err != nil {
-			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
-			return
-		}
-		req.UserID = target.ID
-	}
-	if req.UserID == 0 {
+	if req.UserID == 0 && req.Username == "" {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("user_id or username is required"))
 		return
 	}
-	member, err := h.service.AddMember(c.Request.Context(), *caller, orgapp.MemberInput{UserID: req.UserID, Role: req.Role})
+	member, err := h.service.AddMember(c.Request.Context(), *caller, orgapp.MemberInput{UserID: req.UserID, Username: req.Username, Role: req.Role})
 	if err != nil {
 		if err == orgapp.ErrForbidden {
 			c.JSON(http.StatusForbidden, apierr.Forbidden("需要管理员权限"))
@@ -125,6 +110,10 @@ func (h *OrgHandler) AddMember(c *gin.Context) {
 		}
 		if orgapp.IsDuplicateKey(err) {
 			c.JSON(http.StatusConflict, apierr.Conflict("该用户已是成员"))
+			return
+		}
+		if err == orgapp.ErrNotFound {
+			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, apierr.Internal("添加成员失败"))
@@ -171,7 +160,7 @@ func (h *OrgHandler) RemoveMember(c *gin.Context) {
 }
 
 func (h *OrgHandler) ListInvitations(c *gin.Context) {
-	items, err := h.service.ListInvitations(c.Request.Context(), *currentOrgMember(c))
+	items, err := h.service.ListInvitations(c.Request.Context(), currentDomainOrgMember(c))
 	if err != nil {
 		if err == orgapp.ErrForbidden {
 			c.JSON(http.StatusForbidden, apierr.Forbidden("需要管理员权限"))
@@ -237,10 +226,7 @@ func (h *OrgHandler) GetInvitation(c *gin.Context) {
 }
 
 func (h *OrgHandler) AcceptInvitation(c *gin.Context) {
-	var user *model.User
-	if u, ok := c.Get(middleware.ContextUserKey); ok {
-		user = u.(*model.User)
-	}
+	user := currentDomainUser(c)
 	var req orgapp.RegistrationInput
 	if user == nil {
 		var body struct {
@@ -280,7 +266,12 @@ func (h *OrgHandler) JoinByCode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	orgID, err := h.service.JoinByCode(c.Request.Context(), req.Code, *currentUser(c))
+	user := currentDomainUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, apierr.AuthRequired())
+		return
+	}
+	orgID, err := h.service.JoinByCode(c.Request.Context(), req.Code, *user)
 	if err != nil {
 		switch err {
 		case orgapp.ErrInvalidCode:

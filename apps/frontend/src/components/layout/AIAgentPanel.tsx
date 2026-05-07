@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -81,6 +81,7 @@ import {
   type AgentWorkMode,
   type AgentPermissionMode,
 } from '@/store/agentStore'
+import { useAgentSessionStore, type AgentPageTaskState } from '@/store/agentSessionStore'
 import { useUserStore } from '@/store/userStore'
 import type { Project, PublicModel, RawResource } from '@/types'
 
@@ -664,7 +665,7 @@ function AgentDebugPreviewDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <div className="grid gap-2 md:grid-cols-4">
-            <DebugSummaryItem label="Model" value={[draft.model.provider, draft.model.name ?? draft.model.id].filter(Boolean).join(' / ') || 'none'} />
+            <DebugSummaryItem label="Model" value={String(draft.model.name ?? draft.model.id ?? 'none')} />
             <DebugSummaryItem label="Agent" value={draft.agent.name ?? 'No agent'} />
             <DebugSummaryItem label="Mode" value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
             <DebugSummaryItem label="Requests" value={String(draft.httpRequests.length)} />
@@ -1592,7 +1593,7 @@ function MemoryPanel({
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 
 function DraftPanel({
@@ -2019,14 +2020,14 @@ function ChatView({
   conv,
   userId,
   onBack,
-  externalDraft,
+  externalTask,
   pageToolRequestId,
   onExternalDraftConsumed,
 }: {
   conv: Conversation
   userId: string
   onBack: () => void
-  externalDraft?: AgentPanelDraftPayload
+  externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalDraftConsumed?: () => void
 }) {
@@ -2040,6 +2041,13 @@ function ChatView({
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
+  const conversationRuntime = useAgentSessionStore((s) => s.conversationRuntimes[conv.id] ?? null)
+  const localThreadId = useAgentSessionStore((s) => s.localThreadIdsByConversation[conv.id] ?? '')
+  const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
+  const setConversationRun = useAgentSessionStore((s) => s.setConversationRun)
+  const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
+  const attachPageTaskConversation = useAgentSessionStore((s) => s.attachPageTaskConversation)
+  const setPageTaskRunning = useAgentSessionStore((s) => s.setPageTaskRunning)
   const { data: projects = [], isLoading: loadingProjects } = useQuery<Project[]>({
     queryKey: ['projects'],
     queryFn: () => api.get('/projects').then((r) => r.data),
@@ -2053,7 +2061,6 @@ function ChatView({
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((r) => r.data),
   })
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState<AgentAttachment[]>([])
   const [uploading, setUploading] = useState(false)
   const [showContext, setShowContextState] = useState(() => {
@@ -2064,10 +2071,6 @@ function ChatView({
     }
   })
   const [contextPaneHeight, setContextPaneHeight] = useState(() => readStoredNumber(CONTEXT_PANE_HEIGHT_KEY, CONTEXT_PANE_DEFAULT_HEIGHT, CONTEXT_PANE_MIN_HEIGHT, CONTEXT_PANE_MAX_HEIGHT))
-  const [activeLocalRun, setActiveLocalRun] = useState<AgentRun | null>(null)
-  const [approvingLocalRun, setApprovingLocalRun] = useState(false)
-  const [stoppingLocalRun, setStoppingLocalRun] = useState(false)
-  const [stopRequestedBeforeRun, setStopRequestedBeforeRun] = useState(false)
   const [startingLocalAgent, setStartingLocalAgent] = useState(false)
   const [localAgentStartError, setLocalAgentStartError] = useState<string | null>(null)
   const localRuntimeEnabled = true
@@ -2080,10 +2083,8 @@ function ChatView({
   })
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
-  const [localAgentThreadIds, setLocalAgentThreadIds] = useState<Record<string, string>>(() => readLocalAgentThreadIds())
-  const consumedExternalDraftIdsRef = useRef<Set<string>>(new Set())
-  const stopRequestedBeforeRunRef = useRef(false)
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
+  const processedExternalTaskRequestIdRef = useRef<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -2106,7 +2107,7 @@ function ChatView({
     const thread = threadRef.current
     if (!thread) return
     thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' })
-  }, [conv.messages, loading, activeLocalRun])
+  }, [conv.messages, conversationRuntime?.loading, conversationRuntime?.run])
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
   // Auto-clear stale modelId
   useEffect(() => {
@@ -2120,6 +2121,11 @@ function ChatView({
   const systemPrompt = ''
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
   const activeModel = textModels.find((m) => m.id === modelId)
+  const activeLocalRun = conversationRuntime?.run ?? null
+  const loading = conversationRuntime?.loading ?? false
+  const approvingLocalRun = conversationRuntime?.approving ?? false
+  const stoppingLocalRun = conversationRuntime?.stopping ?? false
+  const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
   const contextLabels = [
     'Local Runtime',
     settings.includeProjectContext && currentProject ? currentProject.name : null,
@@ -2237,13 +2243,12 @@ function ChatView({
     const run = activeLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
 
-    setApprovingLocalRun(true)
-    setLoading(true)
+    setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
     try {
       const approvedRun = await localAgentClient.approveRun(run.id, { approvalIds })
-      setActiveLocalRun(approvedRun)
+      setConversationRun(conv.id, approvedRun, { approving: true, loading: true })
       const finalRun = await localAgentClient.waitForRun(approvedRun.id, {
-        onRunUpdate: setActiveLocalRun,
+        onRunUpdate: (nextRun) => setConversationRun(conv.id, nextRun, { approving: true, loading: true }),
         timeoutMs: 900_000,
         pollMs: 1000,
       })
@@ -2265,20 +2270,18 @@ function ChatView({
         content: `工具确认失败：${message}`,
       })
     } finally {
-      setApprovingLocalRun(false)
-      setLoading(false)
+      setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
 
-    setApprovingLocalRun(true)
-    setLoading(true)
+    setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
     try {
       const rejectedRun = await localAgentClient.rejectRun(run.id, { approvalIds })
-      setActiveLocalRun(rejectedRun)
+      setConversationRun(conv.id, rejectedRun, { approving: true, loading: true })
       const thread = await localAgentClient.getThread(rejectedRun.threadId)
       const content = formatLocalAgentAssistantContent(rejectedRun, thread)
       addMessage(userId, conv.id, {
@@ -2293,22 +2296,20 @@ function ChatView({
         content: `工具拒绝失败：${message}`,
       })
     } finally {
-      setApprovingLocalRun(false)
-      setLoading(false)
+      setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
 
   const answerActiveLocalRunInput = useCallback(async (requestId: string, answer: { choiceIds?: string[]; text?: string }) => {
     const run = activeLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
 
-    setApprovingLocalRun(true)
-    setLoading(true)
+    setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
     try {
       const answeredRun = await localAgentClient.answerRunInput(run.id, { requestId, ...answer })
-      setActiveLocalRun(answeredRun)
+      setConversationRun(conv.id, answeredRun, { approving: true, loading: true })
       const finalRun = await localAgentClient.waitForRun(answeredRun.id, {
-        onRunUpdate: setActiveLocalRun,
+        onRunUpdate: (nextRun) => setConversationRun(conv.id, nextRun, { approving: true, loading: true }),
         timeoutMs: 900_000,
         pollMs: 1000,
       })
@@ -2329,27 +2330,24 @@ function ChatView({
         content: `补充信息提交失败：${message}`,
       })
     } finally {
-      setApprovingLocalRun(false)
-      setLoading(false)
+      setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
 
   const stopActiveLocalRun = useCallback(async () => {
     const run = activeLocalRun
     if (!isStoppableAgentRun(run)) {
       if ((loading || buildingSendDraft) && !stoppingLocalRun) {
-        stopRequestedBeforeRunRef.current = true
-        setStopRequestedBeforeRun(true)
-        setStoppingLocalRun(true)
+        setConversationRuntime(conv.id, { stopRequested: true, stopping: true, loading: true })
       }
       return
     }
     if (stoppingLocalRun && !stopRequestedBeforeRun) return
 
-    setStoppingLocalRun(true)
+    setConversationRuntime(conv.id, { stopping: true, loading: true, stopRequested: stopRequestedBeforeRun })
     try {
       const cancelledRun = await localAgentClient.cancelRun(run.id, { reason: '用户停止了当前会话。' })
-      setActiveLocalRun(cancelledRun)
+      setConversationRun(conv.id, cancelledRun, { stopping: true, loading: true, stopRequested: false })
       if (!loading) {
         const thread = await localAgentClient.getThread(cancelledRun.threadId)
         addMessage(userId, conv.id, {
@@ -2365,11 +2363,9 @@ function ChatView({
         content: `停止当前会话失败：${message}`,
       })
     } finally {
-      stopRequestedBeforeRunRef.current = false
-      setStopRequestedBeforeRun(false)
-      setStoppingLocalRun(false)
+      setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false })
     }
-  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, addMessage, conv.id, userId])
+  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
 
   const buildSendDraft = useCallback(async (options: {
     includeRuntimePreview?: boolean
@@ -2412,7 +2408,7 @@ function ChatView({
     ]
     const debugMessages = options.omitDebugArtifacts ? [] : messages
     const warnings: string[] = []
-    const threadId = diagnosticCommand ? undefined : localAgentThreadIds[conv.id]
+    const threadId = diagnosticCommand ? undefined : localThreadId || undefined
     const localRuntime: AgentSendDraft['localRuntime'] = {
       ...(threadId ? { threadId } : {}),
       title: options.title ?? conv.title,
@@ -2461,7 +2457,6 @@ function ChatView({
       model: {
         id: modelId,
         ...(activeModel ? { name: publicModelLabel(activeModel) } : {}),
-        ...(activeModel?.provider_name ? { provider: activeModel.provider_name } : {}),
       },
       agent: {
         id: null,
@@ -2506,7 +2501,7 @@ function ChatView({
     conv.messages,
     conv.id,
     conv.title,
-    localAgentThreadIds,
+    localThreadId,
     localAgentOnline,
     refetchLocalAgentHealth,
     modelId,
@@ -2529,10 +2524,8 @@ function ChatView({
 
     setInput('')
     setAttachments([])
-    setLoading(true)
-    setActiveLocalRun(null)
+    setConversationRuntime(conv.id, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
     cancelRequestedRunIdsRef.current.clear()
-    setStoppingLocalRun(false)
     addMessage(userId, conv.id, {
       role: 'user',
       content: draft.visibleUserContent,
@@ -2548,6 +2541,9 @@ function ChatView({
     if (conv.messages.length === 0) {
       const titleBase = draft.visibleUserContent || draft.attachments[0]?.name || t('agents.chat.newConversation')
       updateConversationTitle(userId, conv.id, titleBase.slice(0, 30) + (titleBase.length > 30 ? '…' : ''))
+    }
+    if (draft.localRuntime?.requestId) {
+      setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id })
     }
 
     try {
@@ -2567,26 +2563,33 @@ function ChatView({
         ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
         pollMs: 120,
         onRunUpdate: (nextRun) => {
-          setActiveLocalRun(nextRun)
-            if (stopRequestedBeforeRunRef.current && isStoppableAgentRun(nextRun) && !cancelRequestedRunIdsRef.current.has(nextRun.id)) {
-              cancelRequestedRunIdsRef.current.add(nextRun.id)
-              void localAgentClient.cancelRun(nextRun.id, { reason: '用户停止了当前会话。' })
-                .then(setActiveLocalRun)
-                .finally(() => {
-                  stopRequestedBeforeRunRef.current = false
-                  setStopRequestedBeforeRun(false)
+          setConversationRun(conv.id, nextRun, {
+            loading: true,
+            building: false,
+          })
+          const nextRuntime = useAgentSessionStore.getState().conversationRuntimes[conv.id]
+          if (nextRuntime?.stopRequested && isStoppableAgentRun(nextRun) && !cancelRequestedRunIdsRef.current.has(nextRun.id)) {
+            cancelRequestedRunIdsRef.current.add(nextRun.id)
+            void localAgentClient.cancelRun(nextRun.id, { reason: '用户停止了当前会话。' })
+              .then((cancelledRun) => {
+                setConversationRun(conv.id, cancelledRun, {
+                  loading: true,
+                  building: false,
+                  approving: false,
+                  stopping: true,
+                  stopRequested: false,
                 })
+              })
+              .finally(() => {
+                setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false })
+              })
             }
-          },
-        })
+        },
+      })
       const { run, thread } = runResult
-      if (!draft.localRuntime?.diagnosticCommand) {
-        setLocalAgentThreadIds((cur) => {
-          const next = { ...cur, [conv.id]: thread.id }
-          writeLocalAgentThreadIds(next)
-          return next
-        })
-      }
+      if (!draft.localRuntime?.diagnosticCommand) setLocalThreadId(conv.id, thread.id)
+      if (draft.localRuntime?.requestId) setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id, run, threadId: thread.id })
+      setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
       const content = formatLocalAgentAssistantContent(run, thread)
       const generatedAttachments = await generatedAttachmentsFromRun(run)
       addMessage(userId, conv.id, {
@@ -2607,17 +2610,15 @@ function ChatView({
         role: 'assistant',
         content: `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
       })
+      setConversationRuntime(conv.id, { error: message, loading: false, building: false })
       notifyAgentPanelRunSettled({
         requestId: draft.localRuntime?.requestId,
         status: 'error',
         error: message,
       })
     } finally {
-      stopRequestedBeforeRunRef.current = false
       cancelRequestedRunIdsRef.current.clear()
-      setStopRequestedBeforeRun(false)
-      setStoppingLocalRun(false)
-      setLoading(false)
+      setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
     }
   }, [
     addMessage,
@@ -2629,47 +2630,54 @@ function ChatView({
     updateConversationTitle,
     localAgentOnline,
     refetchLocalAgentHealth,
-    setLocalAgentThreadIds,
+    setLocalThreadId,
+    setPageTaskRunning,
+    setConversationRun,
+    setConversationRuntime,
   ])
 
   useEffect(() => {
-    if (!externalDraft?.message?.trim()) return
-    if (externalDraft.requestId && consumedExternalDraftIdsRef.current.has(externalDraft.requestId)) return
-    if (externalDraft.requestId) consumedExternalDraftIdsRef.current.add(externalDraft.requestId)
+    const task = externalTask
+    const payload = task?.payload
+    if (!task || !payload?.message?.trim()) return
+    if (task.status !== 'queued' && task.status !== 'claimed') return
+    if (processedExternalTaskRequestIdRef.current === payload.requestId) return
+    processedExternalTaskRequestIdRef.current = payload.requestId ?? null
 
-    setInput(externalDraft.displayMessage ?? externalDraft.message)
+    setInput(payload.displayMessage ?? payload.message)
     window.setTimeout(() => inputRef.current?.focus(), 0)
     onExternalDraftConsumed?.()
 
-    if (!externalDraft.autoSend) return
+    if (!payload.autoSend) return
     if (loading || uploading || buildingSendDraft) {
       const error = '当前 Agent 对话正在处理上一条请求，请稍后再试'
       addMessage(userId, conv.id, { role: 'assistant', content: error })
-      notifyAgentPanelRunSettled({ requestId: externalDraft.requestId, status: 'error', error })
+      notifyAgentPanelRunSettled({ requestId: payload.requestId, status: 'error', error })
       return
     }
 
-    setBuildingSendDraft(true)
+    setConversationRuntime(conv.id, { building: true, loading: false, error: undefined })
     buildSendDraft({
-      message: externalDraft.message,
-      displayMessage: externalDraft.displayMessage,
-      title: externalDraft.title,
-      projectId: externalDraft.projectId,
-      clientInput: externalDraft.clientInput,
-      agentManifest: externalDraft.agentManifest,
-      requestId: externalDraft.requestId,
-      timeoutMs: externalDraft.timeoutMs,
+      message: payload.message,
+      displayMessage: payload.displayMessage,
+      title: payload.title,
+      projectId: payload.projectId,
+      clientInput: payload.clientInput,
+      agentManifest: payload.agentManifest,
+      requestId: payload.requestId,
+      timeoutMs: payload.timeoutMs,
       omitDebugArtifacts: true,
     })
       .then((draft) => commitSendDraft(draft))
       .catch((e) => {
         const message = e instanceof Error ? e.message : String(e)
         addMessage(userId, conv.id, { role: 'assistant', content: `发送前调试构建失败：${message}` })
-        notifyAgentPanelRunSettled({ requestId: externalDraft.requestId, status: 'error', error: message })
+        setConversationRuntime(conv.id, { building: false, error: message })
+        notifyAgentPanelRunSettled({ requestId: payload.requestId, status: 'error', error: message })
       })
-      .finally(() => setBuildingSendDraft(false))
+      .finally(() => setConversationRuntime(conv.id, { building: false }))
   }, [
-    externalDraft,
+    externalTask,
     onExternalDraftConsumed,
     loading,
     uploading,
@@ -2679,6 +2687,7 @@ function ChatView({
     conv.id,
     buildSendDraft,
     commitSendDraft,
+    setConversationRuntime,
   ])
 
   const send = useCallback(async () => {
@@ -2688,7 +2697,7 @@ function ChatView({
       return
     }
 
-    setBuildingSendDraft(true)
+    setConversationRuntime(conv.id, { building: true, loading: false, error: undefined })
     try {
       const draft = await buildSendDraft({ includeRuntimePreview: debugBeforeSend })
       if (debugBeforeSend) {
@@ -2699,8 +2708,9 @@ function ChatView({
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       addMessage(userId, conv.id, { role: 'assistant', content: `发送前调试构建失败：${message}` })
+      setConversationRuntime(conv.id, { building: false, error: message })
     } finally {
-      setBuildingSendDraft(false)
+      setConversationRuntime(conv.id, { building: false })
     }
   }, [
     input,
@@ -2717,6 +2727,7 @@ function ChatView({
     buildSendDraft,
     debugBeforeSend,
     commitSendDraft,
+    setConversationRuntime,
   ])
 
   const confirmPendingSendDraft = useCallback(async () => {
@@ -2865,9 +2876,9 @@ function ChatView({
                 {localAgentErrorMessage}
               </p>
             )}
-            {localAgentThreadIds[conv.id] && (
+            {localThreadId && (
               <p className="truncate text-[10px] text-muted-foreground/70">
-                Thread: <code className="rounded bg-muted px-1 py-0.5">{localAgentThreadIds[conv.id]}</code>
+                Thread: <code className="rounded bg-muted px-1 py-0.5">{localThreadId}</code>
               </p>
             )}
           </div>
@@ -2882,7 +2893,7 @@ function ChatView({
           {activeModel && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
               <Wand2 size={10} />
-              <span className="truncate">{publicModelLabel(activeModel, true)}</span>
+              <span className="truncate">{publicModelLabel(activeModel)}</span>
             </div>
           )}
           {showContext && (
@@ -2967,10 +2978,17 @@ function ChatView({
             <div className="ai-agent-panel-context-stack">
               <DraftPanel
                 project={currentProject}
-                threadId={localAgentThreadIds[conv.id]}
+                threadId={localThreadId || undefined}
                 online={localAgentOnline}
-                onRunUpdate={setActiveLocalRun}
+                onRunUpdate={(run) => {
+                  if (run) {
+                    setConversationRun(conv.id, run, { loading: true })
+                  } else {
+                    setConversationRuntime(conv.id, { run: undefined, runId: undefined, status: undefined, loading: false })
+                  }
+                }}
                 onAppliedRun={async (run, thread) => {
+                  setConversationRun(conv.id, run, { loading: false })
                   const content = formatLocalAgentAssistantContent(run, thread)
                   const generatedAttachments = await generatedAttachmentsFromRun(run)
                   addMessage(userId, conv.id, {
@@ -2983,7 +3001,7 @@ function ChatView({
               />
               <MemoryPanel
                 project={currentProject}
-                threadId={localAgentThreadIds[conv.id]}
+                threadId={localThreadId || undefined}
                 online={localAgentOnline}
               />
             </div>
@@ -3201,12 +3219,20 @@ function BuiltinChat({ userId }: { userId: string }) {
     addMessage,
     updateConversationTitle,
   } = useAgentStore()
-  const [externalDrafts, setExternalDrafts] = useState<Record<string, AgentPanelDraftPayload>>({})
-  const [pageToolRequestIds, setPageToolRequestIds] = useState<Record<string, string>>({})
+  const pageTasks = useAgentSessionStore((s) => s.pageTasks)
+  const attachPageTaskConversation = useAgentSessionStore((s) => s.attachPageTaskConversation)
+  const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
   const activeConv = conversations.find((c) => c.id === activeConversationId) ?? null
+  const activeTask = useMemo(() => {
+    if (!activeConv) return null
+    const tasks = Object.values(pageTasks).filter((task) => task.conversationId === activeConv.id)
+    const activeTasks = tasks.filter((task) => task.status === 'queued' || task.status === 'claimed' || task.status === 'running')
+    const ordered = (list: typeof tasks) => [...list].sort((a, b) => a.updatedAt - b.updatedAt)
+    return ordered(activeTasks).at(-1) ?? ordered(tasks).at(-1) ?? null
+  }, [activeConv?.id, pageTasks])
 
   function handleNew() {
     createConversation(userId)
@@ -3224,38 +3250,36 @@ function BuiltinChat({ userId }: { userId: string }) {
         meta: { contextLabels: ['Restored Local Runtime'] },
       })
     }
-    const ids = { ...readLocalAgentThreadIds(), [convId]: thread.id }
-    writeLocalAgentThreadIds(ids)
+    setLocalThreadId(convId, thread.id)
     setActiveConversation(userId, convId)
   }
 
   useEffect(() => {
-    const pending = consumeAgentPanelDraft()
-    if (!pending?.message?.trim()) return
-    const convId = pending.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
-    if (pending.title) updateConversationTitle(userId, convId, pending.title)
-    if (pending.mode) useAgentStore.getState().updateSettings({ mode: pending.mode })
-    setActiveConversation(userId, convId)
-    if (pending.requestId) setPageToolRequestIds((current) => ({ ...current, [convId]: pending.requestId! }))
-    setExternalDrafts((current) => ({ ...current, [convId]: pending }))
-  }, [createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
+    let pending = consumeAgentPanelDraft()
+    while (pending?.message?.trim()) {
+      const convId = pending.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
+      if (pending.title) updateConversationTitle(userId, convId, pending.title)
+      if (pending.mode) useAgentStore.getState().updateSettings({ mode: pending.mode })
+      setActiveConversation(userId, convId)
+      if (pending.requestId) attachPageTaskConversation(pending.requestId, convId)
+      pending = consumeAgentPanelDraft()
+    }
+  }, [attachPageTaskConversation, createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
 
   useEffect(() => {
     function handleDraft(event: Event) {
       const detail = (event as CustomEvent<AgentPanelDraftPayload>).detail
       if (!detail?.message?.trim()) return
-      ;(detail as AgentPanelDraftPayload & { __handledByAgentPanel?: boolean }).__handledByAgentPanel = true
       const convId = detail.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
       if (detail.title) updateConversationTitle(userId, convId, detail.title)
       if (detail.mode) useAgentStore.getState().updateSettings({ mode: detail.mode })
       setActiveConversation(userId, convId)
-      if (detail.requestId) setPageToolRequestIds((current) => ({ ...current, [convId]: detail.requestId! }))
-      setExternalDrafts((current) => ({ ...current, [convId]: detail }))
+      if (detail.requestId) attachPageTaskConversation(detail.requestId, convId)
     }
 
     window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
     return () => window.removeEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
-  }, [createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
+  }, [attachPageTaskConversation, createConversation, getActiveConversationId, setActiveConversation, updateConversationTitle, userId])
 
   return (
     <AgentShell density="compact" className="ai-agent-panel-shell">
@@ -3264,15 +3288,8 @@ function BuiltinChat({ userId }: { userId: string }) {
           conv={activeConv}
           userId={userId}
           onBack={() => setActiveConversation(userId, null)}
-          externalDraft={externalDrafts[activeConv.id]}
-          pageToolRequestId={pageToolRequestIds[activeConv.id]}
-          onExternalDraftConsumed={() => {
-            setExternalDrafts((current) => {
-              const next = { ...current }
-              delete next[activeConv.id]
-              return next
-            })
-          }}
+          externalTask={activeTask}
+          pageToolRequestId={activeTask?.requestId}
         />
       ) : (
         <ConversationList
@@ -3291,29 +3308,8 @@ function BuiltinChat({ userId }: { userId: string }) {
 
 const PANEL_OPEN_KEY = 'ai-panel-open'
 const PANEL_WIDTH_KEY = 'ai-panel-width'
-const LOCAL_AGENT_THREAD_IDS_KEY = 'ai-panel-local-agent-thread-ids'
 const AGENT_DEBUG_PREVIEW_KEY = 'ai-panel-debug-preview'
 const AGENT_CONTEXT_VISIBLE_KEY = 'ai-panel-context-visible'
-
-function readLocalAgentThreadIds(): Record<string, string> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(LOCAL_AGENT_THREAD_IDS_KEY) || '{}')
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, string] => (
-        typeof entry[0] === 'string' && typeof entry[1] === 'string'
-      )),
-    )
-  } catch {
-    return {}
-  }
-}
-
-function writeLocalAgentThreadIds(value: Record<string, string>): void {
-  try {
-    localStorage.setItem(LOCAL_AGENT_THREAD_IDS_KEY, JSON.stringify(value))
-  } catch {}
-}
 
 export function AIAgentPanel() {
   const { t } = useTranslation()

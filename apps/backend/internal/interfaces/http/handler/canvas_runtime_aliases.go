@@ -3,7 +3,6 @@ package handler
 import (
 	canvasservice "github.com/movscript/movscript/internal/app/canvas"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type canvasRunSnapshot = canvasruntime.RunSnapshot
@@ -55,28 +54,28 @@ func decodeCanvasRunInputValues(raw string) map[string]canvasPortValue {
 	return canvasruntime.DecodeRunInputValues(raw)
 }
 
-func buildCanvasRunSnapshot(cv model.Canvas) (string, string, int, int) {
-	return canvasruntime.BuildRunSnapshot(canvasruntime.CanvasGraphFromModel(cv))
+func buildCanvasRunSnapshot(cv canvasruntime.Canvas) (string, string, int, int) {
+	return canvasruntime.BuildRunSnapshot(canvasruntime.CanvasGraph{Canvas: cv, Nodes: cv.Nodes, Edges: cv.Edges})
 }
 
-func canvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
-	return canvasruntime.CanvasFromRunSnapshot(canvasID, raw)
+func canvasFromRunSnapshot(canvasID uint, raw string) (canvasruntime.Canvas, error) {
+	cv, err := canvasruntime.CanvasFromRunSnapshot(canvasID, raw)
+	return canvasruntime.CanvasFromModel(cv), err
 }
 
-func buildCanvasExecutionPlan(cv model.Canvas) (canvasExecutionPlan, error) {
-	return canvasruntime.BuildExecutionPlan(cv)
+func buildCanvasExecutionPlan(cv canvasruntime.Canvas) (canvasExecutionPlan, error) {
+	return canvasruntime.BuildGraphExecutionPlan(canvasruntime.CanvasGraph{Canvas: cv, Nodes: cv.Nodes, Edges: cv.Edges})
 }
 
-func canvasNodeRequiresWorkflowTask(cv model.Canvas, node *model.CanvasNode) bool {
+func canvasNodeRequiresWorkflowTask(cv canvasruntime.Canvas, node *canvasruntime.CanvasNode) bool {
 	if node == nil {
 		return false
 	}
-	domainNode := canvasruntime.CanvasNodeFromModel(*node)
-	return canvasruntime.GraphNodeRequiresWorkflowTask(canvasruntime.CanvasGraphFromModel(cv), &domainNode)
+	return canvasruntime.GraphNodeRequiresWorkflowTask(canvasruntime.CanvasGraph{Canvas: cv, Nodes: cv.Nodes, Edges: cv.Edges}, node)
 }
 
-func validateCanvasRequiredInputs(cv model.Canvas, inputValues map[string]canvasPortValue) error {
-	return canvasruntime.ValidateRequiredInputs(cv, inputValues)
+func validateCanvasRequiredInputs(cv canvasruntime.Canvas, inputValues map[string]canvasPortValue) error {
+	return canvasruntime.ValidateGraphRequiredInputs(canvasruntime.CanvasGraph{Canvas: cv, Nodes: cv.Nodes, Edges: cv.Edges}, inputValues)
 }
 
 func canvasPortValuesPresent(values []canvasPortValue) bool {
@@ -95,8 +94,8 @@ func defaultCanvasPortValueTypeForNode(nodeType string, nd nodeData) string {
 	return canvasruntime.DefaultPortValueTypeForNode(nodeType, nd)
 }
 
-func staticCanvasNodePortValue(node *model.CanvasNode, nd nodeData) canvasPortValue {
-	return canvasruntime.StaticNodePortValue(node, nd)
+func staticCanvasNodePortValue(node *canvasruntime.CanvasNode, nd nodeData) canvasPortValue {
+	return canvasruntime.StaticGraphNodePortValue(node, nd)
 }
 
 func firstNonEmptyString(values ...string) string {
@@ -107,32 +106,24 @@ func isCanvasEntityNode(nodeType string) bool {
 	return canvasruntime.IsCanvasEntityNode(nodeType)
 }
 
-func topoSort(nodes []model.CanvasNode, edges []model.CanvasEdge) ([]string, error) {
-	domainNodes := make([]canvasruntime.CanvasNode, 0, len(nodes))
-	for _, node := range nodes {
-		domainNodes = append(domainNodes, canvasruntime.CanvasNodeFromModel(node))
-	}
-	domainEdges := make([]canvasruntime.CanvasEdge, 0, len(edges))
-	for _, edge := range edges {
-		domainEdges = append(domainEdges, canvasruntime.CanvasEdgeFromModel(edge))
-	}
-	return canvasruntime.TopoSort(domainNodes, domainEdges)
+func topoSort(nodes []canvasruntime.CanvasNode, edges []canvasruntime.CanvasEdge) ([]string, error) {
+	return canvasruntime.TopoSort(nodes, edges)
 }
 
-func normalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {
-	canvasservice.NormalizeCanvasTaskForResponse(dbTask, nodeType)
+func normalizeCanvasTaskForResponse(task canvasruntime.CanvasTask, nodeType string) canvasruntime.CanvasTask {
+	return canvasservice.NormalizeCanvasTaskForResponse(task, nodeType)
 }
 
 func pluginHTTPOutputs(raw []byte) map[string]canvasPortValue {
 	return canvasservice.PluginHTTPOutputs(raw)
 }
 
-func registerWorkflowOutput(outputs map[string]canvasPortValue, node *model.CanvasNode, nd nodeData, nodeOutputs map[string]canvasPortValue) {
+func registerWorkflowOutput(outputs map[string]canvasPortValue, node *canvasruntime.CanvasNode, nd nodeData, nodeOutputs map[string]canvasPortValue) {
 	canvasservice.RegisterWorkflowOutput(outputs, node, nd, nodeOutputs)
 }
 
-func canvasRunTaskFailureSummary(tasks []model.CanvasTask) string {
-	return canvasservice.CanvasRunTaskFailureSummary(tasks)
+func canvasRunTaskFailureSummary(tasks []canvasruntime.CanvasTask) string {
+	return canvasruntime.TaskFailureSummary(tasks)
 }
 
 func validateCanvasProductionEntityWrite(kind string, portInputs canvasPortInputMap) error {

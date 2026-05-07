@@ -382,7 +382,7 @@ function createRuntime(): ClientPluginRuntime {
     patch: (path, body) => api.patch(path, body).then((r) => r.data),
     delete: (path) => api.delete(path).then((r) => r.data),
     models: (capability) => api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data),
-    modelConfigs: () => api.get('/models').then((r) => r.data),
+    modelConfigs: () => api.get('/models?capability=image').then((r) => r.data),
     resources: () => api.get('/resources').then((r) => r.data),
     generateImage: generateImageViaRuntime,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/observability"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
@@ -19,6 +18,23 @@ type Event struct {
 	ProjectID  *uint
 	ActorID    *uint
 	Metadata   map[string]any
+}
+
+type auditLogRow struct {
+	RequestID  string
+	ActorID    *uint
+	Action     string
+	TargetType string
+	TargetID   string
+	OrgID      *uint
+	ProjectID  *uint
+	IPAddress  string
+	UserAgent  string
+	Metadata   string `gorm:"type:text"`
+}
+
+func (auditLogRow) TableName() string {
+	return "audit_logs"
 }
 
 func Record(c *gin.Context, db *gorm.DB, event Event) {
@@ -34,7 +50,7 @@ func Record(c *gin.Context, db *gorm.DB, event Event) {
 			metadata = string(b)
 		}
 	}
-	log := model.AuditLog{
+	log := auditLogRow{
 		RequestID:  requestID(c),
 		ActorID:    event.ActorID,
 		Action:     event.Action,
@@ -61,11 +77,9 @@ func actorID(c *gin.Context) *uint {
 	if c == nil {
 		return nil
 	}
-	if u, ok := c.Get(middleware.ContextUserKey); ok {
-		if user, ok := u.(*model.User); ok {
-			id := user.ID
-			return &id
-		}
+	if user, ok := middleware.CurrentUserFromContext(c); ok {
+		id := user.ID
+		return &id
 	}
 	return nil
 }

@@ -370,7 +370,7 @@ function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']
     ...(scope === 'global' || scope === 'project' || scope === 'thread' ? { scope } : {}),
     ...(projectId !== null && Number.isFinite(Number(projectId)) ? { projectId: Number(projectId) } : {}),
     ...(threadId ? { threadId } : {}),
-    ...(kind === 'preference' || kind === 'fact' || kind === 'entity_ref' || kind === 'draft' || kind === 'decision' || kind === 'warning' ? { kind } : {}),
+    ...(kind === 'preference' || kind === 'fact' || kind === 'item_ref' || kind === 'entity_ref' || kind === 'draft' || kind === 'decision' || kind === 'warning' ? { kind } : {}),
     ...(query ? { query } : {}),
     ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
   }
@@ -378,7 +378,7 @@ function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']
 
 function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRuntime['createMemory']>[0] {
   const scope = body.scope === 'global' || body.scope === 'project' || body.scope === 'thread' ? body.scope : undefined
-  const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'entity_ref' || body.kind === 'draft' || body.kind === 'decision' || body.kind === 'warning'
+  const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'item_ref' || body.kind === 'entity_ref' || body.kind === 'draft' || body.kind === 'decision' || body.kind === 'warning'
     ? body.kind
     : undefined
   if (!scope) throw new Error('memory scope is required')

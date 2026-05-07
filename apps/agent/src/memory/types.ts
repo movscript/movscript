@@ -1,5 +1,5 @@
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
-export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
+export type AgentMemoryKind = 'preference' | 'fact' | 'item_ref' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 
 export interface AgentMemory {
   id: string

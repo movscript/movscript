@@ -5,8 +5,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
@@ -39,15 +40,65 @@ type EntityContext struct {
 }
 
 type Ref struct {
-	Kind          string             `json:"kind"`
-	ID            uint               `json:"id"`
-	Title         string             `json:"title"`
-	Subtitle      string             `json:"subtitle,omitempty"`
-	Status        string             `json:"status,omitempty"`
-	EntityContext EntityContext      `json:"entity_context"`
-	Resource      *model.RawResource `json:"resource,omitempty"`
-	CreatedAt     string             `json:"created_at"`
-	UpdatedAt     string             `json:"updated_at"`
+	Kind          string                      `json:"kind"`
+	ID            uint                        `json:"id"`
+	Title         string                      `json:"title"`
+	Subtitle      string                      `json:"subtitle,omitempty"`
+	Status        string                      `json:"status,omitempty"`
+	EntityContext EntityContext               `json:"entity_context"`
+	Resource      *domainresource.RawResource `json:"resource,omitempty"`
+	CreatedAt     string                      `json:"created_at"`
+	UpdatedAt     string                      `json:"updated_at"`
+}
+
+type scriptVersionProjection struct {
+	ID         uint
+	Title      string
+	SourceType string
+	Status     string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type assetSlotProjection struct {
+	ID        uint
+	Name      string
+	Kind      string
+	Status    string
+	Resource  *domainresource.RawResource
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type contentUnitProjection struct {
+	ID          uint
+	Order       int
+	Title       string
+	Description string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type keyframeProjection struct {
+	ID            uint
+	ContentUnitID *uint
+	Order         int
+	Title         string
+	Description   string
+	Status        string
+	Resource      *domainresource.RawResource
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type deliveryVersionProjection struct {
+	ID          uint
+	Name        string
+	Description string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (s *Service) ListByProject(ctx context.Context, filter ListFilter) ([]Ref, error) {
@@ -212,16 +263,20 @@ func (s *Service) deliveryVersionRefs(ctx context.Context, projectID uint) ([]Re
 	return refs, nil
 }
 
-func (s *Service) firstBoundResource(ctx context.Context, projectID uint, ownerType string, ownerID uint, resourceURL ResourceURLFunc, roles ...string) *model.RawResource {
+func (s *Service) firstBoundResource(ctx context.Context, projectID uint, ownerType string, ownerID uint, resourceURL ResourceURLFunc, roles ...string) *domainresource.RawResource {
 	resource, _ := s.repo.FirstBoundResource(ctx, projectID, ownerType, ownerID, roles...)
 	return withResourceURL(resource, resourceURL)
 }
 
-func withResourceURL(resource *model.RawResource, resourceURL ResourceURLFunc) *model.RawResource {
-	if resource != nil && resourceURL != nil {
-		resource.URL = resourceURL(resource.ID)
+func withResourceURL(resource *domainresource.RawResource, resourceURL ResourceURLFunc) *domainresource.RawResource {
+	if resource == nil {
+		return nil
 	}
-	return resource
+	domainResource := *resource
+	if resourceURL != nil {
+		domainResource.URL = resourceURL(resource.ID)
+	}
+	return &domainResource
 }
 
 func fallbackTitle(value string, fallback string) string {

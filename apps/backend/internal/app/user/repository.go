@@ -10,7 +10,7 @@ import (
 
 type repository interface {
 	ListUsers(ctx context.Context, filter ListFilter) ([]domainauth.UserProfile, error)
-	CreateUser(ctx context.Context, u *domainauth.RegisteredUser) error
+	CreateUser(ctx context.Context, u *domainauth.RegisteredUser) (domainauth.UserProfile, error)
 }
 
 type gormRepository struct {
@@ -41,11 +41,11 @@ func userProfilesFromModels(users []model.User) []domainauth.UserProfile {
 	return result
 }
 
-func (r *gormRepository) CreateUser(ctx context.Context, u *domainauth.RegisteredUser) error {
+func (r *gormRepository) CreateUser(ctx context.Context, u *domainauth.RegisteredUser) (domainauth.UserProfile, error) {
 	row := u.ToModel()
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return err
+		return domainauth.UserProfile{}, err
 	}
 	*u = domainauth.RegisteredUserFromModel(row)
-	return nil
+	return domainauth.UserProfileFromModel(row), nil
 }
