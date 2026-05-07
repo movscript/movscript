@@ -1,13 +1,12 @@
-export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'item_ref' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 
 export interface AgentMemory {
   id: string
-  scope: AgentMemoryScope
-  projectId?: number
-  threadId?: string
+  projectId: number
+  title: string
   kind: AgentMemoryKind
   content: string
+  sourceThreadId?: string
   sourceRunId?: string
   sourceMessageId?: string
   createdAt: string
@@ -15,20 +14,18 @@ export interface AgentMemory {
 }
 
 export interface MemoryQuery {
-  scope?: AgentMemoryScope
-  projectId?: number
-  threadId?: string
+  projectId: number
   kind?: AgentMemoryKind
   query?: string
   limit?: number
 }
 
 export interface CreateMemoryInput {
-  scope: AgentMemoryScope
-  projectId?: number
-  threadId?: string
+  projectId: number
+  title: string
   kind: AgentMemoryKind
   content: string
+  sourceThreadId?: string
   sourceRunId?: string
   sourceMessageId?: string
 }

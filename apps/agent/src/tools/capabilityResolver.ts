@@ -6,6 +6,7 @@ import {
   type AgentToolApprovalMode,
 } from '../manifest/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
+import { publicToolName } from './toolNames.js'
 import type {
   AgentCapabilitiesResponse,
   AgentDebugTool,
@@ -87,11 +88,10 @@ export function resolveToolCatalog(options: {
   userMessage?: string
 }): ResolvedToolCatalog {
   const registry = options.registry ?? DEFAULT_TOOL_REGISTRY
-  const mcpByName = new Map(options.mcpTools.map((tool) => [tool.name, tool]))
+  const mcpByName = new Map(options.mcpTools.map((tool) => [publicToolName(tool.name), tool]))
   const names = new Set<string>([
-    ...options.mcpTools.map((tool) => tool.name),
     ...registry.list().map((tool) => tool.name),
-    ...options.manifest.tools.map((tool) => tool.name),
+    ...options.manifest.tools.map((tool) => publicToolName(tool.name)),
   ])
   const discovered: AgentDebugTool[] = []
   const available: AgentDebugTool[] = []
@@ -101,7 +101,7 @@ export function resolveToolCatalog(options: {
   for (const name of Array.from(names).sort()) {
     const mcpTool = mcpByName.get(name)
     const registeredTool = registry.get(name)
-    const grant = findToolGrant(options.manifest, name)
+    const grant = findManifestToolGrant(options.manifest, name)
     const approval = grant?.approval ?? defaultApproval(registeredTool)
     const unavailableReason = getUnavailableReason({
       name,
@@ -115,7 +115,7 @@ export function resolveToolCatalog(options: {
     })
     const tool: AgentDebugTool = {
       name,
-      ...(mcpTool?.description || registeredTool?.description ? { description: mcpTool?.description ?? registeredTool?.description } : {}),
+      ...(registeredTool?.description || mcpTool?.description ? { description: registeredTool?.description ?? mcpTool?.description } : {}),
       ...(mcpTool?.inputSchema !== undefined ? { inputSchema: mcpTool.inputSchema } : {}),
       source: mcpTool ? 'mcp' : registeredTool?.source === 'plugin' ? 'plugin' : 'runtime',
       ...(registeredTool?.category ? { category: registeredTool.category } : {}),
@@ -152,12 +152,17 @@ function getUnavailableReason(options: {
   if (!options.registeredTool) return 'unregistered'
   if (!options.mcpTool && options.registeredTool.source !== 'runtime') return 'mcp_unavailable'
   if (!toolIsActive(options.registeredTool, options.activeSkills, options.userMessage)) return 'inactive'
-  const grant = findToolGrant(options.manifest, options.name)
+  const grant = findManifestToolGrant(options.manifest, options.name)
   if (grant?.mode === 'deny') return 'denied'
   if (!grant) return 'not_granted'
   if (!manifestAllowsPermission(options.manifest, options.registeredTool.permission)) return 'missing_permission'
   if (options.registeredTool.projectScoped && options.currentProjectId === undefined) return 'missing_project'
   return undefined
+}
+
+function findManifestToolGrant(manifest: AgentManifest, toolName: string) {
+  return findToolGrant(manifest, toolName)
+    ?? manifest.tools.find((grant) => publicToolName(grant.name) === toolName)
 }
 
 function defaultApproval(tool?: RegisteredTool): AgentToolApprovalMode {

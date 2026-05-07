@@ -1871,17 +1871,19 @@
 .ms-agent-composer__submit {
   width: 34px;
   height: 34px;
-  background: var(--ms-color-primary);
-  color: var(--ms-color-primary-foreground);
+  background: var(--ms-color-background);
+  color: var(--ms-color-foreground);
+  border-color: var(--ms-agent-line);
 }
 
 .ms-agent-composer__submit:hover {
+  background: var(--ms-color-muted);
   transform: translateY(-1px);
 }
 
 .ms-agent-composer__submit[data-running="true"] {
-  background: var(--ms-color-danger);
-  color: var(--ms-color-danger-foreground);
+  background: var(--ms-color-foreground);
+  color: var(--ms-color-background);
 }
 
 .ms-agent-composer__action:disabled,

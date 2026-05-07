@@ -186,7 +186,8 @@ function resolveOpenAIToolParameters(
   contract?: ReturnType<AgentRuntimeContractResolver['find']>,
 ): unknown {
   if (contract?.toolSchemas?.[tool.name] !== undefined) return contract.toolSchemas[tool.name]
-  if (tool.inputSchema !== undefined) return tool.inputSchema
+  if (tool.name === 'movscript_search_items') return SEARCH_ITEMS_TOOL_SCHEMA
+  if (tool.name === 'movscript_read_item') return READ_ITEM_TOOL_SCHEMA
   if (tool.name === 'movscript_request_user_input') return USER_INPUT_TOOL_SCHEMA
   if (tool.name === 'movscript_search_memories') return SEARCH_MEMORIES_TOOL_SCHEMA
   if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
@@ -196,7 +197,7 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_validate_draft') return DRAFT_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_list_productions') return LIST_PRODUCTIONS_TOOL_SCHEMA
   if (tool.name === 'movscript_read_production_context') return READ_PRODUCTION_CONTEXT_TOOL_SCHEMA
-  if (tool.name === 'movscript_check_entity_conflicts') return CHECK_ENTITY_CONFLICTS_TOOL_SCHEMA
+  if (tool.name === 'movscript_check_proposal_conflicts') return CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_production_proposal') return CREATE_PRODUCTION_PROPOSAL_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_production_proposal_context') return INSPECT_PRODUCTION_PROPOSAL_CONTEXT_TOOL_SCHEMA
   if (tool.name === 'movscript_get_production_proposal') return PRODUCTION_PROPOSAL_DRAFT_ID_TOOL_SCHEMA
@@ -208,11 +209,54 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_list_production_proposal_nodes') return LIST_PRODUCTION_PROPOSAL_NODES_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_production_proposal_node') return UPSERT_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA
   if (tool.name === 'movscript_delete_production_proposal_node') return DELETE_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA
-  if (tool.name === 'movscript_propose_production_entities') return PROPOSE_PRODUCTION_ENTITIES_TOOL_SCHEMA
+  if (tool.name === 'movscript_create_production_proposal_from_items') return CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_project') return CREATE_PROJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_script') return CREATE_SCRIPT_TOOL_SCHEMA
+  if (tool.inputSchema !== undefined) return tool.inputSchema
   return undefined
 }
+
+const SEARCH_ITEMS_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    query: {
+      type: 'string',
+      description: 'Focused keywords or a short phrase to search business items.',
+    },
+    projectId: {
+      type: 'number',
+      description: 'Optional project reference id. Defaults to the current project when available.',
+    },
+    limit: {
+      type: 'number',
+      minimum: 1,
+      maximum: 25,
+      description: 'Maximum number of items to return.',
+    },
+  },
+  required: ['query'],
+} satisfies Record<string, unknown>
+
+const READ_ITEM_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    itemType: {
+      type: 'string',
+      description: 'Business item type, such as project, production, script, creative_reference, asset_slot, segment, scene_moment, content_unit, or keyframe.',
+    },
+    itemId: {
+      type: 'number',
+      description: 'Business item reference id.',
+    },
+    projectId: {
+      type: 'number',
+      description: 'Optional project reference id. Defaults to the current project when available.',
+    },
+  },
+  required: ['itemType', 'itemId'],
+} satisfies Record<string, unknown>
 
 const CREATE_DRAFT_TOOL_SCHEMA = {
   type: 'object',
@@ -463,7 +507,7 @@ const PRODUCTION_PROPOSAL_TREE_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const CHECK_ENTITY_CONFLICTS_TOOL_SCHEMA = {
+const CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['productionId', 'proposal'],
@@ -710,7 +754,7 @@ const DELETE_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const PROPOSE_PRODUCTION_ENTITIES_TOOL_SCHEMA = {
+const CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['projectId', 'productionId', 'proposal'],
@@ -750,8 +794,8 @@ const SEARCH_MEMORIES_TOOL_SCHEMA = {
     },
     kind: {
       type: 'string',
-      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'draft', 'decision', 'warning'],
-      description: 'Optional memory kind filter. Prefer item_ref for remembered project-item references; entity_ref is a compatibility alias for older memories.',
+      enum: ['preference', 'fact', 'item_ref', 'draft', 'decision', 'warning'],
+      description: 'Optional memory kind filter. Prefer item_ref for remembered project-item references.',
     },
     projectId: {
       type: 'number',

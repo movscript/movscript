@@ -2,24 +2,12 @@ package handler
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 )
-
-func (h *SemanticEntityHandler) DeleteSemanticItem(c *gin.Context, item any, id string) {
-	if !h.loadProjectItem(c, item, id) {
-		return
-	}
-	if err := h.semantic.DeleteItem(c.Request.Context(), item); err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return
-	}
-	c.Status(http.StatusNoContent)
-}
 
 func (h *SemanticEntityHandler) DeleteSemanticItemByKind(c *gin.Context, kind string, id string) {
 	projectID := parseID(c.Param("id"))
@@ -55,19 +43,6 @@ func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error)
 	default:
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 	}
-}
-
-func (h *SemanticEntityHandler) loadProjectItem(c *gin.Context, item any, id string) bool {
-	projectID := parseID(c.Param("id"))
-	if err := h.semantic.LoadProjectItem(c.Request.Context(), projectID, item, id); err != nil {
-		if errors.Is(err, semanticapp.ErrNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("对象不存在"))
-			return false
-		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
-		return false
-	}
-	return true
 }
 
 func (h *SemanticEntityHandler) projectRole(c *gin.Context, projectID uint) (string, uint, bool) {

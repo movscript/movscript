@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
 
@@ -209,7 +208,7 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 	return []map[string]any{}, nil
 }
 
-func compactAssetSlot(slot model.AssetSlot) map[string]any {
+func compactAssetSlot(slot assetSlotProjection) map[string]any {
 	item := map[string]any{
 		"ID":          slot.ID,
 		"kind":        slot.Kind,
@@ -232,19 +231,4 @@ func compactAssetSlot(slot model.AssetSlot) map[string]any {
 		}
 	}
 	return item
-}
-
-func compactScripts(scripts []model.Script) []map[string]any {
-	items := make([]map[string]any, 0, len(scripts))
-	for _, script := range scripts {
-		items = append(items, map[string]any{
-			"ID":          script.ID,
-			"kind":        "script",
-			"title":       script.Title,
-			"description": script.Description,
-			"script_type": script.ScriptType,
-			"order":       script.Order,
-		})
-	}
-	return items
 }

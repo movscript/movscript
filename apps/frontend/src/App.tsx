@@ -43,6 +43,7 @@ import ScriptsPage from './pages/scripts/ScriptsPage'
 import SegmentsPage from './pages/segments/SegmentsPage'
 import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
 import FinalVideosPage from './pages/final-videos/FinalVideosPage'
+import FinalVideosWorkspacePage from './pages/final-videos/FinalVideosWorkspacePage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { Loader2 } from 'lucide-react'
@@ -169,6 +170,11 @@ function LegacyAgentDebugRedirect() {
   return null
 }
 
+function LegacyDeliveryWorkbenchRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/delivery/workbench${search}`} replace />
+}
+
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const shell = (
     <div className="fixed inset-0 flex overflow-hidden bg-background text-foreground">
@@ -287,6 +293,8 @@ export default function App() {
               <Route path="/production-orchestrate" element={<ProjectGuard><ProductionOrchestratePage /></ProjectGuard>} />
               <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
               <Route path="/delivery" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
+              <Route path="/delivery/workbench" element={<ProjectGuard><FinalVideosWorkspacePage /></ProjectGuard>} />
+              <Route path="/delivery-workbench" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
               <Route path="/creative-workbench" element={<ProjectGuard><CreativeWorkbenchPage /></ProjectGuard>} />
               <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
@@ -298,7 +306,7 @@ export default function App() {
               <Route path="/workbench/creative" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="creative" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/assets" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="assets" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/production" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path="/workbench/delivery" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="delivery" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path="/workbench/delivery" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path="/workbench/object" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
               <Route path="/workbench/reference-relations" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="reference-relations" showCategoryTabs={false} /></ProjectGuard>} />
 

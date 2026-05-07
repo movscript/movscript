@@ -2,8 +2,6 @@ package workflowio
 
 import (
 	"context"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type resourceBindingProjection struct {
@@ -43,8 +41,10 @@ type assetSlotCandidateProjection struct {
 }
 
 func (r *gormRepository) FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (resourceBindingProjection, bool, error) {
-	var binding model.ResourceBinding
+	var binding resourceBindingProjection
 	err := r.db.WithContext(ctx).
+		Table("resource_bindings").
+		Select("resource_id").
 		Where("owner_type = ? AND owner_id = ?", ownerType, ownerID).
 		Where("slot = ?", slot).
 		Order("is_primary desc, updated_at desc").
@@ -56,8 +56,10 @@ func (r *gormRepository) FirstBindingBySlot(ctx context.Context, ownerType strin
 }
 
 func (r *gormRepository) FirstBindingByRole(ctx context.Context, ownerType string, ownerID uint, role string) (resourceBindingProjection, bool, error) {
-	var binding model.ResourceBinding
+	var binding resourceBindingProjection
 	err := r.db.WithContext(ctx).
+		Table("resource_bindings").
+		Select("resource_id").
 		Where("owner_type = ? AND owner_id = ?", ownerType, ownerID).
 		Where("role = ?", role).
 		Order("is_primary desc, updated_at desc").
@@ -77,64 +79,94 @@ func (r *gormRepository) LoadEntityRow(ctx context.Context, table string, column
 }
 
 func (r *gormRepository) LoadScriptComputedFields(ctx context.Context, id uint) (scriptComputedProjection, error) {
-	var item model.Script
-	if err := r.db.WithContext(ctx).Select("characters", "character_profiles").First(&item, id).Error; err != nil {
+	var item scriptComputedProjection
+	if err := r.db.WithContext(ctx).
+		Table("scripts").
+		Select("characters", "character_profiles").
+		Where("id = ?", id).
+		First(&item).Error; err != nil {
 		return scriptComputedProjection{}, err
 	}
 	return scriptComputedProjection{Characters: item.Characters, CharacterProfiles: item.CharacterProfiles}, nil
 }
 
 func (r *gormRepository) ListAssetSlotCandidates(ctx context.Context, assetSlotID uint) ([]assetSlotCandidateProjection, error) {
-	candidates := make([]model.AssetSlotCandidate, 0)
+	type candidateRow struct {
+		ID                   uint
+		CandidateAssetSlotID uint
+		SourceType           string
+		Score                float64
+		Status               string
+		Note                 string
+		SlotID               *uint `gorm:"column:slot_id"`
+		SlotKind             string
+		SlotName             string
+		SlotDescription      string
+		SlotStatus           string
+		SlotResourceID       *uint
+		ResourceID           *uint
+		ResourceType         string
+		ResourceName         string
+		ResourceMimeType     string
+	}
+	rows := make([]candidateRow, 0)
 	if err := r.db.WithContext(ctx).
-		Preload("CandidateAssetSlot.Resource").
-		Where("asset_slot_id = ?", assetSlotID).
-		Order("status desc, score desc, id desc").
-		Find(&candidates).Error; err != nil {
+		Table("asset_slot_candidates AS c").
+		Select(`
+			c.id,
+			c.candidate_asset_slot_id,
+			c.source_type,
+			c.score,
+			c.status,
+			c.note,
+			s.id AS slot_id,
+			s.kind AS slot_kind,
+			s.name AS slot_name,
+			s.description AS slot_description,
+			s.status AS slot_status,
+			s.resource_id AS slot_resource_id,
+			r.id AS resource_id,
+			r.type AS resource_type,
+			r.name AS resource_name,
+			r.mime_type AS resource_mime_type
+		`).
+		Joins("LEFT JOIN asset_slots AS s ON s.id = c.candidate_asset_slot_id").
+		Joins("LEFT JOIN raw_resources AS r ON r.id = s.resource_id").
+		Where("c.asset_slot_id = ?", assetSlotID).
+		Order("c.status desc, c.score desc, c.id desc").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return assetSlotCandidatesFromModels(candidates), nil
-}
-
-func assetSlotCandidatesFromModels(candidates []model.AssetSlotCandidate) []assetSlotCandidateProjection {
-	items := make([]assetSlotCandidateProjection, 0, len(candidates))
-	for _, candidate := range candidates {
+	items := make([]assetSlotCandidateProjection, 0, len(rows))
+	for _, row := range rows {
+		var slot *assetSlotProjection
+		if row.SlotID != nil {
+			slot = &assetSlotProjection{
+				ID:          *row.SlotID,
+				Kind:        row.SlotKind,
+				Name:        row.SlotName,
+				Description: row.SlotDescription,
+				Status:      row.SlotStatus,
+				ResourceID:  row.SlotResourceID,
+			}
+			if row.ResourceID != nil {
+				slot.Resource = &rawResourceProjection{
+					ID:       *row.ResourceID,
+					Type:     row.ResourceType,
+					Name:     row.ResourceName,
+					MimeType: row.ResourceMimeType,
+				}
+			}
+		}
 		items = append(items, assetSlotCandidateProjection{
-			ID:                   candidate.ID,
-			CandidateAssetSlotID: candidate.CandidateAssetSlotID,
-			SourceType:           candidate.SourceType,
-			Score:                candidate.Score,
-			Status:               candidate.Status,
-			Note:                 candidate.Note,
-			CandidateAssetSlot:   assetSlotFromModelPointer(candidate.CandidateAssetSlot),
+			ID:                   row.ID,
+			CandidateAssetSlotID: row.CandidateAssetSlotID,
+			SourceType:           row.SourceType,
+			Score:                row.Score,
+			Status:               row.Status,
+			Note:                 row.Note,
+			CandidateAssetSlot:   slot,
 		})
 	}
-	return items
-}
-
-func assetSlotFromModelPointer(slot *model.AssetSlot) *assetSlotProjection {
-	if slot == nil {
-		return nil
-	}
-	return &assetSlotProjection{
-		ID:          slot.ID,
-		Kind:        slot.Kind,
-		Name:        slot.Name,
-		Description: slot.Description,
-		Status:      slot.Status,
-		ResourceID:  slot.ResourceID,
-		Resource:    rawResourceFromModelPointer(slot.Resource),
-	}
-}
-
-func rawResourceFromModelPointer(resource *model.RawResource) *rawResourceProjection {
-	if resource == nil {
-		return nil
-	}
-	return &rawResourceProjection{
-		ID:       resource.ID,
-		Type:     resource.Type,
-		Name:     resource.Name,
-		MimeType: resource.MimeType,
-	}
+	return items, nil
 }

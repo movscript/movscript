@@ -40,27 +40,29 @@
       }
     },
     {
-      "name": "movscript_search_entities",
+      "name": "movscript_search_items",
+      "runtimeName": "movscript_search_entities",
       "description": "Search business items such as scripts, creative materials, scene beats, shot plans, and asset needs in the current or specified project. Use when the user names content without a direct reference.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_search_entities",
+        "name": "movscript_search_items",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript_read_entity",
+      "name": "movscript_read_item",
+      "runtimeName": "movscript_read_entity",
       "description": "Read a single MovScript business item by reference.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_read_entity",
+        "name": "movscript_read_item",
         "mode": "allow",
         "approval": "never"
       }
@@ -93,14 +95,15 @@
       }
     },
     {
-      "name": "movscript_open_entity",
+      "name": "movscript_open_item",
+      "runtimeName": "movscript_open_entity",
       "description": "Navigate the MovScript UI to a project item page.",
       "permission": "ui.navigate",
       "risk": "ui",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_open_entity",
+        "name": "movscript_open_item",
         "mode": "allow",
         "approval": "never"
       }

@@ -447,7 +447,7 @@ export default function ProductionFramePage() {
                 </Link>
               </Button>
               <Button variant="outline" className="gap-2" asChild>
-                <Link to="/final-videos">
+                <Link to={deliveryWorkbenchHref(selected)}>
                   <Video size={15} />
                   成片
                 </Link>
@@ -956,15 +956,19 @@ function productionNextActionHref(action: string, production: ProductionRecord) 
 }
 
 function productionAreaHref(area: ProductionArea, production: ProductionRecord) {
-  if (area.key === 'final') return deliveryHref(production)
+  if (area.key === 'final') return deliveryWorkbenchHref(production)
   if (area.key === 'content') return `/contents?production_id=${production.dbId}`
   if (area.key === 'assets') return `/asset-slots?production_id=${production.dbId}`
   return area.href
 }
 
 function deliveryHref(production: ProductionRecord) {
+  return deliveryWorkbenchHref(production)
+}
+
+function deliveryWorkbenchHref(production: ProductionRecord) {
   const params = new URLSearchParams({ productionId: String(production.dbId) })
-  return `/delivery?${params.toString()}`
+  return `/delivery/workbench?${params.toString()}`
 }
 
 function productionPlaybackHref(production: ProductionRecord) {

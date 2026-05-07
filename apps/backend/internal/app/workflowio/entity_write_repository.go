@@ -3,9 +3,11 @@ package workflowio
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
@@ -185,6 +187,14 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 	return bindingIDs, nil
 }
 
+func candidateSlotName(slot model.AssetSlot, resourceID uint) string {
+	base := strings.TrimSpace(slot.Name)
+	if base == "" {
+		base = fmt.Sprintf("素材位 #%d", slot.ID)
+	}
+	return fmt.Sprintf("%s · 候选资源 #%d", base, resourceID)
+}
+
 func (r *gormRepository) syncEntityRelationsForKind(ctx context.Context, kind string, id uint) error {
 	db := r.db.WithContext(ctx)
 	switch kind {
@@ -227,4 +237,35 @@ func (r *gormRepository) createEntityWriteAudits(
 		return nil
 	}
 	return r.db.WithContext(ctx).Create(&audits).Error
+}
+
+func buildEntityWriteAudits(
+	kind string,
+	id uint,
+	values map[string]EntityPortValue,
+	oldValues map[string]EntityPortValue,
+	bindingIDsByPort map[string][]uint,
+	meta EntityWriteMeta,
+) []model.CanvasEntityWriteAudit {
+	audits := make([]model.CanvasEntityWriteAudit, 0, len(values))
+	for portID, value := range values {
+		newValueJSON := mustMarshalString(entityPortValueAuditPayload(value))
+		oldValueJSON := ""
+		if oldValue, ok := oldValues[portID]; ok {
+			oldValueJSON = mustMarshalString(entityPortValueAuditPayload(oldValue))
+		}
+		audits = append(audits, canvasruntime.NewEntityWriteAudit(canvasruntime.EntityWriteAuditSpec{
+			CanvasID:           meta.CanvasID,
+			CanvasRunID:        meta.RunID,
+			CanvasNodeID:       meta.NodeID,
+			PortID:             portID,
+			EntityKind:         kind,
+			EntityID:           id,
+			UserID:             meta.UserID,
+			OldValueJSON:       oldValueJSON,
+			NewValueJSON:       newValueJSON,
+			ResourceBindingIDs: mustMarshalString(bindingIDsByPort[portID]),
+		}).ToModel())
+	}
+	return audits
 }

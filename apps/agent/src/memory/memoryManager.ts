@@ -3,6 +3,7 @@ import { parseToolResult } from '../runtime/context.js'
 import type { AgentRun, AgentMessage, ToolCallOutcome } from '../runtime/types.js'
 import type { AgentMemory, AgentMemoryKind, AgentMemoryScope, CreateMemoryInput, MemoryQuery } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
+import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
 
 export interface RelevantMemoryContext {
   projectId?: number
@@ -67,7 +68,7 @@ export class MemoryManager {
     }
 
     for (const outcome of input.toolResults) {
-      if (outcome.call.name === 'movscript_create_draft' && !outcome.error) {
+      if (publicToolName(outcome.call.name) === 'movscript_create_draft' && !outcome.error) {
         writes.push({
           scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
@@ -79,7 +80,7 @@ export class MemoryManager {
         })
       }
 
-      if ((outcome.call.name === 'movscript_read_entity' || outcome.call.name === 'movscript_search_entities') && !outcome.error) {
+      if ((publicToolName(outcome.call.name) === 'movscript_read_item' || publicToolName(outcome.call.name) === 'movscript_search_items') && !outcome.error) {
         writes.push({
           scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
@@ -190,8 +191,8 @@ function describeDraftMemory(result: JSONValue | undefined): string {
 }
 
 function describeEntityRefMemory(outcome: ToolCallOutcome): string {
-  if (outcome.call.name === 'movscript_read_entity') {
-    return `Read business item ${String(outcome.call.args?.entityType ?? 'item')} ${String(outcome.call.args?.entityId ?? '')}.`
+  if (publicToolName(outcome.call.name) === 'movscript_read_item') {
+    return `Read business item ${String(outcome.call.args?.itemType ?? outcome.call.args?.entityType ?? 'item')} ${String(outcome.call.args?.itemId ?? outcome.call.args?.entityId ?? '')}.`
   }
   const parsed = parseToolResult(outcome.result ?? null)
   const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
@@ -200,8 +201,4 @@ function describeEntityRefMemory(outcome: ToolCallOutcome): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function formatToolNameForDisplay(name: string): string {
-  return name.startsWith('movscript_') ? `movscript.${name.slice('movscript_'.length)}` : name
 }

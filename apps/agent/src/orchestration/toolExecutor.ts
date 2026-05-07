@@ -7,6 +7,7 @@ import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import { buildApplyDraftPreview, markDraftApplied } from '../drafts/draftApply.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind, AgentMemoryScope } from '../memory/types.js'
+import { runtimeToolName } from '../tools/toolNames.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
 
@@ -58,7 +59,7 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   throwIfAborted(options.signal)
   await mcpClient.initialize({ signal: options.signal })
   throwIfAborted(options.signal)
-  const result = await mcpClient.callTool(call.name, args, { signal: options.signal })
+  const result = await mcpClient.callTool(runtimeToolName(call.name), translateToolArgsForRuntime(call.name, args), { signal: options.signal })
   throwIfAborted(options.signal)
   return { call, result, source: 'mcp' }
 }
@@ -337,15 +338,15 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_propose_production_entities') {
+  if (toolName === 'movscript_create_production_proposal_from_items' || toolName === 'movscript_propose_production_entities') {
     const projectId = numberField(args.projectId) ?? numberField(args.project_id)
     const proposalInput = isRecord(args.proposal) ? args.proposal : undefined
     const productionId = numberField(args.productionId)
       ?? numberField(args.production_id)
       ?? numberField(proposalInput?.productionId)
       ?? numberField(proposalInput?.production_id)
-    if (projectId === undefined) throw new Error('propose_production_entities requires projectId')
-    if (productionId === undefined) throw new Error('propose_production_entities requires productionId')
+    if (projectId === undefined) throw new Error('create_production_proposal_from_items requires projectId')
+    if (productionId === undefined) throw new Error('create_production_proposal_from_items requires productionId')
 
     const analysisScope = stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production'
     const normalizedProposal = normalizeProductionProposal(args.proposal, args.candidates)
@@ -505,6 +506,17 @@ function buildSandboxResult(toolName: string, args: Record<string, JSONValue>): 
     simulatedResult: `${toolName} intercepted by sandbox mode (not actually executed)`,
     interceptedAt: new Date().toISOString(),
   }
+}
+
+function translateToolArgsForRuntime(toolName: string, args: Record<string, JSONValue>): Record<string, JSONValue> {
+  if (toolName === 'movscript_read_item' || toolName === 'movscript_read_entity') {
+    return {
+      ...args,
+      ...(typeof args.itemType === 'string' ? { entityType: args.itemType } : {}),
+      ...(typeof args.itemId === 'number' || typeof args.itemId === 'string' ? { entityId: args.itemId } : {}),
+    }
+  }
+  return args
 }
 
 function normalizeCreateScriptPayload(args: Record<string, JSONValue>): Record<string, JSONValue> {

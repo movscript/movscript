@@ -12,6 +12,7 @@ import {
 } from '../model/modelConfig.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from '../state/types.js'
+import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
 
 export function buildAssistantContent(
   userMessage: string,
@@ -358,12 +359,13 @@ function describeToolOutcome(outcome: ToolCallOutcome): string {
 
 function describeToolResult(call: ToolCall, result: JSONValue): string {
   const parsed = parseToolResult(result)
-  if (call.name === 'movscript_search_entities') {
+  const toolName = publicToolName(call.name)
+  if (toolName === 'movscript_search_items') {
     const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
     return `搜索项目内容${count === undefined ? '' : `，找到 ${count} 条结果`}。`
   }
-  if (call.name === 'movscript_read_entity') {
-    return `读取 ${String(call.args?.entityType ?? 'entity')} ${String(call.args?.entityId ?? '')}。`
+  if (toolName === 'movscript_read_item') {
+    return `读取项目内容 ${String(call.args?.itemType ?? 'item')} ${String(call.args?.itemId ?? '')}。`
   }
   if (call.name === 'movscript_read_project_structure') {
     const counts = isRecord(parsed) && isRecord(parsed.counts) ? parsed.counts : undefined
@@ -410,10 +412,6 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     return `生成任务已执行（${status}${outputResourceId}）。`
   }
   return `调用 ${call.name}。`
-}
-
-function formatToolNameForDisplay(name: string): string {
-  return name.startsWith('movscript_') ? `movscript.${name.slice('movscript_'.length)}` : name
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

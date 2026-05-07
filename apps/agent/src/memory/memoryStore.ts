@@ -10,7 +10,7 @@ export interface AgentMemoryStore {
 export class InMemoryAgentMemoryStore implements AgentMemoryStore {
   private readonly memories = new Map<string, AgentMemory>()
 
-  listMemories(query: MemoryQuery = {}): AgentMemory[] {
+  listMemories(query: MemoryQuery): AgentMemory[] {
     const limit = typeof query.limit === 'number' && Number.isFinite(query.limit)
       ? Math.max(1, Math.min(100, Math.floor(query.limit)))
       : undefined
@@ -30,11 +30,11 @@ export class InMemoryAgentMemoryStore implements AgentMemoryStore {
     const now = new Date().toISOString()
     const memory: AgentMemory = {
       id: makeId('mem'),
-      scope: input.scope,
-      ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
-      ...(input.threadId ? { threadId: input.threadId } : {}),
+      projectId: input.projectId,
+      title: input.title.trim(),
       kind: input.kind,
       content: input.content.trim(),
+      ...(input.sourceThreadId ? { sourceThreadId: input.sourceThreadId } : {}),
       ...(input.sourceRunId ? { sourceRunId: input.sourceRunId } : {}),
       ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
       createdAt: now,
@@ -52,14 +52,21 @@ export class InMemoryAgentMemoryStore implements AgentMemoryStore {
     this.memories.clear()
     for (const memory of memories) this.memories.set(memory.id, clone(memory))
   }
+
+  protected snapshotMemories(): AgentMemory[] {
+    return Array.from(this.memories.values())
+      .map((memory) => clone(memory))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
 }
 
 export function matchesQuery(memory: AgentMemory, query: MemoryQuery): boolean {
-  if (query.scope && memory.scope !== query.scope) return false
-  if (typeof query.projectId === 'number' && memory.projectId !== query.projectId) return false
-  if (query.threadId && memory.threadId !== query.threadId) return false
+  if (memory.projectId !== query.projectId) return false
   if (query.kind && memory.kind !== query.kind) return false
-  if (query.query && !memory.content.toLowerCase().includes(query.query.toLowerCase())) return false
+  if (query.query) {
+    const needle = query.query.toLowerCase()
+    if (!memory.title.toLowerCase().includes(needle) && !memory.content.toLowerCase().includes(needle)) return false
+  }
   return true
 }
 

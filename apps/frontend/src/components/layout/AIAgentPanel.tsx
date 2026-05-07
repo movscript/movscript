@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  Bot, ChevronRight, Send, Loader2,
+  AtSign, Bot, ChevronRight, Send, Loader2,
   Plus, ArrowLeft, Copy, Check, X, ClipboardCheck, CircleStop,
   Image, Video, FileText, Mic, File, Workflow, ShieldCheck,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
@@ -107,31 +107,50 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   )
 }
 
-function InlineText({ text }: { text: string }) {
+function renderInlineText(text: string) {
   const parts = text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
+      return <code key={i} className="px-1 py-0.5 rounded bg-muted/60 text-xs font-mono">{part.slice(1, -1)}</code>
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    return part.split('\n').map((line, j, arr) => (
+      <React.Fragment key={`${i}-${j}`}>{line}{j < arr.length - 1 && <br />}</React.Fragment>
+    ))
+  })
+}
+
+function InlineText({ text, attachmentsById }: { text: string, attachmentsById?: Map<number, AgentAttachment> }) {
+  const parts = text.split(/(@\[resource:\d+\])/g)
   return (
     <>
       {parts.map((part, i) => {
-        if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
-          return <code key={i} className="px-1 py-0.5 rounded bg-muted/60 text-xs font-mono">{part.slice(1, -1)}</code>
-        if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-          return <strong key={i}>{part.slice(2, -2)}</strong>
-        return part.split('\n').map((line, j, arr) => (
-          <React.Fragment key={`${i}-${j}`}>{line}{j < arr.length - 1 && <br />}</React.Fragment>
-        ))
+        const match = part.match(/^@\[resource:(\d+)\]$/)
+        if (match) {
+          const attachment = attachmentsById?.get(Number(match[1])) ?? placeholderAttachment(Number(match[1]))
+          return <InlineResourceMention key={i} attachment={attachment} />
+        }
+        return <React.Fragment key={i}>{renderInlineText(part)}</React.Fragment>
       })}
     </>
   )
 }
 
-function MarkdownContent({ text }: { text: string }) {
+function MarkdownContent({ text, attachments }: { text: string; attachments?: AgentAttachment[] }) {
+  const attachmentsById = useMemo(() => {
+    const map = new Map<number, AgentAttachment>()
+    for (const attachment of attachments ?? []) {
+      if (attachment.resourceId !== undefined) map.set(attachment.resourceId, attachment)
+    }
+    return map
+  }, [attachments])
   const segments = text.split(/(```[\w]*\n[\s\S]*?```)/g)
   return (
     <div>
       {segments.map((seg, i) => {
         const m = seg.match(/^```([\w]*)\n([\s\S]*?)```$/)
         if (m) return <CodeBlock key={i} lang={m[1]} code={m[2].trimEnd()} />
-        return <span key={i}><InlineText text={seg} /></span>
+        return <span key={i}><InlineText text={seg} attachmentsById={attachmentsById} /></span>
       })}
     </div>
   )
@@ -173,6 +192,20 @@ function attachmentFromResource(resource: RawResource): AgentAttachment {
   }
 }
 
+function attachmentFromClientInputRef(attachment: NonNullable<AgentClientInput['attachments']>[number]): AgentAttachment {
+  const type = attachment.type === 'image' || attachment.type === 'video' || attachment.type === 'audio' || attachment.type === 'text'
+    ? attachment.type
+    : 'file'
+  return {
+    id: attachment.id ?? (attachment.resourceId !== undefined ? `res-${attachment.resourceId}` : `${attachment.name ?? 'attachment'}-${Math.random().toString(36).slice(2, 8)}`),
+    name: attachment.name ?? `resource-${attachment.resourceId ?? 'attachment'}`,
+    type,
+    mimeType: attachment.mimeType ?? 'application/octet-stream',
+    size: attachment.size ?? 0,
+    ...(attachment.resourceId !== undefined ? { resourceId: attachment.resourceId } : {}),
+  }
+}
+
 function AttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; size?: number }) {
   if (type === 'image') return <Image size={size} />
   if (type === 'video') return <Video size={size} />
@@ -201,6 +234,129 @@ function AttachmentPreview({ attachment, compact = false }: { attachment: AgentA
         <p className="truncate text-[10px] font-medium text-foreground">{attachment.name}</p>
         <p className="text-[9px] text-muted-foreground">{formatBytes(attachment.size)}</p>
       </div>
+    </div>
+  )
+}
+
+const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
+const RESOURCE_MENTION_TRIGGER_RE = /(?:^|[\s(])@([^\s@\[]*)$/u
+
+function resourceMentionToken(resourceId: number) {
+  return `@[resource:${resourceId}]`
+}
+
+function parseResourceMentionIds(text: string): number[] {
+  const ids: number[] = []
+  const seen = new Set<number>()
+  for (const match of text.matchAll(RESOURCE_MENTION_RE)) {
+    const id = Number(match[1])
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
+}
+
+function stripResourceMentions(text: string): string {
+  return text
+    .replace(RESOURCE_MENTION_RE, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function normalizeInlineSpacing(text: string): string {
+  return text.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n')
+}
+
+function attachmentKey(attachment: AgentAttachment): string {
+  return attachment.resourceId !== undefined ? `resource:${attachment.resourceId}` : attachment.id
+}
+
+function dedupeAttachments(items: AgentAttachment[]): AgentAttachment[] {
+  const seen = new Map<string, AgentAttachment>()
+  for (const item of items) {
+    seen.set(attachmentKey(item), item)
+  }
+  return Array.from(seen.values())
+}
+
+function placeholderAttachment(resourceId: number): AgentAttachment {
+  return {
+    id: `resource-${resourceId}`,
+    name: `resource-${resourceId}`,
+    type: 'file',
+    mimeType: 'application/octet-stream',
+    size: 0,
+    resourceId,
+  }
+}
+
+function resourceMentionAttachments(text: string, byId: Map<number, AgentAttachment>): AgentAttachment[] {
+  return parseResourceMentionIds(text).map((resourceId) => byId.get(resourceId) ?? placeholderAttachment(resourceId))
+}
+
+function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) {
+  const url = attachment.url
+  const media = attachment.type === 'image' && url ? (
+    <AuthedImage src={url} alt={attachment.name} className="h-full w-full object-cover" />
+  ) : attachment.type === 'video' && url ? (
+    <AuthedVideo src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+  ) : (
+    <div className="flex h-full w-full items-center justify-center bg-muted/70 text-muted-foreground">
+      <AttachmentIcon type={attachment.type} size={9} />
+    </div>
+  )
+
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 align-middle rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-foreground mx-0.5">
+      <span className="h-4 w-4 shrink-0 overflow-hidden rounded bg-background/70">
+        {media}
+      </span>
+      <span className="max-w-[96px] truncate">{attachment.name}</span>
+    </span>
+  )
+}
+
+function ComposerAttachmentChip({
+  attachment,
+  mentioned,
+  onRemove,
+}: {
+  attachment: AgentAttachment
+  mentioned?: boolean
+  onRemove: () => void
+}) {
+  const url = attachment.url
+  const preview = attachment.type === 'image' && url ? (
+    <AuthedImage src={url} alt={attachment.name} className="h-full w-full object-cover" />
+  ) : attachment.type === 'video' && url ? (
+    <AuthedVideo src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+  ) : (
+    <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">
+      <AttachmentIcon type={attachment.type} size={10} />
+    </div>
+  )
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/70 px-2 py-1 text-[11px]">
+      <span className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted/60">
+        {preview}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1">
+          {mentioned && (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/10 px-1 py-0.5 text-[9px] text-primary">
+              <AtSign size={8} />
+              @
+            </span>
+          )}
+          <span className="truncate text-foreground">{attachment.name}</span>
+        </div>
+        <p className="truncate text-[9px] text-muted-foreground">{formatBytes(attachment.size)}</p>
+      </div>
+      <button type="button" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove} aria-label={`Remove ${attachment.name}`}>
+        <X size={10} />
+      </button>
     </div>
   )
 }
@@ -1338,7 +1494,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         </div>
       )}
     >
-      {isUser ? msg.content : <MarkdownContent text={msg.content} />}
+      <MarkdownContent text={msg.content} attachments={msg.attachments} />
       {!isUser && msg.meta?.localRunActivity && (
         <RunActivityPanel activity={msg.meta.localRunActivity} title="Tool activity" />
       )}
@@ -2062,6 +2218,7 @@ function ChatView({
   })
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AgentAttachment[]>([])
+  const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [showContext, setShowContextState] = useState(() => {
     try {
@@ -2120,6 +2277,47 @@ function ChatView({
   const modelId = settings.modelId ?? textModels[0]?.id ?? null
   const systemPrompt = ''
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
+  const resourceAttachmentIndex = useMemo(() => {
+    const map = new Map<number, AgentAttachment>()
+    for (const resource of recentResources) {
+      map.set(resource.ID, attachmentFromResource(resource))
+    }
+    for (const attachment of attachments) {
+      if (attachment.resourceId !== undefined) map.set(attachment.resourceId, attachment)
+    }
+    return map
+  }, [recentResources, attachments])
+  const mentionCandidates = useMemo(() => {
+    return dedupeAttachments([
+      ...attachments,
+      ...recentResources.map(attachmentFromResource),
+    ]).filter((attachment) =>
+      attachment.resourceId !== undefined
+      && (attachment.type === 'image' || attachment.type === 'video' || attachment.type === 'audio')
+    )
+  }, [attachments, recentResources])
+  const mentionResults = useMemo(() => {
+    if (!mentionRange) return []
+    const query = mentionRange.query.trim().toLowerCase()
+    return mentionCandidates
+      .filter((attachment) => !query || attachment.name.toLowerCase().includes(query))
+      .slice(0, 8)
+  }, [mentionCandidates, mentionRange])
+  const composerAttachmentEntries = useMemo(() => {
+    const map = new Map<string, { attachment: AgentAttachment; explicit: boolean; mentioned: boolean }>()
+    for (const attachment of attachments) {
+      map.set(attachmentKey(attachment), { attachment, explicit: true, mentioned: false })
+    }
+    for (const attachment of resourceMentionAttachments(input, resourceAttachmentIndex)) {
+      const key = attachmentKey(attachment)
+      const existing = map.get(key)
+      map.set(key, existing
+        ? { ...existing, mentioned: true, attachment: existing.attachment.resourceId !== undefined ? existing.attachment : attachment }
+        : { attachment, explicit: false, mentioned: true })
+    }
+    return Array.from(map.values())
+  }, [attachments, input, resourceAttachmentIndex])
+  const composerAttachments = useMemo(() => composerAttachmentEntries.map((entry) => entry.attachment), [composerAttachmentEntries])
   const activeModel = textModels.find((m) => m.id === modelId)
   const activeLocalRun = conversationRuntime?.run ?? null
   const loading = conversationRuntime?.loading ?? false
@@ -2130,9 +2328,9 @@ function ChatView({
     'Local Runtime',
     settings.includeProjectContext && currentProject ? currentProject.name : null,
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
-    attachments.length > 0 ? t('agents.chat.attachmentsCount', { count: attachments.length }) : null,
+    composerAttachments.length > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachments.length }) : null,
   ].filter(Boolean) as string[]
-  const canSend = (!!input.trim() || attachments.length > 0) && !loading && !uploading && !buildingSendDraft
+  const canSend = (!!input.trim() || composerAttachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
@@ -2227,6 +2425,7 @@ function ChatView({
         uploaded.push(attachmentFromResource(data as RawResource))
       }
       setAttachments((cur) => [...cur, ...uploaded])
+      setMentionRange(null)
       qc.invalidateQueries({ queryKey: ['resources'] })
       qc.invalidateQueries({ queryKey: ['resources', 'agent-panel'] })
     } finally {
@@ -2235,8 +2434,60 @@ function ChatView({
     }
   }
 
+  function updateMentionState(value: string, caret: number) {
+    const before = value.slice(0, caret)
+    const match = before.match(RESOURCE_MENTION_TRIGGER_RE)
+    if (!match) {
+      setMentionRange(null)
+      return
+    }
+    setMentionRange({
+      start: caret - match[1].length - 1,
+      end: caret,
+      query: match[1],
+    })
+  }
+
+  function insertResourceMention(attachment: AgentAttachment) {
+    if (attachment.resourceId === undefined) return
+    const inputEl = inputRef.current
+    const value = input
+    const start = mentionRange?.start ?? inputEl?.selectionStart ?? value.length
+    const end = mentionRange?.end ?? inputEl?.selectionEnd ?? start
+    const token = `${resourceMentionToken(attachment.resourceId)} `
+    const next = `${value.slice(0, start)}${token}${value.slice(end)}`
+    setInput(next)
+    setAttachments((cur) => dedupeAttachments([...cur, attachment]))
+    setMentionRange(null)
+    window.requestAnimationFrame(() => {
+      inputEl?.focus()
+      const cursor = start + token.length
+      inputEl?.setSelectionRange(cursor, cursor)
+    })
+  }
+
+  function addMentionTrigger() {
+    const inputEl = inputRef.current
+    const start = inputEl?.selectionStart ?? input.length
+    const end = inputEl?.selectionEnd ?? start
+    const next = `${input.slice(0, start)}@${input.slice(end)}`
+    setInput(next)
+    const caret = start + 1
+    setMentionRange({ start, end: caret, query: '' })
+    window.requestAnimationFrame(() => {
+      inputEl?.focus()
+      inputEl?.setSelectionRange(caret, caret)
+    })
+  }
+
   function removeAttachment(id: string) {
     setAttachments((cur) => cur.filter((a) => a.id !== id))
+    const removed = composerAttachments.find((a) => a.id === id)
+    if (removed?.resourceId !== undefined) {
+      const tokenPattern = new RegExp(`\\s*@\\[resource:${removed.resourceId}\\]\\s*`, 'g')
+      setInput((cur) => normalizeInlineSpacing(cur.replace(tokenPattern, ' ')))
+    }
+    setMentionRange(null)
   }
 
   const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
@@ -2380,7 +2631,12 @@ function ChatView({
     omitDebugArtifacts?: boolean
   } = {}): Promise<AgentSendDraft> => {
     const text = (options.message ?? input).trim()
-    const sentAttachments = attachments
+    const sentAttachments = options.message === undefined
+      ? composerAttachments
+      : dedupeAttachments([
+        ...(options.clientInput?.attachments?.length ? options.clientInput.attachments.map(attachmentFromClientInputRef) : attachments),
+        ...resourceMentionAttachments(text, resourceAttachmentIndex),
+      ])
     const visibleText = (options.displayMessage ?? text).trim()
     const visibleUserContent = visibleText || t('agents.chat.attachmentOnlyMessage')
     const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
@@ -2493,6 +2749,8 @@ function ChatView({
   }, [
     input,
     attachments,
+    composerAttachments,
+    resourceAttachmentIndex,
     t,
     settings,
     currentProject,
@@ -2524,6 +2782,7 @@ function ChatView({
 
     setInput('')
     setAttachments([])
+    setMentionRange(null)
     setConversationRuntime(conv.id, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
     cancelRequestedRunIdsRef.current.clear()
     addMessage(userId, conv.id, {
@@ -2539,7 +2798,7 @@ function ChatView({
       },
     })
     if (conv.messages.length === 0) {
-      const titleBase = draft.visibleUserContent || draft.attachments[0]?.name || t('agents.chat.newConversation')
+      const titleBase = stripResourceMentions(draft.visibleUserContent) || draft.attachments[0]?.name || t('agents.chat.newConversation')
       updateConversationTitle(userId, conv.id, titleBase.slice(0, 30) + (titleBase.length > 30 ? '…' : ''))
     }
     if (draft.localRuntime?.requestId) {
@@ -2691,7 +2950,7 @@ function ChatView({
   ])
 
   const send = useCallback(async () => {
-    if ((!input.trim() && attachments.length === 0) || loading || uploading || buildingSendDraft) return
+    if ((!input.trim() && composerAttachments.length === 0) || loading || uploading || buildingSendDraft) return
     if (!modelId) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
@@ -2714,7 +2973,7 @@ function ChatView({
     }
   }, [
     input,
-    attachments,
+    composerAttachments,
     loading,
     uploading,
     buildingSendDraft,
@@ -2755,19 +3014,6 @@ function ChatView({
             <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
               {loading || buildingSendDraft ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
             </AgentStatus>
-            {canStopLocalRun && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={stopActiveLocalRun}
-                disabled={stoppingLocalRun}
-                className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                title="Stop current session"
-              >
-                {stoppingLocalRun ? <Loader2 size={13} className="animate-spin" /> : <CircleStop size={13} />}
-                Stop
-              </Button>
-            )}
             <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label="Back">
               <ArrowLeft size={14} />
             </Button>
@@ -2956,10 +3202,10 @@ function ChatView({
               )}
             </div>
           )}
-          {attachments.length > 0 && (
+          {composerAttachmentEntries.length > 0 && (
             <div className="grid grid-cols-2 gap-1.5">
-              {attachments.map((attachment) => (
-                <div key={attachment.id} className="relative">
+              {composerAttachmentEntries.map(({ attachment }) => (
+                <div key={attachmentKey(attachment)} className="relative">
                   <AttachmentPreview attachment={attachment} compact />
                   <Button
                     type="button"
@@ -3029,16 +3275,80 @@ function ChatView({
             className="hidden"
             onChange={(e) => e.target.files && uploadFiles(e.target.files)}
           />
-          <AgentComposerField
-            ref={inputRef}
-            placeholder={t('agents.chat.inputPlaceholder')}
-            minRows={2}
-            value={input}
-            className="ai-agent-panel-composer-field"
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            disabled={loading || buildingSendDraft}
-          />
+          {composerAttachmentEntries.length > 0 && (
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {composerAttachmentEntries.map(({ attachment, mentioned }) => (
+                <ComposerAttachmentChip
+                  key={attachmentKey(attachment)}
+                  attachment={attachment}
+                  mentioned={mentioned}
+                  onRemove={() => removeAttachment(attachment.id)}
+                />
+              ))}
+            </div>
+          )}
+          <div className="relative">
+            <AgentComposerField
+              ref={inputRef}
+              placeholder={t('agents.chat.inputPlaceholder')}
+              minRows={2}
+              value={input}
+              className="ai-agent-panel-composer-field"
+              onChange={(e) => {
+                setInput(e.target.value)
+                updateMentionState(e.target.value, e.target.selectionStart ?? e.target.value.length)
+              }}
+              onClick={(e) => updateMentionState(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length)}
+              onKeyUp={(e) => updateMentionState(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setMentionRange(null)
+                  return
+                }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  send()
+                }
+              }}
+              disabled={loading || buildingSendDraft}
+            />
+            {mentionRange && mentionResults.length > 0 && (
+              <div className="absolute bottom-full left-0 z-30 mb-1.5 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
+                <div className="border-b border-border px-2 py-1 text-[10px] text-muted-foreground">
+                  {t('shared.genInput.mention')}
+                </div>
+                <div className="max-h-48 overflow-auto">
+                  {mentionResults.map((attachment) => (
+                    <button
+                      key={attachmentKey(attachment)}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        insertResourceMention(attachment)
+                      }}
+                      className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-muted/60"
+                    >
+                      <span className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
+                        {attachment.type === 'image' && attachment.url ? (
+                          <AuthedImage src={attachment.url} alt={attachment.name} className="h-full w-full object-cover" />
+                        ) : attachment.type === 'video' && attachment.url ? (
+                          <AuthedVideo src={attachment.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <AttachmentIcon type={attachment.type} size={10} />
+                          </div>
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-foreground">{attachment.name}</span>
+                      <span className="shrink-0 text-[9px] text-muted-foreground">
+                        {attachment.resourceId ? `#${attachment.resourceId}` : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <AgentComposerToolbar>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
               <AgentComposerAction
@@ -3049,8 +3359,16 @@ function ChatView({
               >
                 {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
               </AgentComposerAction>
-              {attachments.length > 0 && (
-                <Badge variant="secondary" className="max-w-24 truncate text-[10px]">{t('agents.chat.attachmentsCount', { count: attachments.length })}</Badge>
+              <AgentComposerAction
+                onClick={addMentionTrigger}
+                disabled={loading || buildingSendDraft}
+                aria-label={t('shared.genInput.mention')}
+                title={t('shared.genInput.mention')}
+              >
+                <AtSign size={13} />
+              </AgentComposerAction>
+              {composerAttachments.length > 0 && (
+                <Badge variant="secondary" className="max-w-24 truncate text-[10px]">{t('agents.chat.attachmentsCount', { count: composerAttachments.length })}</Badge>
               )}
               <Button
                 type="button"

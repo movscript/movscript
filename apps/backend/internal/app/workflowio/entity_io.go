@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
 )
@@ -499,14 +497,6 @@ func entityPortValueText(value EntityPortValue) string {
 	return ""
 }
 
-func candidateSlotName(slot model.AssetSlot, resourceID uint) string {
-	base := strings.TrimSpace(slot.Name)
-	if base == "" {
-		base = fmt.Sprintf("素材位 #%d", slot.ID)
-	}
-	return fmt.Sprintf("%s · 候选资源 #%d", base, resourceID)
-}
-
 func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[string]any {
 	updates := map[string]any{}
 	for portID, value := range values {
@@ -527,37 +517,6 @@ func entityFieldUpdates(kind string, values map[string]EntityPortValue) map[stri
 		}
 	}
 	return updates
-}
-
-func buildEntityWriteAudits(
-	kind string,
-	id uint,
-	values map[string]EntityPortValue,
-	oldValues map[string]EntityPortValue,
-	bindingIDsByPort map[string][]uint,
-	meta EntityWriteMeta,
-) []model.CanvasEntityWriteAudit {
-	audits := make([]model.CanvasEntityWriteAudit, 0, len(values))
-	for portID, value := range values {
-		newValueJSON := mustMarshalString(entityPortValueAuditPayload(value))
-		oldValueJSON := ""
-		if oldValue, ok := oldValues[portID]; ok {
-			oldValueJSON = mustMarshalString(entityPortValueAuditPayload(oldValue))
-		}
-		audits = append(audits, canvasruntime.NewEntityWriteAudit(canvasruntime.EntityWriteAuditSpec{
-			CanvasID:           meta.CanvasID,
-			CanvasRunID:        meta.RunID,
-			CanvasNodeID:       meta.NodeID,
-			PortID:             portID,
-			EntityKind:         kind,
-			EntityID:           id,
-			UserID:             meta.UserID,
-			OldValueJSON:       oldValueJSON,
-			NewValueJSON:       newValueJSON,
-			ResourceBindingIDs: mustMarshalString(bindingIDsByPort[portID]),
-		}).ToModel())
-	}
-	return audits
 }
 
 func entityPortValueAuditPayload(value EntityPortValue) map[string]any {

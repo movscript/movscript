@@ -48,6 +48,18 @@ func TestExportedAppStructsDoNotExposePersistenceModels(t *testing.T) {
 	})
 }
 
+func TestAppServicesDoNotImportPersistenceModelsOutsideCanvasExecution(t *testing.T) {
+	walkAppFiles(t, func(path string, file *ast.File, modelNames map[string]struct{}) {
+		if len(modelNames) == 0 || !strings.HasSuffix(filepath.Base(path), "service.go") {
+			return
+		}
+		if strings.HasPrefix(path, "canvas/") {
+			return
+		}
+		t.Errorf("%s imports %s from an app service file", path, domainModelImport)
+	})
+}
+
 func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNames map[string]struct{})) {
 	t.Helper()
 	fset := token.NewFileSet()

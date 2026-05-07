@@ -3,6 +3,7 @@ package semantic
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/movscript/movscript/internal/app/workflowio"
 	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
 )
 
@@ -135,6 +137,7 @@ type repository interface {
 	LoadCreativeRelationship(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeRelationship, error)
 	PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, updates map[string]any) (domainsemantic.CreativeRelationship, error)
 	LoadProjectItem(ctx context.Context, projectID uint, item any, id string) error
+	DeleteProjectItemByKind(ctx context.Context, projectID uint, kind string, id string) (uint, error)
 	CreateItem(ctx context.Context, item any) error
 	PatchItem(ctx context.Context, item any, updates map[string]any) error
 	ReloadItem(ctx context.Context, item any) error
@@ -257,6 +260,75 @@ func (r *gormRepository) LoadProjectItem(ctx context.Context, projectID uint, it
 		return err
 	}
 	return nil
+}
+
+func (r *gormRepository) DeleteProjectItemByKind(ctx context.Context, projectID uint, kind string, id string) (uint, error) {
+	item, err := newDeleteItemModel(kind)
+	if err != nil {
+		return 0, err
+	}
+	if err := r.LoadProjectItem(ctx, projectID, item, id); err != nil {
+		return 0, err
+	}
+	if err := r.DeleteItem(ctx, item); err != nil {
+		return 0, err
+	}
+	return projectIDOf(item), nil
+}
+
+func newDeleteItemModel(kind string) (any, error) {
+	switch kind {
+	case domainworkflow.EntityKindScriptVersion:
+		return &model.ScriptVersion{}, nil
+	case domainworkflow.EntityKindSegment:
+		return &model.Segment{}, nil
+	case "production_text_block":
+		return &model.ProductionTextBlock{}, nil
+	case domainworkflow.EntityKindSceneMoment:
+		return &model.SceneMoment{}, nil
+	case "storyboard_script":
+		return &model.StoryboardScript{}, nil
+	case "storyboard_version":
+		return &model.StoryboardVersion{}, nil
+	case "storyboard_line":
+		return &model.StoryboardLine{}, nil
+	case "production":
+		return &model.Production{}, nil
+	case domainworkflow.EntityKindContentUnit:
+		return &model.ContentUnit{}, nil
+	case domainworkflow.EntityKindKeyframe:
+		return &model.Keyframe{}, nil
+	case "preview_timeline":
+		return &model.PreviewTimeline{}, nil
+	case "preview_timeline_item":
+		return &model.PreviewTimelineItem{}, nil
+	case domainworkflow.EntityKindCreativeReference:
+		return &model.CreativeReference{}, nil
+	case "creative_reference_state":
+		return &model.CreativeReferenceState{}, nil
+	case "creative_reference_usage":
+		return &model.CreativeReferenceUsage{}, nil
+	case "creative_relationship":
+		return &model.CreativeRelationship{}, nil
+	case domainworkflow.EntityKindAssetSlot:
+		return &model.AssetSlot{}, nil
+	case "asset_slot_candidate":
+		return &model.AssetSlotCandidate{}, nil
+	case "candidate_decision":
+		return &model.CandidateDecision{}, nil
+	case "review_event":
+		return &model.ReviewEvent{}, nil
+	case domainworkflow.EntityKindDeliveryVersion:
+		return &model.DeliveryVersion{}, nil
+	case "delivery_timeline_item":
+		return &model.DeliveryTimelineItem{}, nil
+	case "export_record":
+		return &model.ExportRecord{}, nil
+	case "canvas_output":
+		return &model.CanvasOutput{}, nil
+	default:
+		return nil, fmt.Errorf("%w: unsupported delete kind %q", ErrOwnerInvalidType, kind)
+	}
 }
 
 func (r *gormRepository) CreateItem(ctx context.Context, item any) error {

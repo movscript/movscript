@@ -19,6 +19,7 @@ const titleKeys: Record<string, string> = {
   '/workbench/assets': 'header.titles.workbenchAssets',
   '/workbench/production': 'header.titles.workbenchProduction',
   '/workbench/delivery': 'header.titles.workbenchDelivery',
+  '/delivery/workbench': 'header.titles.deliveryWorkbench',
   '/workbench/reference-relations': 'header.titles.workbenchReferenceRelations',
   '/scripts': 'header.titles.scripts',
   '/segments': 'header.titles.segments',

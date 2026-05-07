@@ -128,11 +128,11 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     key: 'delivery',
     title: '成片与交付',
     shortTitle: '交付',
-    href: '/final-videos',
+    href: '/delivery',
     icon: Video,
-    purpose: '管理成片版本、导出物、交付检查和最终归档。',
-    owns: '成片库、导出版本、检查项、交付状态',
-    output: '可交付或可归档的最终版本',
+    purpose: '管理交付版本、素材包、轻量成片、导出物和最终归档。',
+    owns: '交付版本、素材包、成片导出、检查项、交付状态',
+    output: '可交付或可归档的交付包',
   },
 ]
 
@@ -199,13 +199,13 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
   },
   {
     value: 'delivery',
-    title: '交付门禁工作台',
+    title: '交付工作台',
     shortTitle: '交付',
-    href: '/workbench/delivery',
+    href: '/delivery/workbench',
     icon: ClipboardCheck,
-    purpose: '导出前检查完整性、声音、字幕和版权。',
-    decision: '放行、阻塞、补齐或导出检查版。',
-    output: '交付版、内部评审版和归档记录。',
+    purpose: '围绕某个制作做轻量剪辑装配、资源锁定、导出前检查和放行。',
+    decision: '素材包、轻量成片、放行、阻塞、补齐或导出检查版。',
+    output: '交付包、内部评审版、正式成片和归档记录。',
   },
 ]
 

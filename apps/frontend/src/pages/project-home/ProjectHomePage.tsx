@@ -104,7 +104,7 @@ const contentSurfaceLinks = [
   { title: '素材需求', detail: '缺口、候选和锁定素材', href: '/asset-slots', icon: PackageCheck },
   { title: '关系网络', detail: '资料关系和一致性约束', href: '/reference-relations', icon: GitBranch },
   { title: '制作项', detail: '预演与生产的最小颗粒', href: '/contents', icon: Boxes },
-  { title: '成片版本', detail: '最终版本和导出记录', href: '/final-videos', icon: Video },
+  { title: '交付中心', detail: '交付包、成片版本和导出记录', href: '/delivery', icon: Video },
 ]
 
 function percentage(value: number, total: number) {
@@ -514,8 +514,8 @@ export default function ProjectHomePage() {
         secondary: `${counts.approvedDeliveries} 个版本已放行，${counts.lockedContents} 个内容已锁定`,
         progress: deliveryProgress,
         state: data.deliveryVersions.length === 0 ? (counts.lockedContents > 0 ? 'active' : 'empty') : deliveryProgress >= 70 ? 'ready' : 'active',
-        href: '/final-videos',
-        workbenchHref: '/workbench/delivery',
+        href: '/delivery',
+        workbenchHref: '/delivery/workbench',
         icon: Video,
       },
     ]
@@ -591,9 +591,9 @@ export default function ProjectHomePage() {
       },
       {
         key: 'delivery',
-        title: '查看交付门禁',
-        area: '交付门禁工作台',
-        href: '/workbench/delivery',
+        title: '查看交付工作台',
+        area: '交付工作台',
+        href: '/delivery/workbench',
         priority: 'low',
         detail: '提前检查声音、字幕、版权和导出完整性',
       },
